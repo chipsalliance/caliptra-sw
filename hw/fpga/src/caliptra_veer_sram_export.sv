@@ -46,8 +46,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                   .CLK (el2_mem_export.clk                                            ),
                                   .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                   .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                  .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                  .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                  .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                  .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                   .ROP (                                                              ),
                                   // These are used by SoC
                                   `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -62,8 +62,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                   .CLK (el2_mem_export.clk                                            ),
                                   .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                   .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                  .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                  .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                  .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                  .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                   .ROP (                                                              ),
                                   // These are used by SoC
                                   `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -77,8 +77,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                   .CLK (el2_mem_export.clk                                            ),
                                   .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                   .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                  .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                  .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                  .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                  .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                   .ROP (                                                              ),
                                   // These are used by SoC
                                   `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -92,8 +92,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                  .CLK (el2_mem_export.clk                                            ),
                                  .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                  .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                 .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                 .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                 .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                 .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                  .ROP (                                                              ),
                                  // These are used by SoC
                                  `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -107,8 +107,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                  .CLK (el2_mem_export.clk                                            ),
                                  .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                  .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                 .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                 .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                 .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                 .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                  .ROP (                                                              ),
                                  // These are used by SoC
                                  `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -122,8 +122,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                  .CLK (el2_mem_export.clk                                            ),
                                  .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                  .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                 .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                 .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                 .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                 .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                  .ROP (                                                              ),
                                  // These are used by SoC
                                  `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -137,8 +137,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                  .CLK (el2_mem_export.clk                                            ),
                                  .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                  .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                 .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                 .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                 .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                 .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                  .ROP (                                                              ),
                                  // These are used by SoC
                                  `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -152,8 +152,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                  .CLK (el2_mem_export.clk                                            ),
                                  .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                  .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                 .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                 .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                 .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                 .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                  .ROP (                                                              ),
                                  // These are used by SoC
                                  `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -167,8 +167,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                 .CLK (el2_mem_export.clk                                            ),
                                 .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                 .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                 .ROP (                                                              ),
                                 // These are used by SoC
                                 `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -182,8 +182,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                 .CLK (el2_mem_export.clk                                            ),
                                 .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                 .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                 .ROP (                                                              ),
                                 // These are used by SoC
                                 `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -197,8 +197,8 @@ for (genvar i=0; i<pt.DCCM_NUM_BANKS; i++) begin: dccm_loop
                                 .CLK (el2_mem_export.clk                                            ),
                                 .WE  (el2_mem_export.dccm_wren_bank[i]                              ),
                                 .ADR (el2_mem_export.dccm_addr_bank[i]                              ),
-                                .D   (el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_FDATA_WIDTH-1:0]  ),
-                                .Q   (el2_mem_export.dccm_bank_dout[i][pt.DCCM_FDATA_WIDTH-1:0]     ),
+                                .D   ({el2_mem_export.dccm_wr_ecc_bank[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_wr_data_bank[i][pt.DCCM_DATA_WIDTH-1:0]}),
+                                .Q   ({el2_mem_export.dccm_bank_ecc[i][pt.DCCM_ECC_WIDTH-1:0],el2_mem_export.dccm_bank_dout[i][pt.DCCM_DATA_WIDTH-1:0]}     ),
                                 .ROP (                                                              ),
                                 // These are used by SoC
                                 `EL2_LOCAL_DCCM_RAM_TEST_PORTS
@@ -223,8 +223,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .CLK (el2_mem_export.clk                       ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -247,8 +247,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -271,8 +271,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -295,8 +295,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -318,8 +318,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -341,8 +341,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -364,8 +364,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -387,8 +387,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -410,8 +410,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -433,8 +433,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
@@ -456,8 +456,8 @@ for (genvar i=0; i<pt.ICCM_NUM_BANKS; i++) begin: iccm_loop
                                      .ME  (el2_mem_export.iccm_clken[i]             ),
                                      .WE  (el2_mem_export.iccm_wren_bank[i]         ),
                                      .ADR (el2_mem_export.iccm_addr_bank[i]         ),
-                                     .D   (el2_mem_export.iccm_bank_wr_data[i][38:0]),
-                                     .Q   (el2_mem_export.iccm_bank_dout[i][38:0]   ),
+                                     .D   ({el2_mem_export.iccm_bank_wr_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_wr_data[i][31:0]}),
+                                     .Q   ({el2_mem_export.iccm_bank_ecc[i][pt.ICCM_ECC_WIDTH-1:0],el2_mem_export.iccm_bank_dout[i][31:0]}   ),
                                      .ROP (                                         ),
                                      // These are used by SoC
                                      .TEST1   (1'b0   ),
