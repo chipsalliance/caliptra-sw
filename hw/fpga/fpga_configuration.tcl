@@ -60,62 +60,6 @@ if {$GUI} {
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
 create_project caliptra_package_project $outputDir -part xczu7ev-ffvc1156-2-e
 
-# Generate ROM
-create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 -module_name fpga_imem -dir $outputDir
-set_property -dict [list \
-  CONFIG.Memory_Type {True_Dual_Port_RAM} \
-  CONFIG.Write_Depth_A {6144} \
-  CONFIG.Write_Width_A {64} \
-  CONFIG.Write_Width_B {32} \
-  CONFIG.Use_RSTB_Pin {true} \
-  CONFIG.Byte_Size {8} \
-  CONFIG.Use_Byte_Write_Enable {true} \
-  CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-  CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-] [get_ips fpga_imem]
-
-# Generate Mailbox RAM. 128K
-create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 -module_name fpga_mbox_ram -dir $outputDir
-set_property -dict [list \
-  CONFIG.Memory_Type {Single_Port_RAM} \
-  CONFIG.Write_Depth_A {32768} \
-  CONFIG.Write_Width_A {39} \
-  CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-] [get_ips fpga_mbox_ram]
-
-# Generate ECC TDP File
-create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 -module_name fpga_ecc_ram_tdp_file -dir $outputDir
-set_property -dict [list \
-  CONFIG.Memory_Type {True_Dual_Port_RAM} \
-  CONFIG.Write_Depth_A {64} \
-  CONFIG.Write_Width_A {384} \
-  CONFIG.Write_Width_B {384} \
-  CONFIG.Use_RSTA_Pin {true} \
-  CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-  CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
-] [get_ips fpga_ecc_ram_tdp_file]
-
-# Create FIFO for fake UART communication
-create_ip -name fifo_generator -vendor xilinx.com -library ip -version 13.2 -module_name log_fifo -dir $outputDir
-set_property -dict [list \
-  CONFIG.Input_Data_Width {8} \
-  CONFIG.Input_Depth {8192} \
-  CONFIG.Performance_Options {First_Word_Fall_Through} \
-  CONFIG.Full_Threshold_Assert_Value {7168} \
-  CONFIG.Programmable_Full_Type {Single_Programmable_Full_Threshold_Constant} \
-] [get_ips log_fifo]
-
-# Create FIFO for ITRNG data
-create_ip -name fifo_generator -vendor xilinx.com -library ip -version 13.2 -module_name itrng_fifo -dir $outputDir
-set_property -dict [list \
-  CONFIG.Input_Data_Width {32} \
-  CONFIG.Input_Depth {1024} \
-  CONFIG.Output_Data_Width {4} \
-  CONFIG.Overflow_Flag {false} \
-  CONFIG.Valid_Flag {true} \
-  CONFIG.asymmetric_port_width {true} \
-] [get_ips itrng_fifo]
-
 set_property verilog_define $VERILOG_OPTIONS [current_fileset]
 
 # Add VEER Headers

@@ -149,7 +149,7 @@ impl ModelFpgaRealtime {
                 };
                 if trngfifosts.trng_fifo_full() == 0 {
                     let mut itrng_dw = 0;
-                    for i in (0..8).rev() {
+                    for i in 0..8 {
                         match itrng_nibbles.next() {
                             Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
                             None => return,

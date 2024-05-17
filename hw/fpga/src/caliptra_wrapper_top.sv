@@ -181,36 +181,109 @@ caliptra_veer_sram_export veer_sram_export_inst (
 );
 
 // Mailbox RAM
-fpga_mbox_ram mbox_ram1
-(
-    .clka(core_clk),
+   xpm_memory_spram #(
+      .ADDR_WIDTH_A(15),             // DECIMAL
+      .AUTO_SLEEP_TIME(0),           // DECIMAL
+      .BYTE_WRITE_WIDTH_A(39),       // DECIMAL
+      .CASCADE_HEIGHT(0),            // DECIMAL
+      .ECC_MODE("no_ecc"),           // String
+      .MEMORY_INIT_FILE("none"),     // String
+      .MEMORY_INIT_PARAM("0"),       // String
+      .MEMORY_OPTIMIZATION("true"),  // String
+      .MEMORY_PRIMITIVE("auto"),     // String
+      .MEMORY_SIZE(128*1024*8*39/32), // DECIMAL
+      .MESSAGE_CONTROL(0),           // DECIMAL
+      .READ_DATA_WIDTH_A(39),        // DECIMAL
+      .READ_LATENCY_A(1),            // DECIMAL
+      .READ_RESET_VALUE_A("0"),      // String
+      .RST_MODE_A("SYNC"),           // String
+      .SIM_ASSERT_CHK(0),            // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_MEM_INIT(1),              // DECIMAL
+      .USE_MEM_INIT_MMI(0),          // DECIMAL
+      .WAKEUP_TIME("disable_sleep"), // String
+      .WRITE_DATA_WIDTH_A(39),       // DECIMAL
+      .WRITE_MODE_A("read_first"),   // String
+      .WRITE_PROTECT(1)              // DECIMAL
+   )
+   mbox_ram1 (
+      .dbiterra(),
+      .douta(mbox_sram_rdata),
+      .sbiterra(),
+      .addra(mbox_sram_addr),
+      .clka(core_clk),
+      .dina(mbox_sram_wdata),
+      .ena(mbox_sram_cs),
+      .injectdbiterra(0),
+      .injectsbiterra(0),
+      .regcea(1'b1),
+      .rsta(axi_bram_rst),
+      .sleep(0),
+      .wea(mbox_sram_we)
 
-    .ena(mbox_sram_cs),
-    .wea(mbox_sram_we),
-    .addra(mbox_sram_addr),
-    .dina(mbox_sram_wdata),
-
-    .douta(mbox_sram_rdata)
-);
+   );
 
 // SRAM for imem/ROM
-fpga_imem imem_inst1(
-    // Port A for Caliptra
-    .clka(core_clk),
-    .ena(imem_cs),
-    .wea(8'h0),
-    .addra(imem_addr),
-    .dina(0),
-    .douta(imem_rdata),
-    // Port B to the AXI bus for loading ROM
-    .clkb(axi_bram_clk),
-    .enb(axi_bram_en),
-    .web(axi_bram_we),
-    .addrb(axi_bram_addr),
-    .dinb(axi_bram_wrdata),
-    .doutb(axi_bram_rddata),
-    .rstb(axi_bram_rst)
-);
+   xpm_memory_tdpram #(
+      .ADDR_WIDTH_A(`CALIPTRA_IMEM_ADDR_WIDTH), // DECIMAL
+      .ADDR_WIDTH_B(14),              // DECIMAL
+      .AUTO_SLEEP_TIME(0),            // DECIMAL
+      .BYTE_WRITE_WIDTH_A(64),        // DECIMAL
+      .BYTE_WRITE_WIDTH_B(8),         // DECIMAL
+      .CASCADE_HEIGHT(0),             // DECIMAL
+      .CLOCKING_MODE("common_clock"), // String
+      .ECC_MODE("no_ecc"),            // String
+      .MEMORY_INIT_FILE("none"),      // String
+      .MEMORY_INIT_PARAM("0"),        // String
+      .MEMORY_OPTIMIZATION("false"),  // String
+      .MEMORY_PRIMITIVE("auto"),      // String
+      .MEMORY_SIZE(48*1024*8),        // DECIMAL
+      .MESSAGE_CONTROL(0),            // DECIMAL
+      .READ_DATA_WIDTH_A(64),         // DECIMAL
+      .READ_DATA_WIDTH_B(32),         // DECIMAL
+      .READ_LATENCY_A(1),             // DECIMAL
+      .READ_LATENCY_B(1),             // DECIMAL
+      .READ_RESET_VALUE_A("0"),       // String
+      .READ_RESET_VALUE_B("0"),       // String
+      .RST_MODE_A("SYNC"),            // String
+      .RST_MODE_B("SYNC"),            // String
+      .SIM_ASSERT_CHK(0),             // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_EMBEDDED_CONSTRAINT(0),    // DECIMAL
+      .USE_MEM_INIT(1),               // DECIMAL
+      .USE_MEM_INIT_MMI(0),           // DECIMAL
+      .WAKEUP_TIME("disable_sleep"),  // String
+      .WRITE_DATA_WIDTH_A(64),        // DECIMAL
+      .WRITE_DATA_WIDTH_B(32),        // DECIMAL
+      .WRITE_MODE_A("no_change"),     // String
+      .WRITE_MODE_B("no_change"),     // String
+      .WRITE_PROTECT(1)               // DECIMAL
+   )
+   imem_inst1 (
+      .dbiterra(),
+      .dbiterrb(),
+      .douta(imem_rdata),
+      .doutb(axi_bram_rddata),
+      .sbiterra(),
+      .sbiterrb(),
+      .addra(imem_addr),
+      .addrb(axi_bram_addr),
+      .clka(core_clk),
+      .clkb(core_clk),
+      .dina(0),
+      .dinb(axi_bram_wrdata),
+      .ena(imem_cs),
+      .enb(axi_bram_en),
+      .injectdbiterra(0),
+      .injectdbiterrb(0),
+      .injectsbiterra(0),
+      .injectsbiterrb(0),
+      .regcea(1),
+      .regceb(1),
+      .rsta(axi_bram_rst),
+      .rstb(axi_bram_rst),
+      .sleep(0),
+      .wea(8'h0),
+      .web(axi_bram_we)
+   );
 
     axi4lite_intf s_axil ();
 
@@ -272,17 +345,52 @@ fpga_imem imem_inst1(
     assign fifo_write_en = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
     assign fifo_char[7:0] = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
 
-    log_fifo log_fifo_inst(
-        .clk (core_clk),
-        .srst (~S_AXI_ARESETN),
-        .dout (hwif_in.fifo_regs.log_fifo_data.next_char.next),
-        .empty (log_fifo_empty),
-        .full (hwif_in.fifo_regs.log_fifo_status.log_fifo_full.next),
-        .din (fifo_char),
-        .wr_en (fifo_write_en),
-        .rd_en (log_fifo_valid_f & hwif_out.fifo_regs.log_fifo_data.next_char.rd_swacc),
-        .prog_full () // [get_bd_pins zynq_ultra_ps_e_0/pl_ps_irq0]
-    );
+   xpm_fifo_sync #(
+      .CASCADE_HEIGHT(0),        // DECIMAL
+      .DOUT_RESET_VALUE("0"),    // String
+      .ECC_MODE("no_ecc"),       // String
+      .FIFO_MEMORY_TYPE("auto"), // String
+      .FIFO_READ_LATENCY(0),     // DECIMAL
+      .FIFO_WRITE_DEPTH(8192),   // DECIMAL
+      .FULL_RESET_VALUE(0),      // DECIMAL
+      .PROG_EMPTY_THRESH(10),    // DECIMAL
+      .PROG_FULL_THRESH(4096),   // DECIMAL
+      .RD_DATA_COUNT_WIDTH(14),  // DECIMAL
+      .READ_DATA_WIDTH(8),       // DECIMAL
+      .READ_MODE("fwft"),        // String
+      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_ADV_FEATURES("0707"), // String
+      .WAKEUP_TIME(0),           // DECIMAL
+      .WRITE_DATA_WIDTH(8),      // DECIMAL
+      .WR_DATA_COUNT_WIDTH(14)   // DECIMAL
+   )
+   log_fifo_inst (
+      .almost_empty(),
+      .almost_full(),
+      .data_valid(),
+      .dbiterr(),
+      .dout(hwif_in.fifo_regs.log_fifo_data.next_char.next),
+      .empty(log_fifo_empty),
+      .full(hwif_in.fifo_regs.log_fifo_status.log_fifo_full.next),
+      .overflow(),
+      .prog_empty(),
+      .prog_full(),
+      .rd_data_count(),
+      .rd_rst_busy(),
+      .sbiterr(),
+      .underflow(),
+      .wr_ack(),
+      .wr_data_count(),
+      .wr_rst_busy(),
+      .din(fifo_char),
+      .injectdbiterr(0),
+      .injectsbiterr(0),
+      .rd_en(log_fifo_valid_f & hwif_out.fifo_regs.log_fifo_data.next_char.rd_swacc),
+      .rst(~S_AXI_ARESETN),
+      .sleep(0),
+      .wr_clk(core_clk),
+      .wr_en(fifo_write_en)
+   );
 
 
 `ifdef CALIPTRA_INTERNAL_TRNG
@@ -294,17 +402,52 @@ fpga_imem imem_inst1(
         trng_fifo_wr_en <= hwif_out.fifo_regs.itrng_fifo_data.itrng_data.wr_swacc;
     end
 
-    itrng_fifo trng_fifo_inst(
-        .clk (core_clk),
-        .srst (hwif_out.fifo_regs.itrng_fifo_status.itrng_fifo_reset.value),
-        .dout (itrng_data),
-        .empty (hwif_in.fifo_regs.itrng_fifo_status.itrng_fifo_empty.next),
-        .full (hwif_in.fifo_regs.itrng_fifo_status.itrng_fifo_full.next),
-        .din (hwif_out.fifo_regs.itrng_fifo_data.itrng_data.value),
-        .wr_en (trng_fifo_wr_en),
-        .rd_en (throttled_etrng_req),
-        .valid (itrng_valid)
-    );
+   xpm_fifo_sync #(
+      .CASCADE_HEIGHT(0),        // DECIMAL
+      .DOUT_RESET_VALUE("0"),    // String
+      .ECC_MODE("no_ecc"),       // String
+      .FIFO_MEMORY_TYPE("auto"), // String
+      .FIFO_READ_LATENCY(1),     // DECIMAL
+      .FIFO_WRITE_DEPTH(1024),   // DECIMAL
+      .FULL_RESET_VALUE(0),      // DECIMAL
+      .PROG_EMPTY_THRESH(10),    // DECIMAL
+      .PROG_FULL_THRESH(10),     // DECIMAL
+      .RD_DATA_COUNT_WIDTH(13),  // DECIMAL
+      .READ_DATA_WIDTH(4),       // DECIMAL
+      .READ_MODE("std"),         // String
+      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_ADV_FEATURES("1000"), // String
+      .WAKEUP_TIME(0),           // DECIMAL
+      .WRITE_DATA_WIDTH(32),     // DECIMAL
+      .WR_DATA_COUNT_WIDTH(11)   // DECIMAL
+   )
+   trng_fifo_inst (
+      .almost_empty(),
+      .almost_full(),
+      .data_valid(itrng_valid),
+      .dbiterr(),
+      .dout(itrng_data),
+      .empty(hwif_in.fifo_regs.itrng_fifo_status.itrng_fifo_empty.next),
+      .full(hwif_in.fifo_regs.itrng_fifo_status.itrng_fifo_full.next),
+      .overflow(),
+      .prog_empty(),
+      .prog_full(),
+      .rd_data_count(),
+      .rd_rst_busy(),
+      .sbiterr(),
+      .underflow(),
+      .wr_ack(),
+      .wr_data_count(),
+      .wr_rst_busy(),
+      .din(hwif_out.fifo_regs.itrng_fifo_data.itrng_data.value),
+      .injectdbiterr(0),
+      .injectsbiterr(0),
+      .rd_en(throttled_etrng_req),
+      .rst(hwif_out.fifo_regs.itrng_fifo_status.itrng_fifo_reset.value),
+      .sleep(0),
+      .wr_clk(core_clk),
+      .wr_en(trng_fifo_wr_en)
+   );
 
     // Throttle etrng_req.
     reg [31:0] counter;
