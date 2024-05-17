@@ -70,6 +70,7 @@ This script provides a number of configuration options for features that can be 
 | CG_EN       | Removes FPGA optimizations and allows clock gating.
 | RTL_VERSION | RTL directory under hw/. latest or 1.0.
 | BOARD       | VCK190 or VMK180 (TODO: VMK180 not fully enabled)
+| SEGMENTED   | Enabling [Segmented Configuration](https://github.com/Xilinx/Vivado-Design-Tutorials/tree/2024.2/Versal/Boot_and_Config/Segmented_Configuration) causes the design to be split into a boot.pdi that configures the NOC and a pl.pdi that holds the rest of the design. This flow allows the PL to be changed without rebooting the system. Segmented Configuration requires Vivado 2024.2.
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`

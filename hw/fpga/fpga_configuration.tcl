@@ -9,6 +9,8 @@ set RTL_VERSION latest
 set BOARD VCK190
 set ITRNG TRUE
 set APB FALSE
+set SEGMENTED FALSE
+set SEGMENTED_WRITE_NCR FALSE
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
@@ -84,6 +86,9 @@ source create_caliptra_package.tcl
 # Create a project for the SOC connections
 create_project caliptra_fpga_project $outputDir -part $PART
 set_property board_part $BOARD_PART [current_project]
+if {$SEGMENTED} {
+  set_property segmented_configuration true [current_project]
+}
 
 # Include the packaged IP
 set_property  ip_repo_paths "$caliptrapackageDir" [current_project]
@@ -220,6 +225,16 @@ set_property STEPS.SYNTH_DESIGN.ARGS.GATED_CLOCK_CONVERSION $GATED_CLOCK_CONVERS
 # Add DDR pin placement constraints
 add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
 
+# Set initial boot property to make the NOC connections part of the boot PDI.
+if {$SEGMENTED} {
+  set_property initial_boot true [get_noc_logical_paths]
+}
+
+# Load a previous NCR
+if {$SEGMENTED} {
+  read_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+}
+
 # Start build
 if {$BUILD} {
   launch_runs synth_1 -jobs 10
@@ -228,6 +243,19 @@ if {$BUILD} {
   wait_on_runs impl_1
   open_run impl_1
   report_utilization -file $outputDir/utilization.txt
+  if {$SEGMENTED} {
+    if {$SEGMENTED_WRITE_NCR} {
+      # Lock the NoC path segments and save the solution for later builds.
+      set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -filter {initial_boot == 1}]]
+      # TODO is the below line needed?
+      #set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -of [get_noc_logical_instances *N?U128*]]]
+      write_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+    } else {
+      # Verify that the NoC Solutions are identical and the PLD images are compatible.
+      # TODO: Is there a good way to do this? Or should we just rely on the ncr blindly?
+      #pr_verify -initial <first_design>_routed.dcp -additional <second_design>_routed.dcp
+    }
+  }
 
   write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa
 }
