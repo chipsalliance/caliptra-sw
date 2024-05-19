@@ -17,6 +17,7 @@ set JTAG  TRUE
 set ITRNG TRUE
 set CG_EN FALSE
 set RTL_VERSION latest
+set BOARD ZCU104
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
@@ -56,9 +57,18 @@ if {$GUI} {
   start_gui
 }
 
+if {$BOARD eq "ZCU104"} {
+  set PART xczu7ev-ffvc1156-2-e
+} elseif {$BOARD eq "VCK190"} {
+  set PART xcvc1902-vsva2197-2MP-e-S
+} else {
+  puts "Board $BOARD not supported"
+  exit
+}
+
 # Create a project to package Caliptra.
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
-create_project caliptra_package_project $outputDir -part xczu7ev-ffvc1156-2-e
+create_project caliptra_package_project $outputDir -part $PART
 
 set_property verilog_define $VERILOG_OPTIONS [current_fileset]
 
@@ -133,7 +143,7 @@ close_project
 # Packaging complete
 
 # Create a project for the SOC connections
-create_project caliptra_fpga_project $outputDir -part xczu7ev-ffvc1156-2-e
+create_project caliptra_fpga_project $outputDir -part $PART
 
 # Include the packaged IP
 set_property  ip_repo_paths  "$packageDir $adapterDir" [current_project]
@@ -145,18 +155,76 @@ create_bd_design "caliptra_fpga_project_bd"
 # Add Caliptra package
 create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_package_top_0
 
-# Add Zynq PS
-create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e zynq_ultra_ps_e_0
-set_property -dict [list \
-  CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} \
-  CONFIG.PSU__USE__IRQ0 {1} \
-  CONFIG.PSU__GPIO_EMIO__PERIPHERAL__ENABLE {1} \
-  CONFIG.PSU__GPIO_EMIO__PERIPHERAL__IO {5} \
-] [get_bd_cells zynq_ultra_ps_e_0]
+# Add Zynq/Versal PS
+if {$BOARD eq "ZCU104"} {
+  create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e ps_0
+  set_property -dict [list \
+    CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} \
+    CONFIG.PSU__USE__IRQ0 {1} \
+    CONFIG.PSU__GPIO_EMIO__PERIPHERAL__ENABLE {1} \
+    CONFIG.PSU__GPIO_EMIO__PERIPHERAL__IO {5} \
+  ] [get_bd_cells ps_0]
+
+  # Create variables to adapt between PS
+  set ps_m_axi ps_0/M_AXI_HPM0_LPD
+  set ps_pl_clk ps_0/pl_clk0
+  set ps_axi_aclk ps_0/maxihpm0_lpd_aclk
+  set ps_pl_resetn ps_0/pl_resetn0
+  set ps_gpio_i ps_0/emio_gpio_i
+  set ps_gpio_o ps_0/emio_gpio_o
+
+  # Create XDC file with constraints
+  set xdc_fd [ open $outputDir/jtag_constraints.xdc w ]
+  puts $xdc_fd {create_clock -period 5000.000 -name {jtag_clk} -waveform {0.000 2500.000} [get_pins {caliptra_fpga_project_bd_i/ps_0/inst/PS8_i/EMIOGPIOO[0]}]}
+  puts $xdc_fd {set_clock_groups -asynchronous -group [get_clocks {jtag_clk}]}
+  close $xdc_fd
+
+} else {
+  create_bd_cell -type ip -vlnv xilinx.com:ip:versal_cips:3.3 ps_0
+  set_property -dict [list \
+    CONFIG.CPM_CONFIG { \
+      CPM_PCIE0_MODES {None} \
+    } \
+    CONFIG.PS_PL_CONNECTIVITY_MODE {Custom} \
+    CONFIG.PS_PMC_CONFIG { \
+      DESIGN_MODE {1} \
+      PMC_CRP_PL0_REF_CTRL_FREQMHZ {20} \
+      PS_BOARD_INTERFACE {Custom} \
+      PS_CRL_LPD_LSBUS_CTRL_FREQMHZ {20} \
+      PS_GPIO_EMIO_PERIPHERAL_ENABLE {1} \
+      PS_GPIO_EMIO_WIDTH {5} \
+      PS_M_AXI_LPD_DATA_WIDTH {32} \
+      PS_NUM_FABRIC_RESETS {1} \
+      PS_PL_CONNECTIVITY_MODE {Custom} \
+      PS_USE_M_AXI_LPD {1} \
+      PS_USE_PMCPL_CLK0 {1} \
+      SMON_ALARMS {Set_Alarms_On} \
+      SMON_ENABLE_TEMP_AVERAGING {0} \
+      SMON_TEMP_AVERAGING_SAMPLES {0} \
+    } \
+  ] [get_bd_cells ps_0]
+
+  # Create variables to adapt between PS
+  set ps_m_axi ps_0/M_AXI_LPD
+  set ps_pl_clk ps_0/pl0_ref_clk
+  set ps_axi_aclk ps_0/m_axi_lpd_aclk
+  set ps_pl_resetn ps_0/pl0_resetn
+  set ps_gpio_i ps_0/LPD_GPIO_i
+  set ps_gpio_o ps_0/LPD_GPIO_o
+
+  # Create XDC file with constraints
+  set xdc_fd [ open $outputDir/jtag_constraints.xdc w ]
+  puts $xdc_fd {create_clock -period 5000.000 -name {jtag_clk} -waveform {0.000 2500.000} [get_pins {caliptra_fpga_project_bd_i/ps_0/inst/pspmc_0/inst/PS9_inst/EMIOGPIO2O[0]}]}
+  puts $xdc_fd {set_clock_groups -asynchronous -group [get_clocks {jtag_clk}]}
+  close $xdc_fd
+}
 
 # Add AXI Interconnect
-create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_interconnect_0
-set_property CONFIG.NUM_MI {3} [get_bd_cells axi_interconnect_0]
+create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_interconnect_0
+set_property -dict [list \
+  CONFIG.NUM_MI {3} \
+  CONFIG.NUM_SI {1} \
+] [get_bd_cells axi_interconnect_0]
 
 # Add AXI APB Bridge for Caliptra
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_apb_bridge:3.0 axi_apb_bridge_0
@@ -173,52 +241,53 @@ set_property CONFIG.SINGLE_PORT_BRAM {1} [get_bd_cells axi_bram_ctrl_0]
 create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0
 
 # Move blocks around on the block diagram. This step is optional.
-set_property location {1 177 345} [get_bd_cells zynq_ultra_ps_e_0]
+set_property location {1 177 345} [get_bd_cells ps_0]
 set_property location {2 696 373} [get_bd_cells axi_interconnect_0]
 set_property location {2 707 654} [get_bd_cells proc_sys_reset_0]
 set_property location {3 1041 439} [get_bd_cells axi_apb_bridge_0]
 set_property location {3 1151 617} [get_bd_cells axi_bram_ctrl_0]
 set_property location {4 1335 456} [get_bd_cells caliptra_package_top_0]
 
-# Create interface connections
-connect_bd_intf_net -intf_net axi_apb_bridge_0_APB_M [get_bd_intf_pins axi_apb_bridge_0/APB_M] [get_bd_intf_pins caliptra_package_top_0/s_apb]
-connect_bd_intf_net -intf_net axi_interconnect_0_M01_AXI [get_bd_intf_pins axi_apb_bridge_0/AXI4_LITE] [get_bd_intf_pins axi_interconnect_0/M01_AXI]
-connect_bd_intf_net -intf_net zynq_ultra_ps_e_0_M_AXI_HPM0_LPD [get_bd_intf_pins axi_interconnect_0/S00_AXI] [get_bd_intf_pins zynq_ultra_ps_e_0/M_AXI_HPM0_LPD]
-connect_bd_intf_net [get_bd_intf_pins axi_bram_ctrl_0/S_AXI] -boundary_type upper [get_bd_intf_pins axi_interconnect_0/M02_AXI]
+# Create AXI bus connections
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/S00_AXI] [get_bd_intf_pins $ps_m_axi]
+# AXI for FPGA wrapper registers
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M00_AXI] [get_bd_intf_pins caliptra_package_top_0/S_AXI]
+# AXI to APB for Caliptra
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M01_AXI] [get_bd_intf_pins axi_apb_bridge_0/AXI4_LITE]
+connect_bd_intf_net [get_bd_intf_pins axi_apb_bridge_0/APB_M] [get_bd_intf_pins caliptra_package_top_0/s_apb]
+# AXI connection to program ROM
+connect_bd_intf_net [get_bd_intf_pins axi_interconnect_0/M02_AXI] [get_bd_intf_pins axi_bram_ctrl_0/S_AXI]
 connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins axi_bram_ctrl_0/BRAM_PORTA]
 
-# Create port connections
-connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] [get_bd_pins caliptra_package_top_0/S_AXI_ARESETN] [get_bd_pins axi_interconnect_0/ARESETN] [get_bd_pins axi_interconnect_0/M00_ARESETN] [get_bd_pins axi_interconnect_0/M01_ARESETN] [get_bd_pins axi_interconnect_0/S00_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
-connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins axi_apb_bridge_0/s_axi_aclk] [get_bd_pins axi_interconnect_0/ACLK] [get_bd_pins axi_interconnect_0/M00_ACLK] [get_bd_pins axi_interconnect_0/M01_ACLK] [get_bd_pins axi_interconnect_0/S00_ACLK] [get_bd_pins caliptra_package_top_0/core_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_lpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
-# Caliptra SOC adapter connections
-connect_bd_intf_net -boundary_type upper [get_bd_intf_pins axi_interconnect_0/M00_AXI] [get_bd_intf_pins caliptra_package_top_0/S_AXI]
-
-connect_bd_net -net zynq_ultra_ps_e_0_pl_resetn0 [get_bd_pins proc_sys_reset_0/ext_reset_in] [get_bd_pins zynq_ultra_ps_e_0/pl_resetn0]
-connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
-connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
-connect_bd_net [get_bd_pins axi_interconnect_0/M02_ACLK] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
-connect_bd_net [get_bd_pins axi_interconnect_0/M02_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
+# Create reset connections
+connect_bd_net [get_bd_pins $ps_pl_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
+connect_bd_net -net proc_sys_reset_0_peripheral_aresetn \
+  [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
+  [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] \
+  [get_bd_pins axi_interconnect_0/aresetn] \
+  [get_bd_pins caliptra_package_top_0/S_AXI_ARESETN] \
+  [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn]
+# Create clock connections
+connect_bd_net -net ps_0_pl0_ref_clk \
+  [get_bd_pins $ps_pl_clk] \
+  [get_bd_pins $ps_axi_aclk] \
+  [get_bd_pins proc_sys_reset_0/slowest_sync_clk] \
+  [get_bd_pins axi_apb_bridge_0/s_axi_aclk] \
+  [get_bd_pins axi_interconnect_0/aclk] \
+  [get_bd_pins caliptra_package_top_0/core_clk] \
+  [get_bd_pins axi_bram_ctrl_0/s_axi_aclk]
 
 # Create address segments
-assign_bd_address -offset 0x80000000 -range 0x00002000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/S_AXI/reg0] -force
-assign_bd_address -offset 0x82000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
-assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
+assign_bd_address -offset 0x80000000 -range 0x00002000 -target_address_space [get_bd_addr_spaces ps_0/Data] [get_bd_addr_segs caliptra_package_top_0/S_AXI/reg0] -force
+assign_bd_address -offset 0x82000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces ps_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces ps_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
-if {$JTAG} {
-  # Connect JTAG signals to PS GPIO pins
-  connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_out] [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_i]
-  connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_in]  [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_o]
+# Connect JTAG signals to PS GPIO pins
+connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_out] [get_bd_pins $ps_gpio_i]
+connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_in] [get_bd_pins $ps_gpio_o]
 
-  # Add constraints for JTAG signals
-  add_files -fileset constrs_1 $fpgaDir/src/jtag_constraints.xdc
-} else {
-  # Tie off JTAG inputs
-  create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0
-  connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tck]
-  connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tms]
-  connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tdi]
-  connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
-}
+# Add constraints for JTAG signals
+add_files -fileset constrs_1 $outputDir/jtag_constraints.xdc
 
 save_bd_design
 set_property verilog_define $VERILOG_OPTIONS [current_fileset]
@@ -234,7 +303,9 @@ create_ip_run [get_files *.bd]
 set_property STEPS.SYNTH_DESIGN.ARGS.GATED_CLOCK_CONVERSION $GATED_CLOCK_CONVERSION [get_runs caliptra_fpga_project_bd_caliptra_package_top_0_0_synth_1]
 
 # The FPGA loading methods currently in use require the bin file to be generated.
-set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
+if {$BOARD eq "ZCU104"} {
+  set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
+}
 
 # Start build
 if {$BUILD} {
