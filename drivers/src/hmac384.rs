@@ -137,29 +137,25 @@ impl Hmac384 {
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
-        match &mut tag {
-            Hmac384Tag::Array4x12(_arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
-            }
-            Hmac384Tag::Key(key) => {
-                KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
-            }
+        if matches!(&mut tag, Hmac384Tag::Array4x12(_)) {
+            KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?;
         }
 
         // Configure the hardware to use key to use for the HMAC operation
-        match key {
-            Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
-            Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
-                    .map_err(|err| err.into_read_key_err())?
+        let key = match key {
+            Hmac384Key::Array4x12(arr) => {
+                KvAccess::copy_from_arr(arr, hmac.key())?;
+                None
             }
-        }
+            Hmac384Key::Key(key) => Some(*key),
+        };
 
         // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
         let op = Hmac384Op {
             hmac_engine: self,
+            key,
             state: Hmac384OpState::Init,
             buf: [0u8; HMAC384_BLOCK_SIZE_BYTES],
             buf_idx: 0,
@@ -214,38 +210,36 @@ impl Hmac384 {
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
-        match &mut tag {
+        let dest_key = match &mut tag {
             Hmac384Tag::Array4x12(_arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
+                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?;
+                None
             }
-            Hmac384Tag::Key(key) => {
-                KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
-            }
-        }
+            Hmac384Tag::Key(dest_key) => Some(*dest_key),
+        };
 
         // Configure the hardware to use key to use for the HMAC operation
-        match key {
-            Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
-            Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
-                    .map_err(|err| err.into_read_key_err())?
+        let key = match *key {
+            Hmac384Key::Array4x12(arr) => {
+                KvAccess::copy_from_arr(arr, hmac.key())?;
+                None
             }
-        }
+            Hmac384Key::Key(key) => Some(key),
+        };
         // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
         // Calculate the hmac
         match data {
-            Hmac384Data::Slice(buf) => self.hmac_buf(buf)?,
-            Hmac384Data::Key(key) => self.hmac_key(*key)?,
+            Hmac384Data::Slice(buf) => self.hmac_buf(buf, key, dest_key)?,
+            Hmac384Data::Key(data_key) => self.hmac_key(*data_key, key, dest_key)?,
         }
         let hmac = self.hmac.regs();
 
         // Copy the tag to the specified location
         let result = match &mut tag {
             Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
-            Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
-                .map_err(|err| err.into_write_tag_err()),
+            _ => Ok(()),
         };
 
         self.zeroize_internal();
@@ -280,7 +274,12 @@ impl Hmac384 {
     ///
     /// * `buf` - Buffer to calculate the hmac over
     ///
-    fn hmac_buf(&mut self, buf: &[u8]) -> CaliptraResult<()> {
+    fn hmac_buf(
+        &mut self,
+        buf: &[u8],
+        key: Option<KeyReadArgs>,
+        dest_key: Option<KeyWriteArgs>,
+    ) -> CaliptraResult<()> {
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC384_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_HMAC384_MAX_DATA);
@@ -298,7 +297,7 @@ impl Hmac384 {
                     // the panic.
 
                     if let Some(slice) = buf.get(offset..) {
-                        self.hmac_partial_block(slice, first, buf.len())?;
+                        self.hmac_partial_block(slice, first, buf.len(), key, dest_key)?;
                         break;
                     } else {
                         return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
@@ -311,7 +310,7 @@ impl Hmac384 {
                     // the panic.
                     if let Some(slice) = buf.get(offset..offset + HMAC384_BLOCK_SIZE_BYTES) {
                         let block = <&[u8; HMAC384_BLOCK_SIZE_BYTES]>::try_from(slice).unwrap();
-                        self.hmac_block(block, first)?;
+                        self.hmac_block(block, first, key, dest_key)?;
                         bytes_remaining -= HMAC384_BLOCK_SIZE_BYTES;
                         first = false;
                     } else {
@@ -331,13 +330,18 @@ impl Hmac384 {
     ///
     /// * `key` - Key to calculate hmac for
     ///
-    fn hmac_key(&mut self, key: KeyReadArgs) -> CaliptraResult<()> {
+    fn hmac_key(
+        &mut self,
+        data_key: KeyReadArgs,
+        key: Option<KeyReadArgs>,
+        dest_key: Option<KeyWriteArgs>,
+    ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
 
-        KvAccess::copy_from_kv(key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())
+        KvAccess::copy_from_kv(data_key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())
             .map_err(|err| err.into_read_data_err())?;
 
-        self.hmac_op(true)
+        self.hmac_op(true, key, dest_key)
     }
 
     fn hmac_partial_block(
@@ -345,6 +349,8 @@ impl Hmac384 {
         slice: &[u8],
         first: bool,
         buf_size: usize,
+        key: Option<KeyReadArgs>,
+        dest_key: Option<KeyWriteArgs>,
     ) -> CaliptraResult<()> {
         /// Set block length
         fn set_block_len(buf_size: usize, block: &mut [u8; HMAC384_BLOCK_SIZE_BYTES]) {
@@ -367,13 +373,13 @@ impl Hmac384 {
         }
 
         // Calculate the digest of the op
-        self.hmac_block(&block, first)?;
+        self.hmac_block(&block, first, key, dest_key)?;
 
         // Add a padding block if one is needed
         if slice.len() >= HMAC384_BLOCK_LEN_OFFSET {
             block.fill(0);
             set_block_len(buf_size, &mut block);
-            self.hmac_block(&block, false)?;
+            self.hmac_block(&block, false, key, dest_key)?;
         }
 
         Ok(())
@@ -391,10 +397,12 @@ impl Hmac384 {
         &mut self,
         block: &[u8; HMAC384_BLOCK_SIZE_BYTES],
         first: bool,
+        key: Option<KeyReadArgs>,
+        dest_key: Option<KeyWriteArgs>,
     ) -> CaliptraResult<()> {
         let hmac384 = self.hmac.regs_mut();
         Array4x32::from(block).write_to_reg(hmac384.block());
-        self.hmac_op(first)
+        self.hmac_op(first, key, dest_key)
     }
 
     ///
@@ -404,8 +412,21 @@ impl Hmac384 {
     ///
     /// * `first` - Flag indicating if this is the first block
     ///
-    fn hmac_op(&mut self, first: bool) -> CaliptraResult<()> {
+    fn hmac_op(
+        &mut self,
+        first: bool,
+        key: Option<KeyReadArgs>,
+        dest_key: Option<KeyWriteArgs>,
+    ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
+
+        if let Some(key) = key {
+            KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
+                .map_err(|err| err.into_read_key_err())?
+        };
+        if let Some(dest_key) = dest_key {
+            KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), dest_key)?;
+        }
 
         // Wait for the hardware to be ready
         wait::until(|| hmac.status().read().ready());
@@ -420,6 +441,11 @@ impl Hmac384 {
 
         // Wait for the hmac operation to finish
         wait::until(|| hmac.status().read().valid());
+
+        if let Some(dest_key) = dest_key {
+            KvAccess::end_copy_to_kv(hmac.kv_wr_status(), dest_key)
+                .map_err(|err| err.into_write_tag_err())?;
+        }
 
         Ok(())
     }
@@ -444,6 +470,9 @@ pub struct Hmac384Op<'a> {
 
     /// State
     state: Hmac384OpState,
+
+    // The keyvault key used to compute the hmac
+    key: Option<KeyReadArgs>,
 
     /// Staging buffer
     buf: [u8; HMAC384_BLOCK_SIZE_BYTES],
@@ -490,7 +519,12 @@ impl<'a> Hmac384Op<'a> {
 
             // If the buffer is full calculate the digest of accumulated data
             if self.buf_idx == self.buf.len() {
-                self.hmac_engine.hmac_block(&self.buf, self.is_first())?;
+                self.hmac_engine.hmac_block(
+                    &self.buf,
+                    self.is_first(),
+                    self.key,
+                    self.dest_key(),
+                )?;
                 self.reset_buf_state();
             }
         }
@@ -510,8 +544,13 @@ impl<'a> Hmac384Op<'a> {
 
         // Calculate the hmac of the final block
         let buf = &self.buf[..self.buf_idx];
-        self.hmac_engine
-            .hmac_partial_block(buf, self.is_first(), self.data_size)?;
+        self.hmac_engine.hmac_partial_block(
+            buf,
+            self.is_first(),
+            self.data_size,
+            self.key,
+            self.dest_key(),
+        )?;
 
         // Set the state of the operation to final
         self.state = Hmac384OpState::Final;
@@ -523,6 +562,12 @@ impl<'a> Hmac384Op<'a> {
             Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
             Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
                 .map_err(|err| err.into_write_tag_err()),
+        }
+    }
+    fn dest_key(&self) -> Option<KeyWriteArgs> {
+        match self.tag {
+            Hmac384Tag::Key(key) => Some(key),
+            _ => None,
         }
     }
 
