@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          ref: 'main'  # Always use up-to-date tools from main for this step
   
       - name: Generate HTML
         run: |
