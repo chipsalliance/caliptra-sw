@@ -346,23 +346,23 @@ caliptra_veer_sram_export veer_sram_export_inst (
     assign fifo_char[7:0] = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
 
    xpm_fifo_sync #(
-      .CASCADE_HEIGHT(0),        // DECIMAL
-      .DOUT_RESET_VALUE("0"),    // String
-      .ECC_MODE("no_ecc"),       // String
-      .FIFO_MEMORY_TYPE("auto"), // String
-      .FIFO_READ_LATENCY(0),     // DECIMAL
-      .FIFO_WRITE_DEPTH(8192),   // DECIMAL
-      .FULL_RESET_VALUE(0),      // DECIMAL
-      .PROG_EMPTY_THRESH(10),    // DECIMAL
-      .PROG_FULL_THRESH(4096),   // DECIMAL
-      .RD_DATA_COUNT_WIDTH(14),  // DECIMAL
-      .READ_DATA_WIDTH(8),       // DECIMAL
-      .READ_MODE("fwft"),        // String
-      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-      .USE_ADV_FEATURES("0707"), // String
-      .WAKEUP_TIME(0),           // DECIMAL
-      .WRITE_DATA_WIDTH(8),      // DECIMAL
-      .WR_DATA_COUNT_WIDTH(14)   // DECIMAL
+      .CASCADE_HEIGHT(0),         // DECIMAL
+      .DOUT_RESET_VALUE("0"),     // String
+      .ECC_MODE("no_ecc"),        // String
+      .FIFO_MEMORY_TYPE("block"), // String
+      .FIFO_READ_LATENCY(0),      // DECIMAL
+      .FIFO_WRITE_DEPTH(8192),    // DECIMAL
+      .FULL_RESET_VALUE(0),       // DECIMAL
+      .PROG_EMPTY_THRESH(10),     // DECIMAL
+      .PROG_FULL_THRESH(7168),    // DECIMAL Currently unused
+      .RD_DATA_COUNT_WIDTH(14),   // DECIMAL
+      .READ_DATA_WIDTH(8),        // DECIMAL
+      .READ_MODE("fwft"),         // String
+      .SIM_ASSERT_CHK(0),         // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_ADV_FEATURES("0000"),  // String
+      .WAKEUP_TIME(0),            // DECIMAL
+      .WRITE_DATA_WIDTH(8),       // DECIMAL
+      .WR_DATA_COUNT_WIDTH(14)    // DECIMAL
    )
    log_fifo_inst (
       .almost_empty(),
@@ -403,23 +403,23 @@ caliptra_veer_sram_export veer_sram_export_inst (
     end
 
    xpm_fifo_sync #(
-      .CASCADE_HEIGHT(0),        // DECIMAL
-      .DOUT_RESET_VALUE("0"),    // String
-      .ECC_MODE("no_ecc"),       // String
-      .FIFO_MEMORY_TYPE("auto"), // String
-      .FIFO_READ_LATENCY(1),     // DECIMAL
-      .FIFO_WRITE_DEPTH(1024),   // DECIMAL
-      .FULL_RESET_VALUE(0),      // DECIMAL
-      .PROG_EMPTY_THRESH(10),    // DECIMAL
-      .PROG_FULL_THRESH(10),     // DECIMAL
-      .RD_DATA_COUNT_WIDTH(13),  // DECIMAL
-      .READ_DATA_WIDTH(4),       // DECIMAL
-      .READ_MODE("std"),         // String
-      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-      .USE_ADV_FEATURES("1000"), // String
-      .WAKEUP_TIME(0),           // DECIMAL
-      .WRITE_DATA_WIDTH(32),     // DECIMAL
-      .WR_DATA_COUNT_WIDTH(11)   // DECIMAL
+      .CASCADE_HEIGHT(0),         // DECIMAL
+      .DOUT_RESET_VALUE("0"),     // String
+      .ECC_MODE("no_ecc"),        // String
+      .FIFO_MEMORY_TYPE("block"), // String
+      .FIFO_READ_LATENCY(1),      // DECIMAL
+      .FIFO_WRITE_DEPTH(1024),    // DECIMAL
+      .FULL_RESET_VALUE(0),       // DECIMAL
+      .PROG_EMPTY_THRESH(10),     // DECIMAL
+      .PROG_FULL_THRESH(10),      // DECIMAL
+      .RD_DATA_COUNT_WIDTH(13),   // DECIMAL
+      .READ_DATA_WIDTH(4),        // DECIMAL
+      .READ_MODE("std"),          // String
+      .SIM_ASSERT_CHK(0),         // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+      .USE_ADV_FEATURES("1000"),  // String
+      .WAKEUP_TIME(0),            // DECIMAL
+      .WRITE_DATA_WIDTH(32),      // DECIMAL
+      .WR_DATA_COUNT_WIDTH(11)    // DECIMAL
    )
    trng_fifo_inst (
       .almost_empty(),
