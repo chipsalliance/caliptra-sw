@@ -5,6 +5,7 @@
 ///
 /// DO NOT REFACTOR THIS FILE TO RE-USE CODE FROM OTHER PARTS OF CALIPTRA
 use caliptra_hw_model_types::SecurityState;
+use caliptra_image_types::ImageManifest;
 use openssl::{
     pkey::{PKey, Public},
     sha::{sha256, sha384},
@@ -381,10 +382,39 @@ fn test_derive_pcr0() {
     )
 }
 
+pub struct PcrRtCurrentInput {
+    pub runtime_digest: [u32; 12],
+    pub manifest: ImageManifest,
+}
+
+pub struct PcrRtCurrent(pub [u32; 12]);
+impl PcrRtCurrent {
+    pub fn derive(input: &PcrRtCurrentInput) -> Self {
+        let mut value = [0u8; 48];
+        let extend = |value: &mut [u8; 48], buf: &[u8]| {
+            *value = sha384(&[value.as_slice(), buf].concat());
+        };
+        extend(
+            &mut value,
+            swap_word_bytes(&input.runtime_digest).as_bytes(),
+        );
+
+        let manifest_digest = sha384(input.manifest.as_bytes());
+        extend(&mut value, &manifest_digest);
+        println!("Pcr is {:02x?}", value);
+
+        let mut result: [u32; 12] = zerocopy::transmute!(value);
+        swap_word_bytes_inplace(&mut result);
+        Self(result)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FmcAliasKey {
     // The FMC alias private key as stored in the key-vault
     pub priv_key: [u32; 12],
+
+    pub cdi: [u32; 12],
 }
 impl FmcAliasKey {
     pub fn derive(pcr0: &Pcr0, ldevid: &LDevId) -> Self {
@@ -407,7 +437,56 @@ impl FmcAliasKey {
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
         swap_word_bytes_inplace(&mut priv_key);
-        Self { priv_key }
+        Self { priv_key, cdi }
+    }
+    pub fn derive_public_key(&self) -> PKey<Public> {
+        derive_ecdsa_key(
+            swap_word_bytes(&self.priv_key)
+                .as_bytes()
+                .try_into()
+                .unwrap(),
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RtAliasKey {
+    pub cdi: [u32; 12],
+
+    // The FMC alias private key as stored in the key-vault
+    pub priv_key: [u32; 12],
+}
+impl RtAliasKey {
+    pub fn derive(tci_input: &PcrRtCurrentInput, fmc_key: &FmcAliasKey) -> Self {
+        // NOTE: This works differently than FmcAliasKey. FmcAliasKey takes the
+        // 48-byte value from Pcr0 as context, this version uses a 96-byte
+        // concatenation of the runtime digest and manifest digest.
+        let mut tci: [u8; 96] = [0; 96];
+        tci[0..48].copy_from_slice(swap_word_bytes(&tci_input.runtime_digest).as_bytes());
+        tci[48..96]
+            .as_bytes_mut()
+            .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
+
+        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
+            swap_word_bytes(&fmc_key.cdi).as_bytes(),
+            b"rt_alias_cdi",
+            Some(&tci),
+        ));
+        swap_word_bytes_inplace(&mut cdi);
+
+        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
+            swap_word_bytes(&cdi).as_bytes(),
+            b"rt_alias_keygen",
+            None
+        ));
+        swap_word_bytes_inplace(&mut priv_key_seed);
+
+        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            swap_word_bytes(&priv_key_seed).as_bytes(),
+            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
+        ));
+        swap_word_bytes_inplace(&mut priv_key);
+        Self { priv_key, cdi }
     }
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
@@ -440,6 +519,10 @@ fn test_derive_fmc_alias_key() {
     assert_eq!(
         fmc_alias_key,
         FmcAliasKey {
+            cdi: [
+                0xf4fb8b09, 0xc9233adb, 0x3dfade39, 0xb656f0ef, 0x151404dc, 0xf4fe787a, 0x0664baea,
+                0xe9d2de59, 0x22401c7c, 0x59087111, 0xd3aeb5b1, 0x368742da
+            ],
             priv_key: [
                 0x81a4f53c, 0xeb0749ca, 0x77b0fe32, 0x33fd9798, 0x7412f652, 0xded8f8a5, 0x39a9ebbd,
                 0x75ce2870, 0xb5f62bb3, 0x25376504, 0xa34f286c, 0x849ea86c,
