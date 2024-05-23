@@ -30,7 +30,9 @@ pub const D_LEAF: u16 = 0x8282;
 pub const D_INTR: u16 = 0x8383;
 
 #[derive(Default, Debug)]
-pub struct Lms {}
+pub struct Lms {
+    kat_complete: bool,
+}
 
 pub type Sha256Digest = HashValue<8>;
 pub type Sha192Digest = HashValue<6>;
@@ -592,5 +594,15 @@ impl Lms {
         }
         digest.0.zeroize();
         Ok(temp)
+    }
+
+    // Return the kat_complete state
+    pub fn kat_is_complete(&self) -> bool {
+        self.kat_complete
+    }
+
+    // Update the kat_complete state to true (complete)
+    pub fn mark_kat_complete(&mut self) {
+        self.kat_complete = true;
     }
 }

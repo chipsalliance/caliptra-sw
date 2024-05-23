@@ -2467,7 +2467,8 @@ dependencies = [
 [[package]]
 name = "tock-registers"
 version = "0.8.1"
-source = "git+https://github.com/tock/tock.git#46e2e8f2da7737a20b6b7e7e142cd8689bf86ee5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "696941a0aee7e276a165a978b37918fd5d22c55c3d6bda197813070ca9c0f21c"
 
 [[package]]
 name = "toml"
