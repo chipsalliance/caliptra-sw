@@ -16,7 +16,9 @@ use zerocopy::{transmute, AsBytes};
 use caliptra_hw_model_types::DeviceLifecycle;
 
 use crate::{
-    crypto::{self, derive_ecdsa_key, hmac384, hmac384_drbg_keygen, hmac384_kdf},
+    crypto::{
+        self, derive_ecdsa_key, hmac384, hmac384_drbg_keygen, hmac384_kdf, hmac384_kdf_truncated,
+    },
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
@@ -467,7 +469,8 @@ impl RtAliasKey {
             .as_bytes_mut()
             .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
 
-        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
+        // DO NOT SUBMIT: Using hmac384_kdf_truncated(), which only includes the first block
+        let mut cdi: [u32; 12] = transmute!(hmac384_kdf_truncated(
             swap_word_bytes(&fmc_key.cdi).as_bytes(),
             b"rt_alias_cdi",
             Some(&tci),

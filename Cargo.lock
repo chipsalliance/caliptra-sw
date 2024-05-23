@@ -810,6 +810,7 @@ dependencies = [
  "elf",
  "openssl",
  "rand",
+ "sha2",
  "zerocopy",
 ]
 
