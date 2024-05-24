@@ -792,6 +792,7 @@ Environment (DPE) API.
 
 ### PAUSER privilege levels
 
+Caliptra uses PAUSER as a HW mechanism to distinguish DPE Client localities.
 Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 
 * PL0 - High privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
@@ -805,9 +806,9 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 
 #### PAUSER privilege level active context limits
 
-Caliptra uses PAUSER as a HW mechanism to distinguish DPE Client localities. 
 PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
-with PL0 level, is authorized to invoke any supported DPE Commands.
+with PL0 level, is authorized to invoke all supported DPE Commands. All other DPE Clients 
+have instead restricted privileges associated to PL1.
 
 Each active context in DPE is activated from either PL0 or PL1 through the
 InvokeDpe mailbox command calling the DeriveContext or InitializeContext DPE
