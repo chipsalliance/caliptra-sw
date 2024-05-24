@@ -18,9 +18,9 @@ use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
@@ -126,7 +126,7 @@ fn check_measurement_log_entry(
 
 #[test]
 fn test_pcr_log() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
 
     let vendor_pubkey_digest = gen
@@ -231,7 +231,7 @@ fn test_pcr_log() {
 
 #[test]
 fn test_pcr_log_no_owner_key_digest_fuse() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
 
     let owner_pubkey_digest = gen
@@ -315,7 +315,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
 
 #[test]
 fn test_pcr_log_fmc_fuse_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
 
     let vendor_pubkey_digest = gen
@@ -454,7 +454,7 @@ fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
 
 #[test]
 fn test_pcr_log_across_update_reset() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
 
     let vendor_pubkey_digest = gen
