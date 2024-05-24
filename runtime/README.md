@@ -428,6 +428,7 @@ PcrValue is defined as u8[48]
 | **Name**     | **Type**     | **Description**
 | --------     | --------     | ---------------
 | chksum       | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs         | PcrValue[32] | Values of all PCRs.
 | nonce        | u8[32]       | Return the nonce used as input for convenience.
 | digest       | u8[48]       | Return the digest over the PCR values and the nonce.
@@ -449,7 +450,12 @@ Command Code: `0x5043_5245` ("PCRE")
 | index        | u32           | Index of the PCR to extend.
 | value        | u8[..]        | Value to extend into the PCR at `index`.
 
-`EXTEND_PCR` returns no output arguments.
+*Table: `EXTEND_PCR` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's internal PCR log.
 
@@ -493,7 +499,12 @@ Command Code: `0x5043_5252` ("PCRR")
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | index        | u32           | Index of the PCR for which to increment the reset counter.
 
-`INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
+*Table: `INCREMENT_PCR_RESET_COUNTER` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### DPE\_TAG\_TCI
 
@@ -534,6 +545,7 @@ Command Code: `0x4754_4744` ("GTGD")
 | **Name**         | **Type**  | **Description**
 | --------         | --------  | ---------------
 | chksum           | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+| fips\_status     | u32       | Indicates if the command is FIPS approved or an error.
 | tci\_cumulative  | u8[48]    | Hash of all of the input data provided to the context.
 | tci\_current     | u8[48]    | Most recent measurement made into the context.
 
@@ -554,6 +566,7 @@ Command Code: `0x494E_464F` ("INFO")
 | **Name**               | **Type**       | **Description**
 | --------               | --------       | ---------------
 | chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| fips\_status           | u32            | Indicates if the command is FIPS approved or an error.
 | pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header).
 | runtime_svn            | u32            | Runtime SVN.
 | min_runtime_svn        | u32            | Min Runtime SVN.
