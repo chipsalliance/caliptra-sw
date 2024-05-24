@@ -807,8 +807,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 #### PAUSER privilege level active context limits
 
 PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
-with PL0 level, is authorized to invoke all supported DPE Commands. All other DPE Clients 
-have instead restricted privileges associated to PL1.
+with PL0 level, is authorized to invoke CertifyKey DPE command with format=x509. 
+All other DPE Clients have instead restricted privileges associated to PL1.
 
 Each active context in DPE is activated from either PL0 or PL1 through the
 InvokeDpe mailbox command calling the DeriveContext or InitializeContext DPE
