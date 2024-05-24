@@ -85,7 +85,7 @@ static TESTS_TO_RUN: &[TestInfo] = &[
     TestInfo {extension: "C", name: "candi-01"},
     TestInfo {extension: "C", name: "cbeqz-01"},
     TestInfo {extension: "C", name: "cbnez-01"},
-    //TestInfo {extension: "C", name: "cebreak-01"},
+    TestInfo {extension: "C", name: "cebreak-01"},
     TestInfo {extension: "C", name: "cj-01"},
     TestInfo {extension: "C", name: "cjal-01"},
     TestInfo {extension: "C", name: "cjalr-01"},
@@ -104,6 +104,16 @@ static TESTS_TO_RUN: &[TestInfo] = &[
     TestInfo {extension: "C", name: "csw-01"},
     TestInfo {extension: "C", name: "cswsp-01"},
     TestInfo {extension: "C", name: "cxor-01"},
+    TestInfo {extension: "privilege", name: "ebreak"},
+    TestInfo {extension: "privilege", name: "ecall"},
+    //TestInfo {extension: "privilege", name: "misalign-beq-01"},
+    //TestInfo {extension: "privilege", name: "misalign-bge-01"},
+    //TestInfo {extension: "privilege", name: "misalign-bgeu-01"},
+    //TestInfo {extension: "privilege", name: "misalign-blt-01"},
+    //TestInfo {extension: "privilege", name: "misalign-bltu-01"},
+    //TestInfo {extension: "privilege", name: "misalign-bne-01"},
+    //TestInfo {extension: "privilege", name: "misalign-jal-01"},
+    //TestInfo {extension: "privilege", name: "misalign-ld-01"},
 ];
 
 fn into_io_error(err: impl Into<Box<dyn Error + Send + Sync>>) -> std::io::Error {

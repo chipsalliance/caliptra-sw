@@ -618,6 +618,21 @@ pub enum RvInstr {
     Instr16(u16),
 }
 
+emu_enum! {
+    /// Privilege modes
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+    pub RvPrivMode;
+    u32;
+    {
+        /// User mode
+        U = 0b00,
+
+        /// Machine mode
+        M = 0b11,
+    };
+    Invalid
+}
+
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     /// RISCV Machine Mode Status Register
@@ -628,6 +643,12 @@ bitfield! {
 
     /// Machine Mode Previous Interrupt Enable
     pub u32, mpie, set_mpie: 7, 7;
+
+    /// Machine Prior Privilege mode
+    pub from into RvPrivMode, mpp, set_mpp: 12, 11;
+
+    /// Modify Privilege level
+    pub u32, mprv, set_mprv: 17, 17;
 }
 
 bitfield! {
@@ -661,4 +682,110 @@ bitfield! {
 
     /// Control interrupt enable
     pub u32, haltie, _: 1, 1;
+}
+
+emu_enum! {
+    /// Memory access types
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+    pub RvMemAccessType;
+    u8;
+    {
+        /// Read access
+        Read = 0b001,
+
+        /// Write access
+        Write = 0b010,
+
+        /// Execute access
+        Execute = 0b100,
+    };
+    Invalid
+}
+
+emu_enum! {
+    /// PMP address modes
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+    pub RvPmpAddrMode;
+    u8;
+    {
+        /// PMP entry disabled
+        Off = 0b00,
+
+        /// Top of range
+        Tor = 0b01,
+
+        /// Naturally aligned 4-byte region
+        Na4 = 0b10,
+
+        /// Naturally-aligned power of 2
+        Napot = 0b11,
+    };
+    Invalid
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// PMP control register
+    pub struct RvPmpiCfg(u8);
+
+    u8;
+
+    /// Read bit
+    pub read, set_read: 0, 0;
+
+    /// Write bit
+    pub write, set_write: 1, 1;
+
+    /// Execute bit
+    pub execute, set_execute: 2, 2;
+
+    /// Address mode
+    pub from into RvPmpAddrMode, addr_mode, set_addr_mode: 4, 3;
+
+    /// Lock bit
+    pub lock, set_lock: 7, 7;
+}
+
+impl From<u8> for RvPmpiCfg {
+    fn from(i: u8) -> RvPmpiCfg {
+        RvPmpiCfg(i)
+    }
+}
+
+impl From<RvPmpiCfg> for u8 {
+    fn from(i: RvPmpiCfg) -> u8 {
+        i.0
+    }
+}
+
+bitfield! {
+    /// PMP packed control register
+    pub struct RvPmpCfgi(u32);
+
+    u8;
+
+    /// Packed register 1
+    pub from into RvPmpiCfg, r1, set_r1: 7, 0;
+
+    /// Packed register 2
+    pub from into RvPmpiCfg, r2, set_r2: 15, 8;
+
+    /// Packed register 3
+    pub from into RvPmpiCfg, r3, set_r3: 23, 16;
+
+    /// Packed register 4
+    pub from into RvPmpiCfg, r4, set_r4: 31, 24;
+}
+
+bitfield! {
+    /// Machine security configuration register (low)
+    pub struct RvMsecCfg(u32);
+
+    u8;
+
+    /// Machine mode lockdown
+    pub mml, set_mml: 0, 0;
+
+    /// Machine Mode Whitelist Policy
+    pub mmwp, set_mmwp: 1, 1;
 }

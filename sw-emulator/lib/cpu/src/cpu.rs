@@ -14,7 +14,9 @@ Abstract:
 
 use crate::csr_file::{Csr, CsrFile};
 use crate::instr::Instr;
-use crate::types::{RvInstr, RvMEIHAP, RvMStatus};
+use crate::types::{
+    RvInstr, RvMEIHAP, RvMemAccessType, RvMsecCfg, RvMStatus, RvPrivMode,
+};
 use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
@@ -152,6 +154,9 @@ pub struct Cpu<TBus: Bus> {
 
     pub clock: Clock,
 
+    /// Current privilege mode
+    pub priv_mode: RvPrivMode,
+
     // Track if Execution is in progress
     pub(crate) is_execute_instr: bool,
 
@@ -187,6 +192,7 @@ impl<TBus: Bus> Cpu<TBus> {
             next_pc: Self::PC_RESET_VAL,
             bus,
             clock,
+            priv_mode: RvPrivMode::M,
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
@@ -265,7 +271,7 @@ impl<TBus: Bus> Cpu<TBus> {
         self.xregs.write(reg, val)
     }
 
-    /// Read the specified configuration status register
+    /// Read the specified configuration status register with the current privilege mode
     ///
     /// # Arguments
     ///
@@ -279,10 +285,27 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
     pub fn read_csr(&self, csr: RvAddr) -> Result<RvData, RvException> {
-        self.csrs.read(csr)
+        self.csrs.read(self.priv_mode, csr)
     }
 
-    /// Write the specified Configuration status register
+    /// Read the specified configuration status register as if we were in M mode
+    ///
+    /// # Arguments
+    ///
+    /// * `csr` - Configuration status register to read
+    ///
+    ///  # Return
+    ///
+    ///  * `RvData` - Register value
+    ///
+    /// # Error
+    ///
+    /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
+    pub fn read_csr_machine(&self, csr: RvAddr) -> Result<RvData, RvException> {
+        self.csrs.read(RvPrivMode::M, csr)
+    }
+
+    /// Write the specified Configuration status register with the current privilege mode
     ///
     /// # Arguments
     ///
@@ -293,7 +316,139 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
     pub fn write_csr(&mut self, csr: RvAddr, val: RvData) -> Result<(), RvException> {
-        self.csrs.write(csr, val)
+        self.csrs.write(self.priv_mode, csr, val)
+    }
+
+    /// Write the specified Configuration status register as if we were in M mode
+    ///
+    /// # Arguments
+    ///
+    /// * `reg` - Configuration  status register to write
+    /// * `val` - Value to write
+    ///
+    /// # Error
+    ///
+    /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
+    pub fn write_csr_machine(&mut self, csr: RvAddr, val: RvData) -> Result<(), RvException> {
+        self.csrs.write(RvPrivMode::M, csr, val)
+    }
+
+    /// Check memory privileges of given address
+    /// 
+    /// # Arguments
+    ///
+    /// * `addr` - Address to check
+    /// * `access` - Access type to check
+    ///
+    /// # Return
+    ///
+    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
+    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    fn check_mem_priv_addr(&self, addr: RvAddr, access: RvMemAccessType) -> Result<(), RvException> {
+        let fault = || {
+            match access {
+                RvMemAccessType::Read => RvException::load_access_fault(addr),
+                RvMemAccessType::Write => RvException::store_access_fault(addr),
+                RvMemAccessType::Execute => RvException::instr_access_fault(addr),
+                _ => unreachable!(),
+            }
+        };
+
+        let mstatus = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
+        let priv_mode = if mstatus.mprv() != 0 &&
+            (access == RvMemAccessType::Read || access == RvMemAccessType::Write)
+        {
+            mstatus.mpp()
+        } else {
+            self.priv_mode
+        };
+
+        let mseccfg = RvMsecCfg(self.read_csr_machine(Csr::MSECCFG)?);
+
+        if let Some(pmpicfg) = self.csrs.pmp_match_addr(addr)? {  
+            if mseccfg.mml() != 0 {
+                // Perform enhanced privilege check
+                let check_mask =
+                    (pmpicfg.execute() & 0x1) |
+                    ((pmpicfg.write() & 0x1) << 1) |
+                    ((pmpicfg.read() & 0x1) << 2) |
+                    ((pmpicfg.lock() & 0x1) << 3);
+
+                // This matches the spec truth table
+                let allowed_mask = match priv_mode {
+                    RvPrivMode::M => {
+                        match check_mask {
+                            0 | 1 | 4..=8 => 0,
+                            2 | 3 | 14 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
+                            9 | 10 => RvMemAccessType::Execute as u8,
+                            11 | 13 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                            12 | 15 => RvMemAccessType::Read as u8,
+                            _ => unreachable!(),
+                        }
+                    }
+                    RvPrivMode::U => {
+                        match check_mask {
+                            0 | 8 | 9 | 12..=14 => 0,
+                            1 | 10 | 11 => RvMemAccessType::Execute as u8,
+                            2 | 4 | 15 => RvMemAccessType::Read as u8,
+                            3 | 6 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
+                            5 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                            7 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8 | RvMemAccessType::Execute as u8,
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+
+                if (access as u8 & allowed_mask) != access as u8 {
+                    return Err(fault());
+                }
+            } else {
+                let check_bit = match access {
+                    RvMemAccessType::Read => pmpicfg.read(),
+                    RvMemAccessType::Write => pmpicfg.write(),
+                    RvMemAccessType::Execute => pmpicfg.execute(),
+                    _ => unreachable!(),
+                };
+        
+                if check_bit == 0 && (priv_mode != RvPrivMode::M || pmpicfg.lock() != 0) {
+                    return Err(fault());
+                }
+            }
+        } else if priv_mode == RvPrivMode::M && mseccfg.mmwp() != 0 {
+            return Err(fault());
+        }
+
+        Ok(())
+    }
+
+    /// Check memory privileges of given address
+    ///
+    /// # Arguments
+    ///
+    /// * `addr` - Address to check
+    /// * `size` - Size of region
+    /// * `access` - Access type to check
+    ///
+    /// # Return
+    ///
+    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
+    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    pub fn check_mem_priv(
+        &self,
+        addr: RvAddr,
+        size: RvSize,
+        access: RvMemAccessType
+    )-> Result<(), RvException> 
+    {
+        self.check_mem_priv_addr(addr, access)?;
+        if size == RvSize::Word && addr & 0x3 != 0 {
+            // If unaligned, check permissions of intermediate addresses
+            for i in 1..RvSize::Word.into() {
+                self.check_mem_priv_addr(addr + i as u32, access)?;
+            }
+        }
+        Ok(())
     }
 
     /// Read from bus
@@ -318,6 +473,8 @@ impl<TBus: Bus> Cpu<TBus> {
                 false => None,
             }
         }
+
+        self.check_mem_priv(addr, size, RvMemAccessType::Read)?;
 
         match self.bus.read(size, addr) {
             Ok(val) => Ok(val),
@@ -359,6 +516,9 @@ impl<TBus: Bus> Cpu<TBus> {
                 false => None,
             }
         }
+
+        self.check_mem_priv(addr, size, RvMemAccessType::Write)?;
+
         match self.bus.write(size, addr, val) {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
@@ -383,6 +543,8 @@ impl<TBus: Bus> Cpu<TBus> {
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
     pub fn read_instr(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+        self.check_mem_priv(addr, size, RvMemAccessType::Execute)?;
+
         match size {
             RvSize::Byte => Err(RvException::instr_access_fault(addr)),
             _ => match self.bus.read(size, addr) {
@@ -396,6 +558,14 @@ impl<TBus: Bus> Cpu<TBus> {
                 },
             },
         }
+    }
+
+    /// Perform a reset of the CPU
+    pub fn do_reset(&mut self) {
+        self.halted = false;
+        self.priv_mode = RvPrivMode::M;
+        self.csrs.reset();
+        self.reset_pc();
     }
 
     pub fn warm_reset(&mut self) {
@@ -412,13 +582,11 @@ impl<TBus: Bus> Cpu<TBus> {
         for action_type in fired_action_types.iter() {
             match action_type {
                 TimerAction::WarmReset => {
-                    self.halted = false;
-                    self.reset_pc();
+                    self.do_reset();
                     break;
                 }
                 TimerAction::UpdateReset => {
-                    self.halted = false;
-                    self.reset_pc();
+                    self.do_reset();
                     break;
                 }
                 TimerAction::Nmi { mcause } => {
@@ -459,7 +627,7 @@ impl<TBus: Bus> Cpu<TBus> {
             exception.cause().into(),
             exception.info(),
             // Cannot panic; mtvec is a valid CSR
-            self.read_csr(Csr::MTVEC).unwrap() & !0b11,
+            self.read_csr_machine(Csr::MTVEC).unwrap() & !0b11,
         );
         match ret {
             Ok(_) => StepAction::Continue,
@@ -488,14 +656,27 @@ impl<TBus: Bus> Cpu<TBus> {
         info: u32,
         next_pc: u32,
     ) -> Result<(), RvException> {
-        self.write_csr(Csr::MEPC, pc)?;
-        self.write_csr(Csr::MCAUSE, cause)?;
-        self.write_csr(Csr::MTVAL, info)?;
+        self.write_csr_machine(Csr::MEPC, pc)?;
+        self.write_csr_machine(Csr::MCAUSE, cause)?;
+        self.write_csr_machine(Csr::MTVAL, info)?;
 
-        let mut status = RvMStatus(self.read_csr(Csr::MSTATUS)?);
+        let mut status = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
+
+        match self.priv_mode {
+            RvPrivMode::U => {
+                // All traps are handled in M mode
+                self.priv_mode = RvPrivMode::M;
+                status.set_mpp(RvPrivMode::U);
+            }
+            RvPrivMode::M => {
+                status.set_mpp(RvPrivMode::M);
+            }
+            _ => unreachable!(),
+        }
+
         status.set_mpie(status.mie());
         status.set_mie(0);
-        self.write_csr(Csr::MSTATUS, status.0)?;
+        self.write_csr_machine(Csr::MSTATUS, status.0)?;
         // Don't rely on write_csr to disable global interrupts as the scheduled action could be
         // after a next interrupt
         self.global_int_en = false;
@@ -516,18 +697,16 @@ impl<TBus: Bus> Cpu<TBus> {
         const DCCM_SIZE: u32 = 128 * 1024;
 
         let vec_table = self.ext_int_vec;
-        if vec_table < DCCM_ORG || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE > DCCM_ORG + DCCM_SIZE
-        {
+        if vec_table < DCCM_ORG || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE > DCCM_ORG + DCCM_SIZE {
             const NON_DCCM_NMI: u32 = 0xF000_1002;
             return self.handle_nmi(NON_DCCM_NMI, 0);
         }
         let next_pc_ptr = vec_table + REDIRECT_ENTRY_SIZE * u32::from(irq);
         let mut meihap = RvMEIHAP(vec_table);
         meihap.set_claimid(irq.into());
-        match self.write_csr(Csr::MEIHAP, meihap.0) {
-            Ok(_) => (),
-            Err(_) => return StepAction::Fatal,
-        };
+        if self.write_csr_machine(Csr::MEIHAP, meihap.0).is_err() {
+            return StepAction::Fatal;
+        }
         let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else { return StepAction::Fatal; };
         const MACHINE_EXTERNAL_INT: u32 = 0x8000_000B;
         let ret = self.handle_trap(self.read_pc(), MACHINE_EXTERNAL_INT, 0, next_pc);
@@ -565,7 +744,7 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Rom, Timer};
+    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Ram, Rom, Timer};
 
     #[test]
     fn test_new() {
@@ -587,6 +766,807 @@ mod tests {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
         }
+    }
+
+    fn new_pmp_cpu(fill_val: u32) -> Cpu<DynamicBus> {
+        let clock = Clock::new();
+        let mut bus = DynamicBus::new();
+
+        let ram = Ram::new(
+            std::iter::repeat(fill_val)
+                .take(128)
+                .flat_map(u32::to_le_bytes)
+                .collect(),
+        );
+        bus.attach_dev("RAM", 0..=0x200, Box::new(ram)).unwrap();
+
+        Cpu::new(bus, clock)
+    }
+
+    #[test]
+    fn test_pmp_napot() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0010 >> 2).unwrap();
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0019).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x1111_1111).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x1111_1111).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0018, 0x1111_1111).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0018).ok(),
+            Some(0x1111_1111),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x2222_2222).err(),
+            Some(RvException::store_access_fault(0x0000_0010)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x2222_2222).err(),
+            Some(RvException::store_access_fault(0x0000_0014)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0018, 0x2222_2222).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0018).ok(),
+            Some(0x2222_2222),
+        );
+    }
+
+    #[test]
+    fn test_pmp_na4() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0010 >> 2).unwrap();
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0011).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x1111_1111).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x1111_1111).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x1111_1111),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x2222_2222).err(),
+            Some(RvException::store_access_fault(0x0000_0010)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x2222_2222).ok(),
+            Some(())
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x2222_2222),
+        );
+    }
+
+    #[test]
+    fn test_pmp_tor() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0010 >> 2).unwrap();
+        cpu.write_csr_machine(Csr::PMPADDR_START + 1, 0x0000_0020 >> 2).unwrap();
+        cpu.write_csr_machine(Csr::PMPADDR_START + 2, 0x0000_0040 >> 2).unwrap();
+
+        // Test TOR at PMP0CFG and PMP2CFG
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0009_0009).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0x1111_1111).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_000C, 0x1111_1111).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x1111_1111).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_000C).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+
+        // TOR PMP2CFG tests
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0020, 0x2222_2222).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_003C, 0x2222_2222).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0040, 0x2222_2222).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0020).ok(),
+            Some(0x2222_2222),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_003C).ok(),
+            Some(0x2222_2222),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0040).ok(),
+            Some(0x2222_2222),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        // TOR PMP0CFG tests
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0x3333_3333).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_000C, 0x3333_3333).err(),
+            Some(RvException::store_access_fault(0x0000_000C)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x3333_3333).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_000C).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x3333_3333),
+        );
+
+        // TOR PMP2CFG tests
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0020, 0x4444_4444).err(),
+            Some(RvException::store_access_fault(0x0000_0020)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_003C, 0x4444_4444).err(),
+            Some(RvException::store_access_fault(0x0000_003C)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0040, 0x4444_4444).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0020).ok(),
+            Some(0x2222_2222),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_003C).ok(),
+            Some(0x2222_2222),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0040).ok(),
+            Some(0x4444_4444),
+        );
+    }
+
+    #[test]
+    fn test_pmp_lock() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0010 >> 2).unwrap();
+
+        // NA4 mode, locked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0091).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x1111_1111).err(),
+            Some(RvException::store_access_fault(0x0000_0010)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x1111_1111).ok(),
+            Some(()),
+        );
+
+        assert_ne!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x1111_1111),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x1111_1111),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0010, 0x2222_2222).err(),
+            Some(RvException::store_access_fault(0x0000_0010)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0014, 0x2222_2222).ok(),
+            Some(())
+        );
+
+        assert_ne!(
+            cpu.read_bus(RvSize::Word, 0x0000_0010).ok(),
+            Some(0x2222_2222),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0014).ok(),
+            Some(0x2222_2222),
+        );
+
+    }
+
+    #[test]
+    fn test_pmp_execute() {
+        const RV32_NO_OP: u32 = 0x00000013;
+        let mut cpu = new_pmp_cpu(RV32_NO_OP);
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0000).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        // NA4 mode, execute bit set, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0015).unwrap();
+
+        cpu.reset_pc();
+        assert_eq!(cpu.exec_instr(None).ok(), Some(StepAction::Continue));
+
+        // NA4 mode, execute bit unset, unlocked (should be ok in M mode)
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0011).unwrap();
+
+        cpu.reset_pc();
+        assert_eq!(cpu.exec_instr(None).ok(), Some(StepAction::Continue));
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        // NA4 mode, execute bit set, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0015).unwrap();
+
+        cpu.reset_pc();
+        assert_eq!(cpu.exec_instr(None).ok(), Some(StepAction::Continue));
+
+        // NA4 mode, execute bit unset, unlocked (should fail in U mode)
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0011).unwrap();
+        cpu.reset_pc();
+        assert_eq!(cpu.exec_instr(None).err(), Some(RvException::instr_access_fault(0x0000_0000)));
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        // NA4 mode, execute bit unset, locked (should be enforced even in M mode)
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0091).unwrap();
+        cpu.reset_pc();
+        assert_eq!(cpu.exec_instr(None).err(), Some(RvException::instr_access_fault(0x0000_0000)));
+    }
+
+    #[test]
+    fn test_smepmp_mmwp() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+
+        // Set MMWP mode
+        cpu.write_csr_machine(Csr::MSECCFG, 0x0000_0002).unwrap();
+
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0000).unwrap();
+
+        // NA4 mode, read/write set, execute bit unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0013).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0004, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0004)),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0004).err(),
+            Some(RvException::load_access_fault(0x0000_0004)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0x0000_0000).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0004, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0x0000_0000),
+        );
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0004).ok(),
+            Some(0xFFFF_FFFF),
+        );
+    }
+
+    #[test]
+    fn test_smepmp_mml() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+        let reset_cpu = |cpu: &mut Cpu<DynamicBus>| {
+            cpu.do_reset();
+
+            // Clear memory
+            cpu.priv_mode = RvPrivMode::M;
+            for i in (0..0x200).step_by(4) {
+                cpu.write_bus(RvSize::Word, i, 0xDEAD_BEEF).unwrap();
+            }
+
+            // Set MML mode
+            cpu.write_csr_machine(Csr::MSECCFG, 0x0000_0001).unwrap();
+            cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0000).unwrap();
+        };
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, r/w/x unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0010).unwrap();
+
+        cpu.priv_mode = RvPrivMode::M;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        // NA4 mode, r/w/x unset, locked
+        reset_cpu(&mut cpu);
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0090).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, r set, w/x unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0011).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, w set, r/x unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0012).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, w set, r/x unset, locked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0092).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, x set, r/w unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0014).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, x set, r/w unset, locked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0094).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, r/w/x set, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0017).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, r/w/x set, locked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0097).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, w/x set, r unset, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0016).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::instr_access_fault(0x0000_0000)),
+        );
+
+        reset_cpu(&mut cpu);
+        // NA4 mode, w/x set, r unset, locked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0096).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+
+        cpu.priv_mode = RvPrivMode::U;
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+    }
+
+    #[test]
+    fn test_pmp_mprv() {
+        let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
+        
+        cpu.write_csr_machine(Csr::PMPADDR_START, 0x0000_0000).unwrap();
+
+        // NA4 mode, execute only, unlocked
+        cpu.write_csr_machine(Csr::PMPCFG_START, 0x0000_0014).unwrap();
+
+        // Set MPRV bit and MPP to M
+        let mut mstatus = RvMStatus(cpu.read_csr_machine(Csr::MSTATUS).unwrap());
+        mstatus.set_mprv(1);
+        mstatus.set_mpp(RvPrivMode::M);
+        cpu.write_csr_machine(Csr::MSTATUS, mstatus.0).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xDEAD_BEEF),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).ok(),
+            Some(()),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
+
+        mstatus.set_mpp(RvPrivMode::U);
+        cpu.write_csr_machine(Csr::MSTATUS, mstatus.0).unwrap();
+
+        assert_eq!(
+            cpu.read_bus(RvSize::Word, 0x0000_0000).err(),
+            Some(RvException::load_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.write_bus(RvSize::Word, 0x0000_0000, 0xFFFF_FFFF).err(),
+            Some(RvException::store_access_fault(0x0000_0000)),
+        );
+        assert_eq!(
+            cpu.read_instr(RvSize::Word, 0x0000_0000).ok(),
+            Some(0xFFFF_FFFF),
+        );
     }
 
     #[test]
