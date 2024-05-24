@@ -806,7 +806,7 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 #### PAUSER privilege level active context limits
 
 Caliptra uses PAUSER as a HW mechanism to distinguish DPE Client localities. 
-PAUSER and Locality maps 1:1. Consequently, only the single DPE Client associated
+PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
 with PL0 level, is authorized to invoke any supported DPE Commands.
 
 Each active context in DPE is activated from either PL0 or PL1 through the
