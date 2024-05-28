@@ -804,12 +804,12 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.
 
-#### PAUSER privilege level active context limits
-
 PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
 with PL0 level, is authorized to invoke CertifyKey DPE command with format=x509. 
-All other DPE Clients have instead restricted privileges associated to PL1 (as
-described in `PAUSER privilege levels`).
+All other DPE Clients have instead restricted privileges associated to PL1 (as 
+described above).
+
+#### PAUSER privilege level active context limits
 
 Each active context in DPE is activated from either PL0 or PL1 through the
 InvokeDpe mailbox command calling the DeriveContext or InitializeContext DPE
