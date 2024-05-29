@@ -1,0 +1,25 @@
+# Licensed under the Apache-2.0 license.
+
+[package]
+name = "caliptra-auth-manifest-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+caliptra-drivers.workspace = true
+caliptra-image-elf.workspace = true
+caliptra-image-gen.workspace = true
+caliptra-image-openssl.workspace = true
+caliptra-image-serde.workspace = true
+caliptra-image-types = { workspace = true, features = ["std"] }
+caliptra-auth-man-types = { workspace = true, features = ["std"] }
+caliptra-auth-man-gen.workspace = true
+chrono.workspace = true
+clap.workspace = true
+hex.workspace = true
+openssl.workspace = true
+serde_derive.workspace = true
+serde.workspace = true
+toml.workspace = true
+zerocopy.workspace = true

@@ -41,6 +41,9 @@ impl CommandId {
 
     // The capabilities command.
     pub const CAPABILITIES: Self = Self(0x4341_5053); // "CAPS"
+
+    // The authorization manifest command.
+    pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
 }
 
 impl From<u32> for CommandId {
@@ -236,6 +239,7 @@ pub enum MailboxReq {
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
+    SetAuthManifest(SetAuthManifestReq),
 }
 
 impl MailboxReq {
@@ -259,6 +263,7 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
+            MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -282,6 +287,7 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes_mut()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes_mut()),
         }
     }
 
@@ -305,6 +311,7 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
+            MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
         }
     }
 
@@ -917,6 +924,55 @@ impl Request for QuotePcrsReq {
     const ID: CommandId = CommandId::QUOTE_PCRS;
     type Resp = QuotePcrsResp;
 }
+
+// SET_AUTH_MANIFEST
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct SetAuthManifestReq {
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE], // variable length
+}
+impl SetAuthManifestReq {
+    pub const MAX_MAN_SIZE: usize = 8192;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for SetAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+impl Request for SetAuthManifestReq {
+    const ID: CommandId = CommandId::SET_AUTH_MANIFEST;
+    type Resp = SetAuthManifestResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct SetAuthManifestResp {
+    pub hdr: MailboxRespHeader,
+    pub dpe_result: u32,
+}
+impl Response for SetAuthManifestResp {}
 
 #[cfg(test)]
 mod tests {

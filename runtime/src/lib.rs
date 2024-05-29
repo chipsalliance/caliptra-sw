@@ -27,6 +27,7 @@ pub mod info;
 mod invoke_dpe;
 mod pcr;
 mod populate_idev;
+mod set_auth_manifest;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -52,6 +53,7 @@ pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 pub use populate_idev::PopulateIDevIdCertCmd;
+pub use set_auth_manifest::SetAuthManifestCmd;
 
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
@@ -209,6 +211,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

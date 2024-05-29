@@ -419,6 +419,24 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0043);
     pub const RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM: CaliptraError =
         CaliptraError::new_const(0x000E0044);
+    pub const RUNTIME_INVALID_AUTH_MANIFEST_MARKER: CaliptraError =
+        CaliptraError::new_const(0x000E0045);
+    pub const RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000E0046);
+    pub const RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0047);
+    pub const RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0048);
+    pub const RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0049);
+    pub const RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E004A);
+    pub const RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN: CaliptraError =
+        CaliptraError::new_const(0x000E004B);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE: CaliptraError =
+        CaliptraError::new_const(0x000E004C);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000E004D);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
