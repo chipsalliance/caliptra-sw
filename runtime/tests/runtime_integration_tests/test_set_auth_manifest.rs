@@ -1,31 +1,17 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{execute_dpe_cmd, generate_test_x509_cert, run_rt_test, DpeResult};
+use crate::common::run_rt_test;
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
 use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
 };
-use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq, SetAuthManifestReq,
-    SetAuthManifestResp,
-};
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
+use caliptra_hw_model::HwModel;
 use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
-use dpe::{
-    commands::{Command, GetCertificateChainCmd},
-    response::Response,
-};
-use openssl::{
-    ec::{EcGroup, EcKey},
-    nid::Nid,
-    pkey::PKey,
-    x509::X509,
-};
-use zerocopy::{AsBytes, LayoutVerified};
+use zerocopy::AsBytes;
 
 #[test]
 fn test_set_auth_manifest_cmd() {
@@ -128,18 +114,11 @@ fn test_set_auth_manifest_cmd() {
     });
     set_auth_manifest_cmd.populate_chksum().unwrap();
 
-    let resp = model
+    model
         .mailbox_execute(
             u32::from(CommandId::SET_AUTH_MANIFEST),
             set_auth_manifest_cmd.as_bytes().unwrap(),
         )
         .unwrap()
         .expect("We should have received a response");
-
-    let resp_hdr: &SetAuthManifestResp =
-        LayoutVerified::<&[u8], SetAuthManifestResp>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref();
-
-    assert_eq!(resp_hdr.dpe_result, 0);
 }

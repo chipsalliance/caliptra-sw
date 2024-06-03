@@ -804,6 +804,7 @@ dependencies = [
  "cms",
  "crypto",
  "dpe",
+ "memoffset 0.8.0",
  "openssl",
  "platform",
  "sha2",

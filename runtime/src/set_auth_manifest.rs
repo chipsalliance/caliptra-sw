@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use core::cmp::min;
 use core::mem::size_of;
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
@@ -21,7 +22,7 @@ use caliptra_auth_man_types::AuthManifestPreamble;
 use caliptra_auth_man_types::AUTH_MANIFEST_MARKER;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::cprintln;
+use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
@@ -55,6 +56,7 @@ use dpe::{
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
 };
+use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
 
 pub struct SetAuthManifestCmd;
@@ -237,21 +239,26 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
-    fn process_image_metadata_list(
+    fn process_image_metadata_col(
         cmd_buf: &[u8],
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<()> {
-        if ((cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>())
-            || (cmd_buf.len() > size_of::<AuthManifestImageMetadataCollection>()))
-        {
+        if (cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>()) {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE);
         }
 
-        let image_metadata_list = &mut persistent_data.auth_manifest_image_metadata_col;
-        image_metadata_list.as_bytes_mut()[..].copy_from_slice(cmd_buf);
+        let col_size = min(
+            cmd_buf.len(),
+            size_of::<AuthManifestImageMetadataCollection>(),
+        );
 
-        if (image_metadata_list.header.entry_count == 0
-            || image_metadata_list.header.entry_count
+        let image_metadata_col = &mut persistent_data.auth_manifest_image_metadata_col;
+        image_metadata_col
+            .as_bytes_mut()
+            .copy_from_slice(&cmd_buf[..col_size]);
+
+        if (image_metadata_col.header.entry_count == 0
+            || image_metadata_col.header.entry_count
                 > AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT as u32)
         {
             return Err(
@@ -265,23 +272,19 @@ impl SetAuthManifestCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        cprintln!("[auth_man] In execute");
-
-        if cmd_args.len() > size_of::<AuthManifestPreamble>() {
-            cprintln!("[auth_man] AuthManifestPreamble size is valid");
+        let manifest_offset = offset_of!(SetAuthManifestReq, manifest);
+        if cmd_args.len() >= size_of::<SetAuthManifestReq>() {
             let persistent_data = drivers.persistent_data.get_mut();
-            cprintln!("[auth_man] Got persistent_data");
             let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
-            cprintln!("[auth_man] Got auth_manifest_preamble");
-            auth_manifest_preamble.as_bytes_mut()[..size_of::<AuthManifestPreamble>()]
-                .copy_from_slice(cmd_args);
-            cprintln!("[auth_man] Copied auth_manifest_preamble");
+
+            auth_manifest_preamble.as_bytes_mut().copy_from_slice(
+                &cmd_args[manifest_offset..(manifest_offset + size_of::<AuthManifestPreamble>())],
+            );
 
             // Check if the preamble has the required marker.
             if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
                 return Err(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER);
             }
-            cprintln!("[auth_man] AuthManifestPreamble marker is valid");
 
             // Check if the manifest size is valid.
             if auth_manifest_preamble.size as usize != size_of::<AuthManifestPreamble>() {
@@ -310,8 +313,8 @@ impl SetAuthManifestCmd {
         }
 
         let persistent_data = drivers.persistent_data.get_mut();
-        Self::process_image_metadata_list(
-            &cmd_args[size_of::<AuthManifestPreamble>()..],
+        Self::process_image_metadata_col(
+            &cmd_args[(manifest_offset + size_of::<AuthManifestPreamble>())..],
             persistent_data,
         )?;
 

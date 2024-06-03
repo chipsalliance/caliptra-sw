@@ -44,6 +44,9 @@ impl CommandId {
 
     // The authorization manifest command.
     pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
+
+    // The authorize and stash command.
+    pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 }
 
 impl From<u32> for CommandId {
@@ -143,6 +146,7 @@ pub enum MailboxResp {
     GetRtAliasCert(GetRtAliasCertResp),
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
+    AuthorizeAndStash(AuthorizeAndStashResp),
 }
 
 impl MailboxResp {
@@ -162,6 +166,7 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
+            MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -181,6 +186,7 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -240,6 +246,7 @@ pub enum MailboxReq {
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
+    AuthorizeAndStash(AuthorizeAndStashReq),
 }
 
 impl MailboxReq {
@@ -264,6 +271,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -288,6 +296,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes_mut()),
         }
     }
 
@@ -312,6 +321,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
         }
     }
 
@@ -961,18 +971,89 @@ impl Default for SetAuthManifestReq {
         }
     }
 }
-impl Request for SetAuthManifestReq {
-    const ID: CommandId = CommandId::SET_AUTH_MANIFEST;
-    type Resp = SetAuthManifestResp;
+
+#[repr(u32)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum ImageHashSource {
+    Invalid = 0,
+    InRequest,
+    ShaAcc,
+}
+
+impl From<ImageHashSource> for u32 {
+    fn from(val: ImageHashSource) -> u32 {
+        match val {
+            ImageHashSource::Invalid => 0,
+            ImageHashSource::InRequest => 2,
+            ImageHashSource::ShaAcc => 3,
+        }
+    }
+}
+
+impl From<u32> for ImageHashSource {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => ImageHashSource::InRequest,
+            2_u32 => ImageHashSource::ShaAcc,
+            _ => ImageHashSource::Invalid,
+        }
+    }
+}
+
+bitflags::bitflags! {
+    pub struct AuthAndStashFlags : u32 {
+        const SKIP_STASH = 0x1;
+    }
+}
+
+impl From<u32> for AuthAndStashFlags {
+    /// Converts to this type from the input type.
+    fn from(value: u32) -> Self {
+        AuthAndStashFlags::from_bits_truncate(value)
+    }
+}
+
+impl AuthAndStashFlags {
+    pub fn set_skip_stash(&mut self, skip_stash: bool) {
+        self.set(AuthAndStashFlags::SKIP_STASH, skip_stash);
+    }
+}
+
+// AUTHORIZE_AND_STASH
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct AuthorizeAndStashReq {
+    pub hdr: MailboxReqHeader,
+    pub metadata: [u8; 4],
+    pub measurement: [u8; 48],
+    pub svn: u32,
+    pub flags: u32,
+    pub source: u32,
+}
+impl Default for AuthorizeAndStashReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            metadata: Default::default(),
+            measurement: [0u8; 48],
+            svn: Default::default(),
+            flags: 0,
+            source: ImageHashSource::InRequest.into(),
+        }
+    }
+}
+impl Request for AuthorizeAndStashReq {
+    const ID: CommandId = CommandId::AUTHORIZE_AND_STASH;
+    type Resp = StashMeasurementResp;
 }
 
 #[repr(C)]
 #[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct SetAuthManifestResp {
+pub struct AuthorizeAndStashResp {
     pub hdr: MailboxRespHeader,
-    pub dpe_result: u32,
+    pub auth_req_result: u32,
 }
-impl Response for SetAuthManifestResp {}
+impl Response for AuthorizeAndStashResp {}
 
 #[cfg(test)]
 mod tests {

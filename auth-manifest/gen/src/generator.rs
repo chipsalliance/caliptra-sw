@@ -55,9 +55,11 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.size = size_of::<AuthManifestPreamble>() as u32;
 
         // Sign the vendor manifest keys.
-        let vendor_pub_keys = config.vendor_man_key_info.pub_keys.as_bytes();
+        auth_manifest.preamble.vendor_pub_keys = config.vendor_man_key_info.pub_keys;
 
-        let digest = self.crypto.sha384_digest(&vendor_pub_keys)?;
+        let digest = self
+            .crypto
+            .sha384_digest(&auth_manifest.preamble.vendor_pub_keys.as_bytes())?;
 
         if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
@@ -66,6 +68,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                 &config.vendor_fw_key_info.pub_keys.ecc_pub_key,
             )?;
             auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
+
             let lms_sig = self.crypto.lms_sign(&digest, &priv_keys.lms_priv_key)?;
             auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
         }
@@ -73,9 +76,11 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         // Sign the owner manifest keys.
         if let Some(owner_fw_config) = &config.owner_fw_key_info {
             if let Some(owner_man_config) = &config.owner_man_key_info {
-                let owner_man_pub_keys = owner_man_config.pub_keys.as_bytes();
+                auth_manifest.preamble.owner_pub_keys = owner_man_config.pub_keys;
 
-                let digest = self.crypto.sha384_digest(&owner_man_pub_keys)?;
+                let digest = self
+                    .crypto
+                    .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
 
                 if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
                     let sig = self.crypto.ecdsa384_sign(
@@ -97,19 +102,28 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             .crypto
             .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
 
+        // Sign with the vendor manifest public keys.
         if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
                 &digest,
                 &vendor_man_priv_keys.ecc_priv_key,
                 &config.vendor_man_key_info.pub_keys.ecc_pub_key,
             )?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
+            auth_manifest
+                .preamble
+                .vendor_image_metdata_signatures
+                .ecc_sig = sig;
+
             let lms_sig = self
                 .crypto
                 .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
+            auth_manifest
+                .preamble
+                .vendor_image_metdata_signatures
+                .lms_sig = lms_sig;
         }
 
+        // Sign with the owner manifest public keys.
         if let Some(owner_man_config) = &config.owner_man_key_info {
             if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
@@ -117,11 +131,18 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     &owner_man_priv_keys.ecc_priv_key,
                     &owner_man_config.pub_keys.ecc_pub_key,
                 )?;
-                auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
+                auth_manifest
+                    .preamble
+                    .owner_image_metdata_signatures
+                    .ecc_sig = sig;
+
                 let lms_sig = self
                     .crypto
                     .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
-                auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = lms_sig;
+                auth_manifest
+                    .preamble
+                    .owner_image_metdata_signatures
+                    .lms_sig = lms_sig;
             }
         }
 

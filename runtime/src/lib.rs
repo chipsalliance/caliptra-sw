@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
+mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
 pub mod dice;

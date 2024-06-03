@@ -27,6 +27,7 @@ arrayvec.workspace = true
 caliptra-image-verify = { workspace = true, default-features = false }
 zeroize.workspace = true
 bitflags.workspace = true
+memoffset.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }

@@ -437,6 +437,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E004C);
     pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT: CaliptraError =
         CaliptraError::new_const(0x000E004D);
+    pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
+        CaliptraError::new_const(0x000E004E);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
