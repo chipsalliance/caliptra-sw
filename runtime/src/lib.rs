@@ -105,7 +105,10 @@ pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
+#[cfg(not(feature = "arbitrary_max_handles"))]
 pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
+#[cfg(feature = "arbitrary_max_handles")]
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
 pub struct CptraDpeTypes;

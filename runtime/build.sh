@@ -4,8 +4,7 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-ARBITRARY_MAX_HANDLES=24 cargo build \
- --features arbitrary_max_handles \
+cargo build \
   --locked \
   --target riscv32imc-unknown-none-elf \
   --profile=firmware \
