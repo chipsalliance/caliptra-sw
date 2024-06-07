@@ -50,7 +50,6 @@ pub const ROM_ESTACK_ORG: u32 = 0x5001F800;
 pub const NSTACK_ORG: u32 = ESTACK_ORG + ESTACK_SIZE;
 pub const ROM_NSTACK_ORG: u32 = 0x5001FC00;
 
-
 //
 // Memory Sizes In Bytes
 //
@@ -74,9 +73,9 @@ pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const DATA_SIZE: u32 = 78 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
-pub const ESTACK_SIZE: u32 = 1024;
+pub const ESTACK_SIZE: u32 = 512;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
-pub const NSTACK_SIZE: u32 = 1024;
+pub const NSTACK_SIZE: u32 = 512;
 pub const ROM_NSTACK_SIZE: u32 = 1024;
 
 pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {

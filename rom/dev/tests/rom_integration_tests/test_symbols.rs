@@ -29,8 +29,8 @@ fn test_linker_symbols_match_memory_layout() {
     assert_symbol_addr(&symbols, "DCCM_ORG", memory_layout::DCCM_ORG);
     assert_symbol_addr(&symbols, "DATA_ORG", memory_layout::ROM_DATA_ORG);
     assert_symbol_addr(&symbols, "STACK_ORG", memory_layout::ROM_STACK_ORG);
-    assert_symbol_addr(&symbols, "ESTACK_ORG", memory_layout::ESTACK_ORG);
-    assert_symbol_addr(&symbols, "NSTACK_ORG", memory_layout::NSTACK_ORG);
+    assert_symbol_addr(&symbols, "ESTACK_ORG", memory_layout::ROM_ESTACK_ORG);
+    assert_symbol_addr(&symbols, "NSTACK_ORG", memory_layout::ROM_NSTACK_ORG);
 
     assert_symbol_addr(
         &symbols,
