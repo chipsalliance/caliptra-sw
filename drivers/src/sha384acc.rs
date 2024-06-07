@@ -12,10 +12,11 @@ Abstract:
 
 --*/
 use crate::wait;
-use crate::Array4x12;
 use crate::CaliptraResult;
+use crate::{Array4x12, Array4x16};
 
 use caliptra_error::CaliptraError;
+use caliptra_registers::sha512_acc::enums::ShaCmdE;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 
@@ -23,6 +24,7 @@ use caliptra_registers::sha512_acc::Sha512AccCsr;
 const MAX_MAILBOX_CAPACITY_BYTES: u32 = 128 << 10;
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
+pub type Sha512Digest<'a> = &'a mut Array4x16;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,12 +153,20 @@ impl Drop for Sha384AccOp<'_> {
 }
 
 impl Sha384AccOp<'_> {
-    pub fn digest(
+    /// Perform SHA digest with a configurable mode
+    ///
+    /// # Arguments
+    ///
+    /// * `dlen` - length of data to read from the mailbox
+    /// * `start_address` - start offset for the data in the mailbox
+    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `cmd` - SHA mode/command to use from ShaCmdE
+    fn digest_generic(
         &mut self,
         dlen: u32,
         start_address: u32,
         maintain_data_endianess: bool,
-        digest: Sha384Digest,
+        cmd: ShaCmdE,
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
@@ -172,21 +182,46 @@ impl Sha384AccOp<'_> {
         // Set the start offset of the data in the mailbox.
         sha_acc.start_address().write(|_| start_address);
 
-        // Set the SHA accelerator mode (only SHA384 supported) and
-        // set the option to maintain the DWORD endianess of the data in the
-        // mailbox provided to the SHA384 engine.
-        sha_acc.mode().write(|w| {
-            w.mode(|w| w.sha_mbox_384())
-                .endian_toggle(maintain_data_endianess)
-        });
+        // Set the SHA accelerator mode and set the option to maintain the DWORD
+        // endianess of the data in the mailbox provided to the SHA384 engine.
+        sha_acc
+            .mode()
+            .write(|w| w.mode(|_| cmd).endian_toggle(maintain_data_endianess));
 
-        // Trigger the SHA384 operation.
+        // Trigger the SHA operation.
         sha_acc.execute().write(|_| ExecuteWriteVal::from(1));
 
         // Wait for the digest operation to finish
         wait::until(|| sha_acc.status().read().valid());
 
-        self.copy_digest_to_buf(digest)?;
+        Ok(())
+    }
+
+    /// Perform SHA 384 digest
+    ///
+    /// # Arguments
+    ///
+    /// * `dlen` - length of data to read from the mailbox
+    /// * `start_address` - start offset for the data in the mailbox
+    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest(
+        &mut self,
+        dlen: u32,
+        start_address: u32,
+        maintain_data_endianess: bool,
+        digest: Sha384Digest,
+    ) -> CaliptraResult<()> {
+        self.digest_generic(
+            dlen,
+            start_address,
+            maintain_data_endianess,
+            ShaCmdE::ShaMbox384,
+        )?;
+
+        // Copy digest to buffer
+        let sha_acc = self.sha512_acc.regs();
+        *digest = Array4x12::read_from_reg(sha_acc.digest().truncate::<12>());
 
         // Zeroize the hardware registers.
         self.sha512_acc
@@ -197,14 +232,38 @@ impl Sha384AccOp<'_> {
         Ok(())
     }
 
-    /// Copy digest to buffer
+    /// Perform SHA 512 digest
     ///
     /// # Arguments
     ///
-    /// * `buf` - Digest buffer
-    fn copy_digest_to_buf(&mut self, buf: &mut Array4x12) -> CaliptraResult<()> {
+    /// * `dlen` - length of data to read from the mailbox
+    /// * `start_address` - start offset for the data in the mailbox
+    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    /// * `digest` - buffer to populate with resulting digest
+    pub fn digest_512(
+        &mut self,
+        dlen: u32,
+        start_address: u32,
+        maintain_data_endianess: bool,
+        digest: Sha512Digest,
+    ) -> CaliptraResult<()> {
+        self.digest_generic(
+            dlen,
+            start_address,
+            maintain_data_endianess,
+            ShaCmdE::ShaMbox512,
+        )?;
+
+        // Copy digest to buffer
         let sha_acc = self.sha512_acc.regs();
-        *buf = Array4x12::read_from_reg(sha_acc.digest().truncate::<12>());
+        *digest = Array4x16::read_from_reg(sha_acc.digest());
+
+        // Zeroize the hardware registers.
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
+
         Ok(())
     }
 }

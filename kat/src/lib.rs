@@ -52,7 +52,7 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] SHA2-384");
     Sha384Kat::default().execute(env.sha384)?;
 
-    cprintln!("[kat] SHA2-384-ACC");
+    cprintln!("[kat] SHA2-512-ACC");
     Sha384AccKat::default().execute(env.sha384_acc, env.sha_acc_lock_state)?;
 
     cprintln!("[kat] ECC-384");

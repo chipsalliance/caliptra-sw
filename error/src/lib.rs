@@ -558,10 +558,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x90040002);
     pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
 
-    pub const KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
+    pub const KAT_SHA512_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
-    pub const KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050002);
-    pub const KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050003);
+    pub const KAT_SHA512_ACC_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050002);
+    pub const KAT_SHA512_ACC_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050003);
 
     pub const KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
     pub const KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
