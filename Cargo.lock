@@ -740,6 +740,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
+ "caliptra-image-crypto",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
  "caliptra-image-gen",
