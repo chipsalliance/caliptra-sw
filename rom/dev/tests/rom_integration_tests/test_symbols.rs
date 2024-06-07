@@ -53,6 +53,6 @@ fn test_linker_symbols_match_memory_layout() {
     assert_symbol_addr(&symbols, "DCCM_SIZE", memory_layout::DCCM_SIZE);
     assert_symbol_addr(&symbols, "DATA_SIZE", memory_layout::ROM_DATA_SIZE);
     assert_symbol_addr(&symbols, "STACK_SIZE", memory_layout::ROM_STACK_SIZE);
-    assert_symbol_addr(&symbols, "ESTACK_SIZE", memory_layout::ESTACK_SIZE);
-    assert_symbol_addr(&symbols, "NSTACK_SIZE", memory_layout::NSTACK_SIZE);
+    assert_symbol_addr(&symbols, "ESTACK_SIZE", memory_layout::ROM_ESTACK_SIZE);
+    assert_symbol_addr(&symbols, "NSTACK_SIZE", memory_layout::ROM_NSTACK_SIZE);
 }
