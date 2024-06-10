@@ -4,6 +4,7 @@
 name = "caliptra-runtime"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 caliptra-cfi-lib-git = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
@@ -17,7 +18,7 @@ caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe.workspace = true
+dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
 crypto.workspace = true
 platform.workspace = true
 ufmt.workspace = true
@@ -58,4 +59,3 @@ fips_self_test=[]
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-kat/hw-1.0","caliptra-cpu/hw-1.0"]
-arbitrary_max_handles = ["dpe/arbitrary_max_handles"]

@@ -48,13 +48,13 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["fips_self_test", "arbitrary_max_handles"],
+    features: &["fips_self_test"],
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "arbitrary_max_handles"],
+    features: &["emu", "fips_self_test"],
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
