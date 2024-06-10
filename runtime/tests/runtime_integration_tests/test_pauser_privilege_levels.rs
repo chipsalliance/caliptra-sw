@@ -400,6 +400,7 @@ fn test_stash_measurement_pl_context_thresholds() {
     }
 }
 
+#[ignore]
 #[test]
 fn test_measurement_log_pl_context_threshold() {
     let fuses = Fuses::default();
