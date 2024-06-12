@@ -12,7 +12,10 @@ use openssl::{
     ec::{EcGroup, EcKey, EcPoint, PointConversionForm},
     nid::Nid,
     pkey::{PKey, Public},
+    sha::sha384,
 };
+use sha2::digest::generic_array::GenericArray;
+use sha2::digest::typenum::U128;
 
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
 pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
@@ -181,6 +184,202 @@ pub(crate) fn hmac384_kdf(key: &[u8], label: &[u8], context: Option<&[u8]>) -> [
     }
 
     hmac384(key, &msg)
+}
+
+struct Sha512 {
+    /// Hash
+    state: [u64; 8],
+}
+
+impl Sha512 {
+    const HASH_IV: [u64; 8] = [
+        0xcbbb9d5dc1059ed8,
+        0x629a292a367cd507,
+        0x9159015a3070dd17,
+        0x152fecd8f70e5939,
+        0x67332667ffc00b31,
+        0x8eb44a8768581511,
+        0xdb0c2e0d64f98fa7,
+        0x47b5481dbefa4fa4,
+    ];
+
+    pub fn new() -> Self {
+        Self {
+            state: Self::HASH_IV,
+        }
+    }
+
+    pub fn update_block(&mut self, block: [u8; 128]) {
+        //sha2::compress512(&mut self.state, &[GenericArray::<u8, U128>::from(block)])
+        sha2::compress512(&mut self.state, &[block.into()])
+    }
+    pub fn result(&self) -> [u8; 64] {
+        let mut result = [0u8; 64];
+        for (i, chunk) in result.chunks_mut(8).enumerate() {
+            chunk.copy_from_slice(&self.state[i].to_be_bytes())
+        }
+        result
+    }
+    pub fn result_truncated(&self) -> [u8; 48] {
+        self.result()[0..48].try_into().unwrap()
+    }
+}
+
+#[test]
+fn test_sha512() {
+    // This is the padded block input for an empty message
+    let mut block = [0_u8; 128];
+    block[0] = 0x80;
+    let mut sha = Sha512::new();
+    sha.update_block(block);
+    assert_eq!(
+        sha.result_truncated(),
+        [
+            0x38, 0xb0, 0x60, 0xa7, 0x51, 0xac, 0x96, 0x38, 0x4c, 0xd9, 0x32, 0x7e, 0xb1, 0xb1,
+            0xe3, 0x6a, 0x21, 0xfd, 0xb7, 0x11, 0x14, 0xbe, 0x07, 0x43, 0x4c, 0x0c, 0xc7, 0xbf,
+            0x63, 0xf6, 0xe1, 0xda, 0x27, 0x4e, 0xde, 0xbf, 0xe7, 0x6f, 0x65, 0xfb, 0xd5, 0x1a,
+            0xd2, 0xf1, 0x48, 0x98, 0xb9, 0x5b
+        ]
+    );
+}
+
+/// HMAC-512
+pub struct Hmac384 {
+    hash: Sha512,
+
+    /// Output Pad
+    opad: [u8; 128],
+}
+
+impl Hmac384 {
+    /// Block Size
+    const BLOCK_SIZE: usize = 128;
+    const KEY_SIZE: usize = 48;
+    const HASH_LEN: usize = 48;
+
+    pub fn new(key: &[u8; Self::KEY_SIZE]) -> Self {
+        const IPAD: u8 = 0x36;
+        const OPAD: u8 = 0x5c;
+        let mut result = Self {
+            hash: Sha512::new(),
+            opad: [0u8; Self::BLOCK_SIZE],
+        };
+
+        result.opad[..Self::KEY_SIZE].copy_from_slice(key);
+        for val in result.opad.iter_mut() {
+            *val ^= OPAD;
+        }
+
+        let mut ipad = [0u8; Self::BLOCK_SIZE];
+        ipad[..Self::KEY_SIZE].copy_from_slice(key);
+        for val in ipad.iter_mut() {
+            *val ^= IPAD;
+        }
+
+        result.hash.update_block(ipad);
+
+        result
+    }
+
+    pub fn update(&mut self, block: &[u8; Self::BLOCK_SIZE]) {
+        self.hash.update_block(*block);
+    }
+
+    pub fn result(&self) -> [u8; 48] {
+        let mut v = vec![];
+        v.extend(self.opad);
+        v.extend(self.hash.result_truncated());
+        let r2 = sha384(&v);
+
+        // Copy the summary hash into block
+        let mut sum_block = [0u8; Self::BLOCK_SIZE];
+        sum_block[..Self::HASH_LEN].copy_from_slice(&self.hash.result_truncated());
+        sum_block[Self::HASH_LEN] = 0x80;
+
+        // Copy the length of the data hashed in bits
+        let len = u64::try_from((Self::BLOCK_SIZE + Self::HASH_LEN) * 8).unwrap();
+        sum_block[120..].copy_from_slice(&len.to_be_bytes());
+
+        // Reset the second hash engine and generate the new tag.
+        let mut outer_sha = Sha512::new();
+
+        outer_sha.update_block(self.opad);
+        outer_sha.update_block(sum_block);
+        outer_sha.result_truncated()
+    }
+}
+
+#[test]
+fn test_hmac0() {
+    // From https://datatracker.ietf.org/doc/html/rfc4231#section-4.2
+    let key: [u8; 48] = [
+        0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
+        0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00,
+    ];
+
+    let mut message = [0_u8; 128];
+    message[0..8].copy_from_slice(b"Hi There");
+    message[8] = 0x80;
+    message[120..].copy_from_slice(&(8_u64 * 8 + 1024).to_be_bytes());
+    let mut mac = Hmac384::new(&key);
+    mac.update(&message);
+    assert_eq!(
+        mac.result(),
+        [
+            0xaf, 0xd0, 0x39, 0x44, 0xd8, 0x48, 0x95, 0x62, 0x6b, 0x08, 0x25, 0xf4, 0xab, 0x46,
+            0x90, 0x7f, 0x15, 0xf9, 0xda, 0xdb, 0xe4, 0x10, 0x1e, 0xc6, 0x82, 0xaa, 0x03, 0x4c,
+            0x7c, 0xeb, 0xc5, 0x9c, 0xfa, 0xea, 0x9e, 0xa9, 0x07, 0x6e, 0xde, 0x7f, 0x4a, 0xf1,
+            0x52, 0xe8, 0xb2, 0xfa, 0x9c, 0xb6
+        ]
+    )
+}
+
+pub(crate) fn hmac384_kdf_truncated(key: &[u8], label: &[u8], context: Option<&[u8]>) -> [u8; 48] {
+    // This simulates the incorrect behavior of the driver...
+    let ctr_be = 1_u32.to_be_bytes();
+
+    let mut msg = Vec::<u8>::default();
+    msg.extend_from_slice(&ctr_be);
+    msg.extend_from_slice(label);
+
+    if let Some(context) = context {
+        msg.push(0x00);
+        msg.extend_from_slice(context);
+    }
+    let mut msg_len = u64::try_from(msg.len()).unwrap() * 8;
+
+    // length must include a block of hmac i_key_pad
+    msg_len += 1024;
+
+    msg.push(0x80);
+    // Make room for the 128-bit length
+    for i in 0..16 {
+        msg.push(0);
+    }
+    // Pad to nearest block size
+    while msg.len() % 128 != 0 {
+        msg.push(0);
+    }
+    let len64_offset = msg.len() - 8;
+    msg[len64_offset..].copy_from_slice(&msg_len.to_be_bytes());
+
+    let mut remainder = &msg[..];
+    let block = &remainder[0..128];
+    remainder = &remainder[128..];
+
+    let mut hmac = Hmac384::new(key.try_into().unwrap());
+    hmac.update(block.try_into().unwrap());
+
+    // Uncomment this to make this behave the same as hmac384_kdf()
+    //while !remainder.is_empty() {
+    //    let block = &remainder[0..128];
+    //    remainder = &remainder[128..];
+    //    hmac.update(block.try_into().unwrap());
+    //}
+
+    hmac.result()
 }
 
 #[test]
