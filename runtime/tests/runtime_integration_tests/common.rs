@@ -73,11 +73,13 @@ pub fn run_rt_test(
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
         .unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
+    let mut model = caliptra_hw_model::new(
         init_params,
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());

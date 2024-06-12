@@ -28,13 +28,13 @@ const PUB_KEY_Y: [u8; 48] = [
 #[test]
 fn test_skip_kats() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
@@ -51,14 +51,14 @@ fn test_fake_rom_production_error() {
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     // Let it run until a fatal error (should fail very early)
@@ -75,15 +75,17 @@ fn test_fake_rom_production_error() {
 fn test_fake_rom_fw_load() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     // Build the image we are going to send to ROM to load
@@ -112,15 +114,17 @@ fn test_fake_rom_fw_load() {
 fn test_fake_rom_update_reset() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -163,16 +167,18 @@ fn test_image_verify() {
     const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let mut image_bundle = caliptra_builder::build_and_sign_image(

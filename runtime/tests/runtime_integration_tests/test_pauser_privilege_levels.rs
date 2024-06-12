@@ -372,15 +372,17 @@ fn test_stash_measurement_pl_context_thresholds() {
 fn test_measurement_log_pl_context_threshold() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(

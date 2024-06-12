@@ -458,6 +458,16 @@ impl HwModel for ModelFpgaRealtime {
         while !self.is_ready_for_fuses() {}
     }
 
+    fn cold_reset(&mut self) {
+        // Toggle reset and pwrgood
+        self.set_cptra_rst_b(false);
+        self.set_cptra_pwrgood(false);
+        self.set_cptra_pwrgood(true);
+        self.set_cptra_rst_b(true);
+        // Wait for ready_for_fuses
+        while !self.is_ready_for_fuses() {}
+    }
+
     fn ready_for_fw(&self) -> bool {
         unsafe {
             GpioInput(
