@@ -5,7 +5,7 @@
 
 use core::mem::size_of;
 
-use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
+use caliptra_common::{handle_fatal_error, keyids::KEY_ID_TMP, mailbox_api::CommandId};
 use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
@@ -13,8 +13,8 @@ use caliptra_drivers::{
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
-    mailbox::Mailbox, ContextState, DpeInstance, Drivers, RtBootStatus, TciMeasurement, U8Bool,
-    MAX_HANDLES,
+    handoff::RtHandoff, mailbox::Mailbox, ContextState, DpeInstance, Drivers, Hmac, RtBootStatus,
+    TciMeasurement, U8Bool, MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{AsBytes, FromBytes};
@@ -31,6 +31,8 @@ const OPCODE_READ_DPE_INSTANCE: u32 = 0xA000_0000;
 const OPCODE_CORRUPT_DPE_INSTANCE: u32 = 0xB000_0000;
 const OPCODE_READ_PCR_RESET_COUNTER: u32 = 0xC000_0000;
 const OPCODE_CORRUPT_DPE_ROOT_TCI: u32 = 0xD000_0000;
+const OPCODE_READ_HASH_CHAIN_MAX_SVN: u32 = 0xE000_0000;
+const OPCODE_READ_HASH_CHAIN_DIGEST: u32 = 0xF000_0000;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
 fn read_request(mbox: &Mailbox) -> &[u8] {
@@ -207,6 +209,44 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .tci
                     .tci_current = TciMeasurement(input_bytes.try_into().unwrap());
                 write_response(&mut drivers.mbox, &[]);
+            }
+            CommandId(OPCODE_READ_HASH_CHAIN_MAX_SVN) => {
+                write_response(
+                    &mut drivers.mbox,
+                    &drivers
+                        .persistent_data
+                        .get()
+                        .fht
+                        .rt_hash_chain_max_svn
+                        .to_le_bytes(),
+                );
+            }
+            // Ratchet the chain forwards a given number of times, then
+            // compute a digest from the chain.
+            CommandId(OPCODE_READ_HASH_CHAIN_DIGEST) => {
+                let handoff = RtHandoff {
+                    data_vault: &drivers.data_vault,
+                    fht: &drivers.persistent_data.get().fht,
+                };
+
+                let hash_chain_kv = handoff.rt_hash_chain().unwrap();
+                let num_hashes = u32::read_from(read_request(&drivers.mbox)).unwrap();
+
+                let hmac_input = if num_hashes == 0 {
+                    hash_chain_kv
+                } else {
+                    Hmac::hmac384_kdf(drivers, hash_chain_kv, &[], None, KEY_ID_TMP).unwrap();
+                    for _ in 1..num_hashes {
+                        Hmac::hmac384_kdf(drivers, KEY_ID_TMP, &[], None, KEY_ID_TMP).unwrap();
+                    }
+                    KEY_ID_TMP
+                };
+
+                let hmac_output =
+                    Hmac::ecc384_hmac(drivers, hmac_input, b"hmac_label", b"hmac_data").unwrap();
+
+                drivers.key_vault.erase_key(KEY_ID_TMP).unwrap();
+                write_response(&mut drivers.mbox, hmac_output.as_bytes());
             }
             CommandId(OPCODE_FW_LOAD) => {
                 unsafe { SocIfcReg::new() }
