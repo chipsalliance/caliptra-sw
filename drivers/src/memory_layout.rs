@@ -70,12 +70,12 @@ pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 78 * 1024;
+pub const DATA_SIZE: u32 = 77 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
-pub const ESTACK_SIZE: u32 = 512;
+pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
-pub const NSTACK_SIZE: u32 = 512;
+pub const NSTACK_SIZE: u32 = 1024;
 pub const ROM_NSTACK_SIZE: u32 = 1024;
 
 pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {

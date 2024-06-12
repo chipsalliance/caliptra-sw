@@ -422,6 +422,14 @@ fn test_measurement_log_pl_context_threshold() {
         let mut measurement_req = MailboxReq::StashMeasurement(measurement);
         measurement_req.populate_chksum().unwrap();
 
+        if idx == PL0_DPE_ACTIVE_CONTEXT_THRESHOLD as u8 - 1 {
+            model
+                .upload_measurement(measurement_req.as_bytes().unwrap())
+                .unwrap_err();
+
+            break;
+        }
+
         model
             .upload_measurement(measurement_req.as_bytes().unwrap())
             .unwrap();
