@@ -1,15 +1,12 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
-};
+use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
     PopulateIdevCertReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::{
     RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
@@ -400,28 +397,13 @@ fn test_stash_measurement_pl_context_thresholds() {
     }
 }
 
-#[ignore]
 #[test]
 fn test_measurement_log_pl_context_threshold() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        fuses,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut model = run_rt_test(None, None, None);
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
 
     // Upload PL0_DPE_ACTIVE_CONTEXT_THRESHOLD measurements to measurement log
     // Since there are some other measurements taken by Caliptra upon startup, this will cause
@@ -444,10 +426,6 @@ fn test_measurement_log_pl_context_threshold() {
             .upload_measurement(measurement_req.as_bytes().unwrap())
             .unwrap();
     }
-
-    model
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
