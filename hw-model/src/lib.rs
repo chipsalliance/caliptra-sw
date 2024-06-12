@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::{
     error::Error,
     fmt::Display,
-    io::{stdout, ErrorKind, Write},
+    io::{ErrorKind, Write},
 };
 
 use api::calc_checksum;
@@ -43,8 +43,8 @@ mod rv32_builder;
 
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState, U4};
-use output::ExitStatus;
 pub use output::Output;
+use output::{ExitStatus, PrintWriter};
 
 pub use model_emulated::ModelEmulated;
 
@@ -192,7 +192,7 @@ impl<'a> Default for InitParams<'a> {
             rom: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
-            log_writer: Box::new(stdout()),
+            log_writer: Box::<PrintWriter>::default(),
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
