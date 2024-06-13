@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    sha384acc.rs
+    sha2_512_384acc.rs
 
 Abstract:
 
-    File contains API for SHA384 accelerator operations
+    File contains API for SHA2 512/384 accelerator operations
 
 --*/
 use crate::wait;
@@ -33,11 +33,11 @@ pub enum ShaAccLockState {
     NotAcquired = 0x5555_555A,
 }
 
-pub struct Sha384Acc {
+pub struct Sha2_512_384Acc {
     sha512_acc: Sha512AccCsr,
 }
 
-impl Sha384Acc {
+impl Sha2_512_384Acc {
     pub fn new(sha512_acc: Sha512AccCsr) -> Self {
         Self { sha512_acc }
     }
@@ -58,7 +58,7 @@ impl Sha384Acc {
     pub fn try_start_operation(
         &mut self,
         assumed_lock_state: ShaAccLockState,
-    ) -> CaliptraResult<Option<Sha384AccOp>> {
+    ) -> CaliptraResult<Option<Sha2_512_384AccOp>> {
         let sha_acc = self.sha512_acc.regs();
 
         match assumed_lock_state {
@@ -69,7 +69,7 @@ impl Sha384Acc {
                     Ok(None)
                 } else {
                     // The uC acquired the lock just now.
-                    Ok(Some(Sha384AccOp {
+                    Ok(Some(Sha2_512_384AccOp {
                         sha512_acc: &mut self.sha512_acc,
                     }))
                 }
@@ -77,12 +77,12 @@ impl Sha384Acc {
             ShaAccLockState::AssumedLocked => {
                 if sha_acc.lock().read().lock() {
                     // SHA Acc is locked and the caller is assuming that the uC has it.
-                    Ok(Some(Sha384AccOp {
+                    Ok(Some(Sha2_512_384AccOp {
                         sha512_acc: &mut self.sha512_acc,
                     }))
                 } else {
                     // Caller expected uC to already have the lock, but uC actually didn't (bug)
-                    Err(CaliptraError::DRIVER_SHA384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
+                    Err(CaliptraError::DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
                 }
             }
         }
@@ -136,11 +136,11 @@ impl Sha384Acc {
     }
 }
 
-pub struct Sha384AccOp<'a> {
+pub struct Sha2_512_384AccOp<'a> {
     sha512_acc: &'a mut Sha512AccCsr,
 }
 
-impl Drop for Sha384AccOp<'_> {
+impl Drop for Sha2_512_384AccOp<'_> {
     /// Release the SHA384 Accelerator lock.
     ///
     /// # Arguments
@@ -152,7 +152,7 @@ impl Drop for Sha384AccOp<'_> {
     }
 }
 
-impl Sha384AccOp<'_> {
+impl Sha2_512_384AccOp<'_> {
     /// Perform SHA digest with a configurable mode
     ///
     /// # Arguments
@@ -173,7 +173,7 @@ impl Sha384AccOp<'_> {
         if start_address >= MAX_MAILBOX_CAPACITY_BYTES
             || (start_address + dlen) > MAX_MAILBOX_CAPACITY_BYTES
         {
-            return Err(CaliptraError::DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS);
+            return Err(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS);
         }
 
         // Set the data length to read from the mailbox.
@@ -205,7 +205,7 @@ impl Sha384AccOp<'_> {
     /// * `start_address` - start offset for the data in the mailbox
     /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
     /// * `digest` - buffer to populate with resulting digest
-    pub fn digest(
+    pub fn digest_384(
         &mut self,
         dlen: u32,
         start_address: u32,

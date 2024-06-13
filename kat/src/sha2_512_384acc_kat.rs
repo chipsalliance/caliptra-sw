@@ -4,14 +4,16 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    sha384acc_kat.rs
+    sha2_512_384acc_kat.rs
 
 Abstract:
 
     File contains the Known Answer Tests (KAT) for SHA512 accelerator cryptography operations.
 
 --*/
-use caliptra_drivers::{Array4x16, CaliptraError, CaliptraResult, Sha384Acc, ShaAccLockState};
+use caliptra_drivers::{
+    Array4x16, CaliptraError, CaliptraResult, Sha2_512_384Acc, ShaAccLockState,
+};
 
 const SHA512_EXPECTED_DIGEST: Array4x16 = Array4x16::new([
     0xcf83e135, 0x7eefb8bd, 0xf1542850, 0xd66d8007, 0xd620e405, 0x0b5715dc, 0x83f4a921, 0xd36ce9ce,
@@ -19,9 +21,9 @@ const SHA512_EXPECTED_DIGEST: Array4x16 = Array4x16::new([
 ]);
 
 #[derive(Default)]
-pub struct Sha384AccKat {}
+pub struct Sha2_512_384AccKat {}
 
-impl Sha384AccKat {
+impl Sha2_512_384AccKat {
     /// This function executes the Known Answer Tests (aka KAT) for SHA512ACC.
     /// Performing this test for SHA512 mode also covers SHA384
     ///
@@ -38,7 +40,7 @@ impl Sha384AccKat {
     /// * `CaliptraResult` - Result denoting the KAT outcome.
     pub fn execute(
         &self,
-        sha_acc: &mut Sha384Acc,
+        sha_acc: &mut Sha2_512_384Acc,
         lock_state: ShaAccLockState,
     ) -> CaliptraResult<()> {
         self.kat_no_data(sha_acc, lock_state)?;
@@ -47,7 +49,7 @@ impl Sha384AccKat {
 
     fn kat_no_data(
         &self,
-        sha_acc: &mut Sha384Acc,
+        sha_acc: &mut Sha2_512_384Acc,
         lock_state: ShaAccLockState,
     ) -> CaliptraResult<()> {
         let mut digest = Array4x16::default();
@@ -57,9 +59,9 @@ impl Sha384AccKat {
                 // SHA 512
                 sha_acc_op
                     .digest_512(0, 0, false, &mut digest)
-                    .map_err(|_| CaliptraError::KAT_SHA512_ACC_DIGEST_FAILURE)?;
+                    .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
                 if digest != SHA512_EXPECTED_DIGEST {
-                    Err(CaliptraError::KAT_SHA512_ACC_DIGEST_MISMATCH)?;
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;
                 }
 
                 Ok(())
@@ -74,7 +76,7 @@ impl Sha384AccKat {
             }
             result?;
         } else {
-            Err(CaliptraError::KAT_SHA512_ACC_DIGEST_START_OP_FAILURE)?;
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
         };
 
         Ok(())

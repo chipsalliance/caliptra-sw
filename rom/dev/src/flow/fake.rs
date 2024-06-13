@@ -158,7 +158,7 @@ impl FakeRomFlow {
                 // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
                 let sha_op = env
-                    .sha384_acc
+                    .sha2_512_384_acc
                     .try_start_operation(ShaAccLockState::AssumedLocked)?
                     .unwrap();
                 drop(sha_op);

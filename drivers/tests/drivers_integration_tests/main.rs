@@ -740,8 +740,8 @@ fn test_sha384() {
 }
 
 #[test]
-fn test_sha384acc() {
-    run_driver_test(&firmware::driver_tests::SHA384ACC);
+fn test_sha2_512_384acc() {
+    run_driver_test(&firmware::driver_tests::SHA2_512_384ACC);
 }
 
 #[test]
