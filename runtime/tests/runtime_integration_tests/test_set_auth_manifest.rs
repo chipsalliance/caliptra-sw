@@ -6,6 +6,7 @@ use caliptra_auth_man_gen::{
 };
 use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
+    AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_hw_model::HwModel;
@@ -99,6 +100,8 @@ fn test_set_auth_manifest_cmd() {
         owner_fw_key_info,
         owner_man_key_info,
         image_metadata_list,
+        version: 1,
+        flags: AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG,
     };
 
     let gen = AuthManifestGenerator::new(caliptra_image_openssl::OsslCrypto::default());

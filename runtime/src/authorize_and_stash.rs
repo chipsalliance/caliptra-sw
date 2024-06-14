@@ -62,7 +62,7 @@ use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const AUTHORIZE_IMAGE: u32 = 0xDEADC0DE;
-pub const DENY_IMAGE: u32 = 0x21523F21;
+pub const DENY_IMAGE_AUTHORIZATION: u32 = 0x21523F21;
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -79,7 +79,7 @@ impl AuthorizeAndStashCmd {
             let auth_manifest_image_metadata_col =
                 &persistent_data.auth_manifest_image_metadata_col;
 
-            let mut auth_result = DENY_IMAGE;
+            let mut auth_result = DENY_IMAGE_AUTHORIZATION;
             for metadata_entry in auth_manifest_image_metadata_col.image_metadata_array.iter() {
                 if metadata_entry.digest == cmd.measurement {
                     auth_result = AUTHORIZE_IMAGE;

@@ -29,6 +29,10 @@ pub struct AuthManifestGeneratorKeyConfig {
 /// Authorization Manifest Generator Configuration
 #[derive(Default, Clone)]
 pub struct AuthManifestGeneratorConfig {
+    pub version: u32,
+
+    pub flags: u32,
+
     pub vendor_fw_key_info: AuthManifestGeneratorKeyConfig,
 
     pub vendor_man_key_info: AuthManifestGeneratorKeyConfig,

@@ -23,7 +23,8 @@ use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
-pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 8;
+pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 16;
+pub const AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG: u32 = 0x1;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
@@ -60,7 +61,9 @@ pub struct AuthManifestPreamble {
 
     pub size: u32,
 
-    pub svn: u32,
+    pub version: u32,
+
+    pub flags: u32,
 
     pub vendor_pub_keys: AuthManifestPubKeys,
 
@@ -76,9 +79,9 @@ pub struct AuthManifestPreamble {
 }
 
 impl AuthManifestPreamble {
-    /// Returns `Range<u32>` containing the vendor_pub_keys
-    pub fn vendor_pub_keys_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, vendor_pub_keys);
+    /// Returns `Range<u32>` containing the flags and the vendor_pub_keys
+    pub fn vendor_signed_data_range() -> Range<u32> {
+        let span = span_of!(AuthManifestPreamble, flags..=vendor_pub_keys);
         span.start as u32..span.end as u32
     }
 

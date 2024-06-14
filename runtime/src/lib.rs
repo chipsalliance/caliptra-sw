@@ -36,6 +36,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::Drivers;
@@ -56,6 +57,7 @@ pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 pub use populate_idev::PopulateIDevIdCertCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 
+pub use authorize_and_stash::{AUTHORIZE_IMAGE, DENY_IMAGE_AUTHORIZATION};
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use pcr::IncrementPcrResetCounterCmd;
@@ -213,6 +215,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

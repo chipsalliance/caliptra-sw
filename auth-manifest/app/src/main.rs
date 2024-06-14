@@ -27,6 +27,21 @@ fn main() {
     let sub_cmds = vec![Command::new("create-auth-man")
         .about("Create a new authorization manifest")
         .arg(
+            arg!(--"version" <U32> "Manifest Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
+            arg!(--"flags" <U32> "Manifest Flags")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
+            arg!(--"key-dir" <FILE> "Key files directory path")
+                .required(true)
+                .value_parser(value_parser!(PathBuf)),
+        )
+        .arg(
             arg!(--"config" <FILE> "Configuration file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
@@ -57,6 +72,14 @@ fn main() {
 }
 
 pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
+    let version: &u32 = args
+        .get_one::<u32>("version")
+        .with_context(|| "version arg not specified")?;
+
+    let flags: &u32 = args
+        .get_one::<u32>("flags")
+        .with_context(|| "flags arg not specified")?;
+
     let config_path: &PathBuf = args
         .get_one::<PathBuf>("config")
         .with_context(|| "config arg not specified")?;
@@ -78,6 +101,8 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
 
     // Decode the configuration.
     let gen_config = AuthManifestGeneratorConfig {
+        version: *version,
+        flags: *flags,
         vendor_man_key_info: config::vendor_config(key_dir, &config.vendor_man_key_config)?,
         owner_man_key_info: config::owner_config(key_dir, &config.owner_man_key_config)?,
         vendor_fw_key_info: config::vendor_config(key_dir, &config.vendor_fw_key_config)?,
@@ -86,7 +111,7 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     };
 
     let gen = AuthManifestGenerator::new(caliptra_image_openssl::OsslCrypto::default());
-    let manifest_image = gen.generate(&gen_config).unwrap();
+    let manifest = gen.generate(&gen_config).unwrap();
 
     let mut out_file = std::fs::OpenOptions::new()
         .create(true)
@@ -95,7 +120,7 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .open(out_path)
         .with_context(|| format!("Failed to create file {}", out_path.display()))?;
 
-    out_file.write_all(manifest_image.as_bytes())?;
+    out_file.write_all(manifest.as_bytes())?;
 
     Ok(())
 }

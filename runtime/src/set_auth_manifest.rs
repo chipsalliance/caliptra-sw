@@ -20,6 +20,7 @@ use caliptra_auth_man_types::AuthManifestImageMetadataCollection;
 use caliptra_auth_man_types::AuthManifestImageMetadataCollectionHeader;
 use caliptra_auth_man_types::AuthManifestPreamble;
 use caliptra_auth_man_types::AUTH_MANIFEST_MARKER;
+use caliptra_auth_man_types::AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
 use caliptra_common::mailbox_api::SetAuthManifestReq;
@@ -114,7 +115,7 @@ impl SetAuthManifestCmd {
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
-    fn verify_vendor_pub_keys(
+    fn verify_vendor_signed_data(
         persistent_data: &mut PersistentData,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
@@ -123,7 +124,7 @@ impl SetAuthManifestCmd {
     ) -> CaliptraResult<()> {
         let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
 
-        let range = AuthManifestPreamble::vendor_pub_keys_range();
+        let range = AuthManifestPreamble::vendor_signed_data_range();
         let digest_vendor = Self::sha384_digest(
             sha384,
             auth_manifest_preamble.as_bytes(),
@@ -239,9 +240,137 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
+    fn verify_vendor_image_metadata_col(
+        persistent_data: &PersistentData,
+        image_metadata_col_digest: &ImageDigest,
+        sha384: &mut Sha384,
+        ecc384: &mut Ecc384,
+        sha256: &mut Sha256,
+        soc_ifc: &SocIfc,
+    ) -> CaliptraResult<()> {
+        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
+
+        if auth_manifest_preamble.flags & AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG != 0 {
+            // Verify the vendor ECC signature over the image metadata collection.
+            let verify_r = Self::ecc384_verify(
+                ecc384,
+                image_metadata_col_digest,
+                &auth_manifest_preamble.vendor_pub_keys.ecc_pub_key,
+                &auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .ecc_sig,
+            )?;
+            if cfi_launder(verify_r)
+                != caliptra_drivers::Array4xN(
+                    auth_manifest_preamble
+                        .vendor_image_metdata_signatures
+                        .ecc_sig
+                        .r,
+                )
+            {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    &verify_r.0,
+                    &auth_manifest_preamble
+                        .vendor_image_metdata_signatures
+                        .ecc_sig
+                        .r,
+                );
+            }
+
+            // Verify vendor LMS signature over the image metadata collection.
+            if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
+                let candidate_key = Self::lms_verify(
+                    sha256,
+                    image_metadata_col_digest,
+                    &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
+                    &auth_manifest_preamble
+                        .vendor_image_metdata_signatures
+                        .lms_sig,
+                )?;
+                let pub_key_digest =
+                    HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
+                if candidate_key != pub_key_digest {
+                    return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
+                } else {
+                    caliptra_cfi_lib_git::cfi_assert_eq_6_words(
+                        &candidate_key.0,
+                        &pub_key_digest.0,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn verify_owner_image_metadata_col(
+        persistent_data: &PersistentData,
+        image_metadata_col_digest: &ImageDigest,
+        sha384: &mut Sha384,
+        ecc384: &mut Ecc384,
+        sha256: &mut Sha256,
+        soc_ifc: &SocIfc,
+    ) -> CaliptraResult<()> {
+        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
+
+        // Verify the owner ECC signature.
+        let verify_r = Self::ecc384_verify(
+            ecc384,
+            image_metadata_col_digest,
+            &auth_manifest_preamble.owner_pub_keys.ecc_pub_key,
+            &auth_manifest_preamble
+                .owner_image_metdata_signatures
+                .ecc_sig,
+        )?;
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .ecc_sig
+                    .r,
+            )
+        {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                &verify_r.0,
+                &auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .ecc_sig
+                    .r,
+            );
+        }
+
+        // Verify owner LMS signature.
+        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
+            let candidate_key = Self::lms_verify(
+                sha256,
+                image_metadata_col_digest,
+                &auth_manifest_preamble.owner_pub_keys.lms_pub_key,
+                &auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .lms_sig,
+            )?;
+            let pub_key_digest =
+                HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
+            if candidate_key != pub_key_digest {
+                return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID);
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
+        }
+
+        Ok(())
+    }
+
     fn process_image_metadata_col(
         cmd_buf: &[u8],
         persistent_data: &mut PersistentData,
+        sha384: &mut Sha384,
+        ecc384: &mut Ecc384,
+        sha256: &mut Sha256,
+        soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
         if (cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>()) {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE);
@@ -265,6 +394,29 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
             );
         }
+
+        let digest_metadata_col =
+            Self::sha384_digest(sha384, &cmd_buf[..col_size], 0, col_size as u32)?;
+
+        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
+
+        Self::verify_vendor_image_metadata_col(
+            persistent_data,
+            &digest_metadata_col,
+            sha384,
+            ecc384,
+            sha256,
+            soc_ifc,
+        )?;
+
+        Self::verify_owner_image_metadata_col(
+            persistent_data,
+            &digest_metadata_col,
+            sha384,
+            ecc384,
+            sha256,
+            soc_ifc,
+        )?;
 
         Ok(())
     }
@@ -291,8 +443,8 @@ impl SetAuthManifestCmd {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
             }
 
-            // Verify the vendor public keys.
-            Self::verify_vendor_pub_keys(
+            // Verify the vendor signed data (vendor public keys + flags).
+            Self::verify_vendor_signed_data(
                 persistent_data,
                 &mut drivers.sha384,
                 &mut drivers.ecc384,
@@ -316,6 +468,10 @@ impl SetAuthManifestCmd {
         Self::process_image_metadata_col(
             &cmd_args[(manifest_offset + size_of::<AuthManifestPreamble>())..],
             persistent_data,
+            &mut drivers.sha384,
+            &mut drivers.ecc384,
+            &mut drivers.sha256,
+            &drivers.soc_ifc,
         )?;
 
         Ok(MailboxResp::default())

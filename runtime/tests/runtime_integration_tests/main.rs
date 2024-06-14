@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 mod common;
+mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;

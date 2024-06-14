@@ -37,7 +37,8 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
 
         if config.image_metadata_list.len() > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT {
             eprintln!(
-                "Encountered an error converting image_metadata_list, only 8 entries supported."
+                "Encountered an error converting image_metadata_list, only {} entries supported.",
+                AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT
             );
             return Err(anyhow::anyhow!("Error converting image_metadata_list"));
         }
@@ -48,18 +49,30 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
 
         auth_manifest.image_metadata_col.header.entry_count =
             config.image_metadata_list.len() as u32;
-        auth_manifest.image_metadata_col.header.revision = 0;
+        auth_manifest.image_metadata_col.header.revision = 0; // [TODO] Need to update this.
 
         // Generate the preamble.
         auth_manifest.preamble.marker = AUTH_MANIFEST_MARKER;
         auth_manifest.preamble.size = size_of::<AuthManifestPreamble>() as u32;
+        auth_manifest.preamble.version = config.version;
+        auth_manifest.preamble.flags = config.flags;
 
         // Sign the vendor manifest keys.
         auth_manifest.preamble.vendor_pub_keys = config.vendor_man_key_info.pub_keys;
 
-        let digest = self
-            .crypto
-            .sha384_digest(&auth_manifest.preamble.vendor_pub_keys.as_bytes())?;
+        let range = AuthManifestPreamble::vendor_signed_data_range();
+
+        let data = auth_manifest
+            .preamble
+            .as_bytes()
+            .get(range.start as usize..)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
+            .get(..range.len() as usize)
+            .ok_or(anyhow::anyhow!(
+                "Failed to get vendor signed data range length"
+            ))?;
+
+        let digest = self.crypto.sha384_digest(data)?;
 
         if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
@@ -102,25 +115,27 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             .crypto
             .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
 
-        // Sign with the vendor manifest public keys.
-        if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
-            let sig = self.crypto.ecdsa384_sign(
-                &digest,
-                &vendor_man_priv_keys.ecc_priv_key,
-                &config.vendor_man_key_info.pub_keys.ecc_pub_key,
-            )?;
-            auth_manifest
-                .preamble
-                .vendor_image_metdata_signatures
-                .ecc_sig = sig;
+        // Sign with the vendor manifest public keys if indicated in the flags.
+        if auth_manifest.preamble.flags & AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG != 0 {
+            if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
+                let sig = self.crypto.ecdsa384_sign(
+                    &digest,
+                    &vendor_man_priv_keys.ecc_priv_key,
+                    &config.vendor_man_key_info.pub_keys.ecc_pub_key,
+                )?;
+                auth_manifest
+                    .preamble
+                    .vendor_image_metdata_signatures
+                    .ecc_sig = sig;
 
-            let lms_sig = self
-                .crypto
-                .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-            auth_manifest
-                .preamble
-                .vendor_image_metdata_signatures
-                .lms_sig = lms_sig;
+                let lms_sig = self
+                    .crypto
+                    .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
+                auth_manifest
+                    .preamble
+                    .vendor_image_metdata_signatures
+                    .lms_sig = lms_sig;
+            }
         }
 
         // Sign with the owner manifest public keys.
