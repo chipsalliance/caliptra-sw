@@ -83,7 +83,8 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::{
-    FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
+    AuthManifestImageMetadataArray, FuseLogArray, PcrLogArray, PersistentData,
+    PersistentDataAccessor, StashMeasurementArray, AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
     FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};

@@ -2,6 +2,9 @@
 
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
+use caliptra_auth_man_types::AuthManifestImageMetadata;
+#[cfg(feature = "runtime")]
+use caliptra_auth_man_types::{AuthManifestImageMetadataCollection, AuthManifestPreamble};
 use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
@@ -21,10 +24,13 @@ use crate::pcr_reset::PcrResetCounter;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+pub const AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT: usize = 8;
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
 pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
+pub type AuthManifestImageMetadataArray =
+    [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT];
 
 #[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
@@ -77,6 +83,18 @@ pub struct PersistentData {
 
     #[cfg(not(feature = "runtime"))]
     pcr_reset: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize],
+
+    #[cfg(feature = "runtime")]
+    pub auth_manifest_preamble: AuthManifestPreamble,
+    #[cfg(feature = "runtime")]
+    reserved8:
+        [u8; memory_layout::AUTH_MAN_PREAMBLE_SIZE as usize - size_of::<AuthManifestPreamble>()],
+
+    #[cfg(feature = "runtime")]
+    pub auth_manifest_image_metadata_col: AuthManifestImageMetadataCollection,
+    #[cfg(feature = "runtime")]
+    reserved9: [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE as usize
+        - size_of::<AuthManifestImageMetadataCollection>()],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
