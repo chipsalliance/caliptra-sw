@@ -50,16 +50,16 @@ impl Sha384AccKat {
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation(lock_state)? {
             sha_acc_op
                 .digest(0, 0, false, &mut digest)
-                .map_err(|_| CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_FAILURE)?;
+                .map_err(|_| CaliptraError::KAT_SHA384_ACC_DIGEST_FAILURE)?;
             if digest != SHA384_EXPECTED_DIGEST {
                 // Don't drop the operation, since that will unlock the
                 // peripheral for SoC use, which we're not allowed to do if the
                 // KAT doesn't pass.
                 core::mem::forget(sha_acc_op);
-                Err(CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_MISMATCH)?;
+                Err(CaliptraError::KAT_SHA384_ACC_DIGEST_MISMATCH)?;
             }
         } else {
-            Err(CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_START_OP_FAILURE)?;
+            Err(CaliptraError::KAT_SHA384_ACC_DIGEST_START_OP_FAILURE)?;
         }
 
         Ok(())

@@ -125,13 +125,16 @@ fn enter_idle(drivers: &mut Drivers) {
     // Run pending jobs before entering low power mode.
     #[cfg(feature = "fips_self_test")]
     if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
-        if drivers.mbox.lock() == false {
-            match execute(drivers) {
+        let lock = drivers.mbox.lock();
+        if lock == false {
+            let result = execute(drivers);
+            drivers.mbox.unlock();
+            match result {
                 Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
-                Err(e) => caliptra_drivers::report_fw_error_non_fatal(e.into()),
+                Err(e) => caliptra_common::handle_fatal_error(e.into()),
             }
         } else {
-            cfi_assert!(drivers.mbox.lock());
+            cfi_assert!(lock);
             // Don't enter low power mode when in progress
             return;
         }

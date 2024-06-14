@@ -15,9 +15,12 @@ Abstract:
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestPrivKeys};
-use caliptra_image_openssl::{
-    ecc_priv_key_from_pem, ecc_pub_key_from_pem, lms_priv_key_from_pem, lms_pub_key_from_pem,
-};
+#[cfg(feature = "openssl")]
+use caliptra_image_crypto::OsslCrypto as Crypto;
+#[cfg(feature = "rustcrypto")]
+use caliptra_image_crypto::RustCrypto as Crypto;
+use caliptra_image_crypto::{lms_priv_key_from_pem, lms_pub_key_from_pem};
+use caliptra_image_gen::*;
 use serde_derive::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -72,7 +75,7 @@ fn key_config(
 
     // Get the Public Keys.
     let pub_key_path = path.join(&config.ecc_pub_key);
-    gen_config.pub_keys.ecc_pub_key = ecc_pub_key_from_pem(&pub_key_path)?;
+    gen_config.pub_keys.ecc_pub_key = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
 
     let pub_key_path = path.join(&config.lms_pub_key);
     gen_config.pub_keys.lms_pub_key = lms_pub_key_from_pem(&pub_key_path)?;
@@ -81,7 +84,7 @@ fn key_config(
     let mut priv_keys = AuthManifestPrivKeys::default();
     if let Some(pem_file) = &config.ecc_priv_key {
         let priv_key_path = path.join(pem_file);
-        priv_keys.ecc_priv_key = ecc_priv_key_from_pem(&priv_key_path)?;
+        priv_keys.ecc_priv_key = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
         gen_config.priv_keys = Some(priv_keys);
     }
 

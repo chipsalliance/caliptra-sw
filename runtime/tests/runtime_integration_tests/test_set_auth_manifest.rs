@@ -10,6 +10,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_hw_model::HwModel;
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::AsBytes;
@@ -104,7 +105,7 @@ fn test_set_auth_manifest_cmd() {
         flags: AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG,
     };
 
-    let gen = AuthManifestGenerator::new(caliptra_image_openssl::OsslCrypto::default());
+    let gen = AuthManifestGenerator::new(Crypto::default());
     let auth_manifest = gen.generate(&gen_config).unwrap();
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];

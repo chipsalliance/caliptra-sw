@@ -41,7 +41,7 @@ caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-auth-man-gen.workspace = true
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true

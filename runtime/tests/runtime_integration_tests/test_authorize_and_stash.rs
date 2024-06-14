@@ -1,23 +1,13 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::run_rt_test;
-use caliptra_auth_man_gen::{
-    AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
-};
-use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
-    AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG,
-};
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader, SetAuthManifestReq,
+    MailboxReqHeader,
 };
 use caliptra_hw_model::HwModel;
-use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
-use caliptra_runtime::AUTHORIZE_IMAGE;
 use caliptra_runtime::DENY_IMAGE_AUTHORIZATION;
-use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
 #[test]

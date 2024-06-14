@@ -14,6 +14,10 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_auth_man_gen::{AuthManifestGenerator, AuthManifestGeneratorConfig};
+#[cfg(feature = "openssl")]
+use caliptra_image_crypto::OsslCrypto as Crypto;
+#[cfg(feature = "rustcrypto")]
+use caliptra_image_crypto::RustCrypto as Crypto;
 use clap::ArgMatches;
 use clap::{arg, value_parser, Command};
 use std::io::Write;
@@ -110,7 +114,7 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         image_metadata_list: config::image_metadata_config(&config.image_metadata_list)?,
     };
 
-    let gen = AuthManifestGenerator::new(caliptra_image_openssl::OsslCrypto::default());
+    let gen = AuthManifestGenerator::new(Crypto::default());
     let manifest = gen.generate(&gen_config).unwrap();
 
     let mut out_file = std::fs::OpenOptions::new()
