@@ -141,7 +141,7 @@ impl SetAuthManifestCmd {
         let verify_r = Self::ecc384_verify(
             ecc384,
             &digest_vendor,
-            &vendor_fw_ecc_key,
+            vendor_fw_ecc_key,
             &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig,
         )?;
         if cfi_launder(verify_r)
@@ -203,7 +203,7 @@ impl SetAuthManifestCmd {
         let verify_r = Self::ecc384_verify(
             ecc384,
             &digest_owner,
-            &owner_fw_ecc_key,
+            owner_fw_ecc_key,
             &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig,
         )?;
         if cfi_launder(verify_r)

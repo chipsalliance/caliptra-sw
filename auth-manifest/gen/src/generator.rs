@@ -67,7 +67,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             .as_bytes()
             .get(range.start as usize..)
             .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
-            .get(..range.len() as usize)
+            .get(..range.len())
             .ok_or(anyhow::anyhow!(
                 "Failed to get vendor signed data range length"
             ))?;
