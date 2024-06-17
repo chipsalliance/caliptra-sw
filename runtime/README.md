@@ -972,4 +972,4 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 |                                | VendorInfo  | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
-current TCI Node to the root. Max of 24.
+current TCI Node to the root. Max of 32.
