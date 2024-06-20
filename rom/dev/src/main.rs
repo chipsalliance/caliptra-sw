@@ -25,8 +25,8 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
-    Ecc384, Hmac384, KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState,
-    SocIfc, Trng,
+    Ecc384, Hmac384, KeyVault, Mailbox, ResetReason, Sha256, Sha2_512_384Acc, Sha384,
+    ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -135,8 +135,8 @@ pub extern "C" fn rom_entry() -> ! {
             // SHA2-384 Engine
             sha384: &mut env.sha384,
 
-            // SHA2-384 Accelerator
-            sha384_acc: &mut env.sha384_acc,
+            // SHA2-512/384 Accelerator
+            sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
             // Hmac384 Engine
             hmac384: &mut env.hmac384,
@@ -354,7 +354,7 @@ fn handle_fatal_error(code: u32) -> ! {
         Hmac384::zeroize();
         Sha256::zeroize();
         Sha384::zeroize();
-        Sha384Acc::zeroize();
+        Sha2_512_384Acc::zeroize();
 
         // Zeroize the key vault.
         KeyVault::zeroize();
@@ -376,7 +376,7 @@ fn handle_fatal_error(code: u32) -> ! {
             //
             // WDT is disabled at this point so there is no issue
             // of it firing due to the lock taking too long.
-            Sha384Acc::try_lock();
+            Sha2_512_384Acc::try_lock();
         }
     }
 }
