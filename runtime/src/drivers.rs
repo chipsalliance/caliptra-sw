@@ -33,8 +33,8 @@ use caliptra_drivers::{
     DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
-    Sha384Acc, Trng,
+    hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha2_512_384Acc,
+    Sha384, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -72,8 +72,8 @@ pub struct Drivers {
     // SHA2-384 Engine
     pub sha384: Sha384,
 
-    // SHA2-384 Accelerator
-    pub sha384_acc: Sha384Acc,
+    // SHA2-512/384 Accelerator
+    pub sha2_512_384_acc: Sha2_512_384Acc,
 
     /// Hmac384 Engine
     pub hmac384: Hmac384,
@@ -126,7 +126,7 @@ impl Drivers {
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
-            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             sha1: Sha1::default(),

@@ -74,10 +74,10 @@ impl Ecc384Kat {
         // to explicitly verify here.
         let signature = ecc
             .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &PUB_KEY, &digest, trng)
-            .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
+            .map_err(|_| CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
         if signature != SIGNATURE {
-            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
+            Err(CaliptraError::KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
         }
         Ok(())
     }

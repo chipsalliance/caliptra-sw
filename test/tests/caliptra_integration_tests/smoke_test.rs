@@ -176,7 +176,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] sha1");
         assert_output_contains(&output, "[kat] SHA2-256");
         assert_output_contains(&output, "[kat] SHA2-384");
-        assert_output_contains(&output, "[kat] SHA2-384-ACC");
+        assert_output_contains(&output, "[kat] SHA2-512-ACC");
         assert_output_contains(&output, "[kat] HMAC-384");
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");

@@ -4,6 +4,7 @@
 name = "caliptra-runtime"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 caliptra-cfi-lib-git = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
@@ -17,7 +18,7 @@ caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe.workspace = true
+dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
 crypto.workspace = true
 platform.workspace = true
 ufmt.workspace = true
@@ -38,7 +39,6 @@ caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-openssl.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true

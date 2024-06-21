@@ -3,7 +3,8 @@ use crate::common;
 
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
-use caliptra_hw_model::{BootParams, HwModel, ShaAccMode};
+use caliptra_drivers::CaliptraError;
+use caliptra_hw_model::{BootParams, HwModel, ModelError, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
@@ -91,15 +92,20 @@ pub fn exec_cmd_self_test_get_results<T: HwModel>(hw: &mut T) {
         ) {
             // Nothing extra to do once we see success
             Ok(_resp) => break,
-            _ => {
-                // Give FW time to run
-                let mut cycle_count = 10000;
-                hw.step_until(|_| -> bool {
-                    cycle_count -= 1;
-                    cycle_count == 0
-                });
+            Err(ModelError::MailboxCmdFailed(code)) => {
+                if code != u32::from(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED) {
+                    panic!("Unexpected caliptra error code {:#x}", code);
+                }
             }
+            Err(ModelError::UnableToLockMailbox) => (),
+            Err(e) => panic!("Unexpected error {}", e),
         }
+        // Give FW time to run
+        let mut cycle_count = 10000;
+        hw.step_until(|_| -> bool {
+            cycle_count -= 1;
+            cycle_count == 0
+        });
     }
 }
 

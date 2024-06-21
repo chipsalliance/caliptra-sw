@@ -8,7 +8,7 @@
 #include "caliptra_enums.h"
 #include "caliptra_if.h"
 
-#define ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
+#define CALIPTRA_ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
 
 // Write into Caliptra BootFSM Go Register
 // returns: 0                       - Success

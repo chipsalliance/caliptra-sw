@@ -17,6 +17,7 @@ mod generator;
 pub use generator::ImageGenerator;
 
 use caliptra_image_types::*;
+use std::path::Path;
 
 /// Image Generator Executable
 pub trait ImageGenratorExecutable {
@@ -50,7 +51,7 @@ pub trait ImageGeneratorHasher {
     fn finish(self) -> Self::Output;
 }
 
-/// Image Gnerator Crypto Trait
+/// Image Generator Crypto Trait
 pub trait ImageGeneratorCrypto {
     type Sha256Hasher: ImageGeneratorHasher<Output = [u32; SHA256_DIGEST_WORD_SIZE]>;
 
@@ -80,6 +81,12 @@ pub trait ImageGeneratorCrypto {
         digest: &ImageDigest,
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature>;
+
+    /// Read ECC-384 Public Key from PEM file
+    fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey>;
+
+    /// Read ECC-384 Private Key from PEM file
+    fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
 }
 
 /// Image Generator Vendor Configuration

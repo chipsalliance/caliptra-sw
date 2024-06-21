@@ -41,10 +41,10 @@ impl Sha1Kat {
         let data = [];
         let digest = sha
             .digest(&data)
-            .map_err(|_| CaliptraError::ROM_KAT_SHA1_DIGEST_FAILURE)?;
+            .map_err(|_| CaliptraError::KAT_SHA1_DIGEST_FAILURE)?;
 
         if digest != EXPECTED_DIGEST {
-            Err(CaliptraError::ROM_KAT_SHA1_DIGEST_MISMATCH)?;
+            Err(CaliptraError::KAT_SHA1_DIGEST_MISMATCH)?;
         }
 
         Ok(())

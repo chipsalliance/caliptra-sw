@@ -63,6 +63,14 @@ pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        // Re-run LMS KAT once (since LMS is more SW-based than other crypto)
+        if let Err(e) =
+            caliptra_kat::LmsKat::default().execute_once(&mut drivers.sha256, &mut drivers.lms)
+        {
+            // KAT failures must be fatal errors
+            caliptra_common::handle_fatal_error(e.into());
+        }
+
         // Constants from fixed LMS param set
         const LMS_N: usize = 6;
         const LMS_P: usize = 51;

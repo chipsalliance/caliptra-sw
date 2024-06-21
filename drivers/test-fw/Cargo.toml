@@ -101,8 +101,8 @@ path = "src/bin/persistent_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "sha384acc"
-path = "src/bin/sha384acc_tests.rs"
+name = "sha2_512_384acc"
+path = "src/bin/sha2_512_384acc_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use caliptra_emu_bus::Clock;
-use caliptra_emu_cpu::{CoverageBitmaps, Cpu, InstrTracer};
+#[cfg(feature = "coverage")]
+use caliptra_emu_cpu::CoverageBitmaps;
+use caliptra_emu_cpu::{Cpu, InstrTracer};
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
@@ -58,10 +60,14 @@ pub struct ModelEmulated {
     cpu_enabled: Rc<Cell<bool>>,
     trace_path: Option<PathBuf>,
 
-    rom_image_tag: u64,
+    // Keep this even when not including the coverage feature to keep the
+    // interface consistent
+    _rom_image_tag: u64,
     iccm_image_tag: Option<u64>,
     trng_mode: TrngMode,
 }
+
+#[cfg(feature = "coverage")]
 impl Drop for ModelEmulated {
     fn drop(&mut self) {
         let cov_path =
@@ -73,7 +79,7 @@ impl Drop for ModelEmulated {
         let CoverageBitmaps { rom, iccm } = self.code_coverage_bitmap();
         let _ = caliptra_coverage::dump_emu_coverage_to_file(
             cov_path.as_str(),
-            self.rom_image_tag,
+            self._rom_image_tag,
             rom,
         );
 
@@ -87,6 +93,7 @@ impl Drop for ModelEmulated {
     }
 }
 
+#[cfg(feature = "coverage")]
 impl ModelEmulated {
     pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
         self.cpu.code_coverage.code_coverage_bitmap()
@@ -173,7 +180,7 @@ impl crate::HwModel for ModelEmulated {
             ready_for_fw,
             cpu_enabled,
             trace_path: trace_path_or_env(params.trace_path),
-            rom_image_tag: image_tag,
+            _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
         };

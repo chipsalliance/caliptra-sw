@@ -16,12 +16,12 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::{
     VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1, VENDOR_CONFIG_KEY_2, VENDOR_CONFIG_KEY_3,
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
-use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{
     ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
 };
@@ -841,7 +841,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         .x
         .fill(0);
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -894,7 +894,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         .y
         .fill(0);
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -938,7 +938,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -985,7 +985,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1032,7 +1032,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1079,7 +1079,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1480,7 +1480,7 @@ fn test_fmc_entry_point_unaligned() {
 
 #[test]
 fn test_fmc_svn_greater_than_32() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1515,7 +1515,7 @@ fn test_fmc_svn_greater_than_32() {
 
 #[test]
 fn test_fmc_svn_less_than_fuse_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1729,7 +1729,7 @@ fn test_runtime_entry_point_unaligned() {
 
 #[test]
 fn test_runtime_svn_greater_than_max() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1763,7 +1763,7 @@ fn test_runtime_svn_greater_than_max() {
 
 #[test]
 fn test_runtime_svn_less_than_fuse_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1995,7 +1995,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
         owner_config: opts.owner_config,
     };
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let header_digest_vendor = gen
         .header_digest_vendor(&image_bundle.manifest.header)
         .unwrap();
@@ -2026,7 +2026,7 @@ fn update_fmc_runtime_ranges(
     image_bundle.manifest.runtime.offset = runtime_new_offset;
     image_bundle.manifest.runtime.size = runtime_new_size;
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen
@@ -2047,7 +2047,7 @@ fn update_load_addr(image_bundle: &mut ImageBundle, is_fmc: bool, new_load_addr:
         image_bundle.manifest.runtime.load_addr = new_load_addr;
     }
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen
@@ -2072,7 +2072,7 @@ fn update_entry_point(
         image_bundle.manifest.runtime.entry_point = new_entry_point;
     }
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen

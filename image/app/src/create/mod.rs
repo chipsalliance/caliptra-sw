@@ -16,11 +16,13 @@ mod config;
 
 use anyhow::anyhow;
 use anyhow::Context;
+use caliptra_image_crypto::lms_priv_key_from_pem;
+use caliptra_image_crypto::lms_pub_key_from_pem;
+#[cfg(feature = "openssl")]
+use caliptra_image_crypto::OsslCrypto as Crypto;
+#[cfg(feature = "rustcrypto")]
+use caliptra_image_crypto::RustCrypto as Crypto;
 use caliptra_image_gen::*;
-use caliptra_image_openssl::ecc_priv_key_from_pem;
-use caliptra_image_openssl::ecc_pub_key_from_pem;
-use caliptra_image_openssl::lms_priv_key_from_pem;
-use caliptra_image_openssl::lms_pub_key_from_pem;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
@@ -182,7 +184,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         runtime,
     };
 
-    let gen = ImageGenerator::new(caliptra_image_openssl::OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image = gen.generate(&gen_config).unwrap();
 
     let out_file = std::fs::OpenOptions::new()
@@ -216,7 +218,7 @@ fn vendor_config(
         .take(VENDOR_ECC_KEY_COUNT as usize)
     {
         let pub_key_path = path.join(pem_file);
-        gen_config.pub_keys.ecc_pub_keys[i] = ecc_pub_key_from_pem(&pub_key_path)?;
+        gen_config.pub_keys.ecc_pub_keys[i] = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
     }
 
     let lms_pub_keys = &config.lms_pub_keys;
@@ -238,7 +240,7 @@ fn vendor_config(
             .take(VENDOR_ECC_KEY_COUNT as usize)
         {
             let priv_key_path = path.join(pem_file);
-            priv_keys.ecc_priv_keys[i] = ecc_priv_key_from_pem(&priv_key_path)?;
+            priv_keys.ecc_priv_keys[i] = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
         }
         gen_config.priv_keys = Some(priv_keys);
     }
@@ -275,7 +277,7 @@ fn owner_config(
         let pem_file = &config.ecc_pub_key;
 
         let pub_key_path = path.join(pem_file);
-        gen_config.pub_keys.ecc_pub_key = ecc_pub_key_from_pem(&pub_key_path)?;
+        gen_config.pub_keys.ecc_pub_key = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
 
         let pem_file = &config.lms_pub_key;
 
@@ -285,7 +287,7 @@ fn owner_config(
         let mut priv_keys = ImageOwnerPrivKeys::default();
         if let Some(pem_file) = &config.ecc_priv_key {
             let pub_key_path = path.join(pem_file);
-            priv_keys.ecc_priv_key = ecc_priv_key_from_pem(&pub_key_path)?;
+            priv_keys.ecc_priv_key = Crypto::ecc_priv_key_from_pem(&pub_key_path)?;
             gen_config.priv_keys = Some(priv_keys);
         }
 
