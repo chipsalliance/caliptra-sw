@@ -43,10 +43,10 @@ impl Sha384Kat {
         let data = &[];
         let digest = sha
             .digest(data)
-            .map_err(|_| CaliptraError::ROM_KAT_SHA384_DIGEST_MISMATCH)?;
+            .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
 
         if digest != SHA384_EXPECTED_DIGEST {
-            Err(CaliptraError::ROM_KAT_SHA384_DIGEST_MISMATCH)?;
+            Err(CaliptraError::KAT_SHA384_DIGEST_MISMATCH)?;
         }
 
         Ok(())

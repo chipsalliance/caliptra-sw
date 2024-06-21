@@ -1,20 +1,4 @@
-# Caliptra - FMC Specification v0.5
-
-## Version History
-
-| Date       | Version | Description                                                                        |
-| :--------- | :------ | :----------------------------------------------------------------------------------|
-| 01/18/2023 | 0.1     | Document Created, Boot flow defined                                                |
-| 01/31/2023 | 0.1.1   | Added Overview and Pre-Conditions sections                                         |
-| 02/10/2023 | 0.2     | Incorporate feedback and decisions from Caliptra WG meetings                       |
-| 02/27/2023 | 0.4     | Update for decision that Anti-Rollback will be entirely handled by ROM             |
-|            |         | Add details/clarifications in FMC Boot steps including where to store artifacts    |
-|            |         | Add Firmware Handoff Table (FHT) definition                                        |
-| 03/21/2023 | 0.5     | Additional fields added to FHT                                                     |
-| 03/29/2023 | 0.5.1   | Changed the value for invalid address fields in FHT                                |
-| 06/27/2023 | 0.7     | Add state of data and key vaults before/after FMC execution                        |
-| 06/30/2023 | 0.7.1   | Simplify reset/update/recovery sections                                            |
-|            |         | Add more PCR handling details                                                      |
+# Caliptra - FMC Specification v1.0
 
 ## Scope
 
@@ -48,7 +32,7 @@ As an architecture specification for FMC, this document describes the following 
 First Mutable Code (FMC) is the first field-updatable firmware module in the Caliptra boot sequence. It is loaded, cryptographically verified,
 and executed by the Caliptra ROM.
 
-### Pre-Conditions / Assumptions
+### Pre-conditions / assumptions
 
 It is assumed that the Caliptra ROM has already performed a series of steps to prepare the Caliptra environment before calling the FMC entry point. The
 following is a brief overview of those expectations. Further details can be found in the Caliptra ROM Specification.
@@ -81,7 +65,7 @@ Crypto boundary):
 
 </center>
 
-### FMC Responsibilities
+### FMC responsibilities
 
 FMC can be thought of as essentially a small, mutable extension of the ROM. Its primary purpose is to bridge execution from the immutable ROM code, prepare the
 environment for the main runtime firmware, and then execute that runtime firmware. As such, the code should be kept to the bare minimum needed to perform that
@@ -100,7 +84,7 @@ task. “Feature-creep” in this area is undesirable, and all efforts shall be 
   CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> unavailable.
 - FMC must execute the Runtime Firmware Module.
 
-## Firmware Handoff Table
+## Firmware handoff table
 
 The Firmware Handoff Table is a data structure that is resident at a well-known location in DCCM. It is initially populated by ROM and modified by FMC as a way
 to pass parameters and configuration information from one firmware layer to the next.
@@ -285,20 +269,29 @@ This field provides the address of the RomInfo structure.
 
 This field provides the size of the *To Be Signed* portion of the Runtime Alias certificate.
 
+### rt_hash_chain_max_svn
+
+This field informs firmware of the maximum RT SVN, which value was used
+to determine the length of RT FW's hash chain.
+
+### rt_hash_chain_kv_hdl
+
+This field provides the Handle into the Key Vault where RT's hash chain is stored.
+
 ### reserved
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
 
-## PCR Registers
+## PCR registers
 
 FMC has the responsibility to update 2 PCR registers.<br>
 FMC updates PCR3 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
 FMC updates PCR2 to reflect only the Current running firmware with measurements of RT firmware and FW Manifest. This register is cleared on all reset types.<br>
 FMC locks its PCR registers before handing control to RT firmware so that they may not be cleared later in the boot.
 
-## FMC Boot Flow
+## FMC boot flow
 
-The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point:
+The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point. Any failures are considered fatal.
 
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.
@@ -307,7 +300,7 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
-1. FMC reads the manifest address of the Image Bundle from the the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
+1. FMC reads the manifest address of the Image Bundle from the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
 1. FMC clears Current PCR
 1. FMC extends Current and Journey PCR registers with TCI<sub>RT</sub>.
 1. FMC extends Current and Journey PCR registers with TCI<sub>MAN</sub>.
@@ -324,8 +317,9 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
 1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
 
-**Pre-Conditions:**
-* Vault state as follows:
+**Pre-conditions:**
+
+- Vault state as follows:
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
@@ -401,10 +395,12 @@ sequenceDiagram
     RT->>RT: RtFwInitFlow()
     deactivate RT
 ```
+
 </center>
 
-**Post-Conditions:**
-* Vault state as follows:
+**Post-conditions:**
+
+- Vault state as follows:
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
@@ -424,7 +420,7 @@ sequenceDiagram
 FMC does not distinguish between cold boots or any other type of reset. Instead, FMC is designed such that it always performs the same set of operations
 regardless of which reset path caused it to be executed.
 
-## Update and Recovery
+## Update and recovery
 
 FMC does not participate in Caliptra update/recovery flows. FMC is designed such that it does not perform any different steps during update
 and simply behaves the same as it does during other cold/warm resets.
@@ -437,6 +433,7 @@ Fake FMC is a variation of the FMC intended to be used in the verification/enabl
 Currently, Fake FMC directly proceeds to runtime without generating the RT Alias Cert. In the future, there will be a static cert and a corresponding private key will be used by runtime to support the DICE challenge flow.
 
 **How to use:**
+
 - Fake FMC is provided in the release along with the normal collateral.
 - The image builder exposes the argument "fake" that can be used to generate the fake versions
 

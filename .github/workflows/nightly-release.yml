@@ -5,14 +5,14 @@ on:
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
-permissions:
-  contents: write
-  pull-requests: write
 
 jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
     uses: ./.github/workflows/rtl-repo-sync.yml
+    permissions:
+      contents: write
+      pull-requests: write
 
   find-latest-release:
     name: Find Latest Release
@@ -22,6 +22,10 @@ jobs:
       create_release: ${{ steps.find.outputs.create_release }}
       new_release_tag: ${{ steps.find.outputs.new_release_tag }}
       release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -40,7 +44,8 @@ jobs:
           while git tag | grep ${TAG_BASE}${INDEX}; do
               ((INDEX+=1))
           done
-          git submodule update --remote hw-latest/caliptra-rtl
+          git submodule update --remote hw/1.0/rtl
+          git submodule update --remote hw/latest/rtl
           CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
           MOST_RECENT_RELEASE=None
           if git tag | grep ${TAG_PREFIX} > /dev/null; then
@@ -60,16 +65,208 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  fpga-full-suite:
-    name: FPGA Suite
+  fpga-1_0-full-suite-etrng-log:
+    name: FPGA Suite (1.0, etrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-hw-1.0-etrng-log
+      extra-features: slow_tests
+      hw-version: "1.0"
+      rom-logging: true
+      fpga-itrng: false
+
+  fpga-1_0-full-suite-etrng-nolog:
+    name: FPGA Suite (1.0, etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-hw-1.0-etrng-nolog
+      extra-features: slow_tests
+      hw-version: "1.0"
+      rom-logging: false
+      fpga-itrng: false
+
+  fpga-1_0-full-suite-itrng-log:
+    name: FPGA Suite (1.0, itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-hw-1.0-itrng-log
+      extra-features: slow_tests,itrng
+      hw-version: "1.0"
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-1_0-full-suite-itrng-nolog:
+    name: FPGA Suite (1.0, itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-hw-1.0-itrng-nolog
+      extra-features: slow_tests,itrng
+      hw-version: "1.0"
+      rom-logging: false
+      fpga-itrng: true
+
+  fpga-latest-full-suite-etrng-log:
+    name: FPGA Suite (hw-latest, etrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-etrng-log
+      extra-features: slow_tests
+      hw-version: "latest"
+      rom-logging: true
+      fpga-itrng: false
+
+  fpga-latest-full-suite-etrng-nolog:
+    name: FPGA Suite (hw-latest, etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-etrng-nolog
+      extra-features: slow_tests
+      hw-version: "latest"
+      rom-logging: false
+      fpga-itrng: false
+
+  fpga-latest-full-suite-itrng-log:
+    name: FPGA Suite (hw-latest, itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-itrng-log
+      extra-features: slow_tests,itrng
+      hw-version: "latest"
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-latest-full-suite-itrng-nolog:
+    name: FPGA Suite (hw-latest, itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-itrng-nolog
+      extra-features: slow_tests,itrng
+      hw-version: latest
+      rom-logging: false
+      fpga-itrng: true
+
+  sw-emulator-hw-latest-full-suite-etrng-log:
+    name: sw-emulator Suite (etrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-latest-etrng-log
+      extra-features: slow_tests
+      rom-logging: true
+
+  sw-emulator-hw-latest-full-suite-etrng-nolog:
+    name: sw-emulator Suite (etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
+      extra-features: slow_tests
+      rom-logging: false
+
+  sw-emulator-hw-latest-full-suite-itrng-log:
+    name: sw-emulator Suite (itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-latest-itrng-log
+      extra-features: slow_tests,itrng
+      rom-logging: true
+
+  sw-emulator-hw-latest-full-suite-itrng-nolog:
+    name: sw-emulator Suite (itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
+      extra-features: slow_tests,itrng
+      rom-logging: false
+
+  sw-emulator-hw-1_0-full-suite-etrng-log:
+    name: sw-emulator Suite (etrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-etrng-log
+      extra-features: hw-1.0,slow_tests
+      rom-logging: true
+
+  sw-emulator-hw-1_0-full-suite-etrng-nolog:
+    name: sw-emulator Suite (etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-etrng-nolog
+      extra-features: hw-1.0,slow_tests
+      rom-logging: false
+
+  sw-emulator-hw-1_0-full-suite-itrng-log:
+    name: sw-emulator Suite (itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-itrng-log
+      extra-features: hw-1.0,slow_tests,itrng
+      rom-logging: true
+
+  sw-emulator-hw-1_0-full-suite-itrng-nolog:
+    name: sw-emulator Suite (itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-itrng-nolog
+      extra-features: hw-1.0,slow_tests,itrng
+      rom-logging: false
 
   create-release:
     name: Create New Release
-    needs: [find-latest-release, fpga-full-suite]
+    needs:
+      - find-latest-release
+      - fpga-1_0-full-suite-etrng-log
+      - fpga-1_0-full-suite-etrng-nolog
+      - fpga-1_0-full-suite-itrng-log
+      - fpga-1_0-full-suite-itrng-nolog
+      - fpga-latest-full-suite-etrng-log
+      - fpga-latest-full-suite-etrng-nolog
+      - fpga-latest-full-suite-itrng-log
+      - fpga-latest-full-suite-itrng-nolog
+      - sw-emulator-hw-latest-full-suite-etrng-log
+      - sw-emulator-hw-latest-full-suite-etrng-nolog
+      - sw-emulator-hw-latest-full-suite-itrng-log
+      - sw-emulator-hw-latest-full-suite-itrng-nolog
+      - sw-emulator-hw-1_0-full-suite-etrng-log
+      - sw-emulator-hw-1_0-full-suite-etrng-nolog
+      - sw-emulator-hw-1_0-full-suite-itrng-log
+      - sw-emulator-hw-1_0-full-suite-itrng-nolog
+
     runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -82,6 +279,15 @@ jobs:
           ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
+      - name: 'Download all artifacts'
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/artifacts
+
+      - name: Package all test artifacts for release
+        run: |
+          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
       - name: Tag repo with new release number
         run: |
           git config --global user.name "GitHub CI"
@@ -92,5 +298,29 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+          files: |
+            ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          prerelease: true
+
+      - name: Write artifact to workflow with release info
+        run: |
+          mkdir /tmp/release-info
+          echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
+          echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
+
+      - name: Write artifact with release info
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-info
+          path: /tmp/release-info
+
+  publish-website:
+    name: Publish https://caliptra-sw.github.io/
+    needs:
+      create-release
+    uses: ./.github/workflows/publish-website.yml
+    permissions:
+      pages: write
+      id-token: write

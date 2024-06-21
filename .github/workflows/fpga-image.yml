@@ -37,7 +37,7 @@ jobs:
           sudo bash build.sh
 
       - name: 'Upload image as artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image
           path: ci-tools/fpga-image/out/image.img

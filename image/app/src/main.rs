@@ -57,11 +57,6 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"fmc-min-svn" <U32> "FMC Minimum Security Version Number")
-                .required(true)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
             arg!(--"rt" <FILE> "Runtime ELF binary")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
@@ -78,11 +73,6 @@ fn main() {
         )
         .arg(
             arg!(--"rt-svn" <U32> "Runtime Security Version Number")
-                .required(true)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
-            arg!(--"rt-min-svn" <U32> "Runtime Minimum Security Version Number")
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )

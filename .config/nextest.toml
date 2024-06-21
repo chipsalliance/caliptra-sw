@@ -3,9 +3,49 @@
 [profile.nightly]
 failure-output = "immediate-final"
 fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 6 }
+
+[[profile.nightly.overrides]]
+filter = 'test(test_generate_csr_stress)'
+slow-timeout = { period = "30s", terminate-after = 140 }
+
+[[profile.nightly.overrides]]
+filter = 'test(test_stress_update)'
+slow-timeout = { period = "30s", terminate-after = 17 }
 
 [profile.nightly.junit]
 path = "/tmp/junit.xml"
 store-success-output = true
 store-failure-output = true
 
+
+[profile.verilator]
+failure-output = "immediate-final"
+fail-fast = false
+# Fail after 12 hours
+slow-timeout = { period = "30m", terminate-after = 24 }
+
+[[profile.verilator.overrides]]
+filter = 'test(test_preamble_vendor_ecc_pubkey_revocation)'
+# Fail after 24 hours
+slow-timeout = { period = "30m", terminate-after = 40 }
+
+[[profile.verilator.overrides]]
+filter = 'test(test_sha256)'
+# Fail after 16 hours
+slow-timeout = { period = "30m", terminate-after = 32 }
+
+[[profile.verilator.overrides]]
+filter = 'test(test_sha384)'
+# Fail after 16 hours
+slow-timeout = { period = "30m", terminate-after = 32 }
+
+[[profile.verilator.overrides]]
+filter = 'test(test_sha1)'
+# Fail after 16 hours
+slow-timeout = { period = "30m", terminate-after = 32 }
+
+[profile.verilator.junit]
+path = "/tmp/junit.xml"
+store-success-output = true
+store-failure-output = true

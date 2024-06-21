@@ -94,6 +94,13 @@ func isMachineType(label string) bool {
 		return true
 	case "e2-highcpu-32":
 		return true
+	case "n2d-highcpu-64":
+		return true
+	case "n2d-highcpu-80":
+		return true
+	case "n2d-highcpu-96":
+		return true
+
 	default:
 		return false
 	}

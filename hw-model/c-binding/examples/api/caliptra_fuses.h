@@ -4,7 +4,7 @@
 
 #include "caliptra_api.h"
 
-#define ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
+#define CALIPTRA_ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
 
 // WARNING: THOSE APIS ARE INTENTED FOR SIMULATION ONLY.
 //          SOC FW MUST HAVE NO ACCESS TO THOSE APIS.

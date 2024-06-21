@@ -69,6 +69,41 @@ pub fn test_assert_eq_12words_failure() {
 }
 
 #[test]
+pub fn test_assert_eq_8words_success() {
+    CFI_PANIC_CALLED.with(|c| c.borrow_mut().store(0, Relaxed));
+    use caliptra_cfi_lib::cfi_assert_eq_8_words;
+    let a = [0, 1, 2, 3, 4, 5, 6, 7];
+    let b = [0, 1, 2, 3, 4, 5, 6, 7];
+    // Make sure these are separate memory addresses
+    assert_ne!(a.as_ptr(), b.as_ptr());
+    cfi_assert_eq_8_words(&a, &b);
+    assert_eq!(CFI_PANIC_CALLED.with(|c| c.borrow_mut().load(Relaxed)), 0);
+}
+
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[test]
+pub fn test_assert_eq_8words_failure() {
+    use caliptra_cfi_lib::cfi_assert_eq_8_words;
+
+    let cfi_panic_called = Arc::new(AtomicU32::new(0));
+    let cfi_panic_called2 = cfi_panic_called.clone();
+
+    std::thread::spawn(|| {
+        CFI_PANIC_CALLED.with(|c| c.replace(cfi_panic_called2));
+        cfi_assert_eq_8_words(&[0, 1, 2, 3, 4, 5, 6, 7], &[0, 1, 2, 3, 4, 5, 6, 8]);
+    });
+    let val = loop {
+        let val = cfi_panic_called.load(Relaxed);
+        if val != 0 {
+            break val;
+        }
+    };
+    assert_eq!(val, CaliptraError::ROM_CFI_PANIC_ASSERT_EQ_FAILURE.into());
+
+    // Leak thread in infinite loop...
+}
+
+#[test]
 pub fn test_assert_eq_6words_success() {
     CFI_PANIC_CALLED.with(|c| c.borrow_mut().store(0, Relaxed));
     use caliptra_cfi_lib::cfi_assert_eq_6_words;

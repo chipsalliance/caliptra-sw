@@ -41,7 +41,7 @@ jobs:
 
       - name: Install required packages
         run: |
-          sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
@@ -53,7 +53,7 @@ jobs:
       - name: Install sccache
         if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
         run: |
-          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha
+          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
       # Save the sccache binary immediately so we can reuse it in future runs
       # even if the rest of the current run fails.
@@ -141,7 +141,9 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo --config "$EXTRA_CARGO_CONFIG" test --locked
+          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" test --locked
+          CPTRA_COVERAGE_PATH=/tmp cargo --config "$EXTRA_CARGO_CONFIG" run --manifest-path ./coverage/Cargo.toml
+
           CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           sccache --show-stats
 
@@ -153,11 +155,7 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)
-
-      - name: ROM Coverage
-        run: |
-         CPTRA_COVERAGE_PATH=/tmp cargo test --manifest-path ./rom/dev/Cargo.toml && CPTRA_COVERAGE_PATH=/tmp cargo run --manifest-path ./coverage/Cargo.toml
+          (cd rom/dev && make run)         
          
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |

@@ -1,0 +1,45 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
+        Signature Algorithm: ecdsa-with-SHA384
+        Issuer: CN=Caliptra 1.0 LDevID/serialNumber=21EEEF9A4C61D4B9E3D94BEA46F9A12AC6887CE2188559F40FF95777E8014889
+        Validity
+            Not Before: Jan  1 00:00:00 2023 GMT
+            Not After : Dec 31 23:59:59 9999 GMT
+        Subject: CN=Caliptra 1.0 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey
+                Public-Key: (384 bit)
+                pub:
+                    04:d1:7f:d2:78:d2:2e:75:eb:f0:ed:36:2d:f0:46:
+                    18:24:c4:54:5d:db:07:08:53:e8:a2:d3:a9:d0:a3:
+                    ca:59:8d:86:06:08:4e:78:ab:c8:cf:13:5d:5d:1b:
+                    bb:d7:6c:f2:64:49:0e:f4:a2:95:fa:8e:0f:0f:1f:
+                    ee:22:fc:88:57:1a:55:9f:7c:e9:68:dc:67:c5:13:
+                    d7:fc:bb:79:b6:09:da:23:1d:ef:b1:bf:96:72:3d:
+                    fd:b2:8d:86:f1:6f:5d
+                ASN1 OID: secp384r1
+                NIST CURVE: P-384
+        X509v3 extensions:
+            X509v3 Basic Constraints: critical
+                CA:TRUE, pathlen:3
+            X509v3 Key Usage: critical
+                Certificate Sign
+            2.23.133.5.4.4: 
+                0....................
+            2.23.133.5.4.5: 
+                DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+            X509v3 Subject Key Identifier: 
+                44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
+            X509v3 Authority Key Identifier: 
+                21:EE:EF:9A:4C:61:D4:B9:E3:D9:4B:EA:46:F9:A1:2A:C6:88:7C:E2
+    Signature Algorithm: ecdsa-with-SHA384
+    Signature Value:
+        30:64:02:30:44:44:44:44:44:44:44:44:44:44:44:44:44:44:
+        44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:
+        44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:02:30:
+        44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:
+        44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:
+        44:44:44:44:44:44:44:44:44:44:44:44

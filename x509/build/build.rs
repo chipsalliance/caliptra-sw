@@ -13,29 +13,40 @@ Abstract:
 
 --*/
 
+#[cfg(feature = "generate_templates")]
 mod cert;
+#[cfg(feature = "generate_templates")]
 mod code_gen;
+#[cfg(feature = "generate_templates")]
 mod csr;
+#[cfg(feature = "generate_templates")]
 mod tbs;
+#[cfg(feature = "generate_templates")]
 mod x509;
 
-use code_gen::CodeGen;
-use x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage};
-
-use std::env;
+#[cfg(feature = "generate_templates")]
+use {
+    code_gen::CodeGen,
+    std::env,
+    x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage},
+};
 
 // Main Entry point
 fn main() {
-    let out_dir_os_str = env::var_os("OUT_DIR").unwrap();
-    let out_dir = out_dir_os_str.to_str().unwrap();
+    #[cfg(feature = "generate_templates")]
+    {
+        let out_dir_os_str = env::var_os("OUT_DIR").unwrap();
+        let out_dir = out_dir_os_str.to_str().unwrap();
 
-    gen_init_devid_csr(out_dir);
-    gen_local_devid_cert(out_dir);
-    gen_fmc_alias_cert(out_dir);
-    gen_rt_alias_cert(out_dir);
+        gen_init_devid_csr(out_dir);
+        gen_local_devid_cert(out_dir);
+        gen_fmc_alias_cert(out_dir);
+        gen_rt_alias_cert(out_dir);
+    }
 }
 
 /// Generated Initial DeviceId Cert Signing request Template
+#[cfg(feature = "generate_templates")]
 fn gen_init_devid_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -48,6 +59,7 @@ fn gen_init_devid_csr(out_dir: &str) {
 }
 
 /// Generate Local DeviceId Certificate Template
+#[cfg(feature = "generate_templates")]
 fn gen_local_devid_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -59,6 +71,8 @@ fn gen_local_devid_cert(out_dir: &str) {
     CodeGen::gen_code("LocalDevIdCertTbs", template, out_dir);
 }
 
+/// Generate FMC Alias Certificate Template
+#[cfg(feature = "generate_templates")]
 fn gen_fmc_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
@@ -88,6 +102,8 @@ fn gen_fmc_alias_cert(out_dir: &str) {
     CodeGen::gen_code("FmcAliasCertTbs", template, out_dir);
 }
 
+/// Generate FMC Alias Certificate Template
+#[cfg(feature = "generate_templates")]
 fn gen_rt_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     // Add KeyCertSign to allow signing of other certs

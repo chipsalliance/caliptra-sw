@@ -106,8 +106,8 @@ impl From<Signature> for Ecc384Signature {
     /// Converts to this type from the input type.
     fn from(ecc_sig: Signature) -> Self {
         let mut sig = Self::default();
-        sig.r.copy_from_slice(ecc_sig.r().to_be_bytes().as_slice());
-        sig.s.copy_from_slice(ecc_sig.s().to_be_bytes().as_slice());
+        sig.r.copy_from_slice(ecc_sig.r().to_bytes().as_slice());
+        sig.s.copy_from_slice(ecc_sig.s().to_bytes().as_slice());
         sig
     }
 }
@@ -162,7 +162,7 @@ impl Ecc384 {
 
         let mut drbg = HmacDrbg::<Sha384>::new(&seed_reversed, &nonce_reversed, &[]);
         drbg.fill_bytes(&mut priv_key);
-        let signing_key = SigningKey::from_bytes(&priv_key).unwrap();
+        let signing_key = SigningKey::from_slice(&priv_key).unwrap();
         let verifying_key = signing_key.verifying_key();
         let ecc_point = verifying_key.to_encoded_point(false);
 
@@ -193,8 +193,8 @@ impl Ecc384 {
         priv_key_reversed.to_little_endian();
         hash_reversed.to_little_endian();
 
-        let signing_key = SigningKey::from_bytes(&priv_key_reversed).unwrap();
-        let ecc_sig = signing_key.sign_prehash(&hash_reversed).unwrap();
+        let signing_key = SigningKey::from_slice(&priv_key_reversed).unwrap();
+        let ecc_sig: Signature = signing_key.sign_prehash(&hash_reversed).unwrap();
 
         let mut signature: Ecc384Signature = ecc_sig.into();
 
@@ -233,7 +233,8 @@ impl Ecc384 {
         signature_reversed.s.to_little_endian();
 
         let verifying_key = VerifyingKey::from_encoded_point(&pub_key_reversed.into()).unwrap();
-        let result = verifying_key.verify_prehash(&hash_reversed, &signature_reversed.into());
+        let result =
+            verifying_key.verify_prehash(&hash_reversed, &Signature::from(signature_reversed));
         if result.is_ok() {
             signature.r
         } else {

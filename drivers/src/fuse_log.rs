@@ -22,10 +22,10 @@ pub enum FuseLogEntryId {
     VendorEccPubKeyIndex = 1,       // 4 bytes  (From Manifest)
     VendorEccPubKeyRevocation = 2,  // 4 bytes  (From Fuse)
     ManifestFmcSvn = 3,             // 4 bytes
-    ManifestFmcMinSvn = 4,          // 4 bytes
+    ManifestReserved0 = 4,          // 4 bytes
     FuseFmcSvn = 5,                 // 4 bytes
     ManifestRtSvn = 6,              // 4 bytes
-    ManifestRtMinSvn = 7,           // 4 bytes
+    ManifestReserved1 = 7,          // 4 bytes
     FuseRtSvn = 8,                  // 4 bytes
     VendorLmsPubKeyIndex = 9,       // 4 bytes  (From Manifest)
     VendorLmsPubKeyRevocation = 10, // 4 bytes  (From Fuse)
@@ -37,10 +37,10 @@ impl From<u32> for FuseLogEntryId {
             1 => FuseLogEntryId::VendorEccPubKeyIndex,
             2 => FuseLogEntryId::VendorEccPubKeyRevocation,
             3 => FuseLogEntryId::ManifestFmcSvn,
-            4 => FuseLogEntryId::ManifestFmcMinSvn,
+            4 => FuseLogEntryId::ManifestReserved0,
             5 => FuseLogEntryId::FuseFmcSvn,
             6 => FuseLogEntryId::ManifestRtSvn,
-            7 => FuseLogEntryId::ManifestRtMinSvn,
+            7 => FuseLogEntryId::ManifestReserved1,
             8 => FuseLogEntryId::FuseRtSvn,
             9 => FuseLogEntryId::VendorLmsPubKeyIndex,
             10 => FuseLogEntryId::VendorLmsPubKeyRevocation,

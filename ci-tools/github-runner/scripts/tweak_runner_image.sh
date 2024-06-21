@@ -27,6 +27,10 @@ set -x
         binutils-riscv64-unknown-elf pkg-config libssl-dev jq libtinfo5 \
         gcc-aarch64-linux-gnu squashfs-tools
 
+    # Disable unattended upgrades, as these can interfere with jobs. This image
+    # is regenerated once a week so the security risk is minimal.
+    apt-get -y remove unattended-upgrades
+
     echo Retrieving latest GHA runner version
     RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
     echo Using runner version ${RUNNER_VERSION}
@@ -43,7 +47,7 @@ set -x
     su runner -c "curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain=1.70"
     su runner -c "/home/runner/.cargo/bin/rustup target add riscv32imc-unknown-none-elf"
     echo Installing cargo-nextest
-    su runner -c "/home/runner/.cargo/bin/cargo install cargo-nextest@0.9.62 --locked --no-default-features --features=default-no-update"
+    su runner -c "/home/runner/.cargo/bin/cargo install cargo-nextest@0.9.64 --locked --no-default-features --features=default-no-update"
 
     mkdir sw
     (

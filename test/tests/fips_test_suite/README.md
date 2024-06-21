@@ -10,6 +10,19 @@ The testing suite interfaces with Caliptra as an SoC would using the external, S
 
 cargo test --test fips_test_suite
 
+## Options
+
+| Option Name               | Description                                                                                            |
+| :------------------------ | :----------------------------------------------------------------------------------------------------- |
+| FIPS_TEST_ROM_BIN         | Path to the the ROM binary to use (only applies to tests that do not build their own ROM)
+| FIPS_TEST_FW_BIN          | Path to the the FW image to use (only applies to tests that do not build their own FW)
+| FIPS_TEST_HW_EXP_VERSION  | HW release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
+| FIPS_TEST_ROM_EXP_VERSION | ROM release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
+| FIPS_TEST_RT_EXP_VERSION  | Runtime release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
+
+Options are environment variables. One way to specify them at the command line when calling cargo test:
+    OPTION_NAME=VALUE cargo test --test fips_test_suite
+
 ## Test Environment Limitations
 
 | Feature/Limitation Name  | Description                                                                         |

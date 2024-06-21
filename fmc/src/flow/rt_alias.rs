@@ -11,6 +11,10 @@ Abstract:
     Alias RT DICE Layer & PCR extension
 
 --*/
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::cfi_assert_eq;
+use caliptra_cfi_lib::{cfi_assert, cfi_launder};
+
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
@@ -36,6 +40,7 @@ pub struct RtAliasLayer {}
 
 impl RtAliasLayer {
     /// Perform derivations for the DICE layer
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         if Self::kv_slot_collides(input.cdi) {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
@@ -93,6 +98,7 @@ impl RtAliasLayer {
         slot == KEY_ID_RT_CDI || slot == KEY_ID_RT_PRIV_KEY || slot == KEY_ID_TMP
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
@@ -156,11 +162,24 @@ impl RtAliasLayer {
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
     pub fn extend_pcrs(env: &mut FmcEnv) -> CaliptraResult<()> {
-        match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env),
-            _ => {
+        let reset_reason = env.soc_ifc.reset_reason();
+        match reset_reason {
+            ResetReason::ColdReset => {
+                cfi_assert_eq(reset_reason, ResetReason::ColdReset);
+                extend_pcr_common(env)
+            }
+            ResetReason::UpdateReset => {
+                cfi_assert_eq(reset_reason, ResetReason::UpdateReset);
+                extend_pcr_common(env)
+            }
+            ResetReason::WarmReset => {
+                cfi_assert_eq(reset_reason, ResetReason::WarmReset);
                 cprintln!("[alias rt : skip pcr extension");
                 Ok(())
+            }
+            ResetReason::Unknown => {
+                cfi_assert_eq(reset_reason, ResetReason::Unknown);
+                Err(CaliptraError::FMC_UNKNOWN_RESET)
             }
         }
     }
@@ -171,11 +190,13 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn populate_dv(env: &mut FmcEnv) -> CaliptraResult<()> {
         let rt_svn = HandOff::rt_svn(env);
         let reset_reason = env.soc_ifc.reset_reason();
 
         let rt_min_svn = if reset_reason == ResetReason::ColdReset {
+            cfi_assert_eq(reset_reason, ResetReason::ColdReset);
             rt_svn
         } else {
             core::cmp::min(rt_svn, HandOff::rt_min_svn(env))
@@ -219,6 +240,7 @@ impl RtAliasLayer {
     /// * `env` - ROM Environment
     /// * `fmc_cdi` - Key Slot that holds the current CDI
     /// * `rt_cdi` - Key Slot to store the generated CDI
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
@@ -246,12 +268,20 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut FmcEnv,
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, b"rt_alias_keygen", priv_key)
+        let result = Crypto::ecc384_key_gen(env, cdi, b"rt_alias_keygen", priv_key);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+
+        result
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -261,6 +291,7 @@ impl RtAliasLayer {
     /// * `env`    - FMC Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut FmcEnv,
         input: &DiceInput,
@@ -297,7 +328,7 @@ impl RtAliasLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = RtAliasCertTbs::new(&params);
 
-        // Sign the the `To Be Signed` portion
+        // Sign the `To Be Signed` portion
         cprintln!(
             "[alias rt] Signing Cert with AUTHO
             RITY.KEYID = {}",
@@ -344,6 +375,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);

@@ -1,7 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{
+        self,
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
+        APP_WITH_UART, FMC_WITH_UART,
+    },
     ImageOptions,
 };
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
@@ -12,12 +16,12 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::{
     VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1, VENDOR_CONFIG_KEY_2, VENDOR_CONFIG_KEY_3,
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
-use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{
     ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
 };
@@ -744,6 +748,9 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
     );
+
+    #[cfg(feature = "verilator")]
+    assert!(hw.v.output.cptra_error_fatal);
 }
 
 #[test]
@@ -834,7 +841,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         .x
         .fill(0);
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -887,7 +894,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         .y
         .fill(0);
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -931,7 +938,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -978,7 +985,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1025,7 +1032,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1072,7 +1079,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         ImageOptions::default(),
     )
     .unwrap();
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1473,7 +1480,7 @@ fn test_fmc_entry_point_unaligned() {
 
 #[test]
 fn test_fmc_svn_greater_than_32() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1507,43 +1514,8 @@ fn test_fmc_svn_greater_than_32() {
 }
 
 #[test]
-fn test_fmc_svn_less_than_min_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-
-    let image_options = ImageOptions {
-        fmc_min_svn: 3,
-        fmc_svn: 2,
-        ..Default::default()
-    };
-    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    assert_eq!(
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
-        )),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(FwProcessorManifestLoadComplete)
-    );
-}
-
-#[test]
 fn test_fmc_svn_less_than_fuse_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1757,7 +1729,7 @@ fn test_runtime_entry_point_unaligned() {
 
 #[test]
 fn test_runtime_svn_greater_than_max() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -1790,44 +1762,8 @@ fn test_runtime_svn_greater_than_max() {
 }
 
 #[test]
-fn test_runtime_svn_less_than_min_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-    let image_options = ImageOptions {
-        app_min_svn: 3,
-        app_svn: 2,
-        ..Default::default()
-    };
-
-    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-
-    assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED.into()
-        ),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(FwProcessorManifestLoadComplete)
-    );
-}
-
-#[test]
 fn test_runtime_svn_less_than_fuse_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
@@ -2059,7 +1995,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
         owner_config: opts.owner_config,
     };
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let header_digest_vendor = gen
         .header_digest_vendor(&image_bundle.manifest.header)
         .unwrap();
@@ -2090,7 +2026,7 @@ fn update_fmc_runtime_ranges(
     image_bundle.manifest.runtime.offset = runtime_new_offset;
     image_bundle.manifest.runtime.size = runtime_new_size;
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen
@@ -2111,7 +2047,7 @@ fn update_load_addr(image_bundle: &mut ImageBundle, is_fmc: bool, new_load_addr:
         image_bundle.manifest.runtime.load_addr = new_load_addr;
     }
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen
@@ -2136,7 +2072,7 @@ fn update_entry_point(
         image_bundle.manifest.runtime.entry_point = new_entry_point;
     }
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
     image_bundle.manifest.header.toc_digest = gen
@@ -2326,4 +2262,53 @@ fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
         .unwrap());
 
     fmcalias_cert
+}
+
+#[test]
+fn test_max_fw_image() {
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &TEST_RT_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+
+    let mut buf = vec![];
+    buf.append(
+        &mut image_bundle
+            .manifest
+            .fmc
+            .image_size()
+            .to_le_bytes()
+            .to_vec(),
+    );
+    buf.append(
+        &mut image_bundle
+            .manifest
+            .runtime
+            .image_size()
+            .to_le_bytes()
+            .to_vec(),
+    );
+    buf.append(&mut image_bundle.fmc.to_vec());
+    buf.append(&mut image_bundle.runtime.to_vec());
+
+    let iccm_cmp: Vec<u8> = hw.mailbox_execute(0x1000_000E, &buf).unwrap().unwrap();
+    assert_eq!(iccm_cmp.len(), 1);
+    assert_eq!(iccm_cmp[0], 0);
 }

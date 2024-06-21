@@ -4,7 +4,7 @@ use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
 use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
-use dpe::DpeInstance;
+use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
@@ -15,9 +15,21 @@ use crate::{
     FirmwareHandoffTable,
 };
 
+#[cfg(feature = "runtime")]
+use crate::pcr_reset::PcrResetCounter;
+
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+
+#[cfg(feature = "runtime")]
+const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
+    + size_of::<u32>() * MAX_HANDLES
+    + size_of::<U8Bool>() * MAX_HANDLES
+    + size_of::<U8Bool>();
+
+#[cfg(feature = "runtime")]
+const _: () = assert!(DPE_DCCM_STORAGE < memory_layout::DPE_SIZE as usize);
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
@@ -54,9 +66,22 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub dpe: DpeInstance,
     #[cfg(feature = "runtime")]
-    reserved6: [u8; memory_layout::DPE_SIZE as usize - size_of::<DpeInstance>()],
+    pub context_tags: [u32; MAX_HANDLES],
+    #[cfg(feature = "runtime")]
+    pub context_has_tag: [U8Bool; MAX_HANDLES],
+    #[cfg(feature = "runtime")]
+    pub attestation_disabled: U8Bool,
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; memory_layout::DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; memory_layout::DPE_SIZE as usize],
+    #[cfg(feature = "runtime")]
+    pub pcr_reset: PcrResetCounter,
+    #[cfg(feature = "runtime")]
+    reserved7: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize - size_of::<PcrResetCounter>()],
+
+    #[cfg(not(feature = "runtime"))]
+    pcr_reset: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
@@ -77,8 +102,12 @@ impl PersistentData {
             assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
             assert_eq!(addr_of!((*P).dpe) as u32, memory_layout::DPE_ORG);
             assert_eq!(
+                addr_of!((*P).pcr_reset) as u32,
+                memory_layout::PCR_RESET_COUNTER_ORG
+            );
+            assert_eq!(
                 P.add(1) as u32,
-                memory_layout::DPE_ORG + memory_layout::DPE_SIZE
+                memory_layout::PCR_RESET_COUNTER_ORG + memory_layout::PCR_RESET_COUNTER_SIZE
             );
         }
     }

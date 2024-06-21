@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
-use crate::{KeyUsage, KeyVault};
+use crate::{HashSha512, KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_crypto::{Ecc384, Ecc384PubKey, Ecc384Signature};
 use caliptra_emu_derive::Bus;
@@ -52,6 +52,7 @@ register_bitfields! [
             VERIFY = 0b11,
         ],
         ZEROIZE OFFSET(2) NUMBITS(1) [],
+        PCR_SIGN OFFSET(3) NUMBITS(1) []
     ],
 
     /// Status Register Fields
@@ -206,6 +207,8 @@ pub struct AsymEcc384 {
     /// Key Vault
     key_vault: KeyVault,
 
+    hash_sha512: HashSha512,
+
     /// Timer
     timer: Timer,
 
@@ -236,7 +239,7 @@ impl AsymEcc384 {
     const VERSION1_VAL: RvData = 0x00000000;
 
     /// Create a new instance of ECC-384 Engine
-    pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
+    pub fn new(clock: &Clock, key_vault: KeyVault, hash_sha512: HashSha512) -> Self {
         Self {
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
             name1: ReadOnlyRegister::new(Self::NAME1_VAL),
@@ -263,6 +266,7 @@ impl AsymEcc384 {
             key_write_ctrl: ReadWriteRegister::new(0),
             key_write_status: ReadOnlyRegister::new(KeyWriteStatus::READY::SET.value),
             key_vault,
+            hash_sha512,
             timer: Timer::new(clock),
             op_complete_action: None,
             op_key_read_complete_action: None,
@@ -460,7 +464,13 @@ impl AsymEcc384 {
     fn op_complete(&mut self) {
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::GEN_KEY) => self.gen_key(),
-            Some(Control::CTRL::Value::SIGN) => self.sign(),
+            Some(Control::CTRL::Value::SIGN) => {
+                if self.control.reg.is_set(Control::PCR_SIGN) {
+                    self.pcr_digest_sign();
+                } else {
+                    self.sign();
+                }
+            }
             Some(Control::CTRL::Value::VERIFY) => self.verify(),
             _ => {}
         }
@@ -605,6 +615,24 @@ impl AsymEcc384 {
         self.sig_s = words_from_bytes_le(&signature.s);
     }
 
+    /// Sign the PCR digest
+    fn pcr_digest_sign(&mut self) {
+        const PCR_SIGN_KEY: u32 = 7;
+
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_ecc_private_key(true);
+        let pcr_key = self
+            .key_vault
+            .read_key_locked(PCR_SIGN_KEY, key_usage)
+            .unwrap();
+
+        let pcr_digest = self.hash_sha512.pcr_hash_digest();
+
+        let signature = Ecc384::sign(&pcr_key, &pcr_digest);
+        self.sig_r = words_from_bytes_le(&signature.r);
+        self.sig_s = words_from_bytes_le(&signature.s);
+    }
+
     /// Verify the ECC Signature
     fn verify(&mut self) {
         let verify_r = Ecc384::verify(
@@ -712,7 +740,11 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
         let name0 = ecc.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
@@ -725,7 +757,11 @@ mod tests {
 
     #[test]
     fn test_version() {
-        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
         let version0 = ecc.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -738,20 +774,31 @@ mod tests {
 
     #[test]
     fn test_control() {
-        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
         assert_eq!(ecc.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status() {
-        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
         assert_eq!(ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
     #[test]
     fn test_gen_key() {
         let clock = Clock::new();
-        let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
         let mut seed = [0u8; 48];
         seed.to_big_endian(); // Change DWORDs to big-endian.
@@ -824,7 +871,9 @@ mod tests {
             key_vault
                 .write_key(key_id, &seed, u32::from(key_usage))
                 .unwrap();
-            let mut ecc = AsymEcc384::new(&clock, key_vault);
+
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
             // Instruct seed to be read from key-vault.
             let seed_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
@@ -892,7 +941,10 @@ mod tests {
             let mut seed = [0u8; 48];
             seed.to_big_endian(); // Change DWORDs to big-endian.
 
-            let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
+            let key_vault = KeyVault::new();
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
             for i in (0..seed.len()).step_by(4) {
                 assert_eq!(
@@ -970,7 +1022,10 @@ mod tests {
     #[test]
     fn test_sign() {
         let clock = Clock::new();
-        let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
         let mut hash = [0u8; KeyVault::KEY_SIZE];
         hash.to_big_endian(); // Change DWORDs to big-endian.
@@ -1041,7 +1096,8 @@ mod tests {
                 .write_key(key_id, &priv_key, u32::from(key_usage))
                 .unwrap();
 
-            let mut ecc = AsymEcc384::new(&clock, key_vault);
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
             let mut hash = [0u8; 48];
             hash.to_big_endian(); // Change DWORDs to big-endian.
@@ -1122,7 +1178,8 @@ mod tests {
                 .write_key(key_id, &priv_key, !(u32::from(key_usage)))
                 .unwrap();
 
-            let mut ecc = AsymEcc384::new(&clock, key_vault);
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
             let mut hash = [0u8; 48];
             hash.to_big_endian(); // Change DWORDs to big-endian.
@@ -1166,7 +1223,10 @@ mod tests {
     #[test]
     fn test_verify() {
         let clock = Clock::new();
-        let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
         let hash = [0u8; KeyVault::KEY_SIZE];
         for i in (0..hash.len()).step_by(4) {

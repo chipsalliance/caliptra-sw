@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    Rt_alias_cert.rs
+    rt_alias_cert.rs
 
 Abstract:
 
@@ -13,7 +13,10 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
+#[cfg(feature = "generate_templates")]
 include!(concat!(env!("OUT_DIR"), "/rt_alias_cert_tbs.rs"));
+#[cfg(not(feature = "generate_templates"))]
+include! {"../build/rt_alias_cert_tbs.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -123,5 +126,22 @@ mod tests {
 
         let cert: X509 = X509::from_der(&buf).unwrap();
         assert!(cert.verify(issuer_key.priv_key()).unwrap());
+    }
+
+    #[test]
+    #[cfg(feature = "generate_templates")]
+    fn test_rt_alias_template() {
+        let manual_template =
+            std::fs::read(std::path::Path::new("./build/rt_alias_cert_tbs.rs")).unwrap();
+        let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
+            env!("OUT_DIR"),
+            "/rt_alias_cert_tbs.rs"
+        )))
+        .unwrap();
+        if auto_generated_template != manual_template {
+            panic!(
+                "Auto-generated RT Alias Certificate template is not equal to the manual template."
+            )
+        }
     }
 }

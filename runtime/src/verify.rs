@@ -1,24 +1,33 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    verify.rs
+
+Abstract:
+
+    File contains EcdsaVerify mailbox command and HmacVerify test-only mailbox command.
+
+--*/
 
 use crate::Drivers;
-#[cfg(feature = "test_only_commands")]
-use caliptra_common::mailbox_api::HmacVerifyReq;
-use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};
+use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Signature,
+    Ecc384Signature, LmsResult,
 };
-
-#[cfg(feature = "test_only_commands")]
-use caliptra_drivers::{Hmac384Data, Hmac384Key, Trng};
-#[cfg(feature = "test_only_commands")]
-use caliptra_registers::{
-    csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+use caliptra_lms_types::{
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
-use zerocopy::FromBytes;
+use zerocopy::AsBytes;
+use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = EcdsaVerifyReq::read_from(cmd_args) {
             // Won't panic, full_digest is always larger than digest
@@ -50,39 +59,72 @@ impl EcdsaVerifyCmd {
     }
 }
 
-/// Handle the `TEST_ONLY_HMAC_SHA384_VERIFY` mailbox command
-#[cfg(feature = "test_only_commands")]
-pub struct HmacVerifyCmd;
-#[cfg(feature = "test_only_commands")]
-impl HmacVerifyCmd {
-    #[cfg(feature = "test_only_commands")]
+pub struct LmsVerifyCmd;
+impl LmsVerifyCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = HmacVerifyReq::read_from(cmd_args) {
-            let key = Array4x12::from(cmd.key);
-            let key = Hmac384Key::from(&key);
-            let mut out_tag = Array4x12::default();
-            let Ok(len) = usize::try_from(cmd.len) else {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            };
-            if len > cmd.msg.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        // Re-run LMS KAT once (since LMS is more SW-based than other crypto)
+        if let Err(e) =
+            caliptra_kat::LmsKat::default().execute_once(&mut drivers.sha256, &mut drivers.lms)
+        {
+            // KAT failures must be fatal errors
+            caliptra_common::handle_fatal_error(e.into());
+        }
+
+        // Constants from fixed LMS param set
+        const LMS_N: usize = 6;
+        const LMS_P: usize = 51;
+        const LMS_H: usize = 15;
+        const LMS_ALGORITHM_TYPE: LmsAlgorithmType = LmsAlgorithmType::new(12);
+        const LMOTS_ALGORITHM_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::new(7);
+
+        if let Some(cmd) = LmsVerifyReq::read_from(cmd_args) {
+            // Get the digest from the SHA accelerator
+            let msg_digest_be = drivers.sha_acc.regs().digest().truncate::<12>().read();
+            // Flip the endianness since LMS treats this as raw message bytes
+            let mut msg_digest = [0u8; 48];
+            for (i, src_word) in msg_digest_be.iter().enumerate() {
+                msg_digest[i * 4..][..4].copy_from_slice(&src_word.to_be_bytes());
             }
-            let data = Hmac384Data::from(&cmd.msg[0..len]);
-            let mut trng = unsafe {
-                Trng::new(
-                    CsrngReg::new(),
-                    EntropySrcReg::new(),
-                    SocIfcTrngReg::new(),
-                    &SocIfcReg::new(),
+
+            let lms_pub_key: LmsPublicKey<LMS_N> = LmsPublicKey {
+                id: cmd.pub_key_id,
+                digest: <[U32<LittleEndian>; LMS_N]>::read_from(&cmd.pub_key_digest[..])
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+                tree_type: LmsAlgorithmType::new(cmd.pub_key_tree_type),
+                otstype: LmotsAlgorithmType::new(cmd.pub_key_ots_type),
+            };
+
+            let lms_sig: LmsSignature<LMS_N, LMS_P, LMS_H> = LmsSignature {
+                q: <U32<BigEndian>>::from(cmd.signature_q),
+                ots: <LmotsSignature<LMS_N, LMS_P>>::read_from(&cmd.signature_ots[..])
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+                tree_type: LmsAlgorithmType::new(cmd.signature_tree_type),
+                tree_path: <[[U32<LittleEndian>; LMS_N]; LMS_H]>::read_from(
+                    &cmd.signature_tree_path[..],
                 )
-            }?;
+                .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            };
 
-            drivers
-                .hmac384
-                .hmac(&key, &data, &mut trng, (&mut out_tag).into())?;
+            // Check that fixed params are correct
+            if lms_pub_key.tree_type != LMS_ALGORITHM_TYPE {
+                return Err(CaliptraError::RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM);
+            }
+            if lms_pub_key.otstype != LMOTS_ALGORITHM_TYPE {
+                return Err(CaliptraError::RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM);
+            }
+            if lms_sig.tree_type != LMS_ALGORITHM_TYPE {
+                return Err(CaliptraError::RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM);
+            }
 
-            if out_tag != Array4x12::from(cmd.tag) {
-                return Err(CaliptraError::RUNTIME_HMAC_VERIFY_FAILED);
+            let success = drivers.lms.verify_lms_signature(
+                &mut drivers.sha256,
+                &msg_digest,
+                &lms_pub_key,
+                &lms_sig,
+            )?;
+            if success != LmsResult::Success {
+                return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
             }
         } else {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);

@@ -17,6 +17,7 @@ mod generator;
 pub use generator::ImageGenerator;
 
 use caliptra_image_types::*;
+use std::path::Path;
 
 /// Image Generator Executable
 pub trait ImageGenratorExecutable {
@@ -25,9 +26,6 @@ pub trait ImageGenratorExecutable {
 
     /// Executable Security Version Number
     fn svn(&self) -> u32;
-
-    /// Executable Minimum Security Version Number
-    fn min_svn(&self) -> u32;
 
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
@@ -45,8 +43,27 @@ pub trait ImageGenratorExecutable {
     fn size(&self) -> u32;
 }
 
-/// Image Gnerator Crypto Trait
+pub trait ImageGeneratorHasher {
+    type Output: Copy;
+
+    fn update(&mut self, data: &[u8]);
+
+    fn finish(self) -> Self::Output;
+}
+
+/// Image Generator Crypto Trait
 pub trait ImageGeneratorCrypto {
+    type Sha256Hasher: ImageGeneratorHasher<Output = [u32; SHA256_DIGEST_WORD_SIZE]>;
+
+    fn sha256_start(&self) -> Self::Sha256Hasher;
+
+    /// Calculate SHA-256 digest
+    fn sha256_digest(&self, data: &[u8]) -> anyhow::Result<[u32; SHA256_DIGEST_WORD_SIZE]> {
+        let mut hasher = self.sha256_start();
+        hasher.update(data);
+        Ok(hasher.finish())
+    }
+
     /// Calculate SHA-384 digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest>;
 
@@ -64,6 +81,12 @@ pub trait ImageGeneratorCrypto {
         digest: &ImageDigest,
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature>;
+
+    /// Read ECC-384 Public Key from PEM file
+    fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey>;
+
+    /// Read ECC-384 Private Key from PEM file
+    fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
 }
 
 /// Image Generator Vendor Configuration
@@ -94,6 +117,8 @@ pub struct ImageGeneratorOwnerConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
+
+    pub epoch: [u8; 2],
 }
 
 /// Image Generator Configuration
