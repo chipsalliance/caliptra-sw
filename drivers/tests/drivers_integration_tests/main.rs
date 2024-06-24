@@ -25,11 +25,7 @@ use ureg::ResettableReg;
 use zerocopy::{AsBytes, FromBytes};
 
 fn default_init_params() -> InitParams<'static> {
-    InitParams {
-        // The test harness doesn't clear memory on startup.
-        random_sram_puf: false,
-        ..Default::default()
-    }
+    InitParams::default_for_test_harness()
 }
 
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
