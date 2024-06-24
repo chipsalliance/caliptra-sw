@@ -1,6 +1,12 @@
 // Licensed under the Apache-2.0 license
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include "caliptra_top_reg.h"
+#include "caliptra_if.h"
+
 #define CALIPTRA_MAILBOX_MAX_SIZE (128u * 1024u)
 
 enum caliptra_mailbox_status {

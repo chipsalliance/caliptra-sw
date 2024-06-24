@@ -5,7 +5,7 @@ CROSS_COMPILE ?=
 .DEFAULT_GOAL = $(TARGET)
 
 LIBCALIPTRA_ROOT = ../../
-LIBCALIPTRA_INC  = 
+LIBCALIPTRA_INC  =
 
 OUTPUT_DIR = ../../../target/debug
 
@@ -17,19 +17,24 @@ FW_FILE  = $(ROM_FW_DIR)/image_bundle.bin
 
 BUILDER_PATH = ../../../builder
 
+VPK_PATH=vpk.bin
+OPK_PATH=opk.bin
+
 # ROM AND FW FILES
 #
 # These paths are encoded into the binary so the generic
 # main sources don't need a command line.
 DEFINES  = -DROM_PATH=\"$(ROM_FILE)\"
 DEFINES += -DFW_PATH=\"$(FW_FILE)\"
+DEFINES += -DVPK_PATH=\"$(VPK_PATH)\"
+DEFINES += -DOPK_PATH=\"$(OPK_PATH)\"
 
 # HW MODEL
 HWMODEL_DIR = $(OUTPUT_DIR)
 HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
 HWMODEL_INCLUDE = -I$(HWMODEL_HEADER_DIR)
 HWMODEL_LIB = -Wl,-L$(HWMODEL_DIR) -lcaliptra_hw_model_c_binding
-HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lrt -lm 
+HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lrt -lm
 HWMODEL_HEADER = $(HWMODEL_HEADER_DIR)/caliptra_model.h
 HWMODEL_BINDING_LIB_OBJ = $(HWMODEL_DIR)/libcaliptra_hw_model_c_binding.a
 

@@ -1,3 +1,4 @@
 inc/caliptra_model.h
 examples/hwmodel/hwmodel
 *.o
+*.bin

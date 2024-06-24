@@ -2,7 +2,11 @@
 
 #pragma once
 
-#include "caliptra_api.h"
+#include <stddef.h>
+#include <stdint.h>
+
+#include "caliptra_top_reg.h"
+#include "caliptra_if.h"
 
 #define MBOX_PAUSER_SLOTS (5)
 
