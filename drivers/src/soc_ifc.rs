@@ -307,6 +307,13 @@ impl SocIfc {
         soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| version);
     }
 
+    pub fn get_rom_fw_rev_id(&mut self) -> u16 {
+        // ROM version is [15:0] of CPTRA_FW_REV_ID[0]
+        const ROM_VERSION_MASK: u32 = 0xFFFF;
+        let soc_ifc_regs = self.soc_ifc.regs();
+        (soc_ifc_regs.cptra_fw_rev_id().at(0).read() & ROM_VERSION_MASK) as u16
+    }
+
     pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u16) {
         // FMC version is [31:16] of CPTRA_FW_REV_ID[0]
         const FMC_VERSION_MASK: u32 = 0xFFFF0000;
