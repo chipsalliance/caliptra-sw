@@ -1,13 +1,15 @@
 // Licensed under the Apache-2.0 license
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <unistd.h>
 
 #include "caliptra_api.h"
+#include "caliptra_enums.h"
+#include "caliptra_if.h"
 #include "caliptra_image.h"
+#include "caliptra_types.h"
 
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint64_t wdt_timeout = 0xA0000000;         // approximately 5s for 500MHz clock
@@ -26,9 +28,6 @@ extern void testbench_reinit(void);
 struct caliptra_buffer image_bundle;
 struct caliptra_fuses fuses = {0};
 
-__attribute__((section("VPK_HASH"))) uint8_t vpk_hash[48];
-__attribute__((section("OPK_HASH"))) uint8_t opk_hash[48];
-
 static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f,
                                              0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f,
                                              0x20212223, 0x24252627, 0x28292a2b, 0x2c2d2e2f };
@@ -36,9 +35,24 @@ static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b,
 static const uint32_t default_field_entropy[] = { 0x80818283, 0x84858687, 0x88898a8b, 0x8c8d8e8f,
                                                   0x90919293, 0x94959697, 0x98999a9b, 0x9c9d9e9f };
 
+struct caliptra_buffer read_file_or_exit(const char* path);
+
 static int set_fuses()
 {
     int status;
+
+    struct caliptra_buffer vpk_hash = read_file_or_exit(VPK_PATH);
+    if (vpk_hash.len != SHA384_DIGEST_BYTE_SIZE)
+    {
+        printf("Invalid VPK hash at %s\n", VPK_PATH);
+        return 1;
+    }
+    struct caliptra_buffer opk_hash = read_file_or_exit(OPK_PATH);
+    if (opk_hash.len != SHA384_DIGEST_BYTE_SIZE)
+    {
+        printf("Invalid OPK hash at %s\n", OPK_PATH);
+        return 1;
+    }
 
     fuses = (struct caliptra_fuses){0};
 
@@ -48,8 +62,8 @@ static int set_fuses()
     for (int x = 0; x < SHA384_DIGEST_WORD_SIZE; x++)
     {
         // Pub key hash fuses are stored as big-endian
-        fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
-        fuses.key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
+        fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash.data)[x]);
+        fuses.key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash.data)[x]);
     }
 
     if ((status = caliptra_init_fuses(&fuses)) != 0)

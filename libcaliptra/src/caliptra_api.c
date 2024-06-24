@@ -3,13 +3,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+
 #include <caliptra_top_reg.h>
-#include "caliptra_if.h"
+
 #include "caliptra_api.h"
+#include "caliptra_enums.h"
+#include "caliptra_if.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
-#include "caliptra_enums.h"
 
 #define CALIPTRA_STATUS_NOT_READY (0)
 #define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)

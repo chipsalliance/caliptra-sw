@@ -2,19 +2,16 @@
 
 #define HWMODEL 1
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <caliptra_top_reg.h>
-
 #include "caliptra_model.h"
-#include "caliptra_api.h"
-#include "caliptra_image.h"
 
 #define CALIPTRA_STATUS_OK 0
 
@@ -26,7 +23,7 @@ struct caliptra_model_init_params init_params;
 
 extern struct caliptra_buffer image_bundle;
 
-static struct caliptra_buffer read_file_or_exit(const char* path)
+struct caliptra_buffer read_file_or_exit(const char* path)
 {
     // Open File in Read Only Mode
     FILE *fp = fopen(path, "r");
@@ -125,7 +122,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
 
     caliptra_model_step(m);
 
-    return result; 
+    return result;
 }
 
 /**
