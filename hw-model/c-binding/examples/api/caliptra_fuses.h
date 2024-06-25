@@ -2,6 +2,7 @@
 #ifndef CALIPTRA_FUSES_H
 #define CALIPTRA_FUSES_H
 
+#include <caliptra_top_reg.h>
 #include "caliptra_api.h"
 
 #define CALIPTRA_ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
