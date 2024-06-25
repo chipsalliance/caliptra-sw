@@ -76,11 +76,14 @@ int main(int argc, char *argv[])
         return -EINVAL;
     }
 
+    // slice::from_raw_parts can panic when the pointer is NULL
+    uint8_t empty[0];
+
     // Initialize Params
     struct caliptra_model_init_params init_params = {
       .rom = read_file_or_die(rom_path),
-      .dccm = {.data = NULL, .len = 0},
-      .iccm = {.data = NULL, .len = 0},
+      .dccm = {.data = empty, .len = 0},
+      .iccm = {.data = empty, .len = 0},
       .security_state = CALIPTRA_SEC_STATE_DBG_UNLOCKED_UNPROVISIONED,
     };
 
@@ -107,6 +110,9 @@ int main(int argc, char *argv[])
 
     // Run Until RT is ready to receive commands
     caliptra_model_step_until_boot_status(model, RT_READY_FOR_COMMANDS);
+
+    // Free the model
+    caliptra_model_destroy(model);
 
     printf("Caliptra C Smoke Test Passed \n");
     return 0;

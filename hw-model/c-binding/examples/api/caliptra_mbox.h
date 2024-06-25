@@ -2,7 +2,9 @@
 #ifndef CALIPTRA_MBOX_H
 #define CALIPTRA_MBOX_H
 
+#include <caliptra_top_reg.h>
 #include "caliptra_api.h"
+
 static inline void caliptra_mbox_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
     caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);

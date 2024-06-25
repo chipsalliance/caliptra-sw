@@ -65,8 +65,8 @@ pub unsafe extern "C" fn caliptra_model_destroy(model: *mut caliptra_model) {
     // Parameter check
     assert!(!model.is_null());
 
-    // This will force model to be freed
-    drop(Box::from_raw(model));
+    // This will force model to be freed. Needs the cast to know how much memory to be freed.
+    drop(Box::from_raw(model as *mut DefaultHwModel));
 }
 
 /// # Safety
