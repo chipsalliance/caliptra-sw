@@ -52,8 +52,8 @@ impl CaliptraError {
     pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
-    /// Driver Error: SHA384ACC
-    pub const DRIVER_SHA384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
+    /// Driver Error: SHA2_512_384ACC
+    pub const DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
         CaliptraError::new_const(0x00038000);
 
     /// Driver Error: HMAC384
@@ -129,8 +129,8 @@ impl CaliptraError {
     pub const DRIVER_MAILBOX_UNCORRECTABLE_ECC: CaliptraError =
         CaliptraError::new_const(0x00080005);
 
-    /// SHA384ACC Errors.
-    pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    /// SHA2_512_384ACC Errors.
+    pub const DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00090003);
     /// SHA1 Errors.
     pub const DRIVER_SHA1_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x000a0001);
@@ -545,10 +545,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x90040002);
     pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
 
-    pub const KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
+    pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
-    pub const KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050002);
-    pub const KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050003);
+    pub const KAT_SHA2_512_384_ACC_DIGEST_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90050002);
+    pub const KAT_SHA2_512_384_ACC_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x90050003);
 
     pub const KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
     pub const KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
