@@ -63,6 +63,13 @@ impl Sha384 {
     ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
+        #[cfg(feature = "fips-test-hooks")]
+        if unsafe {
+            crate::FipsTestHook::hook_cmd_is_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)
+        } {
+            return Err(CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+        }
+
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
@@ -104,7 +111,7 @@ impl Sha384 {
 
         #[cfg(feature = "fips-test-hooks")]
         let digest = unsafe {
-            crate::FipsTestHook::corrupt_data(crate::FipsTestHook::SHA384_ERROR, &digest)
+            crate::FipsTestHook::corrupt_data(crate::FipsTestHook::SHA384_CORRUPT_DIGEST, &digest)
         };
 
         self.zeroize_internal();

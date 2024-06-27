@@ -41,6 +41,11 @@ pub fn hmac384_kdf(
     trng: &mut Trng,
     output: Hmac384Tag,
 ) -> CaliptraResult<()> {
+    #[cfg(feature = "fips-test-hooks")]
+    if unsafe { crate::FipsTestHook::hook_cmd_is_set(crate::FipsTestHook::HMAC384_FAILURE) } {
+        return Err(caliptra_error::CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+    }
+
     let mut hmac_op = hmac.hmac_init(&key, trng, output)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;

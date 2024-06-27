@@ -25,3 +25,4 @@ caliptra-cfi-lib = { workspace = true, features = ["cfi-test" ] }
 default = ["std"]
 std = ["caliptra-image-types/std"]
 no-cfi = []
+fips-test-hooks = []

@@ -263,6 +263,15 @@ impl Ecc384 {
 
         // Pairwise consistency check.
         let digest = Array4x12::new([0u32; 12]);
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pub_key = unsafe {
+            crate::FipsTestHook::corrupt_data(
+                crate::FipsTestHook::ECC384_PAIRWISE_CONSISTENCY_ERROR,
+                &pub_key,
+            )
+        };
+
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => sig.zeroize(),
             Err(_) => {
@@ -379,6 +388,15 @@ impl Ecc384 {
         data: &Ecc384Scalar,
         trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
+        #[cfg(feature = "fips-test-hooks")]
+        if unsafe {
+            crate::FipsTestHook::hook_cmd_is_set(
+                crate::FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
+            )
+        } {
+            return Err(CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+        }
+
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
 
@@ -387,6 +405,15 @@ impl Ecc384 {
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
         caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+
+        #[cfg(feature = "fips-test-hooks")]
+        let sig_result = unsafe {
+            crate::FipsTestHook::corrupt_data(
+                crate::FipsTestHook::ECC384_CORRUPT_SIGNATURE,
+                &sig_result,
+            )
+        };
+
         sig_result
     }
 
@@ -447,6 +474,13 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
+        #[cfg(feature = "fips-test-hooks")]
+        if unsafe {
+            crate::FipsTestHook::hook_cmd_is_set(crate::FipsTestHook::ECC384_VERIFY_FAILURE)
+        } {
+            return Err(CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+        }
+
         // If R or S are not in the range [1, N-1], signature check must fail
         if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
             return Err(CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED);

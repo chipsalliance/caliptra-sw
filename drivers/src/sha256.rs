@@ -83,6 +83,13 @@ impl Sha256Alg for Sha256 {
     ///
     /// * `buf` - Buffer to calculate the digest over
     fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8> {
+        #[cfg(feature = "fips-test-hooks")]
+        if unsafe {
+            crate::FipsTestHook::hook_cmd_is_set(crate::FipsTestHook::SHA256_DIGEST_FAILURE)
+        } {
+            return Err(CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+        }
+
         // Check if the buffer is not large
         if buf.len() > SHA256_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA256_MAX_DATA);
@@ -122,6 +129,11 @@ impl Sha256Alg for Sha256 {
         }
 
         let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
+
+        #[cfg(feature = "fips-test-hooks")]
+        let digest = unsafe {
+            crate::FipsTestHook::corrupt_data(crate::FipsTestHook::SHA256_CORRUPT_DIGEST, &digest)
+        };
 
         self.zeroize_internal();
 
