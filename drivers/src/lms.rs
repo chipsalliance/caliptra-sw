@@ -447,7 +447,7 @@ impl Lms {
         #[cfg(feature = "fips-test-hooks")]
         let input_string = unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
-                crate::FipsTestHook::LMS_ERROR,
+                crate::FipsTestHook::LMS_CORRUPT_INPUT,
                 &input_string,
             )
         };
@@ -514,6 +514,11 @@ impl Lms {
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
     ) -> CaliptraResult<HashValue<N>> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::LMS_VERIFY_FAILURE)?
+        }
+
         if lms_sig.ots.ots_type != lms_public_key.otstype {
             return Err(CaliptraError::DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS);
         }

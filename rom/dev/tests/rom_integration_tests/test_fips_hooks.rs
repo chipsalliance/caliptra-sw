@@ -1,13 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART_FIPS_TEST_HOOKS};
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS};
 use caliptra_builder::ImageOptions;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 #[test]
 fn test_fips_hook_exit() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_FIPS_TEST_HOOKS).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,

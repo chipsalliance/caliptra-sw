@@ -1,10 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::ImageOptions;
+use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_test::swap_word_bytes_inplace;
 use dpe::{
     commands::*,
     response::{
@@ -57,14 +58,13 @@ pub struct RtExpVals {
 }
 
 const RT_EXP_1_0_0: RtExpVals = RtExpVals {
-    fmc_version: 0x0,
-    fw_version: 0x0100_0000,
+    fmc_version: 0x800,      // 1.0.0
+    fw_version: 0x0100_0000, // 1.0.0
 };
 
 const RT_EXP_CURRENT: RtExpVals = RtExpVals {
-    // Update expected versions
-    fmc_version: 0x0,
-    fw_version: 0x0,
+    fw_version: 0x0101_0000, // 1.1.0
+    ..RT_EXP_1_0_0
 };
 
 // === Getter implementations ===
@@ -124,16 +124,8 @@ impl RtExpVals {
 //       HELPER FUNCTIONS
 // =================================
 
-// Generic helper to boot to ROM or runtime
-// Builds ROM, if not provided
-// HW Model will boot to runtime if image is provided
-fn fips_test_init_base(
-    init_params: Option<InitParams>,
-    boot_params: Option<BootParams>,
-    fw_image_override: Option<&[u8]>,
-) -> DefaultHwModel {
+pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // Create params if not provided
-    let mut boot_params = boot_params.unwrap_or(BootParams::default());
     let mut init_params = init_params.unwrap_or(InitParams::default());
 
     // Check that ROM was not provided if the immutable_rom feature is set
@@ -159,17 +151,30 @@ fn fips_test_init_base(
         init_params.rom = &rom;
     }
 
-    // Add fw image override to boot params if provided
-    if fw_image_override.is_some() {
-        // Sanity check that the caller functions are written correctly
-        if boot_params.fw_image.is_some() {
-            panic!("FIPS_TEST_SUITE BUG: Should never have a fw_image override and a fw_image in boot params")
-        }
-        boot_params.fw_image = fw_image_override;
-    }
-
     // Create the model
-    caliptra_hw_model::new(init_params, boot_params).unwrap()
+    caliptra_hw_model::new_unbooted(init_params).unwrap()
+}
+
+fn fips_test_boot<T: HwModel>(hw: &mut T, boot_params: Option<BootParams>) {
+    // Create params if not provided
+    let boot_params = boot_params.unwrap_or(BootParams::default());
+
+    // Boot
+    hw.boot(boot_params).unwrap();
+}
+
+// Generic helper to boot to ROM or runtime
+// Builds ROM, if not provided
+// HW Model will boot to runtime if image is provided
+fn fips_test_init_base(
+    init_params: Option<InitParams>,
+    boot_params: Option<BootParams>,
+) -> DefaultHwModel {
+    let mut hw = fips_test_init_model(init_params);
+
+    fips_test_boot(&mut hw, boot_params);
+
+    hw
 }
 
 // Initializes Caliptra
@@ -185,7 +190,7 @@ pub fn fips_test_init_to_boot_start(
         }
     }
 
-    fips_test_init_base(init_params, boot_params, None)
+    fips_test_init_base(init_params, boot_params)
 }
 
 // Initializes caliptra to "ready_for_fw"
@@ -194,14 +199,7 @@ pub fn fips_test_init_to_rom(
     init_params: Option<InitParams>,
     boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
-    // Check that no fw_image is in boot params
-    if let Some(ref boot_params) = boot_params {
-        if boot_params.fw_image.is_some() {
-            panic!("No FW image should be provided when calling fips_test_init_to_rom")
-        }
-    }
-
-    let mut model = fips_test_init_base(init_params, boot_params, None);
+    let mut model = fips_test_init_base(init_params, boot_params);
 
     // Step to ready for FW in ROM
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
@@ -215,21 +213,15 @@ pub fn fips_test_init_to_rt(
     init_params: Option<InitParams>,
     boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
-    let mut build_fw = true;
+    // Create params if not provided
+    let mut boot_params = boot_params.unwrap_or(BootParams::default());
 
-    if let Some(ref boot_params) = boot_params {
-        if boot_params.fw_image.is_some() {
-            build_fw = false;
-        }
-    }
-
-    if build_fw {
-        // If FW was not provided, build it or get it from the specified path
-        let fw_image = fips_fw_image();
-
-        fips_test_init_base(init_params, boot_params, Some(&fw_image))
+    if boot_params.fw_image.is_some() {
+        fips_test_init_base(init_params, Some(boot_params))
     } else {
-        fips_test_init_base(init_params, boot_params, None)
+        let fw_image = fips_fw_image();
+        boot_params.fw_image = Some(&fw_image);
+        fips_test_init_base(init_params, Some(boot_params))
     }
 
     // HW model will complete FW upload cmd, nothing to wait for
@@ -343,7 +335,11 @@ pub fn fips_fw_image() -> Vec<u8> {
         Err(_) => caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
             &APP_WITH_UART,
-            ImageOptions::default(),
+            ImageOptions {
+                fmc_version: version::get_fmc_version(),
+                app_version: version::get_runtime_version(),
+                ..Default::default()
+            },
         )
         .unwrap()
         .to_bytes()
@@ -368,8 +364,29 @@ pub fn contains_some_data<T: std::cmp::PartialEq>(data: &[T]) -> bool {
     false
 }
 
-pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
-    // Check mailbox output is inhibited
+pub fn verify_mbox_cmds_fail<T: HwModel>(hw: &mut T, exp_error_code: u32) {
+    // Send an arbitrary message
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+
+    // Make sure we get the right failure
+    match mbx_send_and_check_resp_hdr::<_, FwInfoResp>(
+        hw,
+        u32::from(CommandId::FW_INFO),
+        payload.as_bytes(),
+    ) {
+        Ok(_) => panic!("MBX command should fail at this point"),
+        Err(act_error) => {
+            if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
+                panic!("MBX command received unexpected error {}", act_error)
+            }
+        }
+    }
+}
+
+// Check mailbox output is inhibited
+pub fn verify_mbox_output_inhibited<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
     };
@@ -377,16 +394,30 @@ pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
         Ok(_) => panic!("Mailbox output is not inhibited"),
         Err(ModelError::MailboxTimeout) => (),
         Err(ModelError::UnableToLockMailbox) => (),
-        Err(_) => panic!("Unexpected error from mailbox_execute"),
+        Err(e) => panic!("Unexpected error from mailbox_execute {:?}", e),
     }
+}
 
-    // Check sha engine output is inhibited (ensure sha engine is locked)
+// Check sha engine output is inhibited (ensure sha engine is locked)
+pub fn verify_sha_engine_output_inhibited<T: HwModel>(hw: &mut T) {
     let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
     match hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream) {
         Ok(_) => panic!("SHA engine is not locked, output is not inhibited"),
         Err(ModelError::UnableToLockSha512Acc) => (),
         Err(_) => panic!("Unexpected error from compute_sha512_acc_digest"),
     }
+}
+
+// Verify all output is inhibited
+pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
+    verify_mbox_output_inhibited(hw);
+    verify_sha_engine_output_inhibited(hw);
+}
+
+pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
+    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
+    swap_word_bytes_inplace(&mut result);
+    result
 }
 
 pub fn hook_code_read<T: HwModel>(hw: &mut T) -> u8 {

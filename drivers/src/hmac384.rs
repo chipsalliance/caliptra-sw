@@ -544,6 +544,15 @@ impl<'a> Hmac384Op<'a> {
 
         // Calculate the hmac of the final block
         let buf = &self.buf[..self.buf_idx];
+
+        #[cfg(feature = "fips-test-hooks")]
+        let buf = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::HMAC384_CORRUPT_TAG,
+                &buf,
+            )
+        };
+
         self.hmac_engine.hmac_partial_block(
             buf,
             self.is_first(),
