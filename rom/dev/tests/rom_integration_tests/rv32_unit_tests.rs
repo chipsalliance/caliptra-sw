@@ -6,15 +6,15 @@ use caliptra_hw_model::{BootParams, HwModel, InitParams};
 #[test]
 fn test_asm() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::rom_tests::ASM_TESTS).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             iccm: &vec![0x55u8; 128 * 1024],
             dccm: &vec![0x66u8; 128 * 1024],
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     let mut output = vec![];

@@ -35,6 +35,7 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-cfi = []
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-registers/hw-1.0"]
+fips-test-hooks = []
 
 [dev-dependencies]
 caliptra-builder.workspace = true

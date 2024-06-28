@@ -52,6 +52,15 @@ impl Sha1 {
     /// * `buf` - Buffer to calculate the digest over
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x5> {
+        #[cfg(feature = "fips-test-hooks")]
+        {
+            if unsafe {
+                crate::FipsTestHook::hook_cmd_is_set(crate::FipsTestHook::SHA1_DIGEST_FAILURE)
+            } {
+                return Err(CaliptraError::FIPS_HOOKS_INJECTED_ERROR);
+            }
+        }
+
         // Check if the buffer is not large
         if buf.len() > SHA1_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA1_MAX_DATA);
@@ -88,6 +97,16 @@ impl Sha1 {
                     }
                 }
             }
+        }
+
+        #[cfg(feature = "fips-test-hooks")]
+        {
+            self.compressor.hash = unsafe {
+                crate::FipsTestHook::corrupt_data(
+                    crate::FipsTestHook::SHA1_CORRUPT_DIGEST,
+                    &self.compressor.hash,
+                )
+            };
         }
 
         Ok(self.compressor.hash().into())
