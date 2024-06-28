@@ -13,6 +13,7 @@ verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
+"hw-1.0" = ["caliptra-emu-periph/hw-1.0"]
 
 [dependencies]
 bitfield.workspace = true
