@@ -24,14 +24,14 @@ fn test_wdt_activation_and_stoppage() {
 
     let rom =
         caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
-        init_params: caliptra_hw_model::InitParams {
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        caliptra_hw_model::BootParams::default(),
+    )
     .unwrap();
 
     if cfg!(feature = "fpga_realtime") {
@@ -66,14 +66,14 @@ fn test_wdt_not_enabled_on_debug_part() {
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
-        init_params: caliptra_hw_model::InitParams {
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        caliptra_hw_model::BootParams::default(),
+    )
     .unwrap();
 
     // Confirm security state is as expected.
@@ -95,15 +95,17 @@ fn test_rom_wdt_timeout() {
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
-        init_params: caliptra_hw_model::InitParams {
+    let mut hw = caliptra_hw_model::new(
+        caliptra_hw_model::InitParams {
             rom: &rom,
             security_state,
+            ..Default::default()
+        },
+        caliptra_hw_model::BootParams {
             wdt_timeout_cycles: 1_000_000,
             ..Default::default()
         },
-        ..Default::default()
-    })
+    )
     .unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == WDT_EXPIRED);

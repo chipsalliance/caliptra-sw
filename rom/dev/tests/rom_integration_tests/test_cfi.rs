@@ -46,13 +46,13 @@ fn test_memcpy_not_called_before_cfi_init() {
 
         let rom = caliptra_builder::elf2rom(&elf_bytes).unwrap();
 
-        let mut hw = caliptra_hw_model::ModelEmulated::new(BootParams {
-            init_params: InitParams {
+        let mut hw = caliptra_hw_model::ModelEmulated::new(
+            InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         hw.step_until_boot_status(RomBootStatus::CfiInitialized.into(), true);

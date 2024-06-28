@@ -17,15 +17,17 @@ pub fn build_hw_model_and_image_bundle(
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap()
 }
 
