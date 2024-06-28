@@ -67,6 +67,10 @@ jobs:
             exit 1
           fi
 
+          if [[ ${{ inputs.extra-features }} == *"hw-1.0"* ]]; then
+            export FIPS_TEST_HW_EXP_VERSION=1_0_0
+          fi
+
           # Workaround https://github.com/nextest-rs/nextest/issues/267
           export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
 
