@@ -390,4 +390,3 @@ struct caliptra_invoke_dpe_resp {
         uint8_t                                     data[sizeof(struct dpe_certify_key_response)];
     };
 };
-

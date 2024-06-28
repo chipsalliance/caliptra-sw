@@ -29,6 +29,9 @@ enum libcaliptra_error {
     MBX_RESP_NO_HEADER          = 0x306,
     MBX_RESP_CHKSUM_INVALID     = 0x307,
     MBX_RESP_FIPS_NOT_APPROVED  = 0x308,
+
+    // MFG
+    IDEV_CSR_NOT_READY = 0x400,
 };
 
 /**

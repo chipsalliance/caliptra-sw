@@ -153,6 +153,7 @@ int caliptra_bootfsm_go()
     return 0;
 }
 
+
 /**
  * caliptra_set_wdt_timeout
  *
@@ -269,6 +270,8 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     if (!caliptra_ready_for_fuses())
         return NOT_READY_FOR_FUSES;
 
+
+
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, CALIPTRA_ARRAY_SIZE(fuses->uds_seed));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, CALIPTRA_ARRAY_SIZE(fuses->field_entropy));
@@ -347,6 +350,28 @@ bool caliptra_ready_for_firmware(void)
 
     return true;
 }
+
+/*
+* caliptra_is_csr_ready
+*
+* Reports if the IDEVID CSR is ready
+*
+* @return bool True if ready, false otherwise    
+*/
+bool caliptra_is_csr_ready(void)
+{
+    uint32_t status;
+
+    status = caliptra_read_status();
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK)
+    {
+        return true;
+    }
+ 
+    return false;
+}
+
 
 /**
  * caliptra_mailbox_write_fifo
@@ -1060,4 +1085,51 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     CREATE_PARCEL(p, OP_CAPABILITIES, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
+}
+
+int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr) 
+{
+    if (!caliptra_idevid_csr) {
+        return INVALID_PARAMS;
+    }
+
+    if (!caliptra_is_idevid_csr_ready()) {
+        return IDEV_CSR_NOT_READY;
+    }
+
+    return caliptra_mailbox_read_fifo(caliptra_idevid_csr);
+}
+
+void caliptra_req_idev_csr_start() 
+{
+    uint32_t dbg_manuf_serv_req;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req | 0x01);
+}
+
+void caliptra_req_idev_csr_complete() 
+{
+    uint32_t dbg_manuf_serv_req;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
+}
+
+
+// Check if IDEV CSR is ready.
+bool caliptra_is_idevid_csr_ready() {
+    uint32_t status;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK) != 0) {
+        return true;
+    }
+
+    return false;
 }
