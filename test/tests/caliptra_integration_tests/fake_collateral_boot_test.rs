@@ -65,20 +65,22 @@ fn fake_boot_test() {
     let owner_pk_hash =
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fuses: Fuses {
-            key_manifest_pk_hash: vendor_pk_hash,
-            owner_pk_hash,
-            fmc_key_manifest_svn: 0b1111111,
+        BootParams {
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                fmc_key_manifest_svn: 0b1111111,
+                ..Default::default()
+            },
+            fw_image: Some(&image.to_bytes().unwrap()),
             ..Default::default()
         },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+    )
     .unwrap();
     let mut output = vec![];
 

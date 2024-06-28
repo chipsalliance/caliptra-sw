@@ -29,13 +29,13 @@ fn test_rom_integrity_failure() {
     // location in the image as that might make the CPU crazy)
     rom[rom_info_offset + 9] ^= 1;
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     loop {
@@ -65,14 +65,16 @@ fn test_read_rom_info_from_fmc() {
     .to_bytes()
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     // 0x1000_0008 is test-fmc/read_rom_info()
