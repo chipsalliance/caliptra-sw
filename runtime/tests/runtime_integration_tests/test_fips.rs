@@ -9,6 +9,8 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{AsBytes, FromBytes};
 
+const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
+
 #[test]
 fn test_fips_version() {
     let mut model = run_rt_test(
@@ -53,7 +55,11 @@ fn test_fips_version() {
         ((version::get_fmc_version() as u32) << 16) | (version::get_rom_version() as u32);
     assert_eq!(
         fips_version.fips_rev,
-        [0x01, fw_version_0_expected, version::get_runtime_version()]
+        [
+            HW_REV_ID,
+            fw_version_0_expected,
+            version::get_runtime_version()
+        ]
     );
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());

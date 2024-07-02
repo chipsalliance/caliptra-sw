@@ -812,7 +812,11 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(1),
+            cptra_hw_rev_id: ReadOnlyRegister::new(if cfg!(feature = "hw-1.0") {
+                0x1
+            } else {
+                0x11
+            }),
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),

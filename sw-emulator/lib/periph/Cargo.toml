@@ -23,3 +23,6 @@ sha3.workspace = true
 smlang.workspace = true
 tock-registers.workspace = true
 zerocopy.workspace = true
+
+[features]
+"hw-1.0" = []

@@ -420,6 +420,10 @@ jobs:
           TEST_BIN=/tmp/caliptra-test-binaries
           VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            VARS+=" FIPS_TEST_HW_EXP_VERSION=1_0_0"
+          fi
+
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
           elif [ "${{ inputs.rom-logging }}" == false ]; then
