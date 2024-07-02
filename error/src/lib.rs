@@ -472,6 +472,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01020006);
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
+    pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
+        CaliptraError::new_const(0x01020008);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);

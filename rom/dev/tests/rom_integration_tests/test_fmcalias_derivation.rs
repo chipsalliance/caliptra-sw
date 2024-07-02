@@ -945,14 +945,6 @@ fn test_upload_measurement_limit() {
         hw.upload_measurement(measurement.as_bytes()).unwrap();
     }
 
-    // Upload a 9th measurement, which should fail.
-    let result = hw.upload_measurement(measurement.as_bytes());
-    assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        ModelError::MailboxCmdFailed(_)
-    ));
-
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -981,6 +973,67 @@ fn test_upload_measurement_limit() {
     let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
     assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
+}
+
+#[test]
+fn test_upload_measurement_limit_plus_one() {
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let mut measurement = StashMeasurementReq {
+        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0u8; 4],
+        context: [0u8; 48],
+        svn: 0,
+    };
+
+    // Upload 8 measurements.
+    for idx in 0..8 {
+        measurement.measurement[0] = idx;
+        measurement.context[1] = idx;
+        measurement.svn = idx as u32;
+
+        // Calc and update checksum
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            &measurement.as_bytes()[4..],
+        );
+        let measurement = StashMeasurementReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..measurement
+        };
+
+        hw.upload_measurement(measurement.as_bytes()).unwrap();
+    }
+
+    // Upload a 9th measurement, which should fail and raise a fatal error.
+    let result = hw.upload_measurement(measurement.as_bytes());
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ModelError::MailboxCmdFailed(_)
+    ));
+
+    // Wait for error
+    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
+        hw.step();
+    }
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        u32::from(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT)
+    );
 }
 
 #[test]
