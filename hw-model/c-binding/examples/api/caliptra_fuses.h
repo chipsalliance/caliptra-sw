@@ -11,6 +11,10 @@
 //          SOC FW MUST HAVE NO ACCESS TO THOSE APIS.
 //          A HW STATE MACHINE SHOULD BE USED TO SEND FUSE VALUES TO CALIPTRA OVER APB BUS
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline void caliptra_fuse_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
     caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
@@ -22,5 +26,8 @@ static inline void caliptra_fuse_array_write(caliptra_model *model, uint32_t off
         caliptra_fuse_write(model, (offset + (idx * sizeof(uint32_t))), data[idx]);
 }
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

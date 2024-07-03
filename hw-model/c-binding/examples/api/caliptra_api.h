@@ -27,6 +27,10 @@ struct caliptra_fuses {
     enum DeviceLifecycle life_cycle;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Initialize Caliptra fuses prior to boot
 int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fuses);
 
@@ -38,5 +42,9 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
 
 // Execute Mailbox Command
 int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // CALIPTRA_API_H
