@@ -13,6 +13,8 @@ fn main() {
     let config = cbindgen::Config {
         header: Some(String::from_str("// Licensed under the Apache-2.0 license").unwrap()),
         language: cbindgen::Language::C,
+        include_guard: Some("HW_MODEL_C_BINDING_OUT_CALIPTRA_MODEL_H".to_string()),
+        cpp_compat: true,
         ..Default::default()
     };
 
