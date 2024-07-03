@@ -248,3 +248,32 @@ fn test_ecdsa_verify_bad_chksum() {
         resp,
     );
 }
+
+// HW errors are not supported on the SW emulator yet
+#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+#[test]
+fn test_ecdsa_hw_failure() {
+    let mut model = run_rt_test(None, None, None);
+
+    let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pub_key_x: [0u8; 48],
+        pub_key_y: [0u8; 48],
+        signature_r: [0xa5u8; 48],
+        signature_s: [0xa5u8; 48],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::ECDSA384_VERIFY),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::DRIVER_ECC384_HW_ERROR,
+        resp,
+    );
+}
