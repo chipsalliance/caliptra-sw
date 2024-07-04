@@ -272,6 +272,27 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+          ref: 'rom-1.0.2'
+
+      - name: Build version-locked ROMs
+        run: |
+          rm -rf release
+
+          WORKSPACE_DIR="release/workspace"
+          mkdir -p $WORKSPACE_DIR
+
+          cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin
+          cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom.elf
+
+          cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log.bin
+          cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
+
+          cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin
+          cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
           ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
       - name: Generate release zip
