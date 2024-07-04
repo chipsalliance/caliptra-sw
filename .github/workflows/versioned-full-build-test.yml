@@ -1,0 +1,136 @@
+name: Versioned Build Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      firmware-version:
+        default: "main"
+        type: string
+  pull_request:
+    inputs:
+      todo-remove-before-merging:
+        default: ""
+        type: string
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      firmware-version:
+        default: "main"
+        type: string
+
+jobs:
+  fpga-full-suite-etrng-log:
+    name: FPGA Suite (etrng, log)
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-${{ inputs.hw-version }}-etrng-log
+      extra-features: slow_tests
+      hw-version: "${{ inputs.hw-version }}"
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: true
+      fpga-itrng: false
+
+  fpga-full-suite-etrng-nolog:
+    name: FPGA Suite (etrng, nolog)
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-${{ inputs.hw-version }}-etrng-nolog
+      extra-features: slow_tests
+      hw-version: "${{ inputs.hw-version }}"
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: false
+      fpga-itrng: false
+
+  fpga-full-suite-itrng-log:
+    name: FPGA Suite (itrng, log)
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-${{ inputs.hw-version }}-itrng-log
+      extra-features: slow_tests,itrng
+      hw-version: "${{ inputs.hw-version }}"
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-full-suite-itrng-nolog:
+    name: FPGA Suite (itrng, nolog)
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-${{ inputs.hw-version }}-itrng-nolog
+      extra-features: slow_tests,itrng
+      hw-version: "${{ inputs.hw-version }}"
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: false
+      fpga-itrng: true
+
+  sw-emulator-full-suite-etrng-log:
+    name: sw-emulator Suite (etrng, log)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-${{ inputs.hw-version }}-etrng-log
+      extra-features: slow_tests
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: true
+
+  sw-emulator-full-suite-etrng-nolog:
+    name: sw-emulator Suite (etrng, nolog)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-${{ inputs.hw-version }}-etrng-nolog
+      extra-features: slow_tests
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: false
+
+  sw-emulator-full-suite-itrng-log:
+    name: sw-emulator Suite (itrng, log)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-${{ inputs.hw-version }}-itrng-log
+      extra-features: slow_tests,itrng
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: true
+
+  sw-emulator-full-suite-itrng-nolog:
+    name: sw-emulator Suite (itrng, nolog)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-${{ inputs.hw-version }}-itrng-nolog
+      extra-features: slow_tests,itrng
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: false
+
+  build-release:
+    name: Build Test Release
+    needs:
+      - fpga-full-suite-etrng-log
+      - fpga-full-suite-etrng-nolog
+      - fpga-full-suite-itrng-log
+      - fpga-full-suite-itrng-nolog
+      - sw-emulator-full-suite-etrng-log
+      - sw-emulator-full-suite-etrng-nolog
+      - sw-emulator-full-suite-itrng-log
+      - sw-emulator-full-suite-itrng-nolog
+
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: 'true'
+
+      - name: Generate release zip
+        run: |
+          ./ci-tools/release/build_release.sh "_versioned_build_test_" ${{ inputs.rom-ref }} ${{ inputs.firmware-version }}
