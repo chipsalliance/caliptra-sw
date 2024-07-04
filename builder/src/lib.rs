@@ -383,6 +383,22 @@ pub fn get_ci_rom_version() -> CiRomVersion {
 /// Returns the most appropriate ROM for use when testing non-ROM code against
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
+    if let Some(rom_bin_var) = std::env::var_os("CALIPTRA_PREBUILT_ROM_BIN") {
+        let path = PathBuf::from(rom_bin_var);
+        // FIXME: Requires testing to confirm the long lifetime of this variable!
+        let rom_bin = std::fs::read(&path).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!(
+                    "CALIPTRA_PREBUILT_ROM_BIN environment variable is set, but while reading {}, encountered {}",
+                    path.display(),
+                    e
+                ),
+            )
+        })?;
+        return Ok(rom_bin.into());
+    }
+
     let rom_from_env = firmware::rom_from_env();
     if cfg!(feature = "hw-1.0") && get_ci_rom_version() != CiRomVersion::Rom1_0 {
         panic!("CPTRA_CI_ROM_VERSION of \'1.0\' is expected for hw-1.0");
