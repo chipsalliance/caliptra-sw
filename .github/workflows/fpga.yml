@@ -25,6 +25,9 @@ on:
       rom-version:
         default: "latest"
         type: string
+      rom-ref:
+        default: "main"
+        type: string
       workflow_call:
         description: 'Set true for workflow_call'
         default: true
@@ -109,6 +112,24 @@ jobs:
       CACHE_BUSTER: 9ff0db888988
 
     steps:
+      - name: Checkout versioned ROM (${{ inputs.rom-ref }})
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.rom-ref }}
+
+      - name: Build ROM
+        run: |
+          # TODO: Confirm if this is the desired test behaviour
+          mkdir /tmp/caliptra-rom-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-rom-firmware
+
+          if [ -z "${{ inputs.rom-logging }}" ] || [ "${{ inputs.rom-logging }}" == "false" ]; then
+            cargo run -p caliptra-builder -- --rom-no-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          else
+            cargo run -p caliptra-builder -- --rom-with-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          fi
+
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
@@ -202,6 +223,10 @@ jobs:
             FEATURES=hw-${{ inputs.hw-version }}
           fi
           cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+
+      - name: Merge ROM and firmware
+        run: |
+          mv /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra-test-firmware/
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
@@ -424,7 +449,7 @@ jobs:
         run: |
           export RUST_TEST_THREADS=1
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"

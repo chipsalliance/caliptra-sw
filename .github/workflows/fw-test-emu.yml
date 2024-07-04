@@ -10,6 +10,9 @@ on:
       extra-features:
         default:
         type: string
+      rom-ref:
+        default: "main"
+        type: string
       rom-logging:
         default: true
         type: boolean
@@ -45,6 +48,27 @@ jobs:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
 
+      - name: Checkout versioned ROM (${{ inputs.rom-ref }})
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.rom-ref }}
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
+      - name: Build ROM
+        run: |
+          # TODO: Confirm if this is the desired test behaviour
+          mkdir /tmp/caliptra-rom-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-rom-firmware
+
+          if [ -z "${{ inputs.rom-logging }}" ] || [ "${{ inputs.rom-logging }}" == "false" ]; then
+            cargo run -p caliptra-builder -- --rom-no-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          else
+            cargo run -p caliptra-builder -- --rom-with-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          fi
+
       - name: Checkout repo
         uses: actions/checkout@v3
 
@@ -57,9 +81,14 @@ jobs:
           mkdir /tmp/caliptra-test-firmware
           cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
 
+      - name: Merge ROM and firmware
+        run: |
+          mv /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra-test-firmware/
+
       - name: Run tests
         run: |
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+          export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
           fi
