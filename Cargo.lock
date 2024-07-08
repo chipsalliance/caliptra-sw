@@ -814,6 +814,7 @@ dependencies = [
  "elf",
  "openssl",
  "rand",
+ "regex",
  "zerocopy",
 ]
 

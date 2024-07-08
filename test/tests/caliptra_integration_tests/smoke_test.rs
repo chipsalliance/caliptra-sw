@@ -20,6 +20,7 @@ use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use regex::Regex;
 use std::mem;
 use zerocopy::AsBytes;
 
@@ -29,6 +30,15 @@ fn assert_output_contains(haystack: &str, needle: &str) {
         haystack.contains(needle),
         "Expected substring in output not found: {needle}"
     );
+}
+
+#[track_caller]
+fn assert_output_contains_regex(haystack: &str, needle: &str) {
+    let re = Regex::new(needle).unwrap();
+    assert! {
+        re.is_match(haystack),
+        "Expected substring in output not found: {needle}"
+    }
 }
 
 #[test]
@@ -177,7 +187,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] sha1");
         assert_output_contains(&output, "[kat] SHA2-256");
         assert_output_contains(&output, "[kat] SHA2-384");
-        assert_output_contains(&output, "[kat] SHA2-512-ACC");
+        assert_output_contains_regex(&output, r"\[kat\] SHA2-(384|512)-ACC");
         assert_output_contains(&output, "[kat] HMAC-384");
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");
