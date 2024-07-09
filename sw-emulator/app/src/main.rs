@@ -83,6 +83,11 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(PathBuf))
         )
         .arg(
+            arg!(--"recovery" <FILE> "Recovery image binary path")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+        )
+        .arg(
             arg!(--"gdb-port" <VALUE> "Gdb Debugger")
                 .required(false)
         )
@@ -155,6 +160,7 @@ fn main() -> io::Result<()> {
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
+    let args_recovery = args.get_one::<PathBuf>("recovery");
     let args_current_fw = args.get_one::<PathBuf>("firmware");
     let args_update_fw = args.get_one::<PathBuf>("update-firmware");
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
@@ -207,6 +213,15 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
 
+    let recovery_buffer = if let Some(path) = args_recovery {
+        let mut recovery = File::open(path)?;
+        let mut recovery_buffer = Vec::new();
+        recovery.read_to_end(&mut recovery_buffer)?;
+        recovery_buffer
+    } else {
+        Vec::new()
+    };
+
     let mut current_fw_buf = Vec::new();
     if let Some(path) = args_current_fw {
         if !Path::new(&path).exists() {
@@ -251,6 +266,7 @@ fn main() -> io::Result<()> {
 
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
+        recovery_image: recovery_buffer,
         log_dir: args_log_dir.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
