@@ -106,16 +106,18 @@ fn gdb_test() {
         lms_verify: true,
         ..Default::default()
     };
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step();

@@ -33,14 +33,16 @@ fn test_update_reset_success() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -77,14 +79,16 @@ fn test_update_reset_no_mailbox_cmd() {
         ImageOptions::default(),
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -123,14 +127,16 @@ fn test_update_reset_non_fw_load_cmd() {
         ImageOptions::default(),
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -166,14 +172,16 @@ fn test_update_reset_verify_image_failure() {
         ImageOptions::default(),
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -215,14 +223,16 @@ fn test_update_reset_boot_status() {
         ImageOptions::default(),
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -276,14 +286,16 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
         image_options,
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -362,18 +374,20 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fuses: caliptra_hw_model::Fuses {
-            lms_verify: true,
+        BootParams {
+            fuses: caliptra_hw_model::Fuses {
+                lms_verify: true,
+                ..Default::default()
+            },
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -406,14 +420,16 @@ fn test_check_rom_update_reset_status_reg() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -510,14 +526,16 @@ fn test_update_reset_max_fw_image() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
