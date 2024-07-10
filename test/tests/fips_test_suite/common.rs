@@ -30,7 +30,7 @@ pub struct HwExpVals {
 
 const HW_EXP_1_0_0: HwExpVals = HwExpVals { hw_revision: 0x1 };
 
-const HW_EXP_CURRENT: HwExpVals = HwExpVals { ..HW_EXP_1_0_0 };
+const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x11 };
 
 // ===  ROM  ===
 pub struct RomExpVals {
