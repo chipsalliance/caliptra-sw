@@ -1,6 +1,12 @@
 // Licensed under the Apache-2.0 license
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include <caliptra_top_reg.h>
+#include "caliptra_if.h"
+
 #define CALIPTRA_MAILBOX_MAX_SIZE (128u * 1024u)
 
 enum caliptra_mailbox_status {
@@ -63,6 +69,10 @@ enum mailbox_results {
     BAD_IMAGE      = 0x42494D47, // "BIMG"
     BAD_CHKSUM     = 0x4243484B, // "BCHK"
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Mailbox helper functions
@@ -140,3 +150,7 @@ static inline void caliptra_mbox_write_dlen(uint32_t dlen)
 {
     caliptra_mbox_write(MBOX_CSR_MBOX_DLEN, dlen);
 }
+
+#ifdef __cplusplus
+}
+#endif

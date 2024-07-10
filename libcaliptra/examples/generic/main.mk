@@ -3,7 +3,7 @@ Q=@
 CC=$(CROSS_COMPILE)gcc
 AR=$(CROSS_COMPILE)ar
 
-SOURCE += ../generic/main.c ../../src/caliptra_api.c
+SOURCE += ../generic/main.c ../generic/test.c ../../src/caliptra_api.c
 
 LIBCALIPTRA_ROOT = ../..
 LIBCALIPTRA_INC  = $(LIBCALIPTRA_ROOT)/inc
@@ -14,7 +14,7 @@ OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/1.0/rtl/src/soc_ifc/rtl
 
 # INCLUDES
-INCLUDES += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(LIBCALIPTRA_INC)
+INCLUDES += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(LIBCALIPTRA_INC) -I./
 
 .PHONY = run clean
 

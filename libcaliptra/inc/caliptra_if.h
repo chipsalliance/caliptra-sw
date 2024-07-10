@@ -6,6 +6,10 @@
 
 #define CALIPTRA_STATUS_OK 0
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Memory
 
 /**
@@ -38,4 +42,8 @@ int caliptra_read_u32(uint32_t address, uint32_t *data);
  * Pend the current operation.
  */
 void caliptra_wait(void);
+
+#ifdef __cplusplus
+}
+#endif
 
