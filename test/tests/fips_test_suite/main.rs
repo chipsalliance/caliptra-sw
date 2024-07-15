@@ -2,4 +2,5 @@
 mod common;
 #[cfg(feature = "fpga_realtime")]
 mod jtag_locked;
+mod self_tests;
 mod services;

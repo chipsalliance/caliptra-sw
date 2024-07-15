@@ -542,7 +542,9 @@ impl CaliptraError {
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
         CaliptraError::new_const(0x0105000D);
 
-    /// KAT Errors
+    pub const ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT: CaliptraError = CaliptraError::new_const(0x0105000F);
+
+    /// ROM KAT Errors
     pub const KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
 
