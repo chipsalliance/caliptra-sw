@@ -140,7 +140,3 @@ static inline void caliptra_mbox_write_dlen(uint32_t dlen)
 {
     caliptra_mbox_write(MBOX_CSR_MBOX_DLEN, dlen);
 }
-
-
-    
-

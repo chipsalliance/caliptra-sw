@@ -1,4 +1,5 @@
 // Licensed under the Apache-2.0 license
+// Generated from test/tests/caliptra_integration_tests/smoke_testdata/idev_csr.der
 
 #include <stdint.h>
 #define IDEV_CSR_LEN  443
