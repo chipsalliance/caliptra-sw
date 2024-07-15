@@ -8,6 +8,7 @@
 
 #include "caliptra_api.h"
 #include "caliptra_image.h"
+#include "idev_csr_array.h"
 
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint64_t wdt_timeout = 0xA0000000;         // approximately 5s for 500MHz clock
@@ -23,6 +24,11 @@ static const uint32_t apb_pauser = 0x1;
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
 
+#ifdef ENABLE_DEBUG
+// Exists for testbench only - not part of interface for actual implementation
+static int dump_array_to_file(struct caliptra_buffer* buffer, const char *filename);
+#endif
+
 struct caliptra_buffer image_bundle;
 struct caliptra_fuses fuses = {0};
 
@@ -36,7 +42,25 @@ static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b,
 static const uint32_t default_field_entropy[] = { 0x80818283, 0x84858687, 0x88898a8b, 0x8c8d8e8f,
                                                   0x90919293, 0x94959697, 0x98999a9b, 0x9c9d9e9f };
 
-static int set_fuses()
+/*
+* caliptra_csr_is_ready
+*
+* Waits forever for the CSR to be ready
+*
+* @return bool True if ready, false otherwise    
+*/
+static void caliptra_wait_for_csr_ready(void) 
+{
+    while (true) 
+    {
+        if (caliptra_is_idevid_csr_ready()) {
+            break;
+        }
+        caliptra_wait();
+     }
+}
+
+static int set_fuses(bool manuf_req_csr)
 {
     int status;
 
@@ -66,13 +90,18 @@ void dump_caliptra_error_codes()
     printf("Caliptra FW error fatal code is 0x%x\n", caliptra_read_fw_fatal_error());
 }
 
-int boot_to_ready_for_fw()
+int boot_to_ready_for_fw(bool req_idev_csr)
 {
     int status;
 
     // Initialize FSM GO
     caliptra_bootfsm_go();
 
+    // Request CSR if needed
+    if (req_idev_csr)
+    {
+       caliptra_req_idev_csr_start();
+    }
     caliptra_set_wdt_timeout(wdt_timeout);
 
     caliptra_configure_itrng_entropy(itrng_entropy_low_threshold,
@@ -93,18 +122,22 @@ int boot_to_ready_for_fw()
         return status;
     }
 
-    set_fuses();
+    set_fuses(req_idev_csr);
 
-    // Wait until ready for FW
-    caliptra_ready_for_firmware();
-
+    if (req_idev_csr == false)
+    {
+        // Wait until ready for FW
+        caliptra_ready_for_firmware();
+    }
+ 
+ 
     return status;
 }
 
 int legacy_boot_test()
 {
     int failure = 0;
-    int status = boot_to_ready_for_fw();
+    int status = boot_to_ready_for_fw(false);
 
     if (status){
         failure = 1;
@@ -173,7 +206,7 @@ int legacy_boot_test()
 int rom_test_all_commands()
 {
     int failure = 0;
-    int status = boot_to_ready_for_fw();
+    int status = boot_to_ready_for_fw(false);
 
     if (status){
         dump_caliptra_error_codes();
@@ -263,7 +296,7 @@ int rt_test_all_commands()
 {
     int failure = 0;
     uint32_t non_fatal_error;
-    int status = boot_to_ready_for_fw();
+    int status = boot_to_ready_for_fw(false);
 
     if (status){
         failure = 1;
@@ -609,6 +642,55 @@ int rt_test_all_commands()
     return failure;
 }
 
+int rom_test_devid_csr()
+{
+    int failure = 0;
+
+    struct caliptra_buffer caliptra_idevid_csr_buf = {0};
+    caliptra_idevid_csr_buf.len = IDEV_CSR_LEN;
+    // Allocte a buffer to hold the IDEV CSR using malloc
+    caliptra_idevid_csr_buf.data = malloc(caliptra_idevid_csr_buf.len);
+
+    // Check if the buffer was allocated successfully
+    if (caliptra_idevid_csr_buf.data == NULL) {
+        printf("Failed to allocate memory for IDEV CSR\n");
+        return 1;
+    }      
+ 
+    bool request_csr = true;
+    int status = boot_to_ready_for_fw(request_csr);
+
+    if (status){
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+
+    caliptra_wait_for_csr_ready();
+
+ 
+    int ret;
+    // Retrieve the IDEV CSR
+    if ((ret = caliptra_retrieve_idevid_csr(&caliptra_idevid_csr_buf)) != NO_ERROR) {
+        printf("Failed to retrieve IDEV CSR\n");
+        printf("Error is 0x%x\n", ret);
+        failure = 1;
+    } else {
+        printf("IDEV CSR retrieved\n");
+    }
+
+    // Compare the retrieved IDEV CSR with the expected IDEV CSR
+    if (memcmp(caliptra_idevid_csr_buf.data, idev_csr_bytes, caliptra_idevid_csr_buf.len) != 0) {
+        printf("IDEV CSR does not match\n");
+#ifdef ENABLE_DEBUG        
+        dump_array_to_file(&caliptra_idevid_csr_buf, "retrieved.bin");
+#endif        
+        failure = 1;
+    } else {
+        printf("IDEV CSR matches\n");
+    }
+
+    return failure;
+}
 
 // Test infrastructure
 
@@ -630,6 +712,27 @@ void run_test( int func(void), char* test_name)
     global_test_result |= result;
 }
 
+#ifdef ENABLE_DEBUG
+static int dump_array_to_file(struct caliptra_buffer* buffer, const char *filename) {
+    FILE *file = fopen(filename, "wb"); // Open the file in binary write mode
+    if (!file) {
+        perror("Failed to open file");
+        return -1; // Return an error code if file opening fails
+    }
+
+    // Write the array to the file
+    size_t written = fwrite(buffer->data, sizeof(uint8_t), buffer->len, file);
+    if (written < IDEV_CSR_LEN) {
+        perror("Failed to write the full array to file");
+        fclose(file);
+        return -2; // Return an error code if writing fails
+    }
+
+    fclose(file); // Close the file
+    return 0; // Success
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     global_test_result = 0;
@@ -637,6 +740,7 @@ int main(int argc, char *argv[])
     run_test(legacy_boot_test, "Legacy boot test");
     run_test(rom_test_all_commands, "Test all ROM commands");
     run_test(rt_test_all_commands, "Test all Runtime commmands");
+    run_test(rom_test_devid_csr, "Test IDEV CSR GEN");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");
@@ -646,3 +750,4 @@ int main(int argc, char *argv[])
 
     return global_test_result;
 }
+
