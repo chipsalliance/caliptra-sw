@@ -25,6 +25,8 @@ mod doe;
 mod ecc384;
 mod error_reporter;
 mod exit_ctrl;
+#[cfg(feature = "fips-test-hooks")]
+pub mod fips_test_hooks;
 mod fuse_bank;
 pub mod fuse_log;
 pub mod hand_off;
@@ -65,6 +67,8 @@ pub use ecc384::{
 };
 pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
+#[cfg(feature = "fips-test-hooks")]
+pub use fips_test_hooks::FipsTestHook;
 pub use fuse_bank::{
     FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };

@@ -33,6 +33,12 @@ pub const ROM_FAKE_WITH_UART: FwId = FwId {
     features: &["emu", "fake-rom"],
 };
 
+pub const ROM_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fips-test-hooks"],
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -368,6 +374,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
+    &ROM_WITH_UART_FIPS_TEST_HOOKS,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
     &APP,

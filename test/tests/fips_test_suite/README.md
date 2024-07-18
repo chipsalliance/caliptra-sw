@@ -36,4 +36,19 @@ These can be enabled using the --features argument for rust like:
 
 ## Additional Environments
 
-Support for additional environments can be done by creating new implementations/interfaces for the HW model at hw-model/src. See model_fpga_realtime.rs as an example. This implementation needs to be able to access the APB bus, control the input signals to caliptra, and, if possible, control ROM.
+Support for additional environments can be done by creating new implementations/interfaces for the HW model at hw-model/src. See model_fpga_realtime.rs as an example. This implementation needs to be able to access the APB bus, control the input signals to Caliptra, and, if possible, control ROM.
+
+## Test Hooks
+
+Certain tests require "hooks" into the ROM or FW to cause operation to deviate from the normal flow (ie. injecting errors or halting execution at specific points). This functionality is enabled using a build option called "fips-test-hooks". Then, the specific command codes are written and read from the DBG_MANUF_SERVICE_REG. The ROM/FW can respond back with a status code written to the same field if applicable. See command codes in drivers\src\fips_test_hooks.rs for more details.
+
+Test hooks are needed to meet the following FIPS 140-3 test requirements:
+    TE03.07.02
+    TE03.07.04
+    TE04.29.01
+    TE10.07.03
+    TE10.08.03
+    TE10.09.03
+    TE10.10.01
+    TE10.10.02
+    TE10.35.04

@@ -23,7 +23,8 @@ use crate::{HwModel, SecurityState, TrngMode};
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OpenOcdError {
     Closed,
-    NotAccessible,
+    CaliptraNotAccessible,
+    VeerNotAccessible,
     WrongVersion,
 }
 
@@ -476,6 +477,16 @@ impl HwModel for ModelFpgaRealtime {
         while !self.is_ready_for_fuses() {}
     }
 
+    fn cold_reset(&mut self) {
+        // Toggle reset and pwrgood
+        self.set_cptra_rst_b(false);
+        self.set_cptra_pwrgood(false);
+        self.set_cptra_pwrgood(true);
+        self.set_cptra_rst_b(true);
+        // Wait for ready_for_fuses
+        while !self.is_ready_for_fuses() {}
+    }
+
     fn ready_for_fw(&self) -> bool {
         unsafe {
             GpioInput(
@@ -526,17 +537,19 @@ impl ModelFpgaRealtime {
                 println!("openocd log returned EOF. Log: {output}");
                 return Err(OpenOcdError::Closed);
             }
-            if output.contains("Debug Module did not become active") {
-                return Err(OpenOcdError::NotAccessible);
-            }
-            if output.contains("Listening on port 4444 for telnet connections") {
+            if output.contains("OpenOCD setup finished") {
                 break;
             }
         }
         if !output.contains("Open On-Chip Debugger 0.12.0") {
             return Err(OpenOcdError::WrongVersion);
         }
-
+        if output.contains("Caliptra not accessible") {
+            return Err(OpenOcdError::CaliptraNotAccessible);
+        }
+        if output.contains("Core not accessible") {
+            return Err(OpenOcdError::VeerNotAccessible);
+        }
         self.openocd = Some(openocd);
         Ok(())
     }

@@ -113,6 +113,7 @@ impl CaliptraError {
     pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x0005000f);
     pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
+    pub const DRIVER_ECC384_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00050011);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -544,7 +545,9 @@ impl CaliptraError {
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
         CaliptraError::new_const(0x0105000D);
 
-    /// KAT Errors
+    pub const ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT: CaliptraError = CaliptraError::new_const(0x0105000F);
+
+    /// ROM KAT Errors
     pub const KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
 
