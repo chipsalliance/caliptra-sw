@@ -808,7 +808,12 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
  "caliptra-image-types",
+ "caliptra-image-verify",
  "caliptra-runtime",
  "caliptra_common",
  "dpe",
@@ -816,6 +821,7 @@ dependencies = [
  "openssl",
  "rand",
  "regex",
+ "ureg",
  "zerocopy",
 ]
 
