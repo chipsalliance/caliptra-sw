@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_error::CaliptraResult;
 use caliptra_registers::soc_ifc::SocIfcReg;
 
 pub struct FipsTestHook;
@@ -11,8 +12,38 @@ impl FipsTestHook {
     // Set by external test
     pub const CONTINUE: u8 = 0x10;
     pub const HALT_SELF_TESTS: u8 = 0x21;
-    pub const SHA384_ERROR: u8 = 0x22;
-    pub const LMS_ERROR: u8 = 0x23;
+    pub const SHA1_CORRUPT_DIGEST: u8 = 0x22;
+    pub const SHA256_CORRUPT_DIGEST: u8 = 0x23;
+    pub const SHA384_CORRUPT_DIGEST: u8 = 0x24;
+    pub const SHA2_512_384_ACC_CORRUPT_DIGEST_512: u8 = 0x25;
+    pub const ECC384_CORRUPT_SIGNATURE: u8 = 0x26;
+    pub const HMAC384_CORRUPT_TAG: u8 = 0x27;
+    pub const LMS_CORRUPT_INPUT: u8 = 0x28;
+    pub const ECC384_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x29;
+    pub const HALT_FW_LOAD: u8 = 0x2A;
+    pub const HALT_SHUTDOWN_RT: u8 = 0x2B;
+
+    pub const SHA1_DIGEST_FAILURE: u8 = 0x40;
+    pub const SHA256_DIGEST_FAILURE: u8 = 0x41;
+    pub const SHA384_DIGEST_FAILURE: u8 = 0x42;
+    pub const SHA2_512_384_ACC_DIGEST_512_FAILURE: u8 = 0x43;
+    pub const SHA2_512_384_ACC_START_OP_FAILURE: u8 = 0x44;
+    pub const ECC384_SIGNATURE_GENERATE_FAILURE: u8 = 0x45;
+    pub const ECC384_VERIFY_FAILURE: u8 = 0x46;
+    pub const HMAC384_FAILURE: u8 = 0x47;
+    pub const LMS_VERIFY_FAILURE: u8 = 0x48;
+
+    // FW Load Errors
+    pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;
+    pub const FW_LOAD_OWNER_PUB_KEY_DIGEST_FAILURE: u8 = 0x51;
+    pub const FW_LOAD_HEADER_DIGEST_FAILURE: u8 = 0x52;
+    pub const FW_LOAD_VENDOR_ECC_VERIFY_FAILURE: u8 = 0x53;
+    pub const FW_LOAD_OWNER_ECC_VERIFY_FAILURE: u8 = 0x54;
+    pub const FW_LOAD_OWNER_TOC_DIGEST_FAILURE: u8 = 0x55;
+    pub const FW_LOAD_FMC_DIGEST_FAILURE: u8 = 0x56;
+    pub const FW_LOAD_RUNTIME_DIGEST_FAILURE: u8 = 0x57;
+    pub const FW_LOAD_VENDOR_LMS_VERIFY_FAILURE: u8 = 0x58;
+    pub const FW_LOAD_OWNER_LMS_VERIFY_FAILURE: u8 = 0x59;
 
     /// # Safety
     ///
@@ -49,6 +80,35 @@ impl FipsTestHook {
         }
 
         *data
+    }
+
+    /// # Safety
+    ///
+    /// This function enables a different test hook to allow for basic state machines
+    /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
+    pub unsafe fn update_hook_cmd_if_hook_set(hook_cmd: u8, new_hook_cmd: u8) {
+        if get_fips_test_hook_code() == hook_cmd {
+            set_fips_test_hook_code(new_hook_cmd);
+        }
+    }
+
+    /// # Safety
+    ///
+    /// This function calls other unsafe functions to check the test hook code
+    pub unsafe fn hook_cmd_is_set(hook_cmd: u8) -> bool {
+        get_fips_test_hook_code() == hook_cmd
+    }
+
+    /// # Safety
+    ///
+    /// This function checks the current hook code and returns the
+    /// FIPS_HOOKS_INJECTED_ERROR if enabled
+    pub unsafe fn error_if_hook_set(hook_cmd: u8) -> CaliptraResult<()> {
+        if get_fips_test_hook_code() == hook_cmd {
+            Err(caliptra_error::CaliptraError::FIPS_HOOKS_INJECTED_ERROR)
+        } else {
+            Ok(())
+        }
     }
 }
 

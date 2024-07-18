@@ -61,6 +61,15 @@ impl Sha2_512_384Acc {
     ) -> CaliptraResult<Option<Sha2_512_384AccOp>> {
         let sha_acc = self.sha512_acc.regs();
 
+        #[cfg(feature = "fips-test-hooks")]
+        if unsafe {
+            crate::FipsTestHook::hook_cmd_is_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
+            )
+        } {
+            return Ok(None);
+        }
+
         match assumed_lock_state {
             ShaAccLockState::NotAcquired => {
                 if sha_acc.lock().read().lock() {
@@ -247,6 +256,13 @@ impl Sha2_512_384AccOp<'_> {
         maintain_data_endianess: bool,
         digest: Sha512Digest,
     ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+            )?
+        }
+
         self.digest_generic(
             dlen,
             start_address,
@@ -257,6 +273,16 @@ impl Sha2_512_384AccOp<'_> {
         // Copy digest to buffer
         let sha_acc = self.sha512_acc.regs();
         *digest = Array4x16::read_from_reg(sha_acc.digest());
+
+        #[cfg(feature = "fips-test-hooks")]
+        {
+            *digest = unsafe {
+                crate::FipsTestHook::corrupt_data_if_hook_set(
+                    crate::FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                    digest,
+                )
+            };
+        }
 
         // Zeroize the hardware registers.
         self.sha512_acc

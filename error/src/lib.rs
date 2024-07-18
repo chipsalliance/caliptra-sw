@@ -577,6 +577,10 @@ impl CaliptraError {
     pub const KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 
     pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
+
+    // TODO: What base value is right for this?
+    // FIPS Hooks
+    pub const FIPS_HOOKS_INJECTED_ERROR: CaliptraError = CaliptraError::new_const(0x90100000);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

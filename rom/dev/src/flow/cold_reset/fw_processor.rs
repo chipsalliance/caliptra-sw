@@ -92,6 +92,13 @@ impl FirmwareProcessor {
             env.persistent_data.get_mut(),
         )?;
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::halt_if_hook_set(
+                caliptra_drivers::FipsTestHook::HALT_FW_LOAD,
+            )
+        };
+
         // Load the manifest
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
