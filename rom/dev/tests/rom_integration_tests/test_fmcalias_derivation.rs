@@ -999,15 +999,17 @@ fn test_upload_measurement_limit() {
 fn test_upload_measurement_limit_plus_one() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let mut measurement = StashMeasurementReq {
