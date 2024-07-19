@@ -37,6 +37,7 @@ mod kv_access;
 mod lms;
 mod mailbox;
 pub mod memory_layout;
+mod ml_dsa87;
 mod okref;
 mod pcr_bank;
 pub mod pcr_log;
@@ -52,7 +53,10 @@ mod soc_ifc;
 mod trng;
 mod trng_ext;
 
-pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use array::{
+    Array4x1157, Array4x12, Array4x1224, Array4x16, Array4x4, Array4x5, Array4x648, Array4x8,
+    Array4xN,
+};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
@@ -82,6 +86,10 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use ml_dsa87::{
+    MlDsa87, MlDsa87MsgScalar, MlDsa87PublicKey, MlDsa87PublicKeyScalar, MlDsa87Result,
+    MlDsa87SecretKey, MlDsa87SecretKeyScalar, MlDsa87Seed, MlDsa87SignatureScalar,
+};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};

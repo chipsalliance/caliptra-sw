@@ -164,6 +164,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const ML_DSA87: FwId = FwId {
+        bin_name: "ml_dsa87",
+        ..BASE_FWID
+    };
+
     pub const ECC384: FwId = FwId {
         bin_name: "ecc384",
         ..BASE_FWID
@@ -400,6 +405,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
     &driver_tests::DOE,
+    &driver_tests::ML_DSA87,
     &driver_tests::ECC384,
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
     &driver_tests::ERROR_REPORTER,
