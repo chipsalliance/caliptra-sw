@@ -61,6 +61,16 @@ fn main() {
         use std::fs;
 
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+        println!("!!!!!!!!!!");
+
+        println!("cargo:rustc-link-search={}", out_dir.display());
+        println!("cargo:rustc-link-arg=-Trom.ld");
+        println!("cargo:rerun-if-changed=src/rom.ld");
+        println!("cargo:rerun-if-changed=src/start.S");
+        println!("cargo:rerun-if-changed=build.rs");
+        println!("cargo:rerun-if-changed=test-fw/start_min.S");
+
         fs::write(out_dir.join("rom.ld"), include_bytes!("src/rom.ld")).unwrap();
 
         let preprocessor_vars: Vec<_> = env::vars()
@@ -72,12 +82,6 @@ fn main() {
             preprocess("src/start.S", &preprocessor_vars),
         )
         .unwrap();
-
-        println!("cargo:rustc-link-search={}", out_dir.display());
-        println!("cargo:rustc-link-arg=-Trom.ld");
-        println!("cargo:rerun-if-changed=src/rom.ld");
-        println!("cargo:rerun-if-changed=src/start.S");
-        println!("cargo:rerun-if-changed=build.rs");
     }
 
     if cfg!(feature = "fake-rom") {

@@ -315,6 +315,11 @@ pub mod rom_tests {
         ..BASE_FWID
     };
 
+    pub const SOC_TESTS: FwId = FwId {
+        bin_name: "soc_tests",
+        ..BASE_FWID
+    };
+
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
@@ -428,6 +433,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
     &rom_tests::ASM_TESTS,
+    &rom_tests::SOC_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
