@@ -864,6 +864,7 @@ pub mod entropy_src;
 pub mod hmac;
 pub mod kv;
 pub mod mbox;
+pub mod ml_dsa87;
 pub mod pv;
 pub mod sha256;
 pub mod sha512;

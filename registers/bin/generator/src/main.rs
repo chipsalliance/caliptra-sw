@@ -41,7 +41,7 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
-static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
+static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["ml_dsa87_reg.rdl", "el2_pic_ctrl.rdl", "clp2.rdl"];
 
 fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box<dyn Error>> {
     cmd.stdin(Stdio::piped());
@@ -228,7 +228,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
         let mut block = block.validate_and_dedup()?;
 
-        if block.block().name == "ecc" {
+        if block.block().name == "ecc" || block.block().name == "ml_dsa87" {
             block.transform(|t| {
                 // [TODO]: Put this enumeration into the RDL and remove this hack
                 t.set_register_enum(
