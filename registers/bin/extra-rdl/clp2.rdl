@@ -1,0 +1,4 @@
+addrmap clp2 {
+    ml_dsa87_reg ml_dsa87_reg @ 0x1003_0000;
+    el2_pic_ctrl el2_pic_ctrl @ 0x6000_0000;
+};
