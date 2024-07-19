@@ -64,8 +64,8 @@ u32_array_impl!(15);
 u32_array_impl!(16);
 u32_array_impl!(32);
 u32_array_impl!(648);
-u32_array_impl!(1149);
-u32_array_impl!(1216);
+u32_array_impl!(1157);
+u32_array_impl!(1224);
 
 pub fn words_from_bytes_le<A: U32ArrayBytes>(arr: &A) -> A::WordArray {
     let mut result = A::default_result();
