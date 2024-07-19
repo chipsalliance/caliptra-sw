@@ -49,7 +49,13 @@ const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
     ],
 };
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_0_1 };
+
+const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
+    rom_version: 0x840, // 1.1.0
+    ..ROM_EXP_1_0_1
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_0 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -62,10 +68,12 @@ const RT_EXP_1_0_0: RtExpVals = RtExpVals {
     fw_version: 0x0100_0000, // 1.0.0
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals {
+const RT_EXP_1_1_0: RtExpVals = RtExpVals {
+    fmc_version: 0x840,      // 1.1.0
     fw_version: 0x0101_0000, // 1.1.0
-    ..RT_EXP_1_0_0
 };
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_1_0 };
 
 // === Getter implementations ===
 // TODO: These could be improved
