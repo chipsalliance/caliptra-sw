@@ -466,7 +466,9 @@ dependencies = [
  "caliptra-emu-types",
  "caliptra-hw-model-types",
  "caliptra-registers",
+ "fips204",
  "lazy_static",
+ "rand",
  "sha3",
  "smlang",
  "tock-registers",
@@ -1356,6 +1358,17 @@ checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "fips204"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a7a91da22e550a56b4ace2681cd344cc0c3fd1640235ac433a32561668d58b9"
+dependencies = [
+ "rand_core",
+ "sha3",
+ "zeroize",
 ]
 
 [[package]]
