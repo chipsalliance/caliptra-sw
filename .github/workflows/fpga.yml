@@ -422,6 +422,7 @@ jobs:
 
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             VARS+=" FIPS_TEST_HW_EXP_VERSION=1_0_0"
+            VARS+=" FIPS_TEST_ROM_EXP_VERSION=1_0_1"
           fi
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then

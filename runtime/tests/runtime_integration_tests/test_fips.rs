@@ -51,10 +51,14 @@ fn test_fips_version() {
     );
     assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
     // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
-    let fw_version_0_expected =
-        ((version::get_fmc_version() as u32) << 16) | (version::get_rom_version() as u32);
+    // Ignore ROM version since this test is for runtime
+    let fw_version_0_expected = (version::get_fmc_version() as u32) << 16;
     assert_eq!(
-        fips_version.fips_rev,
+        [
+            fips_version.fips_rev[0],
+            fips_version.fips_rev[1] & 0xFFFF0000, // Mask out the ROM version
+            fips_version.fips_rev[2],
+        ],
         [
             HW_REV_ID,
             fw_version_0_expected,

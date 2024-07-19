@@ -45,9 +45,6 @@ pub fn exec_cmd_version<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u
     )
     .unwrap();
 
-    println!("Expecting app version of {}", app_version);
-    println!("Received version of  of {:?}", version_resp.fips_rev);
-
     // Verify command-specific response data
     assert_eq!(version_resp.mode, FipsVersionCmd::MODE);
     let fw_version_0_expected =
