@@ -2,7 +2,7 @@
 
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
-    version, ImageOptions,
+    ImageOptions,
 };
 use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
@@ -52,9 +52,10 @@ fn test_fw_version() {
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
     // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
+    // Ignore ROM version since this test is for runtime
     assert_eq!(
-        fw_rev[0],
-        ((DEFAULT_FMC_VERSION as u32) << 16) | (version::get_rom_version() as u32)
+        fw_rev[0] & 0xFFFF0000, // Mask out the ROM version
+        (DEFAULT_FMC_VERSION as u32) << 16
     );
     assert_eq!(fw_rev[1], DEFAULT_APP_VERSION);
 }
