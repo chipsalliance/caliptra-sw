@@ -819,12 +819,17 @@ by repeatedly calling the aforementioned DPE commands with certain flags set.
 To prevent this, we establish active context limits for each PAUSER
 privilege level:
 
-* PL0 - 8 active contexts
+* PL0 - 16 active contexts
 * PL1 - 16 active contexts
 
 If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
+
+At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 16) to DeriveContext for:
+   - RTFW Journey (RTFJ) Measurement (1)
+   - Mailbox Valid Pauser digest (MBVP) (1)
+   - ROM Stashed Measurements (max 8)
 
 Further, it is not allowed for PL1 to call DeriveContext with the intent to change locality to PL0's locality; this would increase the number
 of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
@@ -967,4 +972,4 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 |                                | VendorInfo  | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
-current TCI Node to the root. Max of 24.
+current TCI Node to the root. Max of 32.

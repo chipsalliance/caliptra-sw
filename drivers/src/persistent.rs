@@ -26,6 +26,15 @@ pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT: usize = 8;
 
+#[cfg(feature = "runtime")]
+const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
+    + size_of::<u32>() * MAX_HANDLES
+    + size_of::<U8Bool>() * MAX_HANDLES
+    + size_of::<U8Bool>();
+
+#[cfg(feature = "runtime")]
+const _: () = assert!(DPE_DCCM_STORAGE < memory_layout::DPE_SIZE as usize);
+
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
 pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
@@ -69,11 +78,7 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub attestation_disabled: U8Bool,
     #[cfg(feature = "runtime")]
-    reserved6: [u8; memory_layout::DPE_SIZE as usize
-        - size_of::<DpeInstance>()
-        - size_of::<u32>() * MAX_HANDLES
-        - size_of::<U8Bool>() * MAX_HANDLES
-        - size_of::<U8Bool>()],
+    reserved6: [u8; memory_layout::DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; memory_layout::DPE_SIZE as usize],
     #[cfg(feature = "runtime")]

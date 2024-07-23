@@ -171,4 +171,13 @@ int caliptra_shutdown(bool async);
 // Capabilities
 int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
 
+// Query if IDevID CSR is ready.
+bool caliptra_is_idevid_csr_ready();
+
+int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr); 
+
+void caliptra_req_idev_csr_start();
+
+// Clear IDEV CSR request. 
+void caliptra_req_idev_csr_complete(); 
 

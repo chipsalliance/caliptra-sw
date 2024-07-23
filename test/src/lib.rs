@@ -33,6 +33,7 @@ pub fn run_test(
     test_fwid: Option<&'static FwId>,
     test_image_options: Option<ImageOptions>,
     init_params: Option<InitParams>,
+    boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
     let runtime_fwid = test_fwid.unwrap_or(&APP_WITH_UART);
 
@@ -55,13 +56,21 @@ pub fn run_test(
 
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
         .unwrap();
+    let image_bytes = image.to_bytes().unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params,
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
-    .unwrap();
+    let boot_params = boot_params.unwrap_or(BootParams::default());
+
+    // Use image in boot_params if provided
+    // Otherwise, add our newly built image
+    let boot_params = match boot_params.fw_image {
+        Some(_) => boot_params,
+        None => BootParams {
+            fw_image: Some(&image_bytes),
+            ..boot_params
+        },
+    };
+
+    let mut model = caliptra_hw_model::new(init_params, boot_params).unwrap();
 
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
 

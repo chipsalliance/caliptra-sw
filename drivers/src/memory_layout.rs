@@ -38,12 +38,17 @@ pub const PCR_LOG_ORG: u32 = 0x50004800;
 pub const MEASUREMENT_LOG_ORG: u32 = 0x50004C00;
 pub const FUSE_LOG_ORG: u32 = 0x50005000;
 pub const DPE_ORG: u32 = 0x50005400;
-pub const PCR_RESET_COUNTER_ORG: u32 = 0x50006400;
-pub const DATA_ORG: u32 = 0x50006800;
+pub const PCR_RESET_COUNTER_ORG: u32 = 0x50006800;
+pub const DATA_ORG: u32 = 0x50006C00;
+
 pub const STACK_ORG: u32 = 0x5001A000;
 pub const ROM_STACK_ORG: u32 = 0x5001C000;
+
 pub const ESTACK_ORG: u32 = 0x5001F800;
+pub const ROM_ESTACK_ORG: u32 = 0x5001F800;
+
 pub const NSTACK_ORG: u32 = 0x5001FC00;
+pub const ROM_NSTACK_ORG: u32 = 0x5001FC00;
 
 //
 // Memory Sizes In Bytes
@@ -63,15 +68,17 @@ pub const RTALIAS_TBS_SIZE: u32 = 1024;
 pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
-pub const DPE_SIZE: u32 = 4 * 1024;
+pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_PREAMBLE_SIZE: u32 = 7 * 1024;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 70 * 1024;
+pub const DATA_SIZE: u32 = 69 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
+pub const ROM_ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
+pub const ROM_NSTACK_SIZE: u32 = 1024;
 
 pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {
     start: ICCM_ORG,
