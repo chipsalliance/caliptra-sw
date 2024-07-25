@@ -357,7 +357,7 @@ bool caliptra_ready_for_firmware(void)
 *
 * Reports if the IDEVID CSR is ready
 *
-* @return bool True if ready, false otherwise    
+* @return bool True if ready, false otherwise
 */
 bool caliptra_is_csr_ready(void)
 {
@@ -369,7 +369,7 @@ bool caliptra_is_csr_ready(void)
     {
         return true;
     }
- 
+
     return false;
 }
 
@@ -441,16 +441,21 @@ static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
  * HELPER - Read a mailbox FIFO into a buffer
  *
  * @param[out] buffer A pointer to a valid caliptra_buffer struct
+ * @param[out] bytes_read Pointer to dword to update with the number of bytes read (ignored if nullptr)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
+static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer, uint32_t *bytes_read)
 {
     uint32_t remaining_len = caliptra_mbox_read_dlen();
 
     // Check that the buffer is not null
     if (buffer == NULL)
         return INVALID_PARAMS;
+
+    if (bytes_read) {
+        *bytes_read = 0;
+    }
 
     // Check we have enough room in the buffer
     if (buffer->len < remaining_len || !buffer->data)
@@ -463,6 +468,9 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
     {
         *data_dw++ = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         remaining_len -= sizeof(uint32_t);
+        if (bytes_read) {
+            *bytes_read += 4;
+        }
     }
 
     // if un-aligned dword reminder...
@@ -470,6 +478,9 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
     {
         uint32_t data = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         memcpy(data_dw, &data, remaining_len);
+        if (bytes_read) {
+            *bytes_read += remaining_len;
+        }
     }
     return 0;
 }
@@ -509,11 +520,17 @@ int caliptra_mailbox_send(uint32_t cmd, const struct caliptra_buffer *mbox_tx_bu
  * buffer with a response if applicable
  *
  * @param[out] mbox_rx_buffer Buffer for the response, NULL if no response is expected
+ * @param[out] bytes_read Pointer to dword to update with the number of bytes read
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
+int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer, uint32_t *bytes_read)
 {
+    // Only called internally, should always have a valid pointer
+    if (bytes_read == NULL) {
+        return API_INTERNAL_ERROR;
+    }
+
     // Check the Mailbox Status
     uint32_t mbx_status = caliptra_mbox_read_status();
     if (mbx_status == CALIPTRA_MBOX_STATUS_CMD_FAILURE)
@@ -532,7 +549,7 @@ int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
     }
 
     // Read Buffer
-    int status = caliptra_mailbox_read_fifo(mbox_rx_buffer);
+    int status = caliptra_mailbox_read_fifo(mbox_rx_buffer, bytes_read);
 
     // Execute False
     caliptra_mbox_write_execute(false);
@@ -552,18 +569,18 @@ int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
  * HELPER - Verifies the checksum and checks that the FIPS status is approved for the message response
  *
  * @param[in] buffer Buffer for the full response
- * @param[in] buffer_size Size of the full response in bytes
+ * @param[in] response_size Size of the full response in bytes
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static inline int check_command_response(const uint8_t *buffer, const size_t buffer_size)
+static inline int check_command_response(const uint8_t *buffer, const size_t response_size)
 {
-    if (buffer_size < sizeof(struct caliptra_resp_header)) {
+    if (response_size < sizeof(struct caliptra_resp_header)) {
         return MBX_RESP_NO_HEADER;
     }
     struct caliptra_resp_header *resp_hdr = (struct caliptra_resp_header*)buffer;
 
-    uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), buffer_size - sizeof(uint32_t));
+    uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), response_size - sizeof(uint32_t));
 
     bool checksum_valid = !(resp_hdr->chksum - calc_checksum);
     bool fips_approved  = (resp_hdr->fips_status == FIPS_STATUS_APPROVED);
@@ -653,6 +670,8 @@ static int pack_and_execute_command(struct parcel *parcel, bool async)
     };
 
     // Calculate and populate the checksum field
+    // Clear the checksum field before calculating
+    *((caliptra_checksum*)tx_buf.data) = 0x0;
     *((caliptra_checksum*)tx_buf.data) = calculate_caliptra_checksum(parcel->command, tx_buf.data, tx_buf.len);
 
     return caliptra_mailbox_execute(parcel->command, &tx_buf, &rx_buf, async);
@@ -697,7 +716,8 @@ int caliptra_complete()
     g_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
 
     // Complete the transaction and read back a response if applicable
-    int status = caliptra_check_status_get_response(&rx_buffer);
+    uint32_t bytes_read = 0;
+    int status = caliptra_check_status_get_response(&rx_buffer, &bytes_read);
 
     if (status)
     {
@@ -706,7 +726,7 @@ int caliptra_complete()
 
     // Verify the header data from the response
     if (rx_buffer.data != NULL) {
-        return check_command_response(rx_buffer.data, rx_buffer.len);
+        return check_command_response(rx_buffer.data, bytes_read);
     }
 
     return 0;
@@ -1088,7 +1108,7 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
-int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr) 
+int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
 {
     if (!caliptra_idevid_csr) {
         return INVALID_PARAMS;
@@ -1098,10 +1118,10 @@ int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
         return IDEV_CSR_NOT_READY;
     }
 
-    return caliptra_mailbox_read_fifo(caliptra_idevid_csr);
+    return caliptra_mailbox_read_fifo(caliptra_idevid_csr, NULL);
 }
 
-void caliptra_req_idev_csr_start() 
+void caliptra_req_idev_csr_start()
 {
     uint32_t dbg_manuf_serv_req;
 
@@ -1111,7 +1131,7 @@ void caliptra_req_idev_csr_start()
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req | 0x01);
 }
 
-void caliptra_req_idev_csr_complete() 
+void caliptra_req_idev_csr_complete()
 {
     uint32_t dbg_manuf_serv_req;
 

@@ -186,7 +186,7 @@ int rom_test_all_commands(const test_info* info)
 
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
-    struct caliptra_stash_measurement_resp stash_resp = {};
+    struct caliptra_stash_measurement_resp stash_resp;
 
     status = caliptra_stash_measurement(&stash_req, &stash_resp, false);
 
@@ -199,7 +199,7 @@ int rom_test_all_commands(const test_info* info)
     }
 
     // CAPABILITIES
-    struct caliptra_capabilities_resp cap_resp = {};
+    struct caliptra_capabilities_resp cap_resp;
 
     status = caliptra_capabilities(&cap_resp, false);
 
@@ -212,7 +212,7 @@ int rom_test_all_commands(const test_info* info)
     }
 
     // FIPS_VERSION
-    struct caliptra_fips_version_resp version_resp = {};
+    struct caliptra_fips_version_resp version_resp;
 
     status = caliptra_fips_version(&version_resp, false);
 
@@ -288,7 +288,7 @@ int rt_test_all_commands(const test_info* info)
 
     // GET_IDEV_CERT
     struct caliptra_get_idev_cert_req idev_cert_req = {};
-    struct caliptra_get_idev_cert_resp idev_cert_resp = {};
+    struct caliptra_get_idev_cert_resp idev_cert_resp;
 
     status = caliptra_get_idev_cert(&idev_cert_req, &idev_cert_resp, false);
 
@@ -301,7 +301,7 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // GET_IDEV_INFO
-    struct caliptra_get_idev_info_resp idev_info_resp = {};
+    struct caliptra_get_idev_info_resp idev_info_resp;
 
     status = caliptra_get_idev_info(&idev_info_resp, false);
 
@@ -327,7 +327,7 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // GET_LDEV_CERT
-    struct caliptra_get_ldev_cert_resp ldev_cert_resp = {};
+    struct caliptra_get_ldev_cert_resp ldev_cert_resp;
 
     status = caliptra_get_ldev_cert(&ldev_cert_resp, false);
 
@@ -340,7 +340,7 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // GET_FMC_ALIAS_CERT
-    struct caliptra_get_fmc_alias_cert_resp fmc_alias_cert_resp = {};
+    struct caliptra_get_fmc_alias_cert_resp fmc_alias_cert_resp;
 
     status = caliptra_get_fmc_alias_cert(&fmc_alias_cert_resp, false);
 
@@ -353,7 +353,7 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // GET_RT_ALIAS_CERT
-    struct caliptra_get_rt_alias_cert_resp rt_alias_cert_resp = {};
+    struct caliptra_get_rt_alias_cert_resp rt_alias_cert_resp;
 
     status = caliptra_get_rt_alias_cert(&rt_alias_cert_resp, false);
 
@@ -403,7 +403,7 @@ int rt_test_all_commands(const test_info* info)
 
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
-    struct caliptra_stash_measurement_resp stash_resp = {};
+    struct caliptra_stash_measurement_resp stash_resp;
 
     status = caliptra_stash_measurement(&stash_req, &stash_resp, false);
 
@@ -416,18 +416,20 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // INVOKE_DPE_COMMAND
+    // Using GET_PROFILE as an example command
+    // TODO: Coverage of other DPE commands should be added
     struct caliptra_invoke_dpe_req dpe_req = {};
-    struct caliptra_invoke_dpe_resp dpe_resp = {};
+    struct caliptra_invoke_dpe_resp dpe_resp;
+
+    dpe_req.data_size = sizeof(struct dpe_get_profile_cmd);
+    dpe_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
+    dpe_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
+    dpe_req.get_profile_cmd.cmd_hdr.profile = 0x2;
 
     status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
 
-    // Not testing for full success
-    // Instead, just want to see it give the right DPE-specific error
-    // This still proves the FW recognizes the message and request data and got to the right DPE code
-    uint32_t RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED = 0xe0027;
-    non_fatal_error = caliptra_read_fw_non_fatal_error();
-    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED) {
-        printf("DPE Command unexpected result/failure: 0x%x\n", status);
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     } else {
@@ -436,7 +438,7 @@ int rt_test_all_commands(const test_info* info)
 
 
     // FW_INFO
-    struct caliptra_fw_info_resp fw_info_resp = {};
+    struct caliptra_fw_info_resp fw_info_resp;
 
     status = caliptra_fw_info(&fw_info_resp, false);
 
@@ -463,7 +465,7 @@ int rt_test_all_commands(const test_info* info)
 
     // DPE_GET_TAGGED_TCI
     struct caliptra_get_tagged_tci_req get_tagged_tci_req = {};
-    struct caliptra_get_tagged_tci_resp get_tagged_tci_resp = {};
+    struct caliptra_get_tagged_tci_resp get_tagged_tci_resp;
 
     status = caliptra_dpe_get_tagged_tci(&get_tagged_tci_req, &get_tagged_tci_resp, false);
 
@@ -490,7 +492,7 @@ int rt_test_all_commands(const test_info* info)
 
     // Quote PCRs
     struct caliptra_quote_pcrs_req quote_pcrs_req = {};
-    struct caliptra_quote_pcrs_resp quote_pcrs_resp = {};
+    struct caliptra_quote_pcrs_resp quote_pcrs_resp;
 
     status = caliptra_quote_pcrs(&quote_pcrs_req, &quote_pcrs_resp, false);
 
@@ -534,7 +536,7 @@ int rt_test_all_commands(const test_info* info)
     // Certify key extended
     int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
     struct caliptra_certify_key_extended_req certify_key_extended_req = {};
-    struct caliptra_certify_key_extended_resp certify_key_extended_resp = {};
+    struct caliptra_certify_key_extended_resp certify_key_extended_resp;
 
     status = caliptra_certify_key_extended(&certify_key_extended_req, &certify_key_extended_resp, false);
 
@@ -548,7 +550,7 @@ int rt_test_all_commands(const test_info* info)
 
 
     // FIPS_VERSION
-    struct caliptra_fips_version_resp version_resp = {};
+    struct caliptra_fips_version_resp version_resp;
 
     status = caliptra_fips_version(&version_resp, false);
 
