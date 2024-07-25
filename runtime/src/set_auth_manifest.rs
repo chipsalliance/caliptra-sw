@@ -116,14 +116,13 @@ impl SetAuthManifestCmd {
     }
 
     fn verify_vendor_signed_data(
-        persistent_data: &mut PersistentData,
+        auth_manifest_preamble: &mut AuthManifestPreamble,
+        fw_preamble: &ImagePreamble,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
-
         let range = AuthManifestPreamble::vendor_signed_data_range();
         let digest_vendor = Self::sha384_digest(
             sha384,
@@ -131,8 +130,6 @@ impl SetAuthManifestCmd {
             range.start,
             range.len() as u32,
         )?;
-
-        let fw_preamble = &persistent_data.manifest1.preamble;
 
         // Verify the vendor ECC signature.
         let vendor_fw_ecc_key = &fw_preamble
@@ -186,14 +183,13 @@ impl SetAuthManifestCmd {
     }
 
     fn verify_owner_pub_keys(
-        persistent_data: &mut PersistentData,
+        auth_manifest_preamble: &mut AuthManifestPreamble,
+        fw_preamble: &ImagePreamble,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
-
         let range = AuthManifestPreamble::owner_pub_keys_range();
         let digest_owner = Self::sha384_digest(
             sha384,
@@ -201,8 +197,6 @@ impl SetAuthManifestCmd {
             range.start,
             range.len() as u32,
         )?;
-
-        let fw_preamble = &persistent_data.manifest1.preamble;
 
         // Verify the owner ECC signature.
         let owner_fw_ecc_key = &fw_preamble.owner_pub_keys.ecc_pub_key;
@@ -247,79 +241,73 @@ impl SetAuthManifestCmd {
     }
 
     fn verify_vendor_image_metadata_col(
-        persistent_data: &PersistentData,
+        auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
-
-        if auth_manifest_preamble.flags & AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG != 0 {
-            // Verify the vendor ECC signature over the image metadata collection.
-            let verify_r = Self::ecc384_verify(
-                ecc384,
-                image_metadata_col_digest,
-                &auth_manifest_preamble.vendor_pub_keys.ecc_pub_key,
+        if auth_manifest_preamble.flags & AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG == 0 {
+            return Ok(());
+        }
+        // Verify the vendor ECC signature over the image metadata collection.
+        let verify_r = Self::ecc384_verify(
+            ecc384,
+            image_metadata_col_digest,
+            &auth_manifest_preamble.vendor_pub_keys.ecc_pub_key,
+            &auth_manifest_preamble
+                .vendor_image_metdata_signatures
+                .ecc_sig,
+        )?;
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .ecc_sig
+                    .r,
+            )
+        {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                &verify_r.0,
                 &auth_manifest_preamble
                     .vendor_image_metdata_signatures
-                    .ecc_sig,
-            )?;
-            if cfi_launder(verify_r)
-                != caliptra_drivers::Array4xN(
-                    auth_manifest_preamble
-                        .vendor_image_metdata_signatures
-                        .ecc_sig
-                        .r,
-                )
-            {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_12_words(
-                    &verify_r.0,
-                    &auth_manifest_preamble
-                        .vendor_image_metdata_signatures
-                        .ecc_sig
-                        .r,
-                );
-            }
+                    .ecc_sig
+                    .r,
+            );
+        }
 
-            // Verify vendor LMS signature over the image metadata collection.
-            if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-                let candidate_key = Self::lms_verify(
-                    sha256,
-                    image_metadata_col_digest,
-                    &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
-                    &auth_manifest_preamble
-                        .vendor_image_metdata_signatures
-                        .lms_sig,
-                )?;
-                let pub_key_digest =
-                    HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
-                if candidate_key != pub_key_digest {
-                    return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
-                } else {
-                    caliptra_cfi_lib_git::cfi_assert_eq_6_words(
-                        &candidate_key.0,
-                        &pub_key_digest.0,
-                    );
-                }
+        // Verify vendor LMS signature over the image metadata collection.
+        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
+            let candidate_key = Self::lms_verify(
+                sha256,
+                image_metadata_col_digest,
+                &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
+                &auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .lms_sig,
+            )?;
+            let pub_key_digest =
+                HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
+            if candidate_key != pub_key_digest {
+                return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
         Ok(())
     }
 
     fn verify_owner_image_metadata_col(
-        persistent_data: &PersistentData,
+        auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
-
         // Verify the owner ECC signature.
         let verify_r = Self::ecc384_verify(
             ecc384,
@@ -372,7 +360,8 @@ impl SetAuthManifestCmd {
 
     fn process_image_metadata_col(
         cmd_buf: &[u8],
-        persistent_data: &mut PersistentData,
+        auth_manifest_preamble: &mut AuthManifestPreamble,
+        image_metadata_col: &mut AuthManifestImageMetadataCollection,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -387,7 +376,6 @@ impl SetAuthManifestCmd {
             size_of::<AuthManifestImageMetadataCollection>(),
         );
 
-        let image_metadata_col = &mut persistent_data.auth_manifest_image_metadata_col;
         image_metadata_col
             .as_bytes_mut()
             .copy_from_slice(&cmd_buf[..col_size]);
@@ -404,10 +392,8 @@ impl SetAuthManifestCmd {
         let digest_metadata_col =
             Self::sha384_digest(sha384, &cmd_buf[..col_size], 0, col_size as u32)?;
 
-        let auth_manifest_preamble = &persistent_data.auth_manifest_preamble;
-
         Self::verify_vendor_image_metadata_col(
-            persistent_data,
+            auth_manifest_preamble,
             &digest_metadata_col,
             sha384,
             ecc384,
@@ -416,7 +402,7 @@ impl SetAuthManifestCmd {
         )?;
 
         Self::verify_owner_image_metadata_col(
-            persistent_data,
+            auth_manifest_preamble,
             &digest_metadata_col,
             sha384,
             ecc384,
@@ -453,7 +439,8 @@ impl SetAuthManifestCmd {
 
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
-            persistent_data,
+            auth_manifest_preamble,
+            &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -462,7 +449,8 @@ impl SetAuthManifestCmd {
 
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
-            persistent_data,
+            auth_manifest_preamble,
+            &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
@@ -471,7 +459,8 @@ impl SetAuthManifestCmd {
 
         Self::process_image_metadata_col(
             &cmd_args[(manifest_offset + size_of::<AuthManifestPreamble>())..],
-            persistent_data,
+            auth_manifest_preamble,
+            &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
