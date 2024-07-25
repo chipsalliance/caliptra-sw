@@ -135,8 +135,11 @@ impl SetAuthManifestCmd {
         let fw_preamble = &persistent_data.manifest1.preamble;
 
         // Verify the vendor ECC signature.
-        let vendor_fw_ecc_key =
-            &fw_preamble.vendor_pub_keys.ecc_pub_keys[fw_preamble.vendor_ecc_pub_key_idx as usize];
+        let vendor_fw_ecc_key = &fw_preamble
+            .vendor_pub_keys
+            .ecc_pub_keys
+            .get(fw_preamble.vendor_ecc_pub_key_idx as usize)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
 
         let verify_r = Self::ecc384_verify(
             ecc384,
@@ -159,8 +162,11 @@ impl SetAuthManifestCmd {
 
         // Verify vendor LMS signature.
         if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let vendor_fw_lms_key = &fw_preamble.vendor_pub_keys.lms_pub_keys
-                [fw_preamble.vendor_lms_pub_key_idx as usize];
+            let vendor_fw_lms_key = &fw_preamble
+                .vendor_pub_keys
+                .lms_pub_keys
+                .get(fw_preamble.vendor_lms_pub_key_idx as usize)
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
 
             let candidate_key = Self::lms_verify(
                 sha256,
@@ -425,46 +431,44 @@ impl SetAuthManifestCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let manifest_offset = offset_of!(SetAuthManifestReq, manifest);
-        if cmd_args.len() >= size_of::<SetAuthManifestReq>() {
-            let persistent_data = drivers.persistent_data.get_mut();
-            let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
-
-            auth_manifest_preamble.as_bytes_mut().copy_from_slice(
-                &cmd_args[manifest_offset..(manifest_offset + size_of::<AuthManifestPreamble>())],
-            );
-
-            // Check if the preamble has the required marker.
-            if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
-                return Err(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER);
-            }
-
-            // Check if the manifest size is valid.
-            if auth_manifest_preamble.size as usize != size_of::<AuthManifestPreamble>() {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
-            }
-
-            // Verify the vendor signed data (vendor public keys + flags).
-            Self::verify_vendor_signed_data(
-                persistent_data,
-                &mut drivers.sha384,
-                &mut drivers.ecc384,
-                &mut drivers.sha256,
-                &drivers.soc_ifc,
-            )?;
-
-            // Verify the owner public keys.
-            Self::verify_owner_pub_keys(
-                persistent_data,
-                &mut drivers.sha384,
-                &mut drivers.ecc384,
-                &mut drivers.sha256,
-                &drivers.soc_ifc,
-            )?;
-        } else {
+        if cmd_args.len() < size_of::<SetAuthManifestReq>() {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
         }
-
         let persistent_data = drivers.persistent_data.get_mut();
+        let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
+
+        auth_manifest_preamble.as_bytes_mut().copy_from_slice(
+            &cmd_args[manifest_offset..(manifest_offset + size_of::<AuthManifestPreamble>())],
+        );
+
+        // Check if the preamble has the required marker.
+        if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
+            return Err(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER);
+        }
+
+        // Check if the manifest size is valid.
+        if auth_manifest_preamble.size as usize != size_of::<AuthManifestPreamble>() {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
+        }
+
+        // Verify the vendor signed data (vendor public keys + flags).
+        Self::verify_vendor_signed_data(
+            persistent_data,
+            &mut drivers.sha384,
+            &mut drivers.ecc384,
+            &mut drivers.sha256,
+            &drivers.soc_ifc,
+        )?;
+
+        // Verify the owner public keys.
+        Self::verify_owner_pub_keys(
+            persistent_data,
+            &mut drivers.sha384,
+            &mut drivers.ecc384,
+            &mut drivers.sha256,
+            &drivers.soc_ifc,
+        )?;
+
         Self::process_image_metadata_col(
             &cmd_args[(manifest_offset + size_of::<AuthManifestPreamble>())..],
             persistent_data,

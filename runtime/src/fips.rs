@@ -195,8 +195,10 @@ pub mod fips_self_test_cmd {
             env.persistent_data.get().fht.rom_info_addr.get()? as *const RomInfo as usize / 64;
 
         let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
+        cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
         if digest.0 != rom_info.sha256_digest {
             digest.zeroize();
+            cprintln!("ROM integrity test failed");
             return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
         } else {
             cfi_assert_eq_8_words(&digest.0, &rom_info.sha256_digest);

@@ -39,7 +39,9 @@ pub const MEASUREMENT_LOG_ORG: u32 = 0x50004C00;
 pub const FUSE_LOG_ORG: u32 = 0x50005000;
 pub const DPE_ORG: u32 = 0x50005400;
 pub const PCR_RESET_COUNTER_ORG: u32 = 0x50006800;
-pub const DATA_ORG: u32 = 0x50006C00;
+pub const AUTH_MAN_PREAMBLE_ORG: u32 = 0x50006C00;
+pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = 0x50008800;
+pub const DATA_ORG: u32 = 0x50008C00;
 
 pub const STACK_ORG: u32 = 0x5001A000;
 pub const ROM_STACK_ORG: u32 = 0x5001C000;
@@ -147,7 +149,19 @@ fn mem_layout_test_dpe() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_pcr_reset_counter() {
-    assert_eq!((DATA_ORG - PCR_RESET_COUNTER_ORG), PCR_RESET_COUNTER_SIZE);
+    assert_eq!(
+        (AUTH_MAN_PREAMBLE_ORG - PCR_RESET_COUNTER_ORG),
+        PCR_RESET_COUNTER_SIZE
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_auth_preamble() {
+    assert_eq!(
+        (AUTH_MAN_IMAGE_METADATA_LIST_ORG - AUTH_MAN_PREAMBLE_ORG),
+        AUTH_MAN_PREAMBLE_SIZE
+    );
 }
 
 #[test]
