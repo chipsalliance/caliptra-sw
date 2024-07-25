@@ -421,7 +421,7 @@ impl SetAuthManifestCmd {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
         }
         let persistent_data = drivers.persistent_data.get_mut();
-        let auth_manifest_preamble = &mut persistent_data.auth_manifest_preamble;
+        let auth_manifest_preamble = &mut AuthManifestPreamble::default();
 
         auth_manifest_preamble.as_bytes_mut().copy_from_slice(
             &cmd_args[manifest_offset..(manifest_offset + size_of::<AuthManifestPreamble>())],
