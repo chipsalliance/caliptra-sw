@@ -15,6 +15,7 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
+use crate::verify;
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_auth_man_types::AuthManifestImageMetadataCollection;
 use caliptra_auth_man_types::AuthManifestImageMetadataCollectionHeader;
@@ -143,7 +144,8 @@ impl SetAuthManifestCmd {
             &digest_vendor,
             vendor_fw_ecc_key,
             &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig,
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
                 auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
@@ -170,7 +172,8 @@ impl SetAuthManifestCmd {
                 &digest_vendor,
                 vendor_fw_lms_key,
                 &auth_manifest_preamble.vendor_pub_keys_signatures.lms_sig,
-            )?;
+            )
+            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
             let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
             if candidate_key != pub_key_digest {
                 return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
@@ -205,7 +208,8 @@ impl SetAuthManifestCmd {
             &digest_owner,
             owner_fw_ecc_key,
             &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig,
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
                 auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
@@ -228,7 +232,8 @@ impl SetAuthManifestCmd {
                 &digest_owner,
                 owner_fw_lms_key,
                 &auth_manifest_preamble.owner_pub_keys_signatures.lms_sig,
-            )?;
+            )
+            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
             let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
             if candidate_key != pub_key_digest {
                 return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID);
@@ -259,7 +264,8 @@ impl SetAuthManifestCmd {
             &auth_manifest_preamble
                 .vendor_image_metdata_signatures
                 .ecc_sig,
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
                 auth_manifest_preamble
@@ -288,7 +294,8 @@ impl SetAuthManifestCmd {
                 &auth_manifest_preamble
                     .vendor_image_metdata_signatures
                     .lms_sig,
-            )?;
+            )
+            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
             let pub_key_digest =
                 HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
             if candidate_key != pub_key_digest {
@@ -316,7 +323,8 @@ impl SetAuthManifestCmd {
             &auth_manifest_preamble
                 .owner_image_metdata_signatures
                 .ecc_sig,
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
                 auth_manifest_preamble
@@ -345,7 +353,8 @@ impl SetAuthManifestCmd {
                 &auth_manifest_preamble
                     .owner_image_metdata_signatures
                     .lms_sig,
-            )?;
+            )
+            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
             let pub_key_digest =
                 HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
             if candidate_key != pub_key_digest {
@@ -375,10 +384,11 @@ impl SetAuthManifestCmd {
             cmd_buf.len(),
             size_of::<AuthManifestImageMetadataCollection>(),
         );
+        let buf = cmd_buf
+            .get(..col_size)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        image_metadata_col
-            .as_bytes_mut()
-            .copy_from_slice(&cmd_buf[..col_size]);
+        image_metadata_col.as_bytes_mut().copy_from_slice(buf);
 
         if (image_metadata_col.header.entry_count == 0
             || image_metadata_col.header.entry_count
@@ -389,8 +399,7 @@ impl SetAuthManifestCmd {
             );
         }
 
-        let digest_metadata_col =
-            Self::sha384_digest(sha384, &cmd_buf[..col_size], 0, col_size as u32)?;
+        let digest_metadata_col = Self::sha384_digest(sha384, buf, 0, col_size as u32)?;
 
         Self::verify_vendor_image_metadata_col(
             auth_manifest_preamble,
@@ -416,11 +425,11 @@ impl SetAuthManifestCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() < size_of::<SetAuthManifestReq>() {
-            return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
-        }
         let mut cmd = SetAuthManifestReq::default();
-        cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+        cmd.as_bytes_mut()
+            .get_mut(..cmd_args.len())
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+            .copy_from_slice(cmd_args);
 
         // Validate cmd length
         let manifest_size = cmd.manifest_size as usize;
@@ -434,9 +443,12 @@ impl SetAuthManifestCmd {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
         }
 
-        let auth_manifest_preamble =
-            AuthManifestPreamble::read_from(&cmd.manifest[..preamble_size])
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
+        let auth_manifest_preamble_buf = cmd
+            .manifest
+            .get(..preamble_size)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
+        let auth_manifest_preamble = AuthManifestPreamble::read_from(auth_manifest_preamble_buf)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
 
         // Check if the preamble has the required marker.
         if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
