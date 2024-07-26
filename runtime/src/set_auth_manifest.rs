@@ -116,7 +116,7 @@ impl SetAuthManifestCmd {
     }
 
     fn verify_vendor_signed_data(
-        auth_manifest_preamble: &mut AuthManifestPreamble,
+        auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
@@ -183,7 +183,7 @@ impl SetAuthManifestCmd {
     }
 
     fn verify_owner_pub_keys(
-        auth_manifest_preamble: &mut AuthManifestPreamble,
+        auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
@@ -360,7 +360,7 @@ impl SetAuthManifestCmd {
 
     fn process_image_metadata_col(
         cmd_buf: &[u8],
-        auth_manifest_preamble: &mut AuthManifestPreamble,
+        auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col: &mut AuthManifestImageMetadataCollection,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
@@ -416,16 +416,27 @@ impl SetAuthManifestCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let manifest_offset = offset_of!(SetAuthManifestReq, manifest);
         if cmd_args.len() < size_of::<SetAuthManifestReq>() {
             return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
         }
-        let persistent_data = drivers.persistent_data.get_mut();
-        let auth_manifest_preamble = &mut AuthManifestPreamble::default();
+        let mut cmd = SetAuthManifestReq::default();
+        cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
 
-        auth_manifest_preamble.as_bytes_mut().copy_from_slice(
-            &cmd_args[manifest_offset..(manifest_offset + size_of::<AuthManifestPreamble>())],
-        );
+        // Validate cmd length
+        let manifest_size = cmd.manifest_size as usize;
+        if manifest_size > cmd.manifest.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
+        // Validate Manifest length
+        let preamble_size = size_of::<AuthManifestPreamble>();
+        if (cmd.manifest_size as usize) < preamble_size {
+            return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
+        }
+
+        let auth_manifest_preamble =
+            AuthManifestPreamble::read_from(&cmd.manifest[..preamble_size])
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
 
         // Check if the preamble has the required marker.
         if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
@@ -437,9 +448,10 @@ impl SetAuthManifestCmd {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
         }
 
+        let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
-            auth_manifest_preamble,
+            &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
@@ -449,7 +461,7 @@ impl SetAuthManifestCmd {
 
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
-            auth_manifest_preamble,
+            &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
@@ -458,8 +470,8 @@ impl SetAuthManifestCmd {
         )?;
 
         Self::process_image_metadata_col(
-            &cmd_args[(manifest_offset + size_of::<AuthManifestPreamble>())..],
-            auth_manifest_preamble,
+            &cmd.manifest[preamble_size..],
+            &auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha384,
             &mut drivers.ecc384,
