@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test_lms};
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
@@ -105,7 +105,7 @@ fn test_auth_manifest() -> AuthorizationManifest {
 
 #[test]
 fn test_set_auth_manifest_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test_lms(None, None, None, true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -134,7 +134,7 @@ fn test_set_auth_manifest_cmd() {
 
 #[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test_lms(None, None, None, true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -182,7 +182,7 @@ fn test_set_auth_manifest_cmd_invalid_len() {
 }
 
 fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: CaliptraError) {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test_lms(None, None, None, true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -239,13 +239,15 @@ fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
     );
 }
 
-// TODO enable LMS
-// #[test]
-// fn test_set_auth_manifest_invalid_vendor_lms_sig() {
-//     let mut auth_manifest = test_auth_manifest();
-//     auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
-//     test_manifest_expect_err(auth_manifest, CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
-// }
+#[test]
+fn test_set_auth_manifest_invalid_vendor_lms_sig() {
+    let mut auth_manifest = test_auth_manifest();
+    auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+    );
+}
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_ecc_sig() {
@@ -257,13 +259,15 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
     );
 }
 
-// TODO enable LMS
-// #[test]
-// fn test_set_auth_manifest_invalid_owner_lms_sig() {
-//     let mut auth_manifest = test_auth_manifest();
-//     auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
-//     test_manifest_expect_err(auth_manifest, CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID);
-// }
+#[test]
+fn test_set_auth_manifest_invalid_owner_lms_sig() {
+    let mut auth_manifest = test_auth_manifest();
+    auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+    );
+}
 
 #[test]
 fn test_set_auth_manifest_invalid_metadata_list_count() {
@@ -288,13 +292,18 @@ fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
     );
 }
 
-// TODO enable LMS
-// #[test]
-// fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
-//     let mut auth_manifest = test_auth_manifest();
-//     auth_manifest.preamble.vendor_image_metdata_signatures.lms_sig = Default::default();
-//     test_manifest_expect_err(auth_manifest, CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID);
-// }
+#[test]
+fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
+    let mut auth_manifest = test_auth_manifest();
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .lms_sig = Default::default();
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+    );
+}
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
@@ -309,10 +318,15 @@ fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
     );
 }
 
-// TODO enable LMS
-// #[test]
-// fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
-//     let mut auth_manifest = test_auth_manifest();
-//     auth_manifest.preamble.owner_image_metdata_signatures.lms_sig = Default::default();
-//     test_manifest_expect_err(auth_manifest, CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID);
-// }
+#[test]
+fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
+    let mut auth_manifest = test_auth_manifest();
+    auth_manifest
+        .preamble
+        .owner_image_metdata_signatures
+        .lms_sig = Default::default();
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+    );
+}
