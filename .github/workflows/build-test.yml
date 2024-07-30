@@ -104,7 +104,7 @@ jobs:
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
-          (cd rom/dev && ./build.sh)
+          (cd rom/1.0 && ./build.sh)
           sccache --show-stats
 
       # Clippy needs to build crates as part of the check, so do it after the
@@ -155,7 +155,7 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)         
+          (cd rom/1.0 && make run)         
          
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
