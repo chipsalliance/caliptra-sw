@@ -388,7 +388,7 @@ impl SetAuthManifestCmd {
             .get(..col_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        image_metadata_col.as_bytes_mut().copy_from_slice(buf);
+        image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
 
         if (image_metadata_col.header.entry_count == 0
             || image_metadata_col.header.entry_count
@@ -425,30 +425,37 @@ impl SetAuthManifestCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let mut cmd = SetAuthManifestReq::default();
-        cmd.as_bytes_mut()
-            .get_mut(..cmd_args.len())
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
-            .copy_from_slice(cmd_args);
-
         // Validate cmd length
-        let manifest_size = cmd.manifest_size as usize;
-        if manifest_size > cmd.manifest.len() {
+        let manifest_size = {
+            let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
+            let offset = offset_of!(SetAuthManifestReq, manifest_size);
+            let size = u32::from_le_bytes(
+                cmd_args
+                    .get(offset..offset + 4)
+                    .ok_or(err)?
+                    .try_into()
+                    .map_err(|_| err)?,
+            );
+            usize::try_from(size).map_err(|_| err)?
+        };
+
+        if manifest_size > SetAuthManifestReq::MAX_MAN_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
-        // Validate Manifest length
-        let preamble_size = size_of::<AuthManifestPreamble>();
-        if (cmd.manifest_size as usize) < preamble_size {
-            return Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN);
-        }
+        let manifest_buf = {
+            let offset = offset_of!(SetAuthManifestReq, manifest);
+            cmd_args
+                .get(offset..offset + manifest_size)
+                .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
+        };
 
-        let auth_manifest_preamble_buf = cmd
-            .manifest
-            .get(..preamble_size)
-            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
-        let auth_manifest_preamble = AuthManifestPreamble::read_from(auth_manifest_preamble_buf)
-            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
+        let preamble_size = size_of::<AuthManifestPreamble>();
+        let auth_manifest_preamble = {
+            let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
+            AuthManifestPreamble::read_from(manifest_buf.get(..preamble_size).ok_or(err)?)
+                .ok_or(err)?
+        };
 
         // Check if the preamble has the required marker.
         if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
@@ -482,7 +489,9 @@ impl SetAuthManifestCmd {
         )?;
 
         Self::process_image_metadata_col(
-            &cmd.manifest[preamble_size..],
+            manifest_buf
+                .get(preamble_size..)
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
             &auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha384,
