@@ -13,8 +13,8 @@
 /.idea/
 
 # Files created by tests
-rom/dev/caliptra_idevid_csr.der
-rom/dev/caliptra_ldevid_cert.der
+rom/1.0/caliptra_idevid_csr.der
+rom/1.0/caliptra_ldevid_cert.der
 
 # Files created by FPGA build
 hw/fpga/.Xil/
@@ -28,3 +28,4 @@ hw/fpga/vivado*.log
 
 # libcaliptra build artifacts
 libcaliptra/libcaliptra.a
+hw-latest/verilated/*

@@ -500,7 +500,7 @@ fn test_fmc_is_16k() {
         let delta = 16 * 1024 - fmc_size as isize;
         if delta != 0 {
             format!(
-                "Adjust PAD_LEN in rom/dev/tools/test-fmc/src/main.rs by {} for {}",
+                "Adjust PAD_LEN in rom/1.0/tools/test-fmc/src/main.rs by {} for {}",
                 delta, fmc.name
             )
         } else {
@@ -554,7 +554,7 @@ fn test_update_reset_max_fw_image() {
     assert_eq!(
         128 * 1024 - image_bytes.len() as isize,
         0,
-        "Try adjusting PAD_LEN in rom/dev/tools/test-fmc/src/main.rs"
+        "Try adjusting PAD_LEN in rom/1.0/tools/test-fmc/src/main.rs"
     );
 
     hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image_bytes)

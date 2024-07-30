@@ -6,7 +6,7 @@ This repository contains firmware, libraries, and tools related to the
 
 ## Documentation
 
-- [Caliptra ROM Module Specification](/rom/dev/README.md)
+- [Caliptra ROM Module Specification](/rom/1.0/README.md)
 - [Caliptra FMC Module Specification](/fmc/README.md)
 - [Caliptra Runtime Module Specification](/runtime/README.md)
 - [libcaliptra Guide](/libcaliptra/README.md)
@@ -91,7 +91,7 @@ Type definitions for the Leighton-Micali Hash-Based Signatures algorithm.
 Register definitions for the caliptra hardware peripherals, generated from the RDL
 files in the `caliptra-rtl` repo.
 
-### [rom](/rom/dev)
+### [rom](/rom/1.0)
 
 "Read Only Memory", the code that is first executed when the chip is powered on.
 Normally the ROM is part of the silicon.
