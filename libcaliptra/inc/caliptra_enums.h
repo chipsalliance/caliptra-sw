@@ -68,15 +68,12 @@ enum toc_entry_id {
 enum dpe_commands {
     DPE_GET_PROFILE        = 0x1,
     DPE_INITIALIZE_CONTEXT = 0x7,
-    DPE_DERIVE_CHILD       = 0x8,
+    DPE_DERIVE_CONTEXT     = 0x8,
     DPE_CERTIFY_KEY        = 0x9,
     DPE_SIGN               = 0xA,
     DPE_ROTATE_CTX_HANDLE  = 0xE,
     DPE_DESTROY_CTX        = 0xF,
-    DPE_GET_CERT_CHAIN     = 0x80,
-    DPE_EXTEND_TCI         = 0x81,
-    DPE_TAG_TCI            = 0x82,
-    DPE_GET_TAGGED_TCI     = 0x83,
+    DPE_GET_CERT_CHAIN     = 0x10,
 };
 
 enum dpe_error_codes {
