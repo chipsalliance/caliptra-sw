@@ -15,6 +15,7 @@ Abstract:
 use crate::{
     helpers::words_from_bytes_be,
     iccm::Iccm,
+    ml_dsa87::MlDsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
@@ -265,6 +266,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1002_8000, mask = 0x0000_7fff)]
     pub sha256: HashSha256,
 
+    #[peripheral(offset = 0x1003_0000, mask = 0x0000_7fff)] // TODO update when known
+    pub ml_dsa87: MlDsa87,
+
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Iccm,
 
@@ -326,6 +330,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
+            ml_dsa87: MlDsa87::new(clock),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

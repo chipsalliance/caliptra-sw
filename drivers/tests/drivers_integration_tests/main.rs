@@ -320,6 +320,12 @@ fn test_doe_when_debug_locked() {
     model.step_until_exit_success().unwrap();
 }
 
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+#[test]
+fn test_ml_dsa87() {
+    run_driver_test(&firmware::driver_tests::ML_DSA87);
+}
+
 #[test]
 fn test_ecc384() {
     run_driver_test(&firmware::driver_tests::ECC384);

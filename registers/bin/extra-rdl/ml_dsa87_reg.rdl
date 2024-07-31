@@ -1,0 +1,486 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+
+
+addrmap ml_dsa87_reg {
+    desc="address maps for ml_dsa87 register space";
+
+
+    addressing = regalign; // This is the default if not specified
+    lsb0 = true; // lsb0 property is implicit/default. See docs for
+                 // SystemRDL 2.0 sections 9.1 and 13.4
+
+    default hw = na;
+    signal {activelow; async; cpuif_reset; field_reset;} reset_b;
+    signal {activelow; async;} hard_reset_b;
+    signal {} ml_dsa87_ready;
+
+
+    /* -----------------------
+    * Register definitive definitions
+    * ----------------------- */
+
+    /* ---- ML_DSA87 Component Name ---- */
+    reg {
+        name = "ML_DSA87 component name register type definition";
+        desc = "Two 32-bit read-only registers representing of the name
+                of ML_DSA87 component.";
+
+        default sw = r;
+        default hw = w;
+        field {desc = "Name field";} NAME[32];
+
+    } ML_DSA87_NAME[2] @0x00000000;
+
+
+
+    /* ---- ML_DSA87 Component Version ---- */
+    reg {
+        name = "ML_DSA87 component version register type definition";
+        desc = "Two 32-bit read-only registers representing of the version
+                of ML_DSA87 component.";
+
+        default sw = r;
+        default hw = w;
+        field {desc = "Version field";} VERSION[32];
+
+    } ML_DSA87_VERSION[2] @0x00000008;
+
+
+
+    /* ---- ML_DSA87 Component Control ---- */
+    reg {
+        name = "ML_DSA87 CTRL";
+        desc = "ML_DSA87 component control register type definition";
+
+        default sw = w;
+        default hw = r;
+        default resetsignal = reset_b;
+        field {desc = "Control command field: This can be:
+                [br]             00 for NONE
+                [br]             01 for KEYGEN
+                [br]             10 for SIGNING
+                [br]             11 for VERIFYING
+                [br] After each software write, hardware will erase the register"; swwe = ml_dsa87_ready; hwclr;} CTRL[2] = 2'b0;
+        field {desc = "Zeroize all internal registers: Zeroize all internal registers after ML_DSA87 process, to avoid SCA leakage.
+                                [br] Software write generates only a single-cycle pulse on the
+                                hardware interface and then will be erased"; singlepulse;} ZEROIZE = 1'b0;
+
+    } ML_DSA87_CTRL @0x00000010;
+
+
+
+    /* ---- ML_DSA87 Component Status ---- */
+    reg {
+        name = "ML_DSA87 STATUS";
+        desc = "ML_DSA87 component status register type definition";
+
+        default sw = r;
+        default hw = w;
+        default resetsignal = reset_b;
+        field {desc = "Status ready bit: ​Indicates if the core is ready to take
+                                a control command and process the block.";} READY = 1'b0;
+        field {desc = "Status valid bit: ​Indicates if the process is done and the
+                                hash value stored in DIGEST registers is valid.";} VALID = 1'b0;
+
+    } ML_DSA87_STATUS @0x00000018;
+
+    /* ---- ML_DSA87 Component Input IV ---- */
+    reg {
+        name = "ML_DSA87 IV";
+        desc = "ML_DSA87 component IV register type definition
+                16 32-bit registers storing the 512-bit IV required
+                for SCA countermeasures to randomize the inputs with no change
+                on the ML_DSA87 outputs.
+                The IV can be any 512-bit value in [0 : 2^512-1].";
+
+        default sw = w;
+        default hw = r;
+        default resetsignal = reset_b;
+        field {desc = "Input IV field"; swwe = ml_dsa87_ready; hwclr;} IV[32] = 32'b0;
+
+    } ML_DSA87_IV[16] @0x00000080;
+
+
+    /* ---- ML_DSA87 Component Input SEED ---- */
+    reg {
+        name = "ML_DSA87 SEED";
+        desc = "ML_DSA87 component seed register type definition
+                8 32-bit registers storing the 256-bit seed for keygen in big-endian representation.
+                The seed can be any 256-bit value in [0 : 2^256-1].";
+
+        default sw = w;
+        default hw = rw;
+        default we = true;
+        default resetsignal = reset_b;
+        field {desc = "Input seed field"; swwe = ml_dsa87_ready; hwclr;} SEED[32] = 32'b0;
+
+    } ML_DSA87_SEED[8] @0x00000100;
+
+    /* ---- ML_DSA87 Component Input SING RND ---- */
+    reg {
+        name = "ML_DSA87 SIGN RND";
+        desc = "ML_DSA87 SIGN RND register type definition";
+
+        default sw = w;
+        default hw = rw;
+        default we = true;
+        default resetsignal = reset_b;
+        field {desc = "Input seed field"; swwe = ml_dsa87_ready; hwclr;} SIGN_RND[32] = 32'b0;
+    } ML_DSA87_SIGN_RND[8] @0x00000180;
+
+    /* ---- ML_DSA87 Component Input Message ---- */
+    reg {
+        name = "ML_DSA87 MSG";
+        desc = "ML_DSA87 component hashed message register type definition
+                16 32-bit registers storing the hash of the message respect
+                to SHA512 algorithm in big-endian representation.
+                The hashed message can be any 512-bit value in [0 : 2^512-1].";
+
+        default sw = w;
+        default hw = rw;
+        default we = true;
+        default resetsignal = reset_b;
+        field {desc = "Input message field"; swwe = ml_dsa87_ready; hwclr;} MSG[32] = 32'b0;
+
+    } ML_DSA87_MSG[16] @0x00000200;
+
+    /* ---- ML_DSA87 Component Output verification result ---- */
+    reg {
+        name = "ML_DSA87 VERIFICATION RESULT";
+        desc = "ML_DSA87 verification result.";
+
+        default sw = r;
+        default hw = w;
+        default we = true;
+        default resetsignal = reset_b;
+        field {desc = "Output verification result field"; swwe = ml_dsa87_ready; hwclr;} VERIFICATION_RESULT[32] = 32'b0;
+
+    } ML_DSA87_VERIFICATION_RESULT[16] @0x00000280;
+
+    /* ---- ML_DSA87 Component Secret Key Out result ---- */
+    reg {
+        name = "ML_DSA87 SECRET KEY OUT";
+        desc = "ML_DSA87 SECRET KEY OUT. Used by keygen.";
+
+        default sw = r;
+        default hw = w;
+        default we = true;
+        field {desc = "Keygen secret key field"; swwe = ml_dsa87_ready; hwclr;} SECRET_KEY_OUT[32] = 32'b0;
+    } ML_DSA87_SECRET_KEY_OUT[1224] @0x00000300;
+
+    /* ---- ML_DSA87 Component Secret Key In ---- */
+    reg {
+        name = "ML_DSA87 SECRET KEY IN";
+        desc = "ML_DSA87 SECRET KEY IN. Used by sign.";
+
+        default sw = w;
+        default hw = r;
+        default we = true;
+        field {desc = "Sign secret key field"; swwe = ml_dsa87_ready; hwclr;} SECRET_KEY_IN[32] = 32'b0;
+    } ML_DSA87_SECRET_KEY_IN[1224] @0x00001620;
+
+    /* ---- ML_DSA87 Component Public Key In ---- */
+    reg {
+        name = "ML_DSA87 Public KEY In";
+        desc = "ML_DSA87 SECRET KEY OUT. Used by verify and keygen.";
+
+        default sw = rw;
+        default hw = rw;
+        default we = true;
+        field {desc = "Public key field"; swwe = ml_dsa87_ready; hwclr;} PUBLIC_KEY[32] = 32'b0;
+    } ML_DSA87_PUBLIC_KEY[648] @0x00002940;
+    /* ---- ML_DSA87 Component Signature ---- */
+    reg {
+        name = "ML_DSA87 Signature";
+        desc = "ML_DSA87 Signature. Used by verify and sign.";
+
+        default sw = rw;
+        default hw = rw;
+        default we = true;
+        field {desc = "Signature field"; swwe = ml_dsa87_ready; hwclr;} SIGNATURE[32] = 32'b0;
+    } ML_DSA87_SIGNATURE[1157] @0x00003400;
+
+
+    ////////////////////////////////////////////////////////////////
+    // Interrupts
+    /* -----------------------
+     * Register File definitive definition
+     * ----------------------- */
+
+    // Notifications are non-error events that occur during normal operation of the module.
+    // E.g. a completion of a job may produce a notification.
+    // Error and notification events are separated into separate status/trigger registers
+    // to allow effective priority allocation by software
+    regfile intr_block_t {
+
+
+        /* -----------------------
+         * Default properties for Register File
+         * ----------------------- */
+
+        name = "Interrupt Register Block";
+        desc = "Set of registers to implement interrupt functionality
+                for ML_DSA87";
+
+        default regwidth = 32; // reg property
+        default accesswidth = 32; // reg property
+        default hw = na; // field property
+
+
+        /* -----------------------
+         * Register definitive definitions
+         * ----------------------- */
+
+        /* ---- Global Interrupt Enable ---- */
+        reg global_intr_en_t {
+            name = "Per-Type Interrupt Enable Register";
+            desc = "Dedicated register with one bit for each event type that may produce an interrupt.";
+
+            default hw = na;
+            default sw = rw;
+
+            // Global enablement (for interrupts of the event types defined for this module)
+            field {desc = "Global enable bit for all events of type 'Error'";       } error_en = 1'b0;
+            field {desc = "Global enable bit for all events of type 'Notification'";} notif_en = 1'b0;
+        };
+
+        /* ---- Error Interrupt Enable ---- */
+        reg error_intr_en_t {
+            name = "Per-Event Interrupt Enable Register";
+            desc = "Dedicated register with one bit for each event that may produce an interrupt.";
+
+            default hw = na;
+            default sw = rw;
+
+            // Specific enables for the events defined in this
+            // event type in the instantiating peripheral.
+            // TODO: Add en, sts, trig, cnt for all tracked errors
+            field {desc = "Enable bit for Internal Errors";               } error_internal_en = 1'b0;
+        };
+
+        /* ---- Notification Interrupt Enable ---- */
+        reg notif_intr_en_t {
+            name = "Per-Event Interrupt Enable Register";
+            desc = "Dedicated register with one bit for each event that may produce an interrupt.";
+
+            default hw = na;
+            default sw = rw;
+
+            // Specific enables for the events defined in this
+            // event type in the instantiating peripheral.
+            field {desc = "Enable bit for Command Done";} notif_cmd_done_en = 1'b0;
+        };
+
+        /* ---- Error Interrupt Status ---- */
+        reg error_intr_t {
+            name = "Interrupt Status Register type definition";
+            desc = "Single bit indicating occurrence of each interrupt event.
+                    Sticky, level assertion, write-1-to-clear.";
+
+            default precedence = hw;
+            default hw = w;
+            default hwset = true;
+            default sw = rw;
+            default woclr = true;
+            default level intr;
+
+            field {desc = "Internal Errors status bit";                 } error_internal_sts = 1'b0;
+        };
+
+        /* ---- Notification Interrupt Status ---- */
+        reg notif_intr_t {
+            name = "Interrupt Status Register type definition";
+            desc = "Single bit indicating occurrence of each interrupt event.
+                    Sticky, level assertion, write-1-to-clear.";
+
+            default precedence = hw;
+            default hw = w;
+            default hwset = true;
+            default sw = rw;
+            default woclr = true;
+            default level intr;
+
+            field {desc = "Command Done status bit";} notif_cmd_done_sts = 1'b0;
+        };
+
+        /* ---- Aggregated Interrupt Status ---- */
+        reg global_intr_t {
+            name = "Interrupt Status Aggregation Register type definition";
+            desc = "Single bit indicating occurrence of any interrupt event
+                    of a given type. E.g. Notifications and Errors may drive
+                    to two separate interrupt registers. There may be
+                    multiple sources of Notifications or Errors that are
+                    aggregated into a single interrupt pin for that
+                    respective type. That pin feeds through this register
+                    in order to apply a global enablement of that interrupt
+                    event type.
+                    Nonsticky assertion.";
+
+            default hw = w;
+            default sw = r;
+            default nonsticky intr;
+
+            field {desc = "Interrupt Event Aggregation status bit";} agg_sts = 1'b0;
+        };
+
+        /* ---- Error Interrupt Trigger ---- */
+        reg error_intr_trig_t {
+            name = "Interrupt Trigger Register type definition";
+            desc = "Single bit for each interrupt event allows SW to manually
+                    trigger occurrence of that event. Upon SW write, the trigger bit
+                    will pulse for 1 cycle then clear to 0. The pulse on the
+                    trigger register bit results in the corresponding interrupt
+                    status bit being set to 1.";
+
+            default hw = na;
+            default sw = rw;
+            default woset = true;
+            default singlepulse = true;
+
+            // Instantiate triggers bit-by-bit.
+            field {desc = "Internal Errors trigger bit";               } error_internal_trig = 1'b0;
+        };
+
+        /* ---- Notification Interrupt Trigger ---- */
+        reg notif_intr_trig_t {
+            name = "Interrupt Trigger Register type definition";
+            desc = "Single bit for each interrupt event allows SW to manually
+                    trigger occurrence of that event. Upon SW write, the trigger bit
+                    will pulse for 1 cycle then clear to 0. The pulse on the
+                    trigger register bit results in the corresponding interrupt
+                    status bit being set to 1.";
+
+            default hw = na;
+            default sw = rw;
+            default woset = true;
+            default singlepulse = true;
+
+            // Instantiate triggers bit-by-bit.
+            field {desc = "Command Done trigger bit";} notif_cmd_done_trig = 1'b0;
+        };
+
+        /* ---- Interrupt Statistics Counter Incrementor ---- */
+        reg intr_count_incr_t {
+            name = "Interrupt Event Count Incrementor";
+            desc = "Trigger the event counter to increment based on observing
+                    the rising edge of an interrupt event input from the
+                    Hardware. The same input signal that causes an interrupt
+                    event to be set (sticky) also causes this signal to pulse
+                    for 1 clock cycle, resulting in the event counter
+                    incrementing by 1 for every interrupt event.
+                    This is implemented as a down-counter (1-bit) that will
+                    decrement immediately on being set - resulting in a pulse";
+
+            default hw = w;
+            default sw = r; // Has to have some access.... ideally SW wouldn't even see this
+            default hwset = true;
+            default decrvalue = 1;
+            default counter;
+
+            field {desc = "Pulse mirrors interrupt event occurrence";} pulse = 1'b0;
+        };
+
+        /* ---- Interrupt Statistics Counter ---- */
+        reg intr_count_t {
+            name = "Interrupt Event Counter";
+            desc = "Provides statistics about the number of events that have
+                    occurred.
+                    Will not overflow ('incrsaturate').";
+
+            default sw = rw;
+            default hw = na;
+            default incrvalue = 1;
+            default incrsaturate = true;
+            default counter;
+
+            field {desc = "Count field";} cnt[32] = 32'h0;
+        };
+
+
+        /* ------------------------------------------------- Registers ------------------------------------------------- */
+        // First 9 registers are static and always defined                                                               //
+        global_intr_en_t  global_intr_en_r;      /* 1-bit per event type */                                              //
+        error_intr_en_t   error_intr_en_r;       /* 1-bit per error */                                                   //
+        notif_intr_en_t   notif_intr_en_r;       /* 1-bit per notification */                                            //
+        global_intr_t     error_global_intr_r;   /* 1-bit aggregating all error interrupts with global enable */         //
+        global_intr_t     notif_global_intr_r;   /* 1-bit aggregating all notification interrupts with global enable */  //
+        error_intr_t      error_internal_intr_r; /* Error pending, SW write 1 to clear */                                //
+        notif_intr_t      notif_internal_intr_r; /* Notification pending, SW write 1 to clear */                         //
+        error_intr_trig_t error_intr_trig_r;     /* SW sets error bit for interrupt testing */                           //
+        notif_intr_trig_t notif_intr_trig_r;     /* SW sets notification bit for interrupt testing */                    //
+                                                                                                                         //
+        // Align this set of registers; number of counters is based on peripheral event requirements                     //
+        intr_count_t      error_internal_intr_count_r @0x100;  /* Per error */                                           //
+        intr_count_t      notif_cmd_done_intr_count_r @0x180; /* Per notification */                                     //
+                                                                                                                         //
+        // These registers should be treated by SW as reserved, and ignored.                                             //
+        // Offset at 0x200 gives enough space for 32 Errors and 32 Notifications                                         //
+        // to be implemented (requiring 2*32 32-bit registers starting at                                                //
+        // offset 0x100), and still allowing the entire regfile to fit                                                   //
+        // inside a 1024-byte space.                                                                                     //
+        intr_count_incr_t error_internal_intr_count_incr_r @0x200; /* Per error count incrementor pulse */               //
+        intr_count_incr_t notif_cmd_done_intr_count_incr_r;       /* Per notification count incrementor pulse */         //
+        /* ------------------------------------------------------------------------------------------------------------- */
+
+        /* ---- Reset assignment for Error Events ---- */
+        error_internal_intr_r.error_internal_sts -> resetsignal = hard_reset_b;
+        error_internal_intr_count_r.cnt          -> resetsignal = hard_reset_b;
+        // TODO: Use this same reset for the error incrementor pulse too?
+
+        /* ---- Interrupt Event Dynamic Assignments ---- */
+        error_internal_intr_r.error_internal_sts -> enable = error_intr_en_r.error_internal_en;
+        notif_internal_intr_r.notif_cmd_done_sts -> enable = notif_intr_en_r.notif_cmd_done_en;
+
+        error_internal_intr_r.error_internal_sts -> next   = error_intr_trig_r.error_internal_trig;
+        notif_internal_intr_r.notif_cmd_done_sts -> next   = notif_intr_trig_r.notif_cmd_done_trig;
+
+        // NOTE: hwset for events is implicitly defined as module input
+
+        /* ---- Global Interrupt Dynamic Assignments ---- */
+        error_global_intr_r.agg_sts -> enable = global_intr_en_r.error_en;
+        notif_global_intr_r.agg_sts -> enable = global_intr_en_r.notif_en;
+
+        error_global_intr_r.agg_sts -> next = error_internal_intr_r -> intr;
+        notif_global_intr_r.agg_sts -> next = notif_internal_intr_r -> intr;
+
+        /* ---- Event Statistics Tracker Assignments ---- */
+        // NOTE: This method relies upon a "counter" that is set using the
+        //       same events that trigger an interrupt, then immediately
+        //       self-clearing, which results in a pulse. Must be configured
+        //       to be sensitive to the interrupt trigger events for each event.
+        //       The output pulse is then used to increment the ACTUAL counter
+        error_internal_intr_count_incr_r.pulse -> hwset    = error_internal_intr_r.error_internal_sts -> hwset; // \_____ Capture both firmware and hardware triggered events
+        error_internal_intr_count_incr_r.pulse -> next     = error_internal_intr_r.error_internal_sts -> next;  // /      as a pulse to increment the intr_count_r register
+        error_internal_intr_count_incr_r.pulse -> we       = error_internal_intr_r.error_internal_sts -> next;  // Generate a pulse from SW trigger, if set, or default to use the hwset input
+        error_internal_intr_count_incr_r.pulse -> decr     = error_internal_intr_count_incr_r.pulse; // Auto-clear to generate pulse output
+        error_internal_intr_count_r.cnt        -> incr     = error_internal_intr_count_incr_r.pulse; // Increment coincides with rising edge of interrupt sts bit
+
+        notif_cmd_done_intr_count_incr_r.pulse -> hwset    = notif_internal_intr_r.notif_cmd_done_sts -> hwset; // \_____ Capture both firmware and hardware triggered events
+        notif_cmd_done_intr_count_incr_r.pulse -> next     = notif_internal_intr_r.notif_cmd_done_sts -> next;  // /      as a pulse to increment the intr_count_r register
+        notif_cmd_done_intr_count_incr_r.pulse -> we       = notif_internal_intr_r.notif_cmd_done_sts -> next;  // Generate a pulse from SW trigger, if set, or default to use the hwset input
+        notif_cmd_done_intr_count_incr_r.pulse -> decr     = notif_cmd_done_intr_count_incr_r.pulse; // Auto-clear to generate pulse output
+        notif_cmd_done_intr_count_r.cnt        -> incr     = notif_cmd_done_intr_count_incr_r.pulse; // Increment coincides with rising edge of interrupt sts bit
+
+    };
+
+
+    /* -----------------------
+     * Register File instance
+     * ----------------------- */
+    intr_block_t intr_block_rf @0x800;
+};

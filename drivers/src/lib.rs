@@ -21,6 +21,7 @@ mod wait;
 mod bounded_address;
 mod csrng;
 mod data_vault;
+mod ml_dsa87;
 mod doe;
 mod ecc384;
 mod error_reporter;
@@ -52,13 +53,20 @@ mod soc_ifc;
 mod trng;
 mod trng_ext;
 
-pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use array::{
+    Array4x1157, Array4x12, Array4x1224, Array4x16, Array4x4, Array4x5, Array4x648, Array4x8,
+    Array4xN,
+};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{
     ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
+};
+pub use ml_dsa87::{
+    MlDsa87, MlDsa87MsgScalar, MlDsa87PublicKey, MlDsa87PublicKeyScalar, MlDsa87Result,
+    MlDsa87SecretKey, MlDsa87SecretKeyScalar, MlDsa87Seed, MlDsa87SignatureScalar,
 };
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
