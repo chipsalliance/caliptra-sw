@@ -23,7 +23,9 @@ pub trait U32Array: AsRef<[u32]> {
 }
 pub trait U32ArrayBytes: AsRef<[u8]> {
     const WORD_LEN: usize;
-    type WordArray: AsMut<[u32]> + Default;
+    type WordArray: AsMut<[u32]>;
+    // Required because Default isn't implemented for [u32; 64 and higher]
+    fn default_result() -> Self::WordArray;
 }
 macro_rules! u32_array_impl {
     ($word_len:literal) => {
@@ -37,6 +39,9 @@ macro_rules! u32_array_impl {
         impl U32ArrayBytes for [u8; $word_len * 4] {
             const WORD_LEN: usize = $word_len;
             type WordArray = [u32; $word_len];
+            fn default_result() -> Self::WordArray {
+                [0u32; $word_len]
+            }
         }
     };
 }
@@ -58,9 +63,12 @@ u32_array_impl!(14);
 u32_array_impl!(15);
 u32_array_impl!(16);
 u32_array_impl!(32);
+u32_array_impl!(648);
+u32_array_impl!(1157);
+u32_array_impl!(1224);
 
 pub fn words_from_bytes_le<A: U32ArrayBytes>(arr: &A) -> A::WordArray {
-    let mut result = A::WordArray::default();
+    let mut result = A::default_result();
     for i in 0..result.as_mut().len() {
         result.as_mut()[i] = u32::from_le_bytes(arr.as_ref()[i * 4..][..4].try_into().unwrap())
     }
@@ -68,7 +76,7 @@ pub fn words_from_bytes_le<A: U32ArrayBytes>(arr: &A) -> A::WordArray {
 }
 
 pub fn words_from_bytes_be<A: U32ArrayBytes>(arr: &A) -> A::WordArray {
-    let mut result = A::WordArray::default();
+    let mut result = A::default_result();
     for i in 0..result.as_mut().len() {
         result.as_mut()[i] = u32::from_be_bytes(arr.as_ref()[i * 4..][..4].try_into().unwrap())
     }
