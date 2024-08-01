@@ -14,61 +14,61 @@ jobs:
       contents: write
       pull-requests: write
 
-  find-latest-release:
-    name: Find Latest Release
-    needs: rtl-repo-sync
-    runs-on: ubuntu-22.04
-    outputs:
-      create_release: ${{ steps.find.outputs.create_release }}
-      new_release_tag: ${{ steps.find.outputs.new_release_tag }}
-      release_ref: ${{ steps.find.outputs.release_ref }}
-
-    permissions:
-      contents: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: 'main'
-          fetch-depth: 0
-
-      - name: Find latest release
-        id: find
-        run: |
-          DATE="$(date +'%Y%m%d')"
-          TAG_PREFIX="release_v"
-          TAG_BASE="${TAG_PREFIX}${DATE}_"
-          INDEX=0
-          while git tag | grep ${TAG_BASE}${INDEX}; do
-              ((INDEX+=1))
-          done
-          git submodule update --remote hw/1.0/rtl
-          git submodule update --remote hw/latest/rtl
-          CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
-          MOST_RECENT_RELEASE=None
-          if git tag | grep ${TAG_PREFIX} > /dev/null; then
-              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
-          fi
-          if [ "$MOST_RECENT_RELEASE" == "None" ] && [ !"$CHECK_RELEASE_SYNC" ]; then
-              echo "create_release=true" >> $GITHUB_OUTPUT
-          else
-              COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
-              if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
-                  echo "create_release=true" >> $GITHUB_OUTPUT
-              else
-                  echo "create_release=false" >> $GITHUB_OUTPUT
-              fi
-          fi
-          echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
-          echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
+  #find-latest-release:
+  #  name: Find Latest Release
+  #  needs: rtl-repo-sync
+  #  runs-on: ubuntu-22.04
+  #  outputs:
+  #    create_release: ${{ steps.find.outputs.create_release }}
+  #    new_release_tag: ${{ steps.find.outputs.new_release_tag }}
+  #    release_ref: ${{ steps.find.outputs.release_ref }}
+#
+  #  permissions:
+  #    contents: write
+  #    pull-requests: write
+#
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        submodules: 'true'
+  #        ref: 'main'
+  #        fetch-depth: 0
+#
+  #    - name: Find latest release
+  #      id: find
+  #      run: |
+  #        DATE="$(date +'%Y%m%d')"
+  #        TAG_PREFIX="release_v"
+  #        TAG_BASE="${TAG_PREFIX}${DATE}_"
+  #        INDEX=0
+  #        while git tag | grep ${TAG_BASE}${INDEX}; do
+  #            ((INDEX+=1))
+  #        done
+  #        git submodule update --remote hw/1.0/rtl
+  #        git submodule update --remote hw/latest/rtl
+  #        CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
+  #        MOST_RECENT_RELEASE=None
+  #        if git tag | grep ${TAG_PREFIX} > /dev/null; then
+  #            MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
+  #        fi
+  #        if [ "$MOST_RECENT_RELEASE" == "None" ] && [ !"$CHECK_RELEASE_SYNC" ]; then
+  #            echo "create_release=true" >> $GITHUB_OUTPUT
+  #        else
+  #            COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
+  #            if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
+  #                echo "create_release=true" >> $GITHUB_OUTPUT
+  #            else
+  #                echo "create_release=false" >> $GITHUB_OUTPUT
+  #            fi
+  #        fi
+  #        echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
+  #        echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+  #        echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
   fpga-1_0-full-suite-etrng-log:
     name: FPGA Suite (1.0, etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-etrng-log
@@ -79,8 +79,8 @@ jobs:
 
   fpga-1_0-full-suite-etrng-nolog:
     name: FPGA Suite (1.0, etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-etrng-nolog
@@ -91,8 +91,8 @@ jobs:
 
   fpga-1_0-full-suite-itrng-log:
     name: FPGA Suite (1.0, itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-itrng-log
@@ -103,8 +103,8 @@ jobs:
 
   fpga-1_0-full-suite-itrng-nolog:
     name: FPGA Suite (1.0, itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-itrng-nolog
@@ -115,8 +115,8 @@ jobs:
 
   fpga-latest-full-suite-etrng-log:
     name: FPGA Suite (hw-latest, etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-log
@@ -127,8 +127,8 @@ jobs:
 
   fpga-latest-full-suite-etrng-nolog:
     name: FPGA Suite (hw-latest, etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-nolog
@@ -139,8 +139,8 @@ jobs:
 
   fpga-latest-full-suite-itrng-log:
     name: FPGA Suite (hw-latest, itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-log
@@ -151,8 +151,8 @@ jobs:
 
   fpga-latest-full-suite-itrng-nolog:
     name: FPGA Suite (hw-latest, itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-nolog
@@ -163,8 +163,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-etrng-log
@@ -173,8 +173,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-etrng-nolog:
     name: sw-emulator Suite (etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
@@ -183,8 +183,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-itrng-log:
     name: sw-emulator Suite (itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-itrng-log
@@ -193,8 +193,8 @@ jobs:
 
   sw-emulator-hw-latest-full-suite-itrng-nolog:
     name: sw-emulator Suite (itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
@@ -203,8 +203,8 @@ jobs:
 
   sw-emulator-hw-1_0-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-etrng-log
@@ -213,8 +213,8 @@ jobs:
 
   sw-emulator-hw-1_0-full-suite-etrng-nolog:
     name: sw-emulator Suite (etrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-etrng-nolog
@@ -223,8 +223,8 @@ jobs:
 
   sw-emulator-hw-1_0-full-suite-itrng-log:
     name: sw-emulator Suite (itrng, log)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-itrng-log
@@ -233,94 +233,94 @@ jobs:
 
   sw-emulator-hw-1_0-full-suite-itrng-nolog:
     name: sw-emulator Suite (itrng, nolog)
-    needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
+    #needs: find-latest-release
+    #if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-itrng-nolog
       extra-features: hw-1.0,slow_tests,itrng
       rom-logging: false
 
-  create-release:
-    name: Create New Release
-    needs:
-      - find-latest-release
-      - fpga-1_0-full-suite-etrng-log
-      - fpga-1_0-full-suite-etrng-nolog
-      - fpga-1_0-full-suite-itrng-log
-      - fpga-1_0-full-suite-itrng-nolog
-      - fpga-latest-full-suite-etrng-log
-      - fpga-latest-full-suite-etrng-nolog
-      - fpga-latest-full-suite-itrng-log
-      - fpga-latest-full-suite-itrng-nolog
-      - sw-emulator-hw-latest-full-suite-etrng-log
-      - sw-emulator-hw-latest-full-suite-etrng-nolog
-      - sw-emulator-hw-latest-full-suite-itrng-log
-      - sw-emulator-hw-latest-full-suite-itrng-nolog
-      - sw-emulator-hw-1_0-full-suite-etrng-log
-      - sw-emulator-hw-1_0-full-suite-etrng-nolog
-      - sw-emulator-hw-1_0-full-suite-itrng-log
-      - sw-emulator-hw-1_0-full-suite-itrng-nolog
+  #create-release:
+  #  name: Create New Release
+  #  needs:
+  #    - find-latest-release
+  #    - fpga-1_0-full-suite-etrng-log
+  #    - fpga-1_0-full-suite-etrng-nolog
+  #    - fpga-1_0-full-suite-itrng-log
+  #    - fpga-1_0-full-suite-itrng-nolog
+  #    - fpga-latest-full-suite-etrng-log
+  #    - fpga-latest-full-suite-etrng-nolog
+  #    - fpga-latest-full-suite-itrng-log
+  #    - fpga-latest-full-suite-itrng-nolog
+  #    - sw-emulator-hw-latest-full-suite-etrng-log
+  #    - sw-emulator-hw-latest-full-suite-etrng-nolog
+  #    - sw-emulator-hw-latest-full-suite-itrng-log
+  #    - sw-emulator-hw-latest-full-suite-itrng-nolog
+  #    - sw-emulator-hw-1_0-full-suite-etrng-log
+  #    - sw-emulator-hw-1_0-full-suite-etrng-nolog
+  #    - sw-emulator-hw-1_0-full-suite-itrng-log
+  #    - sw-emulator-hw-1_0-full-suite-itrng-nolog
+#
+  #  runs-on: ubuntu-22.04
+#
+  #  permissions:
+  #    contents: write
+  #    pull-requests: write
+#
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        submodules: 'true'
+  #        ref: ${{ needs.find-latest-release.outputs.release_ref }}
+#
+  #    - name: Generate release zip
+  #      run: |
+  #        ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
+  #        mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+#
+  #    - name: 'Download all artifacts'
+  #      uses: actions/download-artifact@v4
+  #      with:
+  #        path: /tmp/artifacts
+#
+  #    - name: Package all test artifacts for release
+  #      run: |
+  #        (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+#
+  #    - name: Tag repo with new release number
+  #      run: |
+  #        git config --global user.name "GitHub CI"
+  #        git config --global user.email "username@users.noreply.github.com"
+  #        git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
+  #        git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
+#
+  #    - name: Upload release
+  #      uses: softprops/action-gh-release@v1
+  #      with:
+  #        files: |
+  #          ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+  #          ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+  #        tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+  #        prerelease: true
+#
+  #    - name: Write artifact to workflow with release info
+  #      run: |
+  #        mkdir /tmp/release-info
+  #        echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
+  #        echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
+#
+  #    - name: Write artifact with release info
+  #      uses: actions/upload-artifact@v4
+  #      with:
+  #        name: release-info
+  #        path: /tmp/release-info
 
-    runs-on: ubuntu-22.04
-
-    permissions:
-      contents: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: ${{ needs.find-latest-release.outputs.release_ref }}
-
-      - name: Generate release zip
-        run: |
-          ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
-          mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
-
-      - name: 'Download all artifacts'
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/artifacts
-
-      - name: Package all test artifacts for release
-        run: |
-          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
-
-      - name: Tag repo with new release number
-        run: |
-          git config --global user.name "GitHub CI"
-          git config --global user.email "username@users.noreply.github.com"
-          git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
-          git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
-
-      - name: Upload release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
-            ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
-          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
-          prerelease: true
-
-      - name: Write artifact to workflow with release info
-        run: |
-          mkdir /tmp/release-info
-          echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
-          echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
-
-      - name: Write artifact with release info
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-info
-          path: /tmp/release-info
-
-  publish-website:
-    name: Publish https://caliptra-sw.github.io/
-    needs:
-      create-release
-    uses: ./.github/workflows/publish-website.yml
-    permissions:
-      pages: write
-      id-token: write
+  #publish-website:
+  #  name: Publish https://caliptra-sw.github.io/
+  #  needs:
+  #    create-release
+  #  uses: ./.github/workflows/publish-website.yml
+  #  permissions:
+  #    pages: write
+  #    id-token: write
