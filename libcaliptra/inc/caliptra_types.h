@@ -218,11 +218,8 @@ struct caliptra_capabilities_resp {
     uint8_t capabilities[16];
 };
 
-// The below fields are placeholders to set up the baseline
-// required for communication of DPE commands to Caliptra
-// firmware.
+// DPE commands
 
-#define DPE_DATA_MAX 512
 #define DPE_MAGIC    0x44504543 // "DPEC"
 
 struct dpe_cmd_hdr {
@@ -254,6 +251,10 @@ struct dpe_resp_hdr {
 #endif
 
 // GET_PROFILE
+struct dpe_get_profile_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+};
+
 struct dpe_get_profile_response {
     struct dpe_resp_hdr resp_hdr;
     uint16_t profile_major_version;
@@ -344,7 +345,10 @@ struct dpe_rotate_context_handle_response {
 struct dpe_destroy_context_cmd {
     struct dpe_cmd_hdr cmd_hdr;
     uint8_t context_handle[DPE_HANDLE_SIZE];
-    uint32_t flags;
+};
+
+struct dpe_destroy_context_response {
+    struct dpe_resp_hdr resp_hdr;
 };
 
 // GET_CERTIFICATE_CHAIN
@@ -365,6 +369,8 @@ struct caliptra_invoke_dpe_req {
     struct caliptra_req_header hdr;
     uint32_t data_size;
     union {
+        struct dpe_cmd_hdr                      cmd_hdr;
+        struct dpe_get_profile_cmd              get_profile_cmd;
         struct dpe_initialize_context_cmd       initialize_context_cmd;
         struct dpe_derive_context_cmd           derive_context_cmd;
         struct dpe_certify_key_cmd              certify_key_cmd;
@@ -372,7 +378,7 @@ struct caliptra_invoke_dpe_req {
         struct dpe_rotate_context_handle_cmd    rotate_context_handle_cmd;
         struct dpe_destroy_context_cmd          destroy_context_cmd;
         struct dpe_get_certificate_chain_cmd    get_certificate_chain_cmd;
-        uint8_t                                 data[DPE_DATA_MAX];
+        uint8_t                                 data[0];
     };
 };
 
@@ -380,13 +386,15 @@ struct caliptra_invoke_dpe_resp {
     struct caliptra_resp_header cpl;
     uint32_t data_size;
     union {
+        struct dpe_resp_hdr                         resp_hdr;
         struct dpe_get_profile_response             get_profile_resp;
         struct dpe_initialize_context_response      initialize_context_resp;
         struct dpe_derive_context_response          derive_context_resp;
         struct dpe_certify_key_response             certify_key_resp;
         struct dpe_sign_response                    sign_resp;
         struct dpe_rotate_context_handle_response   rotate_context_handle_resp;
+        struct dpe_destroy_context_response         destroy_context_resp;
         struct dpe_get_certificate_chain_response   get_certificate_chain_resp;
-        uint8_t                                     data[sizeof(struct dpe_certify_key_response)];
+        uint8_t                                     data[0];
     };
 };
