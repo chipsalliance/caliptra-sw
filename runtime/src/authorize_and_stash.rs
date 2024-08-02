@@ -81,7 +81,11 @@ impl AuthorizeAndStashCmd {
 
             let mut auth_result = DENY_IMAGE_AUTHORIZATION;
             for metadata_entry in auth_manifest_image_metadata_col.image_metadata_array.iter() {
-                if metadata_entry.digest == cmd.measurement {
+                if cfi_launder(metadata_entry.digest) == cmd.measurement {
+                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                        &Array4x12::from(metadata_entry.digest).0,
+                        &Array4x12::from(cmd.measurement).0,
+                    );
                     auth_result = AUTHORIZE_IMAGE;
                     break;
                 }
