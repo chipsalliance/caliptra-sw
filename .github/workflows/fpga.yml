@@ -421,7 +421,7 @@ jobs:
           VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            VARS+=" FIPS_TEST_HW_EXP_VERSION=1_0_0"
+            VARS+=" FIPS_TEST_HW_EXP_VERSION=1_0_2"
             VARS+=" FIPS_TEST_ROM_EXP_VERSION=1_0_1"
           fi
 
