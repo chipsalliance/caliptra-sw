@@ -34,6 +34,7 @@ pub struct HwExpVals {
 }
 
 const HW_EXP_1_0_0: HwExpVals = HwExpVals { hw_revision: 0x1 };
+const HW_EXP_1_0_2: HwExpVals = HwExpVals { hw_revision: 0x201 };
 
 const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x11 };
 
@@ -85,6 +86,7 @@ impl HwExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_0" => HW_EXP_1_0_0,
+                "1_0_2" => HW_EXP_1_0_2,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected HW values ({})",
                     version

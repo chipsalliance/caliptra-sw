@@ -48,11 +48,7 @@ fn jtag_locked() {
         &rom,
         true,
         DeviceLifecycle::Manufacturing,
-        if cfg!(feature = "hw-1.0") {
-            Ok(())
-        } else {
-            Err(OpenOcdError::VeerNotAccessible)
-        },
+        Err(OpenOcdError::VeerNotAccessible),
     );
     check_jtag_accessible(
         &rom,

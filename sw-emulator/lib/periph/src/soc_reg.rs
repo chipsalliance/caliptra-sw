@@ -813,7 +813,7 @@ impl SocRegistersImpl {
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(if cfg!(feature = "hw-1.0") {
-                0x1
+                0x201
             } else {
                 0x11
             }),

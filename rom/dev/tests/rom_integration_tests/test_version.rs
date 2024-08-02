@@ -12,7 +12,11 @@ use crate::helpers;
 
 // TODO: Find a better way to get this or make it a don't-care for this test
 //       This is not going to work when we start testing against multiple hw revs
-const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
+const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") {
+    0x201
+} else {
+    0x11
+};
 
 #[test]
 fn test_version() {
