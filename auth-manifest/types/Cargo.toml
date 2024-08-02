@@ -1,0 +1,22 @@
+# Licensed under the Apache-2.0 license.
+
+[package]
+name = "caliptra-auth-man-types"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+arbitrary = { workspace = true, optional = true }
+caliptra-lms-types.workspace = true
+memoffset.workspace = true
+zerocopy.workspace = true
+caliptra-error = { workspace = true, default-features = false }
+zeroize.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
+
+[features]
+default = ["std"]
+std = []

@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 mod common;
+mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
@@ -15,6 +16,7 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+mod test_set_auth_manifest;
 mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;
