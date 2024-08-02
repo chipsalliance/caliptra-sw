@@ -2,6 +2,7 @@
 #ifndef CALIPTRA_FUSES_H
 #define CALIPTRA_FUSES_H
 
+#include <caliptra_top_reg.h>
 #include "caliptra_api.h"
 
 #define CALIPTRA_ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
@@ -9,6 +10,10 @@
 // WARNING: THOSE APIS ARE INTENTED FOR SIMULATION ONLY.
 //          SOC FW MUST HAVE NO ACCESS TO THOSE APIS.
 //          A HW STATE MACHINE SHOULD BE USED TO SEND FUSE VALUES TO CALIPTRA OVER APB BUS
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline void caliptra_fuse_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
@@ -21,5 +26,8 @@ static inline void caliptra_fuse_array_write(caliptra_model *model, uint32_t off
         caliptra_fuse_write(model, (offset + (idx * sizeof(uint32_t))), data[idx]);
 }
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

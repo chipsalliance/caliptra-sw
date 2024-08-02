@@ -98,14 +98,16 @@ fn test_cold_reset_success() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -123,15 +125,17 @@ fn test_cold_reset_no_rng() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image_bundle.to_bytes().unwrap()),
-        initial_dbg_manuf_service_reg: 0x2, // Disable RNG
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            initial_dbg_manuf_service_reg: 0x2, // Disable RNG
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);

@@ -2,7 +2,7 @@
 
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
-    version, ImageOptions,
+    ImageOptions,
 };
 use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
@@ -52,9 +52,10 @@ fn test_fw_version() {
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
     // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
+    // Ignore ROM version since this test is for runtime
     assert_eq!(
-        fw_rev[0],
-        ((DEFAULT_FMC_VERSION as u32) << 16) | (version::get_rom_version() as u32)
+        fw_rev[0] & 0xFFFF0000, // Mask out the ROM version
+        (DEFAULT_FMC_VERSION as u32) << 16
     );
     assert_eq!(fw_rev[1], DEFAULT_APP_VERSION);
 }
@@ -167,15 +168,17 @@ fn test_boot_tci_data() {
 fn test_measurement_in_measurement_log_added_to_dpe() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(

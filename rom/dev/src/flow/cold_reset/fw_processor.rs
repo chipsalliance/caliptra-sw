@@ -92,6 +92,13 @@ impl FirmwareProcessor {
             env.persistent_data.get_mut(),
         )?;
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::halt_if_hook_set(
+                caliptra_drivers::FipsTestHook::HALT_FW_LOAD,
+            )
+        };
+
         // Load the manifest
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
@@ -271,10 +278,14 @@ impl FirmwareProcessor {
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!(
-                                "[fwproc] Maximum supported number of measurements already received, ignoring."
+                                "[fwproc] Maximum supported number of measurements already received."
                             );
                             txn.complete(false)?;
-                            continue;
+
+                            // Raise a fatal error on hitting the max. limit.
+                            // This ensures that any SOC ROM/FW couldn't send a stash measurement
+                            // that wasn't properly stored within Caliptra.
+                            return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
                         }
 
                         Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;

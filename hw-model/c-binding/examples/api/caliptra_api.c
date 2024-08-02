@@ -146,9 +146,6 @@ int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct 
         return -EIO;
     }
 
-    // Read Mbox out Data Len
-    uint32_t dlen = caliptra_mbox_read_dlen(model);
-
     // Read Buffer
     caliptra_mailbox_read_buffer(model, mbox_rx_buffer);
 

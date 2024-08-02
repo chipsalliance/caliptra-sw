@@ -331,7 +331,7 @@ pub trait FromMmioPtr {
 #[derive(Clone, Copy)]
 pub struct RegRef<TReg: RegType, TMmio: Mmio> {
     mmio: TMmio,
-    ptr: *mut TReg::Raw,
+    pub ptr: *mut TReg::Raw,
 }
 impl<TReg: RegType, TMmio: Mmio> RegRef<TReg, TMmio> {
     /// Creates a new RegRef from a raw register pointer and Mmio implementation.

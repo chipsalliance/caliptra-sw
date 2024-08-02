@@ -35,4 +35,24 @@ $_TARGETNAME_0 riscv expose_csrs 1984,1986,1992,1993,1994,1995,2032,2041,2047,40
 gdb_report_data_abort enable
 
 init
-halt
+
+# Check if we can read/write CPTRA_DBG_MANUF_SERVICE_REG to see if Caliptra JTAG registers are accessible
+set manuf [riscv dmi_read 0x60]
+riscv dmi_write 0x60 [expr {0xFFFFFFFF - $manuf}]
+set manuf_inv [riscv dmi_read 0x60]
+# Restore original value
+riscv dmi_write 0x60 [format %08X $manuf]
+if { $manuf == $manuf_inv } {
+    puts stderr "Caliptra not accessible"
+} else {
+    puts stderr "Caliptra accessible"
+}
+
+set dmstatus [riscv dmi_read 0x11]
+if {0x0 == $dmstatus} {
+    puts stderr "Core not accessible"
+} else {
+    puts stderr "Core accessible"
+    halt
+}
+puts stderr "OpenOCD setup finished"

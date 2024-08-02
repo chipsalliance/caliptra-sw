@@ -2,7 +2,13 @@
 #ifndef CALIPTRA_MBOX_H
 #define CALIPTRA_MBOX_H
 
+#include <caliptra_top_reg.h>
 #include "caliptra_api.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline void caliptra_mbox_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
     caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
@@ -50,6 +56,9 @@ static inline void caliptra_mbox_write_dlen(caliptra_model *model, uint32_t dlen
     caliptra_mbox_write(model, MBOX_CSR_MBOX_DLEN, dlen);
 }
 
+#ifdef __cplusplus
+}
+#endif
 
 #define CALIPTRA_MBOX_STATUS_BUSY               0
 #define CALIPTRA_MBOX_STATUS_DATA_READY         1

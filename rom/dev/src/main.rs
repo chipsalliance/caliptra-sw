@@ -14,6 +14,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
+#![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
@@ -187,7 +188,11 @@ pub extern "C" fn rom_entry() -> ! {
         CfiCounter::corrupt();
     }
 
-    #[cfg(not(feature = "no-fmc"))]
+    // FIPS test hooks mode does not allow handoff to FMC to prevent incorrect/accidental usage
+    #[cfg(feature = "fips-test-hooks")]
+    handle_fatal_error(CaliptraError::ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT.into());
+
+    #[cfg(not(any(feature = "no-fmc", feature = "fips-test-hooks")))]
     launch_fmc(&mut env);
 
     #[cfg(feature = "no-fmc")]
@@ -199,6 +204,13 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] SHA2-256");
     Sha256Kat::default().execute(env.sha256)?;
+
+    #[cfg(feature = "fips-test-hooks")]
+    unsafe {
+        caliptra_drivers::FipsTestHook::halt_if_hook_set(
+            caliptra_drivers::FipsTestHook::HALT_SELF_TESTS,
+        )
+    };
 
     // ROM integrity check needs SHA2-256 KAT to be executed first per FIPS requirement AS10.20.
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };

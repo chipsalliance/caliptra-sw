@@ -49,6 +49,14 @@ impl FipsModule {
             // Lock the SHA Accelerator.
             Sha2_512_384Acc::lock();
         }
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::halt_if_hook_set(
+                caliptra_drivers::FipsTestHook::HALT_SHUTDOWN_RT,
+            )
+        };
+
         env.persistent_data.get_mut().zeroize();
     }
 }

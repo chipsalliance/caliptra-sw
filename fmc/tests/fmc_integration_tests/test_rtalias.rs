@@ -45,14 +45,16 @@ fn test_boot_status_reporting() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     hw.step_until_boot_status(RT_ALIAS_MEASUREMENT_COMPLETE, true);
@@ -74,14 +76,16 @@ fn test_fht_info() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
@@ -108,14 +112,16 @@ fn test_pcr_log() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image1.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image1.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();

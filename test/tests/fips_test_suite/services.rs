@@ -1,10 +1,13 @@
 // Licensed under the Apache-2.0 license
 use crate::common;
 
+use caliptra_builder::firmware::{APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART};
+use caliptra_builder::ImageOptions;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{BootParams, HwModel, ModelError, ShaAccMode};
+use caliptra_drivers::FipsTestHook;
+use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
@@ -594,7 +597,7 @@ pub fn exec_cmd_shutdown<T: HwModel>(hw: &mut T) {
 
 #[test]
 pub fn check_version_rom() {
-    let mut hw = fips_test_init_to_rom(None);
+    let mut hw = fips_test_init_to_rom(None, None);
 
     // FMC and FW version should both be 0 before loading
     exec_cmd_version(&mut hw, 0x0, 0x0);
@@ -602,7 +605,7 @@ pub fn check_version_rom() {
 
 #[test]
 pub fn check_version_rt() {
-    let mut hw = fips_test_init_to_rt(None);
+    let mut hw = fips_test_init_to_rt(None, None);
 
     exec_cmd_version(
         &mut hw,
@@ -612,8 +615,32 @@ pub fn check_version_rt() {
 }
 
 #[test]
+pub fn version_info_update() {
+    let mut hw = fips_test_init_to_rom(None, None);
+
+    let pre_load_fmc_version = 0x0;
+    let pre_load_fw_version = 0x0;
+    let fmc_version = RtExpVals::get().fmc_version;
+    let fw_version = RtExpVals::get().fw_version;
+
+    // Prove the expected versions are different
+    assert!(fmc_version != 0x0);
+    assert!(fw_version != 0x0);
+
+    // Check pre-load versions
+    exec_cmd_version(&mut hw, pre_load_fmc_version, pre_load_fw_version);
+
+    // Load the FW
+    let fw_image = fips_fw_image();
+    hw.upload_firmware(&fw_image).unwrap();
+
+    // FMC and FW version should be populated after loading FW
+    exec_cmd_version(&mut hw, fmc_version, fw_version);
+}
+
+#[test]
 pub fn execute_all_services_rom() {
-    let mut hw = fips_test_init_to_rom(None);
+    let mut hw = fips_test_init_to_rom(None, None);
 
     // SHA accelerator engine
     exec_cmd_sha_acc(&mut hw);
@@ -642,10 +669,13 @@ pub fn execute_all_services_rom() {
 #[test]
 pub fn execute_all_services_rt() {
     let fw_image = fips_fw_image();
-    let mut hw = fips_test_init_to_rt(Some(BootParams {
-        fw_image: Some(&fw_image),
-        ..Default::default()
-    }));
+    let mut hw = fips_test_init_to_rt(
+        None,
+        Some(BootParams {
+            fw_image: Some(&fw_image),
+            ..Default::default()
+        }),
+    );
 
     // SHA accelerator engine
     exec_cmd_sha_acc(&mut hw);
@@ -722,4 +752,64 @@ pub fn execute_all_services_rt() {
 
     // SHUTDOWN
     exec_cmd_shutdown(&mut hw);
+}
+
+#[test]
+pub fn zeroize_halt_check_no_output() {
+    // Build FW with test hooks and init to runtime
+    let fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART_FIPS_TEST_HOOKS,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut hw = fips_test_init_to_rt(
+        Some(InitParams {
+            ..Default::default()
+        }),
+        Some(BootParams {
+            fw_image: Some(&fw_image),
+            initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
+                << HOOK_CODE_OFFSET,
+            ..Default::default()
+        }),
+    );
+
+    // Send the shutdown command (do not wait for response)
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
+    };
+    hw.start_mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+        .unwrap();
+
+    // Wait for ACK that ROM reached halt point
+    hook_wait_for_complete(&mut hw);
+
+    // Check output is inhibited
+    verify_output_inhibited(&mut hw);
+}
+
+#[test]
+pub fn fips_self_test_rom() {
+    let mut hw = fips_test_init_to_rom(None, None);
+
+    // SELF TEST START
+    exec_cmd_self_test_start(&mut hw);
+
+    // SELF TEST GET RESULTS
+    exec_cmd_self_test_get_results(&mut hw);
+}
+
+#[test]
+pub fn fips_self_test_rt() {
+    let mut hw = fips_test_init_to_rt(None, None);
+
+    // SELF TEST START
+    exec_cmd_self_test_start(&mut hw);
+
+    // SELF TEST GET RESULTS
+    exec_cmd_self_test_get_results(&mut hw);
 }

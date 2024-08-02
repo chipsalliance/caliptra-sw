@@ -323,6 +323,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let range = ImageManifest::vendor_pub_keys_range();
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
+
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
@@ -347,6 +355,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         reason: ResetReason,
     ) -> CaliptraResult<(ImageDigest, bool)> {
         let range = ImageManifest::owner_pub_key_range();
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_PUB_KEY_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
 
         let actual = self
             .env
@@ -390,6 +406,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Calculate the digest for the header
         let range = ImageManifest::header_range();
         let vendor_header_len = offset_of!(ImageHeader, owner_data);
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_HEADER_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
 
         // Vendor header digest is calculated up to the owner_data field.
         let digest_vendor = self
@@ -466,6 +490,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_ECC_VERIFY_FAILURE,
+                caliptra_drivers::FipsTestHook::ECC384_VERIFY_FAILURE,
+            )
+        };
+
         let verify_r = self
             .env
             .ecc384_verify(digest, pub_key, sig)
@@ -498,6 +530,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_VENDOR_ECC_VERIFY_FAILURE,
+                caliptra_drivers::FipsTestHook::ECC384_VERIFY_FAILURE,
+            )
+        };
+
         let verify_r = self
             .env
             .ecc384_verify(digest, ecc_pub_key, ecc_sig)
@@ -511,6 +551,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &ecc_sig.r);
         }
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_VENDOR_LMS_VERIFY_FAILURE,
+                caliptra_drivers::FipsTestHook::LMS_VERIFY_FAILURE,
+            )
+        };
 
         if cfi_launder(self.env.lms_verify_enabled()) {
             if let Some(info) = lms_info {
@@ -543,6 +591,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         lms_pub_key: &ImageLmsPublicKey,
         lms_sig: &ImageLmsSignature,
     ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_LMS_VERIFY_FAILURE,
+                caliptra_drivers::FipsTestHook::LMS_VERIFY_FAILURE,
+            )
+        };
+
         let candidate_key = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
@@ -576,6 +632,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         let range = ImageManifest::toc_range();
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_TOC_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
 
         let actual = self
             .env
@@ -675,6 +739,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
         let range = verify_info.image_range()?;
 
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_FMC_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
+
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
@@ -759,6 +831,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
         let range = verify_info.image_range()?;
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                caliptra_drivers::FipsTestHook::FW_LOAD_RUNTIME_DIGEST_FAILURE,
+                caliptra_drivers::FipsTestHook::SHA384_DIGEST_FAILURE,
+            )
+        };
 
         let actual = self
             .env

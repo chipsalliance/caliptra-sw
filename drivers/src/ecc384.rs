@@ -19,7 +19,7 @@ use crate::{
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_registers::ecc::EccReg;
+use caliptra_registers::ecc::{EccReg, RegisterBlock};
 use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
@@ -182,6 +182,32 @@ impl Ecc384 {
         false
     }
 
+    // Wait on the provided condition OR the error condition defined in this function
+    // In the event of the error condition being set, clear the error bits and return an error
+    fn wait<F>(regs: RegisterBlock<ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
+    where
+        F: Fn() -> bool,
+    {
+        let err_condition = || {
+            (u32::from(regs.intr_block_rf().error_global_intr_r().read()) != 0)
+                || (u32::from(regs.intr_block_rf().error_internal_intr_r().read()) != 0)
+        };
+
+        // Wait for either the given condition or the error condition
+        wait::until(|| (condition() || err_condition()));
+
+        if err_condition() {
+            // Clear the errors
+            // error_global_intr_r is RO
+            regs.intr_block_rf()
+                .error_internal_intr_r()
+                .write(|_| u32::from(regs.intr_block_rf().error_internal_intr_r().read()).into());
+            return Err(CaliptraError::DRIVER_ECC384_HW_ERROR);
+        }
+
+        Ok(())
+    }
+
     /// Generate ECC-384 Key Pair
     ///
     /// # Arguments
@@ -206,7 +232,7 @@ impl Ecc384 {
         let mut priv_key = priv_key;
 
         // Wait for hardware ready
-        wait::until(|| ecc.status().read().ready());
+        Ecc384::wait(ecc, || ecc.status().read().ready())?;
 
         // Configure hardware to route keys to user specified hardware blocks
         match &mut priv_key {
@@ -245,7 +271,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
 
         // Wait for command to complete
-        wait::until(|| ecc.status().read().valid());
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
 
         // Copy the private key
         match &mut priv_key {
@@ -263,6 +289,15 @@ impl Ecc384 {
 
         // Pairwise consistency check.
         let digest = Array4x12::new([0u32; 12]);
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pub_key = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::ECC384_PAIRWISE_CONSISTENCY_ERROR,
+                &pub_key,
+            )
+        };
+
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => sig.zeroize(),
             Err(_) => {
@@ -290,7 +325,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        wait::until(|| ecc.status().read().ready());
+        Ecc384::wait(ecc, || ecc.status().read().ready())?;
 
         // Generate an IV.
         let iv = trng.generate()?;
@@ -299,7 +334,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
 
         // Wait for command to complete
-        wait::until(|| ecc.status().read().valid());
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
 
         // Copy signature
         let signature = Ecc384Signature {
@@ -322,7 +357,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        wait::until(|| ecc.status().read().ready());
+        Ecc384::wait(ecc, || ecc.status().read().ready())?;
 
         // Copy private key
         match priv_key {
@@ -344,7 +379,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.signing()));
 
         // Wait for command to complete
-        wait::until(|| ecc.status().read().valid());
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
 
         // Copy signature
         let signature = Ecc384Signature {
@@ -379,6 +414,13 @@ impl Ecc384 {
         data: &Ecc384Scalar,
         trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
+            )?
+        }
+
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
 
@@ -387,6 +429,15 @@ impl Ecc384 {
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
         caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+
+        #[cfg(feature = "fips-test-hooks")]
+        let sig_result = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::ECC384_CORRUPT_SIGNATURE,
+                &sig_result,
+            )
+        };
+
         sig_result
     }
 
@@ -447,6 +498,11 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::ECC384_VERIFY_FAILURE)?
+        }
+
         // If R or S are not in the range [1, N-1], signature check must fail
         if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
             return Err(CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED);
@@ -455,7 +511,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        wait::until(|| ecc.status().read().ready());
+        Ecc384::wait(ecc, || ecc.status().read().ready())?;
 
         // Copy public key to registers
         pub_key.x.write_to_reg(ecc.pubkey_x());
@@ -472,7 +528,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
         // Wait for command to complete
-        wait::until(|| ecc.status().read().valid());
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
 
         // Copy the random value
         let verify_r = Array4x12::read_from_reg(ecc.verify_r());

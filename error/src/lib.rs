@@ -113,6 +113,7 @@ impl CaliptraError {
     pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x0005000f);
     pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
+    pub const DRIVER_ECC384_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00050011);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -472,6 +473,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01020006);
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
+    pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
+        CaliptraError::new_const(0x01020008);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -542,7 +545,9 @@ impl CaliptraError {
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
         CaliptraError::new_const(0x0105000D);
 
-    /// KAT Errors
+    pub const ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT: CaliptraError = CaliptraError::new_const(0x0105000F);
+
+    /// ROM KAT Errors
     pub const KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
 
@@ -572,6 +577,10 @@ impl CaliptraError {
     pub const KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 
     pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
+
+    // TODO: What base value is right for this?
+    // FIPS Hooks
+    pub const FIPS_HOOKS_INJECTED_ERROR: CaliptraError = CaliptraError::new_const(0x90100000);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

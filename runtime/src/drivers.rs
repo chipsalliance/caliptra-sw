@@ -590,7 +590,8 @@ impl Drivers {
     /// * `flags` - Flags from manifest header
     /// * `locality` - Caller's locality
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+        (flags & PL0_PAUSER_FLAG == 0) // There is no PL0 PAUSER
+            || (locality != pl0_pauser) // There is a PL0 PAUSER, but it's not the current user
     }
 
     /// Get the KeyId for the RT Alias CDI
