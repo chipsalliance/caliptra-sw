@@ -2,6 +2,7 @@
 
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
+#[cfg(feature = "runtime")]
 use caliptra_auth_man_types::AuthManifestImageMetadata;
 #[cfg(feature = "runtime")]
 use caliptra_auth_man_types::AuthManifestImageMetadataCollection;
@@ -24,6 +25,7 @@ use crate::pcr_reset::PcrResetCounter;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+#[cfg(feature = "runtime")]
 pub const AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT: usize = 8;
 
 #[cfg(feature = "runtime")]
@@ -38,6 +40,7 @@ const _: () = assert!(DPE_DCCM_STORAGE < memory_layout::DPE_SIZE as usize);
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
 pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
+#[cfg(feature = "runtime")]
 pub type AuthManifestImageMetadataArray =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT];
 
