@@ -10,7 +10,7 @@ use caliptra_builder::{
 use caliptra_common::{mailbox_api::CommandId, RomBootStatus::*};
 use caliptra_drivers::{Array4x12, CaliptraError};
 use caliptra_hw_model::{
-    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
+    BootParams, CaliptraApiError, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
 };
 
 const PUB_KEY_X: [u8; 48] = [
@@ -223,11 +223,12 @@ fn test_image_verify() {
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(
+        CaliptraApiError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+            .into()
     );
 
     assert_eq!(

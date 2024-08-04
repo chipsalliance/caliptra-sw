@@ -104,6 +104,6 @@ fn test_fips_shutdown() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_SHUTDOWN,
-        resp,
+        resp.into(),
     );
 }

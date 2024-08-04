@@ -9,7 +9,8 @@ use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{
-    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
+    BootParams, CaliptraApiError, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState, U4,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1};
@@ -185,7 +186,7 @@ fn fw_load_error_flow_base(
         None => {
             // Verify the correct error was returned from FW load
             assert_eq!(
-                ModelError::MailboxCmdFailed(exp_error_code),
+                ModelError::from(CaliptraApiError::MailboxCmdFailed(exp_error_code)),
                 fw_load_result.unwrap_err()
             );
 
@@ -228,7 +229,7 @@ fn fw_load_error_flow_base(
             // Verify the correct error was returned from FW load
             assert_eq!(
                 fw_load_result.unwrap_err(),
-                ModelError::MailboxCmdFailed(exp_error_code)
+                ModelError::from(CaliptraApiError::MailboxCmdFailed(exp_error_code))
             );
 
             // In the update FW case, the error will be non-fatal and fall back to the previous, good FW
@@ -1289,7 +1290,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
 
     // Make sure we got the right error
     assert_eq!(
-        ModelError::MailboxCmdFailed(exp_error_code),
+        ModelError::from(CaliptraApiError::MailboxCmdFailed(exp_error_code)),
         fw_load_result.unwrap_err()
     );
 }
@@ -1396,9 +1397,9 @@ fn fw_load_blank_pub_key_hashes() {
 
     // Make sure we got the right error
     assert_eq!(
-        ModelError::MailboxCmdFailed(
+        ModelError::from(CaliptraApiError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into()
-        ),
+        )),
         fw_load_result.unwrap_err()
     );
 }
@@ -1424,7 +1425,7 @@ pub fn corrupted_fw_load_version() {
     // Make sure we got the right error
     let exp_err: u32 = CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into();
     assert_eq!(
-        ModelError::MailboxCmdFailed(exp_err),
+        ModelError::from(CaliptraApiError::MailboxCmdFailed(exp_err)),
         fw_load_result.unwrap_err()
     );
 

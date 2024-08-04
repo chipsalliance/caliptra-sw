@@ -17,7 +17,7 @@ use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
+use caliptra_hw_model::{BootParams, CaliptraApiError, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
@@ -38,8 +38,8 @@ fn test_zero_firmware_size() {
 
     // Zero-sized firmware.
     assert_eq!(
-        hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE))
+        CaliptraApiError::from(hw.upload_firmware(&[]).unwrap_err()),
+        CaliptraApiError::MailboxCmdFailed(u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE))
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
@@ -1043,8 +1043,8 @@ fn test_upload_measurement_limit_plus_one() {
     let result = hw.upload_measurement(measurement.as_bytes());
     assert!(result.is_err());
     assert!(matches!(
-        result.unwrap_err(),
-        ModelError::MailboxCmdFailed(_)
+        CaliptraApiError::from(result.unwrap_err()),
+        CaliptraApiError::MailboxCmdFailed(_)
     ));
 
     // Wait for error

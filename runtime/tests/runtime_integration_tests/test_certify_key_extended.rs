@@ -47,7 +47,7 @@ fn test_dmtf_other_name_validation_fail() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED,
-        resp,
+        resp.into(),
     );
 }
 

@@ -245,7 +245,7 @@ fn test_ecdsa_verify_bad_chksum() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM,
-        resp,
+        resp.into(),
     );
 }
 
@@ -274,6 +274,6 @@ fn test_ecdsa_hw_failure() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::DRIVER_ECC384_HW_ERROR,
-        resp,
+        resp.into(),
     );
 }

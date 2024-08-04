@@ -8,7 +8,9 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{
+    BootParams, CaliptraApiError, HwModel, InitParams, ModelError, ShaAccMode,
+};
 use common::*;
 use zerocopy::AsBytes;
 
@@ -95,11 +97,17 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     //     Using the Load FW message since that is what uses most of the crypto anyway
     // Check that the SHA engine is not usable
     let fw_image = fips_fw_image();
-    match hw.upload_firmware(&fw_image) {
+    match hw
+        .upload_firmware(&fw_image)
+        .map_err(CaliptraApiError::from)
+    {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
-            if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
-                panic!("FW Load received unexpected error {}", act_error)
+            if act_error != CaliptraApiError::MailboxCmdFailed(exp_error_code) {
+                panic!(
+                    "FW Load received unexpected error {}",
+                    ModelError::from(act_error)
+                )
             }
         }
     }
@@ -111,10 +119,13 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw
+        .upload_firmware(&fw_image)
+        .map_err(CaliptraApiError::from)
+    {
         Ok(_) => panic!("FW Load should fail at this point"),
-        Err(ModelError::MailboxCmdFailed(0x0)) => (),
-        Err(e) => panic!("FW Load received unexpected error {}", e),
+        Err(CaliptraApiError::MailboxCmdFailed(0x0)) => (),
+        Err(e) => panic!("FW Load received unexpected error {}", ModelError::from(e)),
     }
     verify_sha_engine_output_inhibited(&mut hw);
 
@@ -193,11 +204,17 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), exp_error_code);
 
     // Verify we cannot use the algorithm
-    match hw.upload_firmware(&fw_image) {
+    match hw
+        .upload_firmware(&fw_image)
+        .map_err(CaliptraApiError::from)
+    {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
-            if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
-                panic!("FW Load received unexpected error {}", act_error)
+            if act_error != CaliptraApiError::MailboxCmdFailed(exp_error_code) {
+                panic!(
+                    "FW Load received unexpected error {}",
+                    ModelError::from(act_error)
+                )
             }
         }
     }
@@ -210,10 +227,10 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw.upload_firmware(&fw_image).map_err(|e| e.into()) {
         Ok(_) => panic!("FW Load should fail at this point"),
-        Err(ModelError::MailboxCmdFailed(0x0)) => (),
-        Err(e) => panic!("FW Load received unexpected error {}", e),
+        Err(CaliptraApiError::MailboxCmdFailed(0x0)) => (),
+        Err(e) => panic!("FW Load received unexpected error {}", ModelError::from(e)),
     }
     verify_sha_engine_output_inhibited(&mut hw);
 
@@ -521,11 +538,17 @@ pub fn integrity_check_failure_rom() {
 
     // Verify we cannot send messages or use the SHA engine
     let fw_image = fips_fw_image();
-    match hw.upload_firmware(&fw_image) {
+    match hw
+        .upload_firmware(&fw_image)
+        .map_err(CaliptraApiError::from)
+    {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
-            if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
-                panic!("FW Load received unexpected error {}", act_error)
+            if act_error != CaliptraApiError::MailboxCmdFailed(exp_error_code) {
+                panic!(
+                    "FW Load received unexpected error {}",
+                    ModelError::from(act_error)
+                )
             }
         }
     }
@@ -537,10 +560,13 @@ pub fn integrity_check_failure_rom() {
     // The fatal error loop that marks all mbox messages as failed does not update the error code
     hw.soc_ifc().cptra_fw_error_fatal().write(|_| 0);
     hw.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    match hw.upload_firmware(&fw_image) {
+    match hw
+        .upload_firmware(&fw_image)
+        .map_err(CaliptraApiError::from)
+    {
         Ok(_) => panic!("FW Load should fail at this point"),
-        Err(ModelError::MailboxCmdFailed(0x0)) => (),
-        Err(e) => panic!("FW Load received unexpected error {}", e),
+        Err(CaliptraApiError::MailboxCmdFailed(0x0)) => (),
+        Err(e) => panic!("FW Load received unexpected error {}", ModelError::from(e)),
     }
     verify_sha_engine_output_inhibited(&mut hw);
 

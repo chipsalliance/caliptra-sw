@@ -19,7 +19,7 @@ fn test_error_cleared() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
-        resp,
+        resp.into(),
     );
 
     // Succeed a command to make sure error gets cleared
@@ -52,6 +52,6 @@ fn test_unimplemented_cmds() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND,
-        resp,
+        resp.into(),
     );
 }

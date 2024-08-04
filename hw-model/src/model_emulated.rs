@@ -8,6 +8,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use caliptra_api::CaliptraApiError;
 use caliptra_emu_bus::Clock;
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
@@ -156,12 +157,12 @@ impl crate::HwModel for ModelEmulated {
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
             let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {
-                return Err(ModelError::ProvidedIccmTooLarge.into());
+                return Err(Box::new(ModelError::from(CaliptraApiError::ProvidedIccmTooLarge)));
             };
             iccm_dest.copy_from_slice(params.iccm);
 
             let Some(dccm_dest) = root_bus.dccm.data_mut().get_mut(0..params.dccm.len()) else {
-                return Err(ModelError::ProvidedDccmTooLarge.into());
+                return Err(Box::new(ModelError::from(CaliptraApiError::ProvidedDccmTooLarge)));
             };
             dccm_dest.copy_from_slice(params.dccm);
         }

@@ -4,7 +4,9 @@ use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{
+    BootParams, CaliptraApiError, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
+};
 use caliptra_test::swap_word_bytes_inplace;
 use dpe::{
     commands::*,
@@ -386,7 +388,9 @@ pub fn verify_mbox_cmds_fail<T: HwModel>(hw: &mut T, exp_error_code: u32) {
     ) {
         Ok(_) => panic!("MBX command should fail at this point"),
         Err(act_error) => {
-            if act_error != ModelError::MailboxCmdFailed(exp_error_code) {
+            if CaliptraApiError::from(act_error.clone())
+                != CaliptraApiError::MailboxCmdFailed(exp_error_code)
+            {
                 panic!("MBX command received unexpected error {}", act_error)
             }
         }
@@ -398,20 +402,29 @@ pub fn verify_mbox_output_inhibited<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
     };
-    match hw.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes()) {
+    match hw
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .map_err(|e| e.into())
+    {
         Ok(_) => panic!("Mailbox output is not inhibited"),
-        Err(ModelError::MailboxTimeout) => (),
-        Err(ModelError::UnableToLockMailbox) => (),
-        Err(e) => panic!("Unexpected error from mailbox_execute {:?}", e),
+        Err(CaliptraApiError::MailboxTimeout) => (),
+        Err(CaliptraApiError::UnableToLockMailbox) => (),
+        Err(e) => panic!(
+            "Unexpected error from mailbox_execute {:?}",
+            ModelError::from(e)
+        ),
     }
 }
 
 // Check sha engine output is inhibited (ensure sha engine is locked)
 pub fn verify_sha_engine_output_inhibited<T: HwModel>(hw: &mut T) {
     let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
-    match hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream) {
+    match hw
+        .compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream)
+        .map_err(|e| e.into())
+    {
         Ok(_) => panic!("SHA engine is not locked, output is not inhibited"),
-        Err(ModelError::UnableToLockSha512Acc) => (),
+        Err(CaliptraApiError::UnableToLockSha512Acc) => (),
         Err(_) => panic!("Unexpected error from compute_sha512_acc_digest"),
     }
 }
