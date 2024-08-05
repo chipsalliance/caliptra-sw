@@ -41,6 +41,8 @@ core::arch::global_asm!(include_str!(concat!(
     "/start_preprocessed.S"
 )));
 
+include!(concat!(env!("OUT_DIR"), "/const_gen.rs"));
+
 mod exception;
 mod fht;
 mod flow;

@@ -111,7 +111,7 @@ pub mod fips_self_test_cmd {
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
-        let mut venv = FirmwareImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv::<false> {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             soc_ifc: &mut env.soc_ifc,

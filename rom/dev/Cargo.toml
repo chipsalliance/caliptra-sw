@@ -26,6 +26,7 @@ zeroize.workspace = true
 cfg-if.workspace = true
 hex.workspace = true
 x509-parser.workspace = true
+const-gen.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true

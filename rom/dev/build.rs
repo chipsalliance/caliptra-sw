@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use const_gen::*;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -119,4 +120,10 @@ fn main() {
         )
         .unwrap();
     }
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let dest_path = Path::new(&out_dir).join("const_gen.rs");
+    let fake_rom = cfg!(feature = "fake-rom");
+    let const_declaration = vec![const_declaration!(pub FAKE_ROM = fake_rom)].join("\n");
+    std::fs::write(dest_path, const_declaration).unwrap();
 }
