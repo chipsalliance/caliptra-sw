@@ -11,8 +11,7 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-#[cfg(feature = "fake-rom")]
-use crate::flow::fake::FakeRomImageVerificationEnv;
+
 use crate::{cprintln, pcr, rom_env::RomEnv};
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
@@ -65,7 +64,7 @@ impl UpdateResetFlow {
             let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
-            let mut venv = FirmwareImageVerificationEnv {
+            let mut venv = FirmwareImageVerificationEnv::<{ crate::is_fake_rom() }> {
                 sha256: &mut env.sha256,
                 sha384: &mut env.sha384,
                 soc_ifc: &mut env.soc_ifc,
@@ -136,20 +135,10 @@ impl UpdateResetFlow {
     ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        env: &mut FirmwareImageVerificationEnv,
+        env: &mut FirmwareImageVerificationEnv<{ crate::is_fake_rom() }>,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
-        #[cfg(feature = "fake-rom")]
-        let env = &mut FakeRomImageVerificationEnv {
-            sha256: env.sha256,
-            sha384: env.sha384,
-            soc_ifc: env.soc_ifc,
-            data_vault: env.data_vault,
-            ecc384: env.ecc384,
-            image: env.image,
-        };
-
         let mut verifier = ImageVerifier::new(env);
 
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::UpdateReset)?;

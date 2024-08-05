@@ -20,7 +20,7 @@ use core::ops::Range;
 use caliptra_drivers::memory_layout::ICCM_RANGE;
 
 /// ROM Verification Environemnt
-pub struct FirmwareImageVerificationEnv<'a, 'b> {
+pub struct FirmwareImageVerificationEnv<'a, 'b, const FAKE_ROM: bool> {
     pub sha256: &'a mut Sha256,
     pub sha384: &'a mut Sha384,
     pub soc_ifc: &'a mut SocIfc,
@@ -30,7 +30,9 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub image: &'b [u8],
 }
 
-impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
+impl<'a, 'b, const FAKE_ROM: bool> ImageVerificationEnv
+    for &mut FirmwareImageVerificationEnv<'a, 'b, FAKE_ROM>
+{
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
@@ -50,6 +52,11 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
+        if FAKE_ROM && !self.soc_ifc.verify_in_fake_mode() {
+            // Mock verify, just always return success
+            return Ok(Array4x12::from(sig.r));
+        }
+
         let pub_key = Ecc384PubKey {
             x: pub_key.x.into(),
             y: pub_key.y.into(),
@@ -71,6 +78,11 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
+        if FAKE_ROM && !self.soc_ifc.verify_in_fake_mode() {
+            // Mock verify, just always return success
+            return Ok(HashValue::from(pub_key.digest));
+        }
+
         let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
         for i in 0..digest.len() {
             message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());

@@ -11,8 +11,7 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
-#[cfg(feature = "fake-rom")]
-use crate::flow::fake::FakeRomImageVerificationEnv;
+
 use crate::fuse::log_fuse_data;
 use crate::pcr;
 use crate::rom_env::RomEnv;
@@ -103,7 +102,7 @@ impl FirmwareProcessor {
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
-        let mut venv = FirmwareImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv::<{ crate::is_fake_rom() }> {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             soc_ifc: &mut env.soc_ifc,
@@ -333,20 +332,10 @@ impl FirmwareProcessor {
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        venv: &mut FirmwareImageVerificationEnv,
+        venv: &mut FirmwareImageVerificationEnv<{ crate::is_fake_rom() }>,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
-        #[cfg(feature = "fake-rom")]
-        let venv = &mut FakeRomImageVerificationEnv {
-            sha256: venv.sha256,
-            sha384: venv.sha384,
-            soc_ifc: venv.soc_ifc,
-            data_vault: venv.data_vault,
-            ecc384: venv.ecc384,
-            image: venv.image,
-        };
-
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
         CfiCounter::delay();

@@ -63,6 +63,10 @@ extern "C" {
     static CALIPTRA_ROM_INFO: RomInfo;
 }
 
+pub const fn is_fake_rom() -> bool {
+    cfg!(feature = "fake-rom")
+}
+
 #[no_mangle]
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);

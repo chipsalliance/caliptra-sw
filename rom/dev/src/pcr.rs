@@ -61,7 +61,7 @@ impl PcrExtender<'_> {
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 #[inline(never)]
 pub(crate) fn extend_pcrs(
-    env: &mut FirmwareImageVerificationEnv,
+    env: &mut FirmwareImageVerificationEnv<{ crate::is_fake_rom() }>,
     info: &ImageVerificationInfo,
     persistent_data: &mut PersistentDataAccessor,
 ) -> CaliptraResult<()> {
