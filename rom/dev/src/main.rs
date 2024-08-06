@@ -92,16 +92,19 @@ pub extern "C" fn rom_entry() -> ! {
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
-    let _lifecyle = match env.soc_ifc.lifecycle() {
-        caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
-        caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
-        caliptra_drivers::Lifecycle::Production => "Production",
-        caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
-    };
-    cprintln!("[state] LifecycleState = {}", _lifecyle);
+    let lifecycle = env.soc_ifc.lifecycle();
+    cprintln!(
+        "[state] LifecycleState = {}",
+        match lifecycle {
+            caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
+            caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
+            caliptra_drivers::Lifecycle::Production => "Production",
+            caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
+        }
+    );
 
     if cfg!(feature = "fake-rom")
-        && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+        && (lifecycle == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
         cprintln!("Fake ROM in Production lifecycle not enabled");
@@ -130,46 +133,44 @@ pub extern "C" fn rom_entry() -> ! {
 
     let reset_reason = env.soc_ifc.reset_reason();
 
-    if !cfg!(feature = "fake-rom") {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
+    let mut kats_env = caliptra_kat::KatsEnv {
+        // SHA1 Engine
+        sha1: &mut env.sha1,
 
-            // sha256
-            sha256: &mut env.sha256,
+        // sha256
+        sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+        // SHA2-384 Engine
+        sha384: &mut env.sha384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+        // SHA2-512/384 Accelerator
+        sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac384 Engine
-            hmac384: &mut env.hmac384,
+        // Hmac384 Engine
+        hmac384: &mut env.hmac384,
 
-            /// Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
+        /// Cryptographically Secure Random Number Generator
+        trng: &mut env.trng,
 
-            // LMS Engine
-            lms: &mut env.lms,
+        // LMS Engine
+        lms: &mut env.lms,
 
-            /// Ecc384 Engine
-            ecc384: &mut env.ecc384,
+        /// Ecc384 Engine
+        ecc384: &mut env.ecc384,
 
-            /// SHA Acc lock state.
-            /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            /// On an Update Reset, it is expected to be unlocked.
-            /// Not having it unlocked will result in a fatal error.
-            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-                ShaAccLockState::NotAcquired
-            } else {
-                ShaAccLockState::AssumedLocked
-            },
-        };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
-        }
+        /// SHA Acc lock state.
+        /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+        /// On an Update Reset, it is expected to be unlocked.
+        /// Not having it unlocked will result in a fatal error.
+        sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+            ShaAccLockState::NotAcquired
+        } else {
+            ShaAccLockState::AssumedLocked
+        },
+    };
+    let result = run_fips_tests(&mut kats_env);
+    if let Err(err) = result {
+        handle_fatal_error(err.into());
     }
 
     if let Err(err) = flow_run(&mut env) {
@@ -205,6 +206,10 @@ pub extern "C" fn rom_entry() -> ! {
 }
 
 fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+    if cfg!(feature = "fake-rom") {
+        return Ok(());
+    }
+
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
