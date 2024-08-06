@@ -48,7 +48,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_SECURITY_STATE            | 32           | Security State of the device. Contains two fields:  <br> **LIFECYCLE_STATE**: Unprovisioned, Manufacturing or Production  <br> **DEBUG_ENABLED**: Boolean indicating if debug is enabled or not |
 | FUSE_UDS_SEED                   | 384          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 384          | Obfuscated Field Entropy                                |
+| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
 | FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the four ECC and thirty-two LMS Manufacturer Public Keys   |
 | FUSE_KEY_MANIFEST_PK_HASH_MASK  | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
