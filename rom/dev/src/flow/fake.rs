@@ -20,8 +20,8 @@ compile_error!("This file should NEVER be included except for the fake-rom featu
 mod fw_processor;
 
 use crate::fht;
-use crate::flow::update_reset;
-use crate::flow::warm_reset;
+use crate::flow::{update_reset, warm_reset};
+use crate::handle_fatal_error;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
@@ -127,63 +127,65 @@ const FAKE_FMC_ALIAS_SIG: Ecc384Signature = Ecc384Signature {
     ]),
 };
 
-pub struct FakeRomFlow {}
+/// Execute ROM Flows based on reset reason
+///
+/// # Arguments
+///
+/// * `env` - ROM Environment
+pub fn flow_run(env: &mut RomEnv) -> CaliptraResult<()> {
+    if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+        && !(env.soc_ifc.prod_en_in_fake_mode())
+    {
+        cprintln!("Fake ROM in Production lifecycle not enabled");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
+    }
 
-impl FakeRomFlow {
-    /// Execute ROM Flows based on reset reason
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
-        let reset_reason = env.soc_ifc.reset_reason();
-        match reset_reason {
-            // Cold Reset Flow
-            ResetReason::ColdReset => {
-                cprintln!("[fake-rom-cold-reset] ++");
-                report_boot_status(ColdResetStarted.into());
+    let reset_reason = env.soc_ifc.reset_reason();
+    match reset_reason {
+        // Cold Reset Flow
+        ResetReason::ColdReset => {
+            cprintln!("[fake-rom-cold-reset] ++");
+            report_boot_status(ColdResetStarted.into());
 
-                // Zeroize the key vault in the fake ROM flow
-                unsafe { KeyVault::zeroize() };
+            // Zeroize the key vault in the fake ROM flow
+            unsafe { KeyVault::zeroize() };
 
-                env.soc_ifc.flow_status_set_ready_for_firmware();
+            env.soc_ifc.flow_status_set_ready_for_firmware();
 
-                fht::initialize_fht(env);
+            fht::initialize_fht(env);
 
-                // SKIP Execute IDEVID layer
-                // LDEVID cert
-                copy_canned_ldev_cert(env)?;
+            // SKIP Execute IDEVID layer
+            // LDEVID cert
+            copy_canned_ldev_cert(env)?;
 
-                // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
-                // In real ROM, this is done as part of executing the SHA-ACC KAT.
-                let sha_op = env
-                    .sha2_512_384_acc
-                    .try_start_operation(ShaAccLockState::AssumedLocked)?
-                    .unwrap();
-                drop(sha_op);
+            // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
+            // In real ROM, this is done as part of executing the SHA-ACC KAT.
+            let sha_op = env
+                .sha2_512_384_acc
+                .try_start_operation(ShaAccLockState::AssumedLocked)?
+                .unwrap();
+            drop(sha_op);
 
-                // Download and validate firmware.
-                _ = FirmwareProcessor::process(env)?;
+            // Download and validate firmware.
+            _ = FirmwareProcessor::process(env)?;
 
-                // FMC Alias Cert
-                copy_canned_fmc_alias_cert(env)?;
+            // FMC Alias Cert
+            copy_canned_fmc_alias_cert(env)?;
 
-                cprintln!("[fake-rom-cold-reset] --");
-                report_boot_status(ColdResetComplete.into());
+            cprintln!("[fake-rom-cold-reset] --");
+            report_boot_status(ColdResetComplete.into());
 
-                Ok(())
-            }
-
-            // Warm Reset Flow
-            ResetReason::WarmReset => warm_reset::WarmResetFlow::run(env),
-
-            // Update Reset Flow
-            ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
-
-            // Unknown/Spurious Reset Flow
-            ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+            Ok(())
         }
+
+        // Warm Reset Flow
+        ResetReason::WarmReset => warm_reset::WarmResetFlow::run(env),
+
+        // Update Reset Flow
+        ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
+
+        // Unknown/Spurious Reset Flow
+        ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
     }
 }
 

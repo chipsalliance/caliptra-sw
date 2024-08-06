@@ -18,8 +18,9 @@ mod fake;
 mod update_reset;
 mod warm_reset;
 
-use crate::cprintln;
-use crate::{handle_fatal_error, rom_env::RomEnv};
+#[cfg(feature = "fake-rom")]
+pub use crate::flow::fake::flow_run;
+use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_drivers::{CaliptraResult, ResetReason};
@@ -30,49 +31,34 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg(not(feature = "fake-rom"))]
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+pub fn flow_run(env: &mut RomEnv) -> CaliptraResult<()> {
     let reset_reason = env.soc_ifc.reset_reason();
 
-    if cfg!(not(feature = "fake-rom")) {
-        match reset_reason {
-            // Cold Reset Flow
-            ResetReason::ColdReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
-                cold_reset::ColdResetFlow::run(env)
-            }
-
-            // Warm Reset Flow
-            ResetReason::WarmReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::WarmReset);
-                warm_reset::WarmResetFlow::run(env)
-            }
-
-            // Update Reset Flow
-            ResetReason::UpdateReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::UpdateReset);
-                update_reset::UpdateResetFlow::run(env)
-            }
-
-            // Unknown/Spurious Reset Flow
-            ResetReason::Unknown => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::Unknown);
-                Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW)
-            }
-        }
-    } else {
-        let _result: CaliptraResult<()> = Err(CaliptraError::ROM_GLOBAL_PANIC);
-
-        if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
-            && !(env.soc_ifc.prod_en_in_fake_mode())
-        {
-            cprintln!("Fake ROM in Production lifecycle not enabled");
-            handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
+    match reset_reason {
+        // Cold Reset Flow
+        ResetReason::ColdReset => {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+            cold_reset::ColdResetFlow::run(env)
         }
 
-        #[cfg(feature = "fake-rom")]
-        let _result = fake::FakeRomFlow::run(env);
+        // Warm Reset Flow
+        ResetReason::WarmReset => {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::WarmReset);
+            warm_reset::WarmResetFlow::run(env)
+        }
 
-        _result
+        // Update Reset Flow
+        ResetReason::UpdateReset => {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::UpdateReset);
+            update_reset::UpdateResetFlow::run(env)
+        }
+
+        // Unknown/Spurious Reset Flow
+        ResetReason::Unknown => {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::Unknown);
+            Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW)
+        }
     }
 }

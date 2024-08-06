@@ -16,6 +16,7 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
+use crate::flow::flow_run;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus;
@@ -171,7 +172,7 @@ pub extern "C" fn rom_entry() -> ! {
         }
     }
 
-    if let Err(err) = flow::run(&mut env) {
+    if let Err(err) = flow_run(&mut env) {
         //
         // For the update reset case, when we fail the image validation
         // we will need to continue to jump to the FMC after
