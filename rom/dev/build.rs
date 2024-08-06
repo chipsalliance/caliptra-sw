@@ -47,13 +47,9 @@ fn workspace_dir() -> PathBuf {
 }
 
 fn be_bytes_to_words(src: &[u8]) -> Vec<u32> {
-    let mut dst = Vec::<u32>::new();
-
-    for i in (0..src.len()).step_by(4) {
-        dst.push(u32::from_be_bytes(src[i..i + 4].try_into().unwrap()));
-    }
-
-    dst
+    src.chunks(4)
+        .map(|c| u32::from_be_bytes(c.try_into().unwrap()))
+        .collect()
 }
 
 fn main() {
