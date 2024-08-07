@@ -44,13 +44,13 @@ pub mod pic;
 pub mod printer;
 mod sha1;
 mod sha256;
+mod sha2_512_384acc;
 mod sha384;
-mod sha384acc;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
 
-pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
@@ -89,8 +89,8 @@ pub use persistent::{
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
+pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
-pub use sha384acc::{Sha384Acc, Sha384AccOp, ShaAccLockState};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 

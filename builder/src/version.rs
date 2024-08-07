@@ -2,7 +2,7 @@
 
 pub const ROM_VERSION_MAJOR: u16 = 1;
 pub const ROM_VERSION_MINOR: u16 = 0;
-pub const ROM_VERSION_PATCH: u16 = 2;
+pub const ROM_VERSION_PATCH: u16 = 3;
 
 pub const FMC_VERSION_MAJOR: u16 = 1;
 pub const FMC_VERSION_MINOR: u16 = 0;
