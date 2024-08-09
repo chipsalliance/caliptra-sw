@@ -7,8 +7,8 @@ use caliptra_builder::{firmware, FwId};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
-    TrngMode,
+    BootParams, CaliptraApiError, DefaultHwModel, DeviceLifecycle, HwModel, InitParams,
+    SecurityState, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -546,8 +546,10 @@ fn test_mailbox_soc_to_uc() {
     // Test MailboxRecvTxn completed with failure without draining the FIFO
     {
         assert_eq!(
-            model.mailbox_execute(0x8000_0000, &[0x88, 0x99, 0xaa, 0xbb]),
-            Err(ModelError::MailboxCmdFailed(0))
+            model
+                .mailbox_execute(0x8000_0000, &[0x88, 0x99, 0xaa, 0xbb])
+                .map_err(CaliptraApiError::from),
+            Err(CaliptraApiError::MailboxCmdFailed(0))
         );
 
         model

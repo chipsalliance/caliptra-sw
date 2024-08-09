@@ -195,8 +195,8 @@ fn test_update_reset_verify_image_failure() {
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     assert_eq!(
-        hw.finish_mailbox_execute(),
-        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+        hw.finish_mailbox_execute().map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
         ))
     );
@@ -323,8 +323,8 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
     hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
     assert_eq!(
-        hw.finish_mailbox_execute(),
-        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+        hw.finish_mailbox_execute().map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH.into()
         ))
     );
@@ -393,8 +393,9 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     assert_eq!(
-        hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
-        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+        hw.upload_firmware(&image_bundle2.to_bytes().unwrap())
+            .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
         ))
     );

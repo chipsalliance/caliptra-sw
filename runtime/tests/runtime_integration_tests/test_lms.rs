@@ -4,7 +4,7 @@ use crate::common::{assert_error, run_rt_test};
 use caliptra_common::mailbox_api::{
     CommandId, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
+use caliptra_hw_model::{CaliptraApiError, HwModel, ShaAccMode};
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType, LmsPublicKey, LmsSignature};
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -766,7 +766,7 @@ fn execute_lms_cmd<T: HwModel>(
     message: &[u8],
     pub_key_bytes: &[u8],
     signature_bytes: &[u8],
-) -> Result<(), ModelError> {
+) -> Result<(), CaliptraApiError> {
     let pub_key = <LmsPublicKey<LMS_N>>::read_from(pub_key_bytes).unwrap();
     let signature = <LmsSignature<LMS_N, LMS_P, LMS_H>>::read_from(signature_bytes).unwrap();
 

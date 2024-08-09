@@ -7,7 +7,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::PcrId;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_hw_model::{CaliptraApiError, DefaultHwModel, HwModel};
 use openssl::{
     bn::BigNum,
     ecdsa::EcdsaSig,
@@ -164,8 +164,8 @@ fn test_extend_pcr_cmd_invalid_pcr_index() {
     let cmd = generate_mailbox_extend_pcr_req(33, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
     assert_eq!(
-        res,
-        Err(ModelError::MailboxCmdFailed(u32::from(
+        res.map_err(|e| e.into()),
+        Err(CaliptraApiError::MailboxCmdFailed(u32::from(
             CaliptraError::RUNTIME_PCR_INVALID_INDEX
         )))
     );
@@ -183,8 +183,8 @@ fn test_extend_pcr_cmd_reserved_range() {
 
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
         assert_eq!(
-            res,
-            Err(ModelError::MailboxCmdFailed(u32::from(
+            res.map_err(|e| e.into()),
+            Err(CaliptraApiError::MailboxCmdFailed(u32::from(
                 CaliptraError::RUNTIME_PCR_RESERVED
             )))
         );

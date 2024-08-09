@@ -3,7 +3,7 @@
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{Fuses, HwModel, ModelError};
+use caliptra_hw_model::{Fuses, HwModel};
 use zerocopy::AsBytes;
 
 use crate::helpers;
@@ -19,8 +19,8 @@ fn test_unknown_command_is_fatal() {
 
     // This command does not exist
     assert_eq!(
-        hw.mailbox_execute(0xabcd_1234, &[]),
-        Err(ModelError::MailboxCmdFailed(
+        hw.mailbox_execute(0xabcd_1234, &[]).map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
         ))
     );
@@ -36,10 +36,10 @@ fn test_mailbox_command_aborted_after_handle_fatal_error() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     assert_eq!(
-        Err(ModelError::MailboxCmdFailed(
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
         )),
-        hw.upload_firmware(&[])
+        hw.upload_firmware(&[]).map_err(|e| e.into())
     );
 
     // Make sure a new attempt to upload firmware is rejected (even though this
@@ -47,8 +47,9 @@ fn test_mailbox_command_aborted_after_handle_fatal_error() {
     //
     // The original failure reason should still be in the register
     assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
-        Err(ModelError::MailboxCmdFailed(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
         ))
     );
@@ -83,8 +84,9 @@ fn test_mailbox_invalid_checksum() {
     };
 
     assert_eq!(
-        hw.mailbox_execute(CommandId::STASH_MEASUREMENT.into(), payload.as_bytes()),
-        Err(ModelError::MailboxCmdFailed(
+        hw.mailbox_execute(CommandId::STASH_MEASUREMENT.into(), payload.as_bytes())
+            .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM.into()
         ))
     );
@@ -106,8 +108,9 @@ fn test_mailbox_invalid_req_size_large() {
 
     // Send too much data (stash measurement is bigger than capabilities)
     assert_eq!(
-        hw.mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes()),
-        Err(ModelError::MailboxCmdFailed(
+        hw.mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes())
+            .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
         ))
     );
@@ -132,8 +135,9 @@ fn test_mailbox_invalid_req_size_small() {
         hw.mailbox_execute(
             CommandId::STASH_MEASUREMENT.into(),
             &payload.as_bytes()[4..]
-        ),
-        Err(ModelError::MailboxCmdFailed(
+        )
+        .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
         ))
     );
@@ -145,8 +149,9 @@ fn test_mailbox_invalid_req_size_zero() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     assert_eq!(
-        hw.mailbox_execute(CommandId::CAPABILITIES.into(), &[]),
-        Err(ModelError::MailboxCmdFailed(
+        hw.mailbox_execute(CommandId::CAPABILITIES.into(), &[])
+            .map_err(|e| e.into()),
+        Err(caliptra_hw_model::CaliptraApiError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
         ))
     );

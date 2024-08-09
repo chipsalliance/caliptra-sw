@@ -9,7 +9,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_hw_model::{BootParams, CaliptraApiError, DefaultHwModel, HwModel, InitParams};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -25,6 +25,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+//use x509_parser::nom::combinator::into;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
@@ -186,7 +187,7 @@ pub fn execute_dpe_cmd(
         mbox_cmd.as_bytes().unwrap(),
     );
     if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
-        assert_error(model, expected_err, resp.unwrap_err());
+        assert_error(model, expected_err, resp.unwrap_err().into());
         return None;
     }
     let resp = resp.unwrap().expect("We should have received a response");
@@ -212,16 +213,16 @@ pub fn execute_dpe_cmd(
 pub fn assert_error(
     model: &mut DefaultHwModel,
     expected_err: CaliptraError,
-    actual_err: ModelError,
+    actual_err: CaliptraApiError,
 ) {
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         u32::from(expected_err)
     );
-    if let ModelError::MailboxCmdFailed(code) = actual_err {
+    if let CaliptraApiError::MailboxCmdFailed(code) = actual_err {
         assert_eq!(code, u32::from(expected_err));
     } else {
-        panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
+        panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", caliptra_hw_model::ModelError::from(actual_err))
     }
 }
 

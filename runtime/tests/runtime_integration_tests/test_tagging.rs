@@ -79,7 +79,7 @@ fn test_tagging_a_tagged_context() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED,
-        resp,
+        resp.into(),
     );
 }
 
@@ -112,7 +112,7 @@ fn test_duplicate_tag() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG,
-        resp,
+        resp.into(),
     );
 }
 
@@ -135,7 +135,7 @@ fn test_get_tagged_tci_on_non_existent_tag() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
-        resp,
+        resp.into(),
     );
 }
 
@@ -156,7 +156,7 @@ fn test_tagging_inactive_context() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
-        resp,
+        resp.into(),
     );
 }
 
@@ -204,7 +204,7 @@ fn test_tagging_destroyed_context() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
-        resp,
+        resp.into(),
     );
 }
 
@@ -243,7 +243,7 @@ fn test_tagging_retired_context() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
-        resp,
+        resp.into(),
     );
 
     // tag new context

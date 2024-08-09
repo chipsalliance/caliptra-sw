@@ -213,9 +213,16 @@ name = "caliptra-api"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-api-types",
  "caliptra-error",
+ "caliptra-registers",
+ "ureg",
  "zerocopy",
 ]
+
+[[package]]
+name = "caliptra-api-types"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-builder"

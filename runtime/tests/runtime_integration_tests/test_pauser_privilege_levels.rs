@@ -261,7 +261,7 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
     assert_error(
         &mut model,
         CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        resp,
+        resp.into(),
     );
 }
 
@@ -317,7 +317,7 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
     assert_error(
         &mut model,
         CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        resp,
+        resp.into(),
     );
 }
 
@@ -389,7 +389,7 @@ fn test_stash_measurement_pl_context_thresholds() {
             assert_error(
                 &mut model,
                 CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
-                resp,
+                resp.into(),
             );
 
             break;

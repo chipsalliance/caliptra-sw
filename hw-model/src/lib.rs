@@ -11,7 +11,7 @@ use std::{
 
 use api::calc_checksum;
 use api::mailbox::{MailboxReqHeader, MailboxRespHeader, Response};
-use caliptra_api as api;
+use caliptra_api::{self as api};
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
@@ -19,6 +19,7 @@ use caliptra_hw_model_types::{
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
+pub use caliptra_api::mbox_write_fifo;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use caliptra_registers::soc_ifc::regs::{
@@ -30,6 +31,7 @@ use sha2::Digest;
 
 pub mod mmio;
 mod model_emulated;
+pub use api::CaliptraApiError;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
@@ -266,81 +268,67 @@ impl<'a> Default for BootParams<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum ModelError {
-    MailboxCmdFailed(u32),
-    UnableToLockMailbox,
-    BufferTooLargeForMailbox,
-    UploadFirmwareUnexpectedResponse,
-    UnknownCommandStatus(u32),
-    NotReadyForFwErr,
-    ReadyForFirmwareTimeout {
-        cycles: u32,
-    },
-    ProvidedIccmTooLarge,
-    ProvidedDccmTooLarge,
-    UnexpectedMailboxFsmStatus {
-        expected: u32,
-        actual: u32,
-    },
-    UnableToLockSha512Acc,
-    UploadMeasurementResponseError,
-    UnableToReadMailbox,
-    MailboxNoResponseData,
-    MailboxReqTypeTooSmall,
-    MailboxRespTypeTooSmall,
-    MailboxUnexpectedResponseLen {
-        expected_min: u32,
-        expected_max: u32,
-        actual: u32,
-    },
-    MailboxRespInvalidChecksum {
-        expected: u32,
-        actual: u32,
-    },
-    MailboxRespInvalidFipsStatus(u32),
-    MailboxTimeout,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModelError {
+    error: CaliptraApiError,
 }
+impl From<CaliptraApiError> for ModelError {
+    fn from(error: CaliptraApiError) -> Self {
+        Self { error }
+    }
+}
+
+impl From<ModelError> for CaliptraApiError {
+    fn from(model_error: ModelError) -> Self {
+        model_error.error
+    }
+}
+
 impl Error for ModelError {}
 impl Display for ModelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ModelError::MailboxCmdFailed(err) => write!(f, "Mailbox command failed. fw_err={err}"),
-            ModelError::UnableToLockMailbox => write!(f, "Unable to lock mailbox"),
-            ModelError::BufferTooLargeForMailbox => write!(f, "Buffer too large for mailbox"),
-            ModelError::UploadFirmwareUnexpectedResponse => {
+        match self.error {
+            CaliptraApiError::MailboxCmdFailed(err) => {
+                write!(f, "Mailbox command failed. fw_err={err}")
+            }
+            CaliptraApiError::UnableToLockMailbox => write!(f, "Unable to lock mailbox"),
+            CaliptraApiError::BufferTooLargeForMailbox => write!(f, "Buffer too large for mailbox"),
+            CaliptraApiError::UploadFirmwareUnexpectedResponse => {
                 write!(f, "Received unexpected response after uploading firmware")
             }
-            ModelError::UnknownCommandStatus(status) => write!(
+            CaliptraApiError::UnknownCommandStatus(status) => write!(
                 f,
                 "Received unknown command status from mailbox peripheral: 0x{status:x}"
             ),
-            ModelError::NotReadyForFwErr => write!(f, "Not ready for firmware"),
-            ModelError::ReadyForFirmwareTimeout { cycles } => write!(
+            CaliptraApiError::NotReadyForFwErr => write!(f, "Not ready for firmware"),
+            CaliptraApiError::ReadyForFirmwareTimeout { cycles } => write!(
                 f,
                 "Ready-for-firmware signal not received after {cycles} cycles"
             ),
-            ModelError::ProvidedDccmTooLarge => write!(f, "Provided DCCM image too large"),
-            ModelError::ProvidedIccmTooLarge => write!(f, "Provided ICCM image too large"),
-            ModelError::UnexpectedMailboxFsmStatus { expected, actual } => write!(
+            CaliptraApiError::ProvidedDccmTooLarge => write!(f, "Provided DCCM image too large"),
+            CaliptraApiError::ProvidedIccmTooLarge => write!(f, "Provided ICCM image too large"),
+            CaliptraApiError::UnexpectedMailboxFsmStatus { expected, actual } => write!(
                 f,
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
-            ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
-            ModelError::UploadMeasurementResponseError => {
+            CaliptraApiError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
+            CaliptraApiError::UploadMeasurementResponseError => {
                 write!(f, "Error in response after uploading measurement")
             }
-            ModelError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
-            ModelError::MailboxNoResponseData => {
+            CaliptraApiError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
+            CaliptraApiError::MailboxNoResponseData => {
                 write!(f, "Expected response data but none was found")
             }
-            ModelError::MailboxReqTypeTooSmall => {
+            CaliptraApiError::MailboxReqTypeTooSmall => {
                 write!(f, "Mailbox request type too small to contain header")
             }
-            ModelError::MailboxRespTypeTooSmall => {
+            CaliptraApiError::MailboxRespTypeTooSmall => {
                 write!(f, "Mailbox response type too small to contain header")
             }
-            ModelError::MailboxUnexpectedResponseLen {
+            CaliptraApiError::MailboxUnexpectedResponse => {
+                write!(f, "Unexpcted mailbox response")
+            }
+            CaliptraApiError::MailboxUnexpectedResponseLen {
                 expected_min,
                 expected_max,
                 actual,
@@ -350,20 +338,23 @@ impl Display for ModelError {
                     "Expected mailbox response lenth min={expected_min} max={expected_max}, was {actual}"
                 )
             }
-            ModelError::MailboxRespInvalidChecksum { expected, actual } => {
+            CaliptraApiError::MailboxRespInvalidChecksum { expected, actual } => {
                 write!(
                     f,
                     "Mailbox response had invalid checksum: expected {expected}, was {actual}"
                 )
             }
-            ModelError::MailboxRespInvalidFipsStatus(status) => {
+            CaliptraApiError::MailboxRespInvalidFipsStatus(status) => {
                 write!(
                     f,
                     "Mailbox response had non-success FIPS status: 0x{status:x}"
                 )
             }
-            ModelError::MailboxTimeout => {
+            CaliptraApiError::MailboxTimeout => {
                 write!(f, "Mailbox timed out in busy state")
+            }
+            CaliptraApiError::FusesAlreadyLocked => {
+                write!(f, "Fuse write done already set")
             }
         }
     }
@@ -389,10 +380,12 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
         let mbox = self.model.soc_mbox();
         let mbox_fsm_ps = mbox.status().read().mbox_fsm_ps();
         if !mbox_fsm_ps.mbox_execute_soc() {
-            return Err(ModelError::UnexpectedMailboxFsmStatus {
-                expected: MboxFsmE::MboxExecuteSoc as u32,
-                actual: mbox_fsm_ps as u32,
-            });
+            return Err(ModelError::from(
+                CaliptraApiError::UnexpectedMailboxFsmStatus {
+                    expected: MboxFsmE::MboxExecuteSoc as u32,
+                    actual: mbox_fsm_ps as u32,
+                },
+            ));
         }
         mbox_write_fifo(&mbox, data)?;
         drop(mbox);
@@ -425,36 +418,6 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
         );
     }
     result
-}
-
-pub fn mbox_write_fifo(
-    mbox: &mbox::RegisterBlock<impl MmioMut>,
-    buf: &[u8],
-) -> Result<(), ModelError> {
-    const MAILBOX_SIZE: u32 = 128 * 1024;
-
-    let Ok(input_len) = u32::try_from(buf.len()) else {
-        return Err(ModelError::BufferTooLargeForMailbox);
-    };
-    if input_len > MAILBOX_SIZE {
-        return Err(ModelError::BufferTooLargeForMailbox);
-    }
-    mbox.dlen().write(|_| input_len);
-
-    let mut remaining = buf;
-    while remaining.len() >= 4 {
-        // Panic is impossible because the subslice is always 4 bytes
-        let word = u32::from_le_bytes(remaining[..4].try_into().unwrap());
-        mbox.datain().write(|_| word);
-        remaining = &remaining[4..];
-    }
-    if !remaining.is_empty() {
-        let mut word_bytes = [0u8; 4];
-        word_bytes[..remaining.len()].copy_from_slice(remaining);
-        let word = u32::from_le_bytes(word_bytes);
-        mbox.datain().write(|_| word);
-    }
-    Ok(())
 }
 
 /// Firmware Load Command Opcode
@@ -553,7 +516,9 @@ pub trait HwModel {
                 self.step();
                 cycles += 1;
                 if cycles > MAX_WAIT_CYCLES {
-                    return Err(ModelError::ReadyForFirmwareTimeout { cycles }.into());
+                    return Err(Box::new(ModelError::from(
+                        CaliptraApiError::ReadyForFirmwareTimeout { cycles },
+                    )));
                 }
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
@@ -876,13 +841,13 @@ pub trait HwModel {
         mut req: R,
     ) -> std::result::Result<R::Resp, ModelError> {
         if mem::size_of::<R>() < mem::size_of::<MailboxReqHeader>() {
-            return Err(ModelError::MailboxReqTypeTooSmall);
+            return Err(ModelError::from(CaliptraApiError::MailboxReqTypeTooSmall));
         }
         if mem::size_of::<R::Resp>() < mem::size_of::<MailboxRespHeader>() {
-            return Err(ModelError::MailboxRespTypeTooSmall);
+            return Err(ModelError::from(CaliptraApiError::MailboxRespTypeTooSmall));
         }
         if R::Resp::MIN_SIZE < mem::size_of::<MailboxRespHeader>() {
-            return Err(ModelError::MailboxRespTypeTooSmall);
+            return Err(ModelError::from(CaliptraApiError::MailboxRespTypeTooSmall));
         }
         let (header_bytes, payload_bytes) = req
             .as_bytes_mut()
@@ -893,16 +858,18 @@ pub trait HwModel {
         header_bytes.copy_from_slice(header.as_bytes());
 
         let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
-            return Err(ModelError::MailboxNoResponseData);
+            return Err(ModelError::from(CaliptraApiError::MailboxNoResponseData));
         };
         if response_bytes.len() < R::Resp::MIN_SIZE
             || response_bytes.len() > mem::size_of::<R::Resp>()
         {
-            return Err(ModelError::MailboxUnexpectedResponseLen {
-                expected_min: R::Resp::MIN_SIZE as u32,
-                expected_max: mem::size_of::<R::Resp>() as u32,
-                actual: response_bytes.len() as u32,
-            });
+            return Err(ModelError::from(
+                CaliptraApiError::MailboxUnexpectedResponseLen {
+                    expected_min: R::Resp::MIN_SIZE as u32,
+                    expected_max: mem::size_of::<R::Resp>() as u32,
+                    actual: response_bytes.len() as u32,
+                },
+            ));
         }
 
         let mut response = R::Resp::new_zeroed();
@@ -912,14 +879,16 @@ pub trait HwModel {
             MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
         let actual_checksum = calc_checksum(0, &response_bytes[4..]);
         if actual_checksum != response_header.chksum {
-            return Err(ModelError::MailboxRespInvalidChecksum {
-                expected: response_header.chksum,
-                actual: actual_checksum,
-            });
+            return Err(ModelError::from(
+                CaliptraApiError::MailboxRespInvalidChecksum {
+                    expected: response_header.chksum,
+                    actual: actual_checksum,
+                },
+            ));
         }
         if response_header.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
-            return Err(ModelError::MailboxRespInvalidFipsStatus(
-                response_header.fips_status,
+            return Err(ModelError::from(
+                CaliptraApiError::MailboxRespInvalidFipsStatus(response_header.fips_status),
             ));
         }
         Ok(response)
@@ -947,13 +916,13 @@ pub trait HwModel {
     ) -> std::result::Result<(), ModelError> {
         // Read a 0 to get the lock
         if self.soc_mbox().lock().read().lock() {
-            return Err(ModelError::UnableToLockMailbox);
+            return Err(ModelError::from(CaliptraApiError::UnableToLockMailbox));
         }
 
         // Mailbox lock value should read 1 now
         // If not, the reads are likely being blocked by the PAUSER check or some other issue
         if !(self.soc_mbox().lock().read().lock()) {
-            return Err(ModelError::UnableToReadMailbox);
+            return Err(ModelError::from(CaliptraApiError::UnableToReadMailbox));
         }
 
         writeln!(
@@ -980,7 +949,7 @@ pub trait HwModel {
             self.step();
             timeout_cycles -= 1;
             if timeout_cycles == 0 {
-                return Err(ModelError::MailboxTimeout);
+                return Err(ModelError::from(CaliptraApiError::MailboxTimeout));
             }
         }
         let status = self.soc_mbox().status().read().status();
@@ -988,13 +957,13 @@ pub trait HwModel {
             writeln!(self.output().logger(), ">>> mbox cmd response: failed").unwrap();
             self.soc_mbox().execute().write(|w| w.execute(false));
             let soc_ifc = self.soc_ifc();
-            return Err(ModelError::MailboxCmdFailed(
+            return Err(ModelError::from(CaliptraApiError::MailboxCmdFailed(
                 if soc_ifc.cptra_fw_error_fatal().read() != 0 {
                     soc_ifc.cptra_fw_error_fatal().read()
                 } else {
                     soc_ifc.cptra_fw_error_non_fatal().read()
                 },
-            ));
+            )));
         }
         if status.cmd_complete() {
             writeln!(self.output().logger(), ">>> mbox cmd response: success").unwrap();
@@ -1002,7 +971,9 @@ pub trait HwModel {
             return Ok(None);
         }
         if !status.data_ready() {
-            return Err(ModelError::UnknownCommandStatus(status as u32));
+            return Err(ModelError::from(CaliptraApiError::UnknownCommandStatus(
+                status as u32,
+            )));
         }
 
         let dlen = self.soc_mbox().dlen().read();
@@ -1042,7 +1013,7 @@ pub trait HwModel {
         self.soc_sha512_acc().control().write(|w| w.zeroize(true));
 
         if self.soc_sha512_acc().lock().read().lock() {
-            return Err(ModelError::UnableToLockSha512Acc);
+            return Err(ModelError::from(CaliptraApiError::UnableToLockSha512Acc));
         }
 
         self.soc_sha512_acc()
@@ -1091,7 +1062,9 @@ pub trait HwModel {
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
         if response.is_some() {
-            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+            return Err(ModelError::from(
+                CaliptraApiError::UploadFirmwareUnexpectedResponse,
+            ));
         }
         Ok(())
     }
@@ -1135,11 +1108,14 @@ pub trait HwModel {
         let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
 
         // We expect a response
-        let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
+        let response = response.ok_or(ModelError::from(
+            CaliptraApiError::UploadMeasurementResponseError,
+        ))?;
 
         // Get response as a response header struct
-        let response = api::mailbox::StashMeasurementResp::read_from(response.as_slice())
-            .ok_or(ModelError::UploadMeasurementResponseError)?;
+        let response = api::mailbox::StashMeasurementResp::read_from(response.as_slice()).ok_or(
+            ModelError::from(CaliptraApiError::UploadMeasurementResponseError),
+        )?;
 
         // Verify checksum and FIPS status
         if !api::verify_checksum(
@@ -1147,11 +1123,15 @@ pub trait HwModel {
             0x0,
             &response.as_bytes()[core::mem::size_of_val(&response.hdr.chksum)..],
         ) {
-            return Err(ModelError::UploadMeasurementResponseError);
+            return Err(ModelError::from(
+                CaliptraApiError::UploadMeasurementResponseError,
+            ));
         }
 
         if response.hdr.fips_status != api::mailbox::MailboxRespHeader::FIPS_STATUS_APPROVED {
-            return Err(ModelError::UploadMeasurementResponseError);
+            return Err(ModelError::from(
+                CaliptraApiError::UploadMeasurementResponseError,
+            ));
         }
 
         Ok(())
@@ -1163,7 +1143,10 @@ mod tests {
     use crate::{
         mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
     };
-    use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
+    use caliptra_api::{
+        mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader},
+        CaliptraApiError,
+    };
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
@@ -1447,7 +1430,7 @@ mod tests {
         // Send command that returns failure
         assert_eq!(
             model.mailbox_execute(0x4000_0000, &message),
-            Err(ModelError::MailboxCmdFailed(0))
+            Err(ModelError::from(CaliptraApiError::MailboxCmdFailed(0)))
         );
     }
 
@@ -1518,7 +1501,7 @@ mod tests {
 
         assert_eq!(
             model.compute_sha512_acc_digest(b"Hello", ShaAccMode::Sha384Stream),
-            Err(ModelError::UnableToLockSha512Acc)
+            Err(ModelError::from(CaliptraApiError::UnableToLockSha512Acc))
         );
 
         // Ask firmware to unlock mailbox for sha512acc use.
@@ -1671,11 +1654,13 @@ mod tests {
         });
         assert_eq!(
             resp,
-            Err(ModelError::MailboxUnexpectedResponseLen {
-                expected_min: 12,
-                expected_max: 12,
-                actual: 11
-            })
+            Err(ModelError::from(
+                CaliptraApiError::MailboxUnexpectedResponseLen {
+                    expected_min: 12,
+                    expected_max: 12,
+                    actual: 11
+                }
+            ))
         );
 
         // Set bad checksum in response
@@ -1691,10 +1676,12 @@ mod tests {
         });
         assert_eq!(
             resp,
-            Err(ModelError::MailboxRespInvalidChecksum {
-                expected: 0xffffff2e,
-                actual: 0xffffff2d
-            })
+            Err(ModelError::from(
+                CaliptraApiError::MailboxRespInvalidChecksum {
+                    expected: 0xffffff2e,
+                    actual: 0xffffff2d
+                }
+            ))
         );
 
         // Set bad FIPS status in response
@@ -1708,14 +1695,22 @@ mod tests {
             data: *b"Hi!!",
             ..Default::default()
         });
-        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+        assert_eq!(
+            resp,
+            Err(ModelError::from(
+                CaliptraApiError::MailboxRespInvalidFipsStatus(0x2001)
+            ))
+        );
 
         // Set no data in response
         let resp = model.mailbox_execute_req(TestReqNoData {
             data: *b"Hi!!",
             ..Default::default()
         });
-        assert_eq!(resp, Err(ModelError::MailboxNoResponseData));
+        assert_eq!(
+            resp,
+            Err(ModelError::from(CaliptraApiError::MailboxNoResponseData))
+        );
     }
 
     #[test]
