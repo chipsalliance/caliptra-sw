@@ -20,10 +20,11 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
+use caliptra_api_types::SecurityState;
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
 

@@ -1,5 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use api::calc_checksum;
+use api::mailbox::{MailboxReqHeader, MailboxRespHeader, Response};
+use caliptra_api as api;
+use caliptra_api_types as api_types;
+use caliptra_emu_bus::Bus;
 use std::mem;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -9,10 +14,6 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
-use api::calc_checksum;
-use api::mailbox::{MailboxReqHeader, MailboxRespHeader, Response};
-use caliptra_api as api;
-use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
     DEFAULT_CPTRA_OBF_KEY,
@@ -41,8 +42,8 @@ mod model_fpga_realtime;
 mod output;
 mod rv32_builder;
 
+pub use api_types::{DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
-pub use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState, U4};
 use output::ExitStatus;
 pub use output::Output;
 
@@ -629,7 +630,7 @@ pub trait HwModel {
                 "Fuses are already locked in place (according to cptra_fuse_wr_done)"
             );
         }
-        println!("Initializing fuses: {:#x?}", fuses);
+        //        println!("Initializing fuses: {:#x?}", fuses);
 
         self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
         self.soc_ifc()
