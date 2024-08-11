@@ -213,6 +213,7 @@ name = "caliptra-api"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-emu-types",
  "caliptra-error",
  "zerocopy",
 ]
