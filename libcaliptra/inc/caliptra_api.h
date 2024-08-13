@@ -99,7 +99,25 @@ int caliptra_mailbox_execute(uint32_t cmd, const struct caliptra_buffer *mbox_tx
 // For full command details, please refer to the Caliptra Runtime Readme file at runtime\README.md
 
 // Upload Caliptra Firmware
+// Requires entire FW as fw_buffer
+// For loading chunks of data at a time, use start/send/end functions below
 int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async);
+
+// If the SoC cannot buffer the entire FW, the following 3 functions can be used to write chunks at a time
+// Upload Caliptra Firmware Start Request
+// Begin a FW_LOAD command to caliptra
+int caliptra_upload_fw_start_req();
+
+// Upload Caliptra Firmware Send Data
+// Load a chunk of the FW data to Caliptra
+// Intended to be called multiple times
+// Must follow caliptra_upload_fw_start_req and preceed caliptra_upload_fw_end_request
+int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer);
+
+// Upload Caliptra Firmware End Request
+// End the FW_LOAD request after sending all the FW data
+// Waits for Caliptra completion and response if async is false
+int caliptra_upload_fw_end_req(bool async);
 
 // Get IDEV cert
 int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async);
