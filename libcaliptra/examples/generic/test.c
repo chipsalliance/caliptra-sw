@@ -559,7 +559,6 @@ int rt_test_all_commands(const test_info* info)
         printf("DPE Command: OK\n");
     }
 
-
     // FW_INFO
     struct caliptra_fw_info_resp fw_info_resp;
 
@@ -671,6 +670,63 @@ int rt_test_all_commands(const test_info* info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // SHA Engine Tests
+    uint32_t hash[16]; // Adjust size as needed for SHA-384 or SHA-512
+    uint32_t data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
+    uint32_t update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
+    uint32_t expected_hash[16] = {
+        0xcf83e135, 0x7eefb8bd, 0xf1542850, 0xd66d8007,
+        0xd620e405, 0x0b5715dc, 0x83f4a921, 0xd36ce9ce,
+        0x47d0d13c, 0x5d85f2b0, 0xff8318d2, 0x877eec2f,
+        0x63b931bd, 0x47417a81, 0xa538327a, 0xf927da3e,
+    };
+
+    // Start SHA Stream
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, data, 4);
+    if (status) {
+        printf("Start SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Start SHA Stream: OK\n");
+    }
+
+    // Update SHA Stream
+    status = caliptra_update_sha_stream(update_data, 4);
+    if (status) {
+        printf("Update SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Update SHA Stream: OK\n");
+    }
+
+    // Finish SHA Stream
+    status = caliptra_finish_sha_stream(hash);
+    if (status) {
+        printf("Finish SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Finish SHA Stream: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(hash, expected_hash, 16) == 0) {
+            printf("SHA Stream Test: Passed\n");
+        } else {
+            printf("SHA Stream Test: Failed - Hash does not match expected value\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", expected_hash[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", hash[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
+    }
 
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
