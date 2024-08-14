@@ -698,7 +698,6 @@ int rt_test_all_commands(const test_info* info)
         printf("DPE Command: OK\n");
     }
 
-
     // FW_INFO
     struct caliptra_fw_info_resp fw_info_resp;
 
@@ -846,6 +845,105 @@ int rt_test_all_commands(const test_info* info)
         failure = 1;
     } else {
         printf("Authorize and Stash: OK\n");
+    }
+    
+    // SHA Engine Tests
+    uint32_t stream_hash[16]; // Adjust size as needed for SHA-384 or SHA-512
+    uint32_t stream_hash_data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
+    uint32_t stream_hash_update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
+    uint32_t expected_stream_hash[16] = {
+        0xcf83e135, 0x7eefb8bd, 0xf1542850, 0xd66d8007,
+        0xd620e405, 0x0b5715dc, 0x83f4a921, 0xd36ce9ce,
+        0x47d0d13c, 0x5d85f2b0, 0xff8318d2, 0x877eec2f,
+        0x63b931bd, 0x47417a81, 0xa538327a, 0xf927da3e,
+    };
+
+    // Start SHA Stream
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, stream_hash_data, sizeof(stream_hash_data));
+    if (status) {
+        printf("Start SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Start SHA Stream: OK\n");
+    }
+
+    // Update SHA Stream
+    status = caliptra_update_sha_stream(stream_hash_update_data, sizeof(stream_hash_update_data));
+    if (status) {
+        printf("Update SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Update SHA Stream: OK\n");
+    }
+
+    // Finish SHA Stream
+    status = caliptra_finish_sha_stream(stream_hash);
+    if (status) {
+        printf("Finish SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Finish SHA Stream: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(stream_hash, expected_stream_hash, 16) == 0) {
+            printf("SHA Stream Test: Passed\n");
+        } else {
+            printf("SHA Stream Test: Failed - Hash does not match expected value\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", expected_stream_hash[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", stream_hash[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
+    }
+
+    // Test the non-streaming mbox hash function
+    uint32_t mbox_hash[16]; // Adjust size as needed for SHA-384 or SHA-512
+    uint32_t mbox_hash_data[4] = {0x01, 0x02, 0x03, 0x04};
+    uint32_t expected_mbox_hash[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+    uint32_t mbox_start_addr = 0x1000; // Example starting address for the mailbox
+
+    struct caliptra_buffer caliptra_hash_buf = {0};
+    caliptra_hash_buf.len = sizeof(mbox_hash_data) * 4;
+    // Allocte a buffer to hold the hash using malloc
+    caliptra_hash_buf.data = mbox_hash_data;
+
+    // Write the hash data into the mailbox to be hashed
+    caliptra_mbox_send_data(caliptra_hash_buf);
+
+    // Compute MBox Hash
+    status = caliptra_start_mbox_hash(CALIPTRA_SHA_ACCELERATOR_MODE_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, mbox_start_addr, sizeof(mbox_hash_data), mbox_hash);
+    if (status) {
+        printf("Start MBox Hash failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Start MBox Hash: OK\n");
+
+        // Verify the hash against the expected value
+        if (memcmp(mbox_hash, expected_mbox_hash, 16) == 0) {
+            printf("MBox Hash Test: Passed\n");
+        } else {
+            printf("MBox Hash Test: Failed - Hash does not match expected value\n");
+            printf("Expected Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", expected_mbox_hash[i]);
+            }
+            printf("\nReceived Hash: ");
+            for (int i = 0; i < 16; i++) {
+                printf("%08x ", mbox_hash[i]);
+            }
+            printf("\n");
+            failure = 1;
+        }
     }
 
     // FIPS_VERSION
