@@ -19,7 +19,7 @@ use crate::{
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_registers::ecc::{EccReg, RegisterBlock};
+use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
@@ -182,32 +182,6 @@ impl Ecc384 {
         false
     }
 
-    // Wait on the provided condition OR the error condition defined in this function
-    // In the event of the error condition being set, clear the error bits and return an error
-    fn wait<F>(regs: RegisterBlock<ureg::RealMmioMut>, condition: F) -> CaliptraResult<()>
-    where
-        F: Fn() -> bool,
-    {
-        let err_condition = || {
-            (u32::from(regs.intr_block_rf().error_global_intr_r().read()) != 0)
-                || (u32::from(regs.intr_block_rf().error_internal_intr_r().read()) != 0)
-        };
-
-        // Wait for either the given condition or the error condition
-        wait::until(|| (condition() || err_condition()));
-
-        if err_condition() {
-            // Clear the errors
-            // error_global_intr_r is RO
-            regs.intr_block_rf()
-                .error_internal_intr_r()
-                .write(|_| u32::from(regs.intr_block_rf().error_internal_intr_r().read()).into());
-            return Err(CaliptraError::DRIVER_ECC384_HW_ERROR);
-        }
-
-        Ok(())
-    }
-
     /// Generate ECC-384 Key Pair
     ///
     /// # Arguments
@@ -232,7 +206,7 @@ impl Ecc384 {
         let mut priv_key = priv_key;
 
         // Wait for hardware ready
-        Ecc384::wait(ecc, || ecc.status().read().ready())?;
+        wait::until(|| ecc.status().read().ready());
 
         // Configure hardware to route keys to user specified hardware blocks
         match &mut priv_key {
@@ -271,7 +245,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
 
         // Wait for command to complete
-        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+        wait::until(|| ecc.status().read().valid());
 
         // Copy the private key
         match &mut priv_key {
@@ -316,7 +290,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        Ecc384::wait(ecc, || ecc.status().read().ready())?;
+        wait::until(|| ecc.status().read().ready());
 
         // Generate an IV.
         let iv = trng.generate()?;
@@ -325,7 +299,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
 
         // Wait for command to complete
-        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+        wait::until(|| ecc.status().read().valid());
 
         // Copy signature
         let signature = Ecc384Signature {
@@ -348,7 +322,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        Ecc384::wait(ecc, || ecc.status().read().ready())?;
+        wait::until(|| ecc.status().read().ready());
 
         // Copy private key
         match priv_key {
@@ -370,7 +344,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.signing()));
 
         // Wait for command to complete
-        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+        wait::until(|| ecc.status().read().valid());
 
         // Copy signature
         let signature = Ecc384Signature {
@@ -481,7 +455,7 @@ impl Ecc384 {
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
-        Ecc384::wait(ecc, || ecc.status().read().ready())?;
+        wait::until(|| ecc.status().read().ready());
 
         // Copy public key to registers
         pub_key.x.write_to_reg(ecc.pubkey_x());
@@ -498,7 +472,7 @@ impl Ecc384 {
         ecc.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
         // Wait for command to complete
-        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+        wait::until(|| ecc.status().read().valid());
 
         // Copy the random value
         let verify_r = Array4x12::read_from_reg(ecc.verify_r());

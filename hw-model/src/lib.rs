@@ -991,7 +991,7 @@ pub trait HwModel {
             // Don't check for mbox_idle() unless the hw-model supports
             // fine-grained timing control; the firmware may proceed to lock the
             // mailbox shortly after the mailbox transcation finishes (for example, to
-            // test the sha2_512_384_acc peripheral).
+            // test the sha384_acc peripheral).
 
             // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
             // so step an extra clock cycle to wait for fm_ps to update

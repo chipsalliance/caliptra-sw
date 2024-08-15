@@ -18,7 +18,7 @@ Abstract:
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    PersistentDataAccessor, Sha1, Sha256, Sha384, Sha384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
@@ -41,8 +41,8 @@ pub struct RomEnv {
     // SHA2-384 Engine
     pub sha384: Sha384,
 
-    // SHA2-512/384 Accelerator
-    pub sha2_512_384_acc: Sha2_512_384Acc,
+    // SHA2-384 Accelerator
+    pub sha384_acc: Sha384Acc,
 
     /// Hmac384 Engine
     pub hmac384: Hmac384,
@@ -92,7 +92,7 @@ impl RomEnv {
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
-            sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),

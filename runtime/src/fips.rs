@@ -20,8 +20,8 @@ use caliptra_drivers::Ecc384;
 use caliptra_drivers::Hmac384;
 use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
-use caliptra_drivers::Sha2_512_384Acc;
 use caliptra_drivers::Sha384;
+use caliptra_drivers::Sha384Acc;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use zeroize::Zeroize;
 
@@ -41,13 +41,13 @@ impl FipsModule {
             Hmac384::zeroize();
             Sha256::zeroize();
             Sha384::zeroize();
-            Sha2_512_384Acc::zeroize();
+            Sha384Acc::zeroize();
 
             // Zeroize the key vault.
             KeyVault::zeroize();
 
             // Lock the SHA Accelerator.
-            Sha2_512_384Acc::lock();
+            Sha384Acc::lock();
         }
         env.persistent_data.get_mut().zeroize();
     }
@@ -148,8 +148,8 @@ pub mod fips_self_test_cmd {
             // SHA2-384 Engine
             sha384: &mut env.sha384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
 
             // Hmac384 Engine
             hmac384: &mut env.hmac384,
