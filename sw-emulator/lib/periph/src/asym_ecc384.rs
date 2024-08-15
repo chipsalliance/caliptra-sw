@@ -204,14 +204,6 @@ pub struct AsymEcc384 {
     #[register(offset = 0x0000_0614)]
     key_write_status: ReadOnlyRegister<u32, KeyWriteStatus::Register>,
 
-    /// Error Global Intr register
-    #[register(offset = 0x0000_080c)]
-    error_global_intr: ReadOnlyRegister<u32>,
-
-    /// Error Internal Intr register
-    #[register(offset = 0x0000_0814)]
-    error_internal_intr: ReadOnlyRegister<u32>,
-
     /// Key Vault
     key_vault: KeyVault,
 
@@ -280,8 +272,6 @@ impl AsymEcc384 {
             op_key_read_complete_action: None,
             op_seed_read_complete_action: None,
             op_key_write_complete_action: None,
-            error_global_intr: ReadOnlyRegister::new(0),
-            error_internal_intr: ReadOnlyRegister::new(0),
         }
     }
 

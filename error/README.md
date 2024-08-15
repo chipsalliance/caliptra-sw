@@ -45,9 +45,9 @@
 | Driver | Mailbox | No Data Available Error |0x00080003 |
 | Driver | Mailbox | Enqueue Error |0x00080004 |
 | Driver | Mailbox | Dequeue Error |0x00080005 |
-| Driver | SHA2_512_384Acc | Invalid Op |0x00090001 |
-| Driver | SHA2_512_384Acc | Max Data Err |0x00090002 |
-| Driver | SHA2_512_384Acc | Index Out of Bounds |0x00090003 |
+| Driver | SHA384Acc | Invalid Op |0x00090001 |
+| Driver | SHA384Acc | Max Data Err |0x00090002 |
+| Driver | SHA384Acc | Index Out of Bounds |0x00090003 |
 | Driver | SHA1 | Invalid State Error |0x000A0001 |
 | Driver | SHA1 | Max Data Error |0x000A0002 |
 | Driver | SHA1 | Invalid Slice Error |0x000A0003 |

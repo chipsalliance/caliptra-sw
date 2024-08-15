@@ -215,12 +215,11 @@ jobs:
           name: release-info
           path: /tmp/release-info
 
-  # SKIP Publishing the test results when we are not on the main branch
-  # publish-website:
-  #   name: Publish https://caliptra-sw.github.io/
-  #   needs:
-  #     create-release
-  #   uses: ./.github/workflows/publish-website.yml
-  #   permissions:
-  #     pages: write
-  #     id-token: write
+  publish-website:
+    name: Publish https://caliptra-sw.github.io/
+    needs:
+      create-release
+    uses: ./.github/workflows/publish-website.yml
+    permissions:
+      pages: write
+      id-token: write

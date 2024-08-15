@@ -65,8 +65,8 @@ impl FirmwareProcessor {
             // SHA2-384 Engine
             sha384: &mut env.sha384,
 
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
 
             // Hmac384 Engine
             hmac384: &mut env.hmac384,

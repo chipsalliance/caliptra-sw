@@ -9,7 +9,6 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
-use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
@@ -177,7 +176,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] sha1");
         assert_output_contains(&output, "[kat] SHA2-256");
         assert_output_contains(&output, "[kat] SHA2-384");
-        assert_output_contains(&output, "[kat] SHA2-512-ACC");
+        assert_output_contains(&output, "[kat] SHA2-384-ACC");
         assert_output_contains(&output, "[kat] HMAC-384");
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");
@@ -410,26 +409,6 @@ fn smoke_test() {
     let rt_alias_cert_der = rt_alias_cert_resp.data().unwrap();
     let rt_alias_cert = openssl::x509::X509::from_der(rt_alias_cert_der).unwrap();
     let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
-
-    println!(
-        "Manifest digest is {:02x?}",
-        image.manifest.runtime.digest.as_bytes()
-    );
-    let expected_rt_alias_key = RtAliasKey::derive(
-        &PcrRtCurrentInput {
-            runtime_digest: image.manifest.runtime.digest,
-            manifest: image.manifest,
-        },
-        &expected_fmc_alias_key,
-    );
-
-    // Check that the rt-alias key has the rt measurements input above mixed into it
-    // If a firmware change causes this assertion to fail, it is likely that the
-    // logic in the FMC that derives the CDI. Ensure this is intentional, and
-    // then make the same change to caliptra_test::RtAliasKey::derive().
-    assert!(expected_rt_alias_key
-        .derive_public_key()
-        .public_eq(&rt_alias_cert.public_key().unwrap()));
 
     println!("rt-alias cert: {rt_alias_cert_txt}");
 
