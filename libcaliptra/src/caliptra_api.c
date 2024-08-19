@@ -3,13 +3,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+
 #include <caliptra_top_reg.h>
+#include "caliptra_enums.h"
 #include "caliptra_if.h"
 #include "caliptra_api.h"
+#include "caliptra_types.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
-#include "caliptra_enums.h"
 
 #define CALIPTRA_STATUS_NOT_READY (0)
 #define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)
@@ -258,7 +259,7 @@ bool caliptra_ready_for_fuses(void)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_init_fuses(struct caliptra_fuses *fuses)
+int caliptra_init_fuses(const struct caliptra_fuses *fuses)
 {
     // Parameter check
     if (!fuses)
@@ -382,7 +383,7 @@ bool caliptra_is_csr_ready(void)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
+static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
 {
     // Check if buffer is not null.
     if (buffer == NULL)
@@ -483,7 +484,7 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_mailbox_send(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer)
+int caliptra_mailbox_send(uint32_t cmd, const struct caliptra_buffer *mbox_tx_buffer)
 {
     // If mbox already locked return
     if (caliptra_mbox_is_lock())
@@ -589,7 +590,7 @@ static inline int check_command_response(const uint8_t *buffer, const size_t buf
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async)
+int caliptra_mailbox_execute(uint32_t cmd, const struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async)
 {
     int status = caliptra_mailbox_send(cmd, mbox_tx_buffer);
     if (status) {
@@ -720,7 +721,7 @@ int caliptra_complete()
  *
  * @return See caliptra_mailbox, mb_resultx_execute for possible results.
  */
-int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async)
+int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async)
 {
     // Parameter check
     if (fw_buffer == NULL)
