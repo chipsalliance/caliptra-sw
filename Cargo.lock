@@ -218,6 +218,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-auth-man-gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.4.0",
+ "caliptra-auth-man-types",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
+ "memoffset 0.8.0",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-auth-man-types"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "caliptra-error",
+ "caliptra-image-types",
+ "caliptra-lms-types",
+ "memoffset 0.8.0",
+ "zerocopy",
+ "zeroize",
+]
+
+[[package]]
+name = "caliptra-auth-manifest-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
+ "caliptra-drivers",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-gen",
+ "caliptra-image-serde",
+ "caliptra-image-types",
+ "chrono",
+ "clap",
+ "hex",
+ "serde",
+ "serde_derive",
+ "toml 0.7.3",
+ "zerocopy",
+]
+
+[[package]]
 name = "caliptra-builder"
 version = "0.1.0"
 dependencies = [
