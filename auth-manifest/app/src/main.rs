@@ -14,6 +14,7 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_auth_man_gen::{AuthManifestGenerator, AuthManifestGeneratorConfig};
+use caliptra_auth_man_types::AuthManifestFlags;
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -46,12 +47,7 @@ fn main() {
                 .value_parser(value_parser!(PathBuf)),
         )
         .arg(
-            arg!(--"config" <FILE> "Configuration file")
-                .required(true)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"key-dir" <FILE> "Key files directory path")
+            arg!(--"config" <FILE> "Manifest configuration file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
         )
@@ -80,13 +76,19 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("version")
         .with_context(|| "version arg not specified")?;
 
-    let flags: &u32 = args
-        .get_one::<u32>("flags")
-        .with_context(|| "flags arg not specified")?;
+    let flags: AuthManifestFlags = AuthManifestFlags::from_bits_truncate(
+        *args
+            .get_one::<u32>("flags")
+            .with_context(|| "flags arg not specified")?,
+    );
 
     let config_path: &PathBuf = args
         .get_one::<PathBuf>("config")
         .with_context(|| "config arg not specified")?;
+
+    if !config_path.exists() {
+        return Err(anyhow::anyhow!("Invalid config file path"));
+    }
 
     let key_dir: &PathBuf = args
         .get_one::<PathBuf>("key-dir")
@@ -100,18 +102,21 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<PathBuf>("out")
         .with_context(|| "out arg not specified")?;
 
-    // Load the configuration from the config file.
-    let config = config::load_auth_man_config(config_path)?;
+    // Load the manifest configuration from the config file.
+    let config = config::load_auth_man_config_from_file(config_path)?;
 
     // Decode the configuration.
     let gen_config = AuthManifestGeneratorConfig {
         version: *version,
-        flags: *flags,
-        vendor_man_key_info: config::vendor_config(key_dir, &config.vendor_man_key_config)?,
-        owner_man_key_info: config::owner_config(key_dir, &config.owner_man_key_config)?,
-        vendor_fw_key_info: config::vendor_config(key_dir, &config.vendor_fw_key_config)?,
-        owner_fw_key_info: config::owner_config(key_dir, &config.owner_fw_key_config)?,
-        image_metadata_list: config::image_metadata_config(&config.image_metadata_list)?,
+        flags,
+        vendor_man_key_info: config::vendor_config_from_file(
+            key_dir,
+            &config.vendor_man_key_config,
+        )?,
+        owner_man_key_info: config::owner_config_from_file(key_dir, &config.owner_man_key_config)?,
+        vendor_fw_key_info: config::vendor_config_from_file(key_dir, &config.vendor_fw_key_config)?,
+        owner_fw_key_info: config::owner_config_from_file(key_dir, &config.owner_fw_key_config)?,
+        image_metadata_list: config::image_metadata_config_from_file(&config.image_metadata_list)?,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());

@@ -37,10 +37,10 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
 
         if config.image_metadata_list.len() > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT {
             eprintln!(
-                "Encountered an error converting image_metadata_list, only {} entries supported.",
+                "Unsupported image metadata count, only {} entries supported.",
                 AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT
             );
-            return Err(anyhow::anyhow!("Error converting image_metadata_list"));
+            return Err(anyhow::anyhow!("Error converting image metadata list"));
         }
 
         // Generate the Image Metadata List.
@@ -55,9 +55,9 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.marker = AUTH_MANIFEST_MARKER;
         auth_manifest.preamble.size = size_of::<AuthManifestPreamble>() as u32;
         auth_manifest.preamble.version = config.version;
-        auth_manifest.preamble.flags = config.flags;
+        auth_manifest.preamble.flags = config.flags.bits();
 
-        // Sign the vendor manifest keys.
+        // Sign the vendor manifest public keys.
         auth_manifest.preamble.vendor_pub_keys = config.vendor_man_key_info.pub_keys;
 
         let range = AuthManifestPreamble::vendor_signed_data_range();
@@ -86,37 +86,40 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
         }
 
-        // Sign the owner manifest keys.
-        if let Some(owner_fw_config) = &config.owner_fw_key_info {
-            if let Some(owner_man_config) = &config.owner_man_key_info {
-                auth_manifest.preamble.owner_pub_keys = owner_man_config.pub_keys;
+        // Sign the owner manifest public keys.
+        if let (Some(owner_fw_config), Some(owner_man_config)) =
+            (&config.owner_fw_key_info, &config.owner_man_key_info)
+        {
+            auth_manifest.preamble.owner_pub_keys = owner_man_config.pub_keys;
 
-                let digest = self
+            let digest = self
+                .crypto
+                .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
+
+            if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
+                let sig = self.crypto.ecdsa384_sign(
+                    &digest,
+                    &owner_fw_priv_keys.ecc_priv_key,
+                    &owner_fw_config.pub_keys.ecc_pub_key,
+                )?;
+                auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
+                let lms_sig = self
                     .crypto
-                    .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
-
-                if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
-                    let sig = self.crypto.ecdsa384_sign(
-                        &digest,
-                        &owner_fw_priv_keys.ecc_priv_key,
-                        &owner_fw_config.pub_keys.ecc_pub_key,
-                    )?;
-                    auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
-                    let lms_sig = self
-                        .crypto
-                        .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
-                    auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = lms_sig;
-                }
+                    .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
+                auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = lms_sig;
             }
         }
 
-        // Sign the Image Metadata List.
+        // Hash the IMC.
         let digest = self
             .crypto
             .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
 
-        // Sign with the vendor manifest public keys if indicated in the flags.
-        if auth_manifest.preamble.flags & AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG != 0 {
+        // Sign the IMC with the vendor manifest public keys if indicated in the flags.
+        if config
+            .flags
+            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED)
+        {
             if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
                     &digest,
@@ -138,7 +141,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             }
         }
 
-        // Sign with the owner manifest public keys.
+        // Sign the IMC with the owner manifest public keys.
         if let Some(owner_man_config) = &config.owner_man_key_info {
             if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
