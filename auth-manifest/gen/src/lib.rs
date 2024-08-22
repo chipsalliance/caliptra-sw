@@ -15,7 +15,6 @@ mod generator;
 
 pub use generator::AuthManifestGenerator;
 
-//use auth_man_generator::{AuthManPrivKeys, AuthManPubKeys};
 use caliptra_auth_man_types::*;
 
 /// Image Generator Vendor Configuration
@@ -31,7 +30,7 @@ pub struct AuthManifestGeneratorKeyConfig {
 pub struct AuthManifestGeneratorConfig {
     pub version: u32,
 
-    pub flags: u32,
+    pub flags: AuthManifestFlags,
 
     pub vendor_fw_key_info: AuthManifestGeneratorKeyConfig,
 

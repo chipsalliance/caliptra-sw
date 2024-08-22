@@ -26,6 +26,13 @@ pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 16;
 pub const AUTH_MANIFEST_VENDOR_SIGNATURE_REQURIED_FLAG: u32 = 0x1;
 
+bitflags::bitflags! {
+    #[derive(Default, Copy, Clone, Debug)]
+    pub struct AuthManifestFlags : u32 {
+        const VENDOR_SIGNATURE_REQURIED = 0b1;
+    }
+}
+
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
