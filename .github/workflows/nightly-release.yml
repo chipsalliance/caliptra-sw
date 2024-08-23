@@ -7,16 +7,8 @@ on:
   - cron: '11 10 * * 2-6'
 
 jobs:
-  rtl-repo-sync:
-    name: RTL Repo Sync
-    uses: ./.github/workflows/rtl-repo-sync.yml
-    permissions:
-      contents: write
-      pull-requests: write
-
   find-latest-release:
     name: Find Latest Release
-    needs: rtl-repo-sync
     runs-on: ubuntu-22.04
     outputs:
       create_release: ${{ steps.find.outputs.create_release }}
