@@ -184,6 +184,7 @@ int rom_test_all_commands(const test_info* info)
         failure = 1;
     }
 
+    // NOTE: Response structs are uninitialized to confirm libcaliptra handles this properly
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
     struct caliptra_stash_measurement_resp stash_resp;
@@ -273,6 +274,7 @@ int rt_test_all_commands(const test_info* info)
         failure = 1;
     }
 
+    // NOTE: Response structs are uninitialized to confirm libcaliptra handles this properly
     // Load Image Bundle
     // FW_PATH is defined on the compiler command line
     status = caliptra_upload_fw(&info->image_bundle, false);
