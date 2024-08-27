@@ -354,6 +354,7 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-derive-git",
@@ -782,6 +783,8 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags 2.4.0",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib-git",
@@ -806,6 +809,7 @@ dependencies = [
  "cms",
  "crypto",
  "dpe",
+ "memoffset 0.8.0",
  "openssl",
  "platform",
  "sha2",

@@ -9,7 +9,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -39,12 +39,11 @@ pub const TEST_DIGEST: [u8; 48] = [
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
 
-// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
-// run the production runtime image.
-pub fn run_rt_test(
+pub fn run_rt_test_lms(
     test_fwid: Option<&'static FwId>,
     test_image_options: Option<ImageOptions>,
     init_params: Option<InitParams>,
+    lms_verify: bool,
 ) -> DefaultHwModel {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
@@ -77,6 +76,10 @@ pub fn run_rt_test(
         init_params,
         BootParams {
             fw_image: Some(&image.to_bytes().unwrap()),
+            fuses: Fuses {
+                lms_verify,
+                ..Default::default()
+            },
             ..Default::default()
         },
     )
@@ -85,6 +88,16 @@ pub fn run_rt_test(
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
     model
+}
+
+// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
+// run the production runtime image.
+pub fn run_rt_test(
+    test_fwid: Option<&'static FwId>,
+    test_image_options: Option<ImageOptions>,
+    init_params: Option<InitParams>,
+) -> DefaultHwModel {
+    run_rt_test_lms(test_fwid, test_image_options, init_params, false)
 }
 
 pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
