@@ -1124,3 +1124,22 @@ fn test_uart() {
 fn test_mailbox_txn_drop() {
     run_driver_test(&firmware::driver_tests::MBOX_SEND_TXN_DROP);
 }
+
+#[test]
+fn test_recovery() {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::RECOVERY).unwrap();
+
+    let recovery: &[u8] = &[0xab; 512];
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            recovery,
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    // Wrap in a line-writer so output from different test threads doesn't multiplex within a line.
+    model.step_until_exit_success().unwrap();
+}

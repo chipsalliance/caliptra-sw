@@ -128,6 +128,7 @@ impl crate::HwModel for ModelEmulated {
 
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
+            recovery_image: params.recovery.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());
                 output_sink.push_uart_char(ch);

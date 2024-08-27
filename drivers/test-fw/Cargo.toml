@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+arrayvec.workspace = true
 caliptra-drivers = { workspace = true, features=["emu"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-kat = { workspace = true }
@@ -175,3 +176,7 @@ name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "recovery"
+path = "src/bin/recovery_tests.rs"
+required-features = ["riscv"]

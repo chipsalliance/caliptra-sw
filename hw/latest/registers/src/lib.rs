@@ -865,6 +865,7 @@ pub mod hmac;
 pub mod kv;
 pub mod mbox;
 pub mod pv;
+pub mod recovery;
 pub mod sha256;
 pub mod sha512;
 pub mod sha512_acc;

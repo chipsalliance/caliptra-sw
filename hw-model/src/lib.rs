@@ -140,6 +140,9 @@ pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
 
+    // The contents of the recovery image
+    pub recovery: &'a [u8],
+
     // The initial contents of the DCCM SRAM
     pub dccm: &'a [u8],
 
@@ -191,6 +194,7 @@ impl<'a> Default for InitParams<'a> {
             };
         Self {
             rom: Default::default(),
+            recovery: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
             log_writer: Box::new(stdout()),

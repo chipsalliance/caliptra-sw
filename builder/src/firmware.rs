@@ -220,6 +220,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const RECOVERY: FwId = FwId {
+        bin_name: "recovery",
+        ..BASE_FWID
+    };
+
     pub const SHA1: FwId = FwId {
         bin_name: "sha1",
         ..BASE_FWID
@@ -411,6 +416,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS,
     &driver_tests::MBOX_SEND_TXN_DROP,
     &driver_tests::PCRBANK,
+    &driver_tests::RECOVERY,
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
