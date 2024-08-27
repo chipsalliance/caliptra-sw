@@ -711,6 +711,84 @@ Command Code: `0x434B_4558` ("CKEX")
 | fips\_status        | u32       | Indicates if the command is FIPS approved or an error.
 | certify\_key\_resp  | u8[2176]  | Certify Key Response.
 
+### SET\_AUTH\_MANIFEST
+
+Command Code: `0x4154_4D4E` ("ATMN")
+
+*Table: `SET\_AUTH\_MANIFEST` input arguments*
+
+| **Name**                      | **Type**     | **Description**                                                             |
+| chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size                 | u32          | The size of the full Authentication Manifest                                |
+| preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
+| preamble\_size                | u32          | Size of the preamble                                                        |
+| preamble\_version             | u32          | Version of the preamble                                                     |
+| preamble\_flags               | u32          | Preamble flags                                                              |
+| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
+| preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
+| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
+| preamble\_vendor\_LMS\_sig    | u32[1344]    | Vendor LMOTS-SHA192-W4 signature                                            |
+| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
+| preamble\_owner\_lms\_key     | u32[6]       | Owner LMS-SHA192-H15 key                                                    |
+| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
+| preamble\_owner\_LMS\_sig     | u32[1344]    | Owner LMOTS-SHA192-W4 signature                                             |
+| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
+| metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
+| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
+| metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
+| metadata\_header\_revision    | u32          | Revision of the metadata header                                             |
+| metadata\_header\_reserved    | u32[3]       | Reserved                                                                    |
+| metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
+| metadata\_entries             | MetaData[16] | The max number of metadata is 16 but less can be used                       |
+
+
+*Table: `AUTH\_MANIFEST\_FLAGS` input flags*
+
+| **Name**                  | **Value** |
+|---------------------------|-----------|
+| VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
+
+*Table: `AUTH\_MANIFEST\_METADATA\_ENTRY` digest entries*
+
+| **Name**      | **Type** | **Description**        |
+|---------------|----------|------------------------|
+| digest        | u32[48]  | Digest of the metadata |
+| image\_source | u32      | Image source           |
+
+*Table: `SET\_AUTH\_MANIFEST` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+
+
+### AUTHORIZE\_AND\_STASH
+
+Command Code: `0x4154_5348` ("ATSH")
+
+*Table: `AUTHORIZE\_AND\_STASH` input arguments*
+| **Name**    | **Type** | **Description**                                                                     |
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| metadata    | u8[4]    | 4-byte measurement identifier.                                                      |
+| measurement | u8[48]   | Digest of measured                                                                  |
+| context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
+| svn         | u32      | SVN                                                                                 |
+| flags       | u32      | Flags                                                                               |
+| source      | u32      | Source number                                                                       |
+
+*Table: `AUTHORIZE\_AND\_STASH\_FLAGS` input flags*
+
+| **Name**   | **Value** |
+|------------|-----------|
+| SKIP\_STASH | 1 << 0    |
+
+*Table: `AUTHORIZE\_AND\_STASH` output arguments*
+| **Name**          | **Type** | **Description**                                                            |
+| chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
+| auth\_req\_result | u32      | AUTHORIZE\_IMAGE: 0xDEADC0DE and DENY\_IMAGE\_AUTHORIZATION: 0x21523F21    |
+
 ## Checksum
 
 For every command except for FW_LOAD, the request and response feature a checksum. This

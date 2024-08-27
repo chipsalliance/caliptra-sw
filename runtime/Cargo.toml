@@ -14,6 +14,7 @@ caliptra-cpu.workspace = true
 caliptra-drivers = { workspace = true, features = ["runtime"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
+caliptra-auth-man-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
@@ -27,6 +28,7 @@ arrayvec.workspace = true
 caliptra-image-verify = { workspace = true, default-features = false }
 zeroize.workspace = true
 bitflags.workspace = true
+memoffset.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -40,6 +42,7 @@ caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-crypto.workspace = true
+caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
