@@ -330,7 +330,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: MlDsa87::new(clock),
+            ml_dsa87: MlDsa87::new(clock, key_vault.clone()),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
