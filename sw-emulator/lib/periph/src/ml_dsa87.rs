@@ -218,8 +218,20 @@ impl MlDsa87 {
         Err(BusError::StoreAccessFault)
     }
 
-    // TODO Clear registers
-    fn zeroize(&mut self) {}
+    fn zeroize(&mut self) {
+        self.control = ReadWriteRegister::new(0);
+        self.status = ReadOnlyRegister::new(0);
+        self.seed = Default::default();
+        self.sign_rnd = Default::default();
+        self.sk_out = [0; 1224];
+        self.sk_in = [0; 1224];
+        self.pk = [0; 648];
+        self.signature = [0; 1157];
+        self.seed_read_ctrl = ReadWriteRegister::new(0);
+        self.seed_read_status = ReadOnlyRegister::new(KeyReadStatus::READY::SET.value);
+        self.op_complete_action = None;
+        self.op_seed_read_complete_action = None;
+    }
 
     /// On Write callback for `control` register
     ///
