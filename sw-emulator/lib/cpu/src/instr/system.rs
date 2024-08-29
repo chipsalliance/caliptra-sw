@@ -15,7 +15,7 @@ Abstract:
 use crate::cpu::Cpu;
 use crate::csr_file::Csr;
 use crate::types::{
-    RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm, RvMStatus,
+    RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm, RvMStatus, RvPrivMode,
 };
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvData, RvException};
@@ -39,14 +39,32 @@ impl<TBus: Bus> Cpu<TBus> {
 
         match instr.funct3().into() {
             RvInstr32SystemFunct3::Priv => match imm.into() {
-                RvInstr32SystemImm::Ecall => Err(RvException::environment_call()),
+                RvInstr32SystemImm::Wfi => {
+                    // TODO: If S-mode is present, we need to check TW=1 and return an illegal instruction exception
+                    // if this is called from U mode.
+                    // According to the spec, we can simply treat WFI as NOP since we are allowed to return
+                    // from WFI for any reason, and we don't have any power optimization in the emulator.
+                    Ok(())
+                }
+                RvInstr32SystemImm::Ecall => Err(match self.priv_mode {
+                    RvPrivMode::M => RvException::environment_call_machine(),
+                    RvPrivMode::U => RvException::environment_call_user(),
+                    _ => unreachable!(),
+                }),
                 RvInstr32SystemImm::Ebreak => Err(RvException::breakpoint(self.read_pc())),
                 RvInstr32SystemImm::Mret => {
+                    if self.priv_mode == RvPrivMode::U {
+                        return Err(RvException::illegal_instr(instr.0));
+                    }
+
                     let mut status = RvMStatus(self.read_csr(Csr::MSTATUS)?);
+                    let mpp = status.mpp();
                     status.set_mie(status.mpie());
                     status.set_mpie(1);
+                    status.set_mpp(RvPrivMode::U);
                     self.write_csr(Csr::MSTATUS, status.0)?;
                     self.set_next_pc(self.read_csr(Csr::MEPC)?);
+                    self.priv_mode = mpp;
                     Ok(())
                 }
                 _ => Err(RvException::illegal_instr(instr.0)),
@@ -107,7 +125,7 @@ mod tests {
         let mut cpu = isa_test_cpu!(0x0000 => text![ecall();], 0x1000 => vec![0]);
         assert_eq!(
             cpu.exec_instr(None).err(),
-            Some(RvException::environment_call())
+            Some(RvException::environment_call_machine())
         );
     }
 
@@ -133,7 +151,7 @@ mod tests {
                 XReg::X2 = u32::MAX;
             },
             {
-                XReg::X1 = 0x4000_1104;
+                XReg::X1 = 0x4010_1104;
                 XReg::X3 = 0x0000_0000;
                 XReg::X5 = u32::MAX;
             }
@@ -168,12 +186,12 @@ mod tests {
             ],
             0x1000 => vec![0],
             {
-                XReg::X2 = 0x0000_0088;
+                XReg::X2 = 0x0000_1888;
             },
             {
-                XReg::X1 = 0x1800_0000;
-                XReg::X3 = 0x1800_0088;
-                XReg::X5 = 0x1800_0088;
+                XReg::X1 = 0x1800_1800;
+                XReg::X3 = 0x1800_1888;
+                XReg::X5 = 0x1800_1888;
             }
         );
     }
@@ -189,12 +207,12 @@ mod tests {
             ],
             0x1000 => vec![0],
             {
-                XReg::X2 = 0x0000_0088;
+                XReg::X2 = 0x0000_1888;
             },
             {
-                XReg::X1 = 0x1800_0000;
-                XReg::X3 = 0x1800_0088;
-                XReg::X5 = 0x1800_0088;
+                XReg::X1 = 0x1800_1800;
+                XReg::X3 = 0x1800_1888;
+                XReg::X5 = 0x1800_1888;
                 XReg::X7 = 0x1800_0000;
             }
         );
