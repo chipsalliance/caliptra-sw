@@ -204,6 +204,7 @@ addrmap ml_dsa87_reg {
         default we = true;
         field {desc = "Public key field"; swwe = ml_dsa87_ready; hwclr;} PUBLIC_KEY[32] = 32'b0;
     } ML_DSA87_PUBLIC_KEY[648] @0x00002940;
+
     /* ---- ML_DSA87 Component Signature ---- */
     reg {
         name = "ML_DSA87 Signature";
@@ -215,6 +216,8 @@ addrmap ml_dsa87_reg {
         field {desc = "Signature field"; swwe = ml_dsa87_ready; hwclr;} SIGNATURE[32] = 32'b0;
     } ML_DSA87_SIGNATURE[1157] @0x00003400;
 
+    kv_read_ctrl_reg ml_dsa87_kv_rd_seed_ctrl @0x00004614;
+    kv_status_reg ml_dsa87_kv_rd_seed_status;
 
     ////////////////////////////////////////////////////////////////
     // Interrupts
@@ -477,7 +480,6 @@ addrmap ml_dsa87_reg {
         notif_cmd_done_intr_count_r.cnt        -> incr     = notif_cmd_done_intr_count_incr_r.pulse; // Increment coincides with rising edge of interrupt sts bit
 
     };
-
 
     /* -----------------------
      * Register File instance

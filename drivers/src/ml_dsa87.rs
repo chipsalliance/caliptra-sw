@@ -12,15 +12,14 @@ Abstract:
 
 --*/
 
-use crate::kv_access::KvAccess;
+use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
     okmutref, wait, Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8, CaliptraError,
-    CaliptraResult, Trng,
+    CaliptraResult, KeyReadArgs, Trng,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::ml_dsa87::MlDsa87Reg;
-use zeroize::Zeroize;
 
 #[must_use]
 #[repr(u32)]
@@ -42,51 +41,14 @@ pub type MlDsa87PublicKeyScalar = Array4x648;
 /// MlDsa87 Signature
 pub type MlDsa87SignatureScalar = Array4x1157;
 
+/// Dilitium Key Vault Seed
+pub type MlDsa87KvSeed = KeyReadArgs;
+
+/// MlDsa87 Key Vault Secret Key
+pub type MlDsa87SecretKey = KeyReadArgs;
+
 /// Dilitium Seed
-#[derive(Debug, Copy, Clone)]
-pub enum MlDsa87Seed<'a> {
-    /// Array
-    Array4x8(&'a Array4x8),
-    // Key Vault Key
-    // TODO    Key(KeyReadArgs),
-}
-
-impl<'a> From<&'a Array4x8> for MlDsa87Seed<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a Array4x8) -> Self {
-        Self::Array4x8(value)
-    }
-}
-
-// impl From<KeyReadArgs> for MlDsa87Seed<'_> {
-//     /// Converts to this type from the input type.
-//     fn from(value: KeyReadArgs) -> Self {
-//         Self::Key(value)
-//     }
-// }
-
-/// MlDsa87 Secret Key
-#[derive(Debug, Copy, Clone)]
-pub enum MlDsa87SecretKey<'a> {
-    /// Array
-    Array4x1224(&'a MlDsa87SecretKeyScalar),
-    // Key Vault Key
-    // TODO    Key(KeyWriteArgs),
-}
-
-impl<'a> From<&'a Array4x1224> for MlDsa87SecretKey<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a Array4x1224) -> Self {
-        Self::Array4x1224(value)
-    }
-}
-
-// impl<'a> From<KeyWriteArgs> for MlDsa87PrivKeyOut<'a> {
-//     /// Converts to this type from the input type.
-//     fn from(value: KeyWriteArgs) -> Self {
-//         Self::Key(value)
-//     }
-// }
+pub type MlDsa87Seed = Array4x8;
 
 /// MlDsa87 Public Key
 #[derive(Debug, Copy, Clone)]
@@ -103,20 +65,6 @@ impl<'a> From<&'a Array4x648> for MlDsa87PublicKey<'a> {
         Self::Array4x648(value)
     }
 }
-// impl From<KeyReadArgs> for MlDsa87PrivKeyIn<'_> {
-//     /// Converts to this type from the input type.
-//     fn from(value: KeyReadArgs) -> Self {
-//         Self::Key(value)
-//     }
-// }
-// impl<'a> From<MlDsa87PrivKeyOut<'a>> for MlDsa87PrivKeyIn<'a> {
-//     fn from(value: MlDsa87PrivKeyOut<'a>) -> Self {
-//         match value {
-//             MlDsa87PrivKeyOut::Array4x648(arr) => MlDsa87PrivKeyIn::Array4x648(arr),
-// //            MlDsa87PrivKeyOut::Key(key) => MlDsa87PrivKeyIn::Key(KeyReadArgs { id: key.id }),
-//         }
-//     }
-// }
 
 /// MlDsa87  API
 pub struct MlDsa87 {
@@ -154,18 +102,25 @@ impl MlDsa87 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn key_pair(
         &mut self,
-        seed: &MlDsa87Seed,
+        seed: &MlDsa87KvSeed,
         trng: &mut Trng,
-    ) -> CaliptraResult<(MlDsa87SecretKeyScalar, MlDsa87PublicKeyScalar)> {
+    ) -> CaliptraResult<MlDsa87PublicKeyScalar> {
         let ml_dsa87 = self.ml_dsa87.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| ml_dsa87.status().read().ready());
 
         // Write seed
-        match seed {
-            MlDsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, ml_dsa87.seed())?,
-        }
+        KvAccess::copy_from_kv(
+            *seed,
+            ml_dsa87.kv_rd_seed_status(),
+            ml_dsa87.kv_rd_seed_ctrl(),
+        )
+        .map_err(|err| match err {
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
+        })?;
 
         // Write IV
         KvAccess::copy_from_arr(&Self::generate_iv(trng)?, ml_dsa87.iv())?;
@@ -175,29 +130,11 @@ impl MlDsa87 {
         // Wait for command to complete
         wait::until(|| ml_dsa87.status().read().valid());
 
-        let secret_key = Array4x1224::read_from_reg(ml_dsa87.secret_key_out());
-
         let public_key = Array4x648::read_from_reg(ml_dsa87.public_key());
-
-        // Pairwise consistency check.
-        let digest = Array4x16::new([0u32; 16]);
-        match self.sign(
-            &MlDsa87SecretKey::from(&secret_key),
-            &MlDsa87PublicKey::from(&public_key),
-            &digest,
-            seed,
-            trng,
-        ) {
-            Ok(mut sig) => sig.zeroize(),
-            Err(_) => {
-                // Remap error to a pairwise consistency check failure
-                return Err(CaliptraError::DRIVER_ML_DSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
-            }
-        }
 
         self.zeroize_internal();
 
-        Ok((secret_key, public_key))
+        Ok(public_key)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -205,7 +142,6 @@ impl MlDsa87 {
         &mut self,
         secret_key: &MlDsa87SecretKey,
         data: &MlDsa87MsgScalar,
-        seed: &MlDsa87Seed,
         trng: &mut Trng,
     ) -> CaliptraResult<MlDsa87SignatureScalar> {
         let ml_dsa87 = self.ml_dsa87.regs_mut();
@@ -213,12 +149,17 @@ impl MlDsa87 {
         // Wait for hardware ready
         wait::until(|| ml_dsa87.status().read().ready());
 
-        // Copy secret key
-        match secret_key {
-            MlDsa87SecretKey::Array4x1224(arr) => {
-                KvAccess::copy_from_arr(arr, ml_dsa87.secret_key_in())?
-            }
-        }
+        // Key vault contains seeds, not secret keys. The hardware will create
+        KvAccess::copy_from_kv(
+            *secret_key,
+            ml_dsa87.kv_rd_seed_status(),
+            ml_dsa87.kv_rd_seed_ctrl(),
+        )
+        .map_err(|err| match err {
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
+        })?;
 
         // Copy msg
         KvAccess::copy_from_arr(data, ml_dsa87.msg())?;
@@ -227,10 +168,7 @@ impl MlDsa87 {
         KvAccess::copy_from_arr(&Self::generate_iv(trng)?, ml_dsa87.iv())?;
 
         // Copy Seed
-        // Write seed
-        match seed {
-            MlDsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, ml_dsa87.seed())?,
-        }
+        // KvAccess::copy_from_arr(seed, ml_dsa87.seed())?;
 
         // TODO SIGN_RND needs to be inputted here??
 
@@ -267,10 +205,9 @@ impl MlDsa87 {
         secret_key: &MlDsa87SecretKey,
         pub_key: &MlDsa87PublicKey,
         data: &MlDsa87MsgScalar,
-        seed: &MlDsa87Seed,
         trng: &mut Trng,
     ) -> CaliptraResult<MlDsa87SignatureScalar> {
-        let mut signature_result = self.sign_internal(secret_key, data, seed, trng);
+        let mut signature_result = self.sign_internal(secret_key, data, trng);
         let sig = okmutref(&mut signature_result)?;
 
         // Verify the signature just created

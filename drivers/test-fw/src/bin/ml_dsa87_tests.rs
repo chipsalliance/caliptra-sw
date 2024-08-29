@@ -19,7 +19,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8, MlDsa87, MlDsa87MsgScalar,
     MlDsa87PublicKey, MlDsa87PublicKeyScalar, MlDsa87Result, MlDsa87SecretKey,
-    MlDsa87SecretKeyScalar, MlDsa87Seed, MlDsa87SignatureScalar, Trng,
+    MlDsa87SecretKeyScalar, MlDsa87Seed, MlDsa87SignatureScalar, Trng, KeyId, KeyUsage, KeyWriteArgs, KeyReadArgs
 };
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -620,8 +620,14 @@ const SIGNATURE: [u8; 4628] = [
     0, 0, 3, 0, 0, 0, 36, 29, 20, 12, 0, 54, 50, 42,
 ];
 
-fn test_gen_key_pair() {
+fn test_kv_seed_gen_key_pair() {
     let mut ml_dsa87 = unsafe { MlDsa87::new(MlDsa87Reg::new()) };
+    let mut ecc_reg = unsafe { EccReg::new() };
+
+    let key = KeyWriteArgs {
+    };
+
+    KvAccess::begin_copy_to_kv(ecc_reg.kv_wr_pkey_status(), ecc_reg.kv_wr_pkey_ctrl(), *key)?;
 
     let mut trng = unsafe {
         Trng::new(
@@ -637,15 +643,15 @@ fn test_gen_key_pair() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
-    let seed_array = Array4x8::default();
-    let seed = MlDsa87Seed::from(&seed_array);
+    let kv_seed = KeyReadArgs {
+        id: KeyId::KeyId2,
+    };
 
-    let result = ml_dsa87.key_pair(&seed, &mut trng);
+    let result = ml_dsa87.key_pair(&kv_seed, &mut trng);
 
     assert!(result.is_ok());
-    let (secret_key, public_key) = result.unwrap();
+    let public_key = result.unwrap();
 
-    assert_eq!(secret_key, SECRET_KEY.into());
     assert_eq!(public_key, PUB_KEY.into());
 }
 
@@ -662,17 +668,16 @@ fn test_sign() {
         .unwrap()
     };
 
+    let kv_seed = KeyReadArgs {
+        id: KeyId::KeyId2,
+    };
+
     let msg = Array4x16::default();
 
-    let seed_array = Array4x8::default();
-    let seed = MlDsa87Seed::from(&seed_array);
-
-    let secret_key_array = SECRET_KEY.into();
-    let secret_key = MlDsa87SecretKey::from(&secret_key_array);
     let public_key_array = PUB_KEY.into();
     let public_key = MlDsa87PublicKey::from(&public_key_array);
 
-    let result = ml_dsa87.sign(&secret_key, &public_key, &msg, &seed, &mut trng);
+    let result = ml_dsa87.sign(&kv_seed, &public_key, &msg,  &mut trng);
 
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -681,16 +686,6 @@ fn test_sign() {
 
 fn test_verify() {
     let mut ml_dsa87 = unsafe { MlDsa87::new(MlDsa87Reg::new()) };
-
-    let mut trng = unsafe {
-        Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )
-        .unwrap()
-    };
 
     let msg = Array4x16::default();
 
@@ -708,16 +703,6 @@ fn test_verify() {
 fn test_verify_failure() {
     let mut ml_dsa87 = unsafe { MlDsa87::new(MlDsa87Reg::new()) };
 
-    let mut trng = unsafe {
-        Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )
-        .unwrap()
-    };
-
     let msg = Array4x16::from([0xff; 64]);
 
     let public_key_array = PUB_KEY.into();
@@ -732,7 +717,7 @@ fn test_verify_failure() {
 }
 
 test_suite! {
-    test_gen_key_pair,
+    test_kv_seed_gen_key_pair,
     test_sign,
     test_verify,
     test_verify_failure,
