@@ -12,7 +12,9 @@ Abstract:
 
 --*/
 
-use crate::types::{RvMIE, RvMPMC, RvMStatus, RvPmpAddrMode, RvPmpCfgi, RvPmpiCfg, RvPrivMode};
+use crate::types::{RvMIE, RvMPMC, RvMStatus, RvPrivMode};
+#[cfg(not(feature = "1.x"))]
+use crate::types::{RvPmpAddrMode, RvPmpCfgi, RvPmpiCfg};
 use caliptra_emu_bus::{Clock, Timer, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException};
 
@@ -71,14 +73,19 @@ impl Csr {
     pub const MEIHAP: RvAddr = 0xFC8;
 
     /// PMP configuration register range start, inclusive
+    #[cfg(not(feature = "1.x"))]
     pub const PMPCFG_START: RvAddr = 0x3A0;
     /// PMP configuration register range end, inclusive
+    #[cfg(not(feature = "1.x"))]
     pub const PMPCFG_END: RvAddr = 0x3A3;
     /// PMP address register range start, inclusive
+    #[cfg(not(feature = "1.x"))]
     pub const PMPADDR_START: RvAddr = 0x3B0;
     /// PMP address register range end, inclusive
+    #[cfg(not(feature = "1.x"))]
     pub const PMPADDR_END: RvAddr = 0x3C0;
     /// Number of PMP address/cfg registers
+    #[cfg(not(feature = "1.x"))]
     pub const PMPCOUNT: usize = 16;
 
     /// Create a new Configurations and Status register
@@ -172,6 +179,7 @@ pub struct CsrFile {
     /// Timer
     timer: Timer,
     /// Maximum set PMPCFGi register
+    #[cfg(not(feature = "1.x"))]
     max_pmpcfgi: Option<usize>,
 }
 
@@ -188,6 +196,7 @@ macro_rules! csr_fn {
 }
 
 /// Initialise the read/write functions of a block of CSRs in the CSR table
+#[allow(unused_macros)]
 macro_rules! csr_fn_block {
     ($csrs:ident, $start:path, $end:path, $read_fn:path, $write_fn:path) => {
         let mut i = $start;
@@ -210,6 +219,7 @@ macro_rules! csr_val {
 }
 
 /// Initalise the default value and mask of a block of CSRs
+#[allow(unused_macros)]
 macro_rules! csr_val_block {
     ($csrs:ident, $start:path, $end:path, $default_val:literal, $mask:literal) => {
         for i in ($start..=$end) {
@@ -250,6 +260,7 @@ impl CsrFile {
             CsrFile::system_read,
             CsrFile::meivt_write
         );
+        #[cfg(not(feature = "1.x"))]
         csr_fn_block!(
             table,
             Csr::PMPCFG_START,
@@ -257,6 +268,7 @@ impl CsrFile {
             CsrFile::system_read,
             CsrFile::pmpcfg_write
         );
+        #[cfg(not(feature = "1.x"))]
         csr_fn_block!(
             table,
             Csr::PMPADDR_START,
@@ -270,12 +282,18 @@ impl CsrFile {
     /// Create a new Configuration and status register file
     pub fn new(clock: &Clock) -> Self {
         let mut csrs = Box::new([Csr::default(); CsrFile::CSR_COUNT]);
+        #[cfg(not(feature = "1.x"))]
         csr_val!(csrs, Csr::MISA, 0x4010_1104, 0x0000_0000);
+        #[cfg(feature = "1.x")]
+        csr_val!(csrs, Csr::MISA, 0x4000_1104, 0x0000_0000);
         csr_val!(csrs, Csr::MVENDORID, 0x0000_0045, 0x0000_0000);
         csr_val!(csrs, Csr::MARCHID, 0x0000_0010, 0x0000_0000);
         csr_val!(csrs, Csr::MIMPIID, 0x0000_0004, 0x0000_0000);
         csr_val!(csrs, Csr::MHARTID, 0x0000_0000, 0x0000_0000);
+        #[cfg(not(feature = "1.x"))]
         csr_val!(csrs, Csr::MSTATUS, 0x1800_1800, 0x0002_1888);
+        #[cfg(feature = "1.x")]
+        csr_val!(csrs, Csr::MSTATUS, 0x1800_0000, 0x0000_0088);
         csr_val!(csrs, Csr::MIE, 0x0000_0000, 0x7000_0888);
         csr_val!(csrs, Csr::MTVEC, 0x0000_0000, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MCOUNTINHIBIT, 0x0000_0000, 0x0000_007D);
@@ -292,6 +310,8 @@ impl CsrFile {
         csr_val!(csrs, Csr::MINSTRETH, 0x0000_0000, 0xFFFF_FFFF);
         csr_val!(csrs, Csr::MEIVT, 0x0000_0000, 0xFFFF_FC00);
         csr_val!(csrs, Csr::MEIHAP, 0x0000_0000, 0xFFFF_FFFC);
+
+        #[cfg(not(feature = "1.x"))]
         csr_val_block!(
             csrs,
             Csr::PMPCFG_START,
@@ -299,6 +319,7 @@ impl CsrFile {
             0x0000_0000,
             0x9F9F_9F9F
         );
+        #[cfg(not(feature = "1.x"))]
         csr_val_block!(
             csrs,
             Csr::PMPADDR_START,
@@ -310,6 +331,7 @@ impl CsrFile {
         Self {
             csrs,
             timer: Timer::new(clock),
+            #[cfg(not(feature = "1.x"))]
             max_pmpcfgi: None,
         }
     }
@@ -319,7 +341,10 @@ impl CsrFile {
         for csr in self.csrs.iter_mut() {
             csr.reset();
         }
-        self.max_pmpcfgi = None;
+        #[cfg(not(feature = "1.x"))]
+        {
+            self.max_pmpcfgi = None;
+        }
     }
 
     /// Read the specified configuration status register
@@ -425,14 +450,22 @@ impl CsrFile {
         val: RvData,
     ) -> Result<(), RvException> {
         // Write new mstatus value
-        let csr = self.csrs[addr as usize];
-        let mstatus_old = RvMStatus(csr.val);
-        let mut mstatus_new = RvMStatus(val);
-        if mstatus_new.mpp() == RvPrivMode::Invalid {
-            // Ignore invalid write
-            mstatus_new.set_mpp(mstatus_old.mpp());
+        #[cfg(not(feature = "1.x"))]
+        {
+            let csr = self.csrs[addr as usize];
+            let mstatus_old = RvMStatus(csr.val);
+            let mut mstatus_new = RvMStatus(val);
+            if mstatus_new.mpp() == RvPrivMode::Invalid {
+                // Ignore invalid write
+                mstatus_new.set_mpp(mstatus_old.mpp());
+            }
+            self.system_write(priv_mode, addr, mstatus_new.0)?;
         }
-        self.system_write(priv_mode, addr, mstatus_new.0)?;
+        #[cfg(feature = "1.x")]
+        {
+            let mstatus_new = RvMStatus(val);
+            self.system_write(priv_mode, addr, mstatus_new.0)?;
+        }
 
         // Read back mstatus register after masking
         let csr = self.csrs[addr as usize];
@@ -510,6 +543,7 @@ impl CsrFile {
     }
 
     /// Perform a write to a PMPCFG CSR
+    #[cfg(not(feature = "1.x"))]
     fn pmpcfg_write(
         &mut self,
         priv_mode: RvPrivMode,
@@ -584,6 +618,7 @@ impl CsrFile {
     }
 
     /// Perform a write to a PMPADDR register
+    #[cfg(not(feature = "1.x"))]
     fn pmpaddr_write(
         &mut self,
         priv_mode: RvPrivMode,
@@ -624,6 +659,7 @@ impl CsrFile {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
+    #[cfg(not(feature = "1.x"))]
     fn read_pmpicfg(&self, reg: usize) -> Result<RvPmpiCfg, RvException> {
         // Find corresponding pmpcfg register
         let pmpcfgi_index = (reg / 4) as RvAddr + Csr::PMPCFG_START;
@@ -657,6 +693,7 @@ impl CsrFile {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
+    #[cfg(not(feature = "1.x"))]
     fn pmp_match_one_addr(
         &self,
         pmpicfg: RvPmpiCfg,
@@ -717,6 +754,7 @@ impl CsrFile {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
+    #[cfg(not(feature = "1.x"))]
     pub fn pmp_match_addr(&self, addr: RvAddr) -> Result<Option<RvPmpiCfg>, RvException> {
         let max_pmpcfgi = match self.max_pmpcfgi {
             // Optimisation: ignore PMP if no registers are set
@@ -784,6 +822,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_u_mode_read_write_pmp() {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
@@ -846,6 +885,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_m_mode_read_write_pmp() {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
@@ -891,6 +931,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_lock_pmp() {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
@@ -990,6 +1031,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_tor_lock() {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
@@ -1045,15 +1087,19 @@ mod tests {
 
     #[test]
     fn test_read_only_csr() {
+        #[cfg(feature = "1.x")]
+        const KNOWN_VALUE: u32 = 0x4000_1104;
+        #[cfg(not(feature = "1.x"))]
+        const KNOWN_VALUE: u32 = 0x4010_1104;
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
 
-        assert_eq!(csrs.read(RvPrivMode::M, Csr::MISA).ok(), Some(0x4010_1104));
+        assert_eq!(csrs.read(RvPrivMode::M, Csr::MISA).ok(), Some(KNOWN_VALUE));
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::MISA, u32::MAX).ok(),
             Some(())
         );
-        assert_eq!(csrs.read(RvPrivMode::M, Csr::MISA).ok(), Some(0x4010_1104));
+        assert_eq!(csrs.read(RvPrivMode::M, Csr::MISA).ok(), Some(KNOWN_VALUE));
     }
 
     #[test]
@@ -1091,6 +1137,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_mstatus_invalid_mpp() {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
@@ -1125,9 +1172,18 @@ mod tests {
         let clock = Clock::new();
         let mut csrs = CsrFile::new(&clock);
 
+        #[cfg(feature = "1.x")]
+        const MSTATUS_START: u32 = 0x1800_0000;
+        #[cfg(feature = "1.x")]
+        const MSTATUS_MASK: u32 = 0x1800_0088;
+        #[cfg(not(feature = "1.x"))]
+        const MSTATUS_START: u32 = 0x1800_1800;
+        #[cfg(not(feature = "1.x"))]
+        const MSTATUS_MASK: u32 = 0x1802_1888;
+
         assert_eq!(
             csrs.read(RvPrivMode::M, Csr::MSTATUS).ok(),
-            Some(0x1800_1800)
+            Some(MSTATUS_START)
         );
         assert_eq!(
             csrs.write(RvPrivMode::M, Csr::MSTATUS, u32::MAX).ok(),
@@ -1135,7 +1191,7 @@ mod tests {
         );
         assert_eq!(
             csrs.read(RvPrivMode::M, Csr::MSTATUS).ok(),
-            Some(0x1802_1888)
+            Some(MSTATUS_MASK)
         );
 
         assert_eq!(

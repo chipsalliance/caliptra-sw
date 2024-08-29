@@ -58,13 +58,16 @@ impl<TBus: Bus> Cpu<TBus> {
                     }
 
                     let mut status = RvMStatus(self.read_csr(Csr::MSTATUS)?);
-                    let mpp = status.mpp();
                     status.set_mie(status.mpie());
                     status.set_mpie(1);
-                    status.set_mpp(RvPrivMode::U);
+                    #[cfg(not(feature = "1.x"))]
+                    {
+                        let mpp = status.mpp();
+                        status.set_mpp(RvPrivMode::U);
+                        self.priv_mode = mpp;
+                    }
                     self.write_csr(Csr::MSTATUS, status.0)?;
                     self.set_next_pc(self.read_csr(Csr::MEPC)?);
-                    self.priv_mode = mpp;
                     Ok(())
                 }
                 _ => Err(RvException::illegal_instr(instr.0)),
@@ -140,6 +143,10 @@ mod tests {
 
     #[test]
     fn test_csrrw() {
+        #[cfg(feature = "1.x")]
+        const KNOWN_ISA: u32 = 0x4000_1104;
+        #[cfg(not(feature = "1.x"))]
+        const KNOWN_ISA: u32 = 0x4010_1104;
         isa_test!(
             0x0000 => text![
                 csrrw(XReg::X1, XReg::X2, Csr::MISA);
@@ -151,7 +158,7 @@ mod tests {
                 XReg::X2 = u32::MAX;
             },
             {
-                XReg::X1 = 0x4010_1104;
+                XReg::X1 = KNOWN_ISA;
                 XReg::X3 = 0x0000_0000;
                 XReg::X5 = u32::MAX;
             }
@@ -177,6 +184,28 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "1.x")]
+    fn test_csrrs() {
+        isa_test!(
+            0x0000 => text![
+                csrrs(XReg::X1, XReg::X2, Csr::MSTATUS);
+                csrrs(XReg::X3, XReg::X0, Csr::MSTATUS);
+                csrrs(XReg::X5, XReg::X0, Csr::MSTATUS);
+            ],
+            0x1000 => vec![0],
+            {
+                XReg::X2 = 0x0000_0088;
+            },
+            {
+                XReg::X1 = 0x1800_0000;
+                XReg::X3 = 0x1800_0088;
+                XReg::X5 = 0x1800_0088;
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_csrrs() {
         isa_test!(
             0x0000 => text![
@@ -197,6 +226,30 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "1.x")]
+    fn test_csrrc() {
+        isa_test!(
+            0x0000 => text![
+                csrrs(XReg::X1, XReg::X2, Csr::MSTATUS);
+                csrrs(XReg::X3, XReg::X0, Csr::MSTATUS);
+                csrrc(XReg::X5, XReg::X2, Csr::MSTATUS);
+                csrrs(XReg::X7, XReg::X0, Csr::MSTATUS);
+            ],
+            0x1000 => vec![0],
+            {
+                XReg::X2 = 0x0000_0088;
+            },
+            {
+                XReg::X1 = 0x1800_0000;
+                XReg::X3 = 0x1800_0088;
+                XReg::X5 = 0x1800_0088;
+                XReg::X7 = 0x1800_0000;
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_csrrc() {
         isa_test!(
             0x0000 => text![

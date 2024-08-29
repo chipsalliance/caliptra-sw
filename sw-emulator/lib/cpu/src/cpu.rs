@@ -14,7 +14,9 @@ Abstract:
 
 use crate::csr_file::{Csr, CsrFile};
 use crate::instr::Instr;
-use crate::types::{RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvMsecCfg, RvPrivMode};
+#[cfg(not(feature = "1.x"))]
+use crate::types::RvMsecCfg;
+use crate::types::{RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvPrivMode};
 use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
@@ -544,6 +546,7 @@ impl<TBus: Bus> Cpu<TBus> {
 
         let mut status = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
 
+        #[cfg(not(feature = "1.x"))]
         match self.priv_mode {
             RvPrivMode::U => {
                 // All traps are handled in M mode
@@ -635,6 +638,7 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
     ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    #[cfg(not(feature = "1.x"))]
     pub fn check_mem_priv(
         &self,
         addr: RvAddr,
@@ -650,6 +654,15 @@ impl<TBus: Bus> Cpu<TBus> {
         }
         Ok(())
     }
+    #[cfg(feature = "1.x")]
+    pub fn check_mem_priv(
+        &self,
+        _addr: RvAddr,
+        _size: RvSize,
+        _access: RvMemAccessType,
+    ) -> Result<(), RvException> {
+        Ok(())
+    }
 
     /// Check memory privileges of given address
     ///
@@ -662,6 +675,7 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
     ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    #[cfg(not(feature = "1.x"))]
     fn check_mem_priv_addr(
         &self,
         addr: RvAddr,
@@ -745,7 +759,9 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Ram, Rom, Timer};
+    #[cfg(not(feature = "1.x"))]
+    use caliptra_emu_bus::Ram;
+    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Rom, Timer};
 
     #[test]
     fn test_new() {
@@ -769,6 +785,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "1.x"))]
     fn new_pmp_cpu(fill_val: u32) -> Cpu<DynamicBus> {
         let clock = Clock::new();
         let mut bus = DynamicBus::new();
@@ -785,6 +802,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_napot() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 
@@ -851,6 +869,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_na4() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 
@@ -901,6 +920,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_tor() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 
@@ -1028,6 +1048,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_lock() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 
@@ -1080,6 +1101,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_execute() {
         const RV32_NO_OP: u32 = 0x00000013;
         let mut cpu = new_pmp_cpu(RV32_NO_OP);
@@ -1134,6 +1156,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_smepmp_mmwp() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 
@@ -1191,6 +1214,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_smepmp_mml() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
         let reset_cpu = |cpu: &mut Cpu<DynamicBus>| {
@@ -1563,6 +1587,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "1.x"))]
     fn test_pmp_mprv() {
         let mut cpu = new_pmp_cpu(0xDEAD_BEEF);
 

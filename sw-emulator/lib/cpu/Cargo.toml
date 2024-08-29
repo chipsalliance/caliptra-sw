@@ -15,3 +15,7 @@ caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
 lazy_static.workspace = true
 tock-registers.workspace = true
+
+[features]
+default = ["1.x"]
+"1.x" = []
