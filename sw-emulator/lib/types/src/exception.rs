@@ -43,8 +43,11 @@ emu_enum! {
         /// Store access fault exception
         StoreAccessFault = 7,
 
-        /// Environment Call
-        EnvironmentCall = 11,
+        /// Environment Call (User)
+        EnvironmentCallUser = 8,
+
+        /// Environment Call (Machine)
+        EnvironmentCallMachine = 11,
 
         /// Illegal Register exception
         IllegalRegister = 24,
@@ -108,9 +111,14 @@ impl RvException {
         RvException::new(RvExceptionCause::IllegalRegister, 0)
     }
 
-    /// Create a new illegal register exception
-    pub fn environment_call() -> Self {
-        RvException::new(RvExceptionCause::EnvironmentCall, 0)
+    /// Create a new environment call from U mode exception
+    pub fn environment_call_user() -> Self {
+        RvException::new(RvExceptionCause::EnvironmentCallUser, 0)
+    }
+
+    /// Create a new environment call from M mode exception
+    pub fn environment_call_machine() -> Self {
+        RvException::new(RvExceptionCause::EnvironmentCallMachine, 0)
     }
 
     /// Returns the exception cause
@@ -200,9 +208,16 @@ mod tests {
     }
 
     #[test]
-    fn test_environment_call() {
-        let e = RvException::environment_call();
-        assert_eq!(e.cause(), RvExceptionCause::EnvironmentCall);
+    fn test_environment_call_user() {
+        let e = RvException::environment_call_user();
+        assert_eq!(e.cause(), RvExceptionCause::EnvironmentCallUser);
+        assert_eq!(e.info(), 0);
+    }
+
+    #[test]
+    fn test_environment_call_machine() {
+        let e = RvException::environment_call_machine();
+        assert_eq!(e.cause(), RvExceptionCause::EnvironmentCallMachine);
         assert_eq!(e.info(), 0);
     }
 }
