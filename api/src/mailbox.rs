@@ -976,18 +976,8 @@ impl Default for SetAuthManifestReq {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ImageHashSource {
     Invalid = 0,
-    InRequest,
-    ShaAcc,
-}
-
-impl From<ImageHashSource> for u32 {
-    fn from(val: ImageHashSource) -> u32 {
-        match val {
-            ImageHashSource::Invalid => 0,
-            ImageHashSource::InRequest => 1,
-            ImageHashSource::ShaAcc => 2,
-        }
-    }
+    InRequest = 1,
+    ShaAcc = 2,
 }
 
 impl From<u32> for ImageHashSource {
@@ -1040,7 +1030,7 @@ impl Default for AuthorizeAndStashReq {
             context: [0u8; 48],
             svn: Default::default(),
             flags: 0,
-            source: ImageHashSource::InRequest.into(),
+            source: ImageHashSource::InRequest as u32,
         }
     }
 }
