@@ -21,7 +21,7 @@ sudo make install
 ## Rust integration tests:
 
 ```shell
-git submodule update --init"  # Needed the first time
+git submodule update --init hw/1.0/rtl/"  # Needed the first time
 (cd hw/verilated && cargo test --features verilator)
 (cd hw-model && cargo test --features verilator)
 ```
