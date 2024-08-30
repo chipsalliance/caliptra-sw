@@ -718,6 +718,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 *Table: `SET\_AUTH\_MANIFEST` input arguments*
 
 | **Name**                      | **Type**     | **Description**                                                             |
+|-------------------------------|--------------|-----------------------------------------------------------------------------|
 | chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
 | manifest size                 | u32          | The size of the full Authentication Manifest                                |
 | preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
@@ -775,7 +776,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | SVN                                                                                 |
 | flags       | u32      | Flags                                                                               |
-| source      | u32      | Source number                                                                       |
+| source      | u32      | Source number: 0 Invalid, 1: InRequest, 2: ShaAcc                                   |
 
 *Table: `AUTHORIZE\_AND\_STASH\_FLAGS` input flags*
 
