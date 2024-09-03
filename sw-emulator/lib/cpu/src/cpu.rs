@@ -14,7 +14,6 @@ Abstract:
 
 use crate::csr_file::{Csr, CsrFile};
 use crate::instr::Instr;
-#[cfg(not(feature = "1.x"))]
 use crate::types::RvMsecCfg;
 use crate::types::{RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvPrivMode};
 use crate::xreg_file::{XReg, XRegFile};
@@ -157,6 +156,9 @@ pub struct Cpu<TBus: Bus> {
     /// Current privilege mode
     pub priv_mode: RvPrivMode,
 
+    /// True if Physical Memory Protection is enabled.
+    pub pmp_enabled: bool,
+
     // Track if Execution is in progress
     pub(crate) is_execute_instr: bool,
 
@@ -184,10 +186,10 @@ impl<TBus: Bus> Cpu<TBus> {
     const PC_RESET_VAL: RvData = 0;
 
     /// Create a new RISCV CPU
-    pub fn new(bus: TBus, clock: Clock) -> Self {
+    pub fn new(bus: TBus, clock: Clock, pmp_enabled: bool) -> Self {
         Self {
             xregs: XRegFile::new(),
-            csrs: CsrFile::new(&clock),
+            csrs: CsrFile::new(&clock, pmp_enabled),
             pc: Self::PC_RESET_VAL,
             next_pc: Self::PC_RESET_VAL,
             bus,
@@ -203,6 +205,7 @@ impl<TBus: Bus> Cpu<TBus> {
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
             code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
+            pmp_enabled,
         }
     }
 
@@ -546,17 +549,18 @@ impl<TBus: Bus> Cpu<TBus> {
 
         let mut status = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
 
-        #[cfg(not(feature = "1.x"))]
-        match self.priv_mode {
-            RvPrivMode::U => {
-                // All traps are handled in M mode
-                self.priv_mode = RvPrivMode::M;
-                status.set_mpp(RvPrivMode::U);
+        if self.pmp_enabled {
+            match self.priv_mode {
+                RvPrivMode::U => {
+                    // All traps are handled in M mode
+                    self.priv_mode = RvPrivMode::M;
+                    status.set_mpp(RvPrivMode::U);
+                }
+                RvPrivMode::M => {
+                    status.set_mpp(RvPrivMode::M);
+                }
+                _ => unreachable!(),
             }
-            RvPrivMode::M => {
-                status.set_mpp(RvPrivMode::M);
-            }
-            _ => unreachable!(),
         }
 
         status.set_mpie(status.mie());
@@ -638,29 +642,21 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
     ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
-    #[cfg(not(feature = "1.x"))]
     pub fn check_mem_priv(
         &self,
         addr: RvAddr,
         size: RvSize,
         access: RvMemAccessType,
     ) -> Result<(), RvException> {
-        self.check_mem_priv_addr(addr, access)?;
-        if size == RvSize::Word && addr & 0x3 != 0 {
-            // If unaligned, check permissions of intermediate addresses
-            for i in 1..RvSize::Word.into() {
-                self.check_mem_priv_addr(addr + i as u32, access)?;
+        if self.pmp_enabled {
+            self.check_mem_priv_addr(addr, access)?;
+            if size == RvSize::Word && addr & 0x3 != 0 {
+                // If unaligned, check permissions of intermediate addresses
+                for i in 1..RvSize::Word.into() {
+                    self.check_mem_priv_addr(addr + i as u32, access)?;
+                }
             }
         }
-        Ok(())
-    }
-    #[cfg(feature = "1.x")]
-    pub fn check_mem_priv(
-        &self,
-        _addr: RvAddr,
-        _size: RvSize,
-        _access: RvMemAccessType,
-    ) -> Result<(), RvException> {
         Ok(())
     }
 
@@ -675,81 +671,84 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
     ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
-    #[cfg(not(feature = "1.x"))]
     fn check_mem_priv_addr(
         &self,
         addr: RvAddr,
         access: RvMemAccessType,
     ) -> Result<(), RvException> {
-        let fault = || match access {
-            RvMemAccessType::Read => RvException::load_access_fault(addr),
-            RvMemAccessType::Write => RvException::store_access_fault(addr),
-            RvMemAccessType::Execute => RvException::instr_access_fault(addr),
-            _ => unreachable!(),
-        };
+        if self.pmp_enabled {
+            let fault = || match access {
+                RvMemAccessType::Read => RvException::load_access_fault(addr),
+                RvMemAccessType::Write => RvException::store_access_fault(addr),
+                RvMemAccessType::Execute => RvException::instr_access_fault(addr),
+                _ => unreachable!(),
+            };
 
-        let mstatus = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
-        let priv_mode = if mstatus.mprv() != 0
-            && (access == RvMemAccessType::Read || access == RvMemAccessType::Write)
-        {
-            mstatus.mpp()
-        } else {
-            self.priv_mode
-        };
-
-        let mseccfg = RvMsecCfg(self.read_csr_machine(Csr::MSECCFG)?);
-
-        if let Some(pmpicfg) = self.csrs.pmp_match_addr(addr)? {
-            if mseccfg.mml() != 0 {
-                // Perform enhanced privilege check
-                let check_mask = (pmpicfg.execute() & 0x1)
-                    | ((pmpicfg.write() & 0x1) << 1)
-                    | ((pmpicfg.read() & 0x1) << 2)
-                    | ((pmpicfg.lock() & 0x1) << 3);
-
-                // This matches the spec truth table
-                let allowed_mask = match priv_mode {
-                    RvPrivMode::M => match check_mask {
-                        0 | 1 | 4..=8 => 0,
-                        2 | 3 | 14 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
-                        9 | 10 => RvMemAccessType::Execute as u8,
-                        11 | 13 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
-                        12 | 15 => RvMemAccessType::Read as u8,
-                        _ => unreachable!(),
-                    },
-                    RvPrivMode::U => match check_mask {
-                        0 | 8 | 9 | 12..=14 => 0,
-                        1 | 10 | 11 => RvMemAccessType::Execute as u8,
-                        2 | 4 | 15 => RvMemAccessType::Read as u8,
-                        3 | 6 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
-                        5 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
-                        7 => {
-                            RvMemAccessType::Read as u8
-                                | RvMemAccessType::Write as u8
-                                | RvMemAccessType::Execute as u8
-                        }
-                        _ => unreachable!(),
-                    },
-                    _ => unreachable!(),
-                };
-
-                if (access as u8 & allowed_mask) != access as u8 {
-                    return Err(fault());
-                }
+            let mstatus = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
+            let priv_mode = if mstatus.mprv() != 0
+                && (access == RvMemAccessType::Read || access == RvMemAccessType::Write)
+            {
+                mstatus.mpp()
             } else {
-                let check_bit = match access {
-                    RvMemAccessType::Read => pmpicfg.read(),
-                    RvMemAccessType::Write => pmpicfg.write(),
-                    RvMemAccessType::Execute => pmpicfg.execute(),
-                    _ => unreachable!(),
-                };
+                self.priv_mode
+            };
 
-                if check_bit == 0 && (priv_mode != RvPrivMode::M || pmpicfg.lock() != 0) {
-                    return Err(fault());
+            let mseccfg = RvMsecCfg(self.read_csr_machine(Csr::MSECCFG)?);
+
+            if let Some(pmpicfg) = self.csrs.pmp_match_addr(addr)? {
+                if mseccfg.mml() != 0 {
+                    // Perform enhanced privilege check
+                    let check_mask = (pmpicfg.execute() & 0x1)
+                        | ((pmpicfg.write() & 0x1) << 1)
+                        | ((pmpicfg.read() & 0x1) << 2)
+                        | ((pmpicfg.lock() & 0x1) << 3);
+
+                    // This matches the spec truth table
+                    let allowed_mask = match priv_mode {
+                        RvPrivMode::M => match check_mask {
+                            0 | 1 | 4..=8 => 0,
+                            2 | 3 | 14 => {
+                                RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8
+                            }
+                            9 | 10 => RvMemAccessType::Execute as u8,
+                            11 | 13 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                            12 | 15 => RvMemAccessType::Read as u8,
+                            _ => unreachable!(),
+                        },
+                        RvPrivMode::U => match check_mask {
+                            0 | 8 | 9 | 12..=14 => 0,
+                            1 | 10 | 11 => RvMemAccessType::Execute as u8,
+                            2 | 4 | 15 => RvMemAccessType::Read as u8,
+                            3 | 6 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
+                            5 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                            7 => {
+                                RvMemAccessType::Read as u8
+                                    | RvMemAccessType::Write as u8
+                                    | RvMemAccessType::Execute as u8
+                            }
+                            _ => unreachable!(),
+                        },
+                        _ => unreachable!(),
+                    };
+
+                    if (access as u8 & allowed_mask) != access as u8 {
+                        return Err(fault());
+                    }
+                } else {
+                    let check_bit = match access {
+                        RvMemAccessType::Read => pmpicfg.read(),
+                        RvMemAccessType::Write => pmpicfg.write(),
+                        RvMemAccessType::Execute => pmpicfg.execute(),
+                        _ => unreachable!(),
+                    };
+
+                    if check_bit == 0 && (priv_mode != RvPrivMode::M || pmpicfg.lock() != 0) {
+                        return Err(fault());
+                    }
                 }
+            } else if priv_mode == RvPrivMode::M && mseccfg.mmwp() != 0 {
+                return Err(fault());
             }
-        } else if priv_mode == RvPrivMode::M && mseccfg.mmwp() != 0 {
-            return Err(fault());
         }
 
         Ok(())
@@ -765,27 +764,28 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let cpu = Cpu::new(DynamicBus::new(), Clock::new(), false);
+        assert_eq!(cpu.read_pc(), 0);
+        let cpu = Cpu::new(DynamicBus::new(), Clock::new(), true);
         assert_eq!(cpu.read_pc(), 0);
     }
 
     #[test]
     fn test_pc() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new(), false);
         cpu.write_pc(0xFF);
         assert_eq!(cpu.read_pc(), 0xFF);
     }
 
     #[test]
     fn test_xreg() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new(), false);
         for reg in 1..32u32 {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
         }
     }
 
-    #[cfg(not(feature = "1.x"))]
     fn new_pmp_cpu(fill_val: u32) -> Cpu<DynamicBus> {
         let clock = Clock::new();
         let mut bus = DynamicBus::new();
@@ -798,7 +798,7 @@ mod tests {
         );
         bus.attach_dev("RAM", 0..=0x200, Box::new(ram)).unwrap();
 
-        Cpu::new(bus, clock)
+        Cpu::new(bus, clock, true)
     }
 
     #[test]
@@ -1657,7 +1657,7 @@ mod tests {
 
         let mut action0 = Some(timer.schedule_poll_in(31));
 
-        let mut cpu = Cpu::new(bus, clock);
+        let mut cpu = Cpu::new(bus, clock, true);
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
             assert_eq!(cpu.step(None), StepAction::Continue);

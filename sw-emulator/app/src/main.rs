@@ -19,6 +19,7 @@ use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
     TbServicesCb, UploadUpdateFwCb,
 };
+use caliptra_emu_types::CaliptraVersion;
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
@@ -152,6 +153,12 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(u64))
                 .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
         )
+        .arg(
+            arg!(--"caliptra-version" <version> "Version of Caliptra to emulate")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value("1.1")
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -176,6 +183,20 @@ fn main() -> io::Result<()> {
         }
     };
     let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
+    let raw_caliptra_version = args.get_one::<String>("caliptra-version").unwrap();
+    let caliptra_version = match raw_caliptra_version {
+        "1.0" => CaliptraVersion::V1_0,
+        "1.1" => CaliptraVersion::V1_1,
+        "2.0" => CaliptraVersion::V2_0,
+        _ => {
+            println!("Unknown Caliptra version {:?}", raw_caliptra_version);
+            exit(-1);
+        }
+    };
+    let pmp_enabled = match caliptra_version {
+        CaliptraVersion::V1_0 | CaliptraVersion::V1_1 => false,
+        CaliptraVersion::V2_0 => true,
+    };
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
@@ -369,7 +390,7 @@ fn main() -> io::Result<()> {
             .write(|_| (*wdt_timeout >> 32) as u32);
     }
 
-    let cpu = Cpu::new(root_bus, clock);
+    let cpu = Cpu::new(root_bus, clock, pmp_enabled);
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {

@@ -447,7 +447,7 @@ mod test {
             {$($init_reg:path = $init_val:expr;)*},
             {$($result_reg:path = $result_val:expr;)*}
         ) => {
-            let mut cpu = $crate::isa_test_cpu!( $text_addr => $text, $data_addr => $data);
+            let mut cpu = $crate::isa_test_cpu!( $text_addr => $text, $data_addr => $data );
             $(assert_eq!(cpu.write_xreg($init_reg, $init_val).ok(), Some(()));)*
 
             while (cpu.read_pc() < $text_addr + $text.len() as u32) {
@@ -470,7 +470,7 @@ mod test {
             let text_range = $text_addr..=u32::try_from($text_addr + $text.len() - 1).unwrap();
             let data_range = $data_addr..=u32::try_from($data_addr + $data.len() - 1).unwrap();
 
-            let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+            let mut cpu = Cpu::new(DynamicBus::new(), Clock::new(), true);
             let rom = Rom::new($text.clone());
             cpu.bus
                 .attach_dev("ROM", text_range, Box::new(rom))

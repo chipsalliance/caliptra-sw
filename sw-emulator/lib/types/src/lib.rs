@@ -38,3 +38,19 @@ emu_enum!(
     };
     Invalid
 );
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum CaliptraVersion {
+    V1_0,
+    V1_1,
+    V2_0,
+}
+
+impl CaliptraVersion {
+    pub fn is_1x(&self) -> bool {
+        match self {
+            CaliptraVersion::V1_0 | CaliptraVersion::V1_1 => true,
+            _ => false,
+        }
+    }
+}
