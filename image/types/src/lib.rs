@@ -51,20 +51,6 @@ pub type ImageDigest = [u32; SHA384_DIGEST_WORD_SIZE];
 pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
-pub trait EndianessTransform {
-    fn to_be_bytes(&self) -> [u8; ECC384_SCALAR_BYTE_SIZE];
-}
-
-impl EndianessTransform for ImageDigest {
-    fn to_be_bytes(&self) -> [u8; ECC384_SCALAR_BYTE_SIZE] {
-        let mut message = [0u8; ECC384_SCALAR_BYTE_SIZE];
-        for i in 0..self.len() {
-            message[i * 4..][..4].copy_from_slice(&self[i].to_be_bytes());
-        }
-        message
-    }
-}
-
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
