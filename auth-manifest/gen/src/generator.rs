@@ -45,7 +45,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
 
         // Generate the Image Metadata List.
         let slice = config.image_metadata_list.as_slice();
-        auth_manifest.image_metadata_col.image_metadata_array[..slice.len()].copy_from_slice(slice);
+        auth_manifest.image_metadata_col.image_metadata_list[..slice.len()].copy_from_slice(slice);
 
         auth_manifest.image_metadata_col.header.entry_count =
             config.image_metadata_list.len() as u32;
