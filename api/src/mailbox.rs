@@ -1029,7 +1029,7 @@ impl Default for AuthorizeAndStashReq {
             measurement: [0u8; 48],
             context: [0u8; 48],
             svn: Default::default(),
-            flags: 0,
+            flags: AuthAndStashFlags::SKIP_STASH.bits(),
             source: ImageHashSource::InRequest as u32,
         }
     }

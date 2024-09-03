@@ -79,6 +79,7 @@ impl AuthorizeAndStashCmd {
             let flags: AuthAndStashFlags = cmd.flags.into();
             if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
                 // TODO: Stash the image hash
+                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)?;
             }
 
             Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {
