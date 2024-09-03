@@ -17,40 +17,25 @@ use core::mem::size_of;
 
 use crate::verify;
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
-use caliptra_auth_man_types::AuthManifestFlags;
-use caliptra_auth_man_types::AuthManifestImageMetadataCollection;
-use caliptra_auth_man_types::AuthManifestImageMetadataCollectionHeader;
-use caliptra_auth_man_types::AuthManifestPreamble;
-use caliptra_auth_man_types::AUTH_MANIFEST_MARKER;
+use caliptra_auth_man_types::{
+    AuthManifestFlags, AuthManifestImageMetadataCollection,
+    AuthManifestImageMetadataCollectionHeader, AuthManifestPreamble, AUTH_MANIFEST_MARKER,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    MailboxResp, MailboxRespHeader, SetAuthManifestReq, StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_drivers::Array4x12;
-use caliptra_drivers::Array4xN;
-use caliptra_drivers::AuthManifestImageMetadataList;
-use caliptra_drivers::Ecc384;
-use caliptra_drivers::Ecc384PubKey;
-use caliptra_drivers::Ecc384Signature;
-use caliptra_drivers::HashValue;
-use caliptra_drivers::Lms;
-use caliptra_drivers::PersistentData;
-use caliptra_drivers::RomVerifyConfig;
-use caliptra_drivers::Sha256;
-use caliptra_drivers::Sha384;
-use caliptra_drivers::SocIfc;
-use caliptra_drivers::AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT;
-use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use caliptra_image_types::ImageDigest;
-use caliptra_image_types::ImageEccPubKey;
-use caliptra_image_types::ImageEccSignature;
-use caliptra_image_types::ImageLmsPublicKey;
-use caliptra_image_types::ImageLmsSignature;
-use caliptra_image_types::ImagePreamble;
-use caliptra_image_types::SHA192_DIGEST_WORD_SIZE;
-use caliptra_image_types::SHA384_DIGEST_BYTE_SIZE;
+use caliptra_drivers::{
+    pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
+    CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
+    PersistentData, RomVerifyConfig, Sha256, Sha384, SocIfc,
+    AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
+};
+use caliptra_image_types::{
+    EndianessTransform, ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
+    ImageLmsSignature, ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
+};
 use crypto::{AlgLen, Crypto};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
@@ -109,10 +94,7 @@ impl SetAuthManifestCmd {
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
-        let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
-        for i in 0..digest.len() {
-            message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
-        }
+        let message: [u8; SHA384_DIGEST_BYTE_SIZE] = digest.to_be_bytes();
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
@@ -377,7 +359,7 @@ impl SetAuthManifestCmd {
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        if (cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>()) {
+        if cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
         }
 
@@ -391,9 +373,9 @@ impl SetAuthManifestCmd {
 
         image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
 
-        if (image_metadata_col.header.entry_count == 0
+        if image_metadata_col.header.entry_count == 0
             || image_metadata_col.header.entry_count
-                > AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT as u32)
+                > AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT as u32
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
         }
@@ -425,17 +407,18 @@ impl SetAuthManifestCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         // Validate cmd length
-        let manifest_size = {
+        let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
             let offset = offset_of!(SetAuthManifestReq, manifest_size);
-            let size = u32::from_le_bytes(
+            u32::from_le_bytes(
                 cmd_args
                     .get(offset..offset + 4)
                     .ok_or(err)?
                     .try_into()
                     .map_err(|_| err)?,
-            );
-            usize::try_from(size).map_err(|_| err)?
+            )
+            .try_into()
+            .unwrap()
         };
 
         if manifest_size > SetAuthManifestReq::MAX_MAN_SIZE {

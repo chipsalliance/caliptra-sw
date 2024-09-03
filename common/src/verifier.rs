@@ -71,10 +71,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
-        let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
-        for i in 0..digest.len() {
-            message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
-        }
+        let message: [u8; SHA384_DIGEST_BYTE_SIZE] = digest.to_be_bytes();
         Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
     }
 

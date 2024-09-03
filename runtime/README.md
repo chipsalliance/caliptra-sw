@@ -715,9 +715,10 @@ Command Code: `0x434B_4558` ("CKEX")
 
 Command Code: `0x4154_4D4E` ("ATMN")
 
-*Table: `SET\_AUTH\_MANIFEST` input arguments*
+*Table: `SET_AUTH_MANIFEST` input arguments*
 
-| **Name**                      | **Type**     | **Description**                                                             |
+| **Name**            | **Type**  | **Description**
+| --------            | --------  | ---------------
 | chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
 | manifest size                 | u32          | The size of the full Authentication Manifest                                |
 | preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
@@ -742,20 +743,20 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_entries             | MetaData[16] | The max number of metadata is 16 but less can be used                       |
 
 
-*Table: `AUTH\_MANIFEST\_FLAGS` input flags*
+*Table: `AUTH_MANIFEST_FLAGS` input flags*
 
 | **Name**                  | **Value** |
 |---------------------------|-----------|
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
 
-*Table: `AUTH\_MANIFEST\_METADATA\_ENTRY` digest entries*
+*Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 
 | **Name**      | **Type** | **Description**        |
 |---------------|----------|------------------------|
 | digest        | u32[48]  | Digest of the metadata |
 | image\_source | u32      | Image source           |
 
-*Table: `SET\_AUTH\_MANIFEST` output arguments*
+*Table: `SET_AUTH_MANIFEST` output arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
@@ -763,31 +764,34 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 
-### AUTHORIZE\_AND\_STASH
+### AUTHORIZE_AND_STASH
 
 Command Code: `0x4154_5348` ("ATSH")
 
-*Table: `AUTHORIZE\_AND\_STASH` input arguments*
-| **Name**    | **Type** | **Description**                                                                     |
+*Table: `AUTHORIZE_AND_STASH` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | metadata    | u8[4]    | 4-byte measurement identifier.                                                      |
 | measurement | u8[48]   | Digest of measured                                                                  |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | SVN                                                                                 |
 | flags       | u32      | Flags                                                                               |
-| source      | u32      | Source number                                                                       |
+| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
 
-*Table: `AUTHORIZE\_AND\_STASH\_FLAGS` input flags*
+*Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
 
 | **Name**   | **Value** |
 |------------|-----------|
 | SKIP\_STASH | 1 << 0    |
 
-*Table: `AUTHORIZE\_AND\_STASH` output arguments*
-| **Name**          | **Type** | **Description**                                                            |
+*Table: `AUTHORIZE_AND_STASH` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
 | chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| fips\_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth\_req\_result | u32      | AUTHORIZE\_IMAGE: 0xDEADC0DE and DENY\_IMAGE\_AUTHORIZATION: 0x21523F21    |
+| fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
+| auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
 
 ## Checksum
 
