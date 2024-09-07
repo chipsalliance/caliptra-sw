@@ -40,3 +40,9 @@ caliptra-image-types.workspace = true
 caliptra-builder.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
+nix.workspace = true
+
+[[bin]]
+name = "fpga_realtime_mbox_pauser"
+path = "src/bin/fpga_realtime_mbox_pauser.rs"
+required-features = ["fpga_realtime", "itrng"]
