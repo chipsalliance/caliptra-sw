@@ -92,7 +92,7 @@ pub use persistent::{
     FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
-pub use recovery::*;
+pub use recovery::{Recovery, RecoveryCmsReq, RecoveryCmsRet, CmsType};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};

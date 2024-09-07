@@ -88,6 +88,7 @@ impl FirmwareProcessor {
             &mut env.soc_ifc,
             &mut env.mbox,
             &mut env.pcr_bank,
+            &mut env.recovery,
             &mut kats_env,
             env.persistent_data.get_mut(),
         )?;
@@ -173,39 +174,68 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
+        recovery: &mut Recovery,
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         let mut self_test_in_progress = false;
 
-        cprintln!("[fwproc] Waiting for Commands...");
+//        cprintln!("[fwproc] Waiting for Commands...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
 
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
-                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
+//                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
-                    // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                    let txn = mbox
-                        .peek_recv()
-                        .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+                    if !cfg!(feature = "rri") {
+                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
 
-                    // This is a download-firmware command; don't drop this, as the
-                    // transaction will be completed by either handle_fatal_error() (on
-                    // failure) or by a manual complete call upon success.
-                    let txn = ManuallyDrop::new(txn.start_txn());
-                    if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                        cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                        return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                        // This is a download-firmware command; don't drop this, as the
+                        // transaction will be completed by either handle_fatal_error() (on
+                        // failure) or by a manual complete call upon success.
+                        let txn = ManuallyDrop::new(txn.start_txn());
+                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                            return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                        }
+
+                        cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok(txn);
+                    } else {
+                        let ret = recovery.request_cms(RecoveryCmsReq(0))?;
+                        cprintln!("[rri] Received Image of size {} bytes", ret.size);
+                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                        // This is a download-firmware command; don't drop this, as the
+                        // transaction will be completed by either handle_fatal_error() (on
+                        // failure) or by a manual complete call upon success.
+                        let mut txn = ManuallyDrop::new(txn.start_txn());
+
+                        let mbox_sram = txn
+                            .raw_mailbox_contents_mut()
+                            .get_mut(..ret.size as usize)
+                            .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?
+                            .chunks_mut(4);
+                        for (i, (rri, mbox)) in recovery.into_iter().zip(mbox_sram.into_iter()).enumerate() {
+                            if u32::to_ne_bytes(rri) != mbox {
+//                                cprintln!("I don't like {}", i);
+                            }
+                            mbox.copy_from_slice(&u32::to_ne_bytes(rri));
+                        }
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok(txn);
                     }
-
-                    cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
-                    report_boot_status(FwProcessorDownloadImageComplete.into());
-                    return Ok(txn);
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error

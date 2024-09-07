@@ -372,6 +372,16 @@ impl MailboxRecvTxn<'_> {
         }
     }
 
+    /// Provides mutable direct access to entire mailbox SRAM.
+    pub fn raw_mailbox_contents_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            slice::from_raw_parts_mut(
+                memory_layout::MBOX_ORG as *mut u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        }
+    }
+
     /// Pulls at most `count` words from the mailbox and throws them away
     pub fn drop_words(&mut self, count: usize) -> CaliptraResult<()> {
         let mbox = self.mbox.regs_mut();

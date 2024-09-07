@@ -16,7 +16,7 @@ File contains test cases for the recovery register interface
 #![no_main]
 
 use arrayvec::ArrayVec;
-use caliptra_drivers::{CmsType, Recovery, RecoveryCmsReq};
+use caliptra_drivers::{RecoveryCmsRet, Recovery, RecoveryCmsReq, CmsType};
 use caliptra_error::CaliptraError;
 use caliptra_registers::recovery::RecoveryReg;
 use caliptra_test_harness::test_suite;

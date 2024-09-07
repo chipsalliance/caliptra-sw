@@ -24,13 +24,13 @@ pub const ROM: FwId = FwId {
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu"],
+    features: &["emu", "rri"],
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
+    features: &["emu", "fake-rom", "rri"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {

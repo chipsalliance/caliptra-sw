@@ -63,6 +63,7 @@ no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 slow_tests = []
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-hw-model/hw-1.0"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-image-verify/fips-test-hooks"]
+rri = []
 
 [[bin]]
 name = "asm_tests"

@@ -62,16 +62,19 @@ pub fn run_rt_test(
     });
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+
+    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
+        .unwrap();
+
+    let recovery = &image.to_bytes().unwrap();
     let init_params = match init_params {
         Some(init_params) => init_params,
         None => InitParams {
             rom: &rom,
+            recovery,
             ..Default::default()
         },
     };
-
-    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
-        .unwrap();
 
     let mut model = caliptra_hw_model::new(
         init_params,

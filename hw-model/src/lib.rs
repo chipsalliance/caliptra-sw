@@ -1093,7 +1093,8 @@ pub trait HwModel {
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
+       // let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
+        let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, &[])?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
