@@ -11,11 +11,12 @@
  */
 enum libcaliptra_error {
     NO_ERROR = 0,
-    // General
+    // General API
     INVALID_PARAMS              = 0x100,
     API_INTERNAL_ERROR          = 0x101,
     REG_ACCESS_ERROR            = 0x102,
     PAUSER_LOCKED               = 0x103,
+    FW_LOAD_NOT_IN_PROGRESS     = 0x104,
     // Fuse
     NOT_READY_FOR_FUSES         = 0x200,
     STILL_READY_FOR_FUSES       = 0x201,
@@ -32,6 +33,16 @@ enum libcaliptra_error {
 
     // MFG
     IDEV_CSR_NOT_READY = 0x400,
+};
+
+/**
+ * fw_load_piecewise_state
+ *
+ * Tracks state for piecewise FW loading to enforce correct flow
+ */
+enum fw_load_piecewise_state {
+    FW_LOAD_PIECEWISE_IDLE = 0,
+    FW_LOAD_PIECEWISE_IN_PROGRESS = 1,
 };
 
 /**

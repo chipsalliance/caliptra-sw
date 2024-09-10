@@ -668,6 +668,104 @@ int rom_test_devid_csr(const test_info* info)
     return failure;
 }
 
+// Issue FW load commands repeatedly
+// Coverage for piecewise FW load and runtime FW updates
+int upload_fw_piecewise(const test_info* info)
+{
+    int failure = 0;
+    int status = boot_to_ready_for_fw(info, false);
+
+    if (status){
+        printf("Failed to boot to ready for FW: 0x%x\n", status);
+        failure = 1;
+    }
+
+    // Some "random" size to split up the FW load into chunks
+    // These represent the first two chunks, the third chunk is the remainder of the image
+    // Sizes of 0 are ignored (meaning one fewer chunk is sent)
+    uint32_t chunk_sizes[][2] =    {
+                                    {0x4, 0},
+                                    {0x1000, 0},
+                                    {0x1234, 0},
+                                    {0xe924, 0},
+                                    {0x8, 0x2000},
+                                    {0x2340, 0x4},
+                                    {0x388, 0x1844},
+                                    };
+
+    // Load FW in a loop, using the offsets above as points to split chunks
+    for (int i = 0; i < CALIPTRA_ARRAY_SIZE(chunk_sizes); i++) {
+        // Start the FW load
+        uint32_t total_fw_size = info->image_bundle.len;
+        status = caliptra_upload_fw_start_req(total_fw_size);
+
+        if (status)
+        {
+            printf("FW Load %d Start Failed: 0x%x\n", i, status);
+            dump_caliptra_error_codes();
+            failure = 1;
+        } else {
+            printf("FW Load %d Start: OK\n", i);
+        }
+
+        // Ensure other commands report busy during this process
+        struct caliptra_fips_version_resp version_resp;
+        status = caliptra_fips_version(&version_resp, false);
+        if (status != MBX_BUSY) {
+            printf("Command during piecewise FW load should report MBX_BUSY. Result was: 0x%x\n", status);
+            failure = 1;
+        }
+
+        uint32_t sent_bytes = 0;
+        uint8_t chunk_count = 0;
+        // Upload each of up to 3 chunks
+        // The size of the first two chunks comes from the table above
+        // The final chunk is the remainder
+        // Some chunks may be skipped if their size is 0 in the table
+        for (int j = 0; j < 3; j++){
+            uint32_t chunk_size;
+            if (j == 2) {
+                // Final chunk
+                chunk_size = total_fw_size - sent_bytes;
+            } else {
+                chunk_size = chunk_sizes[i][j];
+            }
+
+            if (chunk_size != 0){
+                // Set up the caliptra_buffer for the chunk and send it
+                struct caliptra_buffer fw_chunk = {.data = info->image_bundle.data + sent_bytes, .len = chunk_size};
+                status = caliptra_upload_fw_send_data(&fw_chunk);
+
+                if (status)
+                {
+                    printf("FW Load %d Send Data chunk %d (%d bytes) Failed: 0x%x\n", i, chunk_count, status, chunk_size);
+                    dump_caliptra_error_codes();
+                    failure = 1;
+                } else {
+                    printf("FW Load %d Send Data chunk %d (%d bytes): OK\n", i, chunk_count, chunk_size);
+                }
+
+                // Track what has been sent
+                sent_bytes += chunk_size;
+                chunk_count++;
+            }
+        }
+
+        // Finish the FW load
+        status = caliptra_upload_fw_end_req(false);
+
+        if (status)
+        {
+            printf("FW Load %d End Failed: 0x%x\n", i, status);
+            dump_caliptra_error_codes();
+            failure = 1;
+        } else {
+            printf("FW Load %d End: OK\n", i);
+        }
+    }
+
+    return failure;
+}
 
 // Test infrastructure
 
@@ -699,6 +797,7 @@ int run_tests(const test_info* info)
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
     run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
+    run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");
