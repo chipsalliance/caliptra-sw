@@ -41,7 +41,8 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
-static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
+static CALIPTRA_EXTRA_RDL_FILES: &[&str] =
+    &["el2_pic_ctrl.rdl", "secure_firmware_recovery_interface.rdl"];
 
 fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box<dyn Error>> {
     cmd.stdin(Stdio::piped());
