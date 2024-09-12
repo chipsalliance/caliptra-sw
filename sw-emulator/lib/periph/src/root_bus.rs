@@ -25,6 +25,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
+use crate::MailboxRequester;
 
 /// Default Deobfuscation engine key
 pub const DEFAULT_DOE_KEY: [u8; 32] = [
@@ -339,9 +340,9 @@ impl CaliptraRootBus {
         }
     }
 
-    pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
+    pub fn soc_to_caliptra_bus(&self, soc_user: MailboxRequester) -> SocToCaliptraBus {
         SocToCaliptraBus {
-            mailbox: self.mailbox.as_external(),
+            mailbox: self.mailbox.as_external(soc_user),
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
@@ -351,7 +352,7 @@ impl CaliptraRootBus {
 #[derive(Bus)]
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
-    mailbox: MailboxExternal,
+    pub mailbox: MailboxExternal,
 
     #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
     sha512_acc: Sha512Accelerator,

@@ -19,6 +19,7 @@ use caliptra_hw_model_types::{
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
+use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use caliptra_registers::soc_ifc::regs::{
@@ -169,6 +170,8 @@ pub struct InitParams<'a> {
     // A trace path to use. If None, the CPTRA_TRACE_PATH environment variable
     // will be used
     pub trace_path: Option<PathBuf>,
+
+    pub soc_user: MailboxRequester,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -204,6 +207,7 @@ impl<'a> Default for InitParams<'a> {
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             random_sram_puf: true,
             trace_path: None,
+            soc_user: MailboxRequester::SocUser1,
         }
     }
 }

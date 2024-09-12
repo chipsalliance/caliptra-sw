@@ -70,6 +70,7 @@ impl InvokeDpeCmd {
             };
 
             let locality = drivers.mbox.user();
+            caliptra_common::cprintln!("[rt] locality = {}", locality);
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;

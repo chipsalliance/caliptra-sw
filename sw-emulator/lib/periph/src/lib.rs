@@ -40,7 +40,7 @@ pub use hmac_sha384::HmacSha384;
 pub use iccm::Iccm;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
-pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam};
+pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam, MailboxRequester};
 pub use root_bus::{
     ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, ReadyForFwCb,
     SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
