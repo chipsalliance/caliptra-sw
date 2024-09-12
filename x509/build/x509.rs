@@ -371,7 +371,7 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
         fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
         flags: None,
         vendor_info: None,
-        tcb_type: None,
+        tcb_type: Some(b"RT_INFO"),
         flags_mask: None,
     };
 
