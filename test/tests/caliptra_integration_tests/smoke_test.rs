@@ -9,6 +9,7 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
+use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
@@ -19,6 +20,7 @@ use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use regex::Regex;
 use std::mem;
 use zerocopy::AsBytes;
 
@@ -30,19 +32,30 @@ fn assert_output_contains(haystack: &str, needle: &str) {
     );
 }
 
+#[track_caller]
+fn assert_output_contains_regex(haystack: &str, needle: &str) {
+    let re = Regex::new(needle).unwrap();
+    assert! {
+        re.is_match(haystack),
+        "Expected substring in output not found: {needle}"
+    }
+}
+
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: *SecurityState::default().set_debug_locked(true),
             ..Default::default()
         },
-        initial_dbg_manuf_service_reg: GENERATE_IDEVID_CSR,
-        ..Default::default()
-    })
+        BootParams {
+            initial_dbg_manuf_service_reg: GENERATE_IDEVID_CSR,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
@@ -153,16 +166,18 @@ fn smoke_test() {
         lms_verify: true,
         ..Default::default()
     };
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        fuses,
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
@@ -176,7 +191,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] sha1");
         assert_output_contains(&output, "[kat] SHA2-256");
         assert_output_contains(&output, "[kat] SHA2-384");
-        assert_output_contains(&output, "[kat] SHA2-384-ACC");
+        assert_output_contains_regex(&output, r"\[kat\] SHA2-(384|512)-ACC");
         assert_output_contains(&output, "[kat] HMAC-384");
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");
@@ -410,6 +425,26 @@ fn smoke_test() {
     let rt_alias_cert = openssl::x509::X509::from_der(rt_alias_cert_der).unwrap();
     let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
+    println!(
+        "Manifest digest is {:02x?}",
+        image.manifest.runtime.digest.as_bytes()
+    );
+    let expected_rt_alias_key = RtAliasKey::derive(
+        &PcrRtCurrentInput {
+            runtime_digest: image.manifest.runtime.digest,
+            manifest: image.manifest,
+        },
+        &expected_fmc_alias_key,
+    );
+
+    // Check that the rt-alias key has the rt measurements input above mixed into it
+    // If a firmware change causes this assertion to fail, it is likely that the
+    // logic in the FMC that derives the CDI. Ensure this is intentional, and
+    // then make the same change to caliptra_test::RtAliasKey::derive().
+    assert!(expected_rt_alias_key
+        .derive_public_key()
+        .public_eq(&rt_alias_cert.public_key().unwrap()));
+
     println!("rt-alias cert: {rt_alias_cert_txt}");
 
     assert!(
@@ -433,7 +468,7 @@ fn smoke_test() {
                     .as_bytes()
                     .to_vec(),
             },],
-            ty: None,
+            ty: Some(b"RT_INFO".to_vec()),
             ..Default::default()
         }),
     );
@@ -583,7 +618,7 @@ fn smoke_test() {
                     .as_bytes()
                     .to_vec(),
             },],
-            ty: None,
+            ty: Some(b"RT_INFO".to_vec()),
             ..Default::default()
         }),
     );
@@ -686,11 +721,7 @@ fn test_rt_wdt_timeout() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut hw = caliptra_hw_model::new(init_params, BootParams::default()).unwrap();
 
     // WDT started shortly before KATs are started.
     hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
@@ -708,13 +739,17 @@ fn test_rt_wdt_timeout() {
     let init_params = caliptra_hw_model::InitParams {
         rom: &rom,
         security_state,
-        wdt_timeout_cycles: rt_wdt_timeout_cycles,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
         etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
-    let mut hw = run_test(None, None, Some(init_params));
+    let boot_params = caliptra_hw_model::BootParams {
+        wdt_timeout_cycles: rt_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = run_test(None, None, Some(init_params), Some(boot_params));
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
@@ -763,10 +798,12 @@ fn test_fmc_wdt_timeout() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
+    let mut hw = caliptra_hw_model::new(
         init_params,
-        ..Default::default()
-    })
+        BootParams {
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     // WDT started shortly before KATs are started.
@@ -785,13 +822,17 @@ fn test_fmc_wdt_timeout() {
     let init_params = caliptra_hw_model::InitParams {
         rom: &rom,
         security_state,
-        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
         etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
-    let mut hw = caliptra_test::run_test(None, None, Some(init_params));
+    let boot_params = caliptra_hw_model::BootParams {
+        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(

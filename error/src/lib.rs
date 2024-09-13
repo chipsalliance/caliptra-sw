@@ -52,8 +52,8 @@ impl CaliptraError {
     pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
-    /// Driver Error: SHA384ACC
-    pub const DRIVER_SHA384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
+    /// Driver Error: SHA2_512_384ACC
+    pub const DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
         CaliptraError::new_const(0x00038000);
 
     /// Driver Error: HMAC384
@@ -113,6 +113,7 @@ impl CaliptraError {
     pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x0005000f);
     pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
+    pub const DRIVER_ECC384_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00050011);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -129,8 +130,8 @@ impl CaliptraError {
     pub const DRIVER_MAILBOX_UNCORRECTABLE_ECC: CaliptraError =
         CaliptraError::new_const(0x00080005);
 
-    /// SHA384ACC Errors.
-    pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    /// SHA2_512_384ACC Errors.
+    pub const DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00090003);
     /// SHA1 Errors.
     pub const DRIVER_SHA1_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x000a0001);
@@ -419,6 +420,26 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0043);
     pub const RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM: CaliptraError =
         CaliptraError::new_const(0x000E0044);
+    pub const RUNTIME_INVALID_AUTH_MANIFEST_MARKER: CaliptraError =
+        CaliptraError::new_const(0x000E0045);
+    pub const RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000E0046);
+    pub const RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0047);
+    pub const RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0048);
+    pub const RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0049);
+    pub const RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E004A);
+    pub const RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN: CaliptraError =
+        CaliptraError::new_const(0x000E004B);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE: CaliptraError =
+        CaliptraError::new_const(0x000E004C);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000E004D);
+    pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
+        CaliptraError::new_const(0x000E004E);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -472,6 +493,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01020006);
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
+    pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
+        CaliptraError::new_const(0x01020008);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -542,7 +565,9 @@ impl CaliptraError {
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
         CaliptraError::new_const(0x0105000D);
 
-    /// KAT Errors
+    pub const ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT: CaliptraError = CaliptraError::new_const(0x0105000F);
+
+    /// ROM KAT Errors
     pub const KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
 
@@ -558,10 +583,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x90040002);
     pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
 
-    pub const KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
+    pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
-    pub const KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050002);
-    pub const KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050003);
+    pub const KAT_SHA2_512_384_ACC_DIGEST_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90050002);
+    pub const KAT_SHA2_512_384_ACC_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x90050003);
 
     pub const KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
     pub const KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
@@ -570,6 +597,10 @@ impl CaliptraError {
     pub const KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 
     pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
+
+    // TODO: What base value is right for this?
+    // FIPS Hooks
+    pub const FIPS_HOOKS_INJECTED_ERROR: CaliptraError = CaliptraError::new_const(0x90100000);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

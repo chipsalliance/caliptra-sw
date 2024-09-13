@@ -34,13 +34,13 @@ fn default_init_params() -> InitParams<'static> {
 
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
-    caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
 }
 
 fn run_driver_test(test_rom: &'static FwId) {
@@ -207,16 +207,16 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
 #[test]
 fn test_doe_when_debug_not_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: *SecurityState::from(0)
                 .set_debug_locked(false)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
@@ -301,16 +301,16 @@ fn test_generate_doe_vectors_when_debug_locked() {
 #[test]
 fn test_doe_when_debug_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: *SecurityState::from(0)
                 .set_debug_locked(true)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
@@ -740,8 +740,8 @@ fn test_sha384() {
 }
 
 #[test]
-fn test_sha384acc() {
-    run_driver_test(&firmware::driver_tests::SHA384ACC);
+fn test_sha2_512_384acc() {
+    run_driver_test(&firmware::driver_tests::SHA2_512_384ACC);
 }
 
 #[test]
@@ -785,14 +785,14 @@ fn test_csrng_with_nibbles(
 ) {
     let rom = caliptra_builder::build_firmware_rom(fwid).unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             itrng_nibbles,
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     model.step_until_exit_success().unwrap();
@@ -854,15 +854,17 @@ fn test_csrng_repetition_count() {
                 .cycle()
         });
 
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 itrng_nibbles,
                 ..default_init_params()
             },
-            initial_repcnt_thresh_reg: soc_repcnt_threshold,
-            ..Default::default()
-        })
+            BootParams {
+                initial_repcnt_thresh_reg: soc_repcnt_threshold,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
         model.step_until_exit_success().unwrap();
@@ -976,15 +978,17 @@ fn test_csrng_adaptive_proportion() {
                 .high_threshold(HI_THRESHOLD)
                 .low_threshold(LO_THRESHOLD);
 
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 itrng_nibbles,
                 ..default_init_params()
             },
-            initial_adaptp_thresh_reg: Some(threshold_reg),
-            ..Default::default()
-        })
+            BootParams {
+                initial_adaptp_thresh_reg: Some(threshold_reg),
+                ..Default::default()
+            },
+        )
         .unwrap();
 
         model.step_until_exit_success().unwrap();
@@ -1016,15 +1020,15 @@ fn test_trng_in_itrng_mode() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
         .unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             itrng_nibbles: Box::new(trng_nibbles()),
             trng_mode: Some(TrngMode::Internal),
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     let trng_block = model.mailbox_execute(0, &[]).unwrap();
@@ -1071,8 +1075,8 @@ fn test_trng_in_etrng_mode() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
         .unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             itrng_nibbles: Box::new([].iter().copied()),
             etrng_responses: Box::new(
@@ -1091,8 +1095,8 @@ fn test_trng_in_etrng_mode() {
             trng_mode: Some(TrngMode::External),
             ..default_init_params()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     let trng_block = model.mailbox_execute(0, &[]).unwrap();

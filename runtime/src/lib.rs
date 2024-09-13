@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
+mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
 pub mod dice;
@@ -27,6 +28,7 @@ pub mod info;
 mod invoke_dpe;
 mod pcr;
 mod populate_idev;
+mod set_auth_manifest;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -34,6 +36,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::Drivers;
@@ -43,6 +46,7 @@ use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
+pub use authorize_and_stash::{AUTHORIZE_IMAGE, DENY_IMAGE_AUTHORIZATION};
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -56,6 +60,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use pcr::IncrementPcrResetCounterCmd;
+pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
@@ -105,7 +110,7 @@ pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
-pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
 pub struct CptraDpeTypes;
@@ -120,7 +125,8 @@ fn enter_idle(drivers: &mut Drivers) {
     // Run pending jobs before entering low power mode.
     #[cfg(feature = "fips_self_test")]
     if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
-        if drivers.mbox.lock() == false {
+        let lock = drivers.mbox.lock();
+        if lock == false {
             let result = execute(drivers);
             drivers.mbox.unlock();
             match result {
@@ -128,7 +134,7 @@ fn enter_idle(drivers: &mut Drivers) {
                 Err(e) => caliptra_common::handle_fatal_error(e.into()),
             }
         } else {
-            cfi_assert!(drivers.mbox.lock());
+            cfi_assert!(lock);
             // Don't enter low power mode when in progress
             return;
         }
@@ -211,6 +217,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

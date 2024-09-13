@@ -17,14 +17,16 @@ fn test_emu_coverage() {
 
     let coverage_from_bitmap = {
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-        let mut hw = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 trace_path: Some(PathBuf::from(TRACE_PATH)),
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams {
+                ..Default::default()
+            },
+        )
         .unwrap();
         // Upload FW
         hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());

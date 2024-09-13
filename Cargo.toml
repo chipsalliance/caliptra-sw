@@ -26,6 +26,9 @@ exclude = [
 
 members = [
   "api",
+  "auth-manifest/app",
+  "auth-manifest/gen",
+  "auth-manifest/types",
   "builder",
   "cfi/lib",
   "cfi/derive",
@@ -67,7 +70,7 @@ members = [
   "image/serde",
   "image/verify",
   "image/app",
-  "image/openssl",
+  "image/crypto",
   "image/elf",
   "image/fake-keys",
   "lms-types",
@@ -90,6 +93,8 @@ bitfield = "0.14.0"
 bitflags = "2.4.0"
 bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
+caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
+caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive = { path = "cfi/derive" }
 caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
@@ -114,7 +119,7 @@ caliptra-hw-model-types = { path = "hw-model/types" }
 caliptra-image-elf = { path = "image/elf" }
 caliptra-image-fake-keys = { path = "image/fake-keys" }
 caliptra-image-gen = { path = "image/gen" }
-caliptra-image-openssl = { path = "image/openssl" }
+caliptra-image-crypto = { path = "image/crypto" }
 caliptra-image-serde = { path = "image/serde" }
 caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false }
@@ -141,6 +146,7 @@ dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p38
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
+fips204 = "0.2.1"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
@@ -151,11 +157,11 @@ libusb1-sys = "0.6.4"
 memoffset = "0.8.0"
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
-p384 = "0.11.2"
+p384 = "0.13.0"
 proc-macro2 = "1.0.66"
 quote = "1.0"
 rand = "0.8"
-rfc6979 = "0.3.0"
+rfc6979 = "0.4.0"
 rusb = "0.9.3"
 serde = "1.0"
 serde_derive = "1.0.136"
@@ -181,6 +187,8 @@ nix = "0.26.2"
 libc = "0.2"
 zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
 regex = "1.10.2"
+ecdsa = { version = "0.16.9", features = ["pem"]}
+sec1 = { version = "0.7.3" }
 
 [profile.firmware]
 inherits = "release"

@@ -35,7 +35,7 @@ caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
 caliptra-test.workspace = true
 elf.workspace = true
@@ -61,7 +61,8 @@ no-fmc = []
 fake-rom = []
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 slow_tests = []
-"hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0"]
+"hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-hw-model/hw-1.0"]
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-image-verify/fips-test-hooks"]
 
 [[bin]]
 name = "asm_tests"

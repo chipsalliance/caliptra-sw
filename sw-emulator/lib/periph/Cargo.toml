@@ -18,8 +18,13 @@ caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
+fips204.workspace = true
 lazy_static.workspace = true
+rand.workspace = true
 sha3.workspace = true
 smlang.workspace = true
 tock-registers.workspace = true
 zerocopy.workspace = true
+
+[features]
+"hw-1.0" = []

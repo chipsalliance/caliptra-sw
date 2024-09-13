@@ -3,13 +3,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+
 #include <caliptra_top_reg.h>
+#include "caliptra_enums.h"
 #include "caliptra_if.h"
 #include "caliptra_api.h"
+#include "caliptra_types.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
-#include "caliptra_enums.h"
 
 #define CALIPTRA_STATUS_NOT_READY (0)
 #define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)
@@ -24,7 +25,8 @@
 
 // All globals should use CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE
 // Globals should be uninitialized to maximize environment compatibility
-static struct caliptra_buffer g_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
+static struct caliptra_buffer g_caliptra_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
+static uint8_t g_caliptra_fw_load_piecewise_in_progress CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
 
 #define CREATE_PARCEL(name, op, req, resp) \
     struct parcel name = { \
@@ -153,6 +155,7 @@ int caliptra_bootfsm_go()
     return 0;
 }
 
+
 /**
  * caliptra_set_wdt_timeout
  *
@@ -257,7 +260,7 @@ bool caliptra_ready_for_fuses(void)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_init_fuses(struct caliptra_fuses *fuses)
+int caliptra_init_fuses(const struct caliptra_fuses *fuses)
 {
     // Parameter check
     if (!fuses)
@@ -268,6 +271,8 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     // Check whether caliptra is ready for fuses
     if (!caliptra_ready_for_fuses())
         return NOT_READY_FOR_FUSES;
+
+
 
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, CALIPTRA_ARRAY_SIZE(fuses->uds_seed));
@@ -348,6 +353,28 @@ bool caliptra_ready_for_firmware(void)
     return true;
 }
 
+/*
+* caliptra_is_csr_ready
+*
+* Reports if the IDEVID CSR is ready
+*
+* @return bool True if ready, false otherwise
+*/
+bool caliptra_is_csr_ready(void)
+{
+    uint32_t status;
+
+    status = caliptra_read_status();
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+
 /**
  * caliptra_mailbox_write_fifo
  *
@@ -357,7 +384,7 @@ bool caliptra_ready_for_firmware(void)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
+static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
 {
     // Check if buffer is not null.
     if (buffer == NULL)
@@ -365,19 +392,11 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
         return INVALID_PARAMS;
     }
 
-    if (buffer->len > CALIPTRA_MAILBOX_MAX_SIZE)
-    {
-        return INVALID_PARAMS;
-    }
-
-    // Write DLEN to transition to the next state.
-    caliptra_mbox_write_dlen(buffer->len);
+    // TODO: Should we enforce we don't exceed the previously written mbox_write_dlen value?
 
     if (buffer->len == 0)
     {
         // We can return early, there is no payload.
-        // dlen needs to be written to transition the state machine,
-        // even if it is zero.
         return 0;
     }
 
@@ -415,16 +434,21 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
  * HELPER - Read a mailbox FIFO into a buffer
  *
  * @param[out] buffer A pointer to a valid caliptra_buffer struct
+ * @param[out] bytes_read Pointer to dword to update with the number of bytes read (ignored if nullptr)
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
+static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer, uint32_t *bytes_read)
 {
     uint32_t remaining_len = caliptra_mbox_read_dlen();
 
     // Check that the buffer is not null
     if (buffer == NULL)
         return INVALID_PARAMS;
+
+    if (bytes_read) {
+        *bytes_read = 0;
+    }
 
     // Check we have enough room in the buffer
     if (buffer->len < remaining_len || !buffer->data)
@@ -437,6 +461,9 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
     {
         *data_dw++ = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         remaining_len -= sizeof(uint32_t);
+        if (bytes_read) {
+            *bytes_read += 4;
+        }
     }
 
     // if un-aligned dword reminder...
@@ -444,37 +471,12 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer)
     {
         uint32_t data = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         memcpy(data_dw, &data, remaining_len);
+        if (bytes_read) {
+            *bytes_read += remaining_len;
+        }
     }
     return 0;
 }
-
-/**
- * caliptra_mailbox_send
- *
- * HELPER - Send the message to caliptra
- *
- * @param[in] cmd Caliptra command opcode
- * @param[in] mbox_tx_buffer Transmit buffer
- *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
-int caliptra_mailbox_send(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer)
-{
-    // If mbox already locked return
-    if (caliptra_mbox_is_lock())
-    {
-        return MBX_BUSY;
-    }
-
-    // Write Cmd and Tx Buffer
-    caliptra_mbox_write_cmd(cmd);
-    caliptra_mailbox_write_fifo(mbox_tx_buffer);
-
-    // Set Execute bit
-    caliptra_mbox_write_execute(true);
-
-    return 0;
-};
 
 /**
  * caliptra_check_status_get_response
@@ -483,11 +485,17 @@ int caliptra_mailbox_send(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer)
  * buffer with a response if applicable
  *
  * @param[out] mbox_rx_buffer Buffer for the response, NULL if no response is expected
+ * @param[out] bytes_read Pointer to dword to update with the number of bytes read
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
+int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer, uint32_t *bytes_read)
 {
+    // Only called internally, should always have a valid pointer
+    if (bytes_read == NULL) {
+        return API_INTERNAL_ERROR;
+    }
+
     // Check the Mailbox Status
     uint32_t mbx_status = caliptra_mbox_read_status();
     if (mbx_status == CALIPTRA_MBOX_STATUS_CMD_FAILURE)
@@ -506,7 +514,7 @@ int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
     }
 
     // Read Buffer
-    int status = caliptra_mailbox_read_fifo(mbox_rx_buffer);
+    int status = caliptra_mailbox_read_fifo(mbox_rx_buffer, bytes_read);
 
     // Execute False
     caliptra_mbox_write_execute(false);
@@ -526,18 +534,18 @@ int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
  * HELPER - Verifies the checksum and checks that the FIPS status is approved for the message response
  *
  * @param[in] buffer Buffer for the full response
- * @param[in] buffer_size Size of the full response in bytes
+ * @param[in] response_size Size of the full response in bytes
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-static inline int check_command_response(const uint8_t *buffer, const size_t buffer_size)
+static inline int check_command_response(const uint8_t *buffer, const size_t response_size)
 {
-    if (buffer_size < sizeof(struct caliptra_resp_header)) {
+    if (response_size < sizeof(struct caliptra_resp_header)) {
         return MBX_RESP_NO_HEADER;
     }
     struct caliptra_resp_header *resp_hdr = (struct caliptra_resp_header*)buffer;
 
-    uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), buffer_size - sizeof(uint32_t));
+    uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), response_size - sizeof(uint32_t));
 
     bool checksum_valid = !(resp_hdr->chksum - calc_checksum);
     bool fips_approved  = (resp_hdr->fips_status == FIPS_STATUS_APPROVED);
@@ -553,34 +561,80 @@ static inline int check_command_response(const uint8_t *buffer, const size_t buf
 }
 
 /**
- * caliptra_mailbox_execute
+ * caliptra_mailbox_send_start
  *
- * Send the command with caliptra_mailbox_send. If async is false, wait for completion and call caliptra_complete to get result
+ * HELPER - Send the message to caliptra
  *
- * @param[in] cmd 32 bit command identifier to be sent to caliptra
- * @param[in] mbox_tx_buffer caliptra_buffer struct containing the pointer and length of the send buffer
+ * @param[in] cmd Caliptra command opcode
+ * @param[in] data_size Number of bytes to be sent in the request (does not include command)
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_mailbox_send_start(uint32_t cmd, uint32_t data_size)
+{
+    if (data_size > CALIPTRA_MAILBOX_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
+    // Get mailbox lock, return error if already locked
+    if (caliptra_mbox_is_lock())
+    {
+        return MBX_BUSY;
+    }
+
+    // Write Cmd
+    caliptra_mbox_write_cmd(cmd);
+
+    // Write DLEN to transition to the next state (needed even if it is zero)
+    caliptra_mbox_write_dlen(data_size);
+
+    return 0;
+};
+
+/**
+ * caliptra_mailbox_send_data
+ *
+ * HELPER - Send the data portion of the message to caliptra
+ *          Can be called multiple times
+ *
+ * @param[in] mbox_tx_buffer Transmit buffer
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_mailbox_send_data(const struct caliptra_buffer *mbox_tx_buffer)
+{
+    // Write Tx Buffer
+    return caliptra_mailbox_write_fifo(mbox_tx_buffer);
+};
+
+/**
+ * caliptra_mailbox_send_complete
+ *
+ * HELPER - Set execute to indicate Calipta should now process the message
+ *          Set the rx_buffer for the pending message if applicable
+ *          Wait for the result if async is true
+ *
  * @param[out] mbox_rx_buffer caliptra_buffer struct containing the pointer and length of the receive buffer
  * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async)
+int caliptra_mailbox_send_complete(struct caliptra_buffer *mbox_rx_buffer, bool async)
 {
-    int status = caliptra_mailbox_send(cmd, mbox_tx_buffer);
-    if (status) {
-        return status;
-    }
-
     // Store buffer info or init to zero
     if (mbox_rx_buffer != NULL) {
-        g_mbox_pending_rx_buffer = *mbox_rx_buffer;
+        g_caliptra_mbox_pending_rx_buffer = *mbox_rx_buffer;
     } else {
-        g_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
+        g_caliptra_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
     }
+
+    // Set Execute bit
+    caliptra_mbox_write_execute(true);
 
     // Stop here if this is async (user will poll and complete)
     if (async) {
-        return status;
+        return 0;
     }
 
     // Wait indefinitely for completion
@@ -589,12 +643,41 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
     }
 
     return caliptra_complete();
+};
+
+/**
+ * caliptra_mailbox_execute
+ * Send the command. If async is false, wait for completion and call caliptra_complete to get result
+ *
+ * @param[in] cmd 32 bit command identifier to be sent to caliptra
+ * @param[in] mbox_tx_buffer caliptra_buffer struct containing the pointer and length of the send buffer
+ * @param[out] mbox_rx_buffer caliptra_buffer struct containing the pointer and length of the receive buffer
+ * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_mailbox_execute(uint32_t cmd, const struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async)
+{
+    // Mailbox send start
+    int status = caliptra_mailbox_send_start(cmd, mbox_tx_buffer->len);
+    if (status) {
+        return status;
+    }
+
+    // Mailbox send data
+    status = caliptra_mailbox_send_data(mbox_tx_buffer);
+    if (status) {
+        return status;
+    }
+
+    // Mailbox send complete
+    return caliptra_mailbox_send_complete(mbox_rx_buffer, async);
 }
 
 /**
  * pack_and_execute_command
  *
- * HELPER - Create the caliptra buffer structs and call caliptra_mailbox_execute
+ * HELPER - Create the caliptra buffer structs and call caliptra_mailbox_send
  *
  * @param[in] parcel struct with tx and rx buffers for the transactions
  * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
@@ -627,6 +710,8 @@ static int pack_and_execute_command(struct parcel *parcel, bool async)
     };
 
     // Calculate and populate the checksum field
+    // Clear the checksum field before calculating
+    *((caliptra_checksum*)tx_buf.data) = 0x0;
     *((caliptra_checksum*)tx_buf.data) = calculate_caliptra_checksum(parcel->command, tx_buf.data, tx_buf.len);
 
     return caliptra_mailbox_execute(parcel->command, &tx_buf, &rx_buf, async);
@@ -667,11 +752,12 @@ int caliptra_complete()
     // Store the buffer locally and clear the global var
     // The global should never be set when we don't have the mbx HW lock
     // (HW lock protects this from race conditions)
-    struct caliptra_buffer rx_buffer = g_mbox_pending_rx_buffer;
-    g_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
+    struct caliptra_buffer rx_buffer = g_caliptra_mbox_pending_rx_buffer;
+    g_caliptra_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
 
     // Complete the transaction and read back a response if applicable
-    int status = caliptra_check_status_get_response(&rx_buffer);
+    uint32_t bytes_read = 0;
+    int status = caliptra_check_status_get_response(&rx_buffer, &bytes_read);
 
     if (status)
     {
@@ -680,22 +766,92 @@ int caliptra_complete()
 
     // Verify the header data from the response
     if (rx_buffer.data != NULL) {
-        return check_command_response(rx_buffer.data, rx_buffer.len);
+        return check_command_response(rx_buffer.data, bytes_read);
     }
 
     return 0;
 }
 
 /**
- * caliptra_upload_fw
+ * caliptra_upload_fw_start_req
  *
- * Upload firmware to the Caliptra device
+ * Upload Caliptra Firmware Start Request.  Begin a FW_LOAD command to caliptra
+ *
+ * @param[in] fw_size_in_bytes Total size of the FW to be sent in bytes
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_upload_fw_start_req(uint32_t fw_size_in_bytes)
+{
+    // Mailbox send start
+    int status = caliptra_mailbox_send_start(OP_CALIPTRA_FW_LOAD, fw_size_in_bytes);
+    if (status) {
+        return status;
+    }
+
+    // Cannot assume initialization value of globals
+    // If HW lock was open, we can be sure nothing was pending
+    // Otherwise, caliptra_mailbox_send_start will fail and we won't execute this
+    g_caliptra_fw_load_piecewise_in_progress = 0x1;
+
+    return status;
+}
+
+/**
+ * caliptra_upload_fw_send_data
+ *
+ * Load a chunk of the FW data to Caliptra. Intended to be called multiple times
+ * Must follow caliptra_upload_fw_start_req and precede caliptra_upload_fw_end_req
  *
  * @param[in] fw_buffer Buffer containing Caliptra firmware
  *
- * @return See caliptra_mailbox, mb_resultx_execute for possible results.
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async)
+int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer)
+{
+    // Make sure we are in the middle of a FW load
+    if (g_caliptra_fw_load_piecewise_in_progress != FW_LOAD_PIECEWISE_IN_PROGRESS) {
+        return FW_LOAD_NOT_IN_PROGRESS;
+    }
+
+    // Mailbox send data
+    return caliptra_mailbox_send_data(fw_buffer);
+}
+/**
+ * caliptra_upload_fw_end_req
+ *
+ * End the FW_LOAD request after sending all the FW data
+ *
+ * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_upload_fw_end_req(bool async)
+{
+    // Make sure we are in the middle of a FW load
+    if (g_caliptra_fw_load_piecewise_in_progress != FW_LOAD_PIECEWISE_IN_PROGRESS) {
+        return FW_LOAD_NOT_IN_PROGRESS;
+    }
+
+    // Mailbox send complete
+    int status = caliptra_mailbox_send_complete(NULL, async);
+
+    g_caliptra_fw_load_piecewise_in_progress = FW_LOAD_PIECEWISE_IDLE;
+
+    return status;
+}
+
+/**
+ * caliptra_upload_fw
+ *
+ * Upload firmware to the Caliptra device. Requires entire FW as fw_buffer
+ *
+ * @param[in] fw_buffer Buffer containing Caliptra firmware
+ * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async)
 {
     // Parameter check
     if (fw_buffer == NULL)
@@ -1060,4 +1216,51 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     CREATE_PARCEL(p, OP_CAPABILITIES, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
+}
+
+int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
+{
+    if (!caliptra_idevid_csr) {
+        return INVALID_PARAMS;
+    }
+
+    if (!caliptra_is_idevid_csr_ready()) {
+        return IDEV_CSR_NOT_READY;
+    }
+
+    return caliptra_mailbox_read_fifo(caliptra_idevid_csr, NULL);
+}
+
+void caliptra_req_idev_csr_start()
+{
+    uint32_t dbg_manuf_serv_req;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req | 0x01);
+}
+
+void caliptra_req_idev_csr_complete()
+{
+    uint32_t dbg_manuf_serv_req;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
+}
+
+
+// Check if IDEV CSR is ready.
+bool caliptra_is_idevid_csr_ready() {
+    uint32_t status;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK) != 0) {
+        return true;
+    }
+
+    return false;
 }

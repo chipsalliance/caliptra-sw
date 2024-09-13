@@ -2,13 +2,21 @@
 
 #pragma once
 
-#include "caliptra_api.h"
+#include <stddef.h>
+#include <stdint.h>
+
+#include <caliptra_top_reg.h>
+#include "caliptra_if.h"
 
 #define MBOX_PAUSER_SLOTS (5)
 
 // WARNING: THESE APIS ARE INTENDED FOR SIMULATION ONLY.
 //          SOC FW MUST HAVE NO ACCESS TO THOSE APIS.
 //          A HW STATE MACHINE SHOULD BE USED TO SEND FUSE VALUES TO CALIPTRA OVER APB BUS
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline void caliptra_generic_and_fuse_write(uint32_t offset, uint32_t data)
 {
@@ -22,7 +30,7 @@ static inline uint32_t caliptra_generic_and_fuse_read(uint32_t offset)
     return data;
 }
 
-static inline void caliptra_fuse_array_write(uint32_t offset, uint32_t *data, size_t size)
+static inline void caliptra_fuse_array_write(uint32_t offset, const uint32_t *data, size_t size)
 {
     for (uint32_t idx = 0; idx < size; idx ++)
     {
@@ -40,11 +48,18 @@ static inline uint32_t caliptra_read_fw_error_fatal(void)
     return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FW_ERROR_FATAL);
 }
 
+static inline uint32_t caliptra_read_dbg_manuf_serv() 
+{
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG);    
+}
+
+
 static inline void caliptra_wdt_cfg_write(uint64_t data)
 {
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_WDT_CFG_0, (uint32_t)data);
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_WDT_CFG_1, (uint32_t)(data >> 32));
 }
+
 
 static inline void caliptra_write_itrng_entropy_low_threshold(uint16_t data)
 {
@@ -103,3 +118,14 @@ static inline void caliptra_write_fuse_valid_pauser(uint32_t data)
 {
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_VALID_PAUSER, data);
 }
+
+static inline void caliptra_write_dbg_manuf_serv(uint32_t data) 
+{
+    // Set Manuf service reg
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, data);    
+}
+
+
+#ifdef __cplusplus
+}
+#endif

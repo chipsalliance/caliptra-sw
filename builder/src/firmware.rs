@@ -33,6 +33,12 @@ pub const ROM_FAKE_WITH_UART: FwId = FwId {
     features: &["emu", "fake-rom"],
 };
 
+pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["fips-test-hooks"],
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -55,6 +61,12 @@ pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu", "fips_self_test"],
+};
+
+pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["emu", "fips_self_test", "fips-test-hooks"],
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
@@ -223,8 +235,8 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
-    pub const SHA384ACC: FwId = FwId {
-        bin_name: "sha384acc",
+    pub const SHA2_512_384ACC: FwId = FwId {
+        bin_name: "sha2_512_384acc",
         ..BASE_FWID
     };
 
@@ -368,10 +380,12 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
+    &ROM_WITH_FIPS_TEST_HOOKS,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
     &APP,
     &APP_WITH_UART,
+    &APP_WITH_UART_FIPS_TEST_HOOKS,
     &APP_WITH_UART_FPGA,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
@@ -400,7 +414,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
-    &driver_tests::SHA384ACC,
+    &driver_tests::SHA2_512_384ACC,
     &driver_tests::STATUS_REPORTER,
     &driver_tests::TEST_LMS_24,
     &driver_tests::TEST_LMS_32,

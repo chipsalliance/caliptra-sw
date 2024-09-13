@@ -4,6 +4,7 @@
 name = "caliptra-runtime"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 caliptra-cfi-lib-git = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
@@ -13,11 +14,12 @@ caliptra-cpu.workspace = true
 caliptra-drivers = { workspace = true, features = ["runtime"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
+caliptra-auth-man-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe.workspace = true
+dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
 crypto.workspace = true
 platform.workspace = true
 ufmt.workspace = true
@@ -26,6 +28,7 @@ arrayvec.workspace = true
 caliptra-image-verify = { workspace = true, default-features = false }
 zeroize.workspace = true
 bitflags.workspace = true
+memoffset.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -38,7 +41,8 @@ caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true
+caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
@@ -59,3 +63,4 @@ fips_self_test=[]
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-kat/hw-1.0","caliptra-cpu/hw-1.0"]
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]

@@ -428,6 +428,7 @@ PcrValue is defined as u8[48]
 | **Name**     | **Type**     | **Description**
 | --------     | --------     | ---------------
 | chksum       | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs         | PcrValue[32] | Values of all PCRs.
 | nonce        | u8[32]       | Return the nonce used as input for convenience.
 | digest       | u8[48]       | Return the digest over the PCR values and the nonce.
@@ -449,7 +450,12 @@ Command Code: `0x5043_5245` ("PCRE")
 | index        | u32           | Index of the PCR to extend.
 | value        | u8[..]        | Value to extend into the PCR at `index`.
 
-`EXTEND_PCR` returns no output arguments.
+*Table: `EXTEND_PCR` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's internal PCR log.
 
@@ -493,7 +499,12 @@ Command Code: `0x5043_5252` ("PCRR")
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | index        | u32           | Index of the PCR for which to increment the reset counter.
 
-`INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
+*Table: `INCREMENT_PCR_RESET_COUNTER` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### DPE\_TAG\_TCI
 
@@ -534,6 +545,7 @@ Command Code: `0x4754_4744` ("GTGD")
 | **Name**         | **Type**  | **Description**
 | --------         | --------  | ---------------
 | chksum           | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+| fips\_status     | u32       | Indicates if the command is FIPS approved or an error.
 | tci\_cumulative  | u8[48]    | Hash of all of the input data provided to the context.
 | tci\_current     | u8[48]    | Most recent measurement made into the context.
 
@@ -554,6 +566,7 @@ Command Code: `0x494E_464F` ("INFO")
 | **Name**               | **Type**       | **Description**
 | --------               | --------       | ---------------
 | chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| fips\_status           | u32            | Indicates if the command is FIPS approved or an error.
 | pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header).
 | runtime_svn            | u32            | Runtime SVN.
 | min_runtime_svn        | u32            | Min Runtime SVN.
@@ -698,6 +711,88 @@ Command Code: `0x434B_4558` ("CKEX")
 | fips\_status        | u32       | Indicates if the command is FIPS approved or an error.
 | certify\_key\_resp  | u8[2176]  | Certify Key Response.
 
+### SET\_AUTH\_MANIFEST
+
+Command Code: `0x4154_4D4E` ("ATMN")
+
+*Table: `SET_AUTH_MANIFEST` input arguments*
+
+| **Name**            | **Type**  | **Description**
+| --------            | --------  | ---------------
+| chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size                 | u32          | The size of the full Authentication Manifest                                |
+| preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
+| preamble\_size                | u32          | Size of the preamble                                                        |
+| preamble\_version             | u32          | Version of the preamble                                                     |
+| preamble\_flags               | u32          | Preamble flags                                                              |
+| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
+| preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
+| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
+| preamble\_vendor\_LMS\_sig    | u32[1344]    | Vendor LMOTS-SHA192-W4 signature                                            |
+| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
+| preamble\_owner\_lms\_key     | u32[6]       | Owner LMS-SHA192-H15 key                                                    |
+| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
+| preamble\_owner\_LMS\_sig     | u32[1344]    | Owner LMOTS-SHA192-W4 signature                                             |
+| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
+| metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
+| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
+| metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
+| metadata\_header\_revision    | u32          | Revision of the metadata header                                             |
+| metadata\_header\_reserved    | u32[3]       | Reserved                                                                    |
+| metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
+| metadata\_entries             | MetaData[16] | The max number of metadata is 16 but less can be used                       |
+
+
+*Table: `AUTH_MANIFEST_FLAGS` input flags*
+
+| **Name**                  | **Value** |
+|---------------------------|-----------|
+| VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
+
+*Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
+
+| **Name**      | **Type** | **Description**        |
+|---------------|----------|------------------------|
+| digest        | u32[48]  | Digest of the metadata |
+| image\_source | u32      | Image source           |
+
+*Table: `SET_AUTH_MANIFEST` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+
+
+### AUTHORIZE_AND_STASH
+
+Command Code: `0x4154_5348` ("ATSH")
+
+*Table: `AUTHORIZE_AND_STASH` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| metadata    | u8[4]    | 4-byte measurement identifier.                                                      |
+| measurement | u8[48]   | Digest of measured                                                                  |
+| context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
+| svn         | u32      | SVN                                                                                 |
+| flags       | u32      | Flags                                                                               |
+| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
+
+*Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
+
+| **Name**   | **Value** |
+|------------|-----------|
+| SKIP\_STASH | 1 << 0    |
+
+*Table: `AUTHORIZE_AND_STASH` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
+| auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
+
 ## Checksum
 
 For every command except for FW_LOAD, the request and response feature a checksum. This
@@ -779,6 +874,7 @@ Environment (DPE) API.
 
 ### PAUSER privilege levels
 
+Caliptra uses PAUSER as a HW mechanism to distinguish DPE Client localities.
 Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 
 * PL0 - High privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
@@ -790,6 +886,11 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.
 
+PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
+with PL0 level, is authorized to invoke CertifyKey DPE command with format=x509. 
+All other DPE Clients have instead restricted privileges associated to PL1 (as 
+described above).
+
 #### PAUSER privilege level active context limits
 
 Each active context in DPE is activated from either PL0 or PL1 through the
@@ -800,12 +901,17 @@ by repeatedly calling the aforementioned DPE commands with certain flags set.
 To prevent this, we establish active context limits for each PAUSER
 privilege level:
 
-* PL0 - 8 active contexts
+* PL0 - 16 active contexts
 * PL1 - 16 active contexts
 
 If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
+
+At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 16) to DeriveContext for:
+   - RTFW Journey (RTFJ) Measurement (1)
+   - Mailbox Valid Pauser digest (MBVP) (1)
+   - ROM Stashed Measurements (max 8)
 
 Further, it is not allowed for PL1 to call DeriveContext with the intent to change locality to PL0's locality; this would increase the number
 of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
@@ -948,4 +1054,4 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 |                                | VendorInfo  | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
-current TCI Node to the root. Max of 24.
+current TCI Node to the root. Max of 32.

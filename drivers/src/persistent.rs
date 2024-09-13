@@ -2,6 +2,10 @@
 
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
+#[cfg(feature = "runtime")]
+use caliptra_auth_man_types::AuthManifestImageMetadata;
+#[cfg(feature = "runtime")]
+use caliptra_auth_man_types::AuthManifestImageMetadataCollection;
 use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
@@ -21,10 +25,24 @@ use crate::pcr_reset::PcrResetCounter;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+#[cfg(feature = "runtime")]
+pub const AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT: usize = 8;
+
+#[cfg(feature = "runtime")]
+const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
+    + size_of::<u32>() * MAX_HANDLES
+    + size_of::<U8Bool>() * MAX_HANDLES
+    + size_of::<U8Bool>();
+
+#[cfg(feature = "runtime")]
+const _: () = assert!(DPE_DCCM_STORAGE < memory_layout::DPE_SIZE as usize);
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
 pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
+#[cfg(feature = "runtime")]
+pub type AuthManifestImageMetadataList =
+    [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT];
 
 #[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
@@ -63,11 +81,7 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub attestation_disabled: U8Bool,
     #[cfg(feature = "runtime")]
-    reserved6: [u8; memory_layout::DPE_SIZE as usize
-        - size_of::<DpeInstance>()
-        - size_of::<u32>() * MAX_HANDLES
-        - size_of::<U8Bool>() * MAX_HANDLES
-        - size_of::<U8Bool>()],
+    reserved6: [u8; memory_layout::DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; memory_layout::DPE_SIZE as usize],
     #[cfg(feature = "runtime")]
@@ -77,6 +91,16 @@ pub struct PersistentData {
 
     #[cfg(not(feature = "runtime"))]
     pcr_reset: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize],
+
+    #[cfg(feature = "runtime")]
+    pub auth_manifest_image_metadata_col: AuthManifestImageMetadataCollection,
+    #[cfg(feature = "runtime")]
+    reserved9: [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE as usize
+        - size_of::<AuthManifestImageMetadataCollection>()],
+
+    #[cfg(not(feature = "runtime"))]
+    pub auth_manifest_image_metadata_col:
+        [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE as usize],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
@@ -101,8 +125,13 @@ impl PersistentData {
                 memory_layout::PCR_RESET_COUNTER_ORG
             );
             assert_eq!(
+                addr_of!((*P).auth_manifest_image_metadata_col) as u32,
+                memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
+            );
+            assert_eq!(
                 P.add(1) as u32,
-                memory_layout::PCR_RESET_COUNTER_ORG + memory_layout::PCR_RESET_COUNTER_SIZE
+                memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
+                    + memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE
             );
         }
     }
