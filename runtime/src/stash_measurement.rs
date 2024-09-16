@@ -78,7 +78,7 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::INPUT_ALLOW_CA
                     | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type: u32::from_be_bytes(cmd.metadata),
+                tci_type: u32::from_ne_bytes(cmd.metadata),
                 target_locality: locality,
             }
             .execute(&mut pdata.dpe, &mut env, locality);
