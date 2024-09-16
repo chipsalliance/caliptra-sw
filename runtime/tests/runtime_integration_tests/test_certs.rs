@@ -4,17 +4,18 @@ use crate::common::{
     execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
     DpeResult, TEST_LABEL,
 };
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, GetLdevCertResp,
-    GetRtAliasCertResp, MailboxReq, MailboxReqHeader,
+    GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command},
+    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    response::Response,
+    response::{CertifyKeyResp, Response},
 };
 use openssl::{
     asn1::Asn1Time,
@@ -308,4 +309,163 @@ fn test_full_cert_chain() {
             Ok(())
         })
         .unwrap();
+}
+
+fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+    let resp = execute_dpe_cmd(
+        model,
+        &mut Command::CertifyKey(certify_key_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+    certify_key_resp
+}
+
+// Helper for cold reset compatible with SW emulator
+// NOTE: Assumes all other boot and init params are default except for ROM and FW image
+fn cold_reset(mut hw: DefaultHwModel, rom: &[u8], fw_image: &[u8]) -> DefaultHwModel {
+    if cfg!(any(feature = "fpga_realtime", feature = "verilator")) {
+        // Re-creating the model does not seem to work for FPGA (and SW emulator cannot cold reset)
+        hw.cold_reset();
+    } else {
+        hw = caliptra_hw_model::new_unbooted(InitParams {
+            rom,
+            ..Default::default()
+        })
+        .unwrap();
+    }
+    hw.boot(BootParams {
+        fw_image: Some(fw_image),
+        ..Default::default()
+    })
+    .unwrap();
+    hw
+}
+
+// Provide a measurement to Caliptra using each of the 3 methods
+//      1. Stash measurement at ROM
+//      2. Stash measurement at runtime
+//      3. DPE derive context (at runtime)
+// Confirm the resulting DPE leaf cert is identical in all three cases
+#[test]
+pub fn test_all_measurement_apis() {
+    // Shared inputs for all 3 methods
+    let measurement: [u8; 48] = core::array::from_fn(|i| (i + 1) as u8);
+    let tci_type: [u8; 4] = [101, 102, 103, 104];
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    //
+    // 1. ROM STASH MEASUREMENT
+    //      Stash a measurement, boot to runtime, then get the DPE cert
+    //      Start with a fresh cold boot for each method
+    //
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    // Send the stash measurement command
+    let mut stash_measurement_payload = MailboxReq::StashMeasurement(StashMeasurementReq {
+        hdr: MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::STASH_MEASUREMENT),
+                &[],
+            ),
+        },
+        metadata: tci_type.as_bytes().try_into().unwrap(),
+        measurement,
+        ..Default::default()
+    });
+    stash_measurement_payload.populate_chksum().unwrap();
+    let _resp = hw
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            stash_measurement_payload.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    // Get to runtime
+    hw.upload_firmware(&fw_image).unwrap();
+
+    // Get DPE cert
+    let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
+    let rom_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+
+    //
+    // 2. RUNTIME STASH MEASUREMENT
+    //      Boot to runtime, stash a measurement, then get the DPE cert
+    //      Start with a fresh cold boot for each method
+    //
+    hw = cold_reset(hw, &rom, &fw_image);
+
+    // Send the stash measurement command
+    let _resp = hw
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            stash_measurement_payload.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    // Get DPE cert
+    let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
+    let rt_stash_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+
+    //
+    // 3. DPE DERIVE CONTEXT
+    //      Boot to runtime, perform DPE derive context, then get the DPE cert
+    //      Start with a fresh cold boot for each method
+    //
+    hw = cold_reset(hw, &rom, &fw_image);
+
+    // Send derive context call
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: measurement,
+        flags: DeriveContextFlags::MAKE_DEFAULT
+            | DeriveContextFlags::INPUT_ALLOW_CA
+            | DeriveContextFlags::INPUT_ALLOW_X509,
+        tci_type: u32::read_from(&tci_type[..]).unwrap(),
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(
+        &mut hw,
+        &mut Command::DeriveContext(derive_context_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    // Get DPE cert
+    let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);
+    let derive_context_dpe_cert = &dpe_cert_resp.cert[..dpe_cert_resp.cert_size as usize];
+
+    //
+    // COMPARE CERTS
+    // Certs should be exactly the same regardless of method
+    //
+    assert_eq!(rom_stash_dpe_cert, rt_stash_dpe_cert);
+    assert_eq!(rom_stash_dpe_cert, derive_context_dpe_cert);
 }
