@@ -456,7 +456,7 @@ impl Drivers {
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
-            let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
+            let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
             let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: measurement_data
