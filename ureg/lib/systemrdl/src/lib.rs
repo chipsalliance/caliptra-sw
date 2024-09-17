@@ -215,6 +215,7 @@ fn translate_register_ty(
         Some(16) => ureg_schema::RegisterWidth::_16,
         Some(32) => ureg_schema::RegisterWidth::_32,
         Some(64) => ureg_schema::RegisterWidth::_64,
+        Some(128) => ureg_schema::RegisterWidth::_128,
         Some(other) => return Err(wrap_err(Error::UnsupportedRegWidth(other))),
         None => ureg_schema::RegisterWidth::_32,
     };
@@ -249,6 +250,23 @@ pub fn translate_types(scope: systemrdl::ParentScope) -> Result<Vec<Rc<RegisterT
     Ok(result)
 }
 
+fn prod(nums: &[u64]) -> u64 {
+    if nums.is_empty() {
+        1
+    } else {
+        nums.iter().product()
+    }
+}
+
+/// Calculates offset automatically.
+fn calculate_reg_size(block: &RegisterBlock) -> Option<u64> {
+    block
+        .registers
+        .iter()
+        .map(|r| r.offset + r.ty.width.in_bytes() * prod(&r.array_dimensions))
+        .max()
+}
+
 fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
     let wrap_err = |err: Error| Error::BlockError {
         block_name: iref.instance.name.clone(),
@@ -272,20 +290,29 @@ fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
                 .push(translate_register_ty(Some(name.into()), ty).map_err(wrap_err)?);
         }
     }
+    let mut next_offset = Some(0u64);
     for child in iref.scope.instance_iter() {
         if child.instance.scope.ty == ComponentType::Reg.into() {
             block
                 .registers
                 .push(Rc::new(translate_register(child).map_err(wrap_err)?));
-        }
-        if child.instance.scope.ty == ComponentType::RegFile.into() {
-            let Some(start_offset) = child.instance.offset else {
-                continue;
+        } else if child.instance.scope.ty == ComponentType::RegFile.into() {
+            let Some(start_offset) = child.instance.offset.or(next_offset) else {
+                panic!("Offset not defined for register file {:?} and could not calculate automatically", child.instance.name);
             };
+            let next_block = translate_block(child)?;
+            next_offset = calculate_reg_size(&next_block).map(|size| start_offset + size);
             block.sub_blocks.push(RegisterSubBlock::Single {
-                block: translate_block(child)?,
+                block: next_block,
                 start_offset,
             });
+        } else if child.instance.scope.ty == ComponentType::Signal.into()
+            || child.instance.scope.ty == ComponentType::Mem.into()
+        {
+            // ignore
+            next_offset = None;
+        } else {
+            panic!("Unknown component scope {:?}", child.instance.scope.ty);
         }
     }
     Ok(block)

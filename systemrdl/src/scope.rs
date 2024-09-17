@@ -7,7 +7,9 @@ use std::path::PathBuf;
 
 use crate::component_meta::PropertyMeta;
 use crate::file_source::FileSource;
-use crate::value::{AddressingType, ComponentType, InterruptType, PropertyType, ScopeType};
+use crate::value::{
+    AddressingType, ComponentType, InterruptType, PropertyType, Reference, ScopeType,
+};
 use crate::ParseError;
 use crate::{
     component_meta, token::Token, token_iter::TokenIter, Bits, FileParseError, RdlError, Result,
@@ -75,9 +77,18 @@ impl ParameterDefinition {
         loop {
             let ty = PropertyType::parse_type(tokens)?;
             let name = tokens.expect_identifier()?;
-            tokens.expect(Token::Equals)?;
-            let default = ty.parse_or_lookup(tokens, None)?;
-
+            // default value for bits is 0
+            let default = if tokens.peek(0) == &Token::Comma || tokens.peek(0) == &Token::ParenClose
+            {
+                if ty == PropertyType::Bits {
+                    Value::Bits(Bits::new(32, 0))
+                } else {
+                    return Err(RdlError::NotImplemented);
+                }
+            } else {
+                tokens.expect(Token::Equals)?;
+                ty.parse_or_lookup(tokens, None)?
+            };
             if result.contains_key(name) {
                 return Err(RdlError::DuplicateParameterName(name));
             }
@@ -270,8 +281,12 @@ impl Scope {
                 break;
             }
 
-            if let Ok(component_type) = component_keyword(tokens.peek(0)) {
-                tokens.next();
+            let peek0 = tokens.peek(0).clone();
+            let peek1 = tokens.peek(1).clone();
+            if let Ok(component_type) = component_keyword(&peek0, &peek1) {
+                if tokens.next() == Token::External {
+                    tokens.expect(Token::Reg)?;
+                }
                 let type_name = if *tokens.peek(0) == Token::BraceOpen {
                     None
                 } else {
@@ -312,6 +327,9 @@ impl Scope {
                     self.types.insert(type_name.into(), ty_scope.clone());
                 }
                 if *tokens.peek(0) != Token::Semicolon {
+                    if *tokens.peek(0) == Token::External {
+                        tokens.next(); // ignore external keyword
+                    }
                     loop {
                         let instance = Instance::parse(ty_scope.clone(), tokens, parameters)?;
                         if self.instances.iter().any(|e| e.name == instance.name) {
@@ -353,8 +371,9 @@ impl Scope {
                 continue;
             }
 
-            if tokens.peek(0).is_identifier()
-                && (*tokens.peek(1) == Token::Equals || *tokens.peek(1) == Token::Semicolon)
+            if (is_intr_modifier(tokens.peek(0)) && *tokens.peek(1) == Token::Identifier("intr"))
+                || tokens.peek(0).is_identifier()
+                    && (*tokens.peek(1) == Token::Equals || *tokens.peek(1) == Token::Semicolon)
             {
                 match self.ty {
                     ScopeType::Component(ComponentType::Enum) => {
@@ -420,6 +439,7 @@ impl Scope {
                 self.dynamic_assignments.push(assignment);
                 continue;
             }
+
             let type_name = tokens.expect_identifier()?;
 
             // This is a template instantiation
@@ -461,7 +481,7 @@ impl Scope {
                         tokens.current_file_contents(),
                         tokens.last_span().clone(),
                         error,
-                    )))
+                    )));
                 }
             }
         }
@@ -469,17 +489,18 @@ impl Scope {
     }
 }
 
-fn component_keyword<'a>(token: &Token<'a>) -> Result<'a, ComponentType> {
-    match token {
-        Token::Field => Ok(ComponentType::Field),
-        Token::Reg => Ok(ComponentType::Reg),
-        Token::RegFile => Ok(ComponentType::RegFile),
-        Token::AddrMap => Ok(ComponentType::AddrMap),
-        Token::Signal => Ok(ComponentType::Signal),
-        Token::Enum => Ok(ComponentType::Enum),
-        Token::Mem => Ok(ComponentType::Mem),
-        Token::Constraint => Ok(ComponentType::Constraint),
-        unexpected => Err(RdlError::UnexpectedToken(unexpected.clone())),
+fn component_keyword<'a>(token: &Token<'a>, token2: &Token<'a>) -> Result<'a, ComponentType> {
+    match (token, token2) {
+        (Token::Field, _) => Ok(ComponentType::Field),
+        (Token::External, Token::Reg) => Ok(ComponentType::Reg),
+        (Token::Reg, _) => Ok(ComponentType::Reg),
+        (Token::RegFile, _) => Ok(ComponentType::RegFile),
+        (Token::AddrMap, _) => Ok(ComponentType::AddrMap),
+        (Token::Signal, _) => Ok(ComponentType::Signal),
+        (Token::Enum, _) => Ok(ComponentType::Enum),
+        (Token::Mem, _) => Ok(ComponentType::Mem),
+        (Token::Constraint, _) => Ok(ComponentType::Constraint),
+        (unexpected, _) => Err(RdlError::UnexpectedToken(unexpected.clone())),
     }
 }
 
@@ -601,6 +622,41 @@ fn expect_number<'a>(
     }
 }
 
+fn parse_parameter_map<'a>(i: &mut TokenIter<'a>) -> Result<'a, HashMap<String, Value>> {
+    i.expect(Token::Hash)?;
+    i.expect(Token::ParenOpen)?;
+    if *i.peek(0) == Token::ParenClose {
+        i.next();
+        return Ok(HashMap::new());
+    }
+
+    let mut map: HashMap<String, Value> = HashMap::new();
+    loop {
+        i.expect(Token::Period)?;
+        let name = i.expect_identifier()?;
+        i.expect(Token::ParenOpen)?;
+        let token = i.peek(0).clone();
+        let value = match token {
+            Token::Bits(n) => {
+                i.next();
+                Value::Bits(n)
+            }
+            Token::Identifier(_) => {
+                let reference = Reference::parse(i)?;
+                Value::Reference(reference)
+            }
+            unexpected => return Err(RdlError::UnexpectedToken(unexpected)),
+        };
+        map.insert(name.into(), value);
+        i.expect(Token::ParenClose)?;
+        if *i.peek(0) == Token::ParenClose {
+            i.next();
+            return Ok(map);
+        }
+        i.expect(Token::Comma)?;
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Instance {
     pub name: String,
@@ -615,6 +671,7 @@ pub struct Instance {
     pub stride: Option<u64>,
     pub next_alignment: Option<u64>,
     pub scope: Scope,
+    pub parameters: HashMap<String, Value>,
 }
 impl Instance {
     pub fn element_size(&self) -> u64 {
@@ -651,9 +708,17 @@ impl Instance {
             return Err(RdlError::ComponentTypeCantBeInstantiated(component_type));
         }
 
+        // check for parameters
+        let specified_params = if *i.peek(0) == Token::Hash {
+            parse_parameter_map(i)?
+        } else {
+            HashMap::new()
+        };
+
         let mut result = Self {
             name: i.expect_identifier()?.to_string(),
             scope,
+            parameters: specified_params,
             ..Default::default()
         };
         if component_type == ComponentType::Field
@@ -970,7 +1035,7 @@ mod tests {
 fn is_intr_modifier(token: &Token) -> bool {
     matches!(
         *token,
-        Token::Identifier("posedge" | "negedge" | "bothedge" | "level" | "nonsticky")
+        Token::Identifier("posedge" | "negedge" | "bothedge" | "level" | "nonsticky" | "sticky")
     )
 }
 
@@ -1006,6 +1071,7 @@ impl<'a> PropertyAssignment<'a> {
                     "bothedge" => InterruptType::BothEdge.into(),
                     "level" => InterruptType::Level.into(),
                     "nonsticky" => InterruptType::NonSticky.into(),
+                    "sticky" => InterruptType::Sticky.into(),
                     _ => InterruptType::Level.into(),
                 },
             });
@@ -1015,9 +1081,10 @@ impl<'a> PropertyAssignment<'a> {
         let prop_meta = meta_lookup_fn(prop_name)?;
 
         let value = if *tokens.peek(0) == Token::Semicolon {
-            // This must be a boolean property set to true
+            // This must be a boolean property set to true or an intr
             if prop_meta.ty != PropertyType::Boolean
                 && prop_meta.ty != PropertyType::BooleanOrReference
+                && prop_meta.ty != PropertyType::FieldInterrupt
             {
                 return Err(RdlError::UnexpectedPropertyType {
                     expected_type: prop_meta.ty,
@@ -1027,7 +1094,7 @@ impl<'a> PropertyAssignment<'a> {
             true.into()
         } else {
             tokens.expect(Token::Equals)?;
-            prop_meta.ty.parse_or_lookup(tokens, parameters)?
+            prop_meta.ty.eval(tokens, parameters)?
         };
         tokens.expect(Token::Semicolon)?;
         Ok(Self { prop_name, value })

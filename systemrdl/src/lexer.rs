@@ -76,10 +76,11 @@ impl<'a> Iterator for Lexer<'a> {
                         None => break Some(Token::Error),
                     }
                 },
-                Some(ch) if ch.is_ascii_alphabetic() => {
+                Some(ch) if ch.is_ascii_alphabetic() || ch == '_' => {
                     next_while(&mut iter, |ch| ch.is_ascii_alphanumeric() || ch == '_');
                     match str_between(&self.iter, &iter) {
                         "field" => Some(Token::Field),
+                        "external" => Some(Token::External),
                         "reg" => Some(Token::Reg),
                         "regfile" => Some(Token::RegFile),
                         "addrmap" => Some(Token::AddrMap),
@@ -114,6 +115,14 @@ impl<'a> Iterator for Lexer<'a> {
                         }
                     }
                 }
+                Some('!') => match iter.next() {
+                    Some('=') => Some(Token::NotEquals),
+                    _ => Some(Token::Error),
+                },
+                Some('&') => match iter.next() {
+                    Some('&') => Some(Token::And),
+                    _ => Some(Token::Error),
+                },
                 Some('{') => Some(Token::BraceOpen),
                 Some('}') => Some(Token::BraceClose),
                 Some('[') => Some(Token::BracketOpen),
@@ -127,6 +136,7 @@ impl<'a> Iterator for Lexer<'a> {
                 Some('@') => Some(Token::At),
                 Some('#') => Some(Token::Hash),
                 Some(':') => Some(Token::Colon),
+                Some('?') => Some(Token::QuestionMark),
                 Some('`') => {
                     let keyword_start = iter.clone();
                     next_while(&mut iter, |ch| ch.is_ascii_alphabetic() || ch == '_');
@@ -217,10 +227,15 @@ mod test {
 
     #[test]
     fn test_foo() {
-        let tokens: Vec<Token> = Lexer::new("field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 100_200 2'b01 5'o27 4'd9 16'h1caf 32'h3CAB_FFB0 /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[]();:,.=@#reg field regfile addrmap signal enum mem constraint").take(37).collect();
+        let tokens: Vec<Token> = Lexer::new("!= && ? __id external field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 100_200 2'b01 5'o27 4'd9 16'h1caf 32'h3CAB_FFB0 /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[]();:,.=@#reg field regfile addrmap signal enum mem constraint").take(42).collect();
         assert_eq!(
             tokens,
             vec![
+                Token::NotEquals,
+                Token::And,
+                Token::QuestionMark,
+                Token::Identifier("__id"),
+                Token::External,
                 Token::Field,
                 Token::Number(35),
                 Token::Identifier("iDentifier2_"),

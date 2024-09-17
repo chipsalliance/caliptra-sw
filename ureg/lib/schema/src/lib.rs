@@ -340,6 +340,7 @@ pub enum RegisterWidth {
     _32 = 32,
 
     _64 = 64,
+    _128 = 128,
 }
 impl RegisterWidth {
     pub fn in_bytes(self) -> u64 {
@@ -348,6 +349,7 @@ impl RegisterWidth {
             RegisterWidth::_16 => 2,
             RegisterWidth::_32 => 4,
             RegisterWidth::_64 => 8,
+            RegisterWidth::_128 => 16,
         }
     }
 
@@ -357,6 +359,7 @@ impl RegisterWidth {
             RegisterWidth::_16 => "u16",
             RegisterWidth::_32 => "u32",
             RegisterWidth::_64 => "u64",
+            RegisterWidth::_128 => "u128",
         }
     }
 }
