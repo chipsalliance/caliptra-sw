@@ -261,7 +261,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
-    pub valid_pauser: [u32; 5],
+    pub valid_pauser: Vec<u32>,
     pub wdt_timeout_cycles: u64,
 }
 
@@ -273,7 +273,7 @@ impl<'a> Default for BootParams<'a> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
-            valid_pauser: [
+            valid_pauser: vec![
                 ValidPaUsers::Pl0 as u32,
                 ValidPaUsers::Pl1 as u32,
                 ValidPaUsers::Pl2 as u32,
@@ -530,7 +530,7 @@ pub trait HwModel: SocManager {
         }
 
         {
-            for idx in 0..5 {
+            for idx in 0..boot_params.valid_pauser.len() {
                 self.soc_ifc()
                     .cptra_mbox_valid_pauser()
                     .at(idx)
