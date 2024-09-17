@@ -41,8 +41,7 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
-static CALIPTRA_EXTRA_RDL_FILES: &[&str] =
-    &["el2_pic_ctrl.rdl", "secure_firmware_recovery_interface.rdl"];
+static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl", "./i3c-rdl/registers.rdl"];
 
 fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box<dyn Error>> {
     cmd.stdin(Stdio::piped());
@@ -170,6 +169,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let addrmap = scope.lookup_typedef("clp").unwrap();
     let addrmap2 = scope.lookup_typedef("clp2").unwrap();
+    let addrmap3 = scope.lookup_typedef("clp3").unwrap();
 
     // These are types like kv_read_ctrl_reg that are used by multiple crates
     let root_block = RegisterBlock {
@@ -183,7 +183,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let mut blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
     let mut blocks2 = ureg_systemrdl::translate_addrmap(addrmap2)?;
+    let mut blocks3 = ureg_systemrdl::translate_addrmap(addrmap3)?;
     blocks.append(&mut blocks2);
+    blocks.append(&mut blocks3);
 
     let mut validated_blocks = vec![];
     for mut block in blocks {

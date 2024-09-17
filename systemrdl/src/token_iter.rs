@@ -92,6 +92,7 @@ impl<'a> TokenIter<'a> {
                         file_path: old_file_path,
                         file_contents: old_file_contents,
                     });
+                    self.current_file_path = file_path;
                     // Retry with new lexer
                     continue;
                 }
