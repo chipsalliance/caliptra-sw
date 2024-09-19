@@ -7,7 +7,7 @@ A new branch, named **"main-2.x"**, will be created off of the main branch for C
 - The **"main-2.x"** branch will adhere to the same rules, policies, and CI pipelines as the main branch.
 - Any fixes made to the main (1.x) branch will be forward-ported to the **"main-2.x"** branch. These fixes will be cherry-picked from main to main-2.x to maintain a linear history. This will be a weekly exercise.
 
-As the flow of 1.x fixes slows down or as we approach the point of making a 2.0 release (whichever occurs first), we will switch **"main-2.x"** to become the primary branch. This will be targeted for Nov/Dec 2024. We have two options to achieve this:
+As the flow of 1.x fixes slows down or as we approach the point of making a 2.0 release (whichever occurs first), we will switch **"main-2.x"** to become the primary branch. We have two options to achieve this:
 
 ### Option X
 Rename **"main-2.x"** to **"main"** and rename the older main branch to **"release-1.x"**. The **"release-1.x"** branch will become a long-term servicing branch for 1.x bug fixes, while the **"main"** branch will be the active branch for further 2.0 development.
