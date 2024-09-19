@@ -13,8 +13,11 @@ use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, InstrTracer};
 use caliptra_emu_periph::ActionCb;
+use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
+use caliptra_emu_periph::{
+    CaliptraRootBus, CaliptraRootBusArgs, MailboxRequester, SocToCaliptraBus, TbServicesCb,
+};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
@@ -165,7 +168,7 @@ impl crate::HwModel for ModelEmulated {
             };
             dccm_dest.copy_from_slice(params.dccm);
         }
-        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
+        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus(params.soc_user);
         let cpu = Cpu::new(BusLogger::new(root_bus), clock);
 
         let mut hasher = DefaultHasher::new();
@@ -261,8 +264,11 @@ impl crate::HwModel for ModelEmulated {
         }
     }
 
-    fn set_apb_pauser(&mut self, _pauser: u32) {
-        unimplemented!();
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        self.soc_to_caliptra_bus.mailbox = MailboxExternal {
+            soc_user: MailboxRequester::try_from(pauser).unwrap(),
+            regs: self.soc_to_caliptra_bus.mailbox.regs.clone(),
+        };
     }
 
     fn warm_reset(&mut self) {
