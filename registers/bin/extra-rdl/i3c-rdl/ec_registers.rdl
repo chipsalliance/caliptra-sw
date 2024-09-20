@@ -1,0 +1,49 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+`include "secure_firmware_recovery_interface.rdl"
+`include "target_transaction_interface.rdl"
+`include "soc_management_interface.rdl"
+`include "controller_config.rdl"
+`include "standby_controller_mode.rdl"
+
+regfile ECRegisters #(
+    bit tti_rx_desc_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_tx_desc_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_rx_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_tx_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_ibi_fifo_size = 0x5 // 64 DWORDs by default
+){
+    name = "Extended Capabilities";
+    SecureFirmwareRecoveryInterfaceRegisters SecFwRecoveryIf @ 0x0;
+    StandbyControllerModeRegisters StdbyCtrlMode;
+    TargetTransactionInterfaceRegisters #(
+        .rx_desc_fifo_size(tti_rx_desc_fifo_size),
+        .tx_desc_fifo_size(tti_tx_desc_fifo_size),
+        .rx_fifo_size(tti_rx_fifo_size),
+        .tx_fifo_size(tti_tx_fifo_size),
+        .ibi_fifo_size(tti_ibi_fifo_size)
+    ) TTI;
+    SoCManagementInterfaceRegisters SoCMgmtIf;
+    ControllerConfigRegisters CtrlCfg;
+    reg {
+        desc = "Register after the last EC must advertise ID == 0.
+        Termination register is added to guarantee that the discovery mechanism
+        reaches termination value.
+        ";
+        regwidth = 32;
+        field {
+            name = "CAP_LENGTH";
+            desc = "Capability Structure Length in DWORDs";
+            sw = r;
+            hw = r;
+            reset = 16'h0001;
+        } CAP_LENGTH[23:8];
+        field {
+            name = "CAP_ID";
+            desc = "Extended Capability ID";
+            sw = r;
+            hw = r;
+            reset = 8'h00;
+        } CAP_ID[7:0];
+    } TERMINATION_EXTCAP_HEADER;
+};

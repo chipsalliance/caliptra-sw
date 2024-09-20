@@ -1,0 +1,358 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+regfile SoCManagementInterfaceRegisters{
+    name = "SoC Management Interface";
+    default regwidth = 32;
+    reg {
+        regwidth = 32;
+        field {
+            name = "CAP_LENGTH";
+            desc = "Capability Structure Length in DWORDs";
+            sw = r;
+            hw = r;
+            reset = 16'h0018;
+        } CAP_LENGTH[23:8];
+        field {
+            name = "CAP_ID";
+            desc = "Extended Capability ID";
+            sw = r;
+            hw = r;
+            reset = 8'hC1;
+        } CAP_ID[7:0];
+    } EXTCAP_HEADER;
+    reg {
+        name = "SoC Management Control";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_CONTROL;
+    reg {
+        name = "SoC Management Status";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_STATUS;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_RSVD_0;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_RSVD_1;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_RSVD_2;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_RSVD_3;
+    reg {
+        name = "I3C Pad Configuration Register";
+        field {
+            name = "Pad type";
+            desc = "Select pad type
+
+            0 - Bidirectional
+
+            1 - Open-drain
+
+            2 - Input-only
+
+            3 - Analog input
+            ";
+            sw = rw;
+            hw = r;
+            reset = 8'h01;
+        } PAD_TYPE[31:24];
+        field {
+            name = "Virtual Open Drain Enable";
+            desc = "Enable virtual open drain:
+
+            0 - disabled
+
+            1 - enabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } VIRTUAL_OD_EN[7:7];
+        field {
+            name = "Open-Drain Enable";
+            desc = "Enable Open-Drain:
+
+            0 - disabled
+
+            1 - enabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } OD_EN[6:6];
+        field {
+            name = "IO INVERSION";
+            desc = "Invert I/O signal:
+
+            0 - signals pass-through
+
+            1 - signals are inverted";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } IO_INVERSION[5:5];
+        field {
+            name = "Pull Enable";
+            desc = "Enable Pull:
+
+            0 - disabled
+
+            1 - enabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } PULL_EN[4:4];
+        field {
+            name = "Pull Direction";
+            desc = "Direction of the pull:
+
+            0 - Pull down
+
+            1 - Pull up";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } PULL_DIR[3:3];
+        field {
+            name = "High-Keeper Enable";
+            desc = "Enable the High-Keeper:
+
+            0 - disabled
+
+            1 - enabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } KEEPER_EN[2:2];
+        field {
+            name = "Schmitt Trigger Enable";
+            desc = "Enable the Schmitt Trigger:
+
+            0 - disabled
+
+            1 - enabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } SCHMITT_EN[1:1];
+
+        field {
+            name = "Enable Input";
+            desc = "Enable input:
+
+            0 - enabled
+
+            1 - disabled";
+            sw = rw;
+            hw = r;
+            reset = 1'b1;
+        } INPUT_ENABLE[0:0];
+    } SOC_PAD_CONF;
+    reg {
+        name = "I3C Pad Attribute Configuration Register";
+        field {
+            name = "Driver Strength";
+            desc = "Select driver strength
+
+            '0 - lowest
+
+            '1 - highest
+            ";
+            sw = rw;
+            hw = r;
+            reset = 8'h0F;
+        } DRIVE_STRENGTH[31:24];
+        field {
+            name = "Driver Slew Rate";
+            desc = "Select driver slew rate
+
+            '0 - lowest
+
+            '1 - highest
+            ";
+            sw = rw;
+            hw = r;
+            reset = 8'h0F;
+        } DRIVE_SLEW_RATE[15:8];
+    } SOC_PAD_ATTR;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Reserved for: I/O ring and pad configuration";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_FEATURE_2;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Reserved for: I/O ring and pad configuration";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } SOC_MGMT_FEATURE_3;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Rise time of both SDA and SCL in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_R[19:0];
+    } T_R_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Fall time of both SDA and SCL in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_F[19:0];
+    } T_F_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Data setup time in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_SU_DAT[19:0];
+    } T_SU_DAT_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Data hold time in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_HD_DAT[19:0];
+    } T_HD_DAT_REG;
+    reg {
+        name = "";
+        field {
+            name = "High period of the SCL in clock units";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_HIGH[19:0];
+    } T_HIGH_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Low period of the SCL in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_LOW[19:0];
+    } T_LOW_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Hold time for (repeated) START in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_HD_STA[19:0];
+    } T_HD_STA_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Setup time for repeated START in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_SU_STA[19:0];
+    } T_SU_STA_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "Setup time for STOP in clock units";
+            sw = rw;
+            hw = r;
+            reset = 20'h00000;
+        } T_SU_STO[19:0];
+    } T_SU_STO_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h0000000C;
+        } T_FREE[31:0];
+    } T_FREE_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h00000012C;
+        } T_AVAL[31:0];
+    } T_AVAL_REG;
+    reg {
+        name = "";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = r;
+            reset = 32'h0000EA60;
+        } T_IDLE[31:0];
+    } T_IDLE_REG;
+};

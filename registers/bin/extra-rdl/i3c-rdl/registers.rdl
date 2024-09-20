@@ -1,0 +1,95 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+`include "base_registers.rdl"
+`include "pio_registers.rdl"
+`include "ec_registers.rdl"
+`include "DAT_structure.rdl"
+`include "DCT_structure.rdl"
+
+
+addrmap I3CCSR #(
+    bit PIO_offset = 0x080,
+    bit EC_offset = 0x100,
+    bit DAT_offset = 0x400,
+    bit DCT_offset = 0x800,
+    bit cmd_fifo_size = 0x40, // 64 commands by default
+    bit resp_fifo_size = 0xff, // 255 responses by default
+    bit ibi_fifo_size = 0xff, // 255 responses by default
+    bit tx_fifo_size = 0x5, // 64 DWORDs by default
+    bit rx_fifo_size = 0x5, // 64 DWORDs by default
+    bit ext_ibi_size = 1'b0, // Extend the size of IBI queue (8*ibi_fifo_size if set)
+    bit dat_depth = 0x7f, // Max allowed by default
+    bit dct_depth = 0x7f, // Max allowed by default
+    bit tti_rx_desc_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_tx_desc_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_rx_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_tx_fifo_size = 0x5, // 64 DWORDs by default
+    bit tti_ibi_fifo_size = 0x5 // 64 DWORDs by default
+){
+    signal {activelow; async; cpuif_reset; field_reset;} rst_ni;
+    BaseRegs #(
+        .PIO_offset(PIO_offset),
+        .DMA_support(false),
+        .Ring_offset(16'h0),
+        .Ext_offset(16'h0100),
+        // TODO: verify that Little-endian is used
+        // Change if Big-endian is preferred
+        .Data_endianness(1'b0),
+        // TODO: Update to correct values after implementation is done
+        .AUTOCMD_separated_reporting_dynamic(false),
+        .AUTOCMD_separated_reporting_support(1'b0),
+        .DEV_ctx_SG_support(false),
+        .DEV_IBI_SG_support(false),
+        .DEV_CR_SG_support(false),
+        .Scheduled_commands_support(false),
+        .IBI_credit_count_support(false),
+        .IBI_data_abort_support(false),
+        .HDR_TS_support(false),
+        .HDR_DDR_support(false),
+        .Handoff_support(false),
+        .IBI_auto_command_support(false),
+        .Combo_command_support(false),
+        .MIPI_commands(15'h0035),
+        // TODO ends here
+        .DAT_entry_size(4'h0),
+        .DAT_table_size(dat_depth),
+        .DAT_offset(DAT_offset),
+        .DCT_entry_size(4'h0),
+        .DCT_table_size(dct_depth),
+        .DCT_offset(DCT_offset)
+    ) I3CBase @ 0x0;
+    PIORegs #(
+        .cmd_fifo_size(cmd_fifo_size),
+        .resp_fifo_size(resp_fifo_size),
+        .ibi_fifo_size(ibi_fifo_size),
+        .rx_fifo_size(rx_fifo_size),
+        .tx_fifo_size(tx_fifo_size),
+        .ext_ibi_size(ext_ibi_size)
+    ) PIOControl @ PIO_offset;
+    mem {
+        name = "Device Address Table";
+        mementries = 128;
+        memwidth = 64;
+        sw = rw;
+        DAT_structure DAT_MEMORY [128];
+    } external DAT @ DAT_offset;
+    mem {
+        name = "Device Characteristic Table";
+        mementries = 128;
+        memwidth = 128;
+        sw = rw;
+        DCT_structure DCT_MEMORY [128];
+    } external DCT @ DCT_offset;
+
+    ECRegisters #(
+        .tti_rx_desc_fifo_size(tti_rx_desc_fifo_size),
+        .tti_tx_desc_fifo_size(tti_tx_desc_fifo_size),
+        .tti_rx_fifo_size(tti_rx_fifo_size),
+        .tti_tx_fifo_size(tti_tx_fifo_size),
+        .tti_ibi_fifo_size(tti_ibi_fifo_size)
+    ) I3C_EC @ EC_offset;
+};
+
+addrmap clp3 {
+    I3CCSR i3c @ 0x2004_0000;
+};

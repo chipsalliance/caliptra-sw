@@ -1,0 +1,85 @@
+reg DAT_structure {
+    regwidth = 64;
+    field {
+        name = "AUTOCMD_HDR_CODE";
+        desc = "Device auto command in HDR mode";
+        sw = rw;
+        hw = r;
+    } AUTOCMD_HDR_CODE[58:51];
+    field {
+        name = "AUTOCMD_MODE";
+        desc = "Auto command mode and speed";
+        sw = rw;
+        hw = r;
+    } AUTOCMD_MODE[50:48];
+    field {
+        name = "AUTOCMD_VALUE";
+        desc = "IBI value that triggers auto command";
+        sw = rw;
+        hw = r;
+    } AUTOCMD_VALUE[47:40];
+    field {
+        name = "AUTOCMD_MASK";
+        desc = "IBI mask";
+        sw = rw;
+        hw = r;
+    } AUTOCMD_MASK[39:32];
+    field {
+        name = "DEVICE";
+        desc = "Device type:
+            0 - I3C device,
+            1 - I2C device.";
+        sw = rw;
+        hw = r;
+    } DEVICE[31:31];
+    field {
+        name = "DEV_NACK_RETRY_CNT";
+        desc = "Number of retries before giving up";
+        sw = rw;
+        hw = r;
+    } DEV_NACK_RETRY_CNT[30:29];
+    field {
+        name = "RING_ID";
+        desc = "Send IBI read to ring bundle";
+        sw = rw;
+        hw = r;
+    } RING_ID[28:26];
+    field {
+        name = "DYNAMIC_ADDRESS";
+        desc = "I3C dynamic address";
+        sw = rw;
+        hw = rw;
+        we = true;
+    } DYNAMIC_ADDRESS[23:16];
+    field {
+        name = "TS";
+        desc = "Enable/disable IBI timestamp";
+        sw = rw;
+        hw =r;
+    } TS[15:15];
+    field {
+        name = "CRR_REJECT";
+        desc = "Reject device's request for controller change";
+        sw = rw;
+        hw = r;
+    } CRR_REJECT[14:14];
+    field {
+        name = "IBI_REJECT";
+        desc = "Reject device's request for IBI";
+        sw = rw;
+        hw = r;
+    } IBI_REJECT[13:13];
+    field {
+        name = "IBI_PAYLOAD";
+        desc = "Device's IBI contains data payload";
+        sw = rw;
+        hw = r;
+    } IBI_PAYLOAD[12:12];
+    field {
+        name = "STATIC_ADDRESS";
+        desc = "I3C/I2C static device address";
+        sw = rw;
+        hw = r;
+    } STATIC_ADDRESS[6:0];
+};
+

@@ -1,0 +1,432 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+
+regfile TargetTransactionInterfaceRegisters #(
+    bit rx_desc_fifo_size,
+    bit tx_desc_fifo_size,
+    bit rx_fifo_size,
+    bit tx_fifo_size,
+    bit ibi_fifo_size
+){
+    name = "Target Transaction Interface";
+    default regwidth = 32;
+    reg {
+        regwidth = 32;
+        field {
+            name = "CAP_LENGTH";
+            desc = "Capability Structure Length in DWORDs";
+            sw = r;
+            hw = r;
+            reset = 16'h0010;
+        } CAP_LENGTH[23:8];
+        field {
+            name = "CAP_ID";
+            desc = "Extended Capability ID";
+            sw = r;
+            hw = r;
+            reset = 8'hC4;
+        } CAP_ID[7:0];
+    } EXTCAP_HEADER;
+    reg {
+        name = "TTI Control";
+        desc = "Control Register";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } CONTROL;
+    reg {
+        name = "TTI Status";
+        desc = "Status Register";
+        field {
+            name = "";
+            desc = "";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 32'h00000000;
+        } PLACEHOLDER[31:0];
+    } STATUS;
+    reg {
+        name = "TTI Queue Reset Control";
+        desc = "Queue Reset Control";
+        field {
+            name = "IBI_QUEUE_RST";
+            desc = "TTI IBI Queue Buffer Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } IBI_QUEUE_RST[5:5];
+        field {
+            name = "RX_DATA_RST";
+            desc = "TTI RX Data Queue Buffer Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } RX_DATA_RST[4:4];
+        field {
+            name = "TX_DATA_RST";
+            desc = "TTI TX Data Queue Buffer Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } TX_DATA_RST[3:3];
+        field {
+            name = "RX_DESC_RST";
+            desc = "TTI RX Descriptor Queue Buffer Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } RX_DESC_RST[2:2];
+        field {
+            name = "TX_DESC_RST";
+            desc = "TTI TX Descriptor Queue Buffer Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } TX_DESC_RST[1:1];
+        field {
+            name = "SOFT_RST";
+            desc = "Target Core Software Reset";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 8'h00;
+        } SOFT_RST[0:0];
+    } RESET_CONTROL;
+    reg {
+        name = "TTI Interrupt Status";
+        desc = "Interrupt Status";
+        field {
+            name = "TRANSFER_ERR_STAT";
+            desc = "Bus error occurred";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } TRANSFER_ERR_STAT[31:31];
+        field {
+            name = "TRANSFER_ABORT_STAT";
+            desc = "Bus aborted transaction";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } TRANSFER_ABORT_STAT[25:25];
+        field {
+            name = "IBI_THLD_STAT";
+            desc = "TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`";
+            sw = r;
+            hw = rw;
+            reset = 1'b0;
+        } IBI_THLD_STAT[12:12];
+        field {
+            name = "RX_DESC_THLD_STAT";
+            desc = "TTI RX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI RX Descriptor Queue is >= the value defined in `TTI_RX_DESC_THLD`";
+            sw = r;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DESC_THLD_STAT[11:11];
+        field {
+            name = "TX_DESC_THLD_STAT";
+            desc = "TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`";
+            sw = r;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DESC_THLD_STAT[10:10];
+        field {
+            name = "RX_DATA_THLD_STAT";
+            desc = "TTI RX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of entries in the TTI RX Data Queue is >= the value defined in `TTI_RX_DATA_THLD`";
+            sw = r;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DATA_THLD_STAT[9:9];
+        field {
+            name = "TX_DATA_THLD_STAT";
+            desc = "TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`";
+            sw = r;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DATA_THLD_STAT[8:8];
+        field {
+            name = "TX_DESC_TIMEOUT";
+            desc = "Pending Write was NACK’ed, because the `TX_DESC_STAT` event was not handled in time";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } TX_DESC_TIMEOUT[3:3];
+        field {
+            name = "RX_DESC_TIMEOUT";
+            desc = "Pending Read was NACK’ed, because the `RX_DESC_STAT` event was not handled in time";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } RX_DESC_TIMEOUT[2:2];
+        field {
+            name = "TX_DESC_STAT";
+            desc = "There is a pending Write Transaction on the I3C Bus. Software should write data to the TX Descriptor Queue and the TX Data Queue";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } TX_DESC_STAT[1:1];
+        field {
+            name = "RX_DESC_STAT";
+            desc = "There is a pending Read Transaction. Software should read data from the RX Descriptor Queue and the RX Data Queue";
+            sw = rw;
+            hw = rw;
+            woclr = true;
+            reset = 1'b0;
+        } RX_DESC_STAT[0:0];
+    } INTERRUPT_STATUS;
+    reg {
+        name = "TTI Interrupt Enable";
+        desc = "Interrupt Enable";
+        field {
+            name = "IBI_THLD_STAT_EN";
+            desc = "Enables the corresponding interrupt bit `TTI_IBI_THLD_STAT`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } IBI_THLD_STAT_EN[4:4];
+        field {
+            name = "RX_DESC_THLD_STAT_EN";
+            desc = "Enables the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DESC_THLD_STAT_EN[3:3];
+        field {
+            name = "TX_DESC_THLD_STAT_EN";
+            desc = "Enables the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DESC_THLD_STAT_EN[2:2];
+        field {
+            name = "RX_DATA_THLD_STAT_EN";
+            desc = "Enables the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DATA_THLD_STAT_EN[1:1];
+        field {
+            name = "TX_DATA_THLD_STAT_EN";
+            desc = "Enables the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DATA_THLD_STAT_EN[0:0];
+    } INTERRUPT_ENABLE;
+    reg {
+        name = "TTI Interrupt Force";
+        desc = "Interrupt Force";
+        field {
+            name = "IBI_THLD_FORCE";
+            desc = "Forces the corresponding interrupt bit `TTI_IBI_THLD_STAT` to be set to 1";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } IBI_THLD_FORCE[4:4];
+        field {
+            name = "RX_DESC_THLD_FORCE";
+            desc = "Forces the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT` to be set to `1`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DESC_THLD_FORCE[3:3];
+        field {
+            name = "TX_DESC_THLD_FORCE";
+            desc = "Forces the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT` to be set to `1`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DESC_THLD_FORCE[2:2];
+        field {
+            name = "RX_DATA_THLD_FORCE";
+            desc = "Forces the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT` to be set to `1`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } RX_DATA_THLD_FORCE[1:1];
+        field {
+            name = "TX_DATA_THLD_FORCE";
+            desc = "Forces the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT` to be set to `1`";
+            sw = rw;
+            hw = rw;
+            reset = 1'b0;
+        } TX_DATA_THLD_FORCE[0:0];
+    } INTERRUPT_FORCE;
+    external reg {
+        name = "TTI RX Descriptor Queue Port";
+        desc = "RX Descriptor Queue Port";
+        field {
+            name = "RX_DESC";
+            desc = "RX Data";
+            sw = r;
+            hw = w;
+            reset = 32'h00000000;
+        } RX_DESC[31:0];
+    } RX_DESC_QUEUE_PORT;
+    external reg {
+        name = "TTI RX Data Port";
+        desc = "RX Data Port";
+        field {
+            name = "RX_DATA";
+            desc = "RX Data";
+            sw = r;
+            hw = w;
+            reset = 32'h00000000;
+        } RX_DATA[31:0];
+    } RX_DATA_PORT;
+    external reg {
+        name = "TTI TX Descriptor Queue Port";
+        desc = "TX Descriptor Queue Port";
+        field {
+            name = "TX_DESC";
+            desc = "TX Data";
+            sw = w;
+            hw = r;
+            reset = 32'h00000000;
+        } TX_DESC[31:0];
+    } TX_DESC_QUEUE_PORT;
+    external reg {
+        name = "TTI TX Data Port";
+        desc = "TX Data Port";
+        field {
+            name = "TX_DATA";
+            desc = "TX Data";
+            sw = w;
+            hw = r;
+            reset = 32'h00000000;
+        } TX_DATA[31:0];
+    } TX_DATA_PORT;
+    external reg {
+        name = "TTI IBI Data Port";
+        desc = "IBI Data Port";
+        field {
+            name = "IBI_DATA";
+            desc = "IBI Data";
+            sw = w;
+            hw = r;
+            reset = 32'h00000000;
+        } IBI_DATA[31:0];
+    } IBI_PORT;
+    reg {
+        name = "TTI Queue Size";
+        desc = "Queue Size";
+        field {
+            name = "TX_DATA_BUFFER_SIZE";
+            desc = "Transmit Data Buffer Size in DWORDs calculated as `2^(N+1)`";
+            sw = r;
+            hw = r;
+            reset = tx_fifo_size;
+        } TX_DATA_BUFFER_SIZE[31:24];
+        field {
+            name = "RX_DATA_BUFFER_SIZE";
+            desc = "Receive Data Buffer Size in DWORDs calculated as `2^(N+1)`";
+            sw = r;
+            hw = r;
+            reset = rx_fifo_size;
+        } RX_DATA_BUFFER_SIZE[23:16];
+        field {
+            name = "TX_DESC_BUFFER_SIZE";
+            desc = "TX Descriptor Buffer Size in DWORDs calculated as `2^(N+1)`";
+            sw = r;
+            hw = r;
+            reset = tx_desc_fifo_size;
+        } TX_DESC_BUFFER_SIZE[15:8];
+        field {
+            name = "RX_DESC_BUFFER_SIZE";
+            desc = "RX Descriptor Buffer Size in DWORDs calculated as `2^(N+1)`";
+            sw = r;
+            hw = r;
+            reset = rx_desc_fifo_size;
+        } RX_DESC_BUFFER_SIZE[7:0];
+    } QUEUE_SIZE;
+    reg {
+        name = "TTI IBI Queue Size";
+        desc = "IBI Queue Size";
+        field {
+            name = "IBI_QUEUE_SIZE";
+            desc = "IBI Queue Size in DWORDs calculated as `2^(N+1)`";
+            sw = r;
+            hw = r;
+            reset = ibi_fifo_size;
+        } IBI_QUEUE_SIZE[7:0];
+    } IBI_QUEUE_SIZE;
+    reg {
+        name = "TTI Queue Threshold Control";
+        desc = "Queue Threshold Control";
+        field {
+            name = "IBI_THLD";
+            desc = "Controls the minimum number of IBI Queue entries needed to trigger the IBI threshold interrupt.";
+            sw = rw;
+            hw = rw;
+            reset = 8'h01;
+            swmod = true;
+            we = true;
+        } IBI_THLD[31:24];
+        field {
+            name = "RX_DESC_THLD";
+            desc = "Controls the minimum number of TTI RX Descriptor Queue entries needed to trigger the TTI RX Descriptor interrupt.";
+            sw = rw;
+            hw = rw;
+            reset = 8'h01;
+            swmod = true;
+            we = true;
+        } RX_DESC_THLD[15:8];
+        field {
+            name = "TX_DESC_THLD";
+            desc = "Controls the minimum number of empty TTI TX Descriptor Queue entries needed to trigger the TTI TX Descriptor interrupt.";
+            sw = rw;
+            hw = rw;
+            reset = 8'h01;
+            swmod = true;
+            we = true;
+        } TX_DESC_THLD[7:0];
+    } QUEUE_THLD_CTRL;
+    reg {
+        name = "TTI IBI Queue Threshold Control";
+        desc = "IBI Queue Threshold Control";
+        field {
+            name = "RX_DATA_THLD";
+            desc = "Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.";
+            sw = rw;
+            hw = r;
+            reset = 3'h1;
+        } RX_START_THLD[26:24];
+        field {
+            name = "TX_DATA_THLD";
+            desc = "Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.";
+            sw = rw;
+            hw = r;
+            reset = 3'h1;
+        } TX_START_THLD[18:16];
+        field {
+            name = "RX_DATA_THLD";
+            desc = "Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.";
+            sw = rw;
+            hw = r;
+            reset = 3'h1;
+        } RX_DATA_THLD[10:8];
+        field {
+            name = "TX_DATA_THLD";
+            desc = "Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.";
+            sw = rw;
+            hw = r;
+            reset = 3'h1;
+        } TX_DATA_THLD[2:0];
+    } DATA_BUFFER_THLD_CTRL;
+};

@@ -1,0 +1,443 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+
+regfile PIORegs #(
+    bit cmd_fifo_size,
+    bit resp_fifo_size,
+    bit ibi_fifo_size,
+    bit tx_fifo_size,
+    bit rx_fifo_size,
+    bit ext_ibi_size
+){
+    name = "Programmable I/O";
+    default regwidth = 32;
+    external reg {
+        name = "Command issue port";
+        field {
+            name = "COMMAND_QUEUE_PORT";
+            sw = w;
+            hw = r;
+        } COMMAND_DATA[31:0];
+    } COMMAND_PORT @ 0x0;
+    external reg {
+        name = "Command response port";
+        field {
+            name = "RESPONSE_QUEUE_PORT";
+            sw = r;
+            hw = w;
+        } RESPONSE_DATA[31:0];
+    } RESPONSE_PORT @ 0x4;
+    external reg {
+        name = "Data access port";
+        field {
+            name = "TX_DATA";
+            sw = w;
+            hw = r;
+        } TX_DATA[31:0];
+        field {
+            name = "RX_DATA";
+            sw = r;
+            hw = w;
+        } RX_DATA[31:0];
+    } XFER_DATA_PORT @ 0x8;
+    external reg {
+        name = "IBI descriptor access port";
+        field {
+            name = "IBI_DATA";
+            sw = r;
+            hw = w;
+        } IBI_DATA;
+    } IBI_PORT @ 0xC;
+    reg {
+        name = "The Queue Threshold Control register for the Command Queue, the Response Queue, and the IBI Queue";
+        field {
+            name = "IBI_STATUS_THLD";
+            desc = "Triggers IBI_STATUS_THLD_STAT interrupt when IBI queue has N or more entries. Accepted values are 1:255";
+            sw = rw;
+            hw = r;
+            reset = 8'h1;
+        } IBI_STATUS_THLD[31:24];
+        field {
+            name = "IBI_DATA_SEGMENT_SIZE";
+            desc = "IBI Queue data segment size. Valida values are 1:63";
+            sw = rw;
+            hw = r;
+            reset = 8'h1;
+        } IBI_DATA_SEGMENT_SIZE[23:16];
+        field {
+            name = "RESP_BUF_THLD";
+            desc = "Triggers RESP_READY_STAT interrupt when RESP queue has N or more entries. Accepted values are 1:255";
+            sw = rw;
+            hw = rw;
+            reset = 8'h1;
+            swmod = true;
+            we = true;
+        } RESP_BUF_THLD[15:8];
+        field {
+            name = "CMD_EMPTY_BUF_THLD";
+            desc = "Triggers CMD_QUEUE_READY_STAT interrupt when CMD queue has N or more free entries. Accepted values are 1:255";
+            sw = rw;
+            hw = rw;
+            reset = 8'h1;
+            swmod = true;
+            we = true;
+        } CMD_EMPTY_BUF_THLD[7:0];
+    } QUEUE_THLD_CTRL @ 0x10;
+    reg {
+        name = "RX/TX queue threshold control";
+        field {
+            name = "RX_START_THLD";
+            desc = "Postpone read command until RX queue has 2^(N+1) free entries";
+            sw = rw;
+            hw = r;
+            reset = 3'b1;
+        } RX_START_THLD[26:24];
+        field {
+            name = "TX_START_THLD";
+            desc = "Postpone write command until TX queue has 2^(N+1) entries";
+            sw = rw;
+            hw = r;
+            reset = 3'b1;
+        } TX_START_THLD[18:16];
+        field {
+            name = "RX_BUF_THLD";
+            desc = "Trigger RX_THLD_STAT interrupt when RX queue has 2^(N+1) or more entries";
+            sw = rw;
+            hw = r;
+            reset = 3'b1;
+        } RX_BUF_THLD[10:8];
+        field {
+            name = "TX_BUF_THLD";
+            desc = "Trigger TX_THLD_STAT interrupt when TX queue has 2^(N+1) or more free entries";
+            sw = rw;
+            hw = r;
+            reset = 3'b1;
+        } TX_BUF_THLD[2:0];
+    } DATA_BUFFER_THLD_CTRL @ 0x14;
+    reg {
+        name = "Queue sizes";
+        field {
+            name = "TX_DATA_BUFFER_SIZE";
+            desc = "TX queue size is equal to 2^(N+1), where N is this field value";
+            sw = r;
+            hw = na;
+            reset = tx_fifo_size;
+        } TX_DATA_BUFFER_SIZE[31:24];
+        field {
+            name = "RX_DATA_BUFFER_SIZE";
+            desc = "RX queue size is equal to 2^(N+1), where N is this field value";
+            sw = r;
+            hw = na;
+            reset = rx_fifo_size;
+        } RX_DATA_BUFFER_SIZE[23:16];
+        field {
+            name = "IBI_STATUS_SIZE";
+            desc = "IBI Queue size is equal to N";
+            sw = r;
+            hw = na;
+            reset = ibi_fifo_size;
+        } IBI_STATUS_SIZE[15:8];
+        field {
+            name = "CR_QUEUE_SIZE";
+            desc = "Command/Response queue size is equal to N";
+            sw = r;
+            hw = na;
+            reset = cmd_fifo_size;
+        } CR_QUEUE_SIZE[7:0];
+    } QUEUE_SIZE @ 0x18;
+    reg {
+        name = "Alternate queue sizes";
+        field {
+            name = "EXT_IBI_QUEUE_EN";
+            desc = "1 indicates that IBI queue size is equal to 8*IBI_STATUS_SIZE";
+            sw = r;
+            hw = na;
+            reset = ext_ibi_size;
+        } EXT_IBI_QUEUE_EN[28:28];
+        field {
+            name = "ALT_RESP_QUEUE_EN";
+            desc = "If set, response and command queues are not equal lengths, then
+                ALT_RESP_QUEUE_SIZE contains response queue size";
+            sw = r;
+            hw = na;
+            reset = cmd_fifo_size != resp_fifo_size;
+        } ALT_RESP_QUEUE_EN[24:24];
+        field {
+            name = "ALT_RESP_QUEUE_SIZE";
+            desc = "Valid only if ALT_RESP_QUEUE_EN is set. Contains response queue size";
+            sw = r;
+            hw = na;
+            reset = resp_fifo_size;
+        } ALT_RESP_QUEUE_SIZE[7:0];
+    } ALT_QUEUE_SIZE @ 0x1C;
+    reg {
+        name = "PIO interrupt status";
+        field {
+            name = "TRANSFER_ERR_STAT";
+            desc = "Transfer error";
+            sw = rw;
+            hw = w;
+            onwrite = woclr;
+            reset = 1'b0;
+            intr;
+            we = true;
+        } TRANSFER_ERR_STAT[9:9];
+        field {
+            name = "TRANSFER_ABORT_STAT";
+            desc = "Transfer aborted";
+            sw = rw;
+            hw = w;
+            onwrite = woclr;
+            reset = 1'b0;
+            intr;
+            we = true;
+        } TRANSFER_ABORT_STAT[5:5];
+        field {
+            name = "RESP_READY_STAT";
+            desc = "Response queue fulfils RESP_BUF_THLD";
+            sw = r;
+            hw = w;
+            reset = 1'b0;
+            nonsticky intr;
+            we = true;
+        } RESP_READY_STAT[4:4];
+        field {
+            name = "CMD_QUEUE_READY_STAT";
+            desc = "Command queue fulfils CMD_EMPTY_BUF_THLD";
+            sw = r;
+            hw = w;
+            reset = 1'b0;
+            nonsticky intr;
+            we = true;
+        } CMD_QUEUE_READY_STAT[3:3];
+        field {
+            name = "IBI_STATUS_THLD_STAT";
+            desc = "IBI queue fulfils IBI_STATUS_THLD";
+            sw = r;
+            hw = w;
+            reset = 1'b0;
+            nonsticky intr;
+            we = true;
+        } IBI_STATUS_THLD_STAT[2:2];
+        field {
+            name = "RX_THLD_STAT";
+            desc = "RX queue fulfils RX_BUF_THLD";
+            sw = r;
+            hw = w;
+            reset = 1'b0;
+            nonsticky intr;
+            we = true;
+        } RX_THLD_STAT[1:1];
+        field {
+            name = "TX_THLD_STAT";
+            desc = "TX queue fulfils TX_BUF_THLD";
+            sw = r;
+            hw = w;
+            reset = 1'b0;
+            nonsticky intr;
+            we = true;
+        } TX_THLD_STAT[0:0];
+    } PIO_INTR_STATUS @ 0x20;
+    reg {
+        field {
+            name = "TRANSFER_ERR_STAT_EN";
+            desc = "Enable transfer error monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TRANSFER_ERR_STAT_EN[9:9];
+        field {
+            name = "TRANSFER_ABORT_STAT_EN";
+            desc = "Enable transfer abort monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TRANSFER_ABORT_STAT_EN[5:5];
+        field {
+            name = "RESP_READY_STAT_EN";
+            desc = "Enable response queue monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } RESP_READY_STAT_EN[4:4];
+        field {
+            name = "CMD_QUEUE_READY_STAT_EN";
+            desc = "Enable command queue monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } CMD_QUEUE_READY_STAT_EN[3:3];
+        field {
+            name = "IBI_STATUS_THLD_STAT_EN";
+            desc = "Enable IBI queue monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } IBI_STATUS_THLD_STAT_EN[2:2];
+        field {
+            name = "RX_THLD_STAT_EN";
+            desc = "Enable RX queue monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } RX_THLD_STAT_EN[1:1];
+        field {
+            name = "TX_THLD_STAT_EN";
+            desc = "Enable TX queue monitoring";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TX_THLD_STAT_EN[0:0];
+    } PIO_INTR_STATUS_ENABLE @ 0x24;
+    reg {
+        name = "Interrupt Signal Enable";
+        field {
+            name = "TRANSFER_ERR_SIGNAL_EN";
+            desc = "Enable transfer error interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TRANSFER_ERR_SIGNAL_EN[9:9];
+        field {
+            name = "TRANSFER_ABORT_SIGNAL_EN";
+            desc = "Enable transfer abort interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TRANSFER_ABORT_SIGNAL_EN[5:5];
+        field {
+            name = "RESP_READY_SIGNAL_EN";
+            desc = "Enable response ready interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } RESP_READY_SIGNAL_EN[4:4];
+        field {
+            name = "CMD_QUEUE_READY_SIGNAL_EN";
+            desc = "Enable command queue interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } CMD_QUEUE_READY_SIGNAL_EN[3:3];
+        field {
+            name = "IBI_STATUS_THLD_SIGNAL_EN";
+            desc = "Enable IBI queue interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } IBI_STATUS_THLD_SIGNAL_EN[2:2];
+        field {
+            name = "RX_THLD_SIGNAL_EN";
+            desc = "Enable RX queue interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } RX_THLD_SIGNAL_EN[1:1];
+        field {
+            name = "TX_THLD_SIGNAL_EN";
+            desc = "Enable TX queue interrupt";
+            sw = rw;
+            hw = na;
+            reset = 1'b0;
+        } TX_THLD_SIGNAL_EN[0:0];
+    } PIO_INTR_SIGNAL_ENABLE @ 0x28;
+    reg {
+        name = "PIO force interrupt status";
+        field {
+            name = "TRANSFER_ERR_FORCE";
+            desc = "Force transfer error";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } TRANSFER_ERR_FORCE[9:9];
+        field {
+            name = "TRANSFER_ABORT_FORCE";
+            desc = "Force transfer aborted";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } TRANSFER_ABORT_FORCE[5:5];
+        field {
+            name = "RESP_READY_FORCE";
+            desc = "Force response queue interrupt";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } RESP_READY_FORCE[4:4];
+        field {
+            name = "CMD_QUEUE_READY_FORCE";
+            desc = "Force command queue interrupt";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } CMD_QUEUE_READY_FORCE[3:3];
+        field {
+            name = "IBI_THLD_FORCE";
+            desc = "Force IBI queue interrupt";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } IBI_THLD_FORCE[2:2];
+        field {
+            name = "RX_THLD_FORCE";
+            desc = "Force RX queue interrupt";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } RX_THLD_FORCE[1:1];
+        field {
+            name = "TX_THLD_FORCE";
+            desc = "Force TX queue interrupt";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } TX_THLD_FORCE[0:0];
+    } PIO_INTR_FORCE @ 0x2C;
+    reg {
+        name = "PIO control";
+        field {
+            name = "ABORT";
+            desc = "Stop current command descriptor execution forcefully and hold remaining commands.
+                1 - Request PIO Abort,
+                0 - Resume PIO execution";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } ABORT[2:2];
+        field {
+            name = "RS";
+            desc = "Run/Stop execution of enqueued commands.
+                When set to 0, it holds execution of enqueued commands and runs current command to completion.
+                1 - PIO Queue start request,
+                0 - PIO Queue stop request.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } RS[1:1];
+        field {
+            name = "ENABLE";
+            desc = "Enables PIO queues. When disabled, SW may not read from/write to PIO queues.
+                1 - PIO queue enable request,
+                0 - PIO queue disable request";
+            sw = rw;
+            hw = r;
+            reset = 1'b1;
+        } ENABLE[0:0];
+    } PIO_CONTROL @ 0x30;
+
+    PIO_INTR_STATUS.TRANSFER_ERR_STAT->we    = PIO_INTR_STATUS_ENABLE.TRANSFER_ERR_STAT_EN;
+    PIO_INTR_STATUS.TRANSFER_ABORT_STAT->we  = PIO_INTR_STATUS_ENABLE.TRANSFER_ABORT_STAT_EN;
+    PIO_INTR_STATUS.RESP_READY_STAT->we      = PIO_INTR_STATUS_ENABLE.RESP_READY_STAT_EN;
+    PIO_INTR_STATUS.CMD_QUEUE_READY_STAT->we = PIO_INTR_STATUS_ENABLE.CMD_QUEUE_READY_STAT_EN;
+    PIO_INTR_STATUS.IBI_STATUS_THLD_STAT->we = PIO_INTR_STATUS_ENABLE.IBI_STATUS_THLD_STAT_EN;
+    PIO_INTR_STATUS.RX_THLD_STAT->we         = PIO_INTR_STATUS_ENABLE.RX_THLD_STAT_EN;
+    PIO_INTR_STATUS.TX_THLD_STAT->we         = PIO_INTR_STATUS_ENABLE.TX_THLD_STAT_EN;
+
+    PIO_INTR_STATUS.TRANSFER_ERR_STAT->enable    = PIO_INTR_SIGNAL_ENABLE.TRANSFER_ERR_SIGNAL_EN;
+    PIO_INTR_STATUS.TRANSFER_ABORT_STAT->enable  = PIO_INTR_SIGNAL_ENABLE.TRANSFER_ABORT_SIGNAL_EN;
+    PIO_INTR_STATUS.RESP_READY_STAT->enable      = PIO_INTR_SIGNAL_ENABLE.RESP_READY_SIGNAL_EN;
+    PIO_INTR_STATUS.CMD_QUEUE_READY_STAT->enable = PIO_INTR_SIGNAL_ENABLE.CMD_QUEUE_READY_SIGNAL_EN;
+    PIO_INTR_STATUS.IBI_STATUS_THLD_STAT->enable = PIO_INTR_SIGNAL_ENABLE.IBI_STATUS_THLD_SIGNAL_EN;
+    PIO_INTR_STATUS.RX_THLD_STAT->enable         = PIO_INTR_SIGNAL_ENABLE.RX_THLD_SIGNAL_EN;
+    PIO_INTR_STATUS.TX_THLD_STAT->enable         = PIO_INTR_SIGNAL_ENABLE.TX_THLD_SIGNAL_EN;
+};

@@ -1,0 +1,33 @@
+reg DCT_structure {
+    regwidth = 128;
+    field {
+        name = "DYNAMIC_ADDRESS";
+        desc = "Device I3C Dynamic Address after ENTDAA";
+        sw = r;
+        hw = rw;
+    } DYNAMIC_ADDRESS[103:96];
+    field {
+        name = "BCR";
+        desc = "Value of the I3C device's Bus Characteristics Register";
+        sw = r;
+        hw = rw;
+    } BCR[79:72];
+    field {
+        name = "DCR";
+        desc = "Value of the I3C device's Device Characteristics Register";
+        sw = r;
+        hw = rw;
+    } DCR[71:64];
+    field {
+        name = "PID_LO";
+        desc = "Device Provisional ID Low";
+        sw = r;
+        hw = rw;
+    } PID_LO[47:32];
+    field {
+        name = "PID_HI";
+        desc = "Device Provisional ID High";
+        sw = r;
+        hw = rw;
+    } PID_HI[31:0];
+};

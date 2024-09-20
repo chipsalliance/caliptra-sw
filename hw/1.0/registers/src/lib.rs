@@ -862,6 +862,7 @@ pub mod ecc;
 pub mod el2_pic_ctrl;
 pub mod entropy_src;
 pub mod hmac;
+pub mod i3c;
 pub mod kv;
 pub mod mbox;
 pub mod pv;

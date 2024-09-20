@@ -1,0 +1,796 @@
+// I3C controller register map based on MIPI HCI 1.2
+
+regfile BaseRegs #(
+    bit PIO_offset = 16'h0,
+    bit Ring_offset = 16'h0,
+    bit Ext_offset = 16'h0,
+    boolean DMA_support = false,
+    bit Data_endianness = 1'b0,
+    boolean AUTOCMD_separated_reporting_dynamic = false,
+    bit AUTOCMD_separated_reporting_support = 1'b0,
+    boolean DEV_ctx_SG_support = false,
+    boolean DEV_IBI_SG_support = false,
+    boolean DEV_CR_SG_support = false,
+    bit CMD_size = 2'b0,
+    boolean Scheduled_commands_support = false,
+    boolean IBI_credit_count_support = false,
+    boolean IBI_data_abort_support = false,
+    boolean HDR_TS_support = false,
+    boolean HDR_DDR_support = false,
+    boolean Handoff_support = false,
+    boolean IBI_auto_command_support = false,
+    boolean Combo_command_support = false,
+    bit DAT_entry_size = 4'h0,
+    bit DAT_table_size = 7'h0,
+    bit DAT_offset = 12'h0,
+    bit DCT_entry_size = 4'h0,
+    bit DCT_table_size = 7'h0,
+    bit DCT_offset = 12'h0,
+    bit MIPI_commands = 15'h0
+){
+    name = "I3C Capability and Operational Registers";
+    default regwidth = 32;
+    reg {
+        name = "HCI Version";
+        field {
+            sw = r;
+            hw = na;
+            reset = 32'h00000120;
+        } VERSION[31:0];
+    } HCI_VERSION @ 0x0;
+    reg {
+        name = "Control";
+        field {
+            name = "BUS_ENABLE";
+            desc = "Host Controller Bus Enable";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } BUS_ENABLE[31:31];
+        field {
+            name = "RESUME";
+            desc = "Host Controller Resume:
+
+                0 - Controller is running
+
+                1 - Controller is suspended
+
+                Write 1 to resume Controller operations.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            onwrite = woclr;
+            reset = 1'b0;
+        } RESUME[30:30];
+        field {
+            name = "ABORT";
+            desc = "Host Controller Abort when set to 1";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } ABORT[29:29];
+        field {
+            name = "HALT_ON_CMD_SEQ_TIMEOUT";
+            desc = "Halt on Command Sequence Timeout when set to 1";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HALT_ON_CMD_SEQ_TIMEOUT[12:12];
+        field {
+            name = "HOT_JOIN_CTRL";
+            desc = "Hot-Join ACK/NACK Control:
+
+                0 - ACK Hot-Join request
+
+                1 - NACK Hot-Join request and send Broadcast CCC to disable Hot-Join";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HOT_JOIN_CTRL[8:8];
+        field {
+            name = "I2C_DEV_PRESENT";
+            desc = "I2C Device Present on Bus:
+
+                0 - pure I3C bus
+
+                1 - legacy I2C devices on the bus";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } I2C_DEV_PRESENT[7:7];
+        field {
+            name = "MODE_SELECTOR";
+            desc = "DMA/PIO Mode Selector:
+
+                0 - DMA
+
+                1 - PIO";
+            sw = DMA_support ? rw : r;
+            hw = DMA_support ? r : na;
+            reset = 1'b1;
+        } MODE_SELECTOR[6:6];
+        field {
+            name = "DATA_BYTE_ORDER_MODE";
+            desc = "Data Byte Ordering Mode:
+
+                0 - Little Endian
+
+                1 - Big Endian";
+            sw = r;
+            hw = na;
+            reset = Data_endianness;
+        } DATA_BYTE_ORDER_MODE[4:4];
+        field {
+            name = "AUTOCMD_DATA_RPT";
+            desc = "Auto-Command Data Report:
+
+                0 - coalesced reporting
+
+                1 - separated reporting";
+            sw = AUTOCMD_separated_reporting_dynamic ? rw : r;
+            hw = AUTOCMD_separated_reporting_dynamic ? r : na;
+            reset = AUTOCMD_separated_reporting_support;
+        } AUTOCMD_DATA_RPT[3:3];
+        field {
+            name = "IBA_INCLUDE";
+            desc = "Include I3C Broadcast Address:
+
+                0 - skips I3C Broadcast Address for private transfers
+
+                1 - includes I3C Broadcast Address for private transfers";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } IBA_INCLUDE[0:0];
+    } HC_CONTROL @ 0x4;
+    reg {
+        name = "Dynamic address";
+        field {
+            name = "DYNAMIC_ADDR_VALID";
+            desc = "Dynamic Address is Valid:
+
+                0 - dynamic address is invalid
+
+                1 - dynamic address is valid";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } DYNAMIC_ADDR_VALID[31:31];
+        field {
+            name = "DYNAMIC_ADDR";
+            desc = "Device Dynamic Address";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } DYNAMIC_ADDR[22:16];
+    } CONTROLLER_DEVICE_ADDR @ 0x8;
+    reg {
+        name = "Capabilities";
+        field {
+            name = "SG_CAPABILITY_DC_EN";
+            desc = "Device context memory:
+
+                0 - must be physically continuous
+
+                1 - controller supports scatter-gather";
+            sw = r;
+            hw = na;
+            reset = DEV_ctx_SG_support;
+        } SG_CAPABILITY_DC_EN[30:30];
+        field {
+            name = "SG_CAPABILITY_IBI_EN";
+            desc = "DMA only: IBI status and IBI Data rings memory:
+
+                0 - must be physically continuous
+
+                1 - controller supports scatter-gather";
+            sw = r;
+            hw = na;
+            reset = DEV_IBI_SG_support && DMA_support;
+        } SG_CAPABILITY_IBI_EN[29:29];
+        field {
+            name = "SG_CAPABILITY_CR_EN";
+            desc = "DMA only: Command and Response rings memory:
+
+                0 - must be physically continuous
+
+                1 - controller supports scatter-gather";
+            sw = r;
+            hw = na;
+            reset = DEV_CR_SG_support && DMA_support;
+        } SG_CAPABILITY_CR_EN[28:28];
+        field {
+            name = "CMD_SIZE";
+            desc = "Size and structure of the Command Descriptor:
+
+                2'b0: 2 DWORDs,
+
+                all other reserved.";
+            sw = r;
+            hw = na;
+            reset = CMD_size;
+        } CMD_SIZE[21:20];
+        field {
+            name = "SCHEDULED_COMMANDS_EN";
+            desc = "Controller command scheduling:
+
+                0 - not supported
+
+                1 - supported";
+            sw =  r;
+            hw = na;
+            reset = Scheduled_commands_support;
+        } SCHEDULED_COMMANDS_EN[13:13];
+        field {
+            name = "IBI_CREDIT_COUNT_EN";
+            desc = "Controller IBI credit count:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na;
+            reset = IBI_credit_count_support;
+        } IBI_CREDIT_COUNT_EN[12:12];
+        field {
+            name = "IBI_DATA_ABORT_EN";
+            desc = "Controller IBI data abort:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na;
+            reset = IBI_data_abort_support;
+        } IBI_DATA_ABORT_EN[11:11];
+        field {
+            name = "CMD_CCC_DEFBYTE";
+            desc = "CCC with defining byte:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na ;
+            reset = 1'b1;
+        } CMD_CCC_DEFBYTE[10:10];
+        field {
+            name = "HDR_TS_EN";
+            desc = "HDR-Ternary transfers:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na ;
+            reset = HDR_TS_support;
+        } HDR_TS_EN[7:7];
+        field {
+            name = "HDR_DDR_EN";
+            desc = "HDR-DDR transfers:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na ;
+            reset = HDR_DDR_support;
+        } HDR_DDR_EN[6:6];
+        field {
+            name = "STANDBY_CR_CAP";
+            desc = "Switching from active to standby mode:
+
+                0 - not supported, this controller is always active on I3C
+
+                1- supported, this controller can hand off I3C to secondary controller";
+            sw = r;
+            hw = na;
+            reset = Handoff_support;
+        } STANDBY_CR_CAP[5:5];
+        field {
+            name = "AUTO_COMMAND";
+            desc = "Automatic read command on IBI:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na;
+            reset = IBI_auto_command_support;
+        } AUTO_COMMAND[3:3];
+        field {
+            name = "COMBO_COMMAND";
+            desc = "Controller combined command:
+
+                0 - not supported
+
+                1 - supported";
+            sw = r;
+            hw = na;
+            reset = Combo_command_support;
+        } COMBO_COMMAND [2:2];
+    } HC_CAPABILITIES @ 0xC;
+    reg {
+        name = "Reset controls";
+        field {
+            name = "IBI_QUEUE_RST";
+            desc = "Clear IBI queue from software. Valid only in PIO mode.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } IBI_QUEUE_RST[5:5];
+        field {
+            name = "RX_FIFO_RST";
+            desc = "Clear RX FIFO from software. Valid only in PIO mode.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } RX_FIFO_RST[4:4];
+        field {
+            name = "TX_FIFO_RST";
+            desc = "Clear TX FIFO from software. Valid only in PIO mode.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } TX_FIFO_RST[3:3];
+        field {
+            name = "RESP_QUEUE_RST";
+            desc = "Clear response queue from software. Valid only in PIO mode.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } RESP_QUEUE_RST[2:2];
+        field {
+            name = "CMD_QUEUE_RST";
+            desc = "Clear command queue from software. Valid only in PIO mode.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } CMD_QUEUE_RST[1:1];
+        field {
+            name = "SOFT_RST";
+            desc = "Reset controller from software.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } SOFT_RST[0:0];
+    } RESET_CONTROL @ 0x10;
+    reg {
+        name = "Active controller";
+        field {
+            name = "AC_CURRENT_OWN";
+            desc = "Controller I3C state:
+
+                0 - not bus owner
+
+                1 - bus owner";
+            sw = r;
+            hw = w;
+            reset = 1'b1;
+        } AC_CURRENT_OWN[2:2];
+    } PRESENT_STATE @ 0x14;
+    reg {
+        name = "Status";
+        field {
+            name = "SCHED_CMD_MISSED_TICK_STAT";
+            desc = "Scheduled commands could be executed due to controller being busy.";
+            sw = rw;
+            hw = w;
+            reset = 1'b0;
+            onwrite = woclr;
+            intr;
+            we = true;
+        } SCHED_CMD_MISSED_TICK_STAT[14:14];
+        field {
+            name = "HC_ERR_CMD_SEQ_TIMEOUT_STAT";
+            desc = "Command timeout after prolonged stall.";
+            sw = rw;
+            hw = w;
+            reset = 1'b0;
+            onwrite = woclr;
+            intr;
+            we = true;
+        } HC_ERR_CMD_SEQ_TIMEOUT_STAT[13:13];
+        field {
+            name = "HC_WARN_CMD_SEQ_STALL_STAT";
+            desc = "Clock stalled due to lack of commands.";
+            sw = rw;
+            hw = w;
+            reset = 1'b0;
+            onwrite = woclr;
+            intr;
+            we = true;
+        } HC_WARN_CMD_SEQ_STALL_STAT[12:12];
+        field {
+            name = "HC_SEQ_CANCEL_STAT";
+            desc = "Controller had to cancel command sequence.";
+            sw = rw;
+            hw = w;
+            reset = 1'b0;
+            onwrite = woclr;
+            intr;
+            we = true;
+        } HC_SEQ_CANCEL_STAT[11:11];
+        field {
+            name = "HC_INTERNAL_ERR_STAT";
+            desc = "Controller internal unrecoverable error.";
+            sw = rw;
+            hw = w;
+            reset = 1'b0;
+            onwrite = woclr;
+            intr;
+            we = true;
+        } HC_INTERNAL_ERR_STAT[10:10];
+    } INTR_STATUS @ 0x20;
+    reg {
+        name = "Enable status reporting";
+        field {
+            name = "SCHED_CMD_MISSED_TICK_STAT_EN";
+            desc = "Enable SCHED_CMD_MISSED_TICK_STAT monitoring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } SCHED_CMD_MISSED_TICK_STAT_EN[14:14];
+        field {
+            name = "HC_ERR_CMD_SEQ_TIMEOUT_STAT_EN";
+            desc = "Enable HC_ERR_CMD_SEQ_TIMEOUT_STAT monitoring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_ERR_CMD_SEQ_TIMEOUT_STAT_EN[13:13];
+        field {
+            name = "HC_WARN_CMD_SEQ_STALL_STAT_EN";
+            desc = "Enable HC_WARN_CMD_SEQ_STALL_STAT monitoring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_WARN_CMD_SEQ_STALL_STAT_EN[12:12];
+        field {
+            name = "HC_SEQ_CANCEL_STAT_EN";
+            desc = "Enable HC_SEQ_CANCEL_STAT monitoring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_SEQ_CANCEL_STAT_EN[11:11];
+        field {
+            name = "HC_INTERNAL_ERR_STAT_EN";
+            desc = "Enable HC_INTERNAL_ERR_STAT monitoring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_INTERNAL_ERR_STAT_EN[10:10];
+    } INTR_STATUS_ENABLE @ 0x24;
+    reg {
+        name = "Enable status interrupts";
+        field {
+            name = "SCHED_CMD_MISSED_TICK_SIGNAL_EN";
+            desc = "Enable SCHED_CMD_MISSED_TICK_STAT interrupt.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } SCHED_CMD_MISSED_TICK_SIGNAL_EN[14:14];
+        field {
+            name = "HC_ERR_CMD_SEQ_TIMEOUT_SIGNAL_EN";
+            desc = "Enable HC_ERR_CMD_SEQ_TIMEOUT_STAT interrupt.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_ERR_CMD_SEQ_TIMEOUT_SIGNAL_EN[13:13];
+        field {
+            name = "HC_WARN_CMD_SEQ_STALL_SIGNAL_EN";
+            desc = "Enable HC_WARN_CMD_SEQ_STALL_STAT interrupt.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_WARN_CMD_SEQ_STALL_SIGNAL_EN[12:12];
+        field {
+            name = "HC_SEQ_CANCEL_SIGNAL_EN";
+            desc = "Enable HC_SEQ_CANCEL_STAT interrupt.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_SEQ_CANCEL_SIGNAL_EN[11:11];
+        field {
+            name = "HC_INTERNAL_ERR_SIGNAL_EN";
+            desc = "Enable HC_INTERNAL_ERR_STAT interrupt.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } HC_INTERNAL_ERR_SIGNAL_EN[10:10];
+    } INTR_SIGNAL_ENABLE @ 0x28;
+    reg {
+        name = "Force status and interrupt";
+        field {
+            name = "SCHED_CMD_MISSED_TICK_FORCE";
+            desc = "Force SCHED_CMD_MISSED_TICK_STAT interrupt.";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } SCHED_CMD_MISSED_TICK_FORCE[14:14];
+        field {
+            name = "HC_ERR_CMD_SEQ_TIMEOUT_FORCE";
+            desc = "Force HC_ERR_CMD_SEQ_TIMEOUT_STAT interrupt.";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } HC_ERR_CMD_SEQ_TIMEOUT_FORCE[13:13];
+        field {
+            name = "HC_WARN_CMD_SEQ_STALL_FORCE";
+            desc = "Force HC_WARN_CMD_SEQ_STALL_STAT interrupt.";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } HC_WARN_CMD_SEQ_STALL_FORCE[12:12];
+        field {
+            name = "HC_SEQ_CANCEL_FORCE";
+            desc = "Force HC_SEQ_CANCEL_STAT interrupt.";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } HC_SEQ_CANCEL_FORCE[11:11];
+        field {
+            name = "HC_INTERNAL_ERR_FORCE";
+            desc = "Force HC_INTERNAL_ERR_STAT interrupt.";
+            sw = w;
+            hw = r;
+            reset = 1'b0;
+        } HC_INTERNAL_ERR_FORCE[10:10];
+    } INTR_FORCE @ 0x2C;
+    reg {
+        name = "DAT section offset";
+        field {
+            name = "ENTRY_SIZE";
+            desc = "Individual DAT entry size.
+                0 - 2 DWRODs,
+                1:15 - reserved.";
+            sw = r;
+            hw = na;
+            reset = DAT_entry_size;
+        } ENTRY_SIZE[31:28];
+        field {
+            name = "TABLE_SIZE";
+            desc = "Max number of DAT entries.";
+            sw = r;
+            hw = na;
+            reset = DAT_table_size;
+        } TABLE_SIZE[18:12];
+        field {
+            name = "TABLE_OFFSET";
+            desc = "DAT entry offset in respect to BASE address.";
+            sw = r;
+            hw = na;
+            reset = 12'h400;
+        } TABLE_OFFSET[11:0];
+    } DAT_SECTION_OFFSET @ 0x30;
+    reg {
+        name = "DCT section offset";
+        field {
+            name = "ENTRY_SIZE";
+            desc = "Individual DCT entry size.
+
+                0 - 4 DWORDs,
+
+                1:15 - Reserved.";
+            sw = r;
+            hw = na;
+            reset = DCT_entry_size;
+        } ENTRY_SIZE[31:28];
+        field {
+            name = "TABLE_INDEX";
+            desc = "Index to DCT used during ENTDAA.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 5'h0;
+        } TABLE_INDEX[23:19];
+        field {
+            name = "TABLE_SIZE";
+            desc = "Max number of DCT entries.";
+            sw = r;
+            hw = na;
+            reset = DCT_table_size;
+        } TABLE_SIZE[18:12];
+        field {
+            name = "TABLE_OFFSET";
+            desc = "DCT entry offset in respect to BASE address.";
+            sw = r;
+            hw = na;
+            reset = DCT_offset;
+        } TABLE_OFFSET[11:0];
+    } DCT_SECTION_OFFSET @ 0x34;
+    reg {
+        name = "Ring section offset";
+        field {
+            name = "SECTION_OFFSET";
+            desc = "DMA ring headers section offset. Invalid if 0.";
+            sw = r;
+            hw = na;
+            reset = Ring_offset;
+        } SECTION_OFFSET[15:0];
+    } RING_HEADERS_SECTION_OFFSET @ 0x38;
+    reg {
+        name = "PIO section offset";
+        field {
+            name = "SECTION_OFFSET";
+            desc = "PIO section offset. Invalid if 0.";
+            sw = r;
+            hw = na;
+            reset = PIO_offset;
+        } SECTION_OFFSET[15:0];
+    } PIO_SECTION_OFFSET @ 0x3C;
+    reg {
+        name = "Extended capabilities section offset";
+        field {
+            name = "SECTION_OFFSET";
+            desc = "Extended Capabilities section offset. Invalid if 0.";
+            sw = r;
+            hw = na;
+            reset = Ext_offset;
+        } SECTION_OFFSET[15:0];
+    } EXT_CAPS_SECTION_OFFSET @ 0x40;
+    reg {
+        name = "MIPI commands";
+        field {
+            name = "MIPI_CMDS_SUPPORTED";
+            desc = "Bitmask of supported MIPI commands.";
+            sw = r;
+            hw = na;
+            reset = MIPI_commands;
+        } MIPI_CMDS_SUPPORTED[15:1];
+        field {
+            name = "ICC_SUPPORT";
+            desc = "Internal Control Commands:
+
+                1 - some or all internals commands sub-commands are supported,
+
+                0 - illegal.";
+            sw = r;
+            hw = na;
+            reset = 1'b1;
+        } ICC_SUPPORT[0:0];
+    } INT_CTRL_CMDS_EN @ 0x4C;
+    reg {
+        name = "I3C interrupts notification";
+        field {
+            name = "NOTIFY_IBI_REJECTED";
+            desc = "Notify about rejected IBI:
+
+                0 - do not enqueue rejected IBI,
+
+                1 = enqueue rejected IBI on IBI queue/ring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } NOTIFY_IBI_REJECTED[3:3];
+        field {
+            name = "NOTIFY_CRR_REJECTED";
+            desc = "Notify about rejected controller role request:
+
+                0 - do not enqueue rejected CRR,
+
+                1 = enqueue rejected CRR on IBI queue/ring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } NOTIFY_CRR_REJECTED[1:1];
+        field {
+            name = "NOTIFY_HJ_REJECTED";
+            desc = "Notify about rejected hot-join:
+
+                0 - do not enqueue rejected HJ,
+
+                1 = enqueue rejected HJ on IBI queue/ring.";
+            sw = rw;
+            hw = r;
+            reset = 1'b0;
+        } NOTIFY_HJ_REJECTED[0:0];
+    } IBI_NOTIFY_CTRL @ 0x58;
+    reg {
+        name = "IBI data control";
+        field {
+            name = "IBI_DATA_ABORT_MON";
+            desc = "Enable/disable IBI monitoring logic.";
+            sw = rw;
+            hw = rw;
+            we = true;
+            reset = 1'b0;
+        } IBI_DATA_ABORT_MON[31:31];
+        field {
+            name = "MATCH_STATUS_TYPE";
+            desc = "Define which IBI should be aborted:
+
+                3'b000 - Regular IBI,
+
+                3'b100 - Autocmd IBI,
+
+                other values - not supported.";
+            sw = rw;
+            hw = r;
+            reset = 3'h0;
+        } MATCH_STATUS_TYPE[20:18];
+        field {
+            name = "AFTER_N_CHUNKS";
+            desc = "Number of data chunks to be allowed before forced termination:
+
+                0 - immediate,
+
+                1:3 - delay by 1-3 data chunks.";
+            sw = rw;
+            hw = r;
+            reset = 2'b0;
+        } AFTER_N_CHUNKS[17:16];
+        field {
+            name = "MATCH_IBI_ID";
+            desc = "IBI target address:
+
+                [15:9] - device address,
+
+                [8] - must always be set to 1'b1";
+            sw = rw;
+            hw = r;
+            reset = 8'b0;
+        } MATCH_IBI_ID[15:8];
+    } IBI_DATA_ABORT_CTRL @ 0x5C;
+    reg {
+        name = "Device context memory address lower 32 bits";
+        field {
+            sw = rw;
+            hw = r;
+            reset = 32'h0;
+        } BASE_LO;
+    } DEV_CTX_BASE_LO @ 0x60;
+    reg {
+        name = "Device context memory address higher 32 bits";
+        field {
+            sw = rw;
+            hw = r;
+            reset = 32'h0;
+        } BASE_HI;
+    } DEV_CTX_BASE_HI @ 0x64;
+    reg {
+        name = "SG control";
+        // We don't support SG, so it always reads 0
+        field {
+            name = "BLP";
+            desc = "Buffer vs list pointer in device context:
+
+                0 - continuous physical memory region,
+
+                1 - pointer to SG descriptor list.";
+            sw = DEV_ctx_SG_support ? rw : r;
+            hw = DEV_ctx_SG_support ? r : na;
+            reset = 1'b0;
+        } BLP[31:31];
+        // We don't support SG, so it always reads 0
+        field {
+            name = "LIST_SIZE";
+            desc = "Number of SG entries.";
+            sw = DEV_ctx_SG_support ? rw : r;
+            hw = DEV_ctx_SG_support ? r : na;
+            reset = 16'h0;
+        } LIST_SIZE[15:0];
+    } DEV_CTX_SG @ 0x68;
+
+    // Enable interrupt status monitoring
+    INTR_STATUS.SCHED_CMD_MISSED_TICK_STAT->we  = INTR_STATUS_ENABLE.SCHED_CMD_MISSED_TICK_STAT_EN;
+    INTR_STATUS.HC_ERR_CMD_SEQ_TIMEOUT_STAT->we = INTR_STATUS_ENABLE.HC_ERR_CMD_SEQ_TIMEOUT_STAT_EN;
+    INTR_STATUS.HC_WARN_CMD_SEQ_STALL_STAT->we  = INTR_STATUS_ENABLE.HC_WARN_CMD_SEQ_STALL_STAT_EN;
+    INTR_STATUS.HC_SEQ_CANCEL_STAT->we          = INTR_STATUS_ENABLE.HC_SEQ_CANCEL_STAT_EN;
+    INTR_STATUS.HC_INTERNAL_ERR_STAT->we        = INTR_STATUS_ENABLE.HC_INTERNAL_ERR_STAT_EN;
+
+    // Enable interrupts
+    INTR_STATUS.SCHED_CMD_MISSED_TICK_STAT->enable  = INTR_SIGNAL_ENABLE.SCHED_CMD_MISSED_TICK_SIGNAL_EN;
+    INTR_STATUS.HC_ERR_CMD_SEQ_TIMEOUT_STAT->enable = INTR_SIGNAL_ENABLE.HC_ERR_CMD_SEQ_TIMEOUT_SIGNAL_EN;
+    INTR_STATUS.HC_WARN_CMD_SEQ_STALL_STAT->enable  = INTR_SIGNAL_ENABLE.HC_WARN_CMD_SEQ_STALL_SIGNAL_EN;
+    INTR_STATUS.HC_SEQ_CANCEL_STAT->enable          = INTR_SIGNAL_ENABLE.HC_SEQ_CANCEL_SIGNAL_EN;
+    INTR_STATUS.HC_INTERNAL_ERR_STAT->enable        = INTR_SIGNAL_ENABLE.HC_INTERNAL_ERR_SIGNAL_EN;
+};
