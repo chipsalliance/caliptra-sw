@@ -99,7 +99,26 @@ int caliptra_mailbox_execute(uint32_t cmd, const struct caliptra_buffer *mbox_tx
 // For full command details, please refer to the Caliptra Runtime Readme file at runtime\README.md
 
 // Upload Caliptra Firmware
+// Requires entire FW as fw_buffer
+// For loading chunks of data at a time, use start/send/end functions below
 int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async);
+
+// If the SoC cannot buffer the entire FW, the following 3 functions can be used to write chunks at a time
+// Upload Caliptra Firmware Start Request
+// Begin a FW_LOAD command to caliptra. Total FW size is needed at the start per mailbox protocol
+int caliptra_upload_fw_start_req(uint32_t fw_size_in_bytes);
+
+// Upload Caliptra Firmware Send Data
+// Load a chunk of the FW data to Caliptra
+// Intended to be called multiple times
+// MUST follow caliptra_upload_fw_start_req and precede caliptra_upload_fw_end_request
+// Size MUST be dword aligned for any chunks except the final chunk
+int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer);
+
+// Upload Caliptra Firmware End Request
+// End the FW_LOAD request after sending all the FW data
+// Waits for Caliptra completion and response if async is false
+int caliptra_upload_fw_end_req(bool async);
 
 // Get IDEV cert
 int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async);
@@ -176,12 +195,12 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();
 
-int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr); 
+int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr);
 
 void caliptra_req_idev_csr_start();
 
-// Clear IDEV CSR request. 
-void caliptra_req_idev_csr_complete(); 
+// Clear IDEV CSR request.
+void caliptra_req_idev_csr_complete();
 
 #ifdef __cplusplus
 }

@@ -468,7 +468,7 @@ fn smoke_test() {
                     .as_bytes()
                     .to_vec(),
             },],
-            ty: None,
+            ty: Some(b"RT_INFO".to_vec()),
             ..Default::default()
         }),
     );
@@ -618,7 +618,7 @@ fn smoke_test() {
                     .as_bytes()
                     .to_vec(),
             },],
-            ty: None,
+            ty: Some(b"RT_INFO".to_vec()),
             ..Default::default()
         }),
     );
