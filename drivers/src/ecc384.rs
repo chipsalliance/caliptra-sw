@@ -228,6 +228,58 @@ impl Ecc384 {
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
+        self.key_pair_base(seed, nonce, trng, priv_key, None)
+    }
+
+    /// Generate ECC-384 Key Pair for FIPS KAT testing
+    /// ONLY to be used for KAT testing
+    ///
+    /// # Arguments
+    ///
+    /// * `trng` - TRNG driver instance
+    /// * `priv_key` - Generate ECC-384 Private key
+    /// * `pct_sig` - Ecc 384 signature to return signature generated during the pairwise consistency test
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384PubKey` - Generated ECC-384 Public Key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn key_pair_for_fips_kat(
+        &mut self,
+        trng: &mut Trng,
+        priv_key: Ecc384PrivKeyOut,
+        pct_sig: &mut Ecc384Signature,
+    ) -> CaliptraResult<Ecc384PubKey> {
+        let seed = Array4x12::new([0u32; 12]);
+        let nonce = Array4x12::new([0u32; 12]);
+        self.key_pair_base(
+            &Ecc384Seed::from(&seed),
+            &nonce,
+            trng,
+            priv_key,
+            Some(pct_sig),
+        )
+    }
+
+    /// Private base function to generate ECC-384 Key Pair
+    /// pct_sig should only be provided in the KAT use case
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    fn key_pair_base(
+        &mut self,
+        seed: &Ecc384Seed,
+        nonce: &Array4x12,
+        trng: &mut Trng,
+        priv_key: Ecc384PrivKeyOut,
+        pct_sig: Option<&mut Ecc384Signature>,
+    ) -> CaliptraResult<Ecc384PubKey> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(
+                crate::FipsTestHook::ECC384_KEY_PAIR_GENERATE_FAILURE,
+            )?
+        }
+
         let ecc = self.ecc.regs_mut();
         let mut priv_key = priv_key;
 
@@ -299,7 +351,13 @@ impl Ecc384 {
         };
 
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
-            Ok(mut sig) => sig.zeroize(),
+            Ok(mut sig) => {
+                // Return the signature from this test if requested (only used for KAT)
+                if let Some(output_sig) = pct_sig {
+                    *output_sig = sig;
+                }
+                sig.zeroize();
+            }
             Err(_) => {
                 // Remap error to a pairwise consistency check failure
                 return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
@@ -307,6 +365,14 @@ impl Ecc384 {
         }
 
         self.zeroize_internal();
+
+        #[cfg(feature = "fips-test-hooks")]
+        let pub_key = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
+                &pub_key,
+            )
+        };
 
         Ok(pub_key)
     }
@@ -431,12 +497,12 @@ impl Ecc384 {
         caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
 
         #[cfg(feature = "fips-test-hooks")]
-        let sig_result = unsafe {
+        let sig_result = Ok(unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::ECC384_CORRUPT_SIGNATURE,
-                &sig_result,
+                sig,
             )
-        };
+        });
 
         sig_result
     }

@@ -587,11 +587,13 @@ impl CaliptraError {
     pub const KAT_HMAC384_FAILURE: CaliptraError = CaliptraError::new_const(0x90030001);
     pub const KAT_HMAC384_TAG_MISMATCH: CaliptraError = CaliptraError::new_const(0x90030002);
 
-    pub const KAT_ECC384_SIGNATURE_GENERATE_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x90040001);
-    pub const KAT_ECC384_SIGNATURE_VERIFY_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x90040002);
+    // 0x90040001 was KAT_ECC384_SIGNATURE_GENERATE_FAILURE
+    // 0x90040002 was KAT_ECC384_SIGNATURE_VERIFY_FAILURE
     pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
+    pub const KAT_ECC384_KEY_PAIR_GENERATE_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040004);
+    pub const KAT_ECC384_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040005);
 
     pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
