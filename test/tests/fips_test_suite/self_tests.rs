@@ -394,38 +394,68 @@ pub fn kat_sha2_512_384acc_digest_mismatch_rt() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn kat_ecc384_signature_generate_failure_rom() {
-    // Should be KAT_ECC384_SIGNATURE_VERIFY_FAILURE but ROM is using the wrong code
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
-        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE),
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE),
     );
 }
 
 #[test]
 pub fn kat_ecc384_signature_generate_failure_rt() {
-    // Should be KAT_ECC384_SIGNATURE_VERIFY_FAILURE but ROM is using the wrong code
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
-        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE),
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE),
     );
 }
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 pub fn kat_ecc384_signature_verify_failure_rom() {
-    // Should be KAT_ECC384_SIGNATURE_VERIFY_FAILURE but ROM is using the wrong code
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_CORRUPT_SIGNATURE,
-        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE),
+        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_MISMATCH),
     );
 }
 
 #[test]
 pub fn kat_ecc384_signature_verify_failure_rt() {
-    // Should be KAT_ECC384_SIGNATURE_VERIFY_FAILURE but ROM is using the wrong code
     self_test_failure_flow_rt(
         FipsTestHook::ECC384_CORRUPT_SIGNATURE,
-        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE),
+        u32::from(CaliptraError::KAT_ECC384_SIGNATURE_MISMATCH),
+    );
+}
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_ecc384_deterministic_key_gen_generate_failure_rom() {
+    self_test_failure_flow_rom(
+        FipsTestHook::ECC384_KEY_PAIR_GENERATE_FAILURE,
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE),
+    );
+}
+
+#[test]
+pub fn kat_ecc384_deterministic_key_gen_generate_failure_rt() {
+    self_test_failure_flow_rt(
+        FipsTestHook::ECC384_KEY_PAIR_GENERATE_FAILURE,
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE),
+    );
+}
+
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+pub fn kat_ecc384_deterministic_key_gen_verify_failure_rom() {
+    self_test_failure_flow_rom(
+        FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_VERIFY_FAILURE),
+    );
+}
+
+#[test]
+pub fn kat_ecc384_deterministic_key_gen_verify_failure_rt() {
+    self_test_failure_flow_rt(
+        FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
+        u32::from(CaliptraError::KAT_ECC384_KEY_PAIR_VERIFY_FAILURE),
     );
 }
 
