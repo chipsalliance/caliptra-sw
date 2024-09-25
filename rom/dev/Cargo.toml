@@ -67,3 +67,8 @@ fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-image-verify/fi
 [[bin]]
 name = "asm_tests"
 path = "test-fw/asm_tests.rs"
+
+[[bin]]
+name = "soc_tests"
+path = "test-fw/soc_tests.rs"
+required-features = ["riscv"]
