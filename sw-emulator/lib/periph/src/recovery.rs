@@ -261,7 +261,7 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x6c, read_fn = indirect_fifo_data_read)]
     indirect_fifo_data: ReadOnlyRegister<u32>,
     //    indirect_fifo_data: ReadWriteRegisterArray<u32, FIFO_SIZE_DWORD>, // TODO should be larger size but for FW with only read use just one dword
-    cms_data: Rc<Vec<u8>>, // TODO need a way to inject this
+    pub cms_data: Rc<Vec<u8>>, // TODO Multiple images?
 }
 
 impl RecoveryRegisterInterface {

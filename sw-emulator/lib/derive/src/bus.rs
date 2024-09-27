@@ -31,6 +31,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     let poll_fn = get_poll_fn(&struct_attrs);
     let warm_reset_fn = get_warm_reset_fn(&struct_attrs);
     let update_reset_fn = get_update_reset_fn(&struct_attrs);
+    let handle_dma_fn = get_handle_dma_fn(&struct_attrs);
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
@@ -68,6 +69,12 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+    let self_handle_dma_tokens = if let Some(handle_dma_fn) = &handle_dma_fn {
+        let handle_dma_fn = Ident::new(handle_dma_fn, Span::call_site());
+        quote! { Self::#handle_dma_fn(self); }
+    } else {
+        quote! {}
+    };
 
     let field_idents: Vec<_> = peripheral_fields
         .iter()
@@ -97,6 +104,10 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn update_reset(&mut self) {
                 #(self.#field_idents.update_reset();)*
                 #self_update_reset_tokens
+            }
+            fn handle_dma(&mut self) {
+                #(self.#field_idents.handle_dma();)*
+                #self_handle_dma_tokens
             }
 
         }
@@ -140,6 +151,22 @@ fn get_update_reset_fn(struct_attrs: &[Group]) -> Option<String> {
         let mut iter = attr.stream().into_iter();
         if let Some(TokenTree::Ident(ident)) = iter.next() {
             if ident == "update_reset_fn" {
+                if let Some(TokenTree::Group(group)) = iter.next() {
+                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
+                        return Some(ident.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_handle_dma_fn(struct_attrs: &[Group]) -> Option<String> {
+    for attr in struct_attrs {
+        let mut iter = attr.stream().into_iter();
+        if let Some(TokenTree::Ident(ident)) = iter.next() {
+            if ident == "handle_dma_fn" {
                 if let Some(TokenTree::Group(group)) = iter.next() {
                     if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
                         return Some(ident.to_string());
@@ -795,6 +822,17 @@ mod tests {
                         self.i2c2.update_reset();
                         self.spi0.update_reset();
                     }
+                    fn handle_dma(&mut self) {
+                        self.rom.handle_dma();
+                        self.sram.handle_dma();
+                        self.dram.handle_dma();
+                        self.uart0.handle_dma();
+                        self.uart1.handle_dma();
+                        self.i2c0.handle_dma();
+                        self.i2c1.handle_dma();
+                        self.i2c2.handle_dma();
+                        self.spi0.handle_dma();
+                    }
                 }
             }.to_string()
         );
@@ -820,6 +858,8 @@ mod tests {
                     fn warm_reset(&mut self) {
                     }
                     fn update_reset(&mut self) {
+                    }
+                    fn handle_dma(&mut self) {
                     }
                 }
             }.to_string()

@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::{
+    dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::MlDsa87,
@@ -248,6 +249,7 @@ impl Default for CaliptraRootBusArgs {
 }
 
 #[derive(Bus)]
+#[handle_dma_fn(handle_dma)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -296,6 +298,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
     pub sha512_acc: Sha512Accelerator,
+
+    #[peripheral(offset = 0x3002_2000, mask = 0x0000_0fff)]
+    pub dma: Dma,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegistersInternal,
@@ -348,6 +353,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
+            dma: Dma::new(clock),
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
         }
@@ -359,6 +365,11 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
+    }
+
+    fn handle_dma(&mut self) {
+        let mut dma = self.dma.clone();
+        dma.do_dma_handling(self)
     }
 }
 
