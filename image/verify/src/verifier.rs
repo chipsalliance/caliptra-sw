@@ -157,7 +157,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // ECC Vendor Information
         let vendor_ecc_info = (
-            &preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx as usize],
+            &preamble.vendor_pub_key_info.ecc_pub_keys[vendor_ecc_pub_key_idx as usize],
             &preamble.vendor_sigs.ecc_sig,
         );
 
@@ -172,7 +172,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
             if let Some(idx) = vendor_lms_pub_key_idx {
                 vendor_lms_info = Some((
-                    &preamble.vendor_pub_keys.lms_pub_keys[idx as usize],
+                    &preamble.vendor_pub_key_info.lms_pub_keys[idx as usize],
                     &preamble.vendor_sigs.lms_sig,
                 ));
             }
@@ -218,7 +218,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<(u32, VendorPubKeyRevocation)> {
-        const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 2;
+        const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
 
         let key_idx = preamble.vendor_ecc_pub_key_idx;
@@ -263,7 +263,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<(Option<u32>, Option<u32>)> {
-        const SECOND_LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 2;
+        const SECOND_LAST_KEY_IDX: u32 = VENDOR_LMS_MAX_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
 
         let key_idx = preamble.vendor_lms_pub_key_idx;

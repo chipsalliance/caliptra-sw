@@ -20,7 +20,7 @@ use caliptra_image_types::*;
 use std::path::Path;
 
 /// Image Generator Executable
-pub trait ImageGenratorExecutable {
+pub trait ImageGeneratorExecutable {
     /// Executable Version Number
     fn version(&self) -> u32;
 
@@ -92,6 +92,10 @@ pub trait ImageGeneratorCrypto {
 /// Image Generator Vendor Configuration
 #[derive(Default, Clone)]
 pub struct ImageGeneratorVendorConfig {
+    pub ecc_key_count: u32,
+
+    pub lms_key_count: u32,
+
     pub pub_keys: ImageVendorPubKeys,
 
     pub ecc_key_idx: u32,
@@ -125,8 +129,10 @@ pub struct ImageGeneratorOwnerConfig {
 #[derive(Default)]
 pub struct ImageGeneratorConfig<T>
 where
-    T: ImageGenratorExecutable,
+    T: ImageGeneratorExecutable,
 {
+    pub manifest_type: ManifestType,
+
     pub vendor_config: ImageGeneratorVendorConfig,
 
     pub owner_config: Option<ImageGeneratorOwnerConfig>,

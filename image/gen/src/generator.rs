@@ -43,7 +43,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     /// * `ImageBundle` - Caliptra Image Bundle
     pub fn generate<E>(&self, config: &ImageGeneratorConfig<E>) -> anyhow::Result<ImageBundle>
     where
-        E: ImageGenratorExecutable,
+        E: ImageGeneratorExecutable,
     {
         let image_size =
             IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size();
@@ -82,7 +82,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
         let header = self.gen_header(config, ecc_key_idx, lms_key_idx, toc_digest)?;
 
-        // Create Preamable
+        // Create Preamble
         let header_digest_vendor = self.header_digest_vendor(&header)?;
         let header_digest_owner = self.header_digest_owner(&header)?;
         let preamble = self.gen_preamble(
@@ -97,6 +97,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let manifest = ImageManifest {
             marker: MANIFEST_MARKER,
             size: core::mem::size_of::<ImageManifest>() as u32,
+            manifest_type: config.manifest_type.into(),
+            reserved: [0u8; 3],
             preamble,
             header,
             fmc: fmc_toc,
@@ -113,7 +115,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         Ok(image)
     }
 
-    /// Create preable
+    /// Create preamble
     pub fn gen_preamble<E>(
         &self,
         config: &ImageGeneratorConfig<E>,
@@ -123,7 +125,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         digest_owner: &ImageDigest,
     ) -> anyhow::Result<ImagePreamble>
     where
-        E: ImageGenratorExecutable,
+        E: ImageGeneratorExecutable,
     {
         let mut vendor_sigs = ImageSignatures::default();
         let mut owner_sigs = ImageSignatures::default();
@@ -157,10 +159,44 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             }
         }
 
+        let mut vendor_pub_key_info = ImageVendorPubKeyInfo::default();
+
+        vendor_pub_key_info.ecc_key_descriptor = ImageKeyDescriptor {
+            marker: KEY_DESCRIPTOR_MARKER,
+            version: KEY_DESCRIPTOR_VERSION,
+            intent: Intent::Vendor.into(),
+            key_type: KeyType::ECC.into(),
+            key_hash_count: config.vendor_config.ecc_key_count as u8,
+        };
+
+        vendor_pub_key_info.lms_key_descriptor = ImageKeyDescriptor {
+            marker: KEY_DESCRIPTOR_MARKER,
+            version: KEY_DESCRIPTOR_VERSION,
+            intent: Intent::Vendor.into(),
+            key_type: KeyType::LMS.into(),
+            key_hash_count: config.vendor_config.lms_key_count as u8,
+        };
+
+        // Hash the ECC and LMS public keys.
+        for i in 0..config.vendor_config.ecc_key_count {
+            let ecc_pub_key = config.vendor_config.pub_keys.ecc_pub_keys[i as usize];
+            let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
+            vendor_pub_key_info.ecc_pub_key_hashes[i as usize] = ecc_pub_key_digest;
+        }
+        for i in 0..config.vendor_config.lms_key_count {
+            let lms_pub_key = config.vendor_config.pub_keys.lms_pub_keys[i as usize];
+            let lms_pub_key_digest = self.crypto.sha384_digest(lms_pub_key.as_bytes())?;
+            vendor_pub_key_info.lms_pub_key_hashes[i as usize] = lms_pub_key_digest;
+        }
+
         let mut preamble = ImagePreamble {
-            vendor_pub_keys: config.vendor_config.pub_keys,
+            vendor_pub_key_info: vendor_pub_key_info,
             vendor_ecc_pub_key_idx: ecc_vendor_key_idx,
+            vendor_ecc_active_pub_key: config.vendor_config.pub_keys.ecc_pub_keys
+                [ecc_vendor_key_idx as usize],
             vendor_lms_pub_key_idx: lms_vendor_key_idx,
+            vendor_lms_active_pub_key: config.vendor_config.pub_keys.lms_pub_keys
+                [lms_vendor_key_idx as usize],
             vendor_sigs,
             owner_sigs,
             ..Default::default()
@@ -168,6 +204,23 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         if let Some(owner_config) = &config.owner_config {
             preamble.owner_pub_keys = owner_config.pub_keys;
+
+            preamble.owner_pub_key_info = ImageOwnerPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    marker: KEY_DESCRIPTOR_MARKER,
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Owner.into(),
+                    key_type: KeyType::ECC.into(),
+                    key_hash_count: 0,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    marker: KEY_DESCRIPTOR_MARKER,
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Owner.into(),
+                    key_type: KeyType::LMS.into(),
+                    key_hash_count: 0,
+                },
+            };
         }
 
         Ok(preamble)
@@ -182,7 +235,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         digest: ImageDigest,
     ) -> anyhow::Result<ImageHeader>
     where
-        E: ImageGenratorExecutable,
+        E: ImageGeneratorExecutable,
     {
         let mut header = ImageHeader {
             vendor_ecc_pub_key_idx: ecc_key_idx,
@@ -232,7 +285,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     /// Calculate vendor public key(s) digest
     pub fn vendor_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest> {
         self.crypto
-            .sha384_digest(preamble.vendor_pub_keys.as_bytes())
+            .sha384_digest(preamble.vendor_pub_key_info.as_bytes())
     }
 
     /// Generate image
@@ -243,7 +296,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         offset: u32,
     ) -> anyhow::Result<(ImageTocEntry, Vec<u8>)>
     where
-        E: ImageGenratorExecutable,
+        E: ImageGeneratorExecutable,
     {
         let r#type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;

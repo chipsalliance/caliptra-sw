@@ -13,20 +13,24 @@ Abstract:
 --*/
 
 use anyhow::Context;
-use caliptra_image_types::{VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT};
+use caliptra_image_types::{VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT};
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Vendor Key Configuration
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct VendorKeyConfig {
-    pub ecc_pub_keys: [String; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_key_count: u32,
 
-    pub lms_pub_keys: [String; VENDOR_LMS_KEY_COUNT as usize],
+    pub ecc_pub_keys: [String; VENDOR_ECC_MAX_KEY_COUNT as usize],
 
-    pub ecc_priv_keys: Option<[String; VENDOR_ECC_KEY_COUNT as usize]>,
+    pub lms_key_count: u32,
 
-    pub lms_priv_keys: Option<[String; VENDOR_LMS_KEY_COUNT as usize]>,
+    pub lms_pub_keys: [String; VENDOR_LMS_MAX_KEY_COUNT as usize],
+
+    pub ecc_priv_keys: Option<[String; VENDOR_ECC_MAX_KEY_COUNT as usize]>,
+
+    pub lms_priv_keys: Option<[String; VENDOR_LMS_MAX_KEY_COUNT as usize]>,
 }
 
 /// Owner Key Configuration
@@ -41,7 +45,7 @@ pub(crate) struct OwnerKeyConfig {
     pub lms_priv_key: Option<String>,
 }
 
-//Key Configuration
+// Key Configuration
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct KeyConfig {
     pub vendor: VendorKeyConfig,

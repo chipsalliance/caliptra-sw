@@ -26,8 +26,10 @@ use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
-pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
-pub const VENDOR_LMS_KEY_COUNT: u32 = 32;
+pub const KEY_DESCRIPTOR_MARKER: u32 = 0x4B455944; // KEYD
+pub const KEY_DESCRIPTOR_VERSION: u8 = 1;
+pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
+pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -79,6 +81,47 @@ pub struct ImageEccSignature {
 pub type ImageLmsSignature =
     LmsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM, IMAGE_LMS_KEY_HEIGHT>;
 pub type ImageLmOTSSignature = LmotsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM>;
+
+pub enum Intent {
+    Vendor = 1,
+    Owner = 2,
+}
+
+impl Into<u8> for Intent {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
+pub enum KeyType {
+    ECC = 1,
+    LMS = 2,
+    MLDSA = 3,
+}
+
+impl Into<u8> for KeyType {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum ManifestType {
+    EccLms = 1,
+    EccMldsa = 2,
+}
+
+impl Into<u8> for ManifestType {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
+impl Default for ManifestType {
+    fn default() -> Self {
+        Self::EccLms
+    }
+}
 
 /// Caliptra Image Bundle
 #[cfg(feature = "std")]
@@ -141,7 +184,12 @@ pub struct ImageManifest {
     /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Preabmle
+    /// Manifest type (ECC + LMS or ECC + MLDSA)
+    pub manifest_type: u8,
+
+    pub reserved: [u8; 3],
+
+    /// Preamble
     pub preamble: ImagePreamble,
 
     /// Header
@@ -159,6 +207,8 @@ impl Default for ImageManifest {
         Self {
             marker: Default::default(),
             size: size_of::<ImageManifest>() as u32,
+            manifest_type: 0,
+            reserved: [0u8; 3],
             preamble: ImagePreamble::default(),
             header: ImageHeader::default(),
             fmc: ImageTocEntry::default(),
@@ -170,7 +220,7 @@ impl ImageManifest {
     /// Returns the `Range<u32>` containing the vendor public keys
     pub fn vendor_pub_keys_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImagePreamble, vendor_pub_keys);
+        let span = span_of!(ImagePreamble, vendor_pub_key_info);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
@@ -198,17 +248,39 @@ impl ImageManifest {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
-    pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
-    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
+    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageVendorPubKeyInfo {
+    pub ecc_key_descriptor: ImageKeyDescriptor,
+
+    pub ecc_pub_key_hashes: ImageEccKeyHashes,
+
+    pub lms_key_descriptor: ImageKeyDescriptor,
+
+    pub lms_pub_key_hashes: ImageLmsKeyHashes,
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageOwnerPubKeyInfo {
+    pub ecc_key_descriptor: ImageKeyDescriptor,
+
+    pub lms_key_descriptor: ImageKeyDescriptor,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageVendorPrivKeys {
-    pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
-    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
+    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
 }
 
 #[repr(C)]
@@ -237,22 +309,47 @@ pub struct ImageSignatures {
     pub lms_sig: ImageLmsSignature,
 }
 
-/// Calipatra Image Bundle Preamble
+/// Caliptra Image Key Descriptor
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageKeyDescriptor {
+    pub marker: u32,
+    pub version: u8,
+    pub intent: u8,
+    pub key_type: u8,
+    pub key_hash_count: u8,
+}
+
+pub type ImageEccKeyHashes = [ImageDigest; VENDOR_ECC_MAX_KEY_COUNT as usize];
+pub type ImageLmsKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
+
+/// Caliptra Image Bundle Preamble
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
-    /// Vendor  Public Keys
-    pub vendor_pub_keys: ImageVendorPubKeys,
+    /// Vendor Public Key Descriptor + Key Hashes
+    pub vendor_pub_key_info: ImageVendorPubKeyInfo,
 
     /// Vendor ECC Public Key Index
     pub vendor_ecc_pub_key_idx: u32,
 
+    /// Vendor Active Public Key
+    pub vendor_ecc_active_pub_key: ImageEccPubKey,
+
     /// Vendor LMS Public Key Index
     pub vendor_lms_pub_key_idx: u32,
 
+    /// Vendor Active LMS Public Key
+    #[zeroize(skip)]
+    pub vendor_lms_active_pub_key: ImageLmsPublicKey,
+
     /// Vendor Signatures
     pub vendor_sigs: ImageSignatures,
+
+    /// Owner Public Key Descriptor (no Key Hashes)
+    pub owner_pub_key_info: ImageOwnerPubKeyInfo,
 
     /// Owner Public Key
     pub owner_pub_keys: ImageOwnerPubKeys,

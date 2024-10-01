@@ -74,6 +74,10 @@ fn check_date(from_date: &str, to_date: &str) -> anyhow::Result<bool> {
 
 /// Run the command
 pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
+    let image_type: &u32 = args
+        .get_one::<u32>("image-type")
+        .with_context(|| "image-type arg not specified")?;
+
     let config_path: &PathBuf = args
         .get_one::<PathBuf>("key-config")
         .with_context(|| "key-config arg not specified")?;
@@ -182,6 +186,11 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         owner_config: owner_config(config_dir, &config.owner, own_from_date, own_to_date)?,
         fmc,
         runtime,
+        manifest_type: if *image_type == 1 {
+            ManifestType::EccLms
+        } else {
+            ManifestType::EccMldsa
+        },
     };
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -210,24 +219,31 @@ fn vendor_config(
     to_date: [u8; 15],
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
     let mut gen_config = ImageGeneratorVendorConfig::default();
-    let ecc_pub_keys = &config.ecc_pub_keys;
 
-    for (i, pem_file) in ecc_pub_keys
-        .iter()
-        .enumerate()
-        .take(VENDOR_ECC_KEY_COUNT as usize)
-    {
+    let ecc_key_count = config.ecc_key_count;
+    let lms_key_count = config.lms_key_count;
+
+    if ecc_key_count > VENDOR_ECC_MAX_KEY_COUNT {
+        return Err(anyhow!("Invalid ECC Public Key Count"));
+    }
+    if lms_key_count > VENDOR_LMS_MAX_KEY_COUNT {
+        return Err(anyhow!("Invalid LMS Public Key Count"));
+    }
+
+    if ecc_key_idx >= ecc_key_count as u32 {
+        return Err(anyhow!("Invalid ECC Public Key Index"));
+    }
+    if lms_key_idx >= lms_key_count as u32 {
+        return Err(anyhow!("Invalid LMS Public Key Index"));
+    }
+
+    let ecc_pub_keys = &config.ecc_pub_keys;
+    for (i, pem_file) in ecc_pub_keys.iter().enumerate().take(ecc_key_count as usize) {
         let pub_key_path = path.join(pem_file);
         gen_config.pub_keys.ecc_pub_keys[i] = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
     }
-
     let lms_pub_keys = &config.lms_pub_keys;
-
-    for (i, pem_file) in lms_pub_keys
-        .iter()
-        .enumerate()
-        .take(VENDOR_LMS_KEY_COUNT as usize)
-    {
+    for (i, pem_file) in lms_pub_keys.iter().enumerate().take(lms_key_count as usize) {
         let pub_key_path = path.join(pem_file);
         gen_config.pub_keys.lms_pub_keys[i] = lms_pub_key_from_pem(&pub_key_path)?;
     }
@@ -237,7 +253,7 @@ fn vendor_config(
         for (i, pem_file) in ecc_priv_keys
             .iter()
             .enumerate()
-            .take(VENDOR_ECC_KEY_COUNT as usize)
+            .take(ecc_key_count as usize)
         {
             let priv_key_path = path.join(pem_file);
             priv_keys.ecc_priv_keys[i] = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
@@ -249,7 +265,7 @@ fn vendor_config(
         for (i, pem_file) in lms_priv_keys
             .iter()
             .enumerate()
-            .take(VENDOR_LMS_KEY_COUNT as usize)
+            .take(lms_key_count as usize)
         {
             let priv_key_path = path.join(pem_file);
             priv_keys.lms_priv_keys[i] = lms_priv_key_from_pem(&priv_key_path)?;
@@ -261,6 +277,8 @@ fn vendor_config(
     gen_config.lms_key_idx = lms_key_idx;
     gen_config.not_before = from_date;
     gen_config.not_after = to_date;
+    gen_config.ecc_key_count = ecc_key_count;
+    gen_config.lms_key_count = lms_key_count;
 
     Ok(gen_config)
 }
