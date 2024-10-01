@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{get_fmc_alias_cert, run_rt_test};
+use caliptra_api::SocManager;
+
 use caliptra_common::mailbox_api::{
     CommandId, ExtendPcrReq, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader,
     QuotePcrsReq, QuotePcrsResp,

@@ -3,6 +3,7 @@
 use caliptra_api_types::{self, Fuses, SecurityState};
 use std::array;
 
+pub use caliptra_api_types::DeviceLifecycle;
 use rand::{
     rngs::{StdRng, ThreadRng},
     RngCore, SeedableRng,

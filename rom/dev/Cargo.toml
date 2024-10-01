@@ -28,6 +28,7 @@ hex.workspace = true
 x509-parser.workspace = true
 
 [dev-dependencies]
+caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-emu-cpu.workspace = true
 

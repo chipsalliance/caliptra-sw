@@ -152,7 +152,7 @@ impl TryFrom<u32> for U4 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
@@ -188,14 +188,6 @@ impl Default for Fuses {
             soc_stepping_id: Default::default(),
         }
     }
-}
-
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub enum ErrorInjectionMode {
-    #[default]
-    None,
-    IccmDoubleBitEcc,
-    DccmDoubleBitEcc,
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SecurityState};
 use std::ffi::*;

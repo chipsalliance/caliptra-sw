@@ -1,5 +1,5 @@
 // Licensed under the Apache-2.0 license
-
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
