@@ -3,26 +3,31 @@
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
+    CommandId, GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, InvokeDpeReq, InvokeDpeResp,
+    MailboxReq, MailboxReqHeader, ResponseVarSize, StashMeasurementReq,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
-use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
+use caliptra_test::derive::{DpeAliasKey, PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use dpe::commands::{CertifyKeyCmd, Command};
+use dpe::commands::{CertifyKeyFlags, CommandHdr};
+use dpe::context::ContextHandle;
+use dpe::response::CertifyKeyResp;
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -429,13 +434,13 @@ fn smoke_test() {
         "Manifest digest is {:02x?}",
         image.manifest.runtime.digest.as_bytes()
     );
-    let expected_rt_alias_key = RtAliasKey::derive(
-        &PcrRtCurrentInput {
-            runtime_digest: image.manifest.runtime.digest,
-            manifest: image.manifest,
-        },
-        &expected_fmc_alias_key,
-    );
+
+    let pcr_rt_input = PcrRtCurrentInput {
+        runtime_digest: image.manifest.runtime.digest,
+        manifest: image.manifest,
+    };
+
+    let expected_rt_alias_key = RtAliasKey::derive(&pcr_rt_input, &expected_fmc_alias_key);
 
     // Check that the rt-alias key has the rt measurements input above mixed into it
     // If a firmware change causes this assertion to fail, it is likely that the
@@ -549,6 +554,59 @@ fn smoke_test() {
         .cptra_hw_error_non_fatal()
         .read()
         .mbox_ecc_unc());
+
+    let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
+    let tci_type = [0xABu8; 4];
+    let stash_req = StashMeasurementReq {
+        measurement,
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: tci_type,
+        context: [0xCD; 48],
+        svn: 0xEF01,
+    };
+    hw.mailbox_execute_req(stash_req).unwrap();
+
+    let mut cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: [
+            48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27,
+            26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
+            3, 2, 1,
+        ],
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+
+    let cert_key_response = execute_certify_key_cmd(&mut hw, &mut cmd);
+    let dpe_cert = openssl::x509::X509::from_der(
+        &cert_key_response.cert[..cert_key_response.cert_size as usize],
+    )
+    .unwrap();
+    let dpe_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
+
+    // Get the MBOX PAUSER settings
+    let mbox_valid_pauser: [u32; DpeAliasKey::PAUSER_COUNT] =
+        hw.soc_ifc().cptra_mbox_valid_pauser().read();
+    let mut mbox_pauser_lock: [bool; DpeAliasKey::PAUSER_COUNT] = Default::default();
+    for (i, lock) in mbox_pauser_lock.iter_mut().enumerate() {
+        *lock = hw.soc_ifc().cptra_mbox_pauser_lock().at(i).read().lock();
+    }
+
+    let expected_dpe_alias_key = DpeAliasKey::derive(
+        &pcr_rt_input,
+        &expected_rt_alias_key,
+        &measurement,
+        &tci_type,
+        &cmd.label,
+        &mbox_valid_pauser,
+        &mbox_pauser_lock,
+    );
+
+    assert!(expected_dpe_alias_key
+        .derive_public_key()
+        .public_eq(&dpe_cert.public_key().unwrap()));
+
+    println!("dpe cert: {dpe_cert_txt}");
 
     // Hitlessly update to the no-uart runtime firmware
 
@@ -856,4 +914,41 @@ fn test_fmc_wdt_timeout() {
     assert_ne!(ra, 0);
     // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
     assert_eq!(error_internal_intr_r, 0b01000000);
+}
+
+fn execute_certify_key_cmd(model: &mut DefaultHwModel, cmd: &mut CertifyKeyCmd) -> CertifyKeyResp {
+    // Put the header and data into a unified buffer
+    let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let dpe_cmd_id = Command::CERTIFY_KEY;
+    let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let cmd_buf = cmd.as_bytes();
+    cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + cmd_buf.len()].copy_from_slice(cmd_buf);
+
+    let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data: cmd_data,
+        data_size: (cmd_hdr_buf.len() + cmd_buf.len()) as u32,
+    });
+    mbox_cmd.populate_chksum().unwrap();
+
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::INVOKE_DPE),
+        mbox_cmd.as_bytes().unwrap(),
+    );
+    let resp = resp.unwrap().expect("We should have received a response");
+
+    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
+    ));
+
+    let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
+    CertifyKeyResp::read_from(resp_bytes).unwrap()
 }

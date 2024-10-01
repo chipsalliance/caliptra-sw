@@ -6,9 +6,11 @@
 /// DO NOT REFACTOR THIS FILE TO RE-USE CODE FROM OTHER PARTS OF CALIPTRA
 use caliptra_hw_model_types::SecurityState;
 use caliptra_image_types::ImageManifest;
+use caliptra_runtime::TciMeasurement;
+use dpe::tci::TciNodeData;
 use openssl::{
     pkey::{PKey, Public},
-    sha::{sha256, sha384},
+    sha::{sha256, sha384, Sha384},
 };
 use zerocopy::{transmute, AsBytes};
 
@@ -495,6 +497,140 @@ impl RtAliasKey {
                 .try_into()
                 .unwrap(),
         )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DpeAliasKey {
+    pub cdi: [u32; 12],
+
+    // The DPE alias private key as stored in the key-vault
+    pub priv_key: [u32; 12],
+}
+impl DpeAliasKey {
+    pub const PAUSER_COUNT: usize = 5;
+
+    pub fn derive(
+        pcr_rt_current: &PcrRtCurrentInput,
+        rt_key: &RtAliasKey,
+        measurement: &[u8; 48],
+        tci_type: &[u8; 4],
+        label: &[u8],
+        mbox_valid_pauser: &[u32; Self::PAUSER_COUNT],
+        mbox_pauser_lock: &[bool; Self::PAUSER_COUNT],
+    ) -> Self {
+        // Get all of the TCIs
+        let tcis = [
+            Self::get_rt_journey_tci(pcr_rt_current),
+            Self::get_valid_pauser_tci(mbox_valid_pauser, mbox_pauser_lock),
+            Self::get_measurement_tci(measurement, tci_type),
+        ];
+
+        // Derive the CDI's measurement. Note they are added to the hash in the reverse order
+        // because DPE starts from the leaf and goes to the root.
+        let mut hash = Sha384::new();
+        for tci in tcis.iter().rev() {
+            hash.update(tci.as_bytes());
+            // Both allow_ca and allow_x509 are currently true for all contexts. This may change to
+            // be more dynamic in the future.
+            let allow_ca = true;
+            let allow_x509 = true;
+            hash.update(allow_ca.as_bytes());
+            hash.update(allow_x509.as_bytes());
+        }
+        let measurement = hash.finish();
+
+        // Derive the CDI's context
+        let mut hash = Sha384::new();
+        hash.update(&measurement);
+        hash.update(b"DPE");
+        let context = hash.finish();
+
+        // Derive the CDI
+        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
+            swap_word_bytes(&rt_key.cdi).as_bytes(),
+            b"derive_cdi",
+            Some(&context),
+        ));
+        swap_word_bytes_inplace(&mut cdi);
+
+        // Derive the seed
+        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
+            swap_word_bytes(&cdi).as_bytes(),
+            label,
+            Some(b"ECC")
+        ));
+        swap_word_bytes_inplace(&mut priv_key_seed);
+
+        // Derive the private key
+        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            swap_word_bytes(&priv_key_seed).as_bytes(),
+            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
+        ));
+        swap_word_bytes_inplace(&mut priv_key);
+        Self { priv_key, cdi }
+    }
+
+    pub fn derive_public_key(&self) -> PKey<Public> {
+        derive_ecdsa_key(
+            swap_word_bytes(&self.priv_key)
+                .as_bytes()
+                .try_into()
+                .unwrap(),
+        )
+    }
+
+    fn get_rt_journey_tci(pcr_rt_current: &PcrRtCurrentInput) -> TciNodeData {
+        let current = swap_word_bytes(&PcrRtCurrent::derive(pcr_rt_current).0);
+        let cumulative = Self::extend_from_zeroes(current.as_bytes());
+        TciNodeData {
+            tci_type: u32::from_be_bytes(*b"RTJM"),
+            tci_cumulative: TciMeasurement(cumulative),
+            tci_current: TciMeasurement(current.as_bytes().try_into().unwrap()),
+            locality: u32::MAX,
+        }
+    }
+
+    fn get_valid_pauser_tci(
+        mbox_valid_pauser: &[u32; Self::PAUSER_COUNT],
+        mbox_pauser_lock: &[bool; Self::PAUSER_COUNT],
+    ) -> TciNodeData {
+        // Hash all of the locked PAUSERs
+        let mut hash = Sha384::new();
+        for (lock, valid_pauser) in mbox_pauser_lock.iter().zip(mbox_valid_pauser) {
+            if *lock {
+                hash.update(valid_pauser.as_bytes());
+            }
+        }
+        let valid_pauser_hash_bytes = hash.finish();
+
+        // Swap the endianness
+        let mut valid_pauser_hash_words = [0u32; 12];
+        valid_pauser_hash_words
+            .as_bytes_mut()
+            .copy_from_slice(&valid_pauser_hash_bytes);
+        swap_word_bytes_inplace(&mut valid_pauser_hash_words);
+
+        let cumulative = Self::extend_from_zeroes(valid_pauser_hash_words.as_bytes());
+        TciNodeData {
+            tci_type: u32::from_be_bytes(*b"MBVP"),
+            tci_cumulative: TciMeasurement(cumulative),
+            tci_current: TciMeasurement(valid_pauser_hash_words.as_bytes().try_into().unwrap()),
+            locality: 1,
+        }
+    }
+
+    fn get_measurement_tci(measurement: &[u8; 48], tci_type: &[u8; 4]) -> TciNodeData {
+        TciNodeData {
+            tci_type: u32::from_be_bytes(*tci_type),
+            tci_cumulative: TciMeasurement(Self::extend_from_zeroes(measurement)),
+            tci_current: TciMeasurement(*measurement),
+            locality: 1,
+        }
+    }
+
+    fn extend_from_zeroes(data: &[u8]) -> [u8; 48] {
+        sha384(&[&[0u8; 48], data].concat())
     }
 }
 
