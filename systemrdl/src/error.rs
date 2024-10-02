@@ -31,6 +31,7 @@ pub enum RdlError<'a> {
     DefaultPropertiesMustBeDefinedBeforeComponents,
     StrideIsLessThanElementSize,
     MultidimensionalFieldsNotSupported,
+    BadTernaryExpression(String),
 }
 
 impl Error for RdlError<'_> {}
@@ -38,6 +39,10 @@ impl Error for RdlError<'_> {}
 impl Display for RdlError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::BadTernaryExpression(v) => write!(
+                f,
+                "Ternary expression takes boolean value for first argument but bot {v:?}"
+            ),
             Self::UnexpectedToken(t) => write!(f, "Unexpected token {t:?}"),
             Self::UnknownIdentifier(s) => write!(f, "Unexpected identifier {s:?}"),
             Self::DuplicateInstanceName(s) => write!(f, "Dupicate instance name {s:?}"),
