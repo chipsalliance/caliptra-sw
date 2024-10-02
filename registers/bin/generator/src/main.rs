@@ -169,7 +169,6 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let addrmap = scope.lookup_typedef("clp").unwrap();
     let addrmap2 = scope.lookup_typedef("clp2").unwrap();
-    let addrmap3 = scope.lookup_typedef("clp3").unwrap();
 
     // These are types like kv_read_ctrl_reg that are used by multiple crates
     let root_block = RegisterBlock {
@@ -183,9 +182,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let mut blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
     let mut blocks2 = ureg_systemrdl::translate_addrmap(addrmap2)?;
-    let mut blocks3 = ureg_systemrdl::translate_addrmap(addrmap3)?;
     blocks.append(&mut blocks2);
-    blocks.append(&mut blocks3);
 
     let mut validated_blocks = vec![];
     for mut block in blocks {
