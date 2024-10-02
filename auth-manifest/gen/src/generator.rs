@@ -35,22 +35,6 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
     ) -> anyhow::Result<AuthorizationManifest> {
         let mut auth_manifest = AuthorizationManifest::default();
 
-        if config.image_metadata_list.len() > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT {
-            eprintln!(
-                "Unsupported image metadata count, only {} entries supported.",
-                AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT
-            );
-            return Err(anyhow::anyhow!("Error converting image metadata list"));
-        }
-
-        // Generate the Image Metadata List.
-        let slice = config.image_metadata_list.as_slice();
-        auth_manifest.image_metadata_col.image_metadata_list[..slice.len()].copy_from_slice(slice);
-
-        auth_manifest.image_metadata_col.header.entry_count =
-            config.image_metadata_list.len() as u32;
-        auth_manifest.image_metadata_col.header.revision = 0; // [TODO] Need to update this.
-
         // Generate the preamble.
         auth_manifest.preamble.marker = AUTH_MANIFEST_MARKER;
         auth_manifest.preamble.size = size_of::<AuthManifestPreamble>() as u32;
@@ -110,59 +94,59 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             }
         }
 
-        // Hash the IMC.
-        let digest = self
-            .crypto
-            .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
+        // // Hash the IMC.
+        // let digest = self
+        //     .crypto
+        //     .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
 
-        // Sign the IMC with the vendor manifest public keys if indicated in the flags.
-        if config
-            .flags
-            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED)
-        {
-            if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &vendor_man_priv_keys.ecc_priv_key,
-                    &config.vendor_man_key_info.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .ecc_sig = sig;
+        // // Sign the IMC with the vendor manifest private key(s) if indicated in the flags.
+        // if config
+        //     .flags
+        //     .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED)
+        // {
+        //     if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
+        //         let sig = self.crypto.ecdsa384_sign(
+        //             &digest,
+        //             &vendor_man_priv_keys.ecc_priv_key,
+        //             &config.vendor_man_key_info.pub_keys.ecc_pub_key,
+        //         )?;
+        //         auth_manifest
+        //             .preamble
+        //             .vendor_image_metdata_signatures
+        //             .ecc_sig = sig;
 
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .lms_sig = lms_sig;
-            }
-        }
+        //         let lms_sig = self
+        //             .crypto
+        //             .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
+        //         auth_manifest
+        //             .preamble
+        //             .vendor_image_metdata_signatures
+        //             .lms_sig = lms_sig;
+        //     }
+        // }
 
-        // Sign the IMC with the owner manifest public keys.
-        if let Some(owner_man_config) = &config.owner_man_key_info {
-            if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &owner_man_priv_keys.ecc_priv_key,
-                    &owner_man_config.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest
-                    .preamble
-                    .owner_image_metdata_signatures
-                    .ecc_sig = sig;
+        // // Sign the IMC with the owner manifest private key(s).
+        // if let Some(owner_man_config) = &config.owner_man_key_info {
+        //     if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
+        //         let sig = self.crypto.ecdsa384_sign(
+        //             &digest,
+        //             &owner_man_priv_keys.ecc_priv_key,
+        //             &owner_man_config.pub_keys.ecc_pub_key,
+        //         )?;
+        //         auth_manifest
+        //             .preamble
+        //             .owner_image_metdata_signatures
+        //             .ecc_sig = sig;
 
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
-                auth_manifest
-                    .preamble
-                    .owner_image_metdata_signatures
-                    .lms_sig = lms_sig;
-            }
-        }
+        //         let lms_sig = self
+        //             .crypto
+        //             .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
+        //         auth_manifest
+        //             .preamble
+        //             .owner_image_metdata_signatures
+        //             .lms_sig = lms_sig;
+        //     }
+        // }
 
         Ok(auth_manifest)
     }

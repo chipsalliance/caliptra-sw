@@ -37,10 +37,20 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
     pub lms_priv_key: Option<String>,
 }
 
+// /// Image Metadata Collection Key configuration from config file.
+// #[derive(Default, Serialize, Deserialize)]
+// pub(crate) struct ImcKeyConfigFromFile {
+//     pub ecc_priv_key: Option<String>,
+
+//     pub lms_priv_key: Option<String>,
+// }
+
 #[derive(Serialize, Deserialize)]
 pub struct ImageMetadata {
     digest: String,
     source: u32,
+    fw_id: u32,
+    ignore_auth_check: bool,
 }
 
 // Authorization Manifest configuration from TOML file
@@ -51,6 +61,14 @@ pub(crate) struct AuthManifestConfigFromFile {
     pub vendor_man_key_config: AuthManifestKeyConfigFromFile,
 
     pub owner_fw_key_config: Option<AuthManifestKeyConfigFromFile>,
+
+    pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
+}
+
+// Image Metadata Collection configuration from TOML file
+#[derive(Default, Serialize, Deserialize)]
+pub(crate) struct ImcConfigFromFile {
+    pub vendor_man_key_config: AuthManifestKeyConfigFromFile,
 
     pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
 
@@ -65,6 +83,16 @@ pub(crate) fn load_auth_man_config_from_file(
         .with_context(|| format!("Failed to read the config file {}", path.display()))?;
 
     let config: AuthManifestConfigFromFile = toml::from_str(&config_str)
+        .with_context(|| format!("Failed to parse the config file {}", path.display()))?;
+
+    Ok(config)
+}
+
+pub(crate) fn load_imc_config_from_file(path: &PathBuf) -> anyhow::Result<ImcConfigFromFile> {
+    let config_str = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read the config file {}", path.display()))?;
+
+    let config: ImcConfigFromFile = toml::from_str(&config_str)
         .with_context(|| format!("Failed to parse the config file {}", path.display()))?;
 
     Ok(config)
@@ -115,6 +143,27 @@ pub(crate) fn owner_config_from_file(
     }
 }
 
+// fn imc_key_config_from_file(
+//     path: &Path,
+//     config: &ImcKeyConfigFromFile,
+// ) -> anyhow::Result<ImcGeneratorKeyConfig> {
+//     // Get the Private Keys.
+//     let mut priv_keys = AuthManifestPrivKeys::default();
+//     if let Some(pem_file) = &config.ecc_priv_key {
+//         let priv_key_path = path.join(pem_file);
+//         priv_keys.ecc_priv_key = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
+//     }
+
+//     if let Some(pem_file) = &config.lms_priv_key {
+//         let priv_key_path = path.join(pem_file);
+//         priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
+//     }
+
+//     Ok(ImcGeneratorKeyConfig {
+//         priv_keys: Some(priv_keys),
+//     })
+// }
+
 pub(crate) fn image_metadata_config_from_file(
     config: &Vec<ImageMetadata>,
 ) -> anyhow::Result<Vec<AuthManifestImageMetadata>> {
@@ -134,3 +183,22 @@ pub(crate) fn image_metadata_config_from_file(
 
     Ok(image_metadata_list)
 }
+
+// pub(crate) fn imc_vendor_config_from_file(
+//     path: &Path,
+//     config: &ImcKeyConfigFromFile,
+// ) -> anyhow::Result<ImcGeneratorKeyConfig> {
+//     imc_key_config_from_file(path, config)
+// }
+
+// pub(crate) fn imc_owner_config_from_file(
+//     path: &Path,
+//     config: &Option<ImcKeyConfigFromFile>,
+// ) -> anyhow::Result<Option<ImcGeneratorKeyConfig>> {
+//     if let Some(config) = config {
+//         let gen_config = imc_key_config_from_file(path, config)?;
+//         Ok(Some(gen_config))
+//     } else {
+//         Ok(None)
+//     }
+// }

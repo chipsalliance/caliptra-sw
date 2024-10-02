@@ -29,6 +29,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         hdr: MailboxReqHeader { chksum: 0 },
         measurement: image_digest1,
         source: ImageHashSource::InRequest as u32,
+        flags: 0,
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();

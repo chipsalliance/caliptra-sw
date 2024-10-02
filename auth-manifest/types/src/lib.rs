@@ -85,10 +85,6 @@ pub struct AuthManifestPreamble {
     pub owner_pub_keys: AuthManifestPubKeys,
 
     pub owner_pub_keys_signatures: AuthManifestSignatures,
-
-    pub vendor_image_metdata_signatures: AuthManifestSignatures,
-
-    pub owner_image_metdata_signatures: AuthManifestSignatures,
 }
 
 impl AuthManifestPreamble {
@@ -115,18 +111,6 @@ impl AuthManifestPreamble {
         let span = span_of!(AuthManifestPreamble, owner_pub_keys_signatures);
         span.start as u32..span.end as u32
     }
-
-    /// Returns `Range<u32>` containing the vendor_image_metdata_signatures
-    pub fn vendor_image_metdata_signatures_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, vendor_image_metdata_signatures);
-        span.start as u32..span.end as u32
-    }
-
-    /// Returns `Range<u32>` containing the owner_image_metdata_signatures
-    pub fn owner_image_metdata_signatures_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, owner_image_metdata_signatures);
-        span.start as u32..span.end as u32
-    }
 }
 
 /// Caliptra Authorization Manifest Image Metadata
@@ -143,7 +127,7 @@ pub struct AuthManifestImageMetadata {
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct AuthManifestImageMetadataCollectionHeader {
+pub struct AuthManifestImageMetadataSetHeader {
     pub revision: u32,
 
     pub reserved: [u8; 12],
@@ -164,10 +148,37 @@ impl Default for AuthManifestImageMetadata {
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct AuthManifestImageMetadataCollection {
-    pub header: AuthManifestImageMetadataCollectionHeader,
+pub struct AuthManifestImageMetadataSet {
+    pub header: AuthManifestImageMetadataSetHeader,
 
     pub image_metadata_list: [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+}
+
+/// Caliptra Authorization Manifest Image Metadata With Public Keys
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct AuthManifestImageMetadataSetWithPublicKeys {
+    pub auth_manifest_flags: u32,
+
+    pub vendor_pub_keys: AuthManifestPubKeys,
+
+    // [TODO] - Should these be optional?
+    pub owner_pub_keys: AuthManifestPubKeys,
+
+    pub image_metadata: AuthManifestImageMetadataSet,
+}
+
+/// Caliptra Authorization Manifest Image Metadata Set with Signatures
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct AuthManifestImageMetadataWithSignatures {
+    pub vendor_signatures: AuthManifestSignatures,
+
+    pub owner_signatures: AuthManifestSignatures,
+
+    pub image_metadata: AuthManifestImageMetadataSet,
 }
 
 /// Caliptra Image Authorization Manifest
@@ -176,6 +187,4 @@ pub struct AuthManifestImageMetadataCollection {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthorizationManifest {
     pub preamble: AuthManifestPreamble,
-
-    pub image_metadata_col: AuthManifestImageMetadataCollection,
 }

@@ -17,6 +17,7 @@ mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
 mod test_set_auth_manifest;
+mod test_set_image_metadata;
 mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;

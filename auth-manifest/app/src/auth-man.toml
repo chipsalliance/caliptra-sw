@@ -24,14 +24,3 @@ ecc_priv_key = "own-priv-key.pem"
 lms_pub_key = "own-lms-pub-key.pem"
 lms_priv_key = "own-lms-priv-key.pem"
 
-[[image_metadata_list]]
-digest = "C120EED0004B4CF6C344B00F5F501E7B7167C7010B6EA1D36AEE20CC90F1AE373DF1EC91C9AD9E0A5A969326A54E2517"
-source = 1
-
-[[image_metadata_list]]
-digest = "99514329186b2f6ae4a1329e7ee6c610a729636335174ac6b740f9028396fcc803d0e93863a7c3d90f86beee782f4f3f"
-source = 2
-
-[[image_metadata_list]]
-digest = "9B514329186b2f6ae4a1329e7ee6c610a729636335174ac6b740f9028396fcc803d0e93863a7c3d90f86beee782f4f3f"
-source = 2

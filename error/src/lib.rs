@@ -434,12 +434,18 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E004A);
     pub const RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN: CaliptraError =
         CaliptraError::new_const(0x000E004B);
-    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE: CaliptraError =
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_SET_INVALID_SIZE: CaliptraError =
         CaliptraError::new_const(0x000E004C);
     pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT: CaliptraError =
         CaliptraError::new_const(0x000E004D);
     pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
         CaliptraError::new_const(0x000E004E);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_WITH_SIG_SIZE_LT_MIN: CaliptraError =
+        CaliptraError::new_const(0x000E004F);
+    pub const RUNTIME_AUTH_MANIFEST_VENDOR_SIGNATURE_SIZE_LT_MIN: CaliptraError =
+        CaliptraError::new_const(0x000E0050);
+    pub const RUNTIME_AUTH_MANIFEST_OWNER_SIGNATURE_SIZE_LT_MIN: CaliptraError =
+        CaliptraError::new_const(0x000E0051);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

@@ -45,6 +45,9 @@ impl CommandId {
     // The authorization manifest set command.
     pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
 
+    // The authorization manifest set command.
+    pub const SET_IMAGE_METADATA: Self = Self(0x5349_4D44); // "SIMD"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 }
@@ -246,6 +249,7 @@ pub enum MailboxReq {
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
+    SetImageMetadata(SetImageMetadataReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
 }
 
@@ -271,6 +275,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::SetImageMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
         }
     }
@@ -296,6 +301,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::SetImageMetadata(req) => Ok(req.as_bytes_mut()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes_mut()),
         }
     }
@@ -321,6 +327,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::SetImageMetadata(_) => CommandId::SET_IMAGE_METADATA,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
         }
     }
@@ -941,24 +948,24 @@ impl Request for QuotePcrsReq {
 pub struct SetAuthManifestReq {
     pub hdr: MailboxReqHeader,
     pub manifest_size: u32,
-    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
+    pub manifest: [u8; SetAuthManifestReq::MAX_SIZE],
 }
 impl SetAuthManifestReq {
-    pub const MAX_MAN_SIZE: usize = 8192;
+    pub const MAX_SIZE: usize = 8192;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+        if self.manifest_size as usize > Self::MAX_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        let unused_byte_count = Self::MAX_SIZE - self.manifest_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+        if self.manifest_size as usize > Self::MAX_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        let unused_byte_count = Self::MAX_SIZE - self.manifest_size as usize;
         Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -967,7 +974,44 @@ impl Default for SetAuthManifestReq {
         Self {
             hdr: MailboxReqHeader::default(),
             manifest_size: 0,
-            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+            manifest: [0u8; SetAuthManifestReq::MAX_SIZE],
+        }
+    }
+}
+
+// SET_IMAGE_METADATA
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct SetImageMetadataReq {
+    pub hdr: MailboxReqHeader,
+    pub metadata_size: u32,
+    pub metadata: [u8; SetImageMetadataReq::MAX_SIZE],
+}
+impl SetImageMetadataReq {
+    pub const MAX_SIZE: usize = 8192;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.metadata_size as usize > Self::MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_SIZE - self.metadata_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.metadata_size as usize > Self::MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_SIZE - self.metadata_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for SetImageMetadataReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            metadata_size: 0,
+            metadata: [0u8; SetImageMetadataReq::MAX_SIZE],
         }
     }
 }

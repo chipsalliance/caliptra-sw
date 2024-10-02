@@ -17,8 +17,8 @@ use core::mem::size_of;
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadataCollection, AuthManifestImageMetadataCollectionHeader,
-    AuthManifestPreamble, AUTH_MANIFEST_MARKER,
+    AuthManifestImageMetadataSet, AuthManifestImageMetadataSetHeader, AuthManifestPreamble,
+    AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -62,10 +62,14 @@ impl AuthorizeAndStashCmd {
             // Check if image hash is present in the image metadata entry collection.
             let persistent_data = drivers.persistent_data.get();
             let auth_manifest_image_metadata_col =
-                &persistent_data.auth_manifest_image_metadata_col;
+                &persistent_data.auth_manifest_image_metadata_set;
 
             let mut auth_result = DENY_IMAGE_AUTHORIZATION;
-            for metadata_entry in auth_manifest_image_metadata_col.image_metadata_list.iter() {
+            for metadata_entry in auth_manifest_image_metadata_col
+                .image_metadata
+                .image_metadata_list
+                .iter()
+            {
                 if cfi_launder(metadata_entry.digest) == cmd.measurement {
                     caliptra_cfi_lib_git::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,

@@ -29,6 +29,7 @@ mod invoke_dpe;
 mod pcr;
 mod populate_idev;
 mod set_auth_manifest;
+mod set_image_metadata;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -61,6 +62,7 @@ pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use pcr::IncrementPcrResetCounterCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
+pub use set_image_metadata::SetImageMetadataCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
@@ -218,6 +220,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::SET_IMAGE_METADATA => SetImageMetadataCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;

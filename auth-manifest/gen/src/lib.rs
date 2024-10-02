@@ -12,12 +12,14 @@ Abstract:
 
 --*/
 mod generator;
+mod imc_generator;
 
 pub use generator::AuthManifestGenerator;
+pub use imc_generator::ImcGenerator;
 
 use caliptra_auth_man_types::*;
 
-/// Image Generator Vendor Configuration
+/// Authorization Manifest Image Generator Key Configuration
 #[derive(Default, Clone)]
 pub struct AuthManifestGeneratorKeyConfig {
     pub pub_keys: AuthManifestPubKeys,
@@ -37,6 +39,24 @@ pub struct AuthManifestGeneratorConfig {
     pub vendor_man_key_info: AuthManifestGeneratorKeyConfig,
 
     pub owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig>,
+
+    pub owner_man_key_info: Option<AuthManifestGeneratorKeyConfig>,
+}
+
+// /// Image Metadata Collection Image Generator Key Configuration
+// #[derive(Default, Clone)]
+// pub struct ImcGeneratorKeyConfig {
+//     pub priv_keys: Option<AuthManifestPrivKeys>,
+// }
+
+/// Image Metadata Collection Generator Configuration
+#[derive(Default, Clone)]
+pub struct ImcGeneratorConfig {
+    pub revision: u32,
+
+    pub flags: AuthManifestFlags,
+
+    pub vendor_man_key_info: AuthManifestGeneratorKeyConfig,
 
     pub owner_man_key_info: Option<AuthManifestGeneratorKeyConfig>,
 
