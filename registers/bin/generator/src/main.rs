@@ -20,6 +20,7 @@ static HEADER_SUFFIX: &str = r"
 ";
 
 static CALIPTRA_RDL_FILES: &[&str] = &[
+    "src/axi/rtl/axi_dma_reg.rdl",
     "src/pcrvault/rtl/pv_def.rdl",
     "src/pcrvault/rtl/pv_reg.rdl",
     "src/datavault/rtl/dv_reg.rdl",
