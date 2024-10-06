@@ -157,7 +157,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // ECC Vendor Information
         let vendor_ecc_info = (
-            &preamble.vendor_pub_key_info.ecc_pub_keys[vendor_ecc_pub_key_idx as usize],
+            &preamble.vendor_ecc_active_pub_key,
             &preamble.vendor_sigs.ecc_sig,
         );
 
@@ -170,9 +170,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             (vendor_lms_pub_key_idx, vendor_lms_pub_key_revocation) =
                 self.verify_vendor_lms_pk_idx(preamble, reason)?;
 
-            if let Some(idx) = vendor_lms_pub_key_idx {
+            if let Some(_idx) = vendor_lms_pub_key_idx {
                 vendor_lms_info = Some((
-                    &preamble.vendor_pub_key_info.lms_pub_keys[idx as usize],
+                    &preamble.vendor_lms_active_pub_key,
                     &preamble.vendor_sigs.lms_sig,
                 ));
             }

@@ -220,8 +220,8 @@ fn vendor_config(
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
     let mut gen_config = ImageGeneratorVendorConfig::default();
 
-    let ecc_key_count = config.ecc_key_count;
-    let lms_key_count = config.lms_key_count;
+    let ecc_key_count = config.ecc_pub_keys.len() as u32;
+    let lms_key_count = config.lms_pub_keys.len() as u32;
 
     if ecc_key_count > VENDOR_ECC_MAX_KEY_COUNT {
         return Err(anyhow!("Invalid ECC Public Key Count"));

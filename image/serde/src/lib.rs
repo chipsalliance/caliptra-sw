@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 use caliptra_image_types::*;
-use memoffset::offset_of;
 use std::io::Write;
 use zerocopy::AsBytes;
 
@@ -29,11 +28,18 @@ impl<W: Write> ImageBundleWriter<W> {
 
     /// Write Image Bundle
     pub fn write(&mut self, image: &ImageBundle) -> anyhow::Result<()> {
-        // Add fields till the ECC vendor key descriptor.
-        let offset = offset_of!(ImageManifest, preamble);
-        let ptr = &image.manifest as *const _ as *const u8;
-        let slice = unsafe { std::slice::from_raw_parts(ptr, offset) };
-        self.writer.write_all(slice)?;
+        //
+        // Manifest - Start
+        //
+        let manifest = &image.manifest;
+        self.writer.write_all(manifest.marker.as_bytes())?;
+        self.writer.write_all(manifest.size.as_bytes())?;
+        self.writer.write_all(std::slice::from_ref(&manifest.manifest_type))?;
+        self.writer.write_all(&manifest.reserved)?;
+
+        //
+        // Preamble - Start
+        //
 
         // Add the ECC vendor key descriptor.
         let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
@@ -56,12 +62,28 @@ impl<W: Write> ImageBundleWriter<W> {
                 .as_bytes(),
         )?;
 
-        // Add the remaining fields of the preamble.
-        let start = offset_of!(ImagePreamble, vendor_ecc_pub_key_idx);
-        let preamble_size = std::mem::size_of::<ImagePreamble>();
-        let ptr = &image.manifest.preamble as *const ImagePreamble as *const u8;
-        let slice = unsafe { std::slice::from_raw_parts(ptr.add(start), preamble_size - start) };
-        self.writer.write_all(slice)?;
+        let preamble = &image.manifest.preamble;
+        self.writer.write_all(preamble.vendor_ecc_pub_key_idx.as_bytes())?;
+        self.writer.write_all(preamble.vendor_ecc_active_pub_key.as_bytes())?;
+        self.writer.write_all(preamble.vendor_lms_pub_key_idx.as_bytes())?;
+        self.writer.write_all(preamble.vendor_lms_active_pub_key.as_bytes())?;
+        self.writer.write_all(preamble.vendor_sigs.as_bytes())?;
+        self.writer.write_all(preamble.owner_pub_key_info.as_bytes())?;
+        self.writer.write_all(preamble.owner_pub_keys.as_bytes())?;
+        self.writer.write_all(preamble.owner_sigs.as_bytes())?;
+        self.writer.write_all(preamble._rsvd.as_bytes())?;
+
+        //
+        // Preamble - End
+        //
+
+        self.writer.write_all(manifest.header.as_bytes())?;
+        self.writer.write_all(manifest.fmc.as_bytes())?;
+        self.writer.write_all(manifest.runtime.as_bytes())?;
+
+        //
+        // Manifest - End
+        //
 
         self.writer.write_all(&image.fmc)?;
         self.writer.write_all(&image.runtime)?;

@@ -1,14 +1,12 @@
 # Licensed under the Apache-2.0 license
 
 [vendor]
-ecc_key_count = 2
 ecc_pub_keys = [
   "vnd-pub-key-0.pem",
   "vnd-pub-key-1.pem",
   "vnd-pub-key-2.pem",
   "vnd-pub-key-3.pem",
 ]
-lms_key_count = 16
 lms_pub_keys = [
   "vnd-lms-pub-key-0.pem",
   "vnd-lms-pub-key-1.pem",
