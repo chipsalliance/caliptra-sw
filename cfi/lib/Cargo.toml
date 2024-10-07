@@ -22,6 +22,3 @@ default = ["cfi", "cfi-counter", "cfi-test"]
 cfi = []
 cfi-counter = []
 cfi-test = []
-"hw-1.0" = ["caliptra-registers/hw-1.0"]
-
-
