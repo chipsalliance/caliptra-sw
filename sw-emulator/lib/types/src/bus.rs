@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use crate::{RvAddr, RvData, RvSize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BusError {
