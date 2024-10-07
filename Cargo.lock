@@ -213,7 +213,65 @@ name = "caliptra-api"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-api-types",
+ "caliptra-emu-types",
  "caliptra-error",
+ "caliptra-registers",
+ "ureg",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-api-types"
+version = "0.1.0"
+
+[[package]]
+name = "caliptra-auth-man-gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.4.0",
+ "caliptra-auth-man-types",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
+ "memoffset 0.8.0",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-auth-man-types"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "bitflags 2.4.0",
+ "caliptra-error",
+ "caliptra-image-types",
+ "caliptra-lms-types",
+ "memoffset 0.8.0",
+ "zerocopy",
+ "zeroize",
+]
+
+[[package]]
+name = "caliptra-auth-manifest-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
+ "caliptra-drivers",
+ "caliptra-image-crypto",
+ "caliptra-image-elf",
+ "caliptra-image-gen",
+ "caliptra-image-serde",
+ "caliptra-image-types",
+ "chrono",
+ "clap",
+ "hex",
+ "serde",
+ "serde_derive",
+ "toml 0.7.3",
  "zerocopy",
 ]
 
@@ -304,6 +362,8 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-api",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-derive-git",
@@ -345,6 +405,7 @@ dependencies = [
 name = "caliptra-emu"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api-types",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
@@ -409,6 +470,7 @@ dependencies = [
  "aes",
  "arrayref",
  "bitfield",
+ "caliptra-api-types",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-crypto",
@@ -416,7 +478,9 @@ dependencies = [
  "caliptra-emu-types",
  "caliptra-hw-model-types",
  "caliptra-registers",
+ "fips204",
  "lazy_static",
+ "rand",
  "sha3",
  "smlang",
  "tock-registers",
@@ -472,6 +536,7 @@ dependencies = [
  "bit-vec",
  "bitfield",
  "caliptra-api",
+ "caliptra-api-types",
  "caliptra-builder",
  "caliptra-coverage",
  "caliptra-emu-bus",
@@ -496,6 +561,7 @@ dependencies = [
 name = "caliptra-hw-model-c-binding"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "caliptra-hw-model",
@@ -517,6 +583,7 @@ dependencies = [
 name = "caliptra-hw-model-types"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api-types",
  "rand",
 ]
 
@@ -671,6 +738,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
@@ -732,6 +800,9 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags 2.4.0",
+ "caliptra-api",
+ "caliptra-auth-man-gen",
+ "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib-git",
@@ -756,6 +827,7 @@ dependencies = [
  "cms",
  "crypto",
  "dpe",
+ "memoffset 0.8.0",
  "openssl",
  "platform",
  "sha2",
@@ -802,6 +874,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "asn1",
+ "caliptra-api",
+ "caliptra-api-types",
  "caliptra-builder",
  "caliptra-coverage",
  "caliptra-drivers",
@@ -1306,6 +1380,17 @@ checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "fips204"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a7a91da22e550a56b4ace2681cd344cc0c3fd1640235ac433a32561668d58b9"
+dependencies = [
+ "rand_core",
+ "sha3",
+ "zeroize",
 ]
 
 [[package]]

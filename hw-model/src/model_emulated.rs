@@ -22,12 +22,14 @@ use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
 use crate::bus_logger::BusLogger;
 use crate::bus_logger::LogFile;
 use crate::trace_path_or_env;
+use crate::HwModel;
 use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, BusMmio};
 
+use caliptra_api::soc_mgr::SocManager;
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
@@ -106,7 +108,26 @@ fn hash_slice(slice: &[u8]) -> u64 {
     hasher.finish()
 }
 
-impl crate::HwModel for ModelEmulated {
+impl SocManager for ModelEmulated {
+    type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
+
+    fn delay(&mut self) {
+        self.step();
+    }
+
+    fn mmio_mut(&mut self) -> Self::TMmio<'_> {
+        BusMmio::new(self.apb_bus())
+    }
+
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
+    const SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+
+    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+}
+
+impl HwModel for ModelEmulated {
     type TBus<'a> = EmulatedApbBus<'a>;
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>

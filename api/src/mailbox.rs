@@ -5,6 +5,10 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
+use crate::CaliptraApiError;
+use caliptra_registers::mbox;
+use ureg::MmioMut;
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 impl CommandId {
@@ -41,6 +45,12 @@ impl CommandId {
 
     // The capabilities command.
     pub const CAPABILITIES: Self = Self(0x4341_5053); // "CAPS"
+
+    // The authorization manifest set command.
+    pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
+
+    // The authorize and stash command.
+    pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 }
 
 impl From<u32> for CommandId {
@@ -140,6 +150,7 @@ pub enum MailboxResp {
     GetRtAliasCert(GetRtAliasCertResp),
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
+    AuthorizeAndStash(AuthorizeAndStashResp),
 }
 
 impl MailboxResp {
@@ -159,6 +170,7 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
+            MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -178,6 +190,7 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -236,6 +249,8 @@ pub enum MailboxReq {
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
+    SetAuthManifest(SetAuthManifestReq),
+    AuthorizeAndStash(AuthorizeAndStashReq),
 }
 
 impl MailboxReq {
@@ -259,6 +274,8 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
+            MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -282,6 +299,8 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes_mut()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes_mut()),
         }
     }
 
@@ -305,6 +324,8 @@ impl MailboxReq {
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
+            MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
         }
     }
 
@@ -916,6 +937,182 @@ impl Response for QuotePcrsResp {}
 impl Request for QuotePcrsReq {
     const ID: CommandId = CommandId::QUOTE_PCRS;
     type Resp = QuotePcrsResp;
+}
+
+// SET_AUTH_MANIFEST
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct SetAuthManifestReq {
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
+}
+impl SetAuthManifestReq {
+    pub const MAX_MAN_SIZE: usize = 8192;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for SetAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum ImageHashSource {
+    Invalid = 0,
+    InRequest,
+    ShaAcc,
+}
+
+impl From<u32> for ImageHashSource {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => ImageHashSource::InRequest,
+            2_u32 => ImageHashSource::ShaAcc,
+            _ => ImageHashSource::Invalid,
+        }
+    }
+}
+
+bitflags::bitflags! {
+    pub struct AuthAndStashFlags : u32 {
+        const SKIP_STASH = 0x1;
+    }
+}
+
+impl From<u32> for AuthAndStashFlags {
+    /// Converts to this type from the input type.
+    fn from(value: u32) -> Self {
+        AuthAndStashFlags::from_bits_truncate(value)
+    }
+}
+
+impl AuthAndStashFlags {
+    pub fn set_skip_stash(&mut self, skip_stash: bool) {
+        self.set(AuthAndStashFlags::SKIP_STASH, skip_stash);
+    }
+}
+
+// AUTHORIZE_AND_STASH
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct AuthorizeAndStashReq {
+    pub hdr: MailboxReqHeader,
+    pub metadata: [u8; 4],
+    pub measurement: [u8; 48],
+    pub context: [u8; 48],
+    pub svn: u32,
+    pub flags: u32,
+    pub source: u32,
+}
+impl Default for AuthorizeAndStashReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            metadata: Default::default(),
+            measurement: [0u8; 48],
+            context: [0u8; 48],
+            svn: Default::default(),
+            flags: AuthAndStashFlags::SKIP_STASH.bits(),
+            source: ImageHashSource::InRequest as u32,
+        }
+    }
+}
+impl Request for AuthorizeAndStashReq {
+    const ID: CommandId = CommandId::AUTHORIZE_AND_STASH;
+    type Resp = StashMeasurementResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct AuthorizeAndStashResp {
+    pub hdr: MailboxRespHeader,
+    pub auth_req_result: u32,
+}
+impl Response for AuthorizeAndStashResp {}
+
+pub fn mbox_read_fifo(
+    mbox: mbox::RegisterBlock<impl MmioMut>,
+    mut buf: &mut [u8],
+) -> core::result::Result<(), CaliptraApiError> {
+    use zerocopy::Unalign;
+
+    fn dequeue_words(mbox: &mbox::RegisterBlock<impl MmioMut>, buf: &mut [Unalign<u32>]) {
+        for word in buf.iter_mut() {
+            *word = Unalign::new(mbox.dataout().read());
+        }
+    }
+
+    let dlen_bytes = mbox.dlen().read() as usize;
+
+    if dlen_bytes < buf.len() {
+        buf = &mut buf[..dlen_bytes];
+    }
+
+    let len_words = buf.len() / size_of::<u32>();
+    let (mut buf_words, suffix) = LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words)
+        .ok_or(CaliptraApiError::ReadBuffTooSmall)?;
+
+    dequeue_words(&mbox, &mut buf_words);
+    if !suffix.is_empty() {
+        let last_word = mbox.dataout().read();
+        let suffix_len = suffix.len();
+        suffix
+            .as_bytes_mut()
+            .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
+    }
+
+    Ok(())
+}
+
+pub fn mbox_write_fifo(
+    mbox: &mbox::RegisterBlock<impl MmioMut>,
+    buf: &[u8],
+) -> core::result::Result<(), CaliptraApiError> {
+    const MAILBOX_SIZE: u32 = 128 * 1024;
+
+    let Ok(input_len) = u32::try_from(buf.len()) else {
+        return Err(CaliptraApiError::BufferTooLargeForMailbox);
+    };
+    if input_len > MAILBOX_SIZE {
+        return Err(CaliptraApiError::BufferTooLargeForMailbox);
+    }
+    mbox.dlen().write(|_| input_len);
+
+    let mut remaining = buf;
+    while remaining.len() >= 4 {
+        // Panic is impossible because the subslice is always 4 bytes
+        let word = u32::from_le_bytes(remaining[..4].try_into().unwrap());
+        mbox.datain().write(|_| word);
+        remaining = &remaining[4..];
+    }
+    if !remaining.is_empty() {
+        let mut word_bytes = [0u8; 4];
+        word_bytes[..remaining.len()].copy_from_slice(remaining);
+        let word = u32::from_le_bytes(word_bytes);
+        mbox.datain().write(|_| word);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

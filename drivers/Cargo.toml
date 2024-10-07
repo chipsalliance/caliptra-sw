@@ -14,6 +14,7 @@ bitflags.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
+caliptra-auth-man-types.workspace = true
 caliptra-registers.workspace = true
 cfg-if.workspace = true
 dpe = { workspace = true, optional = true }
@@ -38,6 +39,7 @@ no-cfi = []
 fips-test-hooks = []
 
 [dev-dependencies]
+caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-drivers-test-bin.workspace = true
 caliptra-hw-model-types.workspace = true

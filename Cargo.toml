@@ -26,6 +26,10 @@ exclude = [
 
 members = [
   "api",
+  "api/types",
+  "auth-manifest/app",
+  "auth-manifest/gen",
+  "auth-manifest/types",
   "builder",
   "cfi/lib",
   "cfi/derive",
@@ -90,6 +94,9 @@ bitfield = "0.14.0"
 bitflags = "2.4.0"
 bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
+caliptra-api-types = { path = "api/types" }
+caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
+caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive = { path = "cfi/derive" }
 caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
@@ -141,6 +148,7 @@ dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p38
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
+fips204 = "0.2.1"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
