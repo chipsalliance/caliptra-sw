@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
-
+use caliptra_api::soc_mgr::SocManager;
+use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
@@ -8,7 +9,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
+use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
