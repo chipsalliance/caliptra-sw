@@ -65,6 +65,12 @@ impl StashMeasurementCmd {
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let flags = pdata.manifest1.header.flags;
             let locality = drivers.mbox.user();
+
+            // Only pl0 can call STASH_MEASUREMENT
+            if !Drivers::is_caller_pl0(pl0_pauser, pdata.manifest1.header.flags, locality) {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
+
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
             Drivers::is_dpe_context_threshold_exceeded(

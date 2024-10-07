@@ -582,6 +582,22 @@ impl Drivers {
         }
     }
 
+    /// Checks if the caller is privilege level 0
+    ///
+    /// # Arguments
+    ///
+    /// * `pl0_pauser` - Value of PL0 PAuser
+    /// * `flags` - Flags from manifest header
+    /// * `locality` - Caller's locality
+    pub fn is_caller_pl0(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
+        // When the PL0_PAUSER_FLAG bit is not set there can be no PL0 PAUSER.
+        if (flags & PL0_PAUSER_FLAG == 0) {
+            return false;
+        }
+
+        locality == pl0_pauser
+    }
+
     /// Checks if the caller is privilege level 1
     ///
     /// # Arguments
