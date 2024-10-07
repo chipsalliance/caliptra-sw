@@ -9,6 +9,7 @@ edition = "2021"
 caliptra-emu-bus.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model.workspace = true
+caliptra-api.workspace = true
 
 [lib]
 crate-type = ["staticlib"]

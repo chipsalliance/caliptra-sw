@@ -53,13 +53,5 @@ macro_rules! emu_enum {
             }
         }
 
-        impl std::fmt::Display for $enum_name{
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                match self {
-                    $($enum_name::$name => write!(f, stringify!($name)),)*
-                    _ => write!(f, stringify!($invalid)),
-                }
-            }
-        }
     };
 }
