@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
     ImageOptions,
