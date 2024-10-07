@@ -874,6 +874,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         }
         reg_tokens.extend(anon_type_tokens);
         block_tokens = quote! {
+            #[allow(dead_code)]
             #[derive(Clone, Copy)]
             pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
                 ptr: *mut #raw_ptr_type,
