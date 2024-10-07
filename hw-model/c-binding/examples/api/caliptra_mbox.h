@@ -11,13 +11,13 @@ extern "C" {
 
 static inline void caliptra_mbox_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
-    caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
+    caliptra_model_axi_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
 }
 
 static inline uint32_t caliptra_mbox_read(caliptra_model *model, uint32_t offset)
 {
     uint32_t data;
-    caliptra_model_apb_read_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &data);
+    caliptra_model_axi_read_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &data);
     return data;
 }
 

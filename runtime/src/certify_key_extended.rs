@@ -73,7 +73,7 @@ impl CertifyKeyExtendedCmd {
             ),
         };
 
-        let locality = drivers.mbox.user();
+        let locality = drivers.mbox.id();
         // Cannot call CERTIFY_KEY_EXTENDED from PL1
         if Drivers::is_caller_pl1(pl0_pauser, pdata.manifest1.header.flags, locality) {
             return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);

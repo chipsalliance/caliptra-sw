@@ -654,7 +654,7 @@ mod tests {
         // Confirm it is locked
         assert!(uc_regs.lock().read().lock());
 
-        assert_eq!(uc_regs.user().read(), 0);
+        assert_eq!(uc_regs.id().read(), 0);
 
         // Write command
         uc_regs.cmd().write(|_| 0x55);
@@ -735,7 +735,7 @@ mod tests {
         // Confirm it is locked
         assert!(soc_regs.lock().read().lock());
 
-        assert_eq!(soc_regs.user().read(), MailboxRequester::Soc as u32);
+        assert_eq!(soc_regs.id().read(), MailboxRequester::Soc as u32);
 
         // Write command
         soc_regs.cmd().write(|_| 0x55);
@@ -876,7 +876,7 @@ mod tests {
         // Confirm it is locked
         assert!(uc_regs.lock().read().lock());
 
-        let user = uc_regs.user().read();
+        let user = uc_regs.id().read();
         assert_eq!(user, MailboxRequester::Caliptra as u32);
 
         // Write command

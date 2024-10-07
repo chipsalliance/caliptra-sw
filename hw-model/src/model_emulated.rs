@@ -28,11 +28,11 @@ use crate::Output;
 use crate::TrngMode;
 use caliptra_emu_bus::Bus;
 
-pub struct EmulatedApbBus<'a> {
+pub struct EmulatedAxiBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
-impl<'a> Bus for EmulatedApbBus<'a> {
+impl<'a> Bus for EmulatedAxiBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
@@ -107,7 +107,7 @@ fn hash_slice(slice: &[u8]) -> u64 {
 }
 
 impl crate::HwModel for ModelEmulated {
-    type TBus<'a> = EmulatedApbBus<'a>;
+    type TBus<'a> = EmulatedAxiBus<'a>;
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
@@ -201,8 +201,8 @@ impl crate::HwModel for ModelEmulated {
     fn ready_for_fw(&self) -> bool {
         self.ready_for_fw.get()
     }
-    fn apb_bus(&mut self) -> Self::TBus<'_> {
-        EmulatedApbBus { model: self }
+    fn axi_bus(&mut self) -> Self::TBus<'_> {
+        EmulatedAxiBus { model: self }
     }
 
     fn step(&mut self) {
@@ -261,7 +261,7 @@ impl crate::HwModel for ModelEmulated {
         }
     }
 
-    fn set_apb_pauser(&mut self, _pauser: u32) {
+    fn set_axi_id(&mut self, _axi_id: u32) {
         unimplemented!();
     }
 

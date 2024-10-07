@@ -49,7 +49,7 @@ impl TagTciCmd {
             return Err(CaliptraError::RUNTIME_DUPLICATE_TAG);
         }
 
-        let locality = drivers.mbox.user();
+        let locality = drivers.mbox.id();
         let idx = dpe
             .get_active_context_pos(&ContextHandle(cmd.handle), locality)
             .map_err(|_| CaliptraError::RUNTIME_TAGGING_FAILURE)?;

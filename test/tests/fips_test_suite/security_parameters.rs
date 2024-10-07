@@ -27,11 +27,11 @@ fn prove_jtag_inaccessible<T: HwModel>(_hw: &mut T) {
 fn attempt_csp_fuse_read<T: HwModel>(hw: &mut T) {
     let uds_ptr = hw.soc_ifc().fuse_uds_seed().at(0).ptr;
     let uds_read_val =
-        unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(uds_ptr) };
+        unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(uds_ptr) };
 
     let field_entropy_ptr = hw.soc_ifc().fuse_field_entropy().at(0).ptr;
     let field_entropy_read_val =
-        unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(field_entropy_ptr) };
+        unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(field_entropy_ptr) };
 
     // TODO: Add exception for SW emulator (does not model locked registers at the MMIO level)
     assert_eq!(uds_read_val, INACCESSIBLE_READ_VALUE);
@@ -45,7 +45,7 @@ fn attempt_psp_fuse_modify<T: HwModel>(hw: &mut T) {
     // Try to write a new value
     let owner_pk_hash_ptr = hw.soc_ifc().fuse_key_manifest_pk_hash().at(0).ptr;
     unsafe {
-        caliptra_hw_model::BusMmio::new(hw.apb_bus()).write_volatile(owner_pk_hash_ptr, 0xaaaaaaaa)
+        caliptra_hw_model::BusMmio::new(hw.axi_bus()).write_volatile(owner_pk_hash_ptr, 0xaaaaaaaa)
     };
 
     let owner_pk_hash_read_val = hw.soc_ifc().fuse_key_manifest_pk_hash().at(0).read();
@@ -62,17 +62,17 @@ fn attempt_keyvault_access<T: HwModel>(hw: &mut T) {
     // This is not visible to the SoC, but shared modules (mailbox, SHA engine, etc.) use a 1:1
     // address mapping between the SoC and Caliptra
     let kv_key_ctrl_val =
-        unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(kv_key_ctrl_ptr) };
+        unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(kv_key_ctrl_ptr) };
     assert_eq!(kv_key_ctrl_val, INACCESSIBLE_READ_VALUE);
 
     // Attempt to write
     unsafe {
-        caliptra_hw_model::BusMmio::new(hw.apb_bus()).write_volatile(kv_key_ctrl_ptr, 0xffffffff)
+        caliptra_hw_model::BusMmio::new(hw.axi_bus()).write_volatile(kv_key_ctrl_ptr, 0xffffffff)
     };
 
     // Read again
     let kv_key_ctrl_val =
-        unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(kv_key_ctrl_ptr) };
+        unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(kv_key_ctrl_ptr) };
     assert_eq!(kv_key_ctrl_val, INACCESSIBLE_READ_VALUE);
 }
 
@@ -83,14 +83,14 @@ fn attempt_caliptra_dccm_access<T: HwModel>(hw: &mut T) {
     // Attempt to read DCCM module from the SoC side
     // This is not visible to the SoC, but shared modules (mailbox, SHA engine, etc.) use a 1:1
     // address mapping between the SoC and Caliptra
-    let dccm_val = unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(dccm_ptr) };
+    let dccm_val = unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(dccm_ptr) };
     assert_eq!(dccm_val, INACCESSIBLE_READ_VALUE);
 
     // Attempt to write
-    unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).write_volatile(dccm_ptr, 0xffffffff) };
+    unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).write_volatile(dccm_ptr, 0xffffffff) };
 
     // Read again
-    let dccm_val = unsafe { caliptra_hw_model::BusMmio::new(hw.apb_bus()).read_volatile(dccm_ptr) };
+    let dccm_val = unsafe { caliptra_hw_model::BusMmio::new(hw.axi_bus()).read_volatile(dccm_ptr) };
     assert_eq!(dccm_val, INACCESSIBLE_READ_VALUE);
 }
 

@@ -71,7 +71,7 @@ pub unsafe extern "C" fn caliptra_model_destroy(model: *mut caliptra_model) {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn caliptra_model_apb_read_u32(
+pub unsafe extern "C" fn caliptra_model_axi_read_u32(
     model: *mut caliptra_model,
     addr: c_uint,
     data: *mut c_uint,
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn caliptra_model_apb_read_u32(
     // Parameter check
     assert!(!model.is_null() || !data.is_null());
     *data = (*{ model as *mut DefaultHwModel })
-        .apb_bus()
+        .axi_bus()
         .read(RvSize::Word, addr)
         .unwrap();
 
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn caliptra_model_apb_read_u32(
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn caliptra_model_apb_write_u32(
+pub unsafe extern "C" fn caliptra_model_axi_write_u32(
     model: *mut caliptra_model,
     addr: c_uint,
     data: c_uint,
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn caliptra_model_apb_write_u32(
     // Parameter check
     assert!(!model.is_null());
     (*{ model as *mut DefaultHwModel })
-        .apb_bus()
+        .axi_bus()
         .write(RvSize::Word, addr, data)
         .unwrap();
 
