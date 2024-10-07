@@ -49,6 +49,7 @@ use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
 
 use caliptra_common::cprintln;
+use zeroize::Zeroize;
 
 pub struct SetImageMetadataCmd;
 impl SetImageMetadataCmd {
@@ -123,8 +124,6 @@ impl SetImageMetadataCmd {
             .unwrap()
         };
 
-        cprintln!("[rt] Validated cmd length, metadata_size={}", metadata_size);
-
         if metadata_size > SetImageMetadataReq::MAX_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -160,8 +159,6 @@ impl SetImageMetadataCmd {
             .get(offset..)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_SET_INVALID_SIZE)?;
 
-        cprintln!("[rt] Got image metadata: size: {}", image_metadata.len());
-
         // Check if the buffer is at least the size of the header.
         let header_size = size_of::<AuthManifestImageMetadataSetHeader>();
         if image_metadata.len() < header_size {
@@ -176,8 +173,6 @@ impl SetImageMetadataCmd {
             )
             .ok_or(err)?
         };
-
-        cprintln!("[rt] Entry count: {}", header.entry_count);
 
         // Check if the entry count in the header is valid.
         if header.entry_count == 0
@@ -194,16 +189,12 @@ impl SetImageMetadataCmd {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_SET_INVALID_SIZE)?;
         }
 
-        cprintln!("[rt] Validate image metadata size");
-
         // Take the minimum of the image metadata size and the size of the AuthManifestImageMetadataSet.
         let image_metadata_len = min(
             image_metadata.len(),
             size_of::<AuthManifestImageMetadataSet>(),
         );
-        // let image_metadata = image_metadata
-        //     .get(..image_metadata_len)
-        //     .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_SET_INVALID_SIZE)?;
+
         let image_metadata = image_metadata.get(..image_metadata_len).unwrap();
 
         let persistent_data = drivers.persistent_data.get_mut();
@@ -231,12 +222,15 @@ impl SetImageMetadataCmd {
         Self::verify_owner_image_metadata_col(
             image_metadata_set_perst,
             &digest_metadata,
-            &vendor_sig,
+            &owner_sig,
             &mut drivers.sha384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
             &drivers.soc_ifc,
         )?;
+
+        // Clear the earlier image metadata.
+        image_metadata_set_perst.image_metadata.zeroize();
 
         // Store the image metadata in the persistent data.
         let image_metadata_set_perst = &mut persistent_data
@@ -258,15 +252,15 @@ impl SetImageMetadataCmd {
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
         let flags = AuthManifestFlags::from(image_metadata_set_perst.auth_manifest_flags);
-        if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED) {
-            cprintln!("[rt] Vendor signature not required");
+        if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
             return Ok(());
         }
+
         // Verify the vendor ECC signature over the image metadata collection.
         let verify_r = Self::ecc384_verify(
             ecc384,
             image_metadata_digest,
-            &image_metadata_set_perst.vendor_pub_keys.ecc_pub_key,
+            &image_metadata_set_perst.vendor_man_pub_keys.ecc_pub_key,
             &vendor_sig.ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
@@ -275,26 +269,28 @@ impl SetImageMetadataCmd {
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(&verify_r.0, &vendor_sig.ecc_sig.r);
         }
-        cprintln!("[rt] Vendor ECC signature verified");
 
         // Verify vendor LMS signature over the image metadata collection.
         if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
             let candidate_key = Self::lms_verify(
                 sha256,
                 image_metadata_digest,
-                &image_metadata_set_perst.vendor_pub_keys.lms_pub_key,
+                &image_metadata_set_perst.vendor_man_pub_keys.lms_pub_key,
                 &vendor_sig.lms_sig,
             )
             .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(image_metadata_set_perst.vendor_pub_keys.lms_pub_key.digest);
+            let pub_key_digest = HashValue::from(
+                image_metadata_set_perst
+                    .vendor_man_pub_keys
+                    .lms_pub_key
+                    .digest,
+            );
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
             } else {
                 caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         }
-        cprintln!("[rt] Vendor LMS signature verified");
         Ok(())
     }
 
@@ -311,7 +307,7 @@ impl SetImageMetadataCmd {
         let verify_r = Self::ecc384_verify(
             ecc384,
             image_metadata_digest,
-            &image_metadata_set_perst.owner_pub_keys.ecc_pub_key,
+            &image_metadata_set_perst.owner_man_pub_keys.ecc_pub_key,
             &owner_sig.ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
@@ -326,12 +322,16 @@ impl SetImageMetadataCmd {
             let candidate_key = Self::lms_verify(
                 sha256,
                 image_metadata_digest,
-                &image_metadata_set_perst.owner_pub_keys.lms_pub_key,
+                &image_metadata_set_perst.owner_man_pub_keys.lms_pub_key,
                 &owner_sig.lms_sig,
             )
             .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(image_metadata_set_perst.owner_pub_keys.lms_pub_key.digest);
+            let pub_key_digest = HashValue::from(
+                image_metadata_set_perst
+                    .owner_man_pub_keys
+                    .lms_pub_key
+                    .digest,
+            );
             if candidate_key != pub_key_digest {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
             } else {
@@ -341,54 +341,4 @@ impl SetImageMetadataCmd {
 
         Ok(())
     }
-
-    // fn process_image_metadata_col(
-    //     cmd_buf: &[u8],
-    //     auth_manifest_preamble: &AuthManifestPreamble,
-    //     image_metadata_col: &mut AuthManifestImageMetadataSet,
-    //     sha384: &mut Sha384,
-    //     ecc384: &mut Ecc384,
-    //     sha256: &mut Sha256,
-    //     soc_ifc: &SocIfc,
-    // ) -> CaliptraResult<()> {
-    //     if cmd_buf.len() < size_of::<AuthManifestImageMetadataSetHeader>() {
-    //         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
-    //     }
-
-    //     let col_size = min(cmd_buf.len(), size_of::<AuthManifestImageMetadataSet>());
-    //     let buf = cmd_buf
-    //         .get(..col_size)
-    //         .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
-
-    //     image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
-
-    //     if image_metadata_col.header.entry_count == 0
-    //         || image_metadata_col.header.entry_count
-    //             > AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT as u32
-    //     {
-    //         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
-    //     }
-
-    //     let digest_metadata_col = Self::sha384_digest(sha384, buf, 0, col_size as u32)?;
-
-    //     Self::verify_vendor_image_metadata_col(
-    //         auth_manifest_preamble,
-    //         &digest_metadata_col,
-    //         sha384,
-    //         ecc384,
-    //         sha256,
-    //         soc_ifc,
-    //     )?;
-
-    //     Self::verify_owner_image_metadata_col(
-    //         auth_manifest_preamble,
-    //         &digest_metadata_col,
-    //         sha384,
-    //         ecc384,
-    //         sha256,
-    //         soc_ifc,
-    //     )?;
-
-    //     Ok(())
-    // }
 }

@@ -18,7 +18,7 @@ use core::mem::size_of;
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_auth_man_types::{
     AuthManifestImageMetadataSet, AuthManifestImageMetadataSetHeader, AuthManifestPreamble,
-    AUTH_MANIFEST_MARKER,
+    ImageMetadataFlags, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -46,8 +46,9 @@ use dpe::{
 use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
 
-pub const AUTHORIZE_IMAGE: u32 = 0xDEADC0DE;
-pub const DENY_IMAGE_AUTHORIZATION: u32 = 0x21523F21;
+pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE;
+pub const IMAGE_NOT_AUTHORIZED: u32 = 0x21523F21;
+pub const IMAGE_HASH_NOT_FOUND: u32 = 0x8BFB95CB;
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -64,20 +65,48 @@ impl AuthorizeAndStashCmd {
             let auth_manifest_image_metadata_col =
                 &persistent_data.auth_manifest_image_metadata_set;
 
-            let mut auth_result = DENY_IMAGE_AUTHORIZATION;
+            // Check if authorization is ignored for the firmware id.
             for metadata_entry in auth_manifest_image_metadata_col
                 .image_metadata
                 .image_metadata_list
                 .iter()
             {
-                if cfi_launder(metadata_entry.digest) == cmd.measurement {
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
-                        &Array4x12::from(metadata_entry.digest).0,
-                        &Array4x12::from(cmd.measurement).0,
-                    );
-                    auth_result = AUTHORIZE_IMAGE;
+                if cmd.fw_id == metadata_entry.fw_id {
+                    let flags = ImageMetadataFlags(metadata_entry.flags);
+                    if flags.ignore_auth_check() {
+                        return Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {
+                            hdr: MailboxRespHeader::default(),
+                            auth_req_result: IMAGE_AUTHORIZED,
+                        }));
+                    }
                     break;
                 }
+            }
+
+            let mut auth_result = IMAGE_NOT_AUTHORIZED;
+            let mut fw_id_found = false;
+            for metadata_entry in auth_manifest_image_metadata_col
+                .image_metadata
+                .image_metadata_list
+                .iter()
+            {
+                if cmd.fw_id == metadata_entry.fw_id {
+                    fw_id_found = true;
+                    if cfi_launder(metadata_entry.digest) == cmd.measurement {
+                        caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                            &Array4x12::from(metadata_entry.digest).0,
+                            &Array4x12::from(cmd.measurement).0,
+                        );
+                        auth_result = IMAGE_AUTHORIZED;
+                        break;
+                    }
+                }
+            }
+
+            // If the image hash is not found, but the firmware ID is found, return IMAGE_HASH_NOT_FOUND.
+            // If the image hash and firmware ID are both not found, return IMAGE_NOT_AUTHORIZED.
+            if auth_result == IMAGE_NOT_AUTHORIZED && fw_id_found {
+                auth_result = IMAGE_HASH_NOT_FOUND;
             }
 
             let flags: AuthAndStashFlags = cmd.flags.into();

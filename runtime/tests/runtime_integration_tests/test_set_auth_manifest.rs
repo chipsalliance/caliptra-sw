@@ -15,7 +15,7 @@ use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::AsBytes;
 
-pub fn generate_auth_manifest() -> AuthorizationManifest {
+pub fn generate_auth_manifest(flags: AuthManifestFlags) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeys {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
@@ -68,7 +68,7 @@ pub fn generate_auth_manifest() -> AuthorizationManifest {
         owner_fw_key_info,
         owner_man_key_info,
         version: 1,
-        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQURIED,
+        flags,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
@@ -83,7 +83,7 @@ fn test_set_auth_manifest_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let auth_manifest = generate_auth_manifest();
+    let auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
@@ -183,7 +183,7 @@ fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: Calip
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_marker() {
-    let mut auth_manifest = generate_auth_manifest();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.marker = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -193,7 +193,7 @@ fn test_set_auth_manifest_invalid_preamble_marker() {
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_size() {
-    let mut auth_manifest = generate_auth_manifest();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.size -= 1;
     test_manifest_expect_err(
         auth_manifest,
@@ -203,8 +203,11 @@ fn test_set_auth_manifest_invalid_preamble_size() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
-    let mut auth_manifest = generate_auth_manifest();
-    auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest
+        .preamble
+        .vendor_man_pub_keys_signatures
+        .ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID,
@@ -213,8 +216,11 @@ fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_lms_sig() {
-    let mut auth_manifest = generate_auth_manifest();
-    auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest
+        .preamble
+        .vendor_man_pub_keys_signatures
+        .lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
@@ -223,8 +229,8 @@ fn test_set_auth_manifest_invalid_vendor_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_ecc_sig() {
-    let mut auth_manifest = generate_auth_manifest();
-    auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = Default::default();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest.preamble.owner_man_pub_keys_signatures.ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
@@ -233,8 +239,8 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
-    let mut auth_manifest = generate_auth_manifest();
-    auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
+    let mut auth_manifest = generate_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest.preamble.owner_man_pub_keys_signatures.lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,

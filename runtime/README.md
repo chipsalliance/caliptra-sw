@@ -791,7 +791,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------      | -------- | ---------------
 | chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
+| auth_req_result | u32      | IMAGE_AUTHORIZED: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
 
 ## Checksum
 

@@ -1062,8 +1062,9 @@ pub struct AuthorizeAndStashReq {
     pub measurement: [u8; 48],
     pub context: [u8; 48],
     pub svn: u32,
-    pub flags: u32,
+    pub flags: u32, // AuthAndStashFlags
     pub source: u32,
+    pub fw_id: u32,
 }
 impl Default for AuthorizeAndStashReq {
     fn default() -> Self {
@@ -1075,6 +1076,7 @@ impl Default for AuthorizeAndStashReq {
             svn: Default::default(),
             flags: AuthAndStashFlags::SKIP_STASH.bits(),
             source: ImageHashSource::InRequest as u32,
+            fw_id: u32::MAX,
         }
     }
 }

@@ -2,7 +2,7 @@
 use crate::common;
 
 use caliptra_builder::firmware::{
-    APP_WITH_UART_FIPS_TEST_HOOKS, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS, ROM_WITH_UART,
+    APP_WITH_FIPS_TEST_HOOKS, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS, ROM_WITH_UART,
 };
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
@@ -144,7 +144,7 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
     // Build FW with test hooks and init to runtime
     let fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART_FIPS_TEST_HOOKS,
+        &APP_WITH_FIPS_TEST_HOOKS,
         ImageOptions::default(),
     )
     .unwrap()

@@ -11,10 +11,10 @@ Abstract:
     Caliptra Image generator
 
 --*/
-mod generator;
+mod authman_generator;
 mod imc_generator;
 
-pub use generator::AuthManifestGenerator;
+pub use authman_generator::AuthManifestGenerator;
 pub use imc_generator::ImcGenerator;
 
 use caliptra_auth_man_types::*;

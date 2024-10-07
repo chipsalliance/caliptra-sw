@@ -15,6 +15,7 @@ Abstract:
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
 use caliptra_auth_man_types::AuthManifestPubKeys;
+use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestPrivKeys};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -23,6 +24,7 @@ use caliptra_image_crypto::RustCrypto as Crypto;
 use caliptra_image_crypto::{lms_priv_key_from_pem, lms_pub_key_from_pem};
 use caliptra_image_gen::*;
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Authorization Manifest Key configuration from config file.
@@ -37,16 +39,8 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
     pub lms_priv_key: Option<String>,
 }
 
-// /// Image Metadata Collection Key configuration from config file.
-// #[derive(Default, Serialize, Deserialize)]
-// pub(crate) struct ImcKeyConfigFromFile {
-//     pub ecc_priv_key: Option<String>,
-
-//     pub lms_priv_key: Option<String>,
-// }
-
 #[derive(Serialize, Deserialize)]
-pub struct ImageMetadata {
+pub struct ImageMetadataConfigFromFile {
     digest: String,
     source: u32,
     fw_id: u32,
@@ -72,7 +66,7 @@ pub(crate) struct ImcConfigFromFile {
 
     pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
 
-    pub image_metadata_list: Vec<ImageMetadata>,
+    pub image_metadata_list: Vec<ImageMetadataConfigFromFile>,
 }
 
 /// Load Authorization Manifest Key Configuration from file
@@ -143,39 +137,36 @@ pub(crate) fn owner_config_from_file(
     }
 }
 
-// fn imc_key_config_from_file(
-//     path: &Path,
-//     config: &ImcKeyConfigFromFile,
-// ) -> anyhow::Result<ImcGeneratorKeyConfig> {
-//     // Get the Private Keys.
-//     let mut priv_keys = AuthManifestPrivKeys::default();
-//     if let Some(pem_file) = &config.ecc_priv_key {
-//         let priv_key_path = path.join(pem_file);
-//         priv_keys.ecc_priv_key = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
-//     }
-
-//     if let Some(pem_file) = &config.lms_priv_key {
-//         let priv_key_path = path.join(pem_file);
-//         priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
-//     }
-
-//     Ok(ImcGeneratorKeyConfig {
-//         priv_keys: Some(priv_keys),
-//     })
-// }
-
 pub(crate) fn image_metadata_config_from_file(
-    config: &Vec<ImageMetadata>,
+    config: &Vec<ImageMetadataConfigFromFile>,
 ) -> anyhow::Result<Vec<AuthManifestImageMetadata>> {
     let mut image_metadata_list = Vec::new();
+    let mut fw_id_props: HashMap<u32, bool> = HashMap::new();
 
     for image in config {
+        // Check if the firmware ID is already present in the list.
+        if let std::collections::hash_map::Entry::Vacant(e) = fw_id_props.entry(image.fw_id) {
+            e.insert(image.ignore_auth_check);
+        } else {
+            // Check if the ignore_auth_check value is the same for the same firmware ID.
+            if image.ignore_auth_check != fw_id_props[&image.fw_id] {
+                eprintln!(
+                    "Firmware ID {} has conflicting ignore_auth_check values",
+                    image.fw_id
+                );
+                return Err(anyhow::anyhow!("Error converting image metadata list"));
+            }
+        }
+
         let digest_vec = hex::decode(&image.digest)?;
-        let image_source = image.source;
+        let mut flags: ImageMetadataFlags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(image.ignore_auth_check);
+        flags.set_image_source(image.source);
 
         let image_metadata = AuthManifestImageMetadata {
+            fw_id: image.fw_id,
+            flags: flags.0,
             digest: digest_vec.try_into().unwrap(),
-            image_source,
         };
 
         image_metadata_list.push(image_metadata);
@@ -183,22 +174,3 @@ pub(crate) fn image_metadata_config_from_file(
 
     Ok(image_metadata_list)
 }
-
-// pub(crate) fn imc_vendor_config_from_file(
-//     path: &Path,
-//     config: &ImcKeyConfigFromFile,
-// ) -> anyhow::Result<ImcGeneratorKeyConfig> {
-//     imc_key_config_from_file(path, config)
-// }
-
-// pub(crate) fn imc_owner_config_from_file(
-//     path: &Path,
-//     config: &Option<ImcKeyConfigFromFile>,
-// ) -> anyhow::Result<Option<ImcGeneratorKeyConfig>> {
-//     if let Some(config) = config {
-//         let gen_config = imc_key_config_from_file(path, config)?;
-//         Ok(Some(gen_config))
-//     } else {
-//         Ok(None)
-//     }
-// }

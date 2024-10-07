@@ -13,10 +13,10 @@ Abstract:
 --*/
 
 use caliptra_image_gen::ImageGeneratorCrypto;
+use core::mem::size_of;
 use zerocopy::AsBytes;
 
 use crate::*;
-//use core::mem::size_of;
 
 /// Image Metadata Collection generator
 pub struct ImcGenerator<Crypto: ImageGeneratorCrypto> {
@@ -50,25 +50,18 @@ impl<Crypto: ImageGeneratorCrypto> ImcGenerator<Crypto> {
         imc.image_metadata.header.entry_count = config.image_metadata_list.len() as u32;
         imc.image_metadata.header.revision = config.revision;
 
-        // if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
-        //     let sig = self.crypto.ecdsa384_sign(
-        //         &digest,
-        //         &priv_keys.ecc_priv_key,
-        //         &config.vendor_fw_key_info.pub_keys.ecc_pub_key,
-        //     )?;
-        //     auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
-
-        //     let lms_sig = self.crypto.lms_sign(&digest, &priv_keys.lms_priv_key)?;
-        //     auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
-        // }
-
         // Hash the IMC.
-        let digest = self.crypto.sha384_digest(imc.image_metadata.as_bytes())?;
+        let imc_size = size_of::<AuthManifestImageMetadataSetHeader>()
+            + size_of::<AuthManifestImageMetadata>()
+                * imc.image_metadata.header.entry_count as usize;
+        let digest = self
+            .crypto
+            .sha384_digest(&imc.image_metadata.as_bytes()[..imc_size])?;
 
         // Sign the IMC with the vendor manifest private key(s) if indicated in the flags.
         if config
             .flags
-            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED)
+            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
         {
             if let Some(vendor_priv_keys) = config.vendor_man_key_info.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(

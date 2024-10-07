@@ -16,6 +16,7 @@ Abstract:
 
 use core::ops::Range;
 
+use bitfield::bitfield;
 use caliptra_image_types::*;
 use core::default::Default;
 use memoffset::span_of;
@@ -28,7 +29,7 @@ pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 16;
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
     pub struct AuthManifestFlags : u32 {
-        const VENDOR_SIGNATURE_REQURIED = 0b1;
+        const VENDOR_SIGNATURE_REQUIRED = 0b1;
     }
 }
 
@@ -76,41 +77,48 @@ pub struct AuthManifestPreamble {
 
     pub version: u32,
 
-    pub flags: u32,
+    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED)
 
-    pub vendor_pub_keys: AuthManifestPubKeys,
+    pub vendor_man_pub_keys: AuthManifestPubKeys,
 
-    pub vendor_pub_keys_signatures: AuthManifestSignatures,
+    pub vendor_man_pub_keys_signatures: AuthManifestSignatures,
 
-    pub owner_pub_keys: AuthManifestPubKeys,
+    pub owner_man_pub_keys: AuthManifestPubKeys,
 
-    pub owner_pub_keys_signatures: AuthManifestSignatures,
+    pub owner_man_pub_keys_signatures: AuthManifestSignatures,
 }
 
 impl AuthManifestPreamble {
     /// Returns `Range<u32>` containing the version, flags and vendor manifest pub keys.
     pub fn vendor_signed_data_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, version..=vendor_pub_keys);
+        let span = span_of!(AuthManifestPreamble, version..=vendor_man_pub_keys);
         span.start as u32..span.end as u32
     }
 
-    /// Returns `Range<u32>` containing the vendor_pub_keys_signatures
-    pub fn vendor_pub_keys_signatures_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, vendor_pub_keys_signatures);
+    /// Returns `Range<u32>` containing the vendor_man_pub_keys_signatures
+    pub fn vendor_man_pub_keys_signatures_range() -> Range<u32> {
+        let span = span_of!(AuthManifestPreamble, vendor_man_pub_keys_signatures);
         span.start as u32..span.end as u32
     }
 
     /// Returns `Range<u32>` containing the owner_pub_keys
     pub fn owner_pub_keys_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, owner_pub_keys);
+        let span = span_of!(AuthManifestPreamble, owner_man_pub_keys);
         span.start as u32..span.end as u32
     }
 
-    /// Returns `Range<u32>` containing the owner_pub_keys_signatures
-    pub fn owner_pub_keys_signatures_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, owner_pub_keys_signatures);
+    /// Returns `Range<u32>` containing the owner_man_pub_keys_signatures
+    pub fn owner_man_pub_keys_signatures_range() -> Range<u32> {
+        let span = span_of!(AuthManifestPreamble, owner_man_pub_keys_signatures);
         span.start as u32..span.end as u32
     }
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    pub struct ImageMetadataFlags(u32);
+    pub image_source, set_image_source: 1, 0;
+    pub ignore_auth_check, set_ignore_auth_check: 2;
 }
 
 /// Caliptra Authorization Manifest Image Metadata
@@ -118,9 +126,11 @@ impl AuthManifestPreamble {
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadata {
-    pub digest: [u8; 48],
+    pub fw_id: u32,
 
-    pub image_source: u32,
+    pub flags: u32, // ImageMetadataFlags(image_source, ignore_auth_check)
+
+    pub digest: [u8; 48],
 }
 
 /// Caliptra Authorization Manifest Image Metadata Collection Header
@@ -138,8 +148,9 @@ pub struct AuthManifestImageMetadataSetHeader {
 impl Default for AuthManifestImageMetadata {
     fn default() -> Self {
         AuthManifestImageMetadata {
+            fw_id: u32::MAX,
+            flags: 0,
             digest: [0; 48],
-            image_source: 0,
         }
     }
 }
@@ -161,10 +172,9 @@ pub struct AuthManifestImageMetadataSet {
 pub struct AuthManifestImageMetadataSetWithPublicKeys {
     pub auth_manifest_flags: u32,
 
-    pub vendor_pub_keys: AuthManifestPubKeys,
+    pub vendor_man_pub_keys: AuthManifestPubKeys,
 
-    // [TODO] - Should these be optional?
-    pub owner_pub_keys: AuthManifestPubKeys,
+    pub owner_man_pub_keys: AuthManifestPubKeys,
 
     pub image_metadata: AuthManifestImageMetadataSet,
 }
