@@ -89,7 +89,7 @@ fn test_generate_csr_stress() {
     for _ in 0..num_tests {
         let fuses = fuses_with_random_uds();
         let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), ImageOptions::default());
 
         let csr_bytes = generate_csr(&mut hw, &image_bundle);
 
