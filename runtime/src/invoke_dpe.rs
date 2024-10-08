@@ -103,7 +103,7 @@ impl InvokeDpeCmd {
                     }
                     if DeriveContextCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
-                        && caller_privilege_level == PauserPrivileges::PL1
+                        && caller_privilege_level != PauserPrivileges::PL0
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
@@ -112,7 +112,7 @@ impl InvokeDpeCmd {
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
                     if cmd.format == CertifyKeyCmd::FORMAT_X509
-                        && caller_privilege_level == PauserPrivileges::PL1
+                        && caller_privilege_level != PauserPrivileges::PL0
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
