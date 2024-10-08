@@ -2,6 +2,7 @@
 
 use std::mem::size_of;
 
+pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
     FwId, ImageOptions,

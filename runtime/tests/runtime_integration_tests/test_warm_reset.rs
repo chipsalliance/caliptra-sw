@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
     ImageOptions,

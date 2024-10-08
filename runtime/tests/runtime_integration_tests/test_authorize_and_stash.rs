@@ -6,6 +6,7 @@ use crate::test_set_image_metadata::{
     generate_image_metadata, get_ims_actual_size, send_auth_manifest_cmd, IMAGE_DIGEST1,
     IMAGE_DIGEST2,
 };
+use caliptra_api::SocManager;
 use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_common::mailbox_api::{AuthAndStashFlags, SetImageMetadataReq};
 use caliptra_common::mailbox_api::{

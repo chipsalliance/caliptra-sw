@@ -2,6 +2,7 @@
 
 use std::mem;
 
+use caliptra_api::SocManager;
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_hw_model::{DefaultHwModel, ModelError};

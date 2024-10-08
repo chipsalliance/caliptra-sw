@@ -2,6 +2,7 @@
 
 use crate::common::{assert_error, run_rt_test_lms};
 use crate::test_set_auth_manifest::generate_auth_manifest;
+use caliptra_api::SocManager;
 use caliptra_auth_man_gen::{AuthManifestGeneratorKeyConfig, ImcGenerator, ImcGeneratorConfig};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataSetHeader,

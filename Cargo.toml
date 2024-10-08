@@ -26,6 +26,7 @@ exclude = [
 
 members = [
   "api",
+  "api/types",
   "auth-manifest/app",
   "auth-manifest/gen",
   "auth-manifest/types",
@@ -93,6 +94,7 @@ bitfield = "0.14.0"
 bitflags = "2.4.0"
 bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
+caliptra-api-types = { path = "api/types" }
 caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
