@@ -32,18 +32,17 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
         Self(val)
     }
+}
+
+impl<const W: usize, const B: usize> PartialEq for Array4xN<W, B> {
     // secure comparison between two arrays.
     // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
-    pub fn eq(&self, other: &Array4xN<W, B>) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         let a = self.0.as_ptr() as *const u8;
         let aslice = unsafe { core::slice::from_raw_parts(a, B * 4) };
         let b = other.0.as_ptr() as *const u8;
         let bslice = unsafe { core::slice::from_raw_parts(b, B * 4) };
         constant_time_eq::constant_time_eq(aslice, bslice)
-    }
-
-    pub fn ne(&self, other: &Array4xN<W, B>) -> bool {
-        !self.eq(other)
     }
 }
 

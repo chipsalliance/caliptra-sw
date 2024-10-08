@@ -170,7 +170,7 @@ unsafe impl<const N: usize, const P: usize, const H: usize> FromBytes for LmsSig
     fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct LmsPrivateKey<const N: usize> {
     pub tree_type: LmsAlgorithmType,

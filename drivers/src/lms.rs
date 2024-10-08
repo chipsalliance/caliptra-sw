@@ -45,7 +45,7 @@ pub enum LmsResult {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub struct HashValue<const N: usize>(pub [u32; N]);
 
 impl<const N: usize> Default for HashValue<N> {
