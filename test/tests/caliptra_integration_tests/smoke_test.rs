@@ -174,7 +174,7 @@ fn smoke_test() {
             ..Default::default()
         },
         BootParams {
-            fuses,
+            fuses: fuses.clone(),
             fw_image: Some(&image.to_bytes().unwrap()),
             ..Default::default()
         },

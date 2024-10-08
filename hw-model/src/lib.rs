@@ -7,6 +7,7 @@ use caliptra_api as api;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
 use caliptra_emu_bus::Bus;
+use core::panic;
 use std::mem;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -305,13 +306,55 @@ pub enum ModelError {
     MailboxRespInvalidFipsStatus(u32),
     MailboxTimeout,
     ReadBufferTooSmall,
+    FuseDoneNotSet,
+    FusesAlreadyIniitalized,
+    StashMeasurementFailed,
 }
 
 impl From<CaliptraApiError> for ModelError {
     fn from(error: CaliptraApiError) -> Self {
         match error {
+            CaliptraApiError::UnableToLockMailbox => ModelError::UnableToLockMailbox,
+            CaliptraApiError::UnableToReadMailbox => ModelError::UnableToReadMailbox,
             CaliptraApiError::BufferTooLargeForMailbox => ModelError::BufferTooLargeForMailbox,
+            CaliptraApiError::UnknownCommandStatus(code) => ModelError::UnknownCommandStatus(code),
+            CaliptraApiError::MailboxTimeout => ModelError::MailboxTimeout,
+            CaliptraApiError::MailboxCmdFailed(code) => ModelError::MailboxCmdFailed(code),
+            CaliptraApiError::UnexpectedMailboxFsmStatus { expected, actual } => {
+                ModelError::UnexpectedMailboxFsmStatus { expected, actual }
+            }
+            CaliptraApiError::MailboxRespInvalidFipsStatus(status) => {
+                ModelError::MailboxRespInvalidFipsStatus(status)
+            }
+            CaliptraApiError::MailboxRespInvalidChecksum { expected, actual } => {
+                ModelError::MailboxRespInvalidChecksum { expected, actual }
+            }
+            CaliptraApiError::MailboxRespTypeTooSmall => ModelError::MailboxRespTypeTooSmall,
+            CaliptraApiError::MailboxReqTypeTooSmall => ModelError::MailboxReqTypeTooSmall,
+            CaliptraApiError::MailboxNoResponseData => ModelError::MailboxNoResponseData,
+            CaliptraApiError::MailboxUnexpectedResponseLen {
+                expected_min,
+                expected_max,
+                actual,
+            } => ModelError::MailboxUnexpectedResponseLen {
+                expected_min,
+                expected_max,
+                actual,
+            },
+            CaliptraApiError::UploadFirmwareUnexpectedResponse => {
+                ModelError::UploadFirmwareUnexpectedResponse
+            }
+            CaliptraApiError::UploadMeasurementResponseError => {
+                ModelError::UploadMeasurementResponseError
+            }
             caliptra_api::CaliptraApiError::ReadBuffTooSmall => ModelError::ReadBufferTooSmall,
+            caliptra_api::CaliptraApiError::FuseDoneNotSet => ModelError::FuseDoneNotSet,
+            caliptra_api::CaliptraApiError::FusesAlreadyIniitalized => {
+                ModelError::FusesAlreadyIniitalized
+            }
+            caliptra_api::CaliptraApiError::StashMeasurementFailed => {
+                ModelError::StashMeasurementFailed
+            }
         }
     }
 }
@@ -382,6 +425,17 @@ impl Display for ModelError {
 
             ModelError::ReadBufferTooSmall => {
                 write!(f, "Cant read mailbox because read buffer too small")
+            }
+
+            ModelError::FuseDoneNotSet => {
+                write!(f, "Fuse Wr Done bit not set")
+            }
+
+            ModelError::FusesAlreadyIniitalized => {
+                write!(f, "Fuses already initialized")
+            }
+            ModelError::StashMeasurementFailed => {
+                write!(f, "Stash measurement request failed")
             }
         }
     }
@@ -486,7 +540,7 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
-        self.init_fuses(&boot_params.fuses);
+        HwModel::init_fuses(self, &boot_params.fuses);
 
         self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
@@ -515,14 +569,7 @@ pub trait HwModel: SocManager {
         }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)
-        self.soc_ifc()
-            .cptra_mbox_valid_pauser()
-            .at(0)
-            .write(|_| boot_params.valid_pauser);
-        self.soc_ifc()
-            .cptra_mbox_pauser_lock()
-            .at(0)
-            .write(|w| w.lock(true));
+        self.setup_mailbox_users(&[boot_params.valid_pauser]);
 
         writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
@@ -557,7 +604,7 @@ pub trait HwModel: SocManager {
     fn warm_reset_flow(&mut self, fuses: &Fuses) {
         self.warm_reset();
 
-        self.init_fuses(fuses);
+        HwModel::init_fuses(self, fuses);
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
     }
 
@@ -606,55 +653,13 @@ pub trait HwModel: SocManager {
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        if !self.soc_ifc().cptra_reset_reason().read().warm_reset() {
-            assert!(
-                !self.soc_ifc().cptra_fuse_wr_done().read().done(),
-                "Fuses are already locked in place (according to cptra_fuse_wr_done)"
+        println!("Initializing fuses");
+        if let Err(e) = caliptra_api::SocManager::init_fuses(self, fuses) {
+            panic!(
+                "{}",
+                format!("Fuse initializaton error: {}", ModelError::from(e))
             );
         }
-        println!("Initializing fuses: {:#x?}", fuses);
-
-        self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
-        self.soc_ifc()
-            .fuse_field_entropy()
-            .write(&fuses.field_entropy);
-        self.soc_ifc()
-            .fuse_key_manifest_pk_hash()
-            .write(&fuses.key_manifest_pk_hash);
-        self.soc_ifc()
-            .fuse_key_manifest_pk_hash_mask()
-            .write(|w| w.mask(fuses.key_manifest_pk_hash_mask.into()));
-        self.soc_ifc()
-            .fuse_owner_pk_hash()
-            .write(&fuses.owner_pk_hash);
-        self.soc_ifc()
-            .fuse_fmc_key_manifest_svn()
-            .write(|_| fuses.fmc_key_manifest_svn);
-        self.soc_ifc().fuse_runtime_svn().write(&fuses.runtime_svn);
-        self.soc_ifc()
-            .fuse_anti_rollback_disable()
-            .write(|w| w.dis(fuses.anti_rollback_disable));
-        self.soc_ifc()
-            .fuse_idevid_cert_attr()
-            .write(&fuses.idevid_cert_attr);
-        self.soc_ifc()
-            .fuse_idevid_manuf_hsm_id()
-            .write(&fuses.idevid_manuf_hsm_id);
-        self.soc_ifc()
-            .fuse_life_cycle()
-            .write(|w| w.life_cycle(fuses.life_cycle.into()));
-        self.soc_ifc()
-            .fuse_lms_verify()
-            .write(|w| w.lms_verify(fuses.lms_verify));
-        self.soc_ifc()
-            .fuse_lms_revocation()
-            .write(|_| fuses.fuse_lms_revocation);
-        self.soc_ifc()
-            .fuse_soc_stepping_id()
-            .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
-
-        self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
-        assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());
     }
 
     fn step_until_exit_success(&mut self) -> std::io::Result<()> {
@@ -1098,7 +1103,9 @@ mod tests {
     use crate::{
         mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
     };
-    use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
+    use caliptra_api::mailbox::{
+        self, CommandId, MailboxReqHeader, MailboxRespHeader, ResponsePacket,
+    };
     use caliptra_api::soc_mgr::SocManager;
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
@@ -1388,6 +1395,83 @@ mod tests {
     }
 
     #[test]
+    /// Test SocManager maiLbox API.
+    fn test_soc_mgr_mbox_api() {
+        use caliptra_api::CaliptraApiError;
+        let message: [u8; 10] = [0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf, 0x1c, 0x7e];
+
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
+
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+
+        // Send command that echoes the command and input message
+        let mut resp_data = caliptra_api::mailbox::ResponsePacket {
+            buffer: &mut [0u8; 128],
+            len: 0,
+        };
+
+        assert_eq!(
+            model.mailbox_exec(0x1000_0000, &message, &mut resp_data),
+            Ok(Some(
+                [[0x00, 0x00, 0x00, 0x10].as_slice(), &message]
+                    .concat()
+                    .as_bytes()
+            )),
+        );
+
+        // Send command that echoes the command and input message
+        let mut resp_data = caliptra_api::mailbox::ResponsePacket {
+            buffer: &mut [0u8; 128],
+            len: 0,
+        };
+        assert_eq!(
+            model.mailbox_exec(0x1000_0000, &message[..8], &mut resp_data),
+            Ok(Some(
+                [0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf].as_slice()
+            )),
+        );
+
+        // Send command that returns 7 bytes of output, and doesn't consume input
+        // Send command that echoes the command and input message
+        let mut resp_data = caliptra_api::mailbox::ResponsePacket {
+            buffer: &mut [0u8; 128],
+            len: 0,
+        };
+
+        assert_eq!(
+            model.mailbox_exec(0x1000_1000, &[42], &mut resp_data),
+            Ok(Some([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd].as_slice())),
+        );
+
+        // Send command that echoes the command and input message
+        let mut resp_data = caliptra_api::mailbox::ResponsePacket {
+            buffer: &mut [],
+            len: 0,
+        };
+
+        // Send command that returns success with no output
+        assert_eq!(
+            model.mailbox_exec(0x2000_0000, &[], &mut resp_data),
+            Ok(None)
+        );
+
+        // Send command that returns failure
+        assert_eq!(
+            model.mailbox_exec(0x4000_0000, &message, &mut resp_data),
+            Err(CaliptraApiError::MailboxCmdFailed(0))
+        );
+    }
+
+    #[test]
     pub fn test_mailbox_receive() {
         let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
             .unwrap();
@@ -1514,6 +1598,185 @@ mod tests {
                 test.expected
             );
         }
+    }
+
+    #[test]
+    pub fn test_soc_mgr_exec_req() {
+        const NO_DATA_CMD: u32 = 0x2000_0000;
+        const SET_RESPONSE_CMD: u32 = 0x3000_0000;
+        const GET_RESPONSE_CMD: u32 = 0x3000_0001;
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReq {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReq {
+            const ID: CommandId = CommandId(GET_RESPONSE_CMD);
+            type Resp = TestResp;
+        }
+        #[repr(C)]
+        #[derive(AsBytes, Debug, FromBytes, PartialEq, Eq)]
+        struct TestResp {
+            hdr: MailboxRespHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Response for TestResp {}
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReqNoData {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReqNoData {
+            const ID: CommandId = CommandId(NO_DATA_CMD);
+            type Resp = TestResp;
+        }
+
+        fn set_response(model: &mut DefaultHwModel, data: &[u8]) {
+            model.mailbox_execute(SET_RESPONSE_CMD, data).unwrap();
+        }
+
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+
+        // Success
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+
+        let mut buffer = [0u8; 256];
+        let mut packet = ResponsePacket {
+            buffer: &mut buffer,
+            len: 0,
+        };
+        let resp = model
+            .mailbox_exec_req(
+                TestReq {
+                    data: *b"Hi!!",
+                    ..Default::default()
+                },
+                &mut packet,
+            )
+            .unwrap();
+        model
+            .step_until_output_and_take("|dcfeffff48692121|")
+            .unwrap();
+        assert_eq!(
+            resp,
+            TestResp {
+                hdr: MailboxRespHeader {
+                    chksum: 0xffffff2d,
+                    fips_status: 0
+                },
+                data: *b"HI!!",
+            },
+        );
+
+        // Set wrong length in response
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!',
+            ],
+        );
+        let mut packet = ResponsePacket {
+            buffer: &mut buffer,
+            len: 0,
+        };
+        let resp = model
+            .mailbox_exec_req(
+                TestReq {
+                    data: *b"Hi!!",
+                    ..Default::default()
+                },
+                &mut packet,
+            )
+            .map_err(ModelError::from);
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxUnexpectedResponseLen {
+                expected_min: 12,
+                expected_max: 12,
+                actual: 11
+            })
+        );
+
+        // Set bad checksum in response
+        set_response(
+            &mut model,
+            &[
+                0x2e, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let mut packet = ResponsePacket {
+            buffer: &mut buffer,
+            len: 0,
+        };
+        let resp = model
+            .mailbox_exec_req(
+                TestReq {
+                    data: *b"Hi!!",
+                    ..Default::default()
+                },
+                &mut packet,
+            )
+            .map_err(ModelError::from);
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxRespInvalidChecksum {
+                expected: 0xffffff2e,
+                actual: 0xffffff2d
+            })
+        );
+
+        // Set bad FIPS status in response
+        set_response(
+            &mut model,
+            &[
+                0x0c, 0xff, 0xff, 0xff, 0x01, 0x20, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let mut packet = ResponsePacket {
+            buffer: &mut [0u8; 12],
+            len: 0,
+        };
+        let resp = model
+            .mailbox_exec_req(
+                TestReq {
+                    data: *b"Hi!!",
+                    ..Default::default()
+                },
+                &mut packet,
+            )
+            .map_err(ModelError::from);
+        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+
+        // Set no data in response
+        let resp = model
+            .mailbox_exec_req(
+                TestReqNoData {
+                    data: *b"Hi!!",
+                    ..Default::default()
+                },
+                &mut packet,
+            )
+            .map_err(ModelError::from);
+        assert_eq!(resp, Err(ModelError::MailboxNoResponseData));
     }
 
     #[test]
