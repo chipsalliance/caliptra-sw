@@ -12,7 +12,9 @@ Abstract:
 
 --*/
 
-use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
+use crate::{
+    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, PL0_PAUSER_FLAG,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
@@ -43,6 +45,10 @@ impl InvokeDpeCmd {
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
             let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+
+            let caller_privilege_level = drivers.caller_privilege_level();
+            let dpe_context_threshold_err = drivers.is_dpe_context_threshold_exceeded();
+
             let pdata = drivers.persistent_data.get_mut();
             let crypto = DpeCrypto::new(
                 &mut drivers.sha384,
@@ -84,9 +90,7 @@ impl InvokeDpeCmd {
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(&cmd) {
-                        Drivers::is_dpe_context_threshold_exceeded(
-                            pl0_pauser, flags, locality, dpe, false,
-                        )?;
+                        dpe_context_threshold_err?;
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
@@ -95,13 +99,11 @@ impl InvokeDpeCmd {
                     // If recursive _is_ set, it will extend the existing one, which will not count
                     // against the context threshold.
                     if !DeriveContextCmd::is_recursive(&cmd) {
-                        Drivers::is_dpe_context_threshold_exceeded(
-                            pl0_pauser, flags, locality, dpe, false,
-                        )?;
+                        dpe_context_threshold_err?;
                     }
                     if DeriveContextCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
-                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
+                        && caller_privilege_level == PauserPrivileges::PL1
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
@@ -110,7 +112,7 @@ impl InvokeDpeCmd {
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
                     if cmd.format == CertifyKeyCmd::FORMAT_X509
-                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
+                        && caller_privilege_level == PauserPrivileges::PL1
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
