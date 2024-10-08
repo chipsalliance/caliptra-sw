@@ -116,7 +116,7 @@ impl<'a> From<Ecc384PrivKeyOut<'a>> for Ecc384PrivKeyIn<'a> {
 
 /// ECC-384 Public Key
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Zeroize)]
 pub struct Ecc384PubKey {
     /// X coordinate
     pub x: Ecc384Scalar,
@@ -135,7 +135,7 @@ impl Ecc384PubKey {
 
 /// ECC-384 Signature
 #[repr(C)]
-#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Zeroize)]
 pub struct Ecc384Signature {
     /// Random point
     pub r: Ecc384Scalar,
@@ -466,8 +466,8 @@ impl Ecc384 {
         // Get the verify r result
         let mut verify_r = self.verify_r(pub_key, digest, signature)?;
 
-        // compare the hardware generate `r` with one in signature
-        let result = if verify_r == signature.r {
+        // compare the hardware generated `r` with one in signature
+        let result = if verify_r.eq(&signature.r) {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &signature.r.0);
             Ecc384Result::Success
         } else {

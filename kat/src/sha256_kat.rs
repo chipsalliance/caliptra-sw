@@ -45,7 +45,7 @@ impl Sha256Kat {
             .digest(&data)
             .map_err(|_| CaliptraError::KAT_SHA256_DIGEST_FAILURE)?;
 
-        if digest != EXPECTED_DIGEST {
+        if digest.ne(&EXPECTED_DIGEST) {
             return Err(CaliptraError::KAT_SHA256_DIGEST_MISMATCH);
         }
 

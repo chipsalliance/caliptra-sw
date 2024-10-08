@@ -297,7 +297,7 @@ impl Drivers {
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
 
         // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
-        if latest_pcr != latest_tci {
+        if latest_pcr.ne(&latest_tci) {
             // If latest pcr validation fails, disable attestation
             let result = DisableAttestationCmd::execute(drivers);
             if cfi_launder(result.is_ok()) {

@@ -43,7 +43,7 @@ impl Sha1Kat {
             .digest(&data)
             .map_err(|_| CaliptraError::KAT_SHA1_DIGEST_FAILURE)?;
 
-        if digest != EXPECTED_DIGEST {
+        if digest.ne(&EXPECTED_DIGEST) {
             Err(CaliptraError::KAT_SHA1_DIGEST_MISMATCH)?;
         }
 

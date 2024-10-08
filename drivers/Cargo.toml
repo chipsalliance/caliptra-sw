@@ -16,6 +16,7 @@ caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-auth-man-types.workspace = true
 caliptra-registers.workspace = true
+constant_time_eq.workspace = true
 cfg-if.workspace = true
 dpe = { workspace = true, optional = true }
 ufmt.workspace = true
