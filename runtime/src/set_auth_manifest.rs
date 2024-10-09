@@ -131,9 +131,11 @@ impl SetAuthManifestCmd {
             &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(
-            auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
-        )) {
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
+            )
+        {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(
@@ -193,9 +195,11 @@ impl SetAuthManifestCmd {
             &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(
-            auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
-        )) {
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
+            )
+        {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(
@@ -248,12 +252,14 @@ impl SetAuthManifestCmd {
                 .ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(
-            auth_manifest_preamble
-                .vendor_image_metdata_signatures
-                .ecc_sig
-                .r,
-        )) {
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .ecc_sig
+                    .r,
+            )
+        {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(
@@ -305,12 +311,14 @@ impl SetAuthManifestCmd {
                 .ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(
-            auth_manifest_preamble
-                .owner_image_metdata_signatures
-                .ecc_sig
-                .r,
-        )) {
+        if cfi_launder(verify_r)
+            != caliptra_drivers::Array4xN(
+                auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .ecc_sig
+                    .r,
+            )
+        {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(

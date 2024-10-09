@@ -116,8 +116,7 @@ impl<'a> From<Ecc384PrivKeyOut<'a>> for Ecc384PrivKeyIn<'a> {
 
 /// ECC-384 Public Key
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Zeroize)]
-#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
+#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, PartialEq, Zeroize)]
 pub struct Ecc384PubKey {
     /// X coordinate
     pub x: Ecc384Scalar,
@@ -136,8 +135,7 @@ impl Ecc384PubKey {
 
 /// ECC-384 Signature
 #[repr(C)]
-#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Zeroize)]
-#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
+#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, PartialEq, Zeroize)]
 pub struct Ecc384Signature {
     /// Random point
     pub r: Ecc384Scalar,

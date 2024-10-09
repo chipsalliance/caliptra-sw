@@ -76,7 +76,7 @@ impl Ecc384Kat {
             .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &PUB_KEY, &digest, trng)
             .map_err(|_| CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
-        if signature.r.ne(&SIGNATURE.r) || signature.s.ne(&SIGNATURE.s) {
+        if signature != SIGNATURE {
             Err(CaliptraError::KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
         }
         Ok(())

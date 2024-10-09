@@ -506,7 +506,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
             })?;
 
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(sig.r)) {
+        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &sig.r);
@@ -546,7 +546,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
             })?;
 
-        if cfi_launder(verify_r).ne(&caliptra_drivers::Array4xN(ecc_sig.r)) {
+        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(ecc_sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &ecc_sig.r);

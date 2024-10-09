@@ -45,7 +45,7 @@ impl Sha384Kat {
             .digest(data)
             .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
 
-        if digest.ne(&SHA384_EXPECTED_DIGEST) {
+        if digest != SHA384_EXPECTED_DIGEST {
             Err(CaliptraError::KAT_SHA384_DIGEST_MISMATCH)?;
         }
 

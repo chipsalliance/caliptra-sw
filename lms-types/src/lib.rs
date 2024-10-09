@@ -60,7 +60,7 @@ impl LmotsAlgorithmType {
     pub const LmotsSha256N24W8: Self = Self::new(8);
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
@@ -79,6 +79,28 @@ impl<const N: usize> Default for LmsPublicKey<N> {
         }
     }
 }
+
+impl<const N: usize> PartialEq for LmsPublicKey<N> {
+    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
+    fn eq(&self, other: &Self) -> bool {
+        if self.tree_type != other.tree_type {
+            return false;
+        }
+        if self.otstype != other.otstype {
+            return false;
+        }
+        if constant_time_eq::constant_time_eq(&self.id, &other.id) {
+            return false;
+        }
+
+        let a = self.digest.as_ptr() as *const u8;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * 4) };
+        let b = other.digest.as_ptr() as *const u8;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * 4) };
+        constant_time_eq::constant_time_eq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmsPublicKey<1>>()
@@ -97,7 +119,6 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, Zeroize)]
-#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
@@ -109,6 +130,7 @@ pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
     pub y: [[U32<LittleEndian>; N]; P],
 }
+
 impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
     fn default() -> Self {
         Self {
@@ -118,6 +140,31 @@ impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
         }
     }
 }
+
+impl<const N: usize, const P: usize> PartialEq for LmotsSignature<N, P> {
+    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
+
+    fn eq(&self, other: &Self) -> bool {
+        if self.ots_type != other.ots_type {
+            return false;
+        }
+
+        let a = self.nonce.as_ptr() as *const u8;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * 4) };
+        let b = other.nonce.as_ptr() as *const u8;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * 4) };
+        if !constant_time_eq::constant_time_eq(aslice, bslice) {
+            return false;
+        }
+
+        let a = self.y.as_ptr() as *const u8;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * P * 4) };
+        let b = other.y.as_ptr() as *const u8;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * P * 4) };
+        constant_time_eq::constant_time_eq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmotsSignature<1, 1>>()
@@ -134,7 +181,6 @@ unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
@@ -156,6 +202,30 @@ impl<const N: usize, const P: usize, const H: usize> Default for LmsSignature<N,
         }
     }
 }
+
+impl<const N: usize, const P: usize, const H: usize> PartialEq for LmsSignature<N, P, H> {
+    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
+    fn eq(&self, other: &Self) -> bool {
+        if self.q != other.q {
+            return false;
+        }
+
+        if self.ots != other.ots {
+            return false;
+        }
+
+        if self.tree_type != other.tree_type {
+            return false;
+        }
+
+        let a = self.tree_path.as_ptr() as *const u8;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * H * 4) };
+        let b = other.tree_path.as_ptr() as *const u8;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * H * 4) };
+        constant_time_eq::constant_time_eq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmsSignature<1, 1, 1>>()

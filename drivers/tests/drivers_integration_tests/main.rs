@@ -50,7 +50,7 @@ fn run_driver_test(test_rom: &'static FwId) {
     model.step_until_exit_success().unwrap();
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct DoeTestVectors {
     // The keys output by the DOE block (mostly for reference)
     doe_output: DoeOutput,
