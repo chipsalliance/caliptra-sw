@@ -408,6 +408,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx].x;
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .x
+        .0
         .fill(0);
 
     assert_eq!(
@@ -432,6 +433,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         ecc_pub_key_x_backup;
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .y
+        .0
         .fill(0);
 
     assert_eq!(
@@ -455,7 +457,14 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
 
     // Set vendor_sig.r to zero.
     let vendor_sig_r_backup = image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r;
-    image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r.fill(0);
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_sigs
+        .ecc_sig
+        .r
+        .0
+        .fill(0);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -476,7 +485,14 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
 
     // Set vendor_sig.s to zero.
     image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r = vendor_sig_r_backup;
-    image_bundle.manifest.preamble.vendor_sigs.ecc_sig.s.fill(0);
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_sigs
+        .ecc_sig
+        .s
+        .0
+        .fill(0);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -504,9 +520,11 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
 
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .x
+        .0
         .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .y
+        .0
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
     assert_eq!(
@@ -535,6 +553,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         .vendor_sigs
         .ecc_sig
         .r
+        .0
         .clone_from_slice(Array4x12::from(SIGNATURE_R).0.as_slice());
     image_bundle
         .manifest
@@ -542,6 +561,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         .vendor_sigs
         .ecc_sig
         .s
+        .0
         .clone_from_slice(Array4x12::from(SIGNATURE_S).0.as_slice());
 
     assert_eq!(
@@ -848,6 +868,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         .owner_pub_keys
         .ecc_pub_key
         .x
+        .0
         .fill(0);
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -856,7 +877,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -903,6 +924,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         .owner_pub_keys
         .ecc_pub_key
         .y
+        .0
         .fill(0);
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -911,7 +933,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -957,7 +979,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -976,7 +998,14 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
     .unwrap();
 
     // Set owner_sig.r to zero.
-    image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(0);
+    image_bundle
+        .manifest
+        .preamble
+        .owner_sigs
+        .ecc_sig
+        .r
+        .0
+        .fill(0);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1006,7 +1035,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -1025,7 +1054,14 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
     .unwrap();
 
     // Set owner_sig.s to zero.
-    image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(0);
+    image_bundle
+        .manifest
+        .preamble
+        .owner_sigs
+        .ecc_sig
+        .s
+        .0
+        .fill(0);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1055,7 +1091,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -1074,7 +1110,14 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
     .unwrap();
 
     // Set an invalid owner_sig.r.
-    image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(1);
+    image_bundle
+        .manifest
+        .preamble
+        .owner_sigs
+        .ecc_sig
+        .r
+        .0
+        .fill(1);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1104,7 +1147,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
-        owner_pk_hash: digest,
+        owner_pk_hash: digest.0,
         ..Default::default()
     };
 
@@ -1123,7 +1166,14 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
     .unwrap();
 
     // Set an invalid owner_sig.s.
-    image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(1);
+    image_bundle
+        .manifest
+        .preamble
+        .owner_sigs
+        .ecc_sig
+        .s
+        .0
+        .fill(1);
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1168,7 +1218,7 @@ fn test_toc_invalid_toc_digest() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // Change the TOC digest.
-    image_bundle.manifest.header.toc_digest[0] = 0xDEADBEEF;
+    image_bundle.manifest.header.toc_digest.0[0] = 0xDEADBEEF;
     update_header(&mut image_bundle);
 
     assert_eq!(
@@ -1510,7 +1560,7 @@ fn test_fmc_svn_greater_than_32() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         ..Default::default()
     };
 
@@ -1545,7 +1595,7 @@ fn test_fmc_svn_less_than_fuse_svn() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         fmc_key_manifest_svn: 0b11, // fuse svn = 2
         ..Default::default()
     };
@@ -1759,7 +1809,7 @@ fn test_runtime_svn_greater_than_max() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -1794,7 +1844,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         runtime_svn: fuse_svn,
         ..Default::default()
     };

@@ -57,7 +57,7 @@ impl ImageGeneratorCrypto for OsslCrypto {
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest> {
         let mut engine = Sha384::new();
         engine.update(data);
-        Ok(to_hw_format(&engine.finish()))
+        Ok(ImageDigest(to_hw_format(&engine.finish())))
     }
 
     fn ecdsa384_sign(
@@ -66,10 +66,10 @@ impl ImageGeneratorCrypto for OsslCrypto {
         priv_key: &ImageEccPrivKey,
         pub_key: &ImageEccPubKey,
     ) -> anyhow::Result<ImageEccSignature> {
-        let priv_key: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(priv_key);
-        let pub_key_x: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.x);
-        let pub_key_y: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.y);
-        let digest: [u8; SHA384_DIGEST_BYTE_SIZE] = from_hw_format(digest);
+        let priv_key: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&priv_key.0);
+        let pub_key_x: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.x.0);
+        let pub_key_y: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.y.0);
+        let digest: [u8; SHA384_DIGEST_BYTE_SIZE] = from_hw_format(&digest.0);
 
         let group = EcGroup::from_curve_name(Nid::SECP384R1)?;
         let mut ctx = BigNumContext::new()?;
@@ -88,8 +88,8 @@ impl ImageGeneratorCrypto for OsslCrypto {
         let s = sig.s().to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
         let image_sig = ImageEccSignature {
-            r: to_hw_format(&r),
-            s: to_hw_format(&s),
+            r: ImageScalar(to_hw_format(&r)),
+            s: ImageScalar(to_hw_format(&s)),
         };
         Ok(image_sig)
     }
@@ -99,7 +99,7 @@ impl ImageGeneratorCrypto for OsslCrypto {
         digest: &ImageDigest,
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature> {
-        let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(digest);
+        let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&digest.0);
         let mut nonce = [0u8; SHA192_DIGEST_BYTE_SIZE];
         rand_bytes(&mut nonce)?;
         sign_with_lms_key::<OpensslHasher>(priv_key, &message, &nonce, SUPPORTED_LMS_Q_VALUE)
@@ -121,8 +121,8 @@ impl ImageGeneratorCrypto for OsslCrypto {
         let y = y.to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
         let image_key = ImageEccPubKey {
-            x: to_hw_format(&x),
-            y: to_hw_format(&y),
+            x: ImageScalar(to_hw_format(&x)),
+            y: ImageScalar(to_hw_format(&y)),
         };
         Ok(image_key)
     }
@@ -137,7 +137,7 @@ impl ImageGeneratorCrypto for OsslCrypto {
             .private_key()
             .to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
-        Ok(to_hw_format(&priv_key))
+        Ok(ImageScalar(to_hw_format(&priv_key)))
     }
 }
 

@@ -177,8 +177,8 @@ macro_rules! cfi_assert_macro {
     };
 }
 
-cfi_assert_macro!(cfi_assert_eq, ==, Eq, PartialEq, AssertEqFail);
-cfi_assert_macro!(cfi_assert_ne, !=, Eq, PartialEq, AssertNeFail);
+cfi_assert_macro!(cfi_assert_eq, ==, PartialEq, PartialEq, AssertEqFail);
+cfi_assert_macro!(cfi_assert_ne, !=, PartialEq, PartialEq, AssertNeFail);
 cfi_assert_macro!(cfi_assert_gt, >, Ord, PartialOrd, AssertGtFail);
 cfi_assert_macro!(cfi_assert_lt, <, Ord, PartialOrd, AssertLtFail);
 cfi_assert_macro!(cfi_assert_ge, >=, Ord, PartialOrd, AssertGeFail);

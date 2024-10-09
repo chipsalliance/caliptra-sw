@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 arbitrary = { workspace = true, optional = true }
+caliptra-cfi-lib.workspace = true
 caliptra-lms-types.workspace = true
 memoffset.workspace = true
 zerocopy.workspace = true

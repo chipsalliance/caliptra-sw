@@ -39,12 +39,12 @@ impl FwInfoCmd {
             min_runtime_svn,
             fmc_manifest_svn,
             attestation_disabled: pdata.attestation_disabled.get().into(),
-            rom_revision: rom_info.revision,
-            fmc_revision: pdata.manifest1.fmc.revision,
-            runtime_revision: pdata.manifest1.runtime.revision,
+            rom_revision: rom_info.revision.0,
+            fmc_revision: pdata.manifest1.fmc.revision.0,
+            runtime_revision: pdata.manifest1.runtime.revision.0,
             rom_sha256_digest: rom_info.sha256_digest,
-            fmc_sha384_digest: pdata.manifest1.fmc.digest,
-            runtime_sha384_digest: pdata.manifest1.runtime.digest,
+            fmc_sha384_digest: pdata.manifest1.fmc.digest.0,
+            runtime_sha384_digest: pdata.manifest1.runtime.digest.0,
         }))
     }
 }

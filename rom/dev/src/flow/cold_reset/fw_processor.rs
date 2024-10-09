@@ -511,7 +511,7 @@ impl FirmwareProcessor {
         info: &ImageVerificationInfo,
         persistent_data: &PersistentDataAccessor,
     ) {
-        data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
+        data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.0.into());
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
 
@@ -519,7 +519,7 @@ impl FirmwareProcessor {
 
         data_vault.write_cold_reset_entry48(
             ColdResetEntry48::OwnerPubKeyHash,
-            &info.owner_pub_keys_digest.into(),
+            &info.owner_pub_keys_digest.0.into(),
         );
 
         data_vault.write_cold_reset_entry4(
@@ -534,7 +534,7 @@ impl FirmwareProcessor {
             info.vendor_lms_pub_key_idx.unwrap_or(u32::MAX),
         );
 
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
+        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.0.into());
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
 

@@ -764,6 +764,8 @@ impl Response for FipsVersionResp {}
 
 // FW_INFO
 // No command-specific input args
+// Safety: Okay to derive PartialEq and Eq because is being sent
+// and we aren't doing sensitive comparisons to its contents.
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct FwInfoResp {

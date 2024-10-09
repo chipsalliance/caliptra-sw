@@ -141,8 +141,8 @@ fn test_pcr_log() {
     let fuses = Fuses {
         anti_rollback_disable: true,
         lms_verify: true,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
+        owner_pk_hash: owner_pubkey_digest.0,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -212,7 +212,7 @@ fn test_pcr_log() {
         1,
         PcrLogEntryId::VendorPubKeyHash,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
+        swap_word_bytes(&vendor_pubkey_digest.0).as_bytes(),
     );
 
     check_pcr_log_entry(
@@ -220,7 +220,7 @@ fn test_pcr_log() {
         2,
         PcrLogEntryId::OwnerPubKeyHash,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+        swap_word_bytes(&owner_pubkey_digest.0).as_bytes(),
     );
 
     check_pcr_log_entry(
@@ -228,7 +228,7 @@ fn test_pcr_log() {
         3,
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
+        swap_word_bytes(&image_bundle.manifest.fmc.digest.0).as_bytes(),
     );
 }
 
@@ -246,7 +246,8 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         lms_verify: true,
         key_manifest_pk_hash: gen
             .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-            .unwrap(),
+            .unwrap()
+            .0,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -314,7 +315,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         2,
         PcrLogEntryId::OwnerPubKeyHash,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+        swap_word_bytes(&owner_pubkey_digest.0).as_bytes(),
     );
 }
 
@@ -336,8 +337,8 @@ fn test_pcr_log_fmc_fuse_svn() {
 
     let fuses = Fuses {
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
+        owner_pk_hash: owner_pubkey_digest.0,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
         ..Default::default()
     };
@@ -478,8 +479,8 @@ fn test_pcr_log_across_update_reset() {
     let fuses = Fuses {
         anti_rollback_disable: false,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
+        owner_pk_hash: owner_pubkey_digest.0,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();

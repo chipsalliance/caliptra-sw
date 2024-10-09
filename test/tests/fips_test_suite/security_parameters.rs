@@ -163,7 +163,7 @@ pub fn attempt_ssp_access_fw_load() {
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         life_cycle: DeviceLifecycle::Production,
         ..Default::default()
     };
@@ -214,7 +214,7 @@ pub fn attempt_ssp_access_rt() {
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         life_cycle: DeviceLifecycle::Production,
         ..Default::default()
     };

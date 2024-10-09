@@ -137,7 +137,7 @@ fn test_pcr_log() {
         (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
-    let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest);
+    let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest.0);
     let manifest_digest1 = openssl::sha::sha384(image1.manifest.as_bytes());
 
     check_pcr_log_entry(
@@ -203,7 +203,7 @@ fn test_pcr_log() {
         (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
-    let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
+    let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest.0);
     let manifest_digest2 = openssl::sha::sha384(image2.manifest.as_bytes());
 
     check_pcr_log_entry(

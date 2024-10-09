@@ -102,8 +102,8 @@ fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
         .unwrap();
 
     Fuses {
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
+        owner_pk_hash: owner_pubkey_digest.0,
         ..Default::default()
     }
 }
@@ -411,7 +411,7 @@ fn fw_load_error_vendor_ecc_signature_invalid() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Corrupt vendor ECC sig
-    fw_image.manifest.preamble.vendor_sigs.ecc_sig.r.fill(1);
+    fw_image.manifest.preamble.vendor_sigs.ecc_sig.r.0.fill(1);
 
     fw_load_error_flow(
         Some(fw_image),
@@ -452,7 +452,7 @@ fn fw_load_error_owner_ecc_signature_invalid() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Corrupt owner ECC sig
-    fw_image.manifest.preamble.owner_sigs.ecc_sig.r.fill(1);
+    fw_image.manifest.preamble.owner_sigs.ecc_sig.r.0.fill(1);
 
     fw_load_error_flow(
         Some(fw_image),
@@ -492,7 +492,7 @@ fn fw_load_error_toc_digest_mismatch() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Change the TOC digest.
-    fw_image.manifest.header.toc_digest[0] = 0xDEADBEEF;
+    fw_image.manifest.header.toc_digest.0[0] = 0xDEADBEEF;
     update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Skip);
 
     fw_load_error_flow(
@@ -600,6 +600,7 @@ fn fw_load_error_owner_ecc_pub_key_invalid_arg() {
         .owner_pub_keys
         .ecc_pub_key
         .y
+        .0
         .fill(0);
 
     fw_load_error_flow(
@@ -614,7 +615,7 @@ fn fw_load_error_owner_ecc_signature_invalid_arg() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Set owner_sig.s to zero.
-    fw_image.manifest.preamble.owner_sigs.ecc_sig.s.fill(0);
+    fw_image.manifest.preamble.owner_sigs.ecc_sig.s.0.fill(0);
 
     fw_load_error_flow(
         Some(fw_image),
@@ -631,6 +632,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid_arg() {
     fw_image.manifest.preamble.vendor_pub_keys.ecc_pub_keys
         [fw_image.manifest.preamble.vendor_ecc_pub_key_idx as usize]
         .x
+        .0
         .fill(0);
 
     fw_load_error_flow(
@@ -645,7 +647,7 @@ fn fw_load_error_vendor_ecc_signature_invalid_arg() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Set vendor_sig.r to zero.
-    fw_image.manifest.preamble.vendor_sigs.ecc_sig.r.fill(0);
+    fw_image.manifest.preamble.vendor_sigs.ecc_sig.r.0.fill(0);
 
     fw_load_error_flow(
         Some(fw_image),
@@ -666,6 +668,7 @@ fn fw_load_error_update_reset_owner_digest_failure() {
         .owner_pub_keys
         .ecc_pub_key
         .y
+        .0
         .fill(0x1234abcd);
 
     update_fw_error_flow(
@@ -803,7 +806,7 @@ fn fw_load_error_fmc_svn_greater_than_max_supported() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         ..Default::default()
     };
 
@@ -833,7 +836,7 @@ fn fw_load_error_fmc_svn_less_than_fuse() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         fmc_key_manifest_svn: 0b11, // fuse svn = 2
         ..Default::default()
     };
@@ -922,7 +925,7 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         ..Default::default()
     };
 
@@ -952,7 +955,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        key_manifest_pk_hash: vendor_pubkey_digest.0,
         runtime_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
         ..Default::default()
     };
@@ -1303,7 +1306,8 @@ fn fw_load_bad_vendor_ecc_pub_key() {
     // Modify the pub key
     fw_image.manifest.preamble.vendor_pub_keys.ecc_pub_keys
         [fw_image.manifest.preamble.vendor_ecc_pub_key_idx as usize]
-        .x[0] ^= 0x1;
+        .x
+        .0[0] ^= 0x1;
 
     fw_load_bad_pub_key_flow(
         fw_image,
@@ -1317,7 +1321,7 @@ fn fw_load_bad_owner_ecc_pub_key() {
     let mut fw_image = build_fw_image(ImageOptions::default());
 
     // Modify the pub key
-    fw_image.manifest.preamble.owner_pub_keys.ecc_pub_key.x[0] ^= 0x1;
+    fw_image.manifest.preamble.owner_pub_keys.ecc_pub_key.x.0[0] ^= 0x1;
 
     fw_load_bad_pub_key_flow(
         fw_image,

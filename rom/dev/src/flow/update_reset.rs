@@ -209,7 +209,7 @@ impl UpdateResetFlow {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
+        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.0.into());
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
 

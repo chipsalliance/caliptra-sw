@@ -46,13 +46,51 @@ pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24
 pub const IMAGE_LMS_OTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
 
-pub type ImageScalar = [u32; ECC384_SCALAR_WORD_SIZE];
-pub type ImageDigest = [u32; SHA384_DIGEST_WORD_SIZE];
-pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct ImageScalar(pub [u32; ECC384_SCALAR_WORD_SIZE]);
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+pub struct ImageDigest(pub [u32; SHA384_DIGEST_WORD_SIZE]);
+
+impl PartialEq<ImageScalar> for ImageDigest {
+    fn eq(&self, other: &ImageScalar) -> bool {
+        caliptra_cfi_lib::memeq(&self.0, &other.0)
+    }
+}
+
+impl PartialEq<ImageDigest> for ImageScalar {
+    fn eq(&self, other: &ImageDigest) -> bool {
+        caliptra_cfi_lib::memeq(&self.0, &other.0)
+    }
+}
+
+impl PartialEq<ImageDigest> for ImageDigest {
+    fn eq(&self, other: &ImageDigest) -> bool {
+        caliptra_cfi_lib::memeq(&self.0, &other.0)
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+pub struct ImageRevision(pub [u8; IMAGE_REVISION_BYTE_SIZE]);
+
+impl PartialEq<ImageRevision> for ImageRevision {
+    fn eq(&self, other: &ImageRevision) -> bool {
+        // Safety: the array is fixed-size and 4-byte-aligned, we're just casting the entries to u32.
+        let a = self.0.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, IMAGE_REVISION_BYTE_SIZE / 4) };
+        let b = other.0.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, IMAGE_REVISION_BYTE_SIZE / 4) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
+    }
+}
+
 pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Zeroize)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
@@ -66,7 +104,7 @@ pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
 pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Zeroize)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {

@@ -20,7 +20,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
-use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
+use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo, IMAGE_REVISION_BYTE_SIZE};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;
 use zerocopy::AsBytes;
@@ -509,7 +509,7 @@ fn image_revision() -> io::Result<ImageRevision> {
     if std::env::var_os("CALIPTRA_IMAGE_NO_GIT_REVISION").is_some() {
         // Sometimes needed to build a consistent ROM image from different
         // commits.
-        Ok(*b"~~~~~NO_GIT_REVISION")
+        Ok(ImageRevision(*b"~~~~~NO_GIT_REVISION"))
     } else {
         image_revision_from_git_repo()
     }
@@ -525,7 +525,7 @@ fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<Im
     // (dirtdirtdirtdirtdirt)
     const DIRTY_SUFFIX: [u8; 10] = [0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47];
 
-    let mut commit_id = ImageRevision::default();
+    let mut commit_id = [0u8; IMAGE_REVISION_BYTE_SIZE];
     hex::decode_to_slice(commit_id_str.trim(), &mut commit_id).map_err(|e| {
         other_err(format!(
             "Unable to decode git commit {commit_id_str:?}: {e}"
@@ -536,7 +536,7 @@ fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<Im
         // spoil the revision because the git client is dirty
         commit_id[10..].copy_from_slice(&DIRTY_SUFFIX);
     }
-    Ok(commit_id)
+    Ok(ImageRevision(commit_id))
 }
 
 #[cfg(test)]
@@ -582,24 +582,24 @@ mod test {
     fn test_image_revision_from_str() {
         assert_eq!(
             image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a", true).unwrap(),
-            [
+            ImageRevision([
                 0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xbc, 0x6c, 0xf7, 0x8b,
                 0x1f, 0xcc, 0xc3, 0x08, 0x00, 0x9a
-            ]
+            ])
         );
         assert_eq!(
             image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a\n", true).unwrap(),
-            [
+            ImageRevision([
                 0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xbc, 0x6c, 0xf7, 0x8b,
                 0x1f, 0xcc, 0xc3, 0x08, 0x00, 0x9a
-            ]
+            ])
         );
         assert_eq!(
             image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a", false).unwrap(),
-            [
+            ImageRevision([
                 0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xd1, 0x47, 0xd1, 0x47,
                 0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47
-            ]
+            ])
         );
         assert_eq!(
             image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc30800", false).unwrap_err().to_string(),
