@@ -17,6 +17,7 @@ pub const DOE_TEST_HMAC_KEY: [u32; 12] = [
 ];
 
 #[derive(AsBytes, Clone, Copy, Default, FromBytes)]
+#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
 #[repr(C)]
 pub struct DoeTestResults {
     /// HMAC result of the UDS as key, and b"Hello world!" as data.

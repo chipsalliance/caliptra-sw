@@ -97,6 +97,7 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, Zeroize)]
+#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
@@ -133,6 +134,7 @@ unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(any(not(nostd), test), derive(PartialEq, Eq))]
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
