@@ -81,7 +81,6 @@ impl<const N: usize> Default for LmsPublicKey<N> {
 }
 
 impl<const N: usize> PartialEq for LmsPublicKey<N> {
-    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
     fn eq(&self, other: &Self) -> bool {
         if self.tree_type != other.tree_type {
             return false;
@@ -89,15 +88,22 @@ impl<const N: usize> PartialEq for LmsPublicKey<N> {
         if self.otstype != other.otstype {
             return false;
         }
-        if constant_time_eq::constant_time_eq(&self.id, &other.id) {
+
+        // Safety: the array is fixed-size, we're just casting the entries to u32.
+        let a = self.id.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, 4) };
+        let b = other.id.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, 4) };
+        if !caliptra_cfi_lib::memeq(aslice, bslice) {
             return false;
         }
 
-        let a = self.digest.as_ptr() as *const u8;
-        let aslice = unsafe { core::slice::from_raw_parts(a, N * 4) };
-        let b = other.digest.as_ptr() as *const u8;
-        let bslice = unsafe { core::slice::from_raw_parts(b, N * 4) };
-        constant_time_eq::constant_time_eq(aslice, bslice)
+        // Safety: we're just casting the entries to native u32.
+        let a = self.digest.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N) };
+        let b = other.digest.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
     }
 }
 
@@ -142,26 +148,26 @@ impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
 }
 
 impl<const N: usize, const P: usize> PartialEq for LmotsSignature<N, P> {
-    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
-
     fn eq(&self, other: &Self) -> bool {
         if self.ots_type != other.ots_type {
             return false;
         }
 
-        let a = self.nonce.as_ptr() as *const u8;
-        let aslice = unsafe { core::slice::from_raw_parts(a, N * 4) };
-        let b = other.nonce.as_ptr() as *const u8;
-        let bslice = unsafe { core::slice::from_raw_parts(b, N * 4) };
-        if !constant_time_eq::constant_time_eq(aslice, bslice) {
+        // Safety: the slice is the same, we're just casting the entries to native u32.
+        let a = self.nonce.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N) };
+        let b = other.nonce.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N) };
+        if !caliptra_cfi_lib::memeq(aslice, bslice) {
             return false;
         }
 
-        let a = self.y.as_ptr() as *const u8;
-        let aslice = unsafe { core::slice::from_raw_parts(a, N * P * 4) };
-        let b = other.y.as_ptr() as *const u8;
-        let bslice = unsafe { core::slice::from_raw_parts(b, N * P * 4) };
-        constant_time_eq::constant_time_eq(aslice, bslice)
+        // Safety: the array is fixed-size, we're just reinterpreting it as a single slice.
+        let a = self.y.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * P) };
+        let b = other.y.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * P) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
     }
 }
 
@@ -204,7 +210,6 @@ impl<const N: usize, const P: usize, const H: usize> Default for LmsSignature<N,
 }
 
 impl<const N: usize, const P: usize, const H: usize> PartialEq for LmsSignature<N, P, H> {
-    // TODO: we whould make a Rust version of the OpenTitan hardened comparisons https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c.
     fn eq(&self, other: &Self) -> bool {
         if self.q != other.q {
             return false;
@@ -218,11 +223,12 @@ impl<const N: usize, const P: usize, const H: usize> PartialEq for LmsSignature<
             return false;
         }
 
-        let a = self.tree_path.as_ptr() as *const u8;
-        let aslice = unsafe { core::slice::from_raw_parts(a, N * H * 4) };
-        let b = other.tree_path.as_ptr() as *const u8;
-        let bslice = unsafe { core::slice::from_raw_parts(b, N * H * 4) };
-        constant_time_eq::constant_time_eq(aslice, bslice)
+        // Safety: the array is fixed-size, we're just reinterpreting it as a single slice.
+        let a = self.tree_path.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * H) };
+        let b = other.tree_path.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * H) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
     }
 }
 
