@@ -61,7 +61,7 @@ use core::cmp::Ordering::{Equal, Greater};
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
 use zerocopy::AsBytes;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum PauserPrivileges {
     PL0,
     PL1,
@@ -449,7 +449,7 @@ impl Drivers {
             // Use the helper method here because the DPE instance holds a mutable reference to driver
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                &privilege_level,
+                privilege_level.clone(),
                 &dpe,
             )?;
 
@@ -538,14 +538,14 @@ impl Drivers {
     pub fn is_dpe_context_threshold_exceeded(&self) -> CaliptraResult<()> {
         Self::is_dpe_context_threshold_exceeded_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
-            &self.caller_privilege_level(),
+            self.caller_privilege_level(),
             &self.persistent_data.get().dpe,
         )
     }
 
     fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
-        caller_privilege_level: &PauserPrivileges,
+        caller_privilege_level: PauserPrivileges,
         dpe: &DpeInstance,
     ) -> CaliptraResult<()> {
         let used_pl0_dpe_context_count = dpe
