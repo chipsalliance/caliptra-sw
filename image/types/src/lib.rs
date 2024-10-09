@@ -52,7 +52,7 @@ pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
