@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+
+menuconfig LIBCALIPTRA
+	bool "Enable Libcaliptra"
+	help
+	  This is a library to help interface with Caliptra.
+
+if LIBCALIPTRA
+
+module = LIBCALIPTRA
+module-str = libcaliptra
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # LIBCALIPTRA
