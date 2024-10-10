@@ -83,18 +83,28 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(PathBuf))
         )
         .arg(
+            arg!(--"recovery-image-fw" <FILE> "Recovery firmware image binary path")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+        )
+        .arg(
+            arg!(--"update-recovery-image-fw" <FILE> "Update recovery firmware image binary path")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+        )
+        .arg(
+            arg!(--"recovery-image-manifest" <FILE> "Recovery image auth manifest binary path")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+        )
+        .arg(
+            arg!(--"recovery-image-mcurt" <FILE> "Recovery image mcurt binary path")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+        )
+        .arg(
             arg!(--"gdb-port" <VALUE> "Gdb Debugger")
                 .required(false)
-        )
-        .arg(
-            arg!(--"firmware" <FILE> "Current Firmware image file")
-                .required(false)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"update-firmware" <FILE> "Update Firmware image file")
-                .required(false)
-                .value_parser(value_parser!(PathBuf)),
         )
         .arg(
             arg!(--"trace-instr" ... "Trace instructions to a file in log-dir")
@@ -155,8 +165,10 @@ fn main() -> io::Result<()> {
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
-    let args_current_fw = args.get_one::<PathBuf>("firmware");
-    let args_update_fw = args.get_one::<PathBuf>("update-firmware");
+    let args_recovery_fw = args.get_one::<PathBuf>("recovery-image-fw");
+    let args_update_recovery_fw = args.get_one::<PathBuf>("update-recovery-image-fw");
+    let _args_recovery_image_manifest = args.get_one::<PathBuf>("recovery-image-manifest"); // TODO hook up to RRI
+    let _args_recovery_image_mcurt = args.get_one::<PathBuf>("recovery-image-mcurt"); // TODO hook up to RRI
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u128>("ueid").unwrap();
@@ -208,9 +220,12 @@ fn main() -> io::Result<()> {
     }
 
     let mut current_fw_buf = Vec::new();
-    if let Some(path) = args_current_fw {
+    if let Some(path) = args_recovery_fw {
         if !Path::new(&path).exists() {
-            println!("Current firmware file {:?} does not exist", args_current_fw);
+            println!(
+                "Current firmware file {:?} does not exist",
+                args_recovery_fw
+            );
             exit(-1);
         }
         let mut firmware = File::open(path)?;
@@ -219,9 +234,12 @@ fn main() -> io::Result<()> {
     let current_fw_buf = Rc::new(current_fw_buf);
 
     let mut update_fw_buf = Vec::new();
-    if let Some(path) = args_update_fw {
+    if let Some(path) = args_update_recovery_fw {
         if !Path::new(&path).exists() {
-            println!("Update firmware file {:?} does not exist", args_update_fw);
+            println!(
+                "Update firmware file {:?} does not exist",
+                args_update_recovery_fw
+            );
             exit(-1);
         }
         let mut firmware = File::open(path)?;
@@ -251,6 +269,7 @@ fn main() -> io::Result<()> {
 
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
+        recovery_image: current_fw_buf.clone(),
         log_dir: args_log_dir.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
