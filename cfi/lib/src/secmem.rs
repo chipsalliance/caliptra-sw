@@ -14,7 +14,7 @@ Abstract:
 
 use core::ptr;
 
-use crate::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
+//use crate::{cfi_assert_eq, cfi_assert_ne};
 
 // Adapted from https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_asm.h
 // and https://github.com/lowRISC/opentitan/blob/7a61300cf7c409fa68fd892942c1d7b58a7cd4c0/sw/device/lib/base/hardened_memory.c
@@ -30,9 +30,9 @@ use crate::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
 /// have a Hamming Distance of 8, and they are 11-bit values so they can be
 /// materialized with a single instruction on RISC-V. They are also specifically
 /// not the complement of each other.
-pub type HardenedBool = u32;
-pub const HARDENED_BOOL_TRUE: HardenedBool = 0x739;
-pub const HARDENED_BOOL_FALSE: HardenedBool = 0x1d4;
+// pub type HardenedBool = u32;
+// pub const HARDENED_BOOL_TRUE: HardenedBool = 0x739;
+// pub const HARDENED_BOOL_FALSE: HardenedBool = 0x1d4;
 
 struct RandomOrder {
     state: u32,
@@ -64,7 +64,7 @@ impl RandomOrder {
     fn new(min_len: u32) -> RandomOrder {
         RandomOrder {
             state: 0,
-            max: min_len * 2,
+            max: (min_len + 1).next_power_of_two(),
         }
     }
 
@@ -93,7 +93,7 @@ impl RandomOrder {
     fn advance(&mut self) -> u32 {
         // TODO: The current implementation is just a skeleton, and currently just
         // traverses from 0 to `min_len * 2`.
-        let s = self.state;
+        let s = self.state ^ (self.state >> 1);
         self.state += 1;
         s
     }
@@ -101,21 +101,49 @@ impl RandomOrder {
 
 #[inline(always)]
 pub fn memeq(lhs: &[u32], rhs: &[u32]) -> bool {
-    hardened_memeq(lhs, rhs) == HARDENED_BOOL_TRUE
+    hardened_memeq(lhs, rhs) == true
+}
+
+// Performs constant-time unsigned ascending comparison.
+// Returns `a < b` as a constant-time boolean.
+#[inline(always)]
+fn ct_slt(a: usize, b: usize) -> usize {
+    ct_sltz(((a & !b) | ((a ^ !b) & (a.wrapping_sub(b)))) as isize)
+}
+
+// Performs constant-time signed comparison to zero.
+// Returns whether `a < 0`, as a constant-time boolean.
+// In other words, this checks if `a` is negative, i.e., its sign bit is set.
+#[inline(always)]
+fn ct_sltz(a: isize) -> usize {
+    // Proof. `a` is negative iff its MSB is set;
+    // arithmetic-right-shifting by bits(a)-1 smears the sign bit across all
+    // of `a`.
+    ((a as isize) >> (usize::BITS - 1)) as usize
+}
+
+// Performs a constant-time select.
+// Returns `a` if `c` is true; otherwise, returns `b`.
+// This function should be used with one of the comparison functions above; do
+// NOT create `c` using an `if` or `?:` operation.
+#[inline(always)]
+fn ct_cmov(c: usize, a: usize, b: usize) -> usize {
+    (launders(c) & a) | (launders(!c) & b)
 }
 
 #[inline(never)]
-pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> HardenedBool {
+pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> bool {
     let word_len = lhs.len();
     //assert_eq!(word_len, rhs.len());
     if word_len != rhs.len() {
-        return HARDENED_BOOL_FALSE;
+        return false; //HARDENED_BOOL_FALSE;
     }
 
     let mut order = RandomOrder::new(word_len as u32);
 
-    let mut count = 0;
+    let mut count: u32 = 0;
     let expected_count = order.len();
+    //let expected_count = (word_len as u32).next_power_of_two();
 
     let lhs_addr = lhs.as_ptr() as usize;
     let rhs_addr = rhs.as_ptr() as usize;
@@ -143,7 +171,8 @@ pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> HardenedBool {
         //
         // The value obtained from `advance()` is laundered to prevent
         // implementation details from leaking across procedures.
-        let byte_idx = cfi_launder(order.advance()) as usize * core::mem::size_of::<u32>();
+        let byte_idx = launder(order.advance()) as usize * core::mem::size_of::<u32>();
+        //let byte_idx = ((count ^ (count >> 1)) * 4) as usize;
 
         // Prevent the compiler from reordering the loop; this ensures a
         // happens-before among indices consistent with `order`.
@@ -165,9 +194,9 @@ pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> HardenedBool {
         // Pretty much everything needs to be laundered: we need to launder
         // `byte_idx` for obvious reasons, and we need to launder the result of the
         // select, so that the compiler cannot delete the resulting loads and
-        // stores. This is similar to having used `volatile uint32_t *`.
-        let av = if byte_idx < byte_len { ap } else { decoy1 } as *const u32;
-        let bv = if byte_idx < byte_len { bp } else { decoy2 } as *const u32;
+        // stores. This is similar to having used `volatile uint32_t *`.p
+        let av = ct_cmov(ct_slt(byte_idx, byte_len), ap, decoy1) as *const u32;
+        let bv = ct_cmov(ct_slt(byte_idx, byte_len), bp, decoy2) as *const u32;
 
         let a = unsafe { ptr::read_volatile(av) };
         let b = unsafe { ptr::read_volatile(bv) };
@@ -177,36 +206,59 @@ pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> HardenedBool {
         //
         // We launder `zeroes` so that compiler cannot learn that `zeroes` has
         // strictly more bits set at the end of the loop.
-        zeros = cfi_launder(zeros) | (cfi_launder(a) ^ b);
+        zeros = launder(zeros) | (launder(a) ^ b);
 
         // Same as above. The compiler can cache the value of `a[offset]` but it
         // has no chance to strength-reduce this operation.
-        ones = cfi_launder(ones) & (cfi_launder(a) ^ !b);
+        ones = launder(ones) & (launder(a) ^ !b);
 
         // We need to launder `count` so that the SW.LOOP-COMPLETION check is not
         // deleted by the compiler.
-        count = cfi_launder(count) + 1;
+        count = launder(count) + 1;
     }
 
-    if cfi_launder(zeros) == 0 {
-        cfi_assert_eq(ones, u32::MAX);
+    if launder(zeros) == 0 {
+        //cfi_assert_eq(ones, u32::MAX);
         if ones == u32::MAX {
-            return HARDENED_BOOL_TRUE;
+            return true;
         }
     }
 
-    cfi_assert_ne(ones, u32::MAX);
-    HARDENED_BOOL_FALSE
+    //cfi_assert_ne(ones, u32::MAX);
+    false
 }
 
 #[allow(asm_sub_register)] // otherwise x86 complains about the no-op asm
-pub fn barrier(val: u32) {
-    if cfg!(feature = "cfi") {
-        unsafe {
-            core::arch::asm!(
-                "/* {t} */",
-                t = in(reg) val,
-            );
-        }
+#[inline(always)]
+fn launder(mut val: u32) -> u32 {
+    unsafe {
+        core::arch::asm!(
+            "/* {t} */",
+            t = inout(reg) val,
+        );
+    }
+    val
+}
+
+#[allow(asm_sub_register)] // otherwise x86 complains about the no-op asm
+#[inline(always)]
+fn launders(mut val: usize) -> usize {
+    unsafe {
+        core::arch::asm!(
+            "/* {t} */",
+            t = inout(reg) val,
+        );
+    }
+    val
+}
+
+#[allow(asm_sub_register)] // otherwise x86 complains about the no-op asm
+#[inline(always)]
+fn barrier(val: u32) {
+    unsafe {
+        core::arch::asm!(
+            "/* {t} */",
+            t = in(reg) val,
+        );
     }
 }
