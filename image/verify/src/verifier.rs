@@ -18,7 +18,8 @@ use crate::*;
 #[cfg(all(not(test), not(feature = "no-cfi")))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
-    cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_assert_ne, cfi_launder,
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_assert_ne,
+    cfi_launder,
 };
 use caliptra_drivers::*;
 use caliptra_image_types::*;
@@ -304,11 +305,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Verify vendor public key digest
     fn verify_vendor_pk_digest(&mut self) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
-        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
-            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+        if cfi_launder(self.env.dev_lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
+            cfi_assert_eq(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
             return Ok(());
         } else {
-            cfi_assert_ne(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+            cfi_assert_ne(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
         }
 
         // Read expected value from environment
@@ -460,8 +467,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         self.verify_owner_ecc_sig(&digest_owner, owner_ecc_pub_key, owner_ecc_sig)?;
 
         // Verify owner LMS signature
-        if let Some((owner_lms_pub_key, owner_lms_sig)) = cfi_launder(info.owner_lms_info) {
-            self.verify_owner_lms_sig(&digest_owner, owner_lms_pub_key, owner_lms_sig)?;
+        if let Some((owner_lms_pub_key, owner_lms_sig)) = info.owner_lms_info {
+            self.verify_owner_lms_sig(
+                &digest_owner,
+                cfi_launder(owner_lms_pub_key),
+                cfi_launder(owner_lms_sig),
+            )?;
         } else {
             cfi_assert!(info.owner_lms_info.is_none());
         }
@@ -719,8 +730,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     #[inline(always)]
     fn svn_check_required(&mut self) -> bool {
         // If device is unprovisioned or if rollback is enabled (anti_rollback_disable == true), don't check the SVN.
-        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
-            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+        if cfi_launder(self.env.dev_lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
+            cfi_assert_eq(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
             false // SVN check not required
         } else if cfi_launder(self.env.anti_rollback_disable()) {
             cfi_assert!(self.env.anti_rollback_disable());

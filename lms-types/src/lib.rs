@@ -4,6 +4,7 @@
 
 use core::mem::size_of;
 
+use caliptra_cfi_derive::Launder;
 use zerocopy::{AsBytes, BigEndian, FromBytes, LittleEndian, U32};
 use zeroize::Zeroize;
 
@@ -60,7 +61,7 @@ impl LmotsAlgorithmType {
     pub const LmotsSha256N24W8: Self = Self::new(8);
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Launder)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
@@ -69,6 +70,7 @@ pub struct LmsPublicKey<const N: usize> {
     pub id: [u8; 16],
     pub digest: [U32<LittleEndian>; N],
 }
+
 impl<const N: usize> Default for LmsPublicKey<N> {
     fn default() -> Self {
         Self {
@@ -133,7 +135,7 @@ unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Launder)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
     pub q: U32<BigEndian>,
