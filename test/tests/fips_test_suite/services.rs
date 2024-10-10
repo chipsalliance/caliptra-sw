@@ -12,7 +12,7 @@ use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
 use openssl::sha::{sha384, sha512};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub fn exec_cmd_sha_acc<T: HwModel>(hw: &mut T) {
     let msg: &[u8] = &[0u8; 4];
@@ -329,7 +329,7 @@ pub fn exec_cmd_stash_measurement<T: HwModel>(hw: &mut T) {
     assert_eq!(stash_measurement_resp.dpe_result, 0);
 }
 
-pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &Vec<u8>) {
+pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &[u8]) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
     };
@@ -340,7 +340,7 @@ pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &Vec<u8>) {
     )
     .unwrap();
 
-    let manifest = ImageManifest::read_from_prefix(&**fw_image).unwrap();
+    let (manifest, _) = ImageManifest::read_from_prefix(fw_image).unwrap();
     // Verify command-specific response data
     assert_eq!(fw_info_resp.fmc_revision, manifest.fmc.revision);
     assert_eq!(fw_info_resp.runtime_revision, manifest.runtime.revision);
@@ -454,7 +454,7 @@ pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
 }
 
 pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
-    let resp = execute_dpe_cmd(hw, &mut Command::InitCtx(InitCtxCmd::new_simulation()));
+    let resp = execute_dpe_cmd(hw, &mut Command::InitCtx(&InitCtxCmd::new_simulation()));
 
     let Response::InitCtx(init_ctx_resp) = resp else {
         panic!("Wrong response type!");
@@ -470,7 +470,7 @@ pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
         tci_type: 0,
         target_locality: 0,
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(derive_context_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(&derive_context_cmd));
     let Response::DeriveContext(derive_ctx_resp) = resp else {
         panic!("Wrong response type!");
     };
@@ -490,7 +490,7 @@ pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
         flags: CertifyKeyFlags::empty(),
         format: CertifyKeyCmd::FORMAT_CSR,
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::CertifyKey(certify_key_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::CertifyKey(&certify_key_cmd));
 
     let Response::CertifyKey(certify_key_resp) = resp else {
         panic!("Wrong response type!");
@@ -522,7 +522,7 @@ pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
         digest: TEST_DIGEST,
     };
 
-    let resp = execute_dpe_cmd(hw, &mut Command::Sign(sign_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::Sign(&sign_cmd));
 
     let Response::Sign(sign_resp) = resp else {
         panic!("Wrong response type!");
@@ -537,7 +537,7 @@ pub fn exec_rotate_ctx<T: HwModel>(hw: &mut T) {
         handle: ContextHandle::default(),
         flags: RotateCtxFlags::empty(),
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::RotateCtx(rotate_ctx_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::RotateCtx(&rotate_ctx_cmd));
 
     let Response::RotateCtx(rotate_ctx_resp) = resp else {
         panic!("Wrong response type!");
@@ -550,7 +550,7 @@ pub fn exec_get_cert_chain<T: HwModel>(hw: &mut T) {
         offset: 0,
         size: 2048,
     };
-    let resp = execute_dpe_cmd(hw, &mut Command::GetCertificateChain(get_cert_chain_cmd));
+    let resp = execute_dpe_cmd(hw, &mut Command::GetCertificateChain(&get_cert_chain_cmd));
 
     let Response::GetCertificateChain(get_cert_chain_resp) = resp else {
         panic!("Wrong response type!");
@@ -563,7 +563,7 @@ pub fn exec_destroy_ctx<T: HwModel>(hw: &mut T) {
     let destroy_ctx_cmd = DestroyCtxCmd {
         handle: ContextHandle::default(),
     };
-    execute_dpe_cmd(hw, &mut Command::DestroyCtx(destroy_ctx_cmd));
+    execute_dpe_cmd(hw, &mut Command::DestroyCtx(&destroy_ctx_cmd));
 }
 
 pub fn exec_cmd_disable_attestation<T: HwModel>(hw: &mut T) {

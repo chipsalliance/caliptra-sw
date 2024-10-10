@@ -13,7 +13,7 @@ use caliptra_drivers::{
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 use caliptra_test::swap_word_bytes;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use openssl::hash::{Hasher, MessageDigest};
 
@@ -89,7 +89,7 @@ fn test_fht_info() {
     .unwrap();
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 552);
     match get_ci_rom_version() {
         CiRomVersion::Rom1_0 | CiRomVersion::Rom1_1 => assert_eq!(fht.fmcalias_tbs_size, 786),
@@ -128,7 +128,7 @@ fn test_pcr_log() {
     .unwrap();
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
 
     let pcr_entry_arr = hw
         .mailbox_execute(TEST_CMD_READ_PCR_LOG, &[])
@@ -253,7 +253,7 @@ fn check_pcr_log_entry(
     pcr_data: &[u8],
 ) {
     let offset = pcr_entry_index as usize * PCR_ENTRY_SIZE;
-    let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+    let (entry, _) = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
 
     assert_eq!(entry.id, entry_id as u16);
     assert_eq!(entry.pcr_ids, pcr_ids);
@@ -272,7 +272,7 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
             break;
         }
 
-        let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+        let (entry, _) = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
         offset += PCR_ENTRY_SIZE;
 
         if (entry.pcr_ids & (1 << pcr_id as u8)) == 0 {

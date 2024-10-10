@@ -16,7 +16,7 @@ use caliptra_test::{
 };
 use openssl::sha::sha384;
 use std::io::Write;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
@@ -114,7 +114,7 @@ fn fake_boot_test() {
 
     assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
     let mut ldev_cert_resp = GetLdevCertResp::default();
-    ldev_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    ldev_cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
@@ -180,7 +180,7 @@ fn fake_boot_test() {
 
     assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
     let mut fmc_alias_cert_resp = GetFmcAliasCertResp::default();
-    fmc_alias_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    fmc_alias_cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(

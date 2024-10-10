@@ -28,7 +28,7 @@ use std::rc::Rc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 register_bitfields! [
     u32,
@@ -669,7 +669,7 @@ impl HashSha512Regs {
         self.sha512.update_bytes(self.pcr_gen_hash_nonce.as_bytes());
         self.sha512
             .finalize((PCR_COUNT * PCR_SIZE + NONCE_SIZE).try_into().unwrap());
-        self.sha512.copy_hash(self.pcr_hash_digest.as_bytes_mut());
+        self.sha512.copy_hash(self.pcr_hash_digest.as_mut_bytes());
 
         self.pcr_hash_status
             .reg

@@ -12,7 +12,7 @@ use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
 use common::*;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]

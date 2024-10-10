@@ -34,7 +34,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
@@ -167,7 +167,7 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
     }
 }
 
-fn as_bytes(dpe_cmd: &mut Command) -> &[u8] {
+fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
     match dpe_cmd {
         Command::CertifyKey(cmd) => cmd.as_bytes(),
         Command::DeriveContext(cmd) => cmd.as_bytes(),
@@ -183,19 +183,27 @@ fn as_bytes(dpe_cmd: &mut Command) -> &[u8] {
 fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     match dpe_cmd {
         Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::read_from(resp_bytes).unwrap())
+            Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
         }
         Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::read_from(resp_bytes).unwrap())
+            Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
         }
-        Command::GetCertificateChain(_) => {
-            Response::GetCertificateChain(GetCertificateChainResp::read_from(resp_bytes).unwrap())
+        Command::GetCertificateChain(_) => Response::GetCertificateChain(
+            GetCertificateChainResp::read_from_bytes(resp_bytes).unwrap(),
+        ),
+        Command::DestroyCtx(_) => {
+            Response::DestroyCtx(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
         }
-        Command::DestroyCtx(_) => Response::DestroyCtx(ResponseHdr::read_from(resp_bytes).unwrap()),
-        Command::GetProfile => Response::GetProfile(GetProfileResp::read_from(resp_bytes).unwrap()),
-        Command::InitCtx(_) => Response::InitCtx(NewHandleResp::read_from(resp_bytes).unwrap()),
-        Command::RotateCtx(_) => Response::RotateCtx(NewHandleResp::read_from(resp_bytes).unwrap()),
-        Command::Sign(_) => Response::Sign(SignResp::read_from(resp_bytes).unwrap()),
+        Command::GetProfile => {
+            Response::GetProfile(GetProfileResp::read_from_bytes(resp_bytes).unwrap())
+        }
+        Command::InitCtx(_) => {
+            Response::InitCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+        }
+        Command::RotateCtx(_) => {
+            Response::RotateCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+        }
+        Command::Sign(_) => Response::Sign(SignResp::read_from_bytes(resp_bytes).unwrap()),
     }
 }
 
@@ -236,7 +244,7 @@ pub fn execute_dpe_cmd(
 
     assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
     let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     assert!(caliptra_common::checksum::verify_checksum(
         resp_hdr.hdr.chksum,
@@ -247,7 +255,7 @@ pub fn execute_dpe_cmd(
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
         DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from(resp_bytes).unwrap()),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from_bytes(resp_bytes).unwrap()),
         DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
     })
 }
@@ -281,7 +289,7 @@ pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
     let mut fmc_resp = GetFmcAliasCertResp::default();
-    fmc_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    fmc_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     fmc_resp
 }
 
@@ -298,6 +306,6 @@ pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
     let mut rt_resp = GetRtAliasCertResp::default();
-    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }

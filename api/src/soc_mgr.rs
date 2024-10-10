@@ -11,7 +11,7 @@ use crate::{
 use caliptra_api_types::Fuses;
 use core::mem;
 use ureg::MmioMut;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub const NUM_PAUSERS: usize = 5;
 
@@ -311,12 +311,11 @@ pub trait SocManager {
             return Err(CaliptraApiError::MailboxRespTypeTooSmall);
         }
         let (header_bytes, payload_bytes) = req
-            .as_bytes_mut()
+            .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let mut header = MailboxReqHeader::read_from(header_bytes as &[u8]).unwrap();
+        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8]).unwrap();
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
-        header_bytes.copy_from_slice(header.as_bytes());
 
         let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)? else {
                 return Err(CaliptraApiError::MailboxNoResponseData);
@@ -331,9 +330,9 @@ pub trait SocManager {
         }
 
         let mut response = R::Resp::new_zeroed();
-        response.as_bytes_mut()[..data.len()].copy_from_slice(data);
+        response.as_mut_bytes()[..data.len()].copy_from_slice(data);
 
-        let response_header = MailboxRespHeader::read_from_prefix(data).unwrap();
+        let (response_header, _) = MailboxRespHeader::read_from_prefix(data).unwrap();
         let actual_checksum = calc_checksum(0, &data[4..]);
         if actual_checksum != response_header.chksum {
             return Err(CaliptraApiError::MailboxRespInvalidChecksum {

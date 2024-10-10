@@ -21,7 +21,7 @@ use caliptra_registers::soc_ifc::SocIfcReg;
 use core::cmp::min;
 use core::mem::size_of;
 use core::slice;
-use zerocopy::{AsBytes, LayoutVerified, Unalign};
+use zerocopy::{FromBytes, IntoBytes, Unalign};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 /// Malbox operational states
@@ -305,15 +305,14 @@ mod fifo {
         }
 
         let len_words = buf.len() / size_of::<u32>();
-        let (mut buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words).unwrap();
-
-        dequeue_words(mbox, &mut buf_words);
-        if !suffix.is_empty() {
+        let (buf_words, suffix) =
+            <[Unalign<u32>]>::mut_from_prefix_with_elems(buf, len_words).unwrap();
+        dequeue_words(mbox, buf_words);
+        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
             let last_word = mbox.regs().dataout().read();
             let suffix_len = suffix.len();
             suffix
-                .as_bytes_mut()
+                .as_mut_bytes()
                 .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
         }
     }
@@ -331,17 +330,14 @@ mod fifo {
         if mbox.regs().dlen().read() as usize != buf.len() {
             return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
         }
-
-        let (buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
-                .unwrap();
-        enqueue_words(mbox, &buf_words);
-        if !suffix.is_empty() {
+        let count = buf.len() / size_of::<u32>();
+        let (buf_words, suffix) = <[Unalign<u32>]>::ref_from_prefix_with_elems(buf, count).unwrap();
+        enqueue_words(mbox, buf_words);
+        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
             let mut last_word = 0_u32;
-            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
+            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
             enqueue_words(mbox, &[Unalign::new(last_word)]);
         }
-
         Ok(())
     }
 }

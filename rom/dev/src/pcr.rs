@@ -32,7 +32,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_verify::ImageVerificationInfo;
 
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 struct PcrExtender<'a> {
     persistent_data: &'a mut PersistentData,
@@ -144,7 +144,7 @@ pub fn log_pcr(
         pcr_ids,
         ..Default::default()
     };
-    let Some(dest_data) = pcr_log_entry.pcr_data.as_bytes_mut().get_mut(..data.len()) else {
+    let Some(dest_data) = pcr_log_entry.pcr_data.as_mut_bytes().get_mut(..data.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH);
     };
     dest_data.copy_from_slice(data);

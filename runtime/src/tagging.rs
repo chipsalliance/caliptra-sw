@@ -33,8 +33,8 @@ impl TagTciCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd =
-            TagTciReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let cmd = TagTciReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let pdata_mut = drivers.persistent_data.get_mut();
         let mut dpe = &mut pdata_mut.dpe;
         let mut context_has_tag = &mut pdata_mut.context_has_tag;
@@ -72,8 +72,8 @@ impl GetTaggedTciCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = GetTaggedTciReq::read_from(cmd_args)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let cmd = GetTaggedTciReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let persistent_data = drivers.persistent_data.get();
         let context_has_tag = &persistent_data.context_has_tag;
         let context_tags = &persistent_data.context_tags;

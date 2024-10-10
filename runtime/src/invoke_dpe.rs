@@ -27,7 +27,7 @@ use dpe::{
     response::{Response, ResponseHdr},
     DpeInstance, U8Bool, MAX_HANDLES,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -36,7 +36,7 @@ impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
-            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
             // Validate data length
             if cmd.data_size as usize > cmd.data.len() {
@@ -76,6 +76,11 @@ impl InvokeDpeCmd {
             };
 
             let locality = drivers.mbox.user();
+            // This check already happened, but without it the compiler believes the below slice is
+            // out of bounds.
+            if cmd.data_size as usize > cmd.data.len() {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
@@ -90,7 +95,7 @@ impl InvokeDpeCmd {
                 )),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
-                    if InitCtxCmd::flag_is_simulation(&cmd) {
+                    if InitCtxCmd::flag_is_simulation(cmd) {
                         dpe_context_threshold_err?;
                     }
                     cmd.execute(dpe, &mut env, locality)
@@ -99,10 +104,10 @@ impl InvokeDpeCmd {
                     // If the recursive flag is not set, DeriveContext will generate a new context.
                     // If recursive _is_ set, it will extend the existing one, which will not count
                     // against the context threshold.
-                    if !DeriveContextCmd::is_recursive(&cmd) {
+                    if !DeriveContextCmd::is_recursive(cmd) {
                         dpe_context_threshold_err?;
                     }
-                    if DeriveContextCmd::changes_locality(&cmd)
+                    if DeriveContextCmd::changes_locality(cmd)
                         && cmd.target_locality == pl0_pauser
                         && caller_privilege_level != PauserPrivileges::PL0
                     {

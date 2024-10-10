@@ -23,7 +23,7 @@ use caliptra_drivers::{
     KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 pub struct DpeCrypto<'a> {
