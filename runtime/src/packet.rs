@@ -16,7 +16,7 @@ use caliptra_drivers::CaliptraResult;
 
 use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
 use caliptra_drivers::CaliptraError;
-use zerocopy::{AsBytes, LayoutVerified};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[derive(Debug, Clone)]
 pub struct Packet {
@@ -69,11 +69,10 @@ impl Packet {
 
         // Assumes chksum is always offset 0
         let payload_bytes = packet.as_bytes()?;
-        let req_hdr: &MailboxReqHeader = LayoutVerified::<&[u8], MailboxReqHeader>::new(
+        let req_hdr: &MailboxReqHeader = MailboxReqHeader::ref_from_bytes(
             &payload_bytes[..core::mem::size_of::<MailboxReqHeader>()],
         )
-        .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
-        .into_ref();
+        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         if !caliptra_common::checksum::verify_checksum(
             req_hdr.chksum,

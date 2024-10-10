@@ -23,7 +23,7 @@ use caliptra_image_gen::{
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 mod elf_symbols;
 pub mod firmware;

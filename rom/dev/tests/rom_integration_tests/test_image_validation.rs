@@ -40,7 +40,7 @@ use openssl::{
     x509::{X509Req, X509},
 };
 use std::str;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 

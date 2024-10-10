@@ -24,7 +24,7 @@ use caliptra_drivers::{
     PersistentData,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
@@ -32,7 +32,7 @@ impl IDevIdCertCmd {
     pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
             let mut cmd = GetIdevCertReq::default();
-            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
             // Validate tbs
             if cmd.tbs_size as usize > cmd.tbs.len() {

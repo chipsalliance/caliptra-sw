@@ -71,7 +71,7 @@ pub mod fips_self_test_cmd {
     use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::{ImageTocEntry, RomInfo};
     use caliptra_image_verify::ImageVerifier;
-    use zerocopy::AsBytes;
+    use zerocopy::IntoBytes;
 
     // Helper function to create a slice from a memory region
     unsafe fn create_slice(toc: &ImageTocEntry) -> &'static [u8] {

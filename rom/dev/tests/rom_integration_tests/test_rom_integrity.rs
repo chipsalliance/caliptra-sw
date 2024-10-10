@@ -9,7 +9,7 @@ use caliptra_builder::{
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 fn find_rom_info_offset(rom: &[u8]) -> usize {
     for i in (0..rom.len()).step_by(64).rev() {
@@ -66,7 +66,7 @@ fn test_read_rom_info_from_fmc() {
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let rom_info_from_image =
-            RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
+            RomInfo::ref_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
             &APP_WITH_UART,
@@ -90,7 +90,7 @@ fn test_read_rom_info_from_fmc() {
         .unwrap();
 
         // 0x1000_0008 is test-fmc/read_rom_info()
-        let rom_info_from_fw = RomInfo::read_from(
+        let rom_info_from_fw = RomInfo::ref_from_bytes(
             hw.mailbox_execute(0x1000_0008, &[])
                 .unwrap()
                 .unwrap()

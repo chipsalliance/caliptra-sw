@@ -20,7 +20,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
@@ -560,7 +560,7 @@ fn test_check_rom_update_reset_status_reg() {
             hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
             let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-            let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
+            let data_vault = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
             assert_eq!(
                 data_vault.rom_update_reset_status(),
                 u32::from(UpdateResetComplete)

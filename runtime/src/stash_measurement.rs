@@ -25,7 +25,7 @@ use dpe::{
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
@@ -115,8 +115,8 @@ impl StashMeasurementCmd {
     }
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = StashMeasurementReq::read_from(cmd_args)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
         let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
 

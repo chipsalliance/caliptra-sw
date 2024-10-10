@@ -28,7 +28,7 @@ use platform::{
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
     MAX_SN_SIZE,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_CERT_CHAIN_SIZE};
 

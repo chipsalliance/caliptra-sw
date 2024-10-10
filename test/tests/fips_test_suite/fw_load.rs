@@ -23,7 +23,7 @@ use caliptra_image_types::{
 use caliptra_test::image_pk_desc_hash;
 
 use common::*;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]

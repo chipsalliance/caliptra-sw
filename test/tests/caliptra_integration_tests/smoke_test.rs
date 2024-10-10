@@ -25,7 +25,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,

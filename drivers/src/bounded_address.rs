@@ -4,7 +4,7 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 
 use caliptra_error::CaliptraError;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, TryFromBytes, Unalign};
 use zeroize::Zeroize;
 
 use crate::memory_layout;
@@ -24,31 +24,41 @@ impl MemBounds for RomBounds {
 pub type RomAddr<T> = BoundedAddr<T, RomBounds>;
 
 #[repr(C)]
-#[derive(Zeroize)]
-pub struct BoundedAddr<T: AsBytes + FromBytes, B: MemBounds> {
-    addr: u32,
+#[derive(TryFromBytes, IntoBytes, Immutable)]
+pub struct BoundedAddr<T: IntoBytes + FromBytes, B: MemBounds> {
+    addr: Unalign<u32>,
     _phantom: PhantomData<(T, B)>,
 }
-unsafe impl<T: AsBytes + FromBytes, B: MemBounds> FromBytes for BoundedAddr<T, B> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
+
+impl<T, B> Zeroize for BoundedAddr<T, B>
+where
+    T: IntoBytes + FromBytes,
+    B: MemBounds,
+{
+    fn zeroize(&mut self) {
+        // This should never fail, and always be aligned.
+        if let Ok(addr) = self.addr.try_deref_mut() {
+            addr.zeroize();
+        }
+        // NOP since PhantomData has no data, but might as well be thorough.
+        self._phantom.zeroize();
+    }
 }
-unsafe impl<T: AsBytes + FromBytes, B: MemBounds> AsBytes for BoundedAddr<T, B> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
-impl<T: AsBytes + FromBytes, B: MemBounds> BoundedAddr<T, B> {
+
+impl<T: IntoBytes + FromBytes, B: MemBounds> BoundedAddr<T, B> {
     pub fn new(addr: u32) -> Self {
         Self {
-            addr,
+            addr: Unalign::new(addr),
             _phantom: Default::default(),
         }
     }
     pub fn get(&self) -> Result<&T, CaliptraError> {
         assert!(core::mem::size_of::<Self>() == core::mem::size_of::<u32>());
-        Self::validate_addr(self.addr)?;
-        Ok(unsafe { &*(self.addr as *const T) })
+        Self::validate_addr(self.addr.get())?;
+        Ok(unsafe { &*(self.addr.get() as *const T) })
     }
     pub fn is_valid(&self) -> bool {
-        Self::validate_addr(self.addr).is_ok()
+        Self::validate_addr(self.addr.get()).is_ok()
     }
     pub fn validate_addr(addr: u32) -> Result<(), CaliptraError> {
         let addr = addr as usize;
@@ -63,17 +73,19 @@ impl<T: AsBytes + FromBytes, B: MemBounds> BoundedAddr<T, B> {
         Ok(())
     }
 }
-impl<T: AsBytes + FromBytes, B: MemBounds> Clone for BoundedAddr<T, B> {
+impl<T: IntoBytes + FromBytes, B: MemBounds> Clone for BoundedAddr<T, B> {
     fn clone(&self) -> Self {
-        Self::new(self.addr)
+        Self::new(self.addr.get())
     }
 }
-impl<T: AsBytes + FromBytes, B: MemBounds> Debug for BoundedAddr<T, B> {
+impl<T: IntoBytes + FromBytes, B: MemBounds> Debug for BoundedAddr<T, B> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("RomAddr").field("addr", &self.addr).finish()
+        f.debug_struct("RomAddr")
+            .field("addr", &self.addr.get())
+            .finish()
     }
 }
-impl<T: AsBytes + FromBytes, B: MemBounds> From<&'static T> for BoundedAddr<T, B> {
+impl<T: IntoBytes + FromBytes, B: MemBounds> From<&'static T> for BoundedAddr<T, B> {
     fn from(value: &'static T) -> Self {
         Self::new(value as *const T as u32)
     }
@@ -84,7 +96,7 @@ mod tests {
     use super::*;
     use crate::memory_layout::{ROM_ORG, ROM_SIZE};
 
-    #[derive(AsBytes, FromBytes)]
+    #[derive(IntoBytes, FromBytes)]
     #[repr(C)]
     struct MyStruct {
         a: u32,
