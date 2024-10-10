@@ -15,7 +15,7 @@ Abstract:
 use crate::Array4x12;
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub struct FuseBank<'a> {
     pub(crate) soc_ifc: &'a SocIfcReg,

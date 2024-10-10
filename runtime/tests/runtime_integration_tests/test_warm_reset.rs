@@ -10,7 +10,7 @@ use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams,
 use caliptra_registers::mbox::enums::MboxStatusE;
 use dpe::DPE_PROFILE;
 use openssl::sha::sha384;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 fn swap_word_bytes_inplace(words: &mut [u32]) {
     for word in words.iter_mut() {

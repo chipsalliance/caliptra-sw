@@ -6,7 +6,7 @@ use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
 
@@ -36,7 +36,7 @@ fn test_get_csr() {
         .unwrap()
         .unwrap();
 
-    let get_idv_csr_resp = GetIdevCsrResp::read_from(response.as_bytes()).unwrap();
+    let get_idv_csr_resp = GetIdevCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
 
     assert!(caliptra_common::checksum::verify_checksum(
         get_idv_csr_resp.hdr.chksum,

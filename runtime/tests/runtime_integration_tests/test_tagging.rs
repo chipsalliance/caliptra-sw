@@ -47,7 +47,7 @@ fn test_tagging_default_context() {
         )
         .unwrap()
         .expect("We expected a response");
-    let _ = GetTaggedTciResp::read_from(resp.as_slice()).unwrap();
+    let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_tagging_destroyed_context() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DestroyCtx(destroy_ctx_cmd),
+        &mut Command::DestroyCtx(&destroy_ctx_cmd),
         DpeResult::Success,
     );
     let Some(Response::DestroyCtx(_)) = resp else {
@@ -222,7 +222,7 @@ fn test_tagging_retired_context() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(derive_context_cmd),
+        &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
     );
     let Some(Response::DeriveContext(derive_context_resp)) = resp else {
@@ -268,7 +268,7 @@ fn test_tagging_retired_context() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveContext(derive_context_cmd),
+        &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
     );
     let Some(Response::DeriveContext(_)) = resp else {
@@ -288,5 +288,5 @@ fn test_tagging_retired_context() {
         )
         .unwrap()
         .expect("We expected a response");
-    let _ = GetTaggedTciResp::read_from(resp.as_slice()).unwrap();
+    let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
 }

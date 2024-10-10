@@ -15,7 +15,7 @@ use caliptra_common::{
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
@@ -28,8 +28,9 @@ fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
         // Check if the chunk contains non-zero data
         if chunk.iter().any(|&byte| byte != 0) {
             // Found non-zero data, return RomInfo constructed from the data
-            let rom_info = RomInfo::read_from(&rom[i..i + size_of::<RomInfo>()])?;
-            return Some(rom_info);
+            if let Ok(rom_info) = RomInfo::read_from_bytes(&rom[i..i + size_of::<RomInfo>()]) {
+                return Some(rom_info);
+            }
         }
     }
 
@@ -80,7 +81,7 @@ fn test_fw_info() {
             .unwrap()
             .unwrap();
 
-        let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+        let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
         // Verify checksum and FIPS status
         assert!(caliptra_common::checksum::verify_checksum(
@@ -167,7 +168,7 @@ fn test_idev_id_info() {
         .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
-    GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
+    GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]
@@ -180,7 +181,7 @@ fn test_capabilities() {
         .mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes())
         .unwrap()
         .unwrap();
-    let capabilities_resp = CapabilitiesResp::read_from(resp.as_slice()).unwrap();
+    let capabilities_resp = CapabilitiesResp::read_from_bytes(resp.as_slice()).unwrap();
     let capabilities = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
     assert!(capabilities.contains(Capabilities::RT_BASE));
 }

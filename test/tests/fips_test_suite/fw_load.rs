@@ -19,7 +19,7 @@ use caliptra_image_types::{ImageBundle, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COU
 use openssl::sha::sha384;
 
 use common::*;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]

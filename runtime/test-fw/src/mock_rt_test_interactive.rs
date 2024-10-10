@@ -12,7 +12,7 @@ use caliptra_registers::pv::PvReg;
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{mailbox::Mailbox, Drivers, RtBootStatus};
 use caliptra_test_harness::{runtime_handlers, test_suite};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 

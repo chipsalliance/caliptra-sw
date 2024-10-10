@@ -10,7 +10,7 @@ use openssl::{
     pkey::{PKey, Public},
     sha::{sha256, sha384},
 };
-use zerocopy::{transmute, AsBytes};
+use zerocopy::{transmute, IntoBytes};
 
 #[cfg(test)]
 use caliptra_api_types::DeviceLifecycle;
@@ -98,7 +98,7 @@ impl DoeOutput {
 
         result
             .uds
-            .as_bytes_mut()
+            .as_mut_bytes()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
                 swap_word_bytes(&input.doe_iv).as_bytes(),
@@ -107,7 +107,7 @@ impl DoeOutput {
         swap_word_bytes_inplace(&mut result.uds);
 
         result.field_entropy[0..8]
-            .as_bytes_mut()
+            .as_mut_bytes()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
                 swap_word_bytes(&input.doe_iv).as_bytes(),
@@ -464,7 +464,7 @@ impl RtAliasKey {
         let mut tci: [u8; 96] = [0; 96];
         tci[0..48].copy_from_slice(swap_word_bytes(&tci_input.runtime_digest).as_bytes());
         tci[48..96]
-            .as_bytes_mut()
+            .as_mut_bytes()
             .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
 
         let mut cdi: [u32; 12] = transmute!(hmac384_kdf(

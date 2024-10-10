@@ -11,7 +11,7 @@ use caliptra_hw_model::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 

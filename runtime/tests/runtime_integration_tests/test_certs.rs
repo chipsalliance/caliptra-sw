@@ -29,7 +29,7 @@ use openssl::{
         store::X509StoreBuilder, verify::X509VerifyFlags, X509StoreContext, X509VerifyResult, X509,
     },
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 // Check if the owner and vendor cert validity dates are present in RT Alias cert
@@ -76,7 +76,7 @@ fn test_rt_cert_with_custom_dates() {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
     let mut rt_resp = GetRtAliasCertResp::default();
-    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
@@ -131,7 +131,7 @@ fn test_idev_id_cert() {
 
     assert!(resp.len() <= std::mem::size_of::<GetIdevCertResp>());
     let mut cert = GetIdevCertResp::default();
-    cert.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    cert.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     assert!(caliptra_common::checksum::verify_checksum(
         cert.hdr.chksum,
@@ -170,7 +170,7 @@ fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
     let mut ldev_resp = GetLdevCertResp::default();
-    ldev_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    ldev_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     ldev_resp
 }
 
@@ -189,7 +189,7 @@ fn test_ldev_cert() {
         .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
-    let idev_resp = GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
+    let idev_resp = GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Check the LDevID is signed by IDevID
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
@@ -259,7 +259,7 @@ fn test_dpe_leaf_cert() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(certify_key_cmd),
+        &mut Command::CertifyKey(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -324,7 +324,7 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
     };
     let resp = execute_dpe_cmd(
         model,
-        &mut Command::CertifyKey(certify_key_cmd),
+        &mut Command::CertifyKey(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -450,12 +450,12 @@ pub fn test_all_measurement_apis() {
         flags: DeriveContextFlags::MAKE_DEFAULT
             | DeriveContextFlags::INPUT_ALLOW_CA
             | DeriveContextFlags::INPUT_ALLOW_X509,
-        tci_type: u32::read_from(&tci_type[..]).unwrap(),
+        tci_type: u32::read_from_bytes(&tci_type[..]).unwrap(),
         target_locality: 0,
     };
     let resp = execute_dpe_cmd(
         &mut hw,
-        &mut Command::DeriveContext(derive_context_cmd),
+        &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
     );
     let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {
