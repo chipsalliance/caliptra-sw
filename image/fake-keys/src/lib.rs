@@ -13,7 +13,7 @@ use std::fs;
 #[cfg(test)]
 use std::io::Write; // bring trait into scope
 #[cfg(test)]
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Generated with
 ///

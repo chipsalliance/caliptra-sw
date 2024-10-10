@@ -21,7 +21,7 @@ use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
 };
-use zerocopy::{AsBytes, LittleEndian, U32};
+use zerocopy::{IntoBytes, LittleEndian, U32};
 use zeroize::Zeroize;
 
 pub const D_PBLC: u16 = 0x8080;

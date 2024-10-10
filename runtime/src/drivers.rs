@@ -59,7 +59,7 @@ use dpe::{
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[derive(PartialEq, Clone)]
 pub enum PauserPrivileges {

@@ -18,8 +18,7 @@ use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
-use zerocopy::AsBytes;
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image digest mismatched.
 
@@ -100,7 +99,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         IMAGE_NOT_AUTHORIZED
@@ -159,7 +158,7 @@ fn test_authorize_and_stash_cmd_success() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // create a new fw image with the runtime replaced by the mbox responder
@@ -214,7 +213,7 @@ fn test_authorize_and_stash_cmd_deny_authorization_no_hash_or_id() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         IMAGE_NOT_AUTHORIZED
@@ -242,7 +241,7 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_id_no_hash() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         IMAGE_NOT_AUTHORIZED
@@ -271,7 +270,7 @@ fn test_authorize_and_stash_cmd_deny_authorization_wrong_hash() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         IMAGE_HASH_MISMATCH
@@ -300,7 +299,7 @@ fn test_authorize_and_stash_cmd_success_skip_auth() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
@@ -338,7 +337,7 @@ fn test_authorize_and_stash_fwid_0() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
@@ -376,7 +375,7 @@ fn test_authorize_and_stash_fwid_127() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
 
@@ -403,7 +402,8 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             .unwrap()
             .expect("We should have received a response");
 
-        let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
         assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
     }
 
@@ -438,7 +438,8 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             .unwrap()
             .expect("We should have received a response");
 
-        let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+        let authorize_and_stash_resp =
+            AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
         assert_eq!(
             authorize_and_stash_resp.auth_req_result,
             IMAGE_HASH_MISMATCH
