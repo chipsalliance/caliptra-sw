@@ -91,8 +91,6 @@ impl RandomOrder {
     /// @param ctx The context to advance.
     /// @return The next value in the sequence.
     fn advance(&mut self) -> u32 {
-        // TODO: The current implementation is just a skeleton, and currently just
-        // traverses from 0 to `min_len * 2`.
         let s = self.state ^ (self.state >> 1);
         self.state += 1;
         s
@@ -195,8 +193,8 @@ pub fn hardened_memeq(lhs: &[u32], rhs: &[u32]) -> bool {
         // `byte_idx` for obvious reasons, and we need to launder the result of the
         // select, so that the compiler cannot delete the resulting loads and
         // stores. This is similar to having used `volatile uint32_t *`.p
-        let av = ct_cmov(ct_slt(byte_idx, byte_len), ap, decoy1) as *const u32;
-        let bv = ct_cmov(ct_slt(byte_idx, byte_len), bp, decoy2) as *const u32;
+        let av = launders(ct_cmov(ct_slt(launders(byte_idx), byte_len), ap, decoy1)) as *const u32;
+        let bv = launders(ct_cmov(ct_slt(launders(byte_idx), byte_len), bp, decoy2)) as *const u32;
 
         let a = unsafe { ptr::read_volatile(av) };
         let b = unsafe { ptr::read_volatile(bv) };
