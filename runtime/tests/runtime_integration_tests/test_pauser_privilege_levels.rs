@@ -267,6 +267,33 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
 }
 
 #[test]
+fn test_stash_measurement_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(None, Some(image_opts), None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
 fn test_certify_key_x509_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
