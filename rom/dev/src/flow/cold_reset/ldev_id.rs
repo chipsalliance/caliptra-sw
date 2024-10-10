@@ -21,7 +21,7 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;

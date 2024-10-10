@@ -20,7 +20,7 @@ use caliptra_error::CaliptraError;
 use crate::CfiCounter;
 use core::cfg;
 use core::cmp::{Eq, Ord, PartialEq, PartialOrd};
-use core::marker::Copy;
+use core::marker::{Copy, PhantomData};
 
 /// CFI Panic Information
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -94,15 +94,106 @@ impl From<CfiPanicInfo> for CaliptraError {
 /// # Returns
 ///
 /// `T` - Same value
-pub fn cfi_launder<T>(val: T) -> T {
+pub fn cfi_launder<T>(val: T) -> T
+where
+    Launder<T>: LaunderTrait<T>,
+{
     if cfg!(feature = "cfi") {
-        // Note: The black box seems to be disabling more optimization
-        // than necessary and results in larger binary size
-        core::hint::black_box(val)
+        Launder { _val: PhantomData }.launder(val)
     } else {
         val
     }
 }
+
+pub trait LaunderTrait<T> {
+    fn launder(&self, val: T) -> T {
+        core::hint::black_box(val)
+    }
+}
+
+pub struct Launder<T> {
+    _val: PhantomData<T>,
+}
+
+// Inline-assembly laundering trick is adapted from OpenTitan:
+// https://github.com/lowRISC/opentitan/blob/master/sw/device/lib/base/hardened.h#L193
+//
+// NOTE: This implementation is LLVM-specific, and should be considered to be
+// a no-op in every other compiler. For example, GCC has in the past peered
+// into the insides of assembly blocks.
+//
+// At the time of writing, it seems preferable to have something we know is
+// correct rather than being overly clever; this is recorded here in case
+// the current implementation is unsuitable and we need something more
+// carefully tuned.
+//
+// Unlike in C, we don't have volatile assembly blocks, so this doesn't
+// necessarily prevent reordering by LLVM.
+//
+// When we're building for static analysis, reduce false positives by
+// short-circuiting the inline assembly block.
+impl LaunderTrait<u32> for Launder<u32> {
+    #[allow(asm_sub_register)]
+    fn launder(&self, val: u32) -> u32 {
+        let mut val = val;
+        // Safety: this is a no-op, since we don't modify the input.
+        unsafe {
+            // We use inout so that LLVM thinks the value might
+            // be mutated by the assembly and can't eliminate it.
+            core::arch::asm!(
+                "/* {t} */",
+                t = inout(reg) val,
+            );
+        }
+        val
+    }
+}
+
+impl LaunderTrait<bool> for Launder<bool> {
+    #[allow(asm_sub_register)]
+    fn launder(&self, val: bool) -> bool {
+        let mut val = val as u32;
+        // Safety: this is a no-op, since we don't modify the input.
+        unsafe {
+            core::arch::asm!(
+                "/* {t} */",
+                t = inout(reg) val,
+            );
+        }
+        val != 0
+    }
+}
+
+impl LaunderTrait<usize> for Launder<usize> {
+    #[allow(asm_sub_register)]
+    fn launder(&self, mut val: usize) -> usize {
+        // Safety: this is a no-op, since we don't modify the input.
+        unsafe {
+            core::arch::asm!(
+                "/* {t} */",
+                t = inout(reg) val,
+            );
+        }
+        val
+    }
+}
+
+impl<const N: usize, T> LaunderTrait<[T; N]> for Launder<[T; N]> {}
+impl<'a, const N: usize, T> LaunderTrait<&'a [T; N]> for Launder<&'a [T; N]> {
+    fn launder(&self, val: &'a [T; N]) -> &'a [T; N] {
+        let mut valp = val.as_ptr() as *const [T; N];
+        // Safety: this is a no-op, since we don't modify the input.
+        unsafe {
+            core::arch::asm!(
+                "/* {t} */",
+                t = inout(reg) valp,
+            );
+            &*valp
+        }
+    }
+}
+impl LaunderTrait<Option<u32>> for Launder<Option<u32>> {}
+impl LaunderTrait<CfiPanicInfo> for Launder<CfiPanicInfo> {}
 
 /// Control flow integrity panic
 ///
@@ -157,6 +248,7 @@ macro_rules! cfi_assert_macro {
         pub fn $name<T>(lhs: T, rhs: T)
         where
             T: $trait1 + $trait2,
+            Launder<T>: LaunderTrait<T>,
         {
             if cfg!(feature = "cfi") {
                 CfiCounter::delay();
@@ -184,10 +276,28 @@ cfi_assert_macro!(cfi_assert_lt, <, Ord, PartialOrd, AssertLtFail);
 cfi_assert_macro!(cfi_assert_ge, >=, Ord, PartialOrd, AssertGeFail);
 cfi_assert_macro!(cfi_assert_le, <=, Ord, PartialOrd, AssertLeFail);
 
+// special case for bool assert
+#[inline(always)]
+#[allow(unused)]
+pub fn cfi_assert_bool(cond: bool) {
+    if cfg!(feature = "cfi") {
+        CfiCounter::delay();
+        if !cond {
+            cfi_panic(CfiPanicInfo::AssertEqFail);
+        }
+
+        // Second check for glitch protection
+        CfiCounter::delay();
+        if !cfi_launder(cond) {
+            cfi_panic(CfiPanicInfo::AssertEqFail);
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! cfi_assert {
     ($cond: expr) => {
-        cfi_assert_eq($cond, true)
+        cfi_assert_bool($cond)
     };
 }
 

@@ -16,11 +16,14 @@ References:
 
 --*/
 
+mod cfi_asm_test;
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::parse_macro_input;
 use syn::parse_quote;
+use syn::DeriveInput;
 use syn::FnArg;
 use syn::ItemFn;
 
@@ -93,4 +96,16 @@ fn cfi_fn(mod_fn: bool, input: TokenStream) -> TokenStream {
     };
 
     code.into()
+}
+
+#[proc_macro_derive(Launder)]
+pub fn derive_launder_trait(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+    let (impl_generics, ty_generics, _) = input.generics.split_for_impl();
+    let expanded = quote! {
+        impl #impl_generics caliptra_cfi_lib::LaunderTrait<#name #ty_generics> for caliptra_cfi_lib::Launder<#name #ty_generics> {}
+        impl #impl_generics caliptra_cfi_lib::LaunderTrait<&#name #ty_generics> for caliptra_cfi_lib::Launder<&#name #ty_generics> {}
+    };
+    TokenStream::from(expanded)
 }
