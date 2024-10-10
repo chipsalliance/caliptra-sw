@@ -61,6 +61,12 @@ use core::cmp::Ordering::{Equal, Greater};
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
 use zerocopy::AsBytes;
 
+#[derive(PartialEq, Clone)]
+pub enum PauserPrivileges {
+    PL0,
+    PL1,
+}
+
 pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
@@ -237,16 +243,8 @@ impl Drivers {
             }
         } else {
             let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
-            let flags = drivers.persistent_data.get().manifest1.header.flags;
-            let locality = drivers.mbox.user();
             // check that DPE used context limits are not exceeded
-            let dpe_context_threshold_exceeded = Self::is_dpe_context_threshold_exceeded(
-                pl0_pauser,
-                flags,
-                locality,
-                &drivers.persistent_data.get().dpe,
-                true,
-            );
+            let dpe_context_threshold_exceeded = drivers.is_dpe_context_threshold_exceeded();
             if cfi_launder(dpe_context_threshold_exceeded.is_ok()) {
                 cfi_assert!(dpe_context_threshold_exceeded.is_ok());
             } else {
@@ -364,6 +362,7 @@ impl Drivers {
         let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+        let privilege_level = drivers.caller_privilege_level();
 
         // create a hash of all the mailbox valid pausers
         const PAUSER_COUNT: usize = 5;
@@ -446,13 +445,12 @@ impl Drivers {
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
-            let flags = pdata.manifest1.header.flags;
-            Self::is_dpe_context_threshold_exceeded(
+            //
+            // Use the helper method here because the DPE instance holds a mutable reference to driver
+            Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                flags,
-                pl0_pauser_locality,
+                privilege_level.clone(),
                 &dpe,
-                false,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
@@ -537,20 +535,18 @@ impl Drivers {
     /// Counts the number of non-inactive DPE contexts and returns an error
     /// if this number is greater than or equal to the active context threshold
     /// corresponding to the privilege level of the caller.
-    ///
-    /// # Arguments
-    ///
-    /// * `pl0_pauser` - Value of PL0 PAuser
-    /// * `flags` - Flags from manifest header
-    /// * `locality` - Caller's locality
-    /// * `dpe` - DpeInstance
-    /// * `check_already_exceeded` - If true, checks that the active context threshold is already exceeded.
-    pub fn is_dpe_context_threshold_exceeded(
+    pub fn is_dpe_context_threshold_exceeded(&self) -> CaliptraResult<()> {
+        Self::is_dpe_context_threshold_exceeded_helper(
+            self.persistent_data.get().manifest1.header.pl0_pauser,
+            self.caller_privilege_level(),
+            &self.persistent_data.get().dpe,
+        )
+    }
+
+    fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
-        flags: u32,
-        locality: u32,
+        caller_privilege_level: PauserPrivileges,
         dpe: &DpeInstance,
-        check_already_exceeded: bool,
     ) -> CaliptraResult<()> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
@@ -566,32 +562,43 @@ impl Drivers {
             - used_pl0_dpe_context_count;
 
         match (
-            Self::is_caller_pl1(pl0_pauser, flags, locality),
+            caller_privilege_level,
             used_pl1_dpe_context_count.cmp(&PL1_DPE_ACTIVE_CONTEXT_THRESHOLD),
             used_pl0_dpe_context_count.cmp(&PL0_DPE_ACTIVE_CONTEXT_THRESHOLD),
         ) {
-            (true, Equal, _) => Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
-            (true, Greater, _) => {
+            (PauserPrivileges::PL1, Equal, _) => {
+                Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED)
+            }
+            (PauserPrivileges::PL1, Greater, _) => {
                 Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
             }
-            (false, _, Equal) => Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
-            (false, _, Greater) => {
+            (PauserPrivileges::PL0, _, Equal) => {
+                Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED)
+            }
+            (PauserPrivileges::PL0, _, Greater) => {
                 Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
             }
             _ => Ok(()),
         }
     }
 
-    /// Checks if the caller is privilege level 1
-    ///
-    /// # Arguments
-    ///
-    /// * `pl0_pauser` - Value of PL0 PAuser
-    /// * `flags` - Flags from manifest header
-    /// * `locality` - Caller's locality
-    pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        (flags & PL0_PAUSER_FLAG == 0) // There is no PL0 PAUSER
-            || (locality != pl0_pauser) // There is a PL0 PAUSER, but it's not the current user
+    /// Retrieves the caller permission level
+    pub fn caller_privilege_level(&self) -> PauserPrivileges {
+        let manifest_header = self.persistent_data.get().manifest1.header;
+        let pl0_pauser = manifest_header.pl0_pauser;
+        let flags = manifest_header.flags;
+        let locality = self.mbox.user();
+
+        // When the PL0_PAUSER_FLAG bit is not set there can be no PL0 PAUSER.
+        if (flags & PL0_PAUSER_FLAG == 0) {
+            return PauserPrivileges::PL1;
+        }
+
+        if locality == pl0_pauser {
+            PauserPrivileges::PL0
+        } else {
+            PauserPrivileges::PL1
+        }
     }
 
     /// Get the KeyId for the RT Alias CDI
