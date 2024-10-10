@@ -35,7 +35,7 @@ use openssl::rsa::Rsa;
 use openssl::x509::X509Req;
 use openssl::x509::X509;
 use std::str;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 

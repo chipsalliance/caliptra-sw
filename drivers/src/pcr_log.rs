@@ -12,7 +12,7 @@ Abstract:
 --*/
 
 use crate::PcrId;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
@@ -52,7 +52,7 @@ impl From<u16> for PcrLogEntryId {
 
 /// PCR log entry
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes, Zeroize)]
+#[derive(IntoBytes, Clone, Copy, Debug, Default, FromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct PcrLogEntry {
     /// Entry identifier
     pub id: u16,
@@ -85,7 +85,7 @@ impl PcrLogEntry {
 
 /// Measurement log entry
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes, Zeroize)]
+#[derive(IntoBytes, Clone, Copy, Debug, Default, FromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct MeasurementLogEntry {
     pub pcr_entry: PcrLogEntry,
     pub metadata: [u8; 4],

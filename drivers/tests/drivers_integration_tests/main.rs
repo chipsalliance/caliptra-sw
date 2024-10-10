@@ -23,7 +23,7 @@ use caliptra_test::{
 };
 use openssl::{hash::MessageDigest, pkey::PKey};
 use ureg::ResettableReg;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 fn default_init_params() -> InitParams<'static> {
     InitParams {
@@ -221,7 +221,7 @@ fn test_doe_when_debug_not_locked() {
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
-    let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
+    let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
     assert_eq!(
         test_results,
         DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
@@ -315,7 +315,7 @@ fn test_doe_when_debug_locked() {
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
-    let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
+    let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
     assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
     txn.respond_success();
     model.step_until_exit_success().unwrap();

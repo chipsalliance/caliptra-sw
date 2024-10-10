@@ -19,7 +19,7 @@ Environment:
 use crate::flow::crypto::Crypto;
 use crate::fmc_env::FmcEnv;
 use caliptra_drivers::{Array4x12, CaliptraResult};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub struct Tci {}
 

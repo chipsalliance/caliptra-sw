@@ -27,7 +27,7 @@ use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -180,7 +180,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest.as_bytes_mut())?;
+        txn.copy_request(runtime_dest.as_mut_bytes())?;
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
@@ -198,7 +198,7 @@ impl UpdateResetFlow {
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
-        txn.copy_request(persistent_data.manifest2.as_bytes_mut())?;
+        txn.copy_request(persistent_data.manifest2.as_mut_bytes())?;
         Ok(persistent_data.manifest2)
     }
 

@@ -17,7 +17,7 @@ use core::str::from_utf8;
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{AddSubjectAltNameReq, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
 
@@ -30,7 +30,7 @@ impl AddSubjectAltNameCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<AddSubjectAltNameReq>() {
             let mut cmd = AddSubjectAltNameReq::default();
-            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
             let dmtf_device_info_size = cmd.dmtf_device_info_size as usize;
             if dmtf_device_info_size > cmd.dmtf_device_info.len() {

@@ -9,7 +9,7 @@ use caliptra_image_types::ImageBundle;
 use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 
@@ -146,7 +146,7 @@ fn verify_key(
 
     assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
     let mut cert_resp = GetLdevCertResp::default();
-    cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     // Extract the certificate from the response
     let cert_der = &cert_resp.data[..(cert_resp.data_size as usize)];

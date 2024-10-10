@@ -37,7 +37,7 @@ use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, Ima
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
-use zerocopy::{AsBytes, LayoutVerified};
+use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 #[derive(Debug, Default, Zeroize)]
@@ -211,19 +211,15 @@ impl FirmwareProcessor {
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
                 //       See note above about race condition
                 let mut txn = ManuallyDrop::new(txn.start_txn());
+                let mut request = MailboxReqHeader::default();
+                Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
                 match CommandId::from(txn.cmd()) {
                     CommandId::VERSION => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
-
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
                     CommandId::SELF_TEST_START => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
-
                         if self_test_in_progress {
                             // TODO: set non-fatal error register?
                             txn.complete(false)?;
@@ -236,9 +232,6 @@ impl FirmwareProcessor {
                         }
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
-
                         if !self_test_in_progress {
                             // TODO: set non-fatal error register?
                             txn.complete(false)?;
@@ -250,9 +243,6 @@ impl FirmwareProcessor {
                         }
                     }
                     CommandId::SHUTDOWN => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
-
                         let mut resp = MailboxRespHeader::default();
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
@@ -261,9 +251,6 @@ impl FirmwareProcessor {
                         return Err(CaliptraError::RUNTIME_SHUTDOWN);
                     }
                     CommandId::CAPABILITIES => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
-
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
@@ -321,7 +308,7 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
-        txn.copy_request(manifest.as_bytes_mut())?;
+        txn.copy_request(manifest.as_mut_bytes())?;
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -480,7 +467,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(fmc_dest.as_bytes_mut())?;
+        txn.copy_request(fmc_dest.as_mut_bytes())?;
 
         cprintln!(
             "[fwproc] Loading Runtime at address 0x{:08x} len {}",
@@ -493,7 +480,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest.as_bytes_mut())?;
+        txn.copy_request(runtime_dest.as_mut_bytes())?;
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
@@ -601,11 +588,9 @@ impl FirmwareProcessor {
         txn.copy_request(data)?;
 
         // Extract header out from the rest of the request
-        let req_hdr: &MailboxReqHeader = LayoutVerified::<&[u8], MailboxReqHeader>::new(
-            &data[..core::mem::size_of::<MailboxReqHeader>()],
-        )
-        .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
-        .into_ref();
+        let req_hdr: &MailboxReqHeader =
+            MailboxReqHeader::ref_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
+                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Verify checksum
         if !caliptra_common::checksum::verify_checksum(
@@ -637,7 +622,7 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         let mut measurement = StashMeasurementReq::default();
-        Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
+        Self::copy_req_verify_chksum(txn, measurement.as_mut_bytes())?;
 
         // Extend measurement into PCR31.
         Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;

@@ -14,7 +14,7 @@ Abstract:
 use anyhow::bail;
 use caliptra_image_types::*;
 use memoffset::offset_of;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::*;
 

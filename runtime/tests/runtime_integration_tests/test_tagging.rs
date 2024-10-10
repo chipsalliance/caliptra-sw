@@ -47,7 +47,7 @@ fn test_tagging_default_context() {
         )
         .unwrap()
         .expect("We expected a response");
-    let _ = GetTaggedTciResp::read_from(resp.as_slice()).unwrap();
+    let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]
@@ -288,5 +288,5 @@ fn test_tagging_retired_context() {
         )
         .unwrap()
         .expect("We expected a response");
-    let _ = GetTaggedTciResp::read_from(resp.as_slice()).unwrap();
+    let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
 }

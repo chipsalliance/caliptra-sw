@@ -19,7 +19,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
@@ -456,16 +456,16 @@ fn test_check_rom_update_reset_status_reg() {
     let mut warmresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first four entries
 
     // Check RomUpdateResetStatus datavault value.
-    let warmresetentry4_id =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    let (warmresetentry4_id, _) =
+        u32::ref_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
     assert_eq!(
-        warmresetentry4_id,
+        *warmresetentry4_id,
         WarmResetEntry4::RomUpdateResetStatus as u32
     );
     warmresetentry4_offset += core::mem::size_of::<u32>();
-    let warmresetentry4_value =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(warmresetentry4_value, u32::from(UpdateResetComplete));
+    let (warmresetentry4_value, _) =
+        u32::ref_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    assert_eq!(*warmresetentry4_value, u32::from(UpdateResetComplete));
 }
 
 #[test]

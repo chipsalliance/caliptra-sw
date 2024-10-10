@@ -11,7 +11,7 @@ use caliptra_common::{
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::common::{run_rt_test, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
 

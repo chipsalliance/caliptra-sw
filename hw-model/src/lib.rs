@@ -20,7 +20,7 @@ use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
     DEFAULT_CPTRA_OBF_KEY,
 };
-use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
+use zerocopy::{FromBytes, FromZeros, IntoBytes, Ref, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
@@ -820,12 +820,11 @@ pub trait HwModel: SocManager {
             return Err(ModelError::MailboxRespTypeTooSmall);
         }
         let (header_bytes, payload_bytes) = req
-            .as_bytes_mut()
+            .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let mut header = MailboxReqHeader::read_from(header_bytes as &[u8]).unwrap();
+        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes).unwrap();
         header.chksum = api::calc_checksum(R::ID.into(), payload_bytes);
-        header_bytes.copy_from_slice(header.as_bytes());
 
         let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
             return Err(ModelError::MailboxNoResponseData);
@@ -841,10 +840,10 @@ pub trait HwModel: SocManager {
         }
 
         let mut response = R::Resp::new_zeroed();
-        response.as_bytes_mut()[..response_bytes.len()].copy_from_slice(&response_bytes);
+        response.as_mut_bytes()[..response_bytes.len()].copy_from_slice(&response_bytes);
 
-        let response_header =
-            MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
+        let (response_header, _remaining_bytes) =
+            MailboxRespHeader::ref_from_prefix(response_bytes.as_slice()).unwrap();
         let actual_checksum = calc_checksum(0, &response_bytes[4..]);
         if actual_checksum != response_header.chksum {
             return Err(ModelError::MailboxRespInvalidChecksum {
@@ -993,13 +992,9 @@ pub trait HwModel: SocManager {
 
         // Unwrap cannot fail, count * sizeof(u32) is always smaller than data.len()
         let (prefix_words, suffix_bytes) =
-            LayoutVerified::<_, [Unalign<u32>]>::new_slice_unaligned_from_prefix(
-                data,
-                data.len() / 4,
-            )
-            .unwrap();
+            Ref::<_, [Unalign<u32>]>::from_prefix_with_elems(data, data.len() / 4).unwrap();
 
-        for word in prefix_words.into_slice() {
+        for word in Ref::into_ref(prefix_words) {
             self.soc_sha512_acc()
                 .datain()
                 .write(|_| word.get().swap_bytes());
@@ -1073,8 +1068,8 @@ pub trait HwModel: SocManager {
         let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Get response as a response header struct
-        let response = api::mailbox::StashMeasurementResp::read_from(response.as_slice())
-            .ok_or(ModelError::UploadMeasurementResponseError)?;
+        let response = api::mailbox::StashMeasurementResp::ref_from_bytes(response.as_slice())
+            .map_err(|_| ModelError::UploadMeasurementResponseError)?;
 
         // Verify checksum and FIPS status
         if !api::verify_checksum(
@@ -1104,7 +1099,7 @@ mod tests {
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
-    use zerocopy::{AsBytes, FromBytes};
+    use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
     use crate as caliptra_hw_model;
 
@@ -1523,7 +1518,7 @@ mod tests {
         const GET_RESPONSE_CMD: u32 = 0x3000_0001;
 
         #[repr(C)]
-        #[derive(AsBytes, FromBytes, Default)]
+        #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
         struct TestReq {
             hdr: MailboxReqHeader,
             data: [u8; 4],
@@ -1533,7 +1528,7 @@ mod tests {
             type Resp = TestResp;
         }
         #[repr(C)]
-        #[derive(AsBytes, Debug, FromBytes, PartialEq, Eq)]
+        #[derive(IntoBytes, Debug, FromBytes, PartialEq, Eq)]
         struct TestResp {
             hdr: MailboxRespHeader,
             data: [u8; 4],
@@ -1541,7 +1536,7 @@ mod tests {
         impl mailbox::Response for TestResp {}
 
         #[repr(C)]
-        #[derive(AsBytes, FromBytes, Default)]
+        #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
         struct TestReqNoData {
             hdr: MailboxReqHeader,
             data: [u8; 4],

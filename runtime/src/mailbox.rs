@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use core::mem::size_of;
 use core::slice;
 
 use caliptra_drivers::{memory_layout, CaliptraResult};
@@ -20,7 +21,7 @@ use caliptra_registers::mbox::{
     enums::{MboxFsmE, MboxStatusE},
     MboxCsr,
 };
-use zerocopy::{AsBytes, LayoutVerified, Unalign};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::CommandId;
 
@@ -124,22 +125,23 @@ impl Mailbox {
     }
 
     /// Copies `buf` to the mailbox
-    pub fn copy_words_to_mbox(&mut self, buf: &[Unalign<u32>]) {
+    pub fn copy_words_to_mbox(&mut self, buf: &[u32]) {
         let mbox = self.mbox.regs_mut();
         for word in buf {
-            mbox.datain().write(|_| word.get());
+            mbox.datain().write(|_| *word);
         }
     }
 
     /// Copies word-aligned `buf` to the mailbox
     pub fn copy_bytes_to_mbox(&mut self, buf: &[u8]) -> CaliptraResult<()> {
+        let count = buf.len() / size_of::<u32>();
         let (buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / 4).unwrap();
+            <[u32]>::ref_from_prefix_with_elems(buf, count).map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
         self.copy_words_to_mbox(&buf_words);
         if !suffix.is_empty() {
-            let mut last_word = 0_u32;
-            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
-            self.copy_words_to_mbox(&[Unalign::new(last_word)]);
+            if let Ok(last_word) = u32::ref_from_bytes(suffix) {
+                self.copy_words_to_mbox(&[*last_word]);
+            }
         }
         Ok(())
     }

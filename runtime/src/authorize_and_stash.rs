@@ -44,7 +44,7 @@ use dpe::{
     response::DpeErrorCode,
 };
 use memoffset::offset_of;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const AUTHORIZE_IMAGE: u32 = 0xDEADC0DE;
 pub const DENY_IMAGE_AUTHORIZATION: u32 = 0x21523F21;
@@ -54,7 +54,7 @@ impl AuthorizeAndStashCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = AuthorizeAndStashReq::read_from(cmd_args) {
+        if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
             if ImageHashSource::from(cmd.source) != ImageHashSource::InRequest {
                 Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
             }

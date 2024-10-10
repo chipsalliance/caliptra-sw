@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use core::mem::MaybeUninit;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 macro_rules! static_assert {
@@ -26,7 +26,9 @@ macro_rules! static_assert {
 /// The `Array4xN` type represents large arrays in the native format of the Caliptra
 /// cryptographic hardware, and provides From traits for converting to/from byte arrays.
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Zeroize)]
+#[derive(
+    Debug, Clone, Copy, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Zeroize,
+)]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
@@ -42,15 +44,9 @@ impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
 
 //// Ensure there is no padding in the struct
 static_assert!(core::mem::size_of::<Array4xN<1, 4>>() == 4);
-unsafe impl<const W: usize, const B: usize> AsBytes for Array4xN<W, B> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
 //// Ensure there is no padding in the struct
 static_assert!(core::mem::size_of::<Array4xN<1, 4>>() == 4);
-unsafe impl<const W: usize, const B: usize> FromBytes for Array4xN<W, B> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[inline(always)]

@@ -4,7 +4,9 @@
 
 use core::mem::size_of;
 
-use zerocopy::{AsBytes, BigEndian, FromBytes, LittleEndian, U32};
+use zerocopy::{
+    BigEndian, FromBytes, Immutable, IntoBytes, KnownLayout, LittleEndian, Unaligned, U32,
+};
 use zeroize::Zeroize;
 
 pub type LmsIdentifier = [u8; 16];
@@ -16,7 +18,19 @@ macro_rules! static_assert {
 }
 
 #[repr(transparent)]
-#[derive(AsBytes, FromBytes, Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(
+    IntoBytes,
+    FromBytes,
+    Copy,
+    Clone,
+    Debug,
+    KnownLayout,
+    Immutable,
+    Unaligned,
+    Default,
+    PartialEq,
+    Eq,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct LmsAlgorithmType(pub U32<BigEndian>);
 impl LmsAlgorithmType {
@@ -39,7 +53,19 @@ impl LmsAlgorithmType {
 }
 
 #[repr(transparent)]
-#[derive(AsBytes, FromBytes, Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(
+    IntoBytes,
+    FromBytes,
+    Debug,
+    Immutable,
+    KnownLayout,
+    Unaligned,
+    Default,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct LmotsAlgorithmType(pub U32<BigEndian>);
 
@@ -60,7 +86,7 @@ impl LmotsAlgorithmType {
     pub const LmotsSha256N24W8: Self = Self::new(8);
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
@@ -79,7 +105,7 @@ impl<const N: usize> Default for LmsPublicKey<N> {
         }
     }
 }
-// Ensure there is no padding (required for AsBytes safety)
+// Ensure there is no padding (required for IntoBytes safety)
 static_assert!(
     size_of::<LmsPublicKey<1>>()
         == (size_of::<LmsAlgorithmType>()
@@ -87,16 +113,21 @@ static_assert!(
             + size_of::<[u8; 16]>()
             + size_of::<[U32<LittleEndian>; 1]>())
 );
-// Derive doesn't support const generic arrays
-unsafe impl<const N: usize> AsBytes for LmsPublicKey<N> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
-unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Zeroize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    IntoBytes,
+    Immutable,
+    KnownLayout,
+    Unaligned,
+    FromBytes,
+    PartialEq,
+    Eq,
+    Zeroize,
+)]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
@@ -117,23 +148,16 @@ impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
         }
     }
 }
-// Ensure there is no padding (required for AsBytes safety)
+// Ensure there is no padding (required for IntoBytes safety)
 static_assert!(
     size_of::<LmotsSignature<1, 1>>()
         == (size_of::<LmotsAlgorithmType>()
             + size_of::<[U32<LittleEndian>; 1]>()
             + size_of::<[[U32<LittleEndian>; 1]; 1]>())
 );
-// Derive doesn't support const generic arrays
-unsafe impl<const N: usize, const P: usize> AsBytes for LmotsSignature<N, P> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
-unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes, PartialEq, Eq)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
     pub q: U32<BigEndian>,
@@ -154,7 +178,7 @@ impl<const N: usize, const P: usize, const H: usize> Default for LmsSignature<N,
         }
     }
 }
-// Ensure there is no padding (required for AsBytes safety)
+// Ensure there is no padding (required for IntoBytes safety)
 static_assert!(
     size_of::<LmsSignature<1, 1, 1>>()
         == (size_of::<U32<BigEndian>>()
@@ -162,15 +186,8 @@ static_assert!(
             + size_of::<LmsAlgorithmType>()
             + size_of::<[[U32<LittleEndian>; 1]; 1]>())
 );
-// Derive doesn't support const generic arrays
-unsafe impl<const N: usize, const P: usize, const H: usize> AsBytes for LmsSignature<N, P, H> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
-unsafe impl<const N: usize, const P: usize, const H: usize> FromBytes for LmsSignature<N, P, H> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, IntoBytes, Immutable, KnownLayout, FromBytes, Eq, PartialEq)]
 #[repr(C)]
 pub struct LmsPrivateKey<const N: usize> {
     pub tree_type: LmsAlgorithmType,
@@ -198,13 +215,6 @@ static_assert!(
             + size_of::<LmsIdentifier>()
             + size_of::<[U32<LittleEndian>; 1]>())
 );
-// Derive doesn't support const generic arrays
-unsafe impl<const N: usize> AsBytes for LmsPrivateKey<N> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
-unsafe impl<const N: usize> FromBytes for LmsPrivateKey<N> {
-    fn only_derive_is_allowed_to_implement_this_trait() {}
-}
 
 /// Converts a byte array to word arrays as used in the LMS types. Intended for
 /// use at compile-time or in tests / host utilities; not optimized for use in

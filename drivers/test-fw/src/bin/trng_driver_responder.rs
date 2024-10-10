@@ -14,7 +14,7 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, mbox::MboxCsr, soc_ifc::SocIfcReg,
     soc_ifc_trng::SocIfcTrngReg,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {

@@ -12,7 +12,7 @@ use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
 use openssl::sha::{sha384, sha512};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub fn exec_cmd_sha_acc<T: HwModel>(hw: &mut T) {
     let msg: &[u8] = &[0u8; 4];
@@ -340,7 +340,7 @@ pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &Vec<u8>) {
     )
     .unwrap();
 
-    let manifest = ImageManifest::read_from_prefix(&**fw_image).unwrap();
+    let (manifest, _) = ImageManifest::read_from_prefix(&**fw_image).unwrap();
     // Verify command-specific response data
     assert_eq!(fw_info_resp.fmc_revision, manifest.fmc.revision);
     assert_eq!(fw_info_resp.runtime_revision, manifest.runtime.revision);

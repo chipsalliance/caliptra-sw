@@ -25,7 +25,7 @@ use dpe::{
     commands::{CertifyKeyCmd, Command, CommandExecution},
     response::Response,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::{
     CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, MAX_CERT_CHAIN_SIZE,
@@ -35,8 +35,8 @@ use crate::{
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = CertifyKeyExtendedReq::read_from(cmd_args)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        let cmd = CertifyKeyExtendedReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
         match drivers.caller_privilege_level() {
             // CERTIFY_KEY_EXTENDED MUST only be called from PL0
@@ -84,8 +84,8 @@ impl CertifyKeyExtendedCmd {
         };
 
         let mut dpe = &mut pdata.dpe;
-        let certify_key_cmd = CertifyKeyCmd::read_from(&cmd.certify_key_req[..])
-            .ok_or(CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+        let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..])
+            .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let locality = drivers.mbox.user();
         let resp = certify_key_cmd.execute(dpe, &mut env, locality);
 

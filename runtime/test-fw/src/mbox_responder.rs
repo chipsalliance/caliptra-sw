@@ -17,7 +17,7 @@ use caliptra_runtime::{
     MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const OPCODE_READ_RT_FW_JOURNEY: u32 = 0x1000_0000;
 const OPCODE_READ_MBOX_PAUSER_HASH: u32 = 0x2000_0000;
@@ -167,7 +167,8 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_CONTEXT_TAGS) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_context_tags = <[u32; MAX_HANDLES]>::read_from(input_bytes).unwrap();
+                let corrupted_context_tags =
+                    <[u32; MAX_HANDLES]>::read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().context_tags = corrupted_context_tags;
                 write_response(&mut drivers.mbox, &[]);
             }
@@ -175,7 +176,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 let input_bytes = read_request(&drivers.mbox);
 
                 let corrupted_context_has_tag =
-                    <[U8Bool; MAX_HANDLES]>::read_from(input_bytes).unwrap();
+                    <[U8Bool; MAX_HANDLES]>::read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().context_has_tag = corrupted_context_has_tag;
                 write_response(&mut drivers.mbox, &[]);
             }
@@ -188,7 +189,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_dpe = DpeInstance::read_from(input_bytes).unwrap();
+                let corrupted_dpe = DpeInstance::read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().dpe = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }

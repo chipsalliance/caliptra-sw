@@ -21,7 +21,7 @@ use caliptra_registers::soc_ifc::SocIfcReg;
 use core::cmp::min;
 use core::mem::size_of;
 use core::slice;
-use zerocopy::{AsBytes, LayoutVerified, Unalign};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 /// Malbox operational states
@@ -286,36 +286,35 @@ impl<'a> MailboxRecvPeek<'a> {
 mod fifo {
     use super::*;
 
-    fn dequeue_words(mbox: &mut MboxCsr, buf: &mut [Unalign<u32>]) {
+    fn dequeue_words(mbox: &mut MboxCsr, buf: &mut [u32]) {
         let mbox = mbox.regs_mut();
         for word in buf.iter_mut() {
-            *word = Unalign::new(mbox.dataout().read());
+            *word = mbox.dataout().read();
         }
     }
-    pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) {
+    pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) -> CaliptraResult<()> {
         let dlen_bytes = mbox.regs().dlen().read() as usize;
         if dlen_bytes < buf.len() {
             buf = &mut buf[..dlen_bytes];
         }
 
         let len_words = buf.len() / size_of::<u32>();
-        let (mut buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words).unwrap();
-
-        dequeue_words(mbox, &mut buf_words);
-        if !suffix.is_empty() {
+        let (buf_words, suffix) = <[u32]>::mut_from_prefix_with_elems(buf, len_words)
+            .map_err(|_| CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
+        dequeue_words(mbox, buf_words);
+        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
             let last_word = mbox.regs().dataout().read();
             let suffix_len = suffix.len();
             suffix
-                .as_bytes_mut()
                 .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
         }
+        Ok(())
     }
 
-    fn enqueue_words(mbox: &mut MboxCsr, buf: &[Unalign<u32>]) {
+    fn enqueue_words(mbox: &mut MboxCsr, buf: &[u32]) {
         let mbox = mbox.regs_mut();
         for word in buf {
-            mbox.datain().write(|_| word.get());
+            mbox.datain().write(|_| *word);
         }
     }
 
@@ -325,17 +324,15 @@ mod fifo {
         if mbox.regs().dlen().read() as usize != buf.len() {
             return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
         }
-
-        let (buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
-                .unwrap();
+        let count = buf.len() / size_of::<u32>();
+        let (buf_words, suffix) = <[u32]>::ref_from_prefix_with_elems(buf, count)
+            .map_err(|_| CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
         enqueue_words(mbox, &buf_words);
-        if !suffix.is_empty() {
+        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
             let mut last_word = 0_u32;
-            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
-            enqueue_words(mbox, &[Unalign::new(last_word)]);
+            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
+            enqueue_words(mbox, &[last_word]);
         }
-
         Ok(())
     }
 }
@@ -416,7 +413,7 @@ impl MailboxRecvTxn<'_> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
-        fifo::dequeue(self.mbox, data);
+        fifo::dequeue(self.mbox, data)?;
         if mailbox_uncorrectable_ecc() {
             return Err(CaliptraError::DRIVER_MAILBOX_UNCORRECTABLE_ECC);
         }

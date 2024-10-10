@@ -28,7 +28,7 @@ use dpe::{
     response::Response,
     DPE_PROFILE,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, TEST_LABEL};
 

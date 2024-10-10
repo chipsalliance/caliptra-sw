@@ -42,7 +42,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         DENY_IMAGE_AUTHORIZATION

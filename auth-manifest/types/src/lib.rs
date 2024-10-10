@@ -19,7 +19,7 @@ use core::ops::Range;
 use caliptra_image_types::*;
 use core::default::Default;
 use memoffset::span_of;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
@@ -40,7 +40,7 @@ impl From<u32> for AuthManifestFlags {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
@@ -49,7 +49,7 @@ pub struct AuthManifestPubKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Default, Debug, Clone, Copy, Zeroize)]
 pub struct AuthManifestPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
     #[zeroize(skip)]
@@ -57,7 +57,7 @@ pub struct AuthManifestPrivKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[derive(IntoBytes, Clone, Copy, FromBytes, Immutable, KnownLayout, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestSignatures {
     pub ecc_sig: ImageEccSignature,
@@ -67,7 +67,7 @@ pub struct AuthManifestSignatures {
 
 /// Caliptra Authorization Image Manifest Preamble
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestPreamble {
     pub marker: u32,
@@ -131,7 +131,7 @@ impl AuthManifestPreamble {
 
 /// Caliptra Authorization Manifest Image Metadata
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadata {
     pub digest: [u8; 48],
@@ -141,7 +141,7 @@ pub struct AuthManifestImageMetadata {
 
 /// Caliptra Authorization Manifest Image Metadata Collection Header
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadataCollectionHeader {
     pub revision: u32,
@@ -162,7 +162,7 @@ impl Default for AuthManifestImageMetadata {
 
 /// Caliptra Authorization Manifest Image Metadata Collection
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadataCollection {
     pub header: AuthManifestImageMetadataCollectionHeader,
@@ -172,7 +172,7 @@ pub struct AuthManifestImageMetadataCollection {
 
 /// Caliptra Image Authorization Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthorizationManifest {
     pub preamble: AuthManifestPreamble,

@@ -23,7 +23,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
