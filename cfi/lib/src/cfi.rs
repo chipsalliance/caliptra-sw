@@ -259,8 +259,6 @@ pub fn cfi_assert_bool(cond: bool) {
         if !cfi_launder(cond) {
             cfi_panic(CfiPanicInfo::AssertEqFail);
         }
-    } else {
-        cond;
     }
 }
 
