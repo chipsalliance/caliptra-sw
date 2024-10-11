@@ -394,7 +394,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             if cfi_launder(cold_boot_digest) != actual {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
             } else {
-                caliptra_cfi_lib::cfi_assert_eq_12_words(&cold_boot_digest, actual);
+                caliptra_cfi_lib::cfi_assert_eq_12_words(cold_boot_digest, actual);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
