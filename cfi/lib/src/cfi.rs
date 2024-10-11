@@ -115,11 +115,31 @@ pub struct Launder<T> {
     _val: PhantomData<T>,
 }
 
+// Inline-assembly laundering trick is adapted from OpenTitan:
+// https://github.com/lowRISC/opentitan/blob/master/sw/device/lib/base/hardened.h#L193
+//
+// NOTE: This implementation is LLVM-specific, and should be considered to be
+// a no-op in every other compiler. For example, GCC has in the past peered
+// into the insides of assembly blocks.
+//
+// At the time of writing, it seems preferable to have something we know is
+// correct rather than being overly clever; this is recorded here in case
+// the current implementation is unsuitable and we need something more
+// carefully tuned.
+//
+// Unlike in C, we don't have volatile assembly blocks, so this doesn't
+// necessarily prevent reordering by LLVM.
+//
+// When we're building for static analysis, reduce false positives by
+// short-circuiting the inline assembly block.
 impl LaunderTrait<u32> for Launder<u32> {
     #[allow(asm_sub_register)]
     fn launder(&self, val: u32) -> u32 {
         let mut val = val;
+        // Safety: this is a no-op, since we don't modify the input.
         unsafe {
+            // We use inout so that LLVM thinks the value might
+            // be mutated by the assembly and can't eliminate it.
             core::arch::asm!(
                 "/* {t} */",
                 t = inout(reg) val,
@@ -133,6 +153,7 @@ impl LaunderTrait<bool> for Launder<bool> {
     #[allow(asm_sub_register)]
     fn launder(&self, val: bool) -> bool {
         let mut val = val as u32;
+        // Safety: this is a no-op, since we don't modify the input.
         unsafe {
             core::arch::asm!(
                 "/* {t} */",
@@ -146,6 +167,7 @@ impl LaunderTrait<bool> for Launder<bool> {
 impl LaunderTrait<usize> for Launder<usize> {
     #[allow(asm_sub_register)]
     fn launder(&self, mut val: usize) -> usize {
+        // Safety: this is a no-op, since we don't modify the input.
         unsafe {
             core::arch::asm!(
                 "/* {t} */",
@@ -159,15 +181,15 @@ impl LaunderTrait<usize> for Launder<usize> {
 impl<const N: usize, T> LaunderTrait<[T; N]> for Launder<[T; N]> {}
 impl<'a, const N: usize, T> LaunderTrait<&'a [T; N]> for Launder<&'a [T; N]> {
     fn launder(&self, val: &'a [T; N]) -> &'a [T; N] {
-        let mut valp = val.as_ptr();
+        let mut valp = val.as_ptr() as *const [T; N];
+        // Safety: this is a no-op, since we don't modify the input.
         unsafe {
             core::arch::asm!(
                 "/* {t} */",
                 t = inout(reg) valp,
             );
+            &*valp
         }
-        _ = valp;
-        val
     }
 }
 impl LaunderTrait<Option<u32>> for Launder<Option<u32>> {}
