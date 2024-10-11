@@ -13,34 +13,34 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey,
+    Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyOut, Ecc384PubKey,
     Ecc384Signature, Trng,
 };
 
-const PRIV_KEY: Array4x12 = Array4x12::new([
-    0xc908585a, 0x486c3b3d, 0x8bbe50eb, 0x7d2eb8a0, 0x3aa04e3d, 0x8bde2c31, 0xa8a2a1e3, 0x349dc21c,
-    0xbbe6c90a, 0xe2f74912, 0x8884b622, 0xbb72b4c5,
+const KEY_GEN_PRIV_KEY: Array4x12 = Array4x12::new([
+    0xfeeef554, 0x4a765649, 0x90128ad1, 0x89e873f2, 0x1f0dfd5a, 0xd7e2fa86, 0x1127ee6e, 0x394ca784,
+    0x871c1aec, 0x032c7a8b, 0x10b93e0e, 0xab8946d6,
 ]);
 
-const PUB_KEY: Ecc384PubKey = Ecc384PubKey {
+const KEY_GEN_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
-        0x98233ca, 0x567a3f14, 0xbe784904, 0xc6921d43, 0x3b4f853a, 0x523742e4, 0xbc98767e,
-        0x23ca3da6, 0x656bec46, 0xa7b1119e, 0x63d266ca, 0x6254977f,
+        0xd7dd94e0, 0xbffc4cad, 0xe9902b7f, 0xdb154260, 0xd5ec5dfd, 0x57950e83, 0x59015a30,
+        0x2c8bf7bb, 0xa7e5f6df, 0xfc168516, 0x2bdd35f9, 0xf5c1b0ff,
     ]),
     y: Array4xN([
-        0x75d0b401, 0xc8bac39a, 0xc5fb0f2b, 0x3b95372c, 0x41d9de40, 0x55fddb06, 0xf7484974,
-        0x8d0aed85, 0x9b6550ca, 0x750c3cd1, 0x1851e050, 0xbb7d20b2,
+        0xbb9c3a2f, 0x061e8d70, 0x14278dd5, 0x1e66a918, 0xa6b6f9f1, 0xc1937312, 0xd4e7a921,
+        0xb18ef0f4, 0x1fdd401d, 0x9e771850, 0x9f8731e9, 0xeec9c31d,
     ]),
 };
 
 const SIGNATURE: Ecc384Signature = Ecc384Signature {
     r: Array4xN([
-        0x36f85014, 0x6f400443, 0x848cae03, 0x57591032, 0xe6a395de, 0x66e7261a, 0x38049fb,
-        0xee15db19, 0x5dbd9786, 0x9439292a, 0x4f5792e4, 0x3a1231b7,
+        0x93799D55, 0x12263628, 0x34F60F7B, 0x945290B7, 0xCCE6E996, 0x01FB7EBD, 0x026C2E3C,
+        0x445D3CD9, 0xB65068DA, 0xC0A848BE, 0x9F0560AA, 0x758FDA27,
     ]),
     s: Array4xN([
-        0xeeea4294, 0x82fd8fa9, 0xd4d5f960, 0xa09edfa6, 0xc765efe5, 0xff4c17a5, 0x12e694fa,
-        0xcc45d3f6, 0xfc3d3b5c, 0x62739c1f, 0xb9fcae3, 0x26f54b43,
+        0xE548E535, 0xA1CC600E, 0x133B5591, 0xAEBAAD78, 0x054006D7, 0x52D0E1DF, 0x94FBFA95,
+        0xD78F0B3F, 0x8E81B911, 0x9C2BE008, 0xBF6D6F4E, 0x4185F87D,
     ]),
 };
 
@@ -51,7 +51,7 @@ impl Ecc384Kat {
     /// This function executes the Known Answer Tests (aka KAT) for ECC384.
     ///
     /// Test vector source:
-    /// Generated using MbedTLS library.
+    /// Zeroed inputs, outputs verified against python cryptography lib built on OpenSSL
     ///
     /// # Arguments
     ///
@@ -61,24 +61,35 @@ impl Ecc384Kat {
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
     pub fn execute(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
-        self.kat_signature_generate_and_verify(ecc, trng)
+        self.kat_key_pair_gen_sign_and_verify(ecc, trng)
     }
 
-    fn kat_signature_generate_and_verify(
+    fn kat_key_pair_gen_sign_and_verify(
         &self,
         ecc: &mut Ecc384,
         trng: &mut Trng,
     ) -> CaliptraResult<()> {
-        let digest = Array4x12::new([0u32; 12]);
-        // The driver validates every signature that it generates, so don't need
-        // to explicitly verify here.
-        let signature = ecc
-            .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &PUB_KEY, &digest, trng)
-            .map_err(|_| CaliptraError::KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
+        let mut priv_key = Array4x12::new([0u32; 12]);
+        let mut pct_sig = Ecc384Signature {
+            r: Array4x12::new([0u32; 12]),
+            s: Array4x12::new([0u32; 12]),
+        };
 
-        if signature != SIGNATURE {
-            Err(CaliptraError::KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
+        let pub_key = ecc
+            .key_pair_for_fips_kat(trng, Ecc384PrivKeyOut::from(&mut priv_key), &mut pct_sig)
+            .map_err(|_| CaliptraError::KAT_ECC384_KEY_PAIR_GENERATE_FAILURE)?;
+
+        // NOTE: Signature verify step is performed in ECC driver sign function
+        if priv_key != KEY_GEN_PRIV_KEY {
+            Err(CaliptraError::KAT_ECC384_KEY_PAIR_VERIFY_FAILURE)?;
         }
+        if pub_key != KEY_GEN_PUB_KEY {
+            Err(CaliptraError::KAT_ECC384_KEY_PAIR_VERIFY_FAILURE)?;
+        }
+        if pct_sig != SIGNATURE {
+            Err(CaliptraError::KAT_ECC384_SIGNATURE_MISMATCH)?;
+        }
+
         Ok(())
     }
 }
