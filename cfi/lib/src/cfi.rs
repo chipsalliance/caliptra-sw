@@ -156,10 +156,20 @@ impl LaunderTrait<usize> for Launder<usize> {
     }
 }
 
-impl<const N: usize> LaunderTrait<[u32; N]> for Launder<[u32; N]> {}
-impl<const N: usize> LaunderTrait<&[u32; N]> for Launder<&[u32; N]> {}
-impl<const N: usize> LaunderTrait<[u8; N]> for Launder<[u8; N]> {}
-impl<const N: usize> LaunderTrait<&[u8; N]> for Launder<&[u8; N]> {}
+impl<const N: usize, T> LaunderTrait<[T; N]> for Launder<[T; N]> {}
+impl<'a, const N: usize, T> LaunderTrait<&'a [T; N]> for Launder<&'a [T; N]> {
+    fn launder(&self, val: &'a [T; N]) -> &'a [T; N] {
+        let mut valp = val.as_ptr();
+        unsafe {
+            core::arch::asm!(
+                "/* {t} */",
+                t = inout(reg) valp,
+            );
+        }
+        _ = valp;
+        val
+    }
+}
 impl LaunderTrait<Option<u32>> for Launder<Option<u32>> {}
 impl LaunderTrait<CfiPanicInfo> for Launder<CfiPanicInfo> {}
 
