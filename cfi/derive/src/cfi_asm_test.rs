@@ -1,5 +1,11 @@
 // Licensed under the Apache-2.0 license
 
+// These tests are here so that they are excluded in FPGA tests.
+
+// These tests don't directly import the CFI code. If they fail,
+// this likely indicates that the CFI laundering code may not
+// be doing what we want, and we need to investigate.
+
 #[cfg(test)]
 mod test {
 

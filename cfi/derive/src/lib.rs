@@ -16,6 +16,8 @@ References:
 
 --*/
 
+mod cfi_asm_test;
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
