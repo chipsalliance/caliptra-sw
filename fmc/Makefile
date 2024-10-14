@@ -116,7 +116,7 @@ run: build-emu build-rom objcopy-rom build-fw-image
 		-- \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
-		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
+		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
 size:

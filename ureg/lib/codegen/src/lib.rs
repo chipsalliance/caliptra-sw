@@ -7,8 +7,8 @@ use std::{collections::HashMap, rc::Rc, str::FromStr};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::{format_ident, quote};
 use ureg_schema::{
-    Enum, EnumVariant, FieldType, Register, RegisterSubBlock, RegisterType, RegisterWidth,
-    ValidatedRegisterBlock,
+    Enum, EnumVariant, FieldType, Register, RegisterBlock, RegisterSubBlock, RegisterType,
+    RegisterWidth, ValidatedRegisterBlock,
 };
 
 fn tweak_keywords(s: &str) -> &str {
@@ -565,11 +565,14 @@ fn generate_array_type(
     }
 }
 
+static mut TYPE_NUM: usize = 0;
+
 fn generate_block_registers(
     registers: &[Rc<Register>],
     raw_ptr_type: &Ident,
     meta_tokens: &mut TokenStream,
     block_tokens: &mut TokenStream,
+    anon_type_tokens: &mut TokenStream,
     meta_prefix: &str,
     options: &OptionsInternal,
 ) {
@@ -580,28 +583,39 @@ fn generate_block_registers(
         if registers.len() == 1 && camel_ident(&reg.name) == meta_prefix {
             reg_meta_name = camel_ident(&reg.name);
         }
-        if reg.ty.name.is_none() {
-            continue;
-        }
+        let ty = match reg.ty.name {
+            Some(_) => reg.ty.as_ref().clone(),
+            _ => {
+                let mut new_ty = reg.ty.as_ref().clone();
+                // Safety: this is a single-threaded program.
+                new_ty.name = Some(format!("{}_anon_{}", reg_name, unsafe { TYPE_NUM }));
+                // Safety: this is a single-threaded program.
+                unsafe { TYPE_NUM += 1 };
+                let tokens = generate_register_types([new_ty.clone()].iter());
+                anon_type_tokens.extend(tokens);
+                new_ty
+            }
+        };
+        let ty = &ty;
         let default_val = hex_literal(reg.default_val);
-        let (read_type, write_type) = read_write_types(&reg.ty, options);
+        let (read_type, write_type) = read_write_types(ty, options);
         let ptr_offset = hex_literal(reg.offset);
-        let can_read = reg.ty.fields.iter().any(|f| f.ty.can_read());
-        let can_write = reg.ty.fields.iter().any(|f| f.ty.can_write());
-        let can_clear = reg.ty.fields.iter().any(|f| f.ty.can_clear());
-        let can_set = reg.ty.fields.iter().any(|f| f.ty.can_set());
+        let can_read = ty.fields.iter().any(|f| f.ty.can_read());
+        let can_write = ty.fields.iter().any(|f| f.ty.can_write());
+        let can_clear = ty.fields.iter().any(|f| f.ty.can_clear());
+        let can_set = ty.fields.iter().any(|f| f.ty.can_set());
 
         let needs_write = can_write || can_clear || can_set;
 
-        if reg.ty.width == RegisterWidth::_32 && can_read && !needs_write {
+        if ty.width == RegisterWidth::_32 && can_read && !needs_write {
             meta_tokens.extend(quote! {
                 pub type #reg_meta_name = ureg::ReadOnlyReg32<#read_type>;
             });
-        } else if reg.ty.width == RegisterWidth::_32 && !can_read && needs_write {
+        } else if ty.width == RegisterWidth::_32 && !can_read && needs_write {
             meta_tokens.extend(quote! {
                 pub type #reg_meta_name = ureg::WriteOnlyReg32<#default_val, #write_type>;
             });
-        } else if reg.ty.width == RegisterWidth::_32 && can_read && needs_write {
+        } else if ty.width == RegisterWidth::_32 && can_read && needs_write {
             meta_tokens.extend(quote! {
                 pub type #reg_meta_name = ureg::ReadWriteReg32<#default_val, #read_type, #write_type>;
             });
@@ -732,6 +746,27 @@ pub fn build_extern_types(
     }
 }
 
+fn block_is_empty(block: &ValidatedRegisterBlock) -> bool {
+    block.block().registers.is_empty()
+        && block.block().instances.is_empty()
+        && block.block().sub_blocks.is_empty()
+}
+
+fn block_max_register_width(block: &RegisterBlock) -> RegisterWidth {
+    let a = block.registers.iter().map(|r| r.ty.width).max();
+    let b = block
+        .sub_blocks
+        .iter()
+        .map(|sb| block_max_register_width(sb.block()))
+        .max();
+    match (a, b) {
+        (Some(a), Some(b)) => a.max(b),
+        (Some(a), None) => a,
+        (None, Some(b)) => b,
+        (None, None) => RegisterWidth::default(),
+    }
+}
+
 pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenStream {
     let options = options.compile();
     let enum_tokens = generate_enums(block.enum_types().values().map(AsRef::as_ref));
@@ -756,15 +791,10 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     let mut block_tokens = TokenStream::new();
 
     let mut instance_type_tokens = TokenStream::new();
+    let mut subblock_instance_type_tokens = TokenStream::new();
 
-    if !block.block().registers.is_empty() {
-        let max_reg_width = block
-            .block()
-            .registers
-            .iter()
-            .map(|r| r.ty.width)
-            .max()
-            .unwrap();
+    if !block_is_empty(block) {
+        let max_reg_width = block_max_register_width(block.block());
         let raw_ptr_type = format_ident!("{}", max_reg_width.rust_primitive_name());
 
         for instance in block.block().instances.iter() {
@@ -816,73 +846,33 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                             mmio: core::default::Default::default(),
                         }
                     }
-
                 }
-
             });
         }
+        let mut anon_type_tokens = TokenStream::new();
         generate_block_registers(
             &block.block().registers,
             &raw_ptr_type,
             &mut meta_tokens,
             &mut block_inner_tokens,
+            &mut anon_type_tokens,
             "",
             &options,
         );
 
         for sb in block.block().sub_blocks.iter() {
-            // TODO: Do this recursively
-            let mut subblock_tokens = TokenStream::new();
-            let subblock_name = format_ident!("{}Block", camel_ident(&sb.block().name));
-            let subblock_fn_name = snake_ident(&sb.block().name);
-            let meta_prefix = camel_ident(&sb.block().name).to_string();
-            generate_block_registers(
-                &sb.block().registers,
-                &raw_ptr_type,
-                &mut meta_tokens,
-                &mut subblock_tokens,
-                &meta_prefix,
+            generate_subblock_code(
+                sb,
+                raw_ptr_type.clone(),
                 &options,
+                &mut block_inner_tokens,
+                &mut subblock_type_tokens,
+                &mut subblock_instance_type_tokens,
+                &mut meta_tokens,
+                &mut anon_type_tokens,
             );
-
-            subblock_type_tokens.extend(quote! {
-                #[derive(Clone, Copy)]
-                pub struct #subblock_name<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
-                    ptr: *mut #raw_ptr_type,
-                    mmio: TMmio,
-                }
-                impl<TMmio: ureg::Mmio> #subblock_name<TMmio> {
-                    #subblock_tokens
-                }
-            });
-            let start_offset = hex_literal(sb.start_offset());
-            match sb {
-                RegisterSubBlock::Array { stride, len, .. } => {
-                    let stride = hex_literal(*stride);
-                    block_inner_tokens.extend(quote! {
-                        #[inline(always)]
-                        pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name<&TMmio> {
-                            assert!(index < #len);
-                            #subblock_name{
-                                ptr: unsafe { self.ptr.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) }
-                                mmio: core::borrow::Borrow::borrow(&self.mmio),
-                            }
-                        }
-                    });
-                }
-                RegisterSubBlock::Single { .. } => {
-                    block_inner_tokens.extend(quote! {
-                        #[inline(always)]
-                        pub fn #subblock_fn_name(&self) -> #subblock_name<&TMmio> {
-                            #subblock_name{
-                                ptr: unsafe { self.ptr.add(#start_offset / core::mem::size_of::<#raw_ptr_type>()) },
-                                mmio: core::borrow::Borrow::borrow(&self.mmio),
-                            }
-                        }
-                    });
-                }
-            }
         }
+        reg_tokens.extend(anon_type_tokens);
         block_tokens = quote! {
             #[derive(Clone, Copy)]
             pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
@@ -939,6 +929,8 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
         #subblock_type_tokens
 
+        #subblock_instance_type_tokens
+
         pub mod regs {
             //! Types that represent the values held by registers.
             #reg_tokens
@@ -954,5 +946,138 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             #meta_tokens
         }
 
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn generate_subblock_code(
+    sb: &RegisterSubBlock,
+    raw_ptr_type: Ident,
+    options: &OptionsInternal,
+    block_inner_tokens: &mut TokenStream,
+    subblock_type_tokens: &mut TokenStream,
+    subblock_instance_type_tokens: &mut TokenStream,
+    meta_tokens: &mut TokenStream,
+    anon_type_tokens: &mut TokenStream,
+) {
+    let mut subblock_tokens = TokenStream::new();
+    let subblock_name = format_ident!("{}Block", camel_ident(&sb.block().name));
+    let subblock_fn_name = snake_ident(&sb.block().name);
+    let meta_prefix = camel_ident(&sb.block().name).to_string();
+
+    for instance in sb.block().instances.iter() {
+        let name_camel = camel_ident(&instance.name);
+        let addr = hex_literal(instance.address.into());
+        // TODO: Should this be unsafe?
+        subblock_instance_type_tokens.extend(quote! {
+            /// A zero-sized type that represents ownership of this
+            /// peripheral, used to get access to a Register lock. Most
+            /// programs create one of these in unsafe code near the top of
+            /// main(), and pass it to the driver responsible for managing
+            /// all access to the hardware.
+            pub struct #name_camel {
+                // Ensure the only way to create this is via Self::new()
+                _priv: (),
+            }
+            impl #name_camel {
+                pub const PTR: *mut #raw_ptr_type = #addr as *mut #raw_ptr_type;
+
+                /// # Safety
+                ///
+                /// Caller must ensure that all concurrent use of this
+                /// peripheral in the firmware is done so in a compatible
+                /// way. The simplest way to enforce this is to only call
+                /// this function once.
+                #[inline(always)]
+                pub unsafe fn new() -> Self {
+                    Self{
+                        _priv: (),
+                    }
+                }
+
+                /// Returns a register block that can be used to read
+                /// registers from this peripheral, but cannot write.
+                #[inline(always)]
+                pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+                    RegisterBlock{
+                        ptr: Self::PTR,
+                        mmio: core::default::Default::default(),
+                    }
+                }
+
+                /// Return a register block that can be used to read and
+                /// write this peripheral's registers.
+                #[inline(always)]
+                pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+                    RegisterBlock{
+                        ptr: Self::PTR,
+                        mmio: core::default::Default::default(),
+                    }
+                }
+
+            }
+
+        });
+    }
+
+    generate_block_registers(
+        &sb.block().registers,
+        &raw_ptr_type,
+        meta_tokens,
+        &mut subblock_tokens,
+        anon_type_tokens,
+        &meta_prefix,
+        options,
+    );
+
+    subblock_type_tokens.extend(quote! {
+        #[derive(Clone, Copy)]
+        pub struct #subblock_name<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
+            ptr: *mut #raw_ptr_type,
+            mmio: TMmio,
+        }
+        impl<TMmio: ureg::Mmio> #subblock_name<TMmio> {
+            #subblock_tokens
+        }
+    });
+    let start_offset = hex_literal(sb.start_offset());
+    match sb {
+        RegisterSubBlock::Array { stride, len, .. } => {
+            let stride = hex_literal(*stride);
+            block_inner_tokens.extend(quote! {
+                #[inline(always)]
+                pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name<&TMmio> {
+                    assert!(index < #len);
+                    #subblock_name{
+                        ptr: unsafe { self.ptr.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) }
+                        mmio: core::borrow::Borrow::borrow(&self.mmio),
+                    }
+                }
+            });
+        }
+        RegisterSubBlock::Single { .. } => {
+            block_inner_tokens.extend(quote! {
+                #[inline(always)]
+                pub fn #subblock_fn_name(&self) -> #subblock_name<&TMmio> {
+                    #subblock_name{
+                        ptr: unsafe { self.ptr.add(#start_offset / core::mem::size_of::<#raw_ptr_type>()) },
+                        mmio: core::borrow::Borrow::borrow(&self.mmio),
+                    }
+                }
+            });
+        }
+    }
+
+    for sb2 in sb.block().sub_blocks.iter() {
+        generate_subblock_code(
+            sb2,
+            raw_ptr_type.clone(),
+            options,
+            block_inner_tokens,
+            subblock_type_tokens,
+            subblock_instance_type_tokens,
+            meta_tokens,
+            anon_type_tokens,
+        );
     }
 }

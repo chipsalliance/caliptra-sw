@@ -146,6 +146,10 @@ impl MailboxInternal {
         }
     }
 
+    pub fn mailbox_regs(&mut self) -> Rc<RefCell<MailboxRegs>> {
+        self.regs.clone()
+    }
+
     pub fn as_external(&self) -> MailboxExternal {
         MailboxExternal {
             regs: self.regs.clone(),
