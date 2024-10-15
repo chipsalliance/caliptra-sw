@@ -147,7 +147,7 @@ fn test_update_reset_non_fw_load_cmd() {
         .unwrap();
     hw.step_until_boot_status(KatStarted.into(), true);
     hw.step_until_boot_status(KatComplete.into(), true);
-    hw.step_until_boot_status(UpdateResetStarted.into(), false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
     let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
     hw.step_until_exit_success().unwrap();
