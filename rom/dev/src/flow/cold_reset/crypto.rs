@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;

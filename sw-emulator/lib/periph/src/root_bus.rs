@@ -13,9 +13,11 @@ Abstract:
 --*/
 
 use crate::{
+    dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::MlDsa87,
+    recovery::RecoveryRegisterInterface,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
@@ -25,6 +27,7 @@ use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
 use std::path::PathBuf;
+use std::rc::Rc;
 use tock_registers::registers::InMemoryRegister;
 
 /// Default Deobfuscation engine key
@@ -207,6 +210,7 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
+    pub recovery_image: Rc<Vec<u8>>,
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
@@ -229,6 +233,7 @@ impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
         Self {
             rom: Default::default(),
+            recovery_image: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
             tb_services_cb: Default::default(),
@@ -244,6 +249,7 @@ impl Default for CaliptraRootBusArgs {
 }
 
 #[derive(Bus)]
+#[handle_dma_fn(handle_dma)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -269,6 +275,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, mask = 0x0000_7fff)] // TODO update when known
     pub ml_dsa87: MlDsa87,
 
+    #[peripheral(offset = 0x1003_8000, mask = 0x0000_7fff)] // TODO
+    pub recovery: RecoveryRegisterInterface,
+
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Iccm,
 
@@ -289,6 +298,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
     pub sha512_acc: Sha512Accelerator,
+
+    #[peripheral(offset = 0x3002_2000, mask = 0x0000_0fff)]
+    pub dma: Dma,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegistersInternal,
@@ -313,6 +325,7 @@ impl CaliptraRootBus {
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
+        let recovery_image = args.recovery_image.clone();
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -331,6 +344,7 @@ impl CaliptraRootBus {
             sha512,
             sha256: HashSha256::new(clock),
             ml_dsa87: MlDsa87::new(clock),
+            recovery: RecoveryRegisterInterface::new(recovery_image),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
@@ -339,6 +353,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
+            dma: Dma::new(clock),
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
         }
@@ -350,6 +365,11 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
+    }
+
+    fn handle_dma(&mut self) {
+        let mut dma = self.dma.clone();
+        dma.do_dma_handling(self)
     }
 }
 

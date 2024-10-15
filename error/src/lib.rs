@@ -123,6 +123,11 @@ impl CaliptraError {
     pub const DRIVER_PCR_BANK_ERASE_WRITE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00070001);
 
+    /// Recovery register interface driver
+    pub const DRIVER_RECOVERY_INVALID_CMS_TYPE: CaliptraError =
+        CaliptraError::new_const(0x00052000);
+    pub const DRIVER_RECOVERY_INVALID_CMS: CaliptraError = CaliptraError::new_const(0x00052001);
+
     /// Mailbox Errors
     pub const DRIVER_MAILBOX_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00080001);
     pub const DRIVER_MAILBOX_INVALID_DATA_LEN: CaliptraError = CaliptraError::new_const(0x00080002);

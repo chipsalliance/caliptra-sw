@@ -37,6 +37,7 @@ mod kv_access;
 mod lms;
 mod mailbox;
 pub mod memory_layout;
+mod mldsa87;
 mod okref;
 mod pcr_bank;
 pub mod pcr_log;
