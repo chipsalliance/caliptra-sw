@@ -15,6 +15,7 @@ Abstract:
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
 use caliptra_auth_man_types::AuthManifestPubKeys;
+use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestPrivKeys};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -23,6 +24,7 @@ use caliptra_image_crypto::RustCrypto as Crypto;
 use caliptra_image_crypto::{lms_priv_key_from_pem, lms_pub_key_from_pem};
 use caliptra_image_gen::*;
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Authorization Manifest Key configuration from config file.
@@ -38,9 +40,11 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ImageMetadata {
+pub struct ImageMetadataConfigFromFile {
     digest: String,
     source: u32,
+    fw_id: u32,
+    ignore_auth_check: bool,
 }
 
 // Authorization Manifest configuration from TOML file
@@ -53,8 +57,16 @@ pub(crate) struct AuthManifestConfigFromFile {
     pub owner_fw_key_config: Option<AuthManifestKeyConfigFromFile>,
 
     pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
+}
 
-    pub image_metadata_list: Vec<ImageMetadata>,
+// Image Metadata Collection configuration from TOML file
+#[derive(Default, Serialize, Deserialize)]
+pub(crate) struct ImcConfigFromFile {
+    pub vendor_man_key_config: AuthManifestKeyConfigFromFile,
+
+    pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
+
+    pub image_metadata_list: Vec<ImageMetadataConfigFromFile>,
 }
 
 /// Load Authorization Manifest Key Configuration from file
@@ -65,6 +77,16 @@ pub(crate) fn load_auth_man_config_from_file(
         .with_context(|| format!("Failed to read the config file {}", path.display()))?;
 
     let config: AuthManifestConfigFromFile = toml::from_str(&config_str)
+        .with_context(|| format!("Failed to parse the config file {}", path.display()))?;
+
+    Ok(config)
+}
+
+pub(crate) fn load_imc_config_from_file(path: &PathBuf) -> anyhow::Result<ImcConfigFromFile> {
+    let config_str = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read the config file {}", path.display()))?;
+
+    let config: ImcConfigFromFile = toml::from_str(&config_str)
         .with_context(|| format!("Failed to parse the config file {}", path.display()))?;
 
     Ok(config)
@@ -116,17 +138,35 @@ pub(crate) fn owner_config_from_file(
 }
 
 pub(crate) fn image_metadata_config_from_file(
-    config: &Vec<ImageMetadata>,
+    config: &Vec<ImageMetadataConfigFromFile>,
 ) -> anyhow::Result<Vec<AuthManifestImageMetadata>> {
     let mut image_metadata_list = Vec::new();
+    let mut fw_id_props: HashMap<u32, bool> = HashMap::new();
 
     for image in config {
+        // Check if the firmware ID is already present in the list.
+        if let std::collections::hash_map::Entry::Vacant(e) = fw_id_props.entry(image.fw_id) {
+            e.insert(image.ignore_auth_check);
+        } else {
+            // Check if the ignore_auth_check value is the same for the same firmware ID.
+            if image.ignore_auth_check != fw_id_props[&image.fw_id] {
+                eprintln!(
+                    "Firmware ID {} has conflicting ignore_auth_check values",
+                    image.fw_id
+                );
+                return Err(anyhow::anyhow!("Error converting image metadata list"));
+            }
+        }
+
         let digest_vec = hex::decode(&image.digest)?;
-        let image_source = image.source;
+        let mut flags: ImageMetadataFlags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(image.ignore_auth_check);
+        flags.set_image_source(image.source);
 
         let image_metadata = AuthManifestImageMetadata {
+            fw_id: image.fw_id,
+            flags: flags.0,
             digest: digest_vec.try_into().unwrap(),
-            image_source,
         };
 
         image_metadata_list.push(image_metadata);

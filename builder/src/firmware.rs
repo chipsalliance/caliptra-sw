@@ -69,6 +69,12 @@ pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
     features: &["emu", "fips_self_test", "fips-test-hooks"],
 };
 
+pub const APP_WITH_FIPS_TEST_HOOKS: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["fips_self_test", "fips-test-hooks"],
+};
+
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
@@ -386,6 +392,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &APP,
     &APP_WITH_UART,
     &APP_WITH_UART_FIPS_TEST_HOOKS,
+    &APP_WITH_FIPS_TEST_HOOKS,
     &APP_WITH_UART_FPGA,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
