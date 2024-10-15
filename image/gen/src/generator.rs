@@ -13,6 +13,7 @@ Abstract:
 --*/
 use anyhow::bail;
 use caliptra_image_types::*;
+use core::mem::size_of;
 use memoffset::offset_of;
 use zerocopy::AsBytes;
 
@@ -93,11 +94,21 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             &header_digest_owner,
         )?;
 
+        let vendor_pub_key_info = &preamble.vendor_pub_key_info;
+
+        // Calculate the actual size of the manifest.
+        let manifest_size = size_of::<ImageManifest>() as u32
+            - (((vendor_pub_key_info.ecc_pub_key_hashes.len() as u32
+                - vendor_pub_key_info.ecc_key_descriptor.key_hash_count as u32)
+                + vendor_pub_key_info.lms_pub_key_hashes.len() as u32
+                - vendor_pub_key_info.lms_key_descriptor.key_hash_count as u32)
+                * size_of::<ImageDigest>() as u32);
+
         // Create Manifest
         let manifest = ImageManifest {
             marker: MANIFEST_MARKER,
-            size: core::mem::size_of::<ImageManifest>() as u32,
-            manifest_type: config.manifest_type.into(),
+            size: manifest_size,
+            fw_image_type: config.fw_image_type.into(),
             reserved: [0u8; 3],
             preamble,
             header,
@@ -159,22 +170,20 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             }
         }
 
-        let mut vendor_pub_key_info = ImageVendorPubKeyInfo::default();
-
-        vendor_pub_key_info.ecc_key_descriptor = ImageKeyDescriptor {
-            marker: KEY_DESCRIPTOR_MARKER,
-            version: KEY_DESCRIPTOR_VERSION,
-            intent: Intent::Vendor.into(),
-            key_type: KeyType::ECC.into(),
-            key_hash_count: config.vendor_config.ecc_key_count as u8,
-        };
-
-        vendor_pub_key_info.lms_key_descriptor = ImageKeyDescriptor {
-            marker: KEY_DESCRIPTOR_MARKER,
-            version: KEY_DESCRIPTOR_VERSION,
-            intent: Intent::Vendor.into(),
-            key_type: KeyType::LMS.into(),
-            key_hash_count: config.vendor_config.lms_key_count as u8,
+        let mut vendor_pub_key_info = ImageVendorPubKeyInfo {
+            ecc_key_descriptor: ImageKeyDescriptor {
+                version: KEY_DESCRIPTOR_VERSION,
+                intent: Intent::Vendor.into(),
+                key_type: KeyType::ECC.into(),
+                key_hash_count: config.vendor_config.ecc_key_count as u8,
+            },
+            lms_key_descriptor: ImageKeyDescriptor {
+                version: KEY_DESCRIPTOR_VERSION,
+                intent: Intent::Vendor.into(),
+                key_type: KeyType::LMS.into(),
+                key_hash_count: config.vendor_config.lms_key_count as u8,
+            },
+            ..Default::default()
         };
 
         // Hash the ECC and LMS public keys.
@@ -190,7 +199,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         }
 
         let mut preamble = ImagePreamble {
-            vendor_pub_key_info: vendor_pub_key_info,
+            vendor_pub_key_info,
             vendor_ecc_pub_key_idx: ecc_vendor_key_idx,
             vendor_ecc_active_pub_key: config.vendor_config.pub_keys.ecc_pub_keys
                 [ecc_vendor_key_idx as usize],
@@ -207,14 +216,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
             preamble.owner_pub_key_info = ImageOwnerPubKeyInfo {
                 ecc_key_descriptor: ImageKeyDescriptor {
-                    marker: KEY_DESCRIPTOR_MARKER,
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Owner.into(),
                     key_type: KeyType::ECC.into(),
                     key_hash_count: 0,
                 },
                 lms_key_descriptor: ImageKeyDescriptor {
-                    marker: KEY_DESCRIPTOR_MARKER,
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Owner.into(),
                     key_type: KeyType::LMS.into(),

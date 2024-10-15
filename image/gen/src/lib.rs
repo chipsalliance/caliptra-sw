@@ -131,7 +131,7 @@ pub struct ImageGeneratorConfig<T>
 where
     T: ImageGeneratorExecutable,
 {
-    pub manifest_type: ManifestType,
+    pub fw_image_type: FwImageType,
 
     pub vendor_config: ImageGeneratorVendorConfig,
 

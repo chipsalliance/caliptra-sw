@@ -34,7 +34,8 @@ impl<W: Write> ImageBundleWriter<W> {
         let manifest = &image.manifest;
         self.writer.write_all(manifest.marker.as_bytes())?;
         self.writer.write_all(manifest.size.as_bytes())?;
-        self.writer.write_all(std::slice::from_ref(&manifest.manifest_type))?;
+        self.writer
+            .write_all(std::slice::from_ref(&manifest.fw_image_type))?;
         self.writer.write_all(&manifest.reserved)?;
 
         //
@@ -63,12 +64,17 @@ impl<W: Write> ImageBundleWriter<W> {
         )?;
 
         let preamble = &image.manifest.preamble;
-        self.writer.write_all(preamble.vendor_ecc_pub_key_idx.as_bytes())?;
-        self.writer.write_all(preamble.vendor_ecc_active_pub_key.as_bytes())?;
-        self.writer.write_all(preamble.vendor_lms_pub_key_idx.as_bytes())?;
-        self.writer.write_all(preamble.vendor_lms_active_pub_key.as_bytes())?;
+        self.writer
+            .write_all(preamble.vendor_ecc_pub_key_idx.as_bytes())?;
+        self.writer
+            .write_all(preamble.vendor_ecc_active_pub_key.as_bytes())?;
+        self.writer
+            .write_all(preamble.vendor_lms_pub_key_idx.as_bytes())?;
+        self.writer
+            .write_all(preamble.vendor_lms_active_pub_key.as_bytes())?;
         self.writer.write_all(preamble.vendor_sigs.as_bytes())?;
-        self.writer.write_all(preamble.owner_pub_key_info.as_bytes())?;
+        self.writer
+            .write_all(preamble.owner_pub_key_info.as_bytes())?;
         self.writer.write_all(preamble.owner_pub_keys.as_bytes())?;
         self.writer.write_all(preamble.owner_sigs.as_bytes())?;
         self.writer.write_all(preamble._rsvd.as_bytes())?;

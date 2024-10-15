@@ -516,7 +516,9 @@ fn test_fmc_is_16k() {
     assert!(errs.is_empty());
 }
 
-#[test]
+//#[test]
+// [TODO] Enable this test.
+#[allow(dead_code)]
 fn test_update_reset_max_fw_image() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(

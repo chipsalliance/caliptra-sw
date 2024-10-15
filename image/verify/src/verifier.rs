@@ -17,11 +17,10 @@ use core::num::NonZeroU32;
 use crate::*;
 #[cfg(all(not(test), not(feature = "no-cfi")))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{
-    cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_assert_ne, cfi_launder,
-};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder};
 use caliptra_drivers::*;
 use caliptra_image_types::*;
+use core::mem::size_of;
 use memoffset::offset_of;
 
 const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
@@ -93,7 +92,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Check if manifest size is valid
-        if manifest.size as usize != core::mem::size_of::<ImageManifest>() {
+        let vendor_pub_key_info = &manifest.preamble.vendor_pub_key_info;
+        let manifest_size = size_of::<ImageManifest>() as u32
+            - (((vendor_pub_key_info.ecc_pub_key_hashes.len() as u32
+                - vendor_pub_key_info.ecc_key_descriptor.key_hash_count as u32)
+                + vendor_pub_key_info.lms_pub_key_hashes.len() as u32
+                - vendor_pub_key_info.lms_key_descriptor.key_hash_count as u32)
+                * size_of::<ImageDigest>() as u32);
+
+        if manifest.size != manifest_size {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)?;
         }
 
@@ -144,8 +151,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &'a ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<HeaderInfo<'a>> {
-        // Verify Vendor Public Key Digest
-        self.verify_vendor_pk_digest()?;
+        // Verify Vendor Public Key Info Digest
+        self.verify_vendor_pub_key_info_digest(&preamble.vendor_pub_key_info)?;
 
         // Verify Owner Public Key Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
@@ -218,27 +225,29 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<(u32, VendorPubKeyRevocation)> {
-        const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 2;
-        const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
-
         let key_idx = preamble.vendor_ecc_pub_key_idx;
         let revocation = self.env.vendor_ecc_pub_key_revocation();
+        let key_hash_count = preamble
+            .vendor_pub_key_info
+            .ecc_key_descriptor
+            .key_hash_count;
+        let last_key_idx: u32 = key_hash_count as u32 - 1;
 
-        match key_idx {
-            0..=SECOND_LAST_KEY_IDX => {
-                cfi_assert_le(cfi_launder(key_idx), SECOND_LAST_KEY_IDX);
-                let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
-                if cfi_launder(revocation).contains(cfi_launder(key)) {
-                    Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED)?;
-                } else {
-                    cfi_assert!(!revocation.contains(key));
-                }
+        // Check if the key index is within bounds.
+        if key_idx > last_key_idx {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+        }
+
+        // Check if key idx is the last key index. Last key index is never revoked.
+        if key_idx == last_key_idx {
+            cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
+        } else {
+            let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
+            if cfi_launder(revocation).contains(cfi_launder(key)) {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED)?;
+            } else {
+                cfi_assert!(!revocation.contains(key));
             }
-            LAST_KEY_IDX => {
-                cfi_assert_eq(cfi_launder(key_idx), LAST_KEY_IDX);
-                // The last key is never revoked
-            }
-            _ => Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?,
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
@@ -263,26 +272,26 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<(Option<u32>, Option<u32>)> {
-        const SECOND_LAST_KEY_IDX: u32 = VENDOR_LMS_MAX_KEY_COUNT - 2;
-        const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
-
         let key_idx = preamble.vendor_lms_pub_key_idx;
         let revocation = self.env.vendor_lms_pub_key_revocation();
+        let key_hash_count = preamble
+            .vendor_pub_key_info
+            .lms_key_descriptor
+            .key_hash_count;
+        let last_key_idx: u32 = key_hash_count as u32 - 1;
 
-        match key_idx {
-            0..=SECOND_LAST_KEY_IDX => {
-                cfi_assert_le(cfi_launder(key_idx), SECOND_LAST_KEY_IDX);
-                if (cfi_launder(revocation) & (0x01u32 << key_idx)) != 0 {
-                    Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED)?;
-                } else {
-                    cfi_assert_eq(revocation & (0x01u32 << key_idx), 0);
-                }
-            }
-            LAST_KEY_IDX => {
-                cfi_assert_eq(cfi_launder(key_idx), LAST_KEY_IDX);
-                // The last key is never revoked
-            }
-            _ => Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS)?,
+        // Check if the key index is within bounds.
+        if key_idx > last_key_idx {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+        }
+
+        // Check if key idx is the last key index. Last key index is never revoked.
+        if key_idx == last_key_idx {
+            cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
+        } else if (cfi_launder(revocation) & (0x01u32 << key_idx)) != 0 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED)?;
+        } else {
+            cfi_assert_eq(revocation & (0x01u32 << key_idx), 0);
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
@@ -301,8 +310,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok((Some(key_idx), Some(revocation)))
     }
 
-    /// Verify vendor public key digest
-    fn verify_vendor_pk_digest(&mut self) -> Result<(), NonZeroU32> {
+    /// Verify vendor public key info digest
+    fn verify_vendor_pub_key_info_digest(
+        &mut self,
+        pub_key_info: &ImageVendorPubKeyInfo,
+    ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
         if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
             cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
@@ -311,17 +323,56 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_ne(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
         }
 
-        // Read expected value from environment
-        let expected = self.env.vendor_pub_key_digest();
+        // Read expected value from the fuses
+        let expected = self.env.vendor_pub_key_info_digest_fuses();
 
-        // Vendor public key digest must never be zero
+        // Vendor public key digest from the fuses must never be zero
         if cfi_launder(expected) == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID)?;
         } else {
             cfi_assert_ne(expected, ZERO_DIGEST);
         }
 
-        let range = ImageManifest::vendor_pub_keys_range();
+        // Validate the ECC key descriptor.
+        if pub_key_info.ecc_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_VERSION_MISMATCH)?;
+        }
+        if pub_key_info.ecc_key_descriptor.intent != Intent::Vendor as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INTENT_MISMATCH)?;
+        }
+        if pub_key_info.ecc_key_descriptor.key_type != KeyType::ECC as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_TYPE_MISMATCH)?;
+        }
+        if pub_key_info.ecc_key_descriptor.key_hash_count == 0 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
+        }
+        if pub_key_info.ecc_key_descriptor.key_hash_count > VENDOR_ECC_MAX_KEY_COUNT as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+        }
+
+        let vendor_ecc_key_descriptor_range = ImageManifest::vendor_ecc_key_descriptor_range();
+        let vendor_ecc_key_hashes_offset =
+            vendor_ecc_key_descriptor_range.start + vendor_ecc_key_descriptor_range.len() as u32;
+
+        // Validate the LMS key descriptor.
+        if pub_key_info.lms_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_VERSION_MISMATCH)?;
+        }
+        if pub_key_info.lms_key_descriptor.intent != Intent::Vendor as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INTENT_MISMATCH)?;
+        }
+        if pub_key_info.lms_key_descriptor.key_type != KeyType::LMS as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_TYPE_MISMATCH)?;
+        }
+        if pub_key_info.lms_key_descriptor.key_hash_count == 0 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
+        }
+        if pub_key_info.lms_key_descriptor.key_hash_count > VENDOR_LMS_MAX_KEY_COUNT as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+        }
+        let vendor_lms_key_descriptor_range = ImageManifest::vendor_lms_key_descriptor_range();
+        let vendor_lms_key_hashes_offset =
+            vendor_lms_key_descriptor_range.start + vendor_lms_key_descriptor_range.len() as u32;
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -333,7 +384,26 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let actual = self
             .env
-            .sha384_digest(range.start, range.len() as u32)
+            .vendor_pub_key_info_digest_from_image(
+                (
+                    vendor_ecc_key_descriptor_range.start,
+                    vendor_ecc_key_descriptor_range.len() as u32,
+                ),
+                (
+                    vendor_ecc_key_hashes_offset,
+                    pub_key_info.ecc_key_descriptor.key_hash_count as u32
+                        * size_of::<ImageDigest>() as u32,
+                ),
+                (
+                    vendor_lms_key_descriptor_range.start,
+                    vendor_lms_key_descriptor_range.len() as u32,
+                ),
+                (
+                    vendor_lms_key_hashes_offset,
+                    pub_key_info.lms_key_descriptor.key_hash_count as u32
+                        * size_of::<ImageDigest>() as u32,
+                ),
+            )
             .map_err(|err| {
                 self.env.set_fw_extended_error(err.into());
                 CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
@@ -344,6 +414,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&expected, &actual);
         }
+
+        // [TODO] Verify active public key's digest from the descriptor hash list.
 
         Ok(())
     }
@@ -962,7 +1034,24 @@ mod tests {
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
-        let preamble = ImagePreamble::default();
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 1,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let result = verifier.verify_vendor_ecc_pk_idx(&preamble, ResetReason::UpdateReset);
         assert!(result.is_ok());
@@ -977,6 +1066,22 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
 
         let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 4,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+
+                ..Default::default()
+            },
             vendor_ecc_pub_key_idx: 2,
             ..Default::default()
         };
@@ -999,7 +1104,25 @@ mod tests {
         };
 
         let mut verifier = ImageVerifier::new(test_env);
-        let preamble = ImagePreamble::default();
+
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 1,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let result = verifier.verify_preamble(&preamble, ResetReason::UpdateReset);
         assert!(result.is_ok());
@@ -1068,7 +1191,24 @@ mod tests {
         };
 
         let mut verifier = ImageVerifier::new(test_env);
-        let preamble = ImagePreamble::default();
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 1,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let result = verifier.verify_preamble(&preamble, ResetReason::UpdateReset);
         assert!(result.is_ok());
@@ -1128,7 +1268,24 @@ mod tests {
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
-        let preamble = ImagePreamble::default();
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 1,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
         assert!(result.is_ok());
@@ -1143,7 +1300,24 @@ mod tests {
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
-        let preamble = ImagePreamble::default();
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::ECC as u8,
+                    key_hash_count: 1,
+                },
+                lms_key_descriptor: ImageKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+                    intent: Intent::Vendor as u8,
+                    key_type: KeyType::LMS as u8,
+                    key_hash_count: 1,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
         assert_eq!(
             result.err(),
@@ -1950,7 +2124,17 @@ mod tests {
             }
         }
 
-        fn vendor_pub_key_digest(&self) -> ImageDigest {
+        fn vendor_pub_key_info_digest_from_image(
+            &mut self,
+            _ecc_key_desc: (u32, u32),
+            _ecc_pub_key_hashes: (u32, u32),
+            _lms_key_desc: (u32, u32),
+            _lms_pub_key_hashes: (u32, u32),
+        ) -> CaliptraResult<ImageDigest> {
+            Ok(self.digest)
+        }
+
+        fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest {
             self.vendor_pub_key_digest
         }
 

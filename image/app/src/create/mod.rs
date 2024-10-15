@@ -186,10 +186,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         owner_config: owner_config(config_dir, &config.owner, own_from_date, own_to_date)?,
         fmc,
         runtime,
-        manifest_type: if *image_type == 1 {
-            ManifestType::EccLms
+        fw_image_type: if *image_type == 1 {
+            FwImageType::EccLms
         } else {
-            ManifestType::EccMldsa
+            FwImageType::EccMldsa
         },
     };
 
@@ -230,10 +230,10 @@ fn vendor_config(
         return Err(anyhow!("Invalid LMS Public Key Count"));
     }
 
-    if ecc_key_idx >= ecc_key_count as u32 {
+    if ecc_key_idx >= ecc_key_count {
         return Err(anyhow!("Invalid ECC Public Key Index"));
     }
-    if lms_key_idx >= lms_key_count as u32 {
+    if lms_key_idx >= lms_key_count {
         return Err(anyhow!("Invalid LMS Public Key Index"));
     }
 

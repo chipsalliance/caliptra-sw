@@ -26,7 +26,6 @@ use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
-pub const KEY_DESCRIPTOR_MARKER: u32 = 0x4B455944; // KEYD
 pub const KEY_DESCRIPTOR_VERSION: u8 = 1;
 pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
 pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;
@@ -87,9 +86,9 @@ pub enum Intent {
     Owner = 2,
 }
 
-impl Into<u8> for Intent {
-    fn into(self) -> u8 {
-        self as u8
+impl From<Intent> for u8 {
+    fn from(val: Intent) -> Self {
+        val as u8
     }
 }
 
@@ -99,25 +98,25 @@ pub enum KeyType {
     MLDSA = 3,
 }
 
-impl Into<u8> for KeyType {
-    fn into(self) -> u8 {
-        self as u8
+impl From<KeyType> for u8 {
+    fn from(val: KeyType) -> Self {
+        val as u8
     }
 }
 
 #[derive(Copy, Clone)]
-pub enum ManifestType {
+pub enum FwImageType {
     EccLms = 1,
     EccMldsa = 2,
 }
 
-impl Into<u8> for ManifestType {
-    fn into(self) -> u8 {
-        self as u8
+impl From<FwImageType> for u8 {
+    fn from(val: FwImageType) -> Self {
+        val as u8
     }
 }
 
-impl Default for ManifestType {
+impl Default for FwImageType {
     fn default() -> Self {
         Self::EccLms
     }
@@ -184,8 +183,8 @@ pub struct ImageManifest {
     /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Manifest type (ECC + LMS or ECC + MLDSA)
-    pub manifest_type: u8,
+    /// Firmware image type (ECC + LMS keys or ECC + MLDSA keys)
+    pub fw_image_type: u8,
 
     pub reserved: [u8; 3],
 
@@ -207,7 +206,7 @@ impl Default for ImageManifest {
         Self {
             marker: Default::default(),
             size: size_of::<ImageManifest>() as u32,
-            manifest_type: 0,
+            fw_image_type: 0,
             reserved: [0u8; 3],
             preamble: ImagePreamble::default(),
             header: ImageHeader::default(),
@@ -221,6 +220,20 @@ impl ImageManifest {
     pub fn vendor_pub_keys_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
         let span = span_of!(ImagePreamble, vendor_pub_key_info);
+        span.start as u32 + offset..span.end as u32 + offset
+    }
+
+    /// Returns the `Range<u32>` containing the vendor ECC key descriptor
+    pub fn vendor_ecc_key_descriptor_range() -> Range<u32> {
+        let offset = offset_of!(ImageManifest, preamble) as u32;
+        let span = span_of!(ImageVendorPubKeyInfo, ecc_key_descriptor);
+        span.start as u32 + offset..span.end as u32 + offset
+    }
+
+    /// Returns the `Range<u32>` containing the vendor LMS key descriptor
+    pub fn vendor_lms_key_descriptor_range() -> Range<u32> {
+        let offset = offset_of!(ImageManifest, preamble) as u32;
+        let span = span_of!(ImageVendorPubKeyInfo, lms_key_descriptor);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
@@ -314,7 +327,6 @@ pub struct ImageSignatures {
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageKeyDescriptor {
-    pub marker: u32,
     pub version: u8,
     pub intent: u8,
     pub key_type: u8,

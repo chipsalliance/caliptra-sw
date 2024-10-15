@@ -9,6 +9,7 @@ use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, Securi
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
+use openssl::sha::Sha384;
 use zerocopy::AsBytes;
 
 fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
@@ -33,8 +34,21 @@ fn warm_reset_basic() {
         },
     )
     .unwrap();
-    let vendor_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let mut hash_ctx = Sha384::new();
+    let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
+    hash_ctx.update(vendor_pub_key_info.ecc_key_descriptor.as_bytes());
+    hash_ctx.update(
+        (&vendor_pub_key_info.ecc_pub_key_hashes)
+            [..vendor_pub_key_info.ecc_key_descriptor.key_hash_count as usize]
+            .as_bytes(),
+    );
+    hash_ctx.update(vendor_pub_key_info.lms_key_descriptor.as_bytes());
+    hash_ctx.update(
+        (&vendor_pub_key_info.lms_pub_key_hashes)
+            [..vendor_pub_key_info.lms_key_descriptor.key_hash_count as usize]
+            .as_bytes(),
+    );
+    let vendor_pk_hash = bytes_to_be_words_48(&hash_ctx.finish());
     let owner_pk_hash =
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
@@ -92,8 +106,21 @@ fn warm_reset_during_fw_load() {
         },
     )
     .unwrap();
-    let vendor_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let mut hash_ctx = Sha384::new();
+    let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
+    hash_ctx.update(vendor_pub_key_info.ecc_key_descriptor.as_bytes());
+    hash_ctx.update(
+        (&vendor_pub_key_info.ecc_pub_key_hashes)
+            [..vendor_pub_key_info.ecc_key_descriptor.key_hash_count as usize]
+            .as_bytes(),
+    );
+    hash_ctx.update(vendor_pub_key_info.lms_key_descriptor.as_bytes());
+    hash_ctx.update(
+        (&vendor_pub_key_info.lms_pub_key_hashes)
+            [..vendor_pub_key_info.lms_key_descriptor.key_hash_count as usize]
+            .as_bytes(),
+    );
+    let vendor_pk_hash = bytes_to_be_words_48(&hash_ctx.finish());
     let owner_pk_hash =
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
