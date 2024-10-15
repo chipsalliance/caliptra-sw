@@ -76,8 +76,15 @@ fn test_cold_reset_status_reporting() {
     hw.step_until_boot_status(FwProcessorImageVerificationComplete.into(), false);
     hw.step_until_boot_status(FwProcessorPopulateDataVaultComplete.into(), false);
     hw.step_until_boot_status(FwProcessorExtendPcrComplete.into(), false);
-    hw.step_until_boot_status(FwProcessorLoadImageComplete.into(), false);
-    hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), false);
+
+    if cfg!(feature = "fpga_realtime") {
+        // Skip check for FwProcessorLoadImageComplete because it is set for too short of a time in nolog mode
+        hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), true);
+    } else {
+        hw.step_until_boot_status(FwProcessorLoadImageComplete.into(), false);
+        hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), false);
+    }
+
     hw.step_until_boot_status(FwProcessorComplete.into(), false);
     hw.step_until_boot_status(FmcAliasDeriveCdiComplete.into(), false);
     hw.step_until_boot_status(FmcAliasKeyPairDerivationComplete.into(), false);
