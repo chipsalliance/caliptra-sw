@@ -108,6 +108,8 @@ pub const PL0_PAUSER_FLAG: u32 = 1;
 pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
+const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+
 pub struct CptraDpeTypes;
 
 impl DpeTypes for CptraDpeTypes {
@@ -145,6 +147,11 @@ fn enter_idle(drivers: &mut Drivers) {
 ///
 /// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+    // Drop all commands for invalid PAUSER
+    if drivers.mbox.user() == RESERVED_PAUSER {
+        return Err(CaliptraError::RUNTIME_CMD_RESERVED_PAUSER);
+    }
+
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
         cfi_assert_eq(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);

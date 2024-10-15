@@ -267,6 +267,12 @@ impl<'a> MailboxRecvPeek<'a> {
         mbox.cmd().read()
     }
 
+    /// Returns the value stored in the user register
+    pub fn user(&self) -> u32 {
+        let mbox = self.mbox.regs();
+        mbox.user().read()
+    }
+
     /// Returns the value stored in the data length register. This is the total
     /// size of the mailbox data in bytes.
     pub fn dlen(&self) -> u32 {
