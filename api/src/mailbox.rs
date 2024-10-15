@@ -1051,6 +1051,43 @@ pub struct AuthorizeAndStashResp {
 }
 impl Response for AuthorizeAndStashResp {}
 
+pub struct ResponsePacket<'a> {
+    pub buffer: &'a mut [u8],
+    pub len: usize, // Length in bytes
+}
+
+impl<'a> ResponsePacket<'a> {
+    pub fn new(buffer: &'a mut [u8]) -> Self {
+        ResponsePacket { buffer, len: 0 }
+    }
+    pub fn reset(&mut self) {
+        self.len = 0;
+    }
+}
+
+/// Retrievesa ResponsePacket from the mailbox.
+pub fn mbox_read_response(
+    mbox: mbox::RegisterBlock<impl MmioMut>,
+    packet: &mut ResponsePacket,
+) -> Result<(), CaliptraApiError> {
+    let dlen_bytes = mbox.dlen().read() as usize;
+
+    if dlen_bytes > packet.buffer.len() {
+        return Err(CaliptraApiError::ReadBuffTooSmall);
+    }
+
+    packet.len = dlen_bytes;
+
+    let buf = packet
+        .buffer
+        .get_mut(..dlen_bytes)
+        .ok_or(CaliptraApiError::UnableToReadMailbox)?;
+
+    mbox_read_fifo(mbox, buf)?;
+
+    Ok(())
+}
+
 pub fn mbox_read_fifo(
     mbox: mbox::RegisterBlock<impl MmioMut>,
     mut buf: &mut [u8],
