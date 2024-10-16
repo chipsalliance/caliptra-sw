@@ -587,6 +587,15 @@ pub trait HwModel: SocManager {
             const MAX_WAIT_CYCLES: u32 = 20_000_000;
             let mut cycles = 0;
             while !self.ready_for_fw() {
+                // If GENERATE_IDEVID_CSR was set then we need to clear cptra_dbg_manuf_service_reg
+                // once the CSR is ready to continue making progress.
+                //
+                // Generally the CSR should be read from the mailbox at this point, but to
+                // accommodate test cases that ignore the CSR mailbox, we will ignore it here.
+                if self.soc_ifc().cptra_flow_status().read().idevid_csr_ready() {
+                    self.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
+                }
+
                 self.step();
                 cycles += 1;
                 if cycles > MAX_WAIT_CYCLES {
