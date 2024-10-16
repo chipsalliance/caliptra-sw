@@ -9,6 +9,7 @@ use caliptra_common::mailbox_api::{
     CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
     MailboxReqHeader,
 };
+use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError};
 use dpe::{
@@ -45,6 +46,7 @@ pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
     pub test_image_options: Option<ImageOptions>,
     pub init_params: Option<InitParams<'a>>,
+    pub test_mfg_flags: Option<MfgFlags>,
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
@@ -75,6 +77,12 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
         .unwrap();
 
+    let boot_flags = if let Some(flags) = args.test_mfg_flags {
+        flags.bits()
+    } else {
+        0
+    };
+
     let mut model = caliptra_hw_model::new(
         init_params,
         BootParams {
@@ -83,6 +91,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
                 lms_verify,
                 ..Default::default()
             },
+            initial_dbg_manuf_service_reg: boot_flags,
             ..Default::default()
         },
     )
