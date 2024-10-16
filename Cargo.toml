@@ -41,7 +41,6 @@ members = [
   "drivers/test-fw",
   "drivers/test-fw/scripts/vector_gen",
   "fmc",
-  "hw/1.0/registers",
   "hw/latest/registers",
   "hw/verilated",
   "hw-model",
@@ -126,7 +125,6 @@ caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
 caliptra-registers = { path = "registers" }
-caliptra-registers-1_0 = { path = "hw/1.0/registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }
 caliptra-systemrdl = { path = "systemrdl" }
