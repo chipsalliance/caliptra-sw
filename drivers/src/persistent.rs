@@ -12,6 +12,7 @@ use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
+use crate::IDevIDCsr;
 use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
@@ -101,7 +102,11 @@ pub struct PersistentData {
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col:
         [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE as usize],
+
+    pub idevid_csr: IDevIDCsr,
+    reserved10: [u8; memory_layout::IDEVID_CSR_SIZE as usize - size_of::<IDevIDCsr>()],
 }
+
 impl PersistentData {
     pub fn assert_matches_layout() {
         const P: *const PersistentData = memory_layout::MAN1_ORG as *const PersistentData;
@@ -129,9 +134,12 @@ impl PersistentData {
                 memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
             );
             assert_eq!(
+                addr_of!((*P).idevid_csr) as u32,
+                memory_layout::IDEVID_CSR_ORG
+            );
+            assert_eq!(
                 P.add(1) as u32,
-                memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
-                    + memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE
+                memory_layout::IDEVID_CSR_ORG + memory_layout::IDEVID_CSR_SIZE
             );
         }
     }

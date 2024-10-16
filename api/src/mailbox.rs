@@ -51,6 +51,9 @@ impl CommandId {
 
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
+
+    // The get IDevID CSR command.
+    pub const GET_IDV_CSR: Self = Self(0x4944_4352); // "IDCR"
 }
 
 impl From<u32> for CommandId {
@@ -151,6 +154,7 @@ pub enum MailboxResp {
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
+    GetIDevIDCSR(GetIDevIDCSRResp),
 }
 
 impl MailboxResp {
@@ -171,6 +175,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIDevIDCSR(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -191,6 +196,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetIDevIDCSR(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -458,6 +464,7 @@ pub struct GetIdevInfoResp {
 pub struct GetLdevCertReq {
     header: MailboxReqHeader,
 }
+
 impl Request for GetLdevCertReq {
     const ID: CommandId = CommandId::GET_LDEV_CERT;
     type Resp = GetLdevCertResp;
@@ -972,6 +979,40 @@ impl Default for SetAuthManifestReq {
             hdr: MailboxReqHeader::default(),
             manifest_size: 0,
             manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+
+// GET_IDEVID_CSR
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIDevIDCSRReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetIDevIDCSRReq {
+    const ID: CommandId = CommandId::GET_IDV_CSR;
+    type Resp = GetIDevIDCSRResp;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIDevIDCSRResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; Self::DATA_MAX_SIZE],
+}
+impl GetIDevIDCSRResp {
+    pub const DATA_MAX_SIZE: usize = 512;
+}
+impl ResponseVarSize for GetIDevIDCSRResp {}
+
+impl Default for GetIDevIDCSRResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
         }
     }
 }

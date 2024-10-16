@@ -20,3 +20,4 @@ mod test_update_reset;
 mod test_version;
 mod test_warm_reset;
 mod test_wdt_activation_and_stoppage;
+mod tests_get_idev_csr;

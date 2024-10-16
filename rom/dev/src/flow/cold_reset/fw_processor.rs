@@ -22,7 +22,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader, Response,
+    CapabilitiesResp, CommandId, GetIDevIDCSRResp, MailboxReqHeader, MailboxRespHeader, Response,
     StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
@@ -303,6 +303,22 @@ impl FirmwareProcessor {
                             hdr: MailboxRespHeader::default(),
                             dpe_result: 0, // DPE_STATUS_SUCCESS
                         };
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::GET_IDV_CSR => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
+                        let csr_persistent_mem = &persistent_data.idevid_csr;
+                        let mut resp = GetIDevIDCSRResp::default();
+
+                        let csr = csr_persistent_mem
+                            .get()
+                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+                        resp.data_size = csr_persistent_mem.csr_len as u32;
+                        resp.data[..resp.data_size as usize].copy_from_slice(&csr);
+
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
