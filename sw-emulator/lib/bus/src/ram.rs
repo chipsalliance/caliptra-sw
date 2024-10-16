@@ -15,11 +15,11 @@ Abstract:
 use crate::{mem::Mem, Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
-/// Read Only Memory Device
+/// Random Access Memory Device
 pub struct Ram {
     /// Inject double-bit ECC errors on read
     pub error_injection: u8,
-    /// Read Only Data
+    /// Random Access Data
     data: Mem,
 }
 
