@@ -470,6 +470,10 @@ impl CaliptraError {
     pub const RUNTIME_CMD_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x000E004F);
     pub const RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR: CaliptraError =
         CaliptraError::new_const(0x000E0050);
+    pub const RUNTIME_GET_IDEV_ID_UNPROVISIONED: CaliptraError =
+        CaliptraError::new_const(0x000E0051);
+    pub const RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM: CaliptraError =
+        CaliptraError::new_const(0x000E0052);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -526,6 +530,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
         CaliptraError::new_const(0x01020008);
     pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
+    pub const FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR: CaliptraError =
+        CaliptraError::new_const(0x0102000A);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);

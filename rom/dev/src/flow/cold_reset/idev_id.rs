@@ -27,17 +27,13 @@ use caliptra_common::keyids::{
     KEY_ID_UDS,
 };
 use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::MAX_CSR_SIZE;
 use caliptra_drivers::*;
 use caliptra_x509::*;
 use zeroize::Zeroize;
 
-type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
-
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
 const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
-
-/// Maximum Certificate Signing Request Size
-const MAX_CSR_SIZE: usize = 512;
 
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
@@ -240,6 +236,8 @@ impl InitDevIdLayer {
         //
         // A flag is asserted via JTAG interface to enable the generation of CSR
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
+            let dev_id_csr = IdevIdCsr::default();
+            Self::write_csr_to_peristent_storage(env, &dev_id_csr)?;
             return Ok(());
         }
 
@@ -294,7 +292,7 @@ impl InitDevIdLayer {
         cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mut csr = [0u8; MAX_CSR_SIZE];
+        let mut csr_buf = [0; MAX_CSR_SIZE];
         let ecdsa384_sig = sig.to_ecdsa();
         let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
@@ -302,23 +300,35 @@ impl InitDevIdLayer {
 
         let csr_bldr = result?;
         let csr_len = csr_bldr
-            .build(&mut csr)
+            .build(&mut csr_buf)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
 
-        if csr_len > csr.len() {
+        if csr_len > csr_buf.len() {
             return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
 
         // [TODO] Generate MLDSA CSR.
 
-        cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
+        cprintln!("[idev] CSR = {}", HexBytes(&csr_buf[..csr_len]));
         report_boot_status(IDevIdMakeCsrComplete.into());
 
+        let dev_id_csr = IdevIdCsr::new(&csr_buf, csr_len)?;
+
         // Execute Send CSR Flow
-        let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
-        csr.zeroize();
+        let mut result = Self::send_csr(env, &dev_id_csr);
+        if result.is_ok() {
+            result = Self::write_csr_to_peristent_storage(env, &dev_id_csr);
+        }
+        csr_buf.zeroize();
 
         result
+    }
+
+    fn write_csr_to_peristent_storage(env: &mut RomEnv, csr: &IdevIdCsr) -> CaliptraResult<()> {
+        let csr_persistent_mem = &mut env.persistent_data.get_mut().idevid_csr;
+        *csr_persistent_mem = csr.clone();
+
+        Ok(())
     }
 
     /// Send Initial Device ID CSR to SOC
@@ -327,7 +337,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `csr` - Certificate Signing Request to send to SOC
-    fn send_csr(env: &mut RomEnv, csr: InitDevIdCsr) -> CaliptraResult<()> {
+    fn send_csr(env: &mut RomEnv, csr: &IdevIdCsr) -> CaliptraResult<()> {
         loop {
             // Create Mailbox send transaction to send the CSR
             if let Some(mut txn) = env.mbox.try_start_send_txn() {
@@ -350,5 +360,16 @@ impl InitDevIdLayer {
                 break Ok(());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use caliptra_drivers::memory_layout::IDEVID_CSR_SIZE;
+
+    #[test]
+    fn verify_csr_fits_in_dccm() {
+        assert!(MAX_CSR_SIZE <= IDEVID_CSR_SIZE as usize);
     }
 }
