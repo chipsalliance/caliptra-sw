@@ -23,6 +23,7 @@ use proc_macro::TokenStream;
         poll_fn,
         warm_reset_fn,
         update_reset_fn,
+        handle_dma_fn,
         register,
         register_array
     )

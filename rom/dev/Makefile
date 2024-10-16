@@ -26,6 +26,7 @@ build:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features "emu no-cfi"
 
 build-emu:
 	cargo \
@@ -34,7 +35,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu
+		--features "emu no-cfi"
 
 build-test-fmc:
 	cargo \
@@ -88,6 +89,7 @@ bloat: build
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features "emu no-cfi" \
 		-n 1000 \
 
 objdump:
@@ -98,6 +100,7 @@ objdump:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features "emu no-cfi" \
 		-- \
 		-d \
 		--no-print-imm-hex \
@@ -119,7 +122,7 @@ run: build-emu build-fw-image build-rom
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
-		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
+		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
 run-update: build-emu build-fw-image build-rom
@@ -131,8 +134,8 @@ run-update: build-emu build-fw-image build-rom
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
-		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
-		--update-firmware $(TARGET_DIR)/caliptra-rom-test-fw \
+		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
+		--update-recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
 
@@ -144,14 +147,17 @@ size:
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		--bin caliptra-rom \
+		--features no-cfi \
 
 nm:
 	 cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		nm \
+		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--features no-cfi \
 		-- \
 		-v \
 

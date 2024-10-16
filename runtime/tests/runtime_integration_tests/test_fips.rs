@@ -9,7 +9,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{AsBytes, FromBytes};
 
-const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
+const HW_REV_ID: u32 = 0x11; // TODO 2.0
 
 #[test]
 fn test_fips_version() {

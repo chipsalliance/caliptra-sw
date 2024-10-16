@@ -310,7 +310,6 @@ impl Lms {
     }
 
     // This operation is accelerated in hardware by RTL1.1 and later.
-    #[cfg(not(feature = "hw-1.0"))]
     fn hash_chain<const N: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
@@ -337,33 +336,6 @@ impl Lms {
             }
             hasher.update_wntz(&wnt_prefix[0..Self::TMP_OFFSET + N * 4], params.w, n_mode)?;
             hasher.finalize_wntz(&mut digest, params.w, n_mode)?;
-            *tmp = HashValue::<N>::from(digest);
-        }
-        Ok(*tmp)
-    }
-
-    #[cfg(feature = "hw-1.0")]
-    fn hash_chain<const N: usize>(
-        &self,
-        sha256_driver: &mut impl Sha256Alg,
-        wnt_prefix: &mut [u8; Self::WNT_PREFIX_SIZE],
-        coeff: u8,
-        params: &LmotsParameter,
-        tmp: &mut HashValue<N>,
-    ) -> CaliptraResult<HashValue<N>> {
-        let iteration_count = ((1u16 << params.w) - 1) as u8;
-
-        for j in coeff..iteration_count {
-            let mut digest = Array4x8::default();
-            let mut hasher = sha256_driver.digest_init()?;
-            wnt_prefix[Self::ITER_COUNTER_OFFSET] = j;
-            let mut i = Self::TMP_OFFSET;
-            for val in tmp.0.iter().take(N) {
-                wnt_prefix[i..i + 4].clone_from_slice(&val.to_be_bytes());
-                i += 4;
-            }
-            hasher.update(&wnt_prefix[0..Self::TMP_OFFSET + N * 4])?;
-            hasher.finalize(&mut digest)?;
             *tmp = HashValue::<N>::from(digest);
         }
         Ok(*tmp)

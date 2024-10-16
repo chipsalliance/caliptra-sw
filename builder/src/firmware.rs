@@ -18,25 +18,25 @@ pub fn rom_from_env() -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &[],
+    features: &["no-cfi"],
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu"],
+    features: &["emu", "no-cfi"],
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
+    features: &["emu", "fake-rom", "no-cfi"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
+    features: &["fips-test-hooks", "no-cfi"],
 };
 
 pub const FMC_WITH_UART: FwId = FwId {

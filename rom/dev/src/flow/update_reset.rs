@@ -14,10 +14,10 @@ Abstract:
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::{cprintln, pcr, rom_env::RomEnv};
-use caliptra_common::verifier::FirmwareImageVerificationEnv;
-
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{

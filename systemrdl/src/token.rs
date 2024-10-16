@@ -7,6 +7,7 @@ use crate::Bits;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Token<'a> {
     Field,
+    External,
     Reg,
     RegFile,
     AddrMap,
@@ -25,6 +26,7 @@ pub enum Token<'a> {
     Comma,
     Period,
     Equals,
+    NotEquals,
     At,
     Colon,
     Hash,
@@ -32,6 +34,8 @@ pub enum Token<'a> {
     Pointer,
     PlusEqual,
     PercentEqual,
+    QuestionMark,
+    And,
 
     Identifier(&'a str),
     StringLiteral(&'a str),

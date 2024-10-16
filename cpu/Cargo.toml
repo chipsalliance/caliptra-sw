@@ -12,7 +12,6 @@ edition = "2021"
 #     --profile=firmware \
 #     --features riscv
 riscv = []
-"hw-1.0" = ["caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0"]
 
 [lib]
 test = false
