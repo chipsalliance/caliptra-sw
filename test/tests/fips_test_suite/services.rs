@@ -342,8 +342,8 @@ pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &Vec<u8>) {
 
     let manifest = ImageManifest::read_from_prefix(&**fw_image).unwrap();
     // Verify command-specific response data
-    assert_eq!(fw_info_resp.fmc_revision, manifest.fmc.revision);
-    assert_eq!(fw_info_resp.runtime_revision, manifest.runtime.revision);
+    assert_eq!(fw_info_resp.fmc_revision, manifest.fmc.revision.0);
+    assert_eq!(fw_info_resp.runtime_revision, manifest.runtime.revision.0);
     assert!(contains_some_data(&fw_info_resp.rom_revision));
     assert!(contains_some_data(&fw_info_resp.rom_sha256_digest));
     assert!(contains_some_data(&fw_info_resp.fmc_sha384_digest));

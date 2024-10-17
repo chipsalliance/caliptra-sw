@@ -242,7 +242,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(self.sha384.digest(data)?.0)
+        Ok(ImageDigest(self.sha384.digest(data)?.0))
     }
 
     /// ECC-384 Verification routine
@@ -254,21 +254,21 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     ) -> CaliptraResult<Array4xN<12, 48>> {
         if self.soc_ifc.verify_in_fake_mode() {
             let pub_key = Ecc384PubKey {
-                x: pub_key.x.into(),
-                y: pub_key.y.into(),
+                x: pub_key.x.0.into(),
+                y: pub_key.y.0.into(),
             };
 
-            let digest: Array4x12 = digest.into();
+            let digest: Array4x12 = digest.0.into();
 
             let sig = Ecc384Signature {
-                r: sig.r.into(),
-                s: sig.s.into(),
+                r: sig.r.0.into(),
+                s: sig.s.0.into(),
             };
 
             self.ecc384.verify_r(&pub_key, &digest, &sig)
         } else {
             // Mock verify, just always return success
-            Ok(Array4x12::from(sig.r))
+            Ok(Array4x12::from(sig.r.0))
         }
     }
 
@@ -280,8 +280,8 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
         if self.soc_ifc.verify_in_fake_mode() {
             let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
-            for i in 0..digest.len() {
-                message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
+            for i in 0..digest.0.len() {
+                message[i * 4..][..4].copy_from_slice(&digest.0[i].to_be_bytes());
             }
             Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
         } else {
@@ -292,7 +292,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     /// Retrieve Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest {
-        self.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
+        ImageDigest(self.soc_ifc.fuse_bank().vendor_pub_key_hash().0.into())
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
@@ -307,7 +307,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     /// Retrieve Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
-        self.soc_ifc.fuse_bank().owner_pub_key_hash().into()
+        ImageDigest(self.soc_ifc.fuse_bank().owner_pub_key_hash().0.into())
     }
 
     /// Retrieve Anti-Rollback disable fuse value
@@ -332,12 +332,12 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     /// Get the owner public key digest saved in the dv on cold boot
     fn owner_pub_key_digest_dv(&self) -> ImageDigest {
-        self.data_vault.owner_pk_hash().into()
+        ImageDigest(self.data_vault.owner_pk_hash().0.into())
     }
 
     // Get the fmc digest from the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest {
-        self.data_vault.fmc_tci().into()
+        ImageDigest(self.data_vault.fmc_tci().0.into())
     }
 
     // Get Fuse FMC Key Manifest SVN

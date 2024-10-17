@@ -13,10 +13,12 @@ extern crate core;
 
 mod cfi;
 mod cfi_counter;
+mod secmem;
 mod xoshiro;
 
 pub use cfi::*;
 pub use cfi_counter::{CfiCounter, CfiInt};
+pub use secmem::memeq;
 pub use xoshiro::Xoshiro128;
 
 #[repr(C)]

@@ -60,7 +60,7 @@ impl LmotsAlgorithmType {
     pub const LmotsSha256N24W8: Self = Self::new(8);
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
@@ -79,6 +79,34 @@ impl<const N: usize> Default for LmsPublicKey<N> {
         }
     }
 }
+
+impl<const N: usize> PartialEq for LmsPublicKey<N> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.tree_type != other.tree_type {
+            return false;
+        }
+        if self.otstype != other.otstype {
+            return false;
+        }
+
+        // Safety: the array is fixed-size, we're just casting the entries to u32.
+        let a = self.id.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, 4) };
+        let b = other.id.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, 4) };
+        if !caliptra_cfi_lib::memeq(aslice, bslice) {
+            return false;
+        }
+
+        // Safety: we're just casting the entries to native u32.
+        let a = self.digest.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N) };
+        let b = other.digest.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmsPublicKey<1>>()
@@ -96,7 +124,7 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Zeroize)]
+#[derive(Copy, Clone, Debug, Zeroize)]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
@@ -108,6 +136,7 @@ pub struct LmotsSignature<const N: usize, const P: usize> {
     #[zeroize(skip)]
     pub y: [[U32<LittleEndian>; N]; P],
 }
+
 impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
     fn default() -> Self {
         Self {
@@ -117,6 +146,31 @@ impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {
         }
     }
 }
+
+impl<const N: usize, const P: usize> PartialEq for LmotsSignature<N, P> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.ots_type != other.ots_type {
+            return false;
+        }
+
+        // Safety: the slice is the same, we're just casting the entries to native u32.
+        let a = self.nonce.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N) };
+        let b = other.nonce.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N) };
+        if !caliptra_cfi_lib::memeq(aslice, bslice) {
+            return false;
+        }
+
+        // Safety: the array is fixed-size, we're just reinterpreting it as a single slice.
+        let a = self.y.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * P) };
+        let b = other.y.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * P) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmotsSignature<1, 1>>()
@@ -133,7 +187,7 @@ unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
     pub q: U32<BigEndian>,
@@ -154,6 +208,30 @@ impl<const N: usize, const P: usize, const H: usize> Default for LmsSignature<N,
         }
     }
 }
+
+impl<const N: usize, const P: usize, const H: usize> PartialEq for LmsSignature<N, P, H> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.q != other.q {
+            return false;
+        }
+
+        if self.ots != other.ots {
+            return false;
+        }
+
+        if self.tree_type != other.tree_type {
+            return false;
+        }
+
+        // Safety: the array is fixed-size, we're just reinterpreting it as a single slice.
+        let a = self.tree_path.as_ptr() as *const u32;
+        let aslice = unsafe { core::slice::from_raw_parts(a, N * H) };
+        let b = other.tree_path.as_ptr() as *const u32;
+        let bslice = unsafe { core::slice::from_raw_parts(b, N * H) };
+        caliptra_cfi_lib::memeq(aslice, bslice)
+    }
+}
+
 // Ensure there is no padding (required for AsBytes safety)
 static_assert!(
     size_of::<LmsSignature<1, 1, 1>>()
@@ -170,7 +248,7 @@ unsafe impl<const N: usize, const P: usize, const H: usize> FromBytes for LmsSig
     fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct LmsPrivateKey<const N: usize> {
     pub tree_type: LmsAlgorithmType,
