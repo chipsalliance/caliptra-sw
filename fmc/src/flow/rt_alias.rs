@@ -12,8 +12,7 @@ Abstract:
 
 --*/
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::cfi_assert_eq;
-use caliptra_cfi_lib::{cfi_assert, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};

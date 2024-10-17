@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::Array4x12;
+use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use zerocopy::AsBytes;
 
@@ -33,7 +34,7 @@ pub enum X509KeyIdAlgo {
 }
 
 bitflags::bitflags! {
-    #[derive(Default, Copy, Clone, Debug)]
+    #[derive(Default, Copy, Clone, Debug, Launder)]
     pub struct VendorPubKeyRevocation : u32 {
         const KEY0 = 0b0001;
         const KEY1 = 0b0010;
@@ -76,7 +77,7 @@ impl FuseBank<'_> {
     /// * None
     ///
     /// # Returns
-    ///     key id crypto algorithm  
+    ///     key id crypto algorithm
     ///
     pub fn idev_id_x509_key_id_algo(&self) -> X509KeyIdAlgo {
         let soc_ifc_regs = self.soc_ifc.regs();
@@ -101,7 +102,7 @@ impl FuseBank<'_> {
     /// * None
     ///
     /// # Returns
-    ///     manufacturer serial number  
+    ///     manufacturer serial number
     ///
     pub fn ueid(&self) -> [u8; 17] {
         let soc_ifc_regs = self.soc_ifc.regs();
