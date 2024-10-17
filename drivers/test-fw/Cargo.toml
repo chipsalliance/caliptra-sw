@@ -175,3 +175,7 @@ name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "ml_dsa87"
+path = "src/bin/ml_dsa87_tests.rs"
+required-features = ["riscv"]
