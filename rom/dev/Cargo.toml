@@ -7,9 +7,14 @@ edition = "2021"
 rust-version = "1.70"
 
 [dependencies]
-caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-lib = { workspace = true, default-features = false, features = [
+  "cfi",
+  "cfi-counter",
+] }
 caliptra-cfi-derive.workspace = true
-caliptra_common = { workspace = true, default-features = false, features = ["rom"] }
+caliptra_common = { workspace = true, default-features = false, features = [
+  "rom",
+] }
 caliptra-drivers.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
@@ -61,9 +66,15 @@ no-fmc = []
 fake-rom = []
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 slow_tests = []
-"hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-hw-model/hw-1.0"]
-fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-image-verify/fips-test-hooks"]
+fips-test-hooks = [
+  "caliptra-drivers/fips-test-hooks",
+  "caliptra-image-verify/fips-test-hooks",
+]
 
 [[bin]]
 name = "asm_tests"
 path = "test-fw/asm_tests.rs"
+
+[[bin]]
+name = "pmp_tests"
+path = "test-fw/pmp_tests.rs"
