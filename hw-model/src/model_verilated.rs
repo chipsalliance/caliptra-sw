@@ -4,6 +4,7 @@ use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
 use crate::EtrngResponse;
 use crate::{HwModel, TrngMode};
+use crate::ModelError;
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
@@ -420,5 +421,9 @@ impl ModelVerilated {
         if self.v.input.itrng_valid {
             self.v.input.itrng_valid = false;
         }
+    }
+
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        todo!()
     }
 }

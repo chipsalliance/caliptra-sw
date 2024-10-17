@@ -202,7 +202,7 @@ pub struct RecoveryRegisterInterface {
     //    #[register_array(offset = 0x00)]
     //    prot_cap_magic: [u8; 8],
     #[register(offset = 0x08)]
-    prot_cap_version: ReadOnlyRegister<u32, VersionCapabilities::Register>,
+    prot_cap_version: ReadWriteRegister<u32, VersionCapabilities::Register>,
 
     #[register(offset = 0x0c)]
     prot_cap_cms_timing: ReadOnlyRegister<u32, CmsTimings::Register>,
@@ -217,7 +217,7 @@ pub struct RecoveryRegisterInterface {
     //    #[register_array(offset = 0x12)]
     //    device_id: [u8; 22],
     #[register(offset = 0x28)]
-    device_info: ReadOnlyRegister<u32, DeviceInfo::Register>,
+    device_info: ReadWriteRegister<u32, DeviceInfo::Register>,
 
     //    #[register(offset = 0x2c)]
     //    hearthbeat: ReadOnlyRegister<u16>, // TODO do we need hearthbeat?
@@ -231,7 +231,7 @@ pub struct RecoveryRegisterInterface {
     recovery_control: ReadWriteRegister<u32, RecoveryControl::Register>,
 
     #[register(offset = 0x38)]
-    recovery_status: ReadOnlyRegister<u32, RecoveryStatus::Register>,
+    recovery_status: ReadWriteRegister<u32, RecoveryStatus::Register>,
 
     #[register(offset = 0x3c)]
     hw_status: ReadOnlyRegister<u32, HwStatus::Register>,
@@ -261,7 +261,7 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x6c, read_fn = indirect_fifo_data_read)]
     indirect_fifo_data: ReadOnlyRegister<u32>,
     //    indirect_fifo_data: ReadWriteRegisterArray<u32, FIFO_SIZE_DWORD>, // TODO should be larger size but for FW with only read use just one dword
-    pub cms_data: Rc<Vec<u8>>, // TODO Multiple images?
+    pub cms_data: Option<Rc<Vec<u8>>>, // TODO Multiple images?
 }
 
 impl RecoveryRegisterInterface {
@@ -269,10 +269,10 @@ impl RecoveryRegisterInterface {
     const MAJOR_VERSION: u32 = 0x01;
     const MINOR_VERSION: u32 = 0x00;
 
-    pub fn new(cms_data: Rc<Vec<u8>>) -> Self {
+    pub fn new() -> Self {
         Self {
             //            prot_cap_magic: Self::MAGIC,
-            prot_cap_version: ReadOnlyRegister::new(
+            prot_cap_version: ReadWriteRegister::new(
                 VersionCapabilities::MAJOR.val(Self::MAJOR_VERSION).value
                     | VersionCapabilities::MINOR.val(Self::MINOR_VERSION).value,
             ),
@@ -284,7 +284,7 @@ impl RecoveryRegisterInterface {
             // device_id_descriptor_type: ReadOnlyRegister::new(DidType::TYPE::UUID.value), // TODO
             // device_id_vendor_id_string_length: ReadOnlyRegister::new(0), // not supported
             // device_id: [0; 22],
-            device_info: ReadOnlyRegister::new(
+            device_info: ReadWriteRegister::new(
                 DeviceInfo::STATUS::DeviceHealthy.value
                     | DeviceInfo::ERROR::NoProtocolError.value
                     | DeviceInfo::RECOVERY_REASON::NoBootFailureDetected.value,
@@ -293,7 +293,7 @@ impl RecoveryRegisterInterface {
             // vendor_status_length: ReadOnlyRegister::new(0),
             device_reset: ReadWriteRegister::new(0),
             recovery_control: ReadWriteRegister::new(0),
-            recovery_status: ReadOnlyRegister::new(0),
+            recovery_status: ReadWriteRegister::new(0),
             hw_status: ReadOnlyRegister::new(0), // TODO
             indirect_fifo_ctrl: ReadWriteRegister::new(0),
             indirect_fifo_image_size: ReadOnlyRegister::new(0),
@@ -303,7 +303,7 @@ impl RecoveryRegisterInterface {
             indirect_size: ReadOnlyRegister::new(FIFO_SIZE_DWORD.try_into().unwrap()),
             max_transfer_window: ReadOnlyRegister::new(0),
             indirect_fifo_data: ReadOnlyRegister::new(0),
-            cms_data,
+            cms_data: None,
         }
     }
 
@@ -311,6 +311,14 @@ impl RecoveryRegisterInterface {
         if size != RvSize::Word {
             return Err(BusError::LoadAccessFault);
         }
+        let image = match &self.cms_data {
+            None => {
+                println!("No image set in RRI");
+                return Ok(0xffff_ffff);
+            }
+            Some(x) => x,
+        };
+
         let cms = self.indirect_fifo_ctrl.reg.read(IndirectCtrl::CMS);
         if cms != 0 {
             println!("CMS {cms} not supported");
@@ -319,7 +327,7 @@ impl RecoveryRegisterInterface {
 
         let read_index = self.read_index.reg.get();
         let address = read_index * 4;
-        let image_len: u32 = self.cms_data.len().try_into().unwrap();
+        let image_len = image.len().try_into().unwrap();
         if address >= image_len {
             return Ok(0xffff_ffff);
         };
@@ -331,7 +339,7 @@ impl RecoveryRegisterInterface {
 
         let address: usize = address.try_into().unwrap();
         let range = address..(address + 4);
-        let data = &self.cms_data[range];
+        let data = &image[range];
         self.read_index.reg.set(read_index + 1);
         Ok(u32::from_le_bytes(data.try_into().unwrap()))
     }
@@ -343,26 +351,39 @@ impl RecoveryRegisterInterface {
         }
         let load: ReadWriteRegister<u32, IndirectCtrl::Register> = ReadWriteRegister::new(val);
         if load.reg.is_set(IndirectCtrl::RESET) {
-            let cms = load.reg.read(IndirectCtrl::CMS);
-            if cms != 0 {
+            if let Some(image) = &self.cms_data {
+                let cms = load.reg.read(IndirectCtrl::CMS);
+                if cms != 0 {
+                    self.indirect_fifo_status
+                        .reg
+                        .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
+                } else {
+                    self.indirect_fifo_image_size
+                        .reg
+                        .set(image.len() as u32 / 4); // DWORD
+                    self.indirect_fifo_status
+                        .reg
+                        .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
+                }
+                self.write_index.reg.set(0);
+                self.read_index.reg.set(0);
+                self.indirect_fifo_status
+                    .reg
+                    .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
+            } else {
+                println!("No Image in RRI");
                 self.indirect_fifo_status
                     .reg
                     .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
-            } else {
-                self.indirect_fifo_image_size
-                    .reg
-                    .set(self.cms_data.len().try_into().unwrap());
-                self.indirect_fifo_status
-                    .reg
-                    .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
             }
-            self.write_index.reg.set(0);
-            self.read_index.reg.set(0);
-            self.indirect_fifo_status
-                .reg
-                .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
         }
         Ok(())
+    }
+}
+
+impl Default for RecoveryRegisterInterface {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -383,14 +404,15 @@ mod tests {
     fn test_get_image() {
         let image = Rc::new(vec![0xab; 512]);
         let image_len = image.len();
-        let mut rri = RecoveryRegisterInterface::new(image.clone());
+        let mut rri = RecoveryRegisterInterface::new();
+        rri.cms_data = Some(image.clone());
 
         // Reset
         rri.write(RvSize::Word, INDIRECT_FIFO_CTRL, INDIRECT_FIFO_RESET)
             .unwrap();
 
         let image_size = rri.read(RvSize::Word, INDIRECT_FIFO_IMAGE_SIZE).unwrap();
-        assert_eq!(image_len, image_size.try_into().unwrap());
+        assert_eq!(image_len, image_size as usize * 4);
 
         let mut read_image = Vec::new();
         while rri.read(RvSize::Word, INDIRECT_FIFO_STATUS).unwrap() & 1 == 0 {
