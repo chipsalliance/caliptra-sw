@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+#![cfg_attr(feature = "fake-rom", allow(dead_code))]
+
 mod crypto;
 mod dice;
 mod fmc_alias;

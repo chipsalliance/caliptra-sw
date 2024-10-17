@@ -22,6 +22,7 @@ mod fw_processor;
 use crate::fht;
 use crate::flow::update_reset;
 use crate::flow::warm_reset;
+use crate::handle_fatal_error;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
@@ -29,10 +30,6 @@ use caliptra_common::{
     memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
     FirmwareHandoffTable,
 };
-use caliptra_drivers::cprintln;
-use caliptra_drivers::Lifecycle;
-use caliptra_drivers::LmsResult;
-use caliptra_drivers::VendorPubKeyRevocation;
 use caliptra_drivers::*;
 use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
@@ -137,6 +134,13 @@ impl FakeRomFlow {
     /// * `env` - ROM Environment
     #[inline(never)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
+        if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+            && !(env.soc_ifc.prod_en_in_fake_mode())
+        {
+            cprintln!("Fake ROM in Production lifecycle not enabled");
+            handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
+        }
+
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             // Cold Reset Flow

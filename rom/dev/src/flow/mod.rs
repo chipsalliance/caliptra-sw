@@ -13,66 +13,29 @@ Abstract:
 --*/
 
 mod cold_reset;
-#[cfg(feature = "fake-rom")]
-mod fake;
 mod update_reset;
 mod warm_reset;
 
-use crate::cprintln;
-use crate::{handle_fatal_error, rom_env::RomEnv};
-use caliptra_cfi_derive::cfi_mod_fn;
-use caliptra_cfi_lib::cfi_assert_eq;
-use caliptra_drivers::{CaliptraResult, ResetReason};
-use caliptra_error::CaliptraError;
+#[cfg(feature = "fake-rom")]
+mod fake;
+#[cfg(feature = "fake-rom")]
+type ActiveFlow = crate::flow::fake::FakeRomFlow;
 
-/// Execute ROM Flows based on reset reason
+#[cfg(not(feature = "fake-rom"))]
+mod real;
+#[cfg(not(feature = "fake-rom"))]
+type ActiveFlow = crate::flow::real::RealRomFlow;
+
+use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_drivers::CaliptraResult;
+
+/// Execute ROM Flows based on real or fake ROM
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
-    let reset_reason = env.soc_ifc.reset_reason();
-
-    if cfg!(not(feature = "fake-rom")) {
-        match reset_reason {
-            // Cold Reset Flow
-            ResetReason::ColdReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
-                cold_reset::ColdResetFlow::run(env)
-            }
-
-            // Warm Reset Flow
-            ResetReason::WarmReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::WarmReset);
-                warm_reset::WarmResetFlow::run(env)
-            }
-
-            // Update Reset Flow
-            ResetReason::UpdateReset => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::UpdateReset);
-                update_reset::UpdateResetFlow::run(env)
-            }
-
-            // Unknown/Spurious Reset Flow
-            ResetReason::Unknown => {
-                cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::Unknown);
-                Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW)
-            }
-        }
-    } else {
-        let _result: CaliptraResult<()> = Err(CaliptraError::ROM_GLOBAL_PANIC);
-
-        if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
-            && !(env.soc_ifc.prod_en_in_fake_mode())
-        {
-            cprintln!("Fake ROM in Production lifecycle not enabled");
-            handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
-        }
-
-        #[cfg(feature = "fake-rom")]
-        let _result = fake::FakeRomFlow::run(env);
-
-        _result
-    }
+    ActiveFlow::run(env)
 }
