@@ -3,8 +3,8 @@
 use crate::bounded_address::RomAddr;
 use crate::soc_ifc;
 use crate::{
-    memory_layout, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature, KeyId,
-    ResetReason, WarmResetEntry4, WarmResetEntry48,
+    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature, KeyId, ResetReason,
+    WarmResetEntry4, WarmResetEntry48,
 };
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
@@ -177,7 +177,6 @@ impl From<DataStore> for HandOffDataHandle {
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
 /// to pass parameters and configuration information from one firmware layer to the next.
 const _: () = assert!(size_of::<FirmwareHandoffTable>() == 2048);
-const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
 #[repr(C)]
 #[derive(Clone, Debug, IntoBytes, TryFromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct FirmwareHandoffTable {

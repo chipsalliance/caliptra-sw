@@ -24,11 +24,8 @@ use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
-use caliptra_common::{
-    memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
-    FirmwareHandoffTable,
-};
 use caliptra_drivers::cprintln;
 use caliptra_drivers::Lifecycle;
 use caliptra_drivers::LmsResult;
