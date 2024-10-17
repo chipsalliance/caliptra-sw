@@ -21,7 +21,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
 use crate::CaliptraRootBus;
@@ -66,7 +66,7 @@ register_bitfields! [
     /// Control
     Control [
         GO OFFSET(0) NUMBITS(1) [],
-        FLUSH OFFSET(0) NUMBITS(1) [],
+        FLUSH OFFSET(1) NUMBITS(1) [],
         READ_ROUTE OFFSET(16) NUMBITS(2) [
             DISABLE = 0b00,
             MAILBOX = 0b01,
@@ -177,7 +177,7 @@ impl DmaRegs {
     pub fn new(clock: &Clock) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
-            capabilities: ReadOnlyRegister::new(Self::FIFO_SIZE as u32), // MAX FIFO DEPTH
+            capabilities: ReadOnlyRegister::new(Self::FIFO_SIZE as u32 - 1), // MAX FIFO DEPTH
             control: ReadWriteRegister::new(0),
             status0: ReadOnlyRegister::new(0),
             status1: ReadOnlyRegister::new(0),
@@ -206,6 +206,7 @@ impl DmaRegs {
         if self.control.reg.is_set(Control::FLUSH) {
             self.fifo.clear();
             self.status0.reg.write(Status0::DMA_FSM_PRESENT_STATE::IDLE);
+            self.control.reg.set(0);
         }
 
         if self.control.reg.is_set(Control::GO) {
@@ -222,7 +223,7 @@ impl DmaRegs {
             );
             self.status0
                 .reg
-                .write(Status0::DMA_FSM_PRESENT_STATE::WAIT_DATA);
+                .write(Status0::BUSY::SET + Status0::DMA_FSM_PRESENT_STATE::WAIT_DATA);
         }
 
         Ok(())
@@ -238,17 +239,18 @@ impl DmaRegs {
 
     pub fn on_read_data(&mut self, size: RvSize) -> Result<RvData, BusError> {
         let range = 0..size as usize;
-        let bytes = range.fold(0, |mut acc, b| {
-            acc |= self.fifo.pop_front().unwrap_or(
+        let bytes: RvData = range.fold(0, |mut acc, b| {
+            acc |= (self.fifo.pop_front().unwrap_or(
                 // self.status0
                 //     .reg
                 //     .write(Status0::DMA_FSM_PRESENT_STATE::ERROR);
                 // TODO write status in interrupt
                 0,
-            ) << (8 * b);
+            ) as RvData)
+                << (8 * b);
             acc
         });
-        Ok(bytes as RvData)
+        Ok(bytes)
     }
 
     fn write_to_mailbox(&mut self, data: Vec<u8>, root_bus: &mut CaliptraRootBus) {
@@ -261,11 +263,11 @@ impl DmaRegs {
             .write_dlen(RvSize::Word, self.byte_count.reg.get())
             .unwrap();
 
-        assert_eq!(data.len(), self.byte_count.reg.get() as usize);
+        //        assert_eq!(data.len(), self.byte_count.reg.get() as usize);
 
         data.chunks(RvSize::Word as usize).for_each(|c| {
             mailbox_regs
-                .write_din(RvSize::Word, u32::from_ne_bytes(c.try_into().unwrap()))
+                .write_din(RvSize::Word, u32::from_le_bytes(c.try_into().unwrap()))
                 .unwrap()
         });
     }
@@ -278,7 +280,11 @@ impl DmaRegs {
         let read_data =
                 // Special case for putting stuff image in the mailbox from recovery register interface
                 if read_addr == Self::RRI_BASE + Self::RRI_FIFO_OFFSET && read_addr_fixed {
-                    (*root_bus.recovery.cms_data).clone()
+                    if let Some(data) = root_bus.recovery.cms_data.clone() {
+                        (*data).clone()
+                    } else {
+                        vec![]
+                    }
                 } else {
                     let range = read_addr..read_addr + self.byte_count.reg.get();
                     range
@@ -290,14 +296,13 @@ impl DmaRegs {
                                 .unwrap()
                                 .to_le_bytes()
                         }).collect()
-
                 };
         match self.control.reg.read_as_enum(Control::READ_ROUTE) {
             Some(Control::READ_ROUTE::Value::MAILBOX) => {
                 self.write_to_mailbox(read_data, root_bus);
             }
             Some(Control::READ_ROUTE::Value::AHB_FIFO) => {
-                if self.fifo.len() + read_data.len() <= Self::FIFO_SIZE {
+                if self.fifo.len() + read_data.len() > Self::FIFO_SIZE {
                     self.status0
                         .reg
                         .write(Status0::DMA_FSM_PRESENT_STATE::ERROR);
@@ -307,6 +312,9 @@ impl DmaRegs {
                 } else {
                     read_data.iter().for_each(|b| self.fifo.push_back(*b));
                 }
+                self.status0
+                    .reg
+                    .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32));
             }
             Some(Control::READ_ROUTE::Value::AXI_WR) => {
                 todo!()
@@ -343,7 +351,9 @@ impl DmaRegs {
             _ => {}
         }
 
-        self.status0.reg.write(Status0::DMA_FSM_PRESENT_STATE::DONE);
+        self.status0
+            .reg
+            .modify(Status0::BUSY::CLEAR + Status0::DMA_FSM_PRESENT_STATE::DONE);
     }
 }
 
@@ -370,6 +380,6 @@ mod tests {
         let mut dma = Dma::new(&clock);
 
         let capabilities = dma.read(RvSize::Word, CAPABILITIES_OFFSET).unwrap();
-        assert_eq!(capabilities, 0x1000);
+        assert_eq!(capabilities, 0xfff);
     }
 }

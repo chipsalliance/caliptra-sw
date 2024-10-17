@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
+use crate::ModelError;
 use crate::Output;
 use crate::{HwModel, SecurityState, TrngMode};
 
@@ -509,6 +510,10 @@ impl HwModel for ModelFpgaRealtime {
                 .offset(FPGA_WRAPPER_PAUSER_OFFSET)
                 .write_volatile(pauser);
         }
+    }
+
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        todo!()
     }
 }
 

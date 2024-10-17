@@ -27,7 +27,6 @@ use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
 use std::path::PathBuf;
-use std::rc::Rc;
 use tock_registers::registers::InMemoryRegister;
 
 /// Default Deobfuscation engine key
@@ -210,7 +209,6 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
-    pub recovery_image: Rc<Vec<u8>>,
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
@@ -233,7 +231,6 @@ impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
         Self {
             rom: Default::default(),
-            recovery_image: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
             tb_services_cb: Default::default(),
@@ -326,7 +323,6 @@ impl CaliptraRootBus {
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
-        let recovery_image = args.recovery_image.clone();
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -345,7 +341,7 @@ impl CaliptraRootBus {
             sha512,
             sha256: HashSha256::new(clock),
             ml_dsa87: MlDsa87::new(clock),
-            recovery: RecoveryRegisterInterface::new(recovery_image),
+            recovery: RecoveryRegisterInterface::new(),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

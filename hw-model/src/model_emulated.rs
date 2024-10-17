@@ -269,4 +269,9 @@ impl crate::HwModel for ModelEmulated {
         self.cpu.warm_reset();
         self.step();
     }
+
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        self.cpu.bus.bus.recovery.cms_data = Some(Rc::new(firmware.to_vec()));
+        Ok(())
+    }
 }
