@@ -101,6 +101,11 @@ pub struct PersistentData {
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col:
         [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE as usize],
+
+    // Reserved memory for future objects.
+    // New objects should always source memory from this range.
+    // Taking memory from this reserve does NOT break hitless updates.
+    pub reserved_memory: [u8; memory_layout::RESERVED_MEMORY_SIZE as usize],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
@@ -129,9 +134,12 @@ impl PersistentData {
                 memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
             );
             assert_eq!(
+                addr_of!((*P).reserved_memory) as u32,
+                memory_layout::RESERVED_MEMORY_ORG
+            );
+            assert_eq!(
                 P.add(1) as u32,
-                memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
-                    + memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE
+                memory_layout::RESERVED_MEMORY_ORG + memory_layout::RESERVED_MEMORY_SIZE
             );
         }
     }
