@@ -25,6 +25,21 @@ use crate::{
 use crate::pcr_reset::PcrResetCounter;
 
 pub const MAX_CSR_SIZE: usize = 512;
+pub const MAN1_SIZE: u32 = 6 * 1024;
+pub const MAN2_SIZE: u32 = 6 * 1024;
+pub const FHT_SIZE: u32 = 2 * 1024;
+pub const LDEVID_TBS_SIZE: u32 = 1024;
+pub const FMCALIAS_TBS_SIZE: u32 = 1024;
+pub const RTALIAS_TBS_SIZE: u32 = 1024;
+pub const PCR_LOG_SIZE: u32 = 1024;
+pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
+pub const FUSE_LOG_SIZE: u32 = 1024;
+pub const DPE_SIZE: u32 = 5 * 1024;
+pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
+pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
+pub const IDEVID_CSR_SIZE: u32 = 1024;
+pub const RESERVED_MEMORY_SIZE: u32 = 19 * 1024;
+
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
@@ -36,7 +51,7 @@ const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
     + size_of::<U8Bool>();
 
 #[cfg(feature = "runtime")]
-const _: () = assert!(DPE_DCCM_STORAGE < memory_layout::DPE_SIZE as usize);
+const _: () = assert!(DPE_DCCM_STORAGE < DPE_SIZE as usize);
 
 pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
@@ -44,6 +59,8 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 #[cfg(feature = "runtime")]
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
+
+const _: () = assert!(MAX_CSR_SIZE < IDEVID_CSR_SIZE as usize);
 
 #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
 #[repr(C)]
@@ -102,35 +119,47 @@ impl IdevIdCsr {
     }
 }
 
-const _: () = assert!(size_of::<IdevIdCsr>() < memory_layout::IDEVID_CSR_SIZE as usize);
+const _: () = assert!(size_of::<PersistentData>() == memory_layout::PERSISTENT_DATA_SIZE as usize);
+const _: () = assert!(size_of::<ImageManifest>() <= MAN1_SIZE as usize);
+const _: () = assert!(size_of::<ImageManifest>() <= MAN2_SIZE as usize);
+const _: () = assert!(size_of::<FirmwareHandoffTable>() <= FHT_SIZE as usize);
+const _: () = assert!(size_of::<PcrLogArray>() <= PCR_LOG_SIZE as usize);
+const _: () = assert!(size_of::<StashMeasurementArray>() <= MEASUREMENT_LOG_SIZE as usize);
+const _: () = assert!(size_of::<FuseLogArray>() <= FUSE_LOG_SIZE as usize);
+#[cfg(feature = "runtime")]
+const _: () = assert!(size_of::<PcrResetCounter>() <= PCR_RESET_COUNTER_SIZE as usize);
+#[cfg(feature = "runtime")]
+const _: () = assert!(
+    size_of::<AuthManifestImageMetadataCollection>() <= AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
+);
+const _: () = assert!(size_of::<IdevIdCsr>() <= IDEVID_CSR_SIZE as usize);
 
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
     pub manifest1: ImageManifest,
-    reserved0: [u8; memory_layout::MAN1_SIZE as usize - size_of::<ImageManifest>()],
+    reserved0: [u8; MAN1_SIZE as usize - size_of::<ImageManifest>()],
 
     pub manifest2: ImageManifest,
-    reserved1: [u8; memory_layout::MAN2_SIZE as usize - size_of::<ImageManifest>()],
+    reserved1: [u8; MAN2_SIZE as usize - size_of::<ImageManifest>()],
 
     pub fht: FirmwareHandoffTable,
-    reserved2: [u8; memory_layout::FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
+    reserved2: [u8; FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
 
     // TODO: Do we want to hide these fields from the FMC/runtime and force them
     // to go through the FHT addresses?
-    pub ldevid_tbs: [u8; memory_layout::LDEVID_TBS_SIZE as usize],
-    pub fmcalias_tbs: [u8; memory_layout::FMCALIAS_TBS_SIZE as usize],
-    pub rtalias_tbs: [u8; memory_layout::RTALIAS_TBS_SIZE as usize],
+    pub ldevid_tbs: [u8; LDEVID_TBS_SIZE as usize],
+    pub fmcalias_tbs: [u8; FMCALIAS_TBS_SIZE as usize],
+    pub rtalias_tbs: [u8; RTALIAS_TBS_SIZE as usize],
 
     pub pcr_log: PcrLogArray,
-    reserved3: [u8; memory_layout::PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
+    reserved3: [u8; PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
 
     pub measurement_log: StashMeasurementArray,
-    reserved4:
-        [u8; memory_layout::MEASUREMENT_LOG_SIZE as usize - size_of::<StashMeasurementArray>()],
+    reserved4: [u8; MEASUREMENT_LOG_SIZE as usize - size_of::<StashMeasurementArray>()],
 
     pub fuse_log: FuseLogArray,
-    reserved5: [u8; memory_layout::FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
+    reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     #[cfg(feature = "runtime")]
     pub dpe: DpeInstance,
@@ -141,65 +170,128 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub attestation_disabled: U8Bool,
     #[cfg(feature = "runtime")]
-    reserved6: [u8; memory_layout::DPE_SIZE as usize - DPE_DCCM_STORAGE],
+    reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
-    dpe: [u8; memory_layout::DPE_SIZE as usize],
+    dpe: [u8; DPE_SIZE as usize],
     #[cfg(feature = "runtime")]
     pub pcr_reset: PcrResetCounter,
     #[cfg(feature = "runtime")]
-    reserved7: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize - size_of::<PcrResetCounter>()],
+    reserved7: [u8; PCR_RESET_COUNTER_SIZE as usize - size_of::<PcrResetCounter>()],
 
     #[cfg(not(feature = "runtime"))]
-    pcr_reset: [u8; memory_layout::PCR_RESET_COUNTER_SIZE as usize],
+    pcr_reset: [u8; PCR_RESET_COUNTER_SIZE as usize],
 
     #[cfg(feature = "runtime")]
     pub auth_manifest_image_metadata_col: AuthManifestImageMetadataCollection,
     #[cfg(feature = "runtime")]
-    reserved9: [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
+    reserved9: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
         - size_of::<AuthManifestImageMetadataCollection>()],
 
     #[cfg(not(feature = "runtime"))]
-    pub auth_manifest_image_metadata_col:
-        [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
+    pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
     pub idevid_csr: IdevIdCsr,
-    reserved10: [u8; memory_layout::IDEVID_CSR_SIZE as usize - size_of::<IdevIdCsr>()],
+    reserved10: [u8; IDEVID_CSR_SIZE as usize - size_of::<IdevIdCsr>()],
+
+    // Reserved memory for future objects.
+    // New objects should always source memory from this range.
+    // Taking memory from this reserve does NOT break hitless updates.
+    pub reserved_memory: [u8; RESERVED_MEMORY_SIZE as usize],
 }
 
 impl PersistentData {
     pub fn assert_matches_layout() {
-        const P: *const PersistentData = memory_layout::MAN1_ORG as *const PersistentData;
-        use memory_layout as layout;
+        const P: *const PersistentData =
+            memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         unsafe {
-            assert_eq!(addr_of!((*P).manifest1) as u32, layout::MAN1_ORG);
-            assert_eq!(addr_of!((*P).manifest2) as u32, layout::MAN2_ORG);
-            assert_eq!(addr_of!((*P).fht) as u32, layout::FHT_ORG);
-            assert_eq!(addr_of!((*P).ldevid_tbs) as u32, layout::LDEVID_TBS_ORG);
-            assert_eq!(addr_of!((*P).fmcalias_tbs) as u32, layout::FMCALIAS_TBS_ORG);
-            assert_eq!(addr_of!((*P).rtalias_tbs) as u32, layout::RTALIAS_TBS_ORG);
-            assert_eq!(addr_of!((*P).pcr_log) as u32, memory_layout::PCR_LOG_ORG);
+            let mut persistent_data_offset = 0;
+            assert_eq!(
+                addr_of!((*P).manifest1) as u32,
+                memory_layout::PERSISTENT_DATA_ORG
+            );
+            persistent_data_offset += MAN1_SIZE;
+            assert_eq!(
+                addr_of!((*P).manifest2) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MAN2_SIZE;
+            assert_eq!(
+                addr_of!((*P).fht) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FHT_SIZE;
+            assert_eq!(
+                addr_of!((*P).ldevid_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += LDEVID_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).fmcalias_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FMCALIAS_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rtalias_tbs) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += RTALIAS_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).pcr_log) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PCR_LOG_SIZE;
             assert_eq!(
                 addr_of!((*P).measurement_log) as u32,
-                memory_layout::MEASUREMENT_LOG_ORG
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
-            assert_eq!(addr_of!((*P).dpe) as u32, memory_layout::DPE_ORG);
+
+            persistent_data_offset += MEASUREMENT_LOG_SIZE;
+            assert_eq!(
+                addr_of!((*P).fuse_log) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FUSE_LOG_SIZE;
+            assert_eq!(
+                addr_of!((*P).dpe) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += DPE_SIZE;
             assert_eq!(
                 addr_of!((*P).pcr_reset) as u32,
-                memory_layout::PCR_RESET_COUNTER_ORG
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+
+            persistent_data_offset += PCR_RESET_COUNTER_SIZE;
             assert_eq!(
                 addr_of!((*P).auth_manifest_image_metadata_col) as u32,
-                memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+
+            persistent_data_offset += AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
             assert_eq!(
                 addr_of!((*P).idevid_csr) as u32,
-                memory_layout::IDEVID_CSR_ORG
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+
+            persistent_data_offset += IDEVID_CSR_SIZE;
+            assert_eq!(
+                addr_of!((*P).reserved_memory) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
             assert_eq!(
                 P.add(1) as u32,
-                memory_layout::IDEVID_CSR_ORG + memory_layout::IDEVID_CSR_SIZE
+                memory_layout::PERSISTENT_DATA_ORG + memory_layout::PERSISTENT_DATA_SIZE
             );
+            assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
     }
 }
@@ -228,7 +320,7 @@ impl PersistentDataAccessor {
     pub fn get(&self) -> &PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_from_addr(memory_layout::MAN1_ORG) }
+        unsafe { ref_from_addr(memory_layout::PERSISTENT_DATA_ORG) }
     }
 
     /// # Safety
@@ -239,7 +331,7 @@ impl PersistentDataAccessor {
     pub fn get_mut(&mut self) -> &mut PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_mut_from_addr(memory_layout::MAN1_ORG) }
+        unsafe { ref_mut_from_addr(memory_layout::PERSISTENT_DATA_ORG) }
     }
 }
 
