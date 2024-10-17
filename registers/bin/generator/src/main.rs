@@ -277,8 +277,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     ureg_schema::filter_unused_types(&mut all_blocks);
 
     for block in validated_blocks {
-        let module_ident = format_ident!("{}", block.block().name);
-        let dest_file = dest_dir.join(format!("{}.rs", block.block().name));
+        // rust expects modules and files in lowercase naming
+        let block_name = block.block().name.to_lowercase();
+        let module_ident = format_ident!("{}", block_name);
+        let dest_file = dest_dir.join(format!("{}.rs", block_name));
 
         let tokens = ureg_codegen::generate_code(
             &block,
