@@ -21,7 +21,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, Secu
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::IMAGE_BYTE_SIZE;
+use caliptra_image_types::{FwImageType, IMAGE_BYTE_SIZE};
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
@@ -209,7 +209,7 @@ fn test_pcr_log() {
     check_pcr_log_entry(
         &pcr_entry_arr,
         1,
-        PcrLogEntryId::VendorPubKeyHash,
+        PcrLogEntryId::VendorPubKeyInfoHash,
         PCR0_AND_PCR1_EXTENDED_ID,
         swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
     );
@@ -603,6 +603,7 @@ fn test_fuse_log() {
         fmc_version: 0,
         app_svn: FMC_SVN,
         app_version: 0,
+        fw_image_type: FwImageType::EccLms,
     };
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)

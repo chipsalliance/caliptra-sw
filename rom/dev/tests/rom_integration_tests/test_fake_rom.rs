@@ -212,13 +212,17 @@ fn test_image_verify() {
     )
     .unwrap();
 
-    let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
-
     // Modify the vendor public key.
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .x
         .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .y
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 

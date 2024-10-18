@@ -179,15 +179,15 @@ impl FuseBank<'_> {
         subject_key_id
     }
 
-    /// Get the vendor public key hash.
+    /// Get the vendor public key info hash.
     ///
     /// # Arguments
     /// * None
     ///
     /// # Returns
-    ///     vendor public key hash
+    ///     vendor public key info hash
     ///
-    pub fn vendor_pub_key_hash(&self) -> Array4x12 {
+    pub fn vendor_pub_key_info_hash(&self) -> Array4x12 {
         let soc_ifc_regs = self.soc_ifc.regs();
         Array4x12::read_from_reg(soc_ifc_regs.fuse_key_manifest_pk_hash())
     }

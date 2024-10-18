@@ -169,7 +169,7 @@ impl FmcAliasLayer {
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
-            env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+            env.soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
         ))?;
         hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
         hasher.finalize(&mut fuse_info_digest)?;
