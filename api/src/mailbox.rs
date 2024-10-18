@@ -47,6 +47,9 @@ impl CommandId {
 
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
+
+    // The download firmware from recovery interface command.
+    pub const RI_DOWNLOAD_FIRMWARE: Self = Self(0x5249_4644); // "RIFD"
 }
 
 impl From<u32> for CommandId {

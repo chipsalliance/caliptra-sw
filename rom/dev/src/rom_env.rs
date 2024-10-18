@@ -18,13 +18,13 @@ Abstract:
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng, Dma,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
     csrng::CsrngReg, doe::DoeReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg,
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
-    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg, axi_dma::AxiDmaReg,
 };
 
 /// Rom Context
@@ -74,6 +74,9 @@ pub struct RomEnv {
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
 
+    /// DMA Widget
+    pub dma: Dma,
+
     // Mechanism to access the persistent data safely
     pub persistent_data: PersistentDataAccessor,
 }
@@ -104,6 +107,7 @@ impl RomEnv {
             fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
+            dma: Dma::new(AxiDmaReg::new()),
         })
     }
 }

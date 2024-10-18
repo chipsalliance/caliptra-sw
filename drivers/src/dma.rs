@@ -17,6 +17,10 @@ use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg,
 };
+use zerocopy::AsBytes;
+
+const PROT_CAP_OFFSET: u32 = 0x0;
+const INDIRECT_FIFO_DATA_OFFSET: u32 = PROT_CAP_OFFSET + 0x6C;
 
 pub enum DmaReadTarget {
     Mbox,
@@ -185,7 +189,71 @@ impl Dma {
         dma.ctrl().modify(|c| c.go(true));
 
         while dma.status0().read().busy() {
-            if status0.error() {
+            if dma.status0().read().error() {
+                return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn read_dword(&mut self, read_addr: usize) -> CaliptraResult<u32> {
+        let mut read_val: u32 = 0;
+
+        self.flush();
+
+        let read_transaction = DmaReadTransaction {
+            read_addr,
+            fixed_addr: false,
+            length: core::mem::size_of::<u32>() as u32,
+            target: DmaReadTarget::AhbFifo,
+        };
+
+        self.setup_dma_read(read_transaction);
+        self.do_transaction()?;
+        self.dma_read_fifo(read_val.as_bytes_mut())?;
+        Ok(read_val)
+    }
+
+    pub fn write_dword(&mut self, write_addr: usize, write_val: u32) -> CaliptraResult<()> {
+        self.flush();
+
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: core::mem::size_of::<u32>() as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+        };
+
+        self.setup_dma_write(write_transaction);
+        self.do_transaction()?;
+        self.dma_write_fifo(write_val.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn transfer_payload_to_mbox(&mut self, payload_len_bytes: u32) -> CaliptraResult<()> {
+        self.flush();
+
+        let dma_reg = self.dma.regs_mut();
+
+        // Write  payload length to 'Byte Count' register.
+        dma_reg.byte_count().write(|_| payload_len_bytes);
+
+        // Write block size to 'Block Size' register.
+        dma_reg.block_size().write(|bs| bs.size(256));
+
+        // Write the source address to SA(L) and SA(H) registers.
+        dma_reg.src_addr_l().write(|_| INDIRECT_FIFO_DATA_OFFSET);
+        dma_reg.src_addr_h().write(|_| 0);
+
+        // [TODO] Acquire the mailbox lock.
+
+        // Write Control register.
+        dma_reg.ctrl().write(|c| c.rd_route(|_| RdRouteE::Mbox).rd_fixed(true).go(true));
+
+        // Loop: Read Status0 register till Busy=0, Error=0
+        while dma_reg.status0().read().busy() {
+            if dma_reg.status0().read().error() {
                 return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
             }
         }

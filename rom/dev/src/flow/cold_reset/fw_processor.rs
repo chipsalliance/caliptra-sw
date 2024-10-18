@@ -11,6 +11,8 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
+#![allow(dead_code)]
+
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
@@ -40,6 +42,22 @@ use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, LayoutVerified};
 use zeroize::Zeroize;
+
+const ACTIVE_MODE: bool = true;
+const PAYLOAD_AVAILABLE: bool = true;
+const RECOVERY_INTERFACE_ADDRESS: u32 = 0x0;
+const PROT_CAP_OFFSET: u32 = 0x0;
+const PROT_CAP_AGENT_BYTE_10_OFFSET: u32 = PROT_CAP_OFFSET + 10;
+const PROT_CAP_AGENT_BYTE_11_OFFSET: u32 = PROT_CAP_OFFSET + 11;
+const DEVICE_ID_OFFSET: u32 = PROT_CAP_OFFSET + 0x10;
+const DEVICE_STATUS_OFFSET: u32 = PROT_CAP_OFFSET + 0x28;
+const DEVICE_RESET_OFFSET: u32 = PROT_CAP_OFFSET + 0x30;
+const RECOVERY_CTRL_OFFSET: u32 = PROT_CAP_OFFSET + 0x34;
+const RECOVERY_STATUS_OFFSET: u32 = PROT_CAP_OFFSET + 0x38;
+const HW_STATUS_OFFSET: u32 = PROT_CAP_OFFSET + 0x3C;
+const INDIRECT_FIFO_CTRL_OFFSET: u32 = PROT_CAP_OFFSET + 0x40;
+const INDIRECT_FIFO_STATUS_OFFSET: u32 = PROT_CAP_OFFSET + 0x48;
+const INDIRECT_FIFO_DATA_OFFSET: u32 = PROT_CAP_OFFSET + 0x6C;
 
 #[derive(Debug, Default, Zeroize)]
 pub struct FwProcInfo {
@@ -85,10 +103,11 @@ impl FirmwareProcessor {
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
-        let mut txn = Self::process_mailbox_commands(
+        let (mut txn, image_size_bytes) = Self::process_mailbox_commands(
             &mut env.soc_ifc,
             &mut env.mbox,
             &mut env.pcr_bank,
+            &mut env.dma,
             &mut kats_env,
             env.persistent_data.get_mut(),
         )?;
@@ -115,7 +134,7 @@ impl FirmwareProcessor {
         };
 
         // Verify the image
-        let info = Self::verify_image(&mut venv, manifest, txn.dlen());
+        let info = Self::verify_image(&mut venv, manifest, image_size_bytes);
         let info = okref(&info)?;
 
         Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
@@ -174,9 +193,10 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
+        dma: &mut Dma,
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
-    ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
+    ) -> CaliptraResult<(ManuallyDrop<MailboxRecvTxn<'a>>, u32)> {
         let mut self_test_in_progress = false;
 
         cprintln!("[fwproc] Waiting for Commands...");
@@ -190,6 +210,9 @@ impl FirmwareProcessor {
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
+                    if ACTIVE_MODE {
+                        return Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE);
+                    }
                     // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
                     let txn = mbox
                         .peek_recv()
@@ -204,9 +227,10 @@ impl FirmwareProcessor {
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
 
-                    cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
+                    let image_size_bytes = txn.dlen();
+                    cprintln!("[fwproc] Received Image of size {} bytes", image_size_bytes);
                     report_boot_status(FwProcessorDownloadImageComplete.into());
-                    return Ok(txn);
+                    return Ok((txn, image_size_bytes));
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
@@ -299,6 +323,24 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
+                    CommandId::RI_DOWNLOAD_FIRMWARE => {
+                        // This command is not supported in passive mode.
+                        if ACTIVE_MODE == false {
+                            cprintln!("[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode");
+                            txn.complete(false)?;
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                        }
+
+                        txn.complete(true)?;
+
+                        // Download the firmware image from the recovery interface.
+                        let image_size_bytes = Self::retrieve_image_from_ri(dma)?;
+
+                        let txn = ManuallyDrop::new(mbox.raw_recv_txn());
+                        cprintln!("[fwproc] Received Image from Recovery Interface of size {} bytes", image_size_bytes);
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok((txn, image_size_bytes));
+                    }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
                         // Don't complete the transaction here; let the fatal
@@ -322,7 +364,14 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
-        txn.copy_request(manifest.as_bytes_mut())?;
+        if ACTIVE_MODE {
+            let raw_image = txn.raw_mailbox_contents();
+            let buf = manifest.as_bytes_mut();
+            buf.copy_from_slice(&raw_image[..buf.len()]);
+        }
+        else {
+            txn.copy_request(manifest.as_bytes_mut())?;
+        }
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -674,7 +723,7 @@ impl FirmwareProcessor {
         Self::log_measurement(persistent_data, stash_measurement)
     }
 
-    /// Log mesaure data to the Stash Measurement log
+    /// Log measurement data to the Stash Measurement log
     ///
     /// # Arguments
     /// * `persistent_data` - Persistent data
@@ -709,5 +758,48 @@ impl FirmwareProcessor {
         fht.meas_log_index += 1;
 
         Ok(())
+    }
+
+    /// Retireve the fw image from the recovery interface and store it in the mailbox sram.
+    /// 
+    /// # Arguments
+    /// * `dma` - DMA driver
+    /// 
+    /// # Returns
+    /// * `()` - Ok
+    ///   Error code on failure.
+    fn retrieve_image_from_ri(
+        dma: &mut Dma,
+    ) -> CaliptraResult<u32> {
+        // 1. Set PROT_CAP:Byte11 bit3 to 1 ('Flashless boot').
+        let mut prot_cap_byte_11_val = dma.read_dword(PROT_CAP_AGENT_BYTE_11_OFFSET as usize)?;
+        prot_cap_byte_11_val |= 1 << 1; // Set bit 1
+        dma.write_dword(PROT_CAP_AGENT_BYTE_11_OFFSET as usize, prot_cap_byte_11_val)?;
+
+        // 2. Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+        dma.write_dword(DEVICE_STATUS_OFFSET as usize, 0x3)?;
+
+        // 3. Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
+        dma.write_dword((DEVICE_RESET_OFFSET + 2) as usize, 0x12)?;
+
+        // 4. Set RECOVERY_STATUS register:Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image') & 
+        // Byte0 Bit[7:4] to 0 (Recovery image index).
+        let mut recovery_status_val = dma.read_dword(RECOVERY_STATUS_OFFSET as usize)?;
+        recovery_status_val = (recovery_status_val & 0xFFFFFF00) | 0x1;
+        dma.write_dword(RECOVERY_STATUS_OFFSET as usize, recovery_status_val)?;
+
+        // 5. Loop on the 'payload_available' signal for the recovery image details to be available.
+        while PAYLOAD_AVAILABLE == false {
+            // Wait for the payload available signal.
+        }
+
+        // 6. Read the image size from INDIRECT_FIFO_CTRL register:Byte[2:5]. Image size in DWORDs.
+        let image_size_dword = dma.read_dword((INDIRECT_FIFO_CTRL_OFFSET + 2) as usize)?;
+
+        // 7. Transfer the image from the recovery interface to the mailbox SRAM.
+        let image_size_bytes = image_size_dword * 4;
+        dma.transfer_payload_to_mbox(image_size_bytes)?;
+
+        Ok(image_size_bytes)
     }
 }
