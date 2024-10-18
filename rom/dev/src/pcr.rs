@@ -93,8 +93,8 @@ pub(crate) fn extend_pcrs(
     pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
 
     pcr.extend(
-        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_hash()),
-        PcrLogEntryId::VendorPubKeyHash,
+        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_info_hash()),
+        PcrLogEntryId::VendorPubKeyInfoHash,
     )?;
     pcr.extend(
         &<[u8; 48]>::from(&env.data_vault.owner_pk_hash()),

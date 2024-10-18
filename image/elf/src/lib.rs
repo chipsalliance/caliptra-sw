@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use anyhow::{bail, Context};
-use caliptra_image_gen::ImageGenratorExecutable;
+use caliptra_image_gen::ImageGeneratorExecutable;
 use caliptra_image_types::ImageRevision;
 use elf::abi::PT_LOAD;
 use elf::endian::AnyEndian;
@@ -108,7 +108,7 @@ impl ElfExecutable {
     }
 }
 
-impl ImageGenratorExecutable for ElfExecutable {
+impl ImageGeneratorExecutable for ElfExecutable {
     /// Executable Version Number
     fn version(&self) -> u32 {
         self.version

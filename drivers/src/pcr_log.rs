@@ -25,13 +25,13 @@ pub const PCR_ID_STASH_MEASUREMENT: PcrId = PcrId::PcrId31;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrLogEntryId {
     Invalid = 0,
-    DeviceStatus = 1,     // data size = 9 bytes
-    VendorPubKeyHash = 2, // data size = 48 bytes
-    OwnerPubKeyHash = 3,  // data size = 48 bytes
-    FmcTci = 4,           // data size = 48 bytes
-    StashMeasurement = 5, // data size = 48 bytes
-    RtTci = 6,            // data size = 48 bytes
-    FwImageManifest = 7,  // data size = 48 bytes
+    DeviceStatus = 1,         // data size = 9 bytes
+    VendorPubKeyInfoHash = 2, // data size = 48 bytes
+    OwnerPubKeyHash = 3,      // data size = 48 bytes
+    FmcTci = 4,               // data size = 48 bytes
+    StashMeasurement = 5,     // data size = 48 bytes
+    RtTci = 6,                // data size = 48 bytes
+    FwImageManifest = 7,      // data size = 48 bytes
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -39,7 +39,7 @@ impl From<u16> for PcrLogEntryId {
     fn from(id: u16) -> PcrLogEntryId {
         match id {
             1 => PcrLogEntryId::DeviceStatus,
-            2 => PcrLogEntryId::VendorPubKeyHash,
+            2 => PcrLogEntryId::VendorPubKeyInfoHash,
             3 => PcrLogEntryId::OwnerPubKeyHash,
             4 => PcrLogEntryId::FmcTci,
             5 => PcrLogEntryId::StashMeasurement,
@@ -71,7 +71,7 @@ impl PcrLogEntry {
         let data_len = match PcrLogEntryId::from(self.id) {
             PcrLogEntryId::Invalid => 0,
             PcrLogEntryId::DeviceStatus => 9,
-            PcrLogEntryId::VendorPubKeyHash => 48,
+            PcrLogEntryId::VendorPubKeyInfoHash => 48,
             PcrLogEntryId::OwnerPubKeyHash => 48,
             PcrLogEntryId::FmcTci => 48,
             PcrLogEntryId::StashMeasurement => 48,

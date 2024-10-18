@@ -12,4 +12,5 @@ doctest = false
 anyhow.workspace = true
 caliptra-image-types = { workspace = true, features = ["std"] }
 zerocopy.workspace = true
+memoffset.workspace = true
 
