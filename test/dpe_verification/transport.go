@@ -68,7 +68,7 @@ var CALIPTRA_C_MODEL *C.struct_caliptra_model
 
 //export caliptra_write_u32
 func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
-	result := C.caliptra_model_apb_write_u32(CALIPTRA_C_MODEL, address, data)
+	result := C.caliptra_model_axi_write_u32(CALIPTRA_C_MODEL, address, data)
 
 	C.caliptra_model_step(CALIPTRA_C_MODEL)
 
@@ -77,7 +77,7 @@ func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
 
 //export caliptra_read_u32
 func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) C.int {
-	return C.caliptra_model_apb_read_u32(CALIPTRA_C_MODEL, address, data)
+	return C.caliptra_model_axi_read_u32(CALIPTRA_C_MODEL, address, data)
 }
 
 //export caliptra_wait

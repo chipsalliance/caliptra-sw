@@ -238,7 +238,7 @@ impl Drivers {
         } else {
             let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             let flags = drivers.persistent_data.get().manifest1.header.flags;
-            let locality = drivers.mbox.user();
+            let locality = drivers.mbox.id();
             // check that DPE used context limits are not exceeded
             let dpe_context_threshold_exceeded = Self::is_dpe_context_threshold_exceeded(
                 pl0_pauser,

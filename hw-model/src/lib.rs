@@ -248,7 +248,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
-    pub valid_pauser: u32,
+    pub valid_axi_id: u32,
     pub wdt_timeout_cycles: u64,
 }
 
@@ -260,7 +260,7 @@ impl<'a> Default for BootParams<'a> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
-            valid_pauser: 0x1,
+            valid_axi_id: 0x1,
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
@@ -531,13 +531,13 @@ pub trait HwModel {
                 .write(|_| reg);
         }
 
-        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // Set up the AXI_ID as valid for the mailbox (using index 0)
         self.soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_id()
             .at(0)
-            .write(|_| boot_params.valid_pauser);
+            .write(|_| boot_params.valid_axi_id);
         self.soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_id_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -578,11 +578,11 @@ pub trait HwModel {
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
     }
 
-    /// The APB bus from the SoC to Caliptra
+    /// The AXI bus from the SoC to Caliptra
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
     /// microcontroller executing a few instructions
-    fn apb_bus(&mut self) -> Self::TBus<'_>;
+    fn axi_bus(&mut self) -> Self::TBus<'_>;
 
     /// Step execution ahead one clock cycle.
     fn step(&mut self);
@@ -611,7 +611,7 @@ pub trait HwModel {
 
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
-    /// should come via a caliptra_top wire rather than an APB register.
+    /// should come via a caliptra_top wire rather than an AXI register.
     fn ready_for_fw(&self) -> bool;
 
     /// Initializes the fuse values and locks them in until the next reset. This
@@ -813,49 +813,49 @@ pub trait HwModel {
     }
 
     /// A register block that can be used to manipulate the soc_ifc peripheral
-    /// over the simulated SoC->Caliptra APB bus.
+    /// over the simulated SoC->Caliptra AXI bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
-                BusMmio::new(self.apb_bus()),
+                BusMmio::new(self.axi_bus()),
             )
         }
     }
 
     /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
-    /// over the simulated SoC->Caliptra APB bus.
+    /// over the simulated SoC->Caliptra AXI bus.
     fn soc_ifc_trng(
         &mut self,
     ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
-                BusMmio::new(self.apb_bus()),
+                BusMmio::new(self.axi_bus()),
             )
         }
     }
 
     /// A register block that can be used to manipulate the mbox peripheral
-    /// over the simulated SoC->Caliptra APB bus.
+    /// over the simulated SoC->Caliptra AXI bus.
     fn soc_mbox(&mut self) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::mbox::RegisterBlock::new_with_mmio(
                 0x3002_0000 as *mut u32,
-                BusMmio::new(self.apb_bus()),
+                BusMmio::new(self.axi_bus()),
             )
         }
     }
 
     /// A register block that can be used to manipulate the sha512_acc peripheral
-    /// over the simulated SoC->Caliptra APB bus.
+    /// over the simulated SoC->Caliptra AXI bus.
     fn soc_sha512_acc(
         &mut self,
     ) -> caliptra_registers::sha512_acc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::sha512_acc::RegisterBlock::new_with_mmio(
                 0x3002_1000 as *mut u32,
-                BusMmio::new(self.apb_bus()),
+                BusMmio::new(self.axi_bus()),
             )
         }
     }
@@ -866,7 +866,7 @@ pub trait HwModel {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
-    fn set_apb_pauser(&mut self, pauser: u32);
+    fn set_axi_id(&mut self, axi_id: u32);
 
     /// Executes a typed request and (if success), returns the typed response.
     /// The checksum field of the request is calculated, and the checksum of the
@@ -951,7 +951,7 @@ pub trait HwModel {
         }
 
         // Mailbox lock value should read 1 now
-        // If not, the reads are likely being blocked by the PAUSER check or some other issue
+        // If not, the reads are likely being blocked by the AXI_ID check or some other issue
         if !(self.soc_mbox().lock().read().lock()) {
             return Err(ModelError::UnableToReadMailbox);
         }
@@ -1197,7 +1197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apb() {
+    fn test_axi() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
             rom: &gen_image_hi(),
             ..Default::default()
@@ -1207,41 +1207,41 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // Set up the AXI_ID as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_id()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_id_lock()
             .at(0)
             .write(|w| w.lock(true));
 
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             0
         );
 
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             1
         );
 
         model
-            .apb_bus()
+            .axi_bus()
             .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
             .unwrap();
         assert_eq!(
-            model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
+            model.axi_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
             4242
         );
     }
 
     #[test]
     fn test_mbox() {
-        // Same as test_apb, but uses higher-level register interface
+        // Same as test_axi, but uses higher-level register interface
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
             rom: &gen_image_hi(),
             ..Default::default()
@@ -1251,15 +1251,15 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // Set up the AXI_ID as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_id()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_id_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -1282,15 +1282,15 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // Set up the AXI_ID as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_id()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_id_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -1310,10 +1310,10 @@ mod tests {
 
     #[test]
     // Currently only possible on verilator
-    // SW emulator does not support pauser
+    // SW emulator does not support axi_id
     // For FPGA, test case needs to be reworked to capture SIGBUS from linux environment
     #[cfg(feature = "verilator")]
-    fn test_mbox_pauser() {
+    fn test_mbox_axi_id() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
             rom: &gen_image_hi(),
             ..Default::default()
@@ -1323,27 +1323,27 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // Set up the AXI_ID as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_id()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_id_lock()
             .at(0)
             .write(|w| w.lock(true));
 
-        // Set the PAUSER to something invalid
-        model.set_apb_pauser(0x2);
+        // Set the AXI_ID to something invalid
+        model.set_axi_id(0x2);
 
         assert!(!model.soc_mbox().lock().read().lock());
-        // Should continue to read 0 because the reads are being blocked by valid PAUSER
+        // Should continue to read 0 because the reads are being blocked by valid AXI_ID
         assert!(!model.soc_mbox().lock().read().lock());
 
-        // Set the PAUSER back to valid
-        model.set_apb_pauser(0x1);
+        // Set the AXI_ID back to valid
+        model.set_axi_id(0x1);
 
         // Should read 0 the first time still for lock available
         assert!(!model.soc_mbox().lock().read().lock());

@@ -64,7 +64,7 @@ impl StashMeasurementCmd {
 
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let flags = pdata.manifest1.header.flags;
-            let locality = drivers.mbox.user();
+            let locality = drivers.mbox.id();
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
             Drivers::is_dpe_context_threshold_exceeded(

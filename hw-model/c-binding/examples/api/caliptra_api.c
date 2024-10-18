@@ -32,7 +32,7 @@ int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fus
     caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
 
     // Write to Caliptra Fuse Done
-    caliptra_model_apb_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
+    caliptra_model_axi_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
 
     // It shouldn`t be longer ready for fuses
     if (caliptra_model_ready_for_fuses(model))
@@ -49,7 +49,7 @@ int caliptra_bootfsm_go(struct caliptra_model *model)
     }
 
     // Write BOOTFSM_GO Register
-    caliptra_model_apb_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
+    caliptra_model_axi_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
 
     return 0;
 }

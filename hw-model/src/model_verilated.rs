@@ -16,20 +16,20 @@ use std::rc::Rc;
 
 use crate::Output;
 
-const DEFAULT_APB_PAUSER: u32 = 0x1;
+const DEFAULT_AXI_PAUSER: u32 = 0x1;
 
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
 
-pub struct VerilatedApbBus<'a> {
+pub struct VerilatedAxiBus<'a> {
     model: &'a mut ModelVerilated,
 }
-impl<'a> Bus for VerilatedApbBus<'a> {
+impl<'a> Bus for VerilatedAxiBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        let result = Ok(self.model.v.apb_read_u32(self.model.soc_apb_pauser, addr));
+        let result = Ok(self.model.v.axi_read_u32(self.model.soc_axi_pauser, addr));
         self.model
             .log
             .borrow_mut()
@@ -52,7 +52,7 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         }
         self.model
             .v
-            .apb_write_u32(self.model.soc_apb_pauser, addr, val);
+            .axi_write_u32(self.model.soc_axi_pauser, addr, val);
         self.model
             .log
             .borrow_mut()
@@ -86,7 +86,7 @@ pub struct ModelVerilated {
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
 
-    soc_apb_pauser: u32,
+    soc_axi_pauser: u32,
 }
 
 impl ModelVerilated {
@@ -113,7 +113,7 @@ fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
 }
 
 impl crate::HwModel for ModelVerilated {
-    type TBus<'a> = VerilatedApbBus<'a>;
+    type TBus<'a> = VerilatedAxiBus<'a>;
 
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
     where
@@ -222,7 +222,7 @@ impl crate::HwModel for ModelVerilated {
 
             log,
 
-            soc_apb_pauser: DEFAULT_APB_PAUSER,
+            soc_axi_pauser: DEFAULT_AXI_PAUSER,
         };
 
         m.tracing_hint(true);
@@ -252,8 +252,8 @@ impl crate::HwModel for ModelVerilated {
         self.trng_mode
     }
 
-    fn apb_bus(&mut self) -> Self::TBus<'_> {
-        VerilatedApbBus { model: self }
+    fn axi_bus(&mut self) -> Self::TBus<'_> {
+        VerilatedAxiBus { model: self }
     }
 
     fn step(&mut self) {
@@ -345,8 +345,8 @@ impl crate::HwModel for ModelVerilated {
         }
     }
 
-    fn set_apb_pauser(&mut self, pauser: u32) {
-        self.soc_apb_pauser = pauser;
+    fn set_axi_id(&mut self, pauser: u32) {
+        self.soc_axi_pauser = pauser;
     }
 }
 impl ModelVerilated {

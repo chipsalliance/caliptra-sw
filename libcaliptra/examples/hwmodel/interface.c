@@ -71,7 +71,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
 {
     struct caliptra_model *m = hwmod_get_or_init();
 
-    int result = caliptra_model_apb_write_u32(m, address, (int)data);
+    int result = caliptra_model_axi_write_u32(m, address, (int)data);
 
     caliptra_model_step(m);
 
@@ -90,7 +90,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  */
 int caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
+    return caliptra_model_axi_read_u32(hwmod_get_or_init(), address, (uint*)data);
 }
 
 /**

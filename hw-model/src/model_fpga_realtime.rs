@@ -34,7 +34,7 @@ const CALIPTRA_MAPPING: usize = 1;
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
-const DEFAULT_APB_PAUSER: u32 = 0x1;
+const DEFAULT_AXI_PAUSER: u32 = 0x1;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -391,7 +391,7 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(params.security_state);
 
         // Set initial PAUSER
-        m.set_apb_pauser(DEFAULT_APB_PAUSER);
+        m.set_axi_id(DEFAULT_AXI_PAUSER);
 
         // Set divisor for ITRNG throttling
         m.set_itrng_divider(ITRNG_DIVISOR);
@@ -448,7 +448,7 @@ impl HwModel for ModelFpgaRealtime {
         self.trng_mode
     }
 
-    fn apb_bus(&mut self) -> Self::TBus<'_> {
+    fn axi_bus(&mut self) -> Self::TBus<'_> {
         FpgaRealtimeBus {
             mmio: self.mmio,
             phantom: Default::default(),
@@ -503,7 +503,7 @@ impl HwModel for ModelFpgaRealtime {
         // Do nothing; we don't support tracing yet
     }
 
-    fn set_apb_pauser(&mut self, pauser: u32) {
+    fn set_axi_id(&mut self, pauser: u32) {
         unsafe {
             self.wrapper
                 .offset(FPGA_WRAPPER_PAUSER_OFFSET)

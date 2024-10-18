@@ -76,12 +76,12 @@ impl SocIfc {
 
     pub fn mbox_valid_pauser(&self) -> [u32; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        soc_ifc_regs.cptra_mbox_valid_pauser().read()
+        soc_ifc_regs.cptra_mbox_valid_axi_id().read()
     }
 
     pub fn mbox_pauser_lock(&self) -> [bool; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let pauser_lock = soc_ifc_regs.cptra_mbox_pauser_lock();
+        let pauser_lock = soc_ifc_regs.cptra_mbox_axi_id_lock();
         [
             pauser_lock.at(0).read().lock(),
             pauser_lock.at(1).read().lock(),
