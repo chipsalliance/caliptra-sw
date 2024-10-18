@@ -244,6 +244,7 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 
 pub struct BootParams<'a> {
     pub fuses: Fuses,
+    pub active_mode: bool,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
@@ -256,6 +257,7 @@ impl<'a> Default for BootParams<'a> {
     fn default() -> Self {
         Self {
             fuses: Default::default(),
+            active_mode: false,
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
@@ -558,7 +560,11 @@ pub trait HwModel {
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
             self.cover_fw_mage(fw_image);
-            self.upload_firmware(fw_image)?;
+            if boot_params.active_mode {
+                self.upload_firmware_rri(fw_image)?;
+            } else {
+                self.upload_firmware(fw_image)?;
+            }
         }
 
         Ok(())
@@ -1093,6 +1099,16 @@ pub trait HwModel {
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
+        Ok(())
+    }
+
+    /// HW-model function to place the image in rri
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError>;
+
+    /// Upload fw image to RRI.
+    fn upload_firmware_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        self.put_firmware_in_rri(firmware)?;
+        // TODO Add method to inform caliptra to start fetching from the RRI
         Ok(())
     }
 
