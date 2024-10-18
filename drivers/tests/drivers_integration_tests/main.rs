@@ -1124,3 +1124,8 @@ fn test_uart() {
 fn test_mailbox_txn_drop() {
     run_driver_test(&firmware::driver_tests::MBOX_SEND_TXN_DROP);
 }
+
+#[test]
+fn test_dma() {
+    run_driver_test(&firmware::driver_tests::DMA);
+}
