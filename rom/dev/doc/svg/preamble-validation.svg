@@ -225,7 +225,7 @@
 			<text x="12.62" y="788.4" class="st11" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Y</text>		</g>
 		<g id="shape9-35" v:mID="9" v:groupContext="shape" v:layerMember="0" transform="translate(217.95,-429.826)">
 			<title>Process.65</title>
-			<desc>Generate Sha-384 hash of the Mfg Keys and match with the hash...</desc>
+			<desc>Generate Sha-384 hash of the Mfg Key Descriptors and match with the hash...</desc>
 			<v:custProps>
 				<v:cp v:nameU="Cost" v:lbl="Cost" v:prompt="" v:type="7" v:format="@" v:sortKey="" v:invis="false" v:ask="false"
 						v:langID="1033" v:cal="0"/>
