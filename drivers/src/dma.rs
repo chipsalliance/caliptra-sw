@@ -249,7 +249,9 @@ impl Dma {
         // [TODO] Acquire the mailbox lock.
 
         // Write Control register.
-        dma_reg.ctrl().write(|c| c.rd_route(|_| RdRouteE::Mbox).rd_fixed(true).go(true));
+        dma_reg
+            .ctrl()
+            .write(|c| c.rd_route(|_| RdRouteE::Mbox).rd_fixed(true).go(true));
 
         // Loop: Read Status0 register till Busy=0, Error=0
         while dma_reg.status0().read().busy() {

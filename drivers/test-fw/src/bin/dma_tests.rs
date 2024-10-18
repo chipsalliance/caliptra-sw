@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    cprintln, Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction,
+    cprintln, Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction, Mailbox,
 };
 use caliptra_registers::{axi_dma::AxiDmaReg, ecc::EccReg, mbox::MboxCsr};
 use caliptra_test_harness::test_suite;
@@ -107,26 +107,34 @@ fn test_dma_write_to_periph() {
 fn test_read_rri_to_mailbox() {
     let mut dma = unsafe { Dma::new(AxiDmaReg::new()) };
 
+    let test_image = [0xab; 512];
+
     // TODO use i3c generated regs
     let rri_regs = 0x1003_806c;
+
+    let mut mbox_driver = unsafe { Mailbox::new(MboxCsr::new()) };
+    let mut txn = mbox_driver.try_start_send_txn().unwrap();
+    txn.send_request(0xdead_beef, b"").unwrap();
 
     dma.flush();
     // TODO this needs a block size set
     let read_rri_to_mailbox = DmaReadTransaction {
         read_addr: rri_regs,
         fixed_addr: true,
-        length: 256,
+        length: test_image.len() as u32,
         target: DmaReadTarget::Mbox,
     };
-
     dma.setup_dma_read(read_rri_to_mailbox);
     dma.do_transaction();
 
-    let mbox = unsafe { MboxCsr::new() };
-    let dlen = mbox.regs().dlen().read();
-
-    // TODO set up
-    // assert_eq!(dlen, 256);
+    // Don't drop txn as that will result in flushing the mailbox
+    let mut mbox_driver = unsafe { Mailbox::new(MboxCsr::new()) };
+    let mut rxn = mbox_driver.raw_recv_txn();
+    assert_eq!(rxn.dlen(), test_image.len() as u32);
+    assert_eq!(
+        rxn.raw_mailbox_contents().get(..test_image.len()).unwrap(),
+        test_image
+    );
 }
 
 test_suite! {

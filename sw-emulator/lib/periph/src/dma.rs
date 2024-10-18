@@ -277,10 +277,14 @@ impl DmaRegs {
         let read_addr_fixed = self.control.reg.is_set(Control::READ_ADDR_FIXED);
         let read_addr = self.src_addr_l.reg.get();
         assert_eq!(self.src_addr_h.reg.get(), 0); // 32bit
-        let read_data =
+        let read_data: Vec<u8> =
                 // Special case for putting stuff image in the mailbox from recovery register interface
                 if read_addr == Self::RRI_BASE + Self::RRI_FIFO_OFFSET && read_addr_fixed {
-                    (*root_bus.recovery.cms_data).clone()
+                    if let Some(data) = &root_bus.recovery.cms_data {
+                        data.clone().to_vec()
+                    } else {
+                        vec![]
+                    }
                 } else {
                     let range = read_addr..read_addr + self.byte_count.reg.get();
                     range
@@ -326,7 +330,6 @@ impl DmaRegs {
         match self.control.reg.read_as_enum(Control::WRITE_ROUTE) {
             Some(Control::WRITE_ROUTE::Value::MAILBOX) => todo!(),
             Some(Control::WRITE_ROUTE::Value::AHB_FIFO) => {
-                println!("FIFO SIZE {}", self.fifo.len());
                 let to_send = self
                     .fifo
                     .drain(0..self.byte_count.reg.get() as usize)
