@@ -21,6 +21,7 @@ mod wait;
 mod bounded_address;
 mod csrng;
 mod data_vault;
+mod dma;
 mod doe;
 mod ecc384;
 mod error_reporter;
@@ -61,6 +62,7 @@ pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngS
 pub use data_vault::{
     ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
 };
+pub use dma::{Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,

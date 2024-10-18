@@ -269,7 +269,6 @@ fn main() -> io::Result<()> {
 
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
-        recovery_image: current_fw_buf.clone(),
         log_dir: args_log_dir.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),

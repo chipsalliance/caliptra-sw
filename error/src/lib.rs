@@ -321,6 +321,13 @@ impl CaliptraError {
     pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
         CaliptraError::new_const(0x000D104);
 
+    /// DMA driver Errors
+    pub const DRIVER_DMA_TRANSACTION_ALREADY_BUSY: CaliptraError =
+        CaliptraError::new_const(0x0000f000);
+    pub const DRIVER_DMA_TRANSACTION_ERROR: CaliptraError = CaliptraError::new_const(0x0000f001);
+    pub const DRIVER_DMA_FIFO_UNDERRUN: CaliptraError = CaliptraError::new_const(0x0000f002);
+    pub const DRIVER_DMA_FIFO_OVERRUN: CaliptraError = CaliptraError::new_const(0x0000f003);
+
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);
