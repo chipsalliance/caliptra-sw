@@ -243,6 +243,9 @@ impl Dma {
             target: DmaReadTarget::Mbox,
         };
         self.setup_dma_read(read_transaction);
+
+        // [TODO] Acquire the mailbox lock here.
+
         self.dma
             .regs_mut()
             .block_size()
