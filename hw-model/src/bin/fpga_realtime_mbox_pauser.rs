@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_registers::soc_ifc;
 
 fn gen_image_hi() -> Vec<u8> {
