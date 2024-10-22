@@ -81,6 +81,8 @@ pub type DefaultHwModel = ModelVerilated;
 #[cfg(feature = "fpga_realtime")]
 pub type DefaultHwModel = ModelFpgaRealtime;
 
+pub const DEFAULT_APB_PAUSER: u32 = 0x01;
+
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
 /// function over HwModel::new_unbooted().
@@ -253,7 +255,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
-    pub valid_axi_id: u32,
+    pub valid_axi_id: Vec<u32>,
     pub wdt_timeout_cycles: u64,
 }
 
@@ -266,7 +268,7 @@ impl<'a> Default for BootParams<'a> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
-            valid_axi_id: 0x1,
+            valid_axi_id: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
@@ -516,15 +518,18 @@ pub trait HwModel: SocManager {
                 .write(|_| reg);
         }
 
-        // Set up the AXI_ID as valid for the mailbox (using index 0)
-        self.soc_ifc()
-            .cptra_mbox_valid_axi_id()
-            .at(0)
-            .write(|_| boot_params.valid_axi_id);
-        self.soc_ifc()
-            .cptra_mbox_axi_id_lock()
-            .at(0)
-            .write(|w| w.lock(true));
+        {
+            for idx in 0..boot_params.valid_axi_id.len() {
+                self.soc_ifc()
+                    .cptra_mbox_valid_axi_id()
+                    .at(idx)
+                    .write(|_| boot_params.valid_axi_id[idx]);
+                self.soc_ifc()
+                    .cptra_mbox_axi_id_lock()
+                    .at(idx)
+                    .write(|w| w.lock(true));
+            }
+        }
 
         writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
