@@ -252,6 +252,6 @@ impl FmcAliasLayer {
             flags |= dice::FLAG_BIT_DEBUG;
         }
 
-        flags.to_be_bytes()
+        flags.reverse_bits().to_be_bytes()
     }
 }
