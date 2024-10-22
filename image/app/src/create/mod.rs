@@ -155,7 +155,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         fmc_path,
         *fmc_version,
         *fmc_svn,
-        fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
+        ImageRevision(fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?),
     )?;
 
     let runtime_rev = hex::decode(runtime_rev)?;
@@ -163,7 +163,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         runtime_path,
         *runtime_version,
         *runtime_svn,
-        runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
+        ImageRevision(runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?),
     )?;
 
     let config_dir = config_path

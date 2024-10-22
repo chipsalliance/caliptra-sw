@@ -60,7 +60,7 @@ impl SetAuthManifestCmd {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(sha384.digest(data)?.0)
+        Ok(ImageDigest(sha384.digest(data)?.0))
     }
 
     fn ecc384_verify(
@@ -70,15 +70,15 @@ impl SetAuthManifestCmd {
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
         let pub_key = Ecc384PubKey {
-            x: pub_key.x.into(),
-            y: pub_key.y.into(),
+            x: pub_key.x.0.into(),
+            y: pub_key.y.0.into(),
         };
 
-        let digest: Array4x12 = digest.into();
+        let digest: Array4x12 = digest.0.into();
 
         let sig = Ecc384Signature {
-            r: sig.r.into(),
-            s: sig.s.into(),
+            r: sig.r.0.into(),
+            s: sig.s.0.into(),
         };
 
         ecc384.verify_r(&pub_key, &digest, &sig)
@@ -95,8 +95,8 @@ impl SetAuthManifestCmd {
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
         let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
-        for i in 0..digest.len() {
-            message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
+        for i in 0..digest.0.len() {
+            message[i * 4..][..4].copy_from_slice(&digest.0[i].to_be_bytes());
         }
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
@@ -133,14 +133,22 @@ impl SetAuthManifestCmd {
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
-                auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
+                auth_manifest_preamble
+                    .vendor_pub_keys_signatures
+                    .ecc_sig
+                    .r
+                    .0,
             )
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(
                 &verify_r.0,
-                &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
+                &auth_manifest_preamble
+                    .vendor_pub_keys_signatures
+                    .ecc_sig
+                    .r
+                    .0,
             );
         }
 
@@ -197,14 +205,14 @@ impl SetAuthManifestCmd {
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         if cfi_launder(verify_r)
             != caliptra_drivers::Array4xN(
-                auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
+                auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r.0,
             )
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
             caliptra_cfi_lib_git::cfi_assert_eq_12_words(
                 &verify_r.0,
-                &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
+                &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r.0,
             );
         }
 
@@ -257,7 +265,8 @@ impl SetAuthManifestCmd {
                 auth_manifest_preamble
                     .vendor_image_metdata_signatures
                     .ecc_sig
-                    .r,
+                    .r
+                    .0,
             )
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
@@ -267,7 +276,8 @@ impl SetAuthManifestCmd {
                 &auth_manifest_preamble
                     .vendor_image_metdata_signatures
                     .ecc_sig
-                    .r,
+                    .r
+                    .0,
             );
         }
 
@@ -316,7 +326,8 @@ impl SetAuthManifestCmd {
                 auth_manifest_preamble
                     .owner_image_metdata_signatures
                     .ecc_sig
-                    .r,
+                    .r
+                    .0,
             )
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
@@ -326,7 +337,8 @@ impl SetAuthManifestCmd {
                 &auth_manifest_preamble
                     .owner_image_metdata_signatures
                     .ecc_sig
-                    .r,
+                    .r
+                    .0,
             );
         }
 

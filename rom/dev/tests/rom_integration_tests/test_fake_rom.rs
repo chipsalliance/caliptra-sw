@@ -218,9 +218,11 @@ fn test_image_verify() {
     // Modify the vendor public key.
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .x
+        .0
         .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
     image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
         .y
+        .0
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
     assert_eq!(

@@ -45,13 +45,19 @@ pub enum LmsResult {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub struct HashValue<const N: usize>(pub [u32; N]);
 
 impl<const N: usize> Default for HashValue<N> {
     fn default() -> Self {
         let data = [0u32; N];
         HashValue(data)
+    }
+}
+
+impl<const N: usize> PartialEq for HashValue<N> {
+    fn eq(&self, other: &Self) -> bool {
+        caliptra_cfi_lib::memeq(&self.0, &other.0)
     }
 }
 

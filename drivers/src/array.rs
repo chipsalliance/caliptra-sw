@@ -26,7 +26,7 @@ macro_rules! static_assert {
 /// The `Array4xN` type represents large arrays in the native format of the Caliptra
 /// cryptographic hardware, and provides From traits for converting to/from byte arrays.
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Zeroize)]
+#[derive(Debug, Clone, Copy, Zeroize)]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
@@ -37,6 +37,12 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
 impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
     fn default() -> Self {
         Self([0u32; W])
+    }
+}
+
+impl<const W: usize, const B: usize> PartialEq for Array4xN<W, B> {
+    fn eq(&self, other: &Self) -> bool {
+        caliptra_cfi_lib::memeq(&self.0, &other.0)
     }
 }
 

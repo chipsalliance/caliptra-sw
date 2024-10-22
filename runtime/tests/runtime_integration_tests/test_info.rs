@@ -13,7 +13,7 @@ use caliptra_common::{
     },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
-use caliptra_image_types::RomInfo;
+use caliptra_image_types::{ImageDigest, ImageRevision, RomInfo};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -111,12 +111,24 @@ fn test_fw_info() {
     assert_eq!(info.runtime_svn, 10);
     assert_eq!(info.min_runtime_svn, 10);
     // Verify revision (Commit ID) and digest of each component
-    assert_eq!(info.rom_revision, rom_info.revision);
-    assert_eq!(info.fmc_revision, image.manifest.fmc.revision);
-    assert_eq!(info.runtime_revision, image.manifest.runtime.revision);
+    assert_eq!(ImageRevision(info.rom_revision), rom_info.revision);
+    assert_eq!(
+        ImageRevision(info.fmc_revision),
+        image.manifest.fmc.revision
+    );
+    assert_eq!(
+        ImageRevision(info.runtime_revision),
+        image.manifest.runtime.revision
+    );
     assert_eq!(info.rom_sha256_digest, rom_info.sha256_digest);
-    assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
-    assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
+    assert_eq!(
+        ImageDigest(info.fmc_sha384_digest),
+        image.manifest.fmc.digest
+    );
+    assert_eq!(
+        ImageDigest(info.runtime_sha384_digest),
+        image.manifest.runtime.digest
+    );
 
     // Make image with newer SVN.
     let mut image_opts20 = image_opts.clone();

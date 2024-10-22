@@ -24,7 +24,7 @@ use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::offset_of;
 
-const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
+const ZERO_DIGEST: ImageDigest = ImageDigest([0u32; SHA384_DIGEST_WORD_SIZE]);
 
 /// Header Info
 struct HeaderInfo<'a> {
@@ -342,7 +342,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&expected, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&expected.0, &actual.0);
         }
 
         Ok(())
@@ -375,11 +375,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let fuses_digest = self.env.owner_pub_key_digest_fuses();
 
         if fuses_digest == ZERO_DIGEST {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &ZERO_DIGEST);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest.0, &ZERO_DIGEST.0);
         } else if fuses_digest != actual {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest.0, &actual.0);
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
@@ -387,7 +387,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             if cfi_launder(cold_boot_digest) != actual {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
             } else {
-                caliptra_cfi_lib::cfi_assert_eq_12_words(&cold_boot_digest, &actual);
+                caliptra_cfi_lib::cfi_assert_eq_12_words(&cold_boot_digest.0, &actual.0);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
@@ -506,10 +506,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
             })?;
 
-        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(sig.r) {
+        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(sig.r.0) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &sig.r);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &sig.r.0);
         }
 
         Ok(())
@@ -546,10 +546,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
             })?;
 
-        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(ecc_sig.r) {
+        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(ecc_sig.r.0) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &ecc_sig.r);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &ecc_sig.r.0);
         }
 
         #[cfg(feature = "fips-test-hooks")]
@@ -652,7 +652,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(*verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(verify_info.digest, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest.0, &actual.0);
         }
 
         // Verify the FMC size is not zero.
@@ -758,7 +758,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest.0, &actual.0);
         }
 
         // Overflow/underflow is checked in verify_toc
@@ -851,7 +851,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest.0, &actual.0);
         }
 
         // Overflow/underflow is checked in verify_toc
@@ -932,13 +932,15 @@ mod tests {
         0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
         0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
     ];
+    const DUMMY_SCALAR: ImageScalar = ImageScalar(DUMMY_DATA);
+    const DUMMY_DIGEST: ImageDigest = ImageDigest(DUMMY_DATA);
     const VENDOR_ECC_PUBKEY: ImageEccPubKey = ImageEccPubKey {
-        x: DUMMY_DATA,
-        y: DUMMY_DATA,
+        x: DUMMY_SCALAR,
+        y: DUMMY_SCALAR,
     };
     const VENDOR_ECC_SIG: ImageEccSignature = ImageEccSignature {
-        r: DUMMY_DATA,
-        s: DUMMY_DATA,
+        r: DUMMY_SCALAR,
+        s: DUMMY_SCALAR,
     };
     fn vendor_lms_pubkey() -> ImageLmsPublicKey {
         ImageLmsPublicKey::default()
@@ -947,12 +949,12 @@ mod tests {
         ImageLmsSignature::default()
     }
     const OWNER_ECC_PUBKEY: ImageEccPubKey = ImageEccPubKey {
-        x: DUMMY_DATA,
-        y: DUMMY_DATA,
+        x: DUMMY_SCALAR,
+        y: DUMMY_SCALAR,
     };
     const OWNER_ECC_SIG: ImageEccSignature = ImageEccSignature {
-        r: DUMMY_DATA,
-        s: DUMMY_DATA,
+        r: DUMMY_SCALAR,
+        s: DUMMY_SCALAR,
     };
 
     #[test]
@@ -992,9 +994,9 @@ mod tests {
     fn test_owner_pk_digest_update_rst() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
+            digest: DUMMY_DIGEST,
             ..Default::default()
         };
 
@@ -1009,17 +1011,17 @@ mod tests {
     fn test_verify_fmc_update_rst() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest: DUMMY_DATA,
-            fmc_digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
+            digest: DUMMY_DIGEST,
+            fmc_digest: DUMMY_DIGEST,
             ..Default::default()
         };
 
         let mut verifier = ImageVerifier::new(test_env);
 
         let verify_info = ImageTocEntry {
-            digest: DUMMY_DATA,
+            digest: DUMMY_DIGEST,
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
             size: 100,
@@ -1034,15 +1036,15 @@ mod tests {
     fn test_verify_fmc_mismatch_update_rst() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
+            digest: DUMMY_DIGEST,
             ..Default::default()
         };
 
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            digest: DUMMY_DATA,
+            digest: DUMMY_DIGEST,
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
             size: 100,
@@ -1060,10 +1062,10 @@ mod tests {
     fn test_owner_verify_preamble_update_rst() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest: DUMMY_DATA,
-            fmc_digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
+            digest: DUMMY_DIGEST,
+            fmc_digest: DUMMY_DIGEST,
             ..Default::default()
         };
 
@@ -1122,9 +1124,9 @@ mod tests {
     fn test_preamble_owner_pubkey_digest() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
+            digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -1138,8 +1140,8 @@ mod tests {
     fn test_preamble_vendor_pubkey() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -1216,8 +1218,8 @@ mod tests {
     fn test_header_vendor_signature_invalid() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -1251,8 +1253,8 @@ mod tests {
     fn test_header_vendor_lms_signature_invalid() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
+            vendor_pub_key_digest: DUMMY_DIGEST,
+            owner_pub_key_digest: DUMMY_DIGEST,
             verify_result: true,
             ..Default::default()
         };
@@ -1428,7 +1430,7 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader {
             toc_len: 100,
-            toc_digest: DUMMY_DATA,
+            toc_digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let owner_lms_pubkey = ImageLmsPublicKey::default();
@@ -1449,7 +1451,7 @@ mod tests {
         };
         let toc_info = verifier.verify_header(&header, &header_info).unwrap();
         assert_eq!(toc_info.len, 100);
-        assert_eq!(toc_info.digest, &DUMMY_DATA);
+        assert_eq!(toc_info.digest, &DUMMY_DIGEST);
     }
 
     #[test]
@@ -1475,7 +1477,7 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
-            digest: &DUMMY_DATA,
+            digest: &DUMMY_DIGEST,
         };
         let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
         assert_eq!(
@@ -1797,7 +1799,7 @@ mod tests {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            digest: DUMMY_DATA,
+            digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
@@ -1833,7 +1835,7 @@ mod tests {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            digest: DUMMY_DATA,
+            digest: DUMMY_DIGEST,
             ..Default::default()
         };
         let result = verifier.verify_runtime(&verify_info);
@@ -1931,7 +1933,7 @@ mod tests {
             sig: &ImageEccSignature,
         ) -> CaliptraResult<Array4xN<12, 48>> {
             if self.verify_result {
-                Ok(Array4x12::from(sig.r))
+                Ok(Array4x12::from(sig.r.0))
             } else {
                 Ok(Array4x12::from(&[0xFF; 48]))
             }
