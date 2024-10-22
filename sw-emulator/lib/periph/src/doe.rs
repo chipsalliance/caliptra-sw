@@ -213,11 +213,11 @@ impl Doe {
 mod tests {
     use super::*;
     use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam};
+    use caliptra_api_types::SecurityState;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_cpu::Pic;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
-    use caliptra_hw_model_types::SecurityState;
     use tock_registers::registers::InMemoryRegister;
 
     const OFFSET_IV: RvAddr = 0;

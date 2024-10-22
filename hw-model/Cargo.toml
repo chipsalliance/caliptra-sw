@@ -17,6 +17,7 @@ coverage = ["dep:caliptra-coverage"]
 [dependencies]
 bitfield.workspace = true
 bit-vec.workspace = true
+caliptra-api-types.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true

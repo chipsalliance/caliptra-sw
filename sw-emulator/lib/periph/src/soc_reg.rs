@@ -1538,7 +1538,7 @@ mod tests {
 
     #[test]
     fn test_secrets_when_debug_not_locked() {
-        use caliptra_hw_model_types::SecurityState;
+        use caliptra_api_types::SecurityState;
         let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
@@ -1559,7 +1559,7 @@ mod tests {
 
     #[test]
     fn test_secrets_when_debug_locked() {
-        use caliptra_hw_model_types::SecurityState;
+        use caliptra_api_types::SecurityState;
         let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
