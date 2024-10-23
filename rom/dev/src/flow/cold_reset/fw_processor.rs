@@ -316,8 +316,8 @@ impl FirmwareProcessor {
                         let csr = csr_persistent_mem
                             .get()
                             .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
-                        resp.data_size = csr_persistent_mem.csr_len as u32;
-                        resp.data[..resp.data_size as usize].copy_from_slice(&csr);
+                        resp.data_size = csr_persistent_mem.csr_len;
+                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;

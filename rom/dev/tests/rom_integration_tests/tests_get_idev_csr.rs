@@ -73,6 +73,6 @@ fn test_get_csr_generate_csr_flag_not_set() {
         &get_idv_csr_resp.as_bytes()[core::mem::size_of_val(&get_idv_csr_resp.hdr.chksum)..],
     ));
 
-    assert_eq!([0; MAX_CSR_SIZE as usize], get_idv_csr_resp.data);
+    assert_eq!([0; MAX_CSR_SIZE], get_idv_csr_resp.data);
     assert_eq!(0, get_idv_csr_resp.data_size);
 }
