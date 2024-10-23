@@ -18,6 +18,9 @@ use crate::FirmwareHandoffTable;
 #[cfg(test)]
 use caliptra_image_types::ImageManifest;
 
+#[cfg(test)]
+use crate::MlDsa87PubKey;
+
 //
 // Memory Addresses
 //
@@ -29,27 +32,28 @@ pub const ROM_DATA_ORG: u32 = 0x50000000;
 pub const CFI_STATE_ORG: u32 = 0x500003E4; // size = 6 words
 pub const BOOT_STATUS_ORG: u32 = 0x500003FC;
 pub const MAN1_ORG: u32 = 0x50000400;
-pub const MAN2_ORG: u32 = 0x50001C00;
-pub const FHT_ORG: u32 = 0x50003400;
-pub const LDEVID_TBS_ORG: u32 = 0x50003C00;
-pub const FMCALIAS_TBS_ORG: u32 = 0x50004000;
-pub const RTALIAS_TBS_ORG: u32 = 0x50004400;
-pub const PCR_LOG_ORG: u32 = 0x50004800;
-pub const MEASUREMENT_LOG_ORG: u32 = 0x50004C00;
-pub const FUSE_LOG_ORG: u32 = 0x50005000;
-pub const DPE_ORG: u32 = 0x50005400;
-pub const PCR_RESET_COUNTER_ORG: u32 = 0x50006800;
-pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = 0x50006C00;
-pub const DATA_ORG: u32 = 0x50007000;
+pub const MAN2_ORG: u32 = MAN1_ORG + MAN1_SIZE;
+pub const FHT_ORG: u32 = MAN2_ORG + MAN2_SIZE;
+pub const IDEVID_MLDSA_PUB_KEY_ORG: u32 = FHT_ORG + FHT_SIZE;
+pub const LDEVID_TBS_ORG: u32 = IDEVID_MLDSA_PUB_KEY_ORG + IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
+pub const FMCALIAS_TBS_ORG: u32 = LDEVID_TBS_ORG + LDEVID_TBS_SIZE;
+pub const RTALIAS_TBS_ORG: u32 = FMCALIAS_TBS_ORG + FMCALIAS_TBS_SIZE;
+pub const PCR_LOG_ORG: u32 = RTALIAS_TBS_ORG + RTALIAS_TBS_SIZE;
+pub const MEASUREMENT_LOG_ORG: u32 = PCR_LOG_ORG + PCR_LOG_SIZE;
+pub const FUSE_LOG_ORG: u32 = MEASUREMENT_LOG_ORG + MEASUREMENT_LOG_SIZE;
+pub const DPE_ORG: u32 = FUSE_LOG_ORG + FUSE_LOG_SIZE;
+pub const PCR_RESET_COUNTER_ORG: u32 = DPE_ORG + DPE_SIZE;
+pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = PCR_RESET_COUNTER_ORG + PCR_RESET_COUNTER_SIZE;
+pub const DATA_ORG: u32 = AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE;
 
-pub const STACK_ORG: u32 = 0x5001A000;
-pub const ROM_STACK_ORG: u32 = 0x5001C000;
+pub const STACK_ORG: u32 = DATA_ORG + DATA_SIZE;
+pub const ROM_STACK_ORG: u32 = STACK_ORG + (STACK_SIZE - ROM_STACK_SIZE);
 
-pub const ESTACK_ORG: u32 = 0x5001F800;
-pub const ROM_ESTACK_ORG: u32 = 0x5001F800;
+pub const ESTACK_ORG: u32 = ROM_STACK_ORG + ROM_STACK_SIZE;
+pub const ROM_ESTACK_ORG: u32 = ESTACK_ORG;
 
-pub const NSTACK_ORG: u32 = 0x5001FC00;
-pub const ROM_NSTACK_ORG: u32 = 0x5001FC00;
+pub const NSTACK_ORG: u32 = ROM_ESTACK_ORG + ROM_ESTACK_SIZE;
+pub const ROM_NSTACK_ORG: u32 = NSTACK_ORG;
 
 //
 // Memory Sizes In Bytes
@@ -63,6 +67,7 @@ pub const ROM_DATA_SIZE: u32 = 996;
 pub const MAN1_SIZE: u32 = 6 * 1024;
 pub const MAN2_SIZE: u32 = 6 * 1024;
 pub const FHT_SIZE: u32 = 2 * 1024;
+pub const IDEVID_MLDSA_PUB_KEY_MAX_SIZE: u32 = 3 * 1024;
 pub const LDEVID_TBS_SIZE: u32 = 1024;
 pub const FMCALIAS_TBS_SIZE: u32 = 1024;
 pub const RTALIAS_TBS_SIZE: u32 = 1024;
@@ -72,7 +77,7 @@ pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 76 * 1024;
+pub const DATA_SIZE: u32 = 73 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -99,7 +104,17 @@ fn mem_layout_test_manifest() {
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_fht() {
     assert!(FHT_SIZE as usize >= core::mem::size_of::<FirmwareHandoffTable>());
-    assert_eq!((LDEVID_TBS_ORG - FHT_ORG), FHT_SIZE);
+    assert_eq!((IDEVID_MLDSA_PUB_KEY_ORG - FHT_ORG), FHT_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_idevid_mldsa_pub_key() {
+    assert!(IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize >= core::mem::size_of::<MlDsa87PubKey>());
+    assert_eq!(
+        (LDEVID_TBS_ORG - IDEVID_MLDSA_PUB_KEY_ORG),
+        IDEVID_MLDSA_PUB_KEY_MAX_SIZE
+    );
 }
 
 #[test]

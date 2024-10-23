@@ -22,7 +22,11 @@ use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
+use caliptra_common::keyids::{
+    KEY_ID_ECDSA_FE, KEY_ID_ECDSA_UDS, KEY_ID_IDEVID_ECDSA_PRIV_KEY,
+    KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_MLDSA_FE, KEY_ID_MLDSA_UDS, KEY_ID_ROM_FMC_ECDSA_CDI,
+    KEY_ID_ROM_FMC_MLDSA_CDI,
+};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -35,6 +39,15 @@ const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 
 
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
+
+const DUAL_CERT_MODE: bool = true;
+
+struct MLdsaKeyVaultInfo {
+    uds_keyid: Option<KeyId>,
+    fe_keyid: Option<KeyId>,
+    cdi_keyid: Option<KeyId>,
+    idevid_keypair_seed_keyid: Option<KeyId>,
+}
 
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
@@ -52,9 +65,12 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
-        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
-        cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
+        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_ECDSA_CDI as u8);
+        cprintln!(
+            "[idev] SUBJECT.KEYID = {}",
+            KEY_ID_IDEVID_ECDSA_PRIV_KEY as u8
+        );
+        cprintln!("[idev] UDS.KEYID = {}", KEY_ID_ECDSA_UDS as u8);
 
         // If CSR is not requested, indicate to the SOC that it can start
         // uploading the firmware image to the mailbox.
@@ -63,32 +79,60 @@ impl InitDevIdLayer {
         }
 
         // Decrypt the UDS
-        Self::decrypt_uds(env, KEY_ID_UDS)?;
+        let mldsa_kv_info: MLdsaKeyVaultInfo = if DUAL_CERT_MODE {
+            MLdsaKeyVaultInfo {
+                uds_keyid: Some(KEY_ID_MLDSA_UDS),
+                fe_keyid: Some(KEY_ID_MLDSA_FE),
+                cdi_keyid: Some(KEY_ID_ROM_FMC_MLDSA_CDI),
+                idevid_keypair_seed_keyid: Some(KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED),
+            }
+        } else {
+            MLdsaKeyVaultInfo {
+                uds_keyid: None,
+                fe_keyid: None,
+                cdi_keyid: None,
+                idevid_keypair_seed_keyid: None,
+            }
+        };
+
+        Self::decrypt_uds(env, KEY_ID_ECDSA_UDS, mldsa_kv_info.uds_keyid)?;
 
         // Decrypt the Field Entropy
-        Self::decrypt_field_entropy(env, KEY_ID_FE)?;
+        Self::decrypt_field_entropy(env, KEY_ID_ECDSA_FE, mldsa_kv_info.fe_keyid)?;
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
+        Self::derive_cdi(
+            env,
+            KEY_ID_ECDSA_UDS,
+            KEY_ID_ROM_FMC_ECDSA_CDI,
+            mldsa_kv_info.uds_keyid,
+            mldsa_kv_info.cdi_keyid,
+        )?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
+        let (ecc_key_pair, _mldsa_pub_key) = Self::derive_key_pair(
+            env,
+            KEY_ID_ROM_FMC_ECDSA_CDI,
+            KEY_ID_IDEVID_ECDSA_PRIV_KEY,
+            mldsa_kv_info.cdi_keyid,
+            mldsa_kv_info.idevid_keypair_seed_keyid,
+        )?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
+        let subj_key_id = X509::idev_subj_key_id(env, &ecc_key_pair.pub_key)?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
-            subj_key_pair: key_pair,
+            subj_key_pair: ecc_key_pair,
             subj_sn,
             subj_key_id,
         };
@@ -102,7 +146,12 @@ impl InitDevIdLayer {
         }
 
         // Write IDevID public key to FHT
-        env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
+        env.persistent_data.get_mut().fht.idev_dice_ecdsa_pub_key = output.subj_key_pair.pub_key;
+
+        // Copy the MLDSA public key to Persistent Data.
+        if let Some(mldsa_pub_key) = _mldsa_pub_key {
+            env.persistent_data.get_mut().idevid_mldsa_pub_key = mldsa_pub_key;
+        }
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -118,9 +167,20 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
+    fn decrypt_uds(
+        env: &mut RomEnv,
+        uds_ecdsa: KeyId,
+        uds_mldsa: Option<KeyId>,
+    ) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_uds(&DOE_IV, uds)?;
+        env.doe.decrypt_uds(&DOE_IV, uds_ecdsa)?;
+
+        // If Dual-Cert Mode is enabled, recondition the UDS for MLDSA.
+        // [TODO] Use hmac512; set tag usage as seed for mldsa key pair generation.
+        if let Some(uds_mldsa) = uds_mldsa {
+            Crypto::hmac384_mac(env, uds_ecdsa, &b"uds_recon".into(), uds_mldsa)?;
+        }
+
         report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
@@ -132,9 +192,20 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
+    fn decrypt_field_entropy(
+        env: &mut RomEnv,
+        fe_ecdsa: KeyId,
+        fe_mldsa: Option<KeyId>,
+    ) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
+        env.doe.decrypt_field_entropy(&DOE_IV, fe_ecdsa)?;
+
+        // If Dual-Cert Mode is enabled, recondition the FE for MLDSA.
+        // [TODO] Use hmac512; set tag usage as seed for mldsa key pair generation.
+        if let Some(fe_mldsa) = fe_mldsa {
+            Crypto::hmac384_mac(env, fe_ecdsa, &b"fe_recon".into(), fe_mldsa)?;
+        }
+
         report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }
@@ -161,11 +232,22 @@ impl InitDevIdLayer {
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
+    fn derive_cdi(
+        env: &mut RomEnv,
+        uds_ecdsa: KeyId,
+        cdi_ecdsa: KeyId,
+        uds_mldsa: Option<KeyId>,
+        cdi_mldsa: Option<KeyId>,
+    ) -> CaliptraResult<()> {
+        Crypto::hmac384_kdf(env, uds_ecdsa, b"idevid_cdi", None, cdi_ecdsa)?;
 
-        cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
-        env.key_vault.erase_key(uds)?;
+        // If Dual-Cert Mode is enabled, dervie the CDI for MLDSA.
+        if let (Some(uds_mldsa), Some(cdi_mldsa)) = (uds_mldsa, cdi_mldsa) {
+            Crypto::hmac384_mac(env, uds_mldsa, &b"idevid_mldsa_cdi".into(), cdi_mldsa)?;
+        }
+
+        cprintln!("[idev] Erasing UDS.KEYID = {}", uds_ecdsa as u8);
+        env.key_vault.erase_key(uds_ecdsa)?;
         report_boot_status(IDevIdCdiDerivationComplete.into());
         Ok(())
     }
@@ -184,17 +266,31 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
-        cdi: KeyId,
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_keygen", priv_key);
+        ecdsa_cdi: KeyId,
+        ecdsa_priv_key: KeyId,
+        mldsa_cdi: Option<KeyId>,
+        mldsa_keypair_seed: Option<KeyId>,
+    ) -> CaliptraResult<(Ecc384KeyPair, Option<MlDsa87PubKey>)> {
+        let result = Crypto::ecc384_key_gen(env, ecdsa_cdi, b"idevid_keygen", ecdsa_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
             report_boot_status(IDevIdKeyPairDerivationComplete.into());
         } else {
             cfi_assert!(result.is_err());
         }
-        result
+        let ecc_keypair = result?;
+
+        // If Dual-Cert Mode is enabled, derive the MLDSA Key Pair.
+        let mut mldsa_pub_key: Option<MlDsa87PubKey> = None;
+        if let (Some(mldsa_cdi), Some(mldsa_keypair_seed)) = (mldsa_cdi, mldsa_keypair_seed) {
+            mldsa_pub_key = Some(Crypto::mldsa_key_gen(
+                env,
+                mldsa_cdi,
+                b"idevid_mldsa_keygen",
+                mldsa_keypair_seed,
+            )?);
+        }
+        Ok((ecc_keypair, mldsa_pub_key))
     }
 
     /// Generate Local Device ID CSR

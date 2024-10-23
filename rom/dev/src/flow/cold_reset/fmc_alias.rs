@@ -25,7 +25,7 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::dice;
-use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::keyids::{KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_ECDSA_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
@@ -44,8 +44,8 @@ impl FmcAliasLayer {
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_ECDSA_CDI as u8);
+        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_ECDSA_PRIV_KEY as u8);
         cprintln!(
             "[afmc] AUTHORITY.KEYID = {}",
             input.auth_key_pair.priv_key as u8
@@ -55,12 +55,13 @@ impl FmcAliasLayer {
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
         // Derive the DICE CDI from the measurement
-        let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
+        let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_ECDSA_CDI);
         measurement.0.zeroize();
         result?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_PRIV_KEY)?;
+        let key_pair =
+            Self::derive_key_pair(env, KEY_ID_ROM_FMC_ECDSA_CDI, KEY_ID_FMC_ECDSA_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //

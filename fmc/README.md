@@ -128,7 +128,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
 | ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                    |
 | ldevid_cert_sig_s_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                    |
-| idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
+| idev_dice_ecdsa_pub_key     | 96           | ROM        | Initial Device ID ECDSA Public Key.                                                                            |
+| idev_dice_mlddsa_pub_key_addr     | 4        | ROM        | Address of Initial Device ID MLDSA Public Key.                                                                            |
 | rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
 | rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                       |
 | reserved              | 1650         |            | Reserved for future use.                                                                                 |
@@ -257,7 +258,7 @@ This field provides the Runtime Alias certificate signature.
 
 These fields provide the indices into the Data Vault where the Signature<sub>LDevId</sub> R and S coordinates are stored.
 
-### idev_dice_pub_key
+### idev_dice_ecdsa_pub_key
 
 This field provides the IDevID Public Key.
 
