@@ -276,7 +276,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     If Dual-Cert Mode is enabled, use the conditioned UDS to derive the MLDSA CDI store the resultant mac in Key Vault Slot 12
 
-    `hmac512_kdf(KvSlot10, b"idevid_cdi", KvSlot12)`
+    `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
 
 2. Clear the UDS(s) in key vault
 
@@ -288,7 +288,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
 3. Derive ECC Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7
 
-    `IDevIDSeed = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+    `IDevIDSeedEcdsa = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
 
     `IDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
 
@@ -296,7 +296,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     If Dual-Cert Mode is enabled, derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
 
-    `IDevIDSeed = hmac512_kdf(KvSlot12, b"idevid_keygen", KvSlot10)`
+    `IDevIDSeedMldsa = hmac512_kdf(KvSlot12, b"idevid_mldsa_keygen", KvSlot10)`
 
     `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot10)`
 
@@ -370,7 +370,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     If Dual-Cert Mode is enabled, derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant mac is stored back in Slot 12
 
-    `hmac512_mac(KvSlot12, b"ldevid_cdi", KvSlot12)`
+    `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
 
     `hmac512_mac(KvSlot12, KvSlot11, KvSlot12)`
 
@@ -394,7 +394,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 4. If Dual-Cert Mode is enabled, derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
 
-    `LDevIDSeed = hmac384_kdf(KvSlot12, b"ldevid_keygen", KvSlot13)`
+    `LDevIDSeed = hmac512_kdf(KvSlot12, b"ldevid_mldsa_keygen", KvSlot13)`
 
     `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot13)`
 
@@ -418,7 +418,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 8. Verify the signature of LDevID `To Be Signed` Blob
 
-    `Result = ecc384_verify(LDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
+    `Result = ecc384_verify(IDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
 
 *(Note: Steps 9-12 are performed if Dual-Cert Mode is enabled)*
 
@@ -426,7 +426,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
 
-10. Sign the LDevID `To Be Signed` DER Blob IDevId MLDSA Private Key derived from the seed in Key Vault Slot 10
+10. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 10
 
     `LDevIdTbsDigestMldsa = sha512_digest(LDevIdTbsMldsa)`
 
@@ -438,7 +438,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 12. Verify the signature of LDevID `To Be Signed` Blob
 
-    `Result = mldsa87_verify(LDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
+    `Result = mldsa87_verify(IDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
 
 9. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA (if Dual-Cert Mode is enabled) Signatures in DCCM
 
@@ -531,10 +531,11 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `Pcr0Measurement = pcr_read(Pcr0)`
 
-    `hmac384_kdf(KvSlot6, b"fmc_alias_cdi", Pcr0Measurement, KvSlot6)`
+    `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
 
     If Dual-Cert Mode is enabled, LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 12.
-    `hmac512_kdf(KvSlot12, b"fmc_alias_cdi", Pcr0Measurement, KvSlot12)`
+
+    `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
 
 3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
 
@@ -546,7 +547,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     If Dual-Cert Mode is enabled, derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
 
-    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_keygen", KvSlot14)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_mldsa_keygen", KvSlot14)`
 
     `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
 
@@ -559,7 +560,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `AliasFmcTbsEcdsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyEcdsa, AliasFmcPubKeyEcdsa)`
 
-6. Sign the Alias FMC `To Be Signed` DER Blob with LDevId ECDSA Private Key in Key Vault Slot 5
+6. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5
 
     `AliasFmcTbsDigestEcdsa = sha384_digest(AliasFmcTbsEcdsa)`
 
@@ -571,7 +572,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 8. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob
 
-    `Result = ecc384_verify(AliasFmcPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
+    `Result = ecc384_verify(LDevIdPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
 
 *(Note: Steps 9-12 are performed if Dual-Cert Mode is enabled)*
 
@@ -579,7 +580,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
 
-10. Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key generated from the seed in Key Vault Slot 13
+10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 13
 
     `AliasFmcTbsDigestMldsa = sha512_digest(AliasFmcTbsMldsa)`
 
@@ -591,7 +592,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob
 
-    `Result = mldsa87_verify(AliasFmcPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
+    `Result = mldsa87_verify(LDevIdPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
 
 13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA (if Dual-Cert Mode is enabled) Signatures in the DCCM
 
