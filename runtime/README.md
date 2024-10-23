@@ -794,6 +794,25 @@ Command Code: `0x4154_5348` ("ATSH")
 | fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
 
+### GET\_IDEVID\_CSR
+
+Command Code: `0x4944_4352` ("IDCR")
+
+*Table: `GET_IDEVID_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_IDEVID_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
+
+**Note**: The `GENERATE_IDEVID_CSR` Manufacturing State Flag **MUST** have been set to generate a CSR. Otherwise this command will return an empty data buffer. 
+
 ## Checksum
 
 For every command except for FW_LOAD, the request and response feature a checksum. This

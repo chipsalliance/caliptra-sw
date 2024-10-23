@@ -16,29 +16,6 @@ use crate::cprintln;
 use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
 
-/// Wrapper to hold certificate buffer and length
-pub struct Certificate<'a, const LEN: usize> {
-    buf: &'a [u8; LEN],
-    len: usize,
-}
-
-impl<'a, const LEN: usize> Certificate<'a, LEN> {
-    /// Create an instance of `Certificate`
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - Buffer
-    /// * `len` - Buffer length  
-    pub fn new(buf: &'a [u8; LEN], len: usize) -> Self {
-        Self { buf, len }
-    }
-
-    /// Get the buffer
-    pub fn get(&self) -> Option<&[u8]> {
-        self.buf.get(..self.len)
-    }
-}
-
 /// X509 API
 pub enum X509 {}
 

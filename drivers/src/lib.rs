@@ -32,6 +32,7 @@ pub mod fuse_log;
 pub mod hand_off;
 mod hmac384;
 mod hmac384_kdf;
+mod idevid_csr;
 mod key_vault;
 mod kv_access;
 mod lms;
@@ -75,6 +76,7 @@ pub use fuse_bank::{
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use hmac384_kdf::hmac384_kdf;
+pub use idevid_csr::{IDevIDCsr, MAX_CSR_SIZE};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
