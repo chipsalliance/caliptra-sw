@@ -13,6 +13,34 @@ pub use soc_mgr::SocManager;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum CaliptraApiError {
-    ReadBuffTooSmall,
+    UnableToSetPauser,
+    UnableToLockMailbox,
+    UnableToReadMailbox,
     BufferTooLargeForMailbox,
+    UnknownCommandStatus(u32),
+    MailboxTimeout,
+    MailboxCmdFailed(u32),
+    UnexpectedMailboxFsmStatus {
+        expected: u32,
+        actual: u32,
+    },
+    MailboxRespInvalidFipsStatus(u32),
+    MailboxRespInvalidChecksum {
+        expected: u32,
+        actual: u32,
+    },
+    MailboxRespTypeTooSmall,
+    MailboxReqTypeTooSmall,
+    MailboxNoResponseData,
+    MailboxUnexpectedResponseLen {
+        expected_min: u32,
+        expected_max: u32,
+        actual: u32,
+    },
+    UploadFirmwareUnexpectedResponse,
+    UploadMeasurementResponseError,
+    ReadBuffTooSmall,
+    FusesAlreadyIniitalized,
+    FuseDoneNotSet,
+    StashMeasurementFailed,
 }
