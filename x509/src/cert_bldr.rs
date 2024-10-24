@@ -13,13 +13,12 @@ Abstract:
 
 --*/
 
+use crate::{der_encode_len, der_encode_uint, der_uint_len};
+
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
 
 /// MAX Signature length
 const MAX_ECDSA384_SIG_LEN: usize = 108;
-
-/// DER Integer Tag
-const DER_INTEGER_TAG: u8 = 0x02;
 
 /// DER Bit String Tag
 const DER_BIT_STR_TAG: u8 = 0x03;
@@ -51,76 +50,13 @@ impl Ecdsa384Signature {
     /// ECDSA Coordinate length
     pub const ECDSA_COORD_LEN: usize = 48;
 
-    /// Get the length of DER encoded unsigned integer
-    #[inline(never)]
-    #[allow(clippy::needless_return)]
-    fn der_uint_len(&self, val: &[u8; Self::ECDSA_COORD_LEN]) -> usize {
-        //
-        // len = TAG (1 byte) + LEN (1 byte) + Coordinate Len
-        //
-        for (idx, byte) in val.iter().enumerate() {
-            if *byte != 0x00 {
-                return 2 + val.len() - idx + if *byte > 127 { 1 } else { 0 };
-            }
-        }
-
-        return 2 + 1;
-    }
-
-    // DER Encode unsigned integer
-    fn der_encode_uint(&self, val: &[u8; Self::ECDSA_COORD_LEN], buf: &mut [u8]) -> Option<usize> {
-        let mut pos = 0;
-
-        // Count the leading zeros
-        let clz = val
-            .iter()
-            .enumerate()
-            .find(|(_, byte)| **byte != 0)
-            .map_or(val.len(), |(idx, _)| idx);
-
-        *buf.get_mut(pos)? = DER_INTEGER_TAG;
-        pos += 1;
-
-        if clz == val.len() {
-            // Encode length
-            *buf.get_mut(pos)? = 1;
-
-            // Encode Value
-            *buf.get_mut(pos + 1)? = 0;
-
-            pos += 2;
-        } else {
-            // Check if the most significant bit is set
-            let msb_set = *val.get(clz)? > 127_u8;
-
-            // Encode length
-            let val_size = val.len() - clz + if msb_set { 1 } else { 0 };
-            *buf.get_mut(pos)? = val_size as u8;
-            pos += 1;
-
-            // Encode the value
-
-            // If MSB is set encode extra zero to indicate it is positive unsigned integer
-            if msb_set {
-                *buf.get_mut(pos)? = 0;
-                pos += 1;
-            }
-
-            let val = val.get(clz..)?;
-            buf.get_mut(pos..pos + val.len())?.copy_from_slice(val);
-            pos += val.len();
-        };
-
-        Some(pos)
-    }
-
     /// Convert the signature to DER format
     fn to_der(&self) -> Option<([u8; MAX_ECDSA384_SIG_LEN], usize)> {
         // Encode Signature R Coordinate
-        let r_uint_len = self.der_uint_len(&self.r);
+        let r_uint_len = der_uint_len(&self.r)?;
 
         // Encode Signature S Coordinate
-        let s_uint_len = self.der_uint_len(&self.s);
+        let s_uint_len = der_uint_len(&self.s)?;
 
         //
         // Signature DER Sequence encoding
@@ -147,10 +83,10 @@ impl Ecdsa384Signature {
         pos += 1;
 
         // Encode R-Coordinate
-        pos += self.der_encode_uint(&self.r, buf.get_mut(pos..)?)?;
+        pos += der_encode_uint(&self.r, buf.get_mut(pos..)?)?;
 
         // Encode S-Coordinate
-        pos += self.der_encode_uint(&self.s, buf.get_mut(pos..)?)?;
+        pos += der_encode_uint(&self.s, buf.get_mut(pos..)?)?;
 
         Some((buf, pos))
     }
@@ -218,24 +154,7 @@ impl<'a> Ecdsa384CertBuilder<'a> {
             None?;
         }
 
-        match len {
-            0..=127 => {
-                *buf.get_mut(pos)? = len as u8;
-                pos += 1;
-            }
-            128..=255 => {
-                *buf.get_mut(pos)? = 0x81;
-                *buf.get_mut(pos + 1)? = len as u8;
-                pos += 2;
-            }
-            256..=4096 => {
-                *buf.get_mut(pos)? = 0x82;
-                *buf.get_mut(pos + 1)? = (len >> u8::BITS) as u8;
-                *buf.get_mut(pos + 2)? = (len as u8) & u8::MAX;
-                pos += 3;
-            }
-            _ => None?,
-        }
+        pos += der_encode_len(len, buf.get_mut(pos..)?)?;
 
         // Copy Value
 
