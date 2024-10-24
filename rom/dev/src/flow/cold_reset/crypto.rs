@@ -227,4 +227,35 @@ impl Crypto {
         digest.0.zeroize();
         result
     }
+
+    /// Generate ECC Key Pair
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `cdi` - Key slot to retrieve the CDI from
+    /// * `label` - Value for hmac kdf.
+    /// * `keypair_seed` - Key slot to store the keypair generation seed.
+    ///
+    /// # Returns
+    ///
+    /// * `MlDsa87PubKey` - Public key
+    #[inline(always)]
+    pub fn mldsa_key_gen(
+        env: &mut RomEnv,
+        cdi: KeyId,
+        label: &[u8],
+        keypair_seed: KeyId,
+    ) -> CaliptraResult<MlDsa87PubKey> {
+        // Generate the seed for key pair generation.
+        // [TODO] Change this to hmac512_kdf.
+        Crypto::hmac384_kdf(env, cdi, label, None, keypair_seed)?;
+
+        // Generate the public key.
+        let pub_key = env
+            .mldsa
+            .key_pair(&KeyReadArgs::new(keypair_seed), &mut env.trng)?;
+
+        Ok(pub_key)
+    }
 }
