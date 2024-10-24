@@ -664,6 +664,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "caliptra-image-types",
+ "memoffset 0.8.0",
  "zerocopy",
 ]
 

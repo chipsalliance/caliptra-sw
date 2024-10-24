@@ -4,7 +4,7 @@ use caliptra_image_gen::{ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
     ImageEccPrivKey, ImageEccPubKey, ImageLmsPrivKey, ImageLmsPublicKey, ImageOwnerPrivKeys,
     ImageOwnerPubKeys, ImageVendorPrivKeys, ImageVendorPubKeys, IMAGE_LMS_OTS_TYPE,
-    IMAGE_LMS_TREE_TYPE,
+    IMAGE_LMS_TREE_TYPE, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
 };
 use caliptra_lms_types::bytes_to_words_6;
 
@@ -333,6 +333,8 @@ pub const OWNER_PRIVATE_KEYS: ImageOwnerPrivKeys = ImageOwnerPrivKeys {
 };
 
 pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
+    ecc_key_count: VENDOR_ECC_MAX_KEY_COUNT,
+    lms_key_count: VENDOR_LMS_MAX_KEY_COUNT,
     pub_keys: VENDOR_PUBLIC_KEYS,
     ecc_key_idx: 0,
     lms_key_idx: 0,

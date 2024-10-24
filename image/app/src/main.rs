@@ -22,6 +22,11 @@ fn main() {
     let sub_cmds = vec![Command::new("create")
         .about("Create a new firmware image bundle")
         .arg(
+            arg!(--"image-type" <U32> "Type of image keys: 1: ECC + LMS; 2: ECC + MLDSA")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"key-config" <FILE> "Key Configuration file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
@@ -114,7 +119,4 @@ fn main() {
     };
 
     result.unwrap();
-
-    // let exit_code = if result.is_ok() { 0 } else { -1 };
-    // std::process::exit(exit_code);
 }
