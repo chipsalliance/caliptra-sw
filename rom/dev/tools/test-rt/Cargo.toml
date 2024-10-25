@@ -11,6 +11,7 @@ caliptra-drivers.workspace = true
 ufmt.workspace = true
 
 [build-dependencies]
+caliptra-image-types.workspace = true
 cfg-if.workspace = true
 
 [features]
