@@ -157,13 +157,13 @@ The following sections define the various cryptographic primitives used by Calip
 | Deobfuscation Engine | `doe_decrypt_uds(kv_slot, iv)` | Decrypt UDS to the specified key vault slot with specified initialization vector<br>**Input**:<br> ***kv_slot*** - key vault slot to decrypt the uds to<br>***iv*** - initialization vector |
 |   | `doe_decrypt_fe(kv_slot, iv)` | Decrypt Field Entropy to the specified key vault slot with specified initialization vector <br>**Input**:<br>***kv_slot*** - key vault slot to decrypt the field entropy to<br>***iv*** - initialization vector |
 |   | `doe_clear_secrets()` | Clear UDS Fuse Register, Field Entropy Fuse Register and Obfuscation key |
-| Hashed Message Authentication Code | `hmac384_mac(key,data,mac_kv_slot)` | Calculate the mac using a caller provided key and data. The resultant mac is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the mac to |
-|   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the mac using a caller provided key and data. The resultant mac is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the mac to |
+| Hashed Message Authentication Code | `hmac384_mac(key,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
+|   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
 | Elliptic Curve Cryptography | `ecc384_keygen(seed_kv_slot, priv_kv_slot) -> pub_key` | Generate ECC384 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>***priv_kv_slot*** - key vault slot to store the private key to<br>**Output**:<br>***pub-key*** - public key associated with the private key |
 |   | `ecc384_sign(priv_kv_slot, data) -> sig` | ECC384 signing operation<br>**Input**:<br>***priv_kv_slot*** - key vault slot to use a private key from<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
 | | `ecc384_verify(pub_key, data, sig) -> CaliptraResult<Array4xN<12, 48>>` | ECC384 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***Ecc384Result*** - verify.r value on success, else an error |
 | Module-Lattice-Based Digital Signature Algorithm | `mldsa87_keygen(seed_kv_slot) -> pub_key` | Generate MLDSA87 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>**Output**:<br>***pub-key*** - public key associated with the private key |
-|   | `mldsa87_sign(seed_kv_slot, data) -> sig` | MLDSA87 signing operation<br>**Input**:<br>***seed_kv_slot*** - key vault slot to use a generate a private key from for signing<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
+|   | `mldsa87_sign(seed_kv_slot, data) -> sig` | MLDSA87 signing operation<br>**Input**:<br>***seed_kv_slot*** - key vault slot to use as seed for key generation for signing<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
 | | `mldsa87_verify(pub_key, data, sig) -> MlDsa87Result` | MLDSA87 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***MlDsa87Result*** - '0xAAAAAAAA' value on success, '0x55555555' on error |
 | Secure Hash Algorithm | `sha384_digest(data) -> digest` | Calculate the digest of the data<br>**Input**:<br>***data*** - data to verify<br>**Output**:<br>***digest*** - digest of the data |
 | Key Vault | `kv_clear(kv_slot)` | Key Vault slot to clear<br>**Input**:<br>***kv_slot*** - key vault slot to clear |
@@ -222,7 +222,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 - Keys Slot 0 - 31 are empty and Usage Bits are all cleared
 - PCR 0 - 31 are all cleared
 - Data Vault is all cleared
-- Dice Certificate mode is set to either “ECDSA-P-384 & ML-DSA-87” (aka Dual-Cert Mode) or “ECDSA-P-384 only” in the CPTRA_DICE_CERT_MODE register.
+- Dice mode is set to either “ECDSA-P-384 & ML-DSA-87” (aka Dual-Cert Mode) or “ECDSA-P-384 only” in the CPTRA_DICE_MODE register.
 
 **Actions:**
 
@@ -232,7 +232,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     If Dual-Cert Mode is enabled, recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
 
-    `hmac512(key: KvSlot0, value: b"uds_recon", mac: KvSlot10)`
+    `hmac512(key: KvSlot0, value: b"uds_recon", MAC: KvSlot10)`
 
 2. Decrypt Field Entropy to Key Vault Slot 1
 
@@ -240,7 +240,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     If Dual-Cert Mode is enabled, recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
 
-    `hmac512(key: KvSlot1, value: b"fe_recon", mac: KvSlot11)`
+    `hmac512(key: KvSlot1, value: b"fe_recon", MAC: KvSlot11)`
 
 3. Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -270,11 +270,11 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
 **Actions:**
 
-1. Derive the ECDSA CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant mac in Key Vault Slot 6
+1. Derive the ECDSA CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6
 
     `hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
-    If Dual-Cert Mode is enabled, use the conditioned UDS to derive the MLDSA CDI store the resultant mac in Key Vault Slot 12
+    If Dual-Cert Mode is enabled, use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12
 
     `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
 
@@ -362,13 +362,13 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 **Actions:**
 
-1. Derive the ECDSA CDI using IDevID CDI - ECDSA in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant mac is stored back in  Key Vault Slot 6
+1. Derive the ECDSA CDI using IDevID CDI - ECDSA in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant MAC is stored back in  Key Vault Slot 6
 
     `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 
     `hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
 
-    If Dual-Cert Mode is enabled, derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant mac is stored back in Slot 12
+    If Dual-Cert Mode is enabled, derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12
 
     `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
 
@@ -527,13 +527,13 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     pcr_lock_clear(Pcr0 && Pcr1)
     ```
 
-2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI - ECDSA in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6.
+2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI - ECDSA in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
 
     `Pcr0Measurement = pcr_read(Pcr0)`
 
     `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
 
-    If Dual-Cert Mode is enabled, LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 12.
+    If Dual-Cert Mode is enabled, LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
 
     `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
 
