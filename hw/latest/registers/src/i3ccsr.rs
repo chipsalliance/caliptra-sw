@@ -548,7 +548,7 @@ impl<TMmio: ureg::Mmio> I3cEcBlock<TMmio> {
     /// Termination register is added to guarantee that the discovery mechanism
     /// reaches termination value.
     ///
-    /// Read value: [`i3ccsr::regs::TerminationExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::TerminationExtcapHeaderWriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn termination_extcap_header(
         &self,
@@ -567,7 +567,7 @@ pub struct SecfwrecoveryifBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>
     mmio: TMmio,
 }
 impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
-    /// Read value: [`i3ccsr::regs::ExtcapHeaderAnon0ReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderAnon0WriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
@@ -888,7 +888,7 @@ pub struct StdbyctrlmodeBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     mmio: TMmio,
 }
 impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
-    /// Read value: [`i3ccsr::regs::ExtcapHeaderAnon27ReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderAnon27WriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
@@ -900,7 +900,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrControlAnon28ReadVal`]; Write value: [`i3ccsr::regs::StbyCrControlAnon28WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrControlReadVal`]; Write value: [`i3ccsr::regs::StbyCrControlWriteVal`]
     #[inline(always)]
     pub fn stby_cr_control(
         &self,
@@ -912,7 +912,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrDeviceAddrAnon29ReadVal`]; Write value: [`i3ccsr::regs::StbyCrDeviceAddrAnon29WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrDeviceAddrReadVal`]; Write value: [`i3ccsr::regs::StbyCrDeviceAddrWriteVal`]
     #[inline(always)]
     pub fn stby_cr_device_addr(
         &self,
@@ -924,7 +924,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrCapabilitiesAnon30ReadVal`]; Write value: [`i3ccsr::regs::StbyCrCapabilitiesAnon30WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrCapabilitiesReadVal`]; Write value: [`i3ccsr::regs::StbyCrCapabilitiesWriteVal`]
     #[inline(always)]
     pub fn stby_cr_capabilities(
         &self,
@@ -946,7 +946,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrStatusAnon32ReadVal`]; Write value: [`i3ccsr::regs::StbyCrStatusAnon32WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrStatusReadVal`]; Write value: [`i3ccsr::regs::StbyCrStatusWriteVal`]
     #[inline(always)]
     pub fn stby_cr_status(
         &self,
@@ -958,7 +958,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrDeviceCharAnon33ReadVal`]; Write value: [`i3ccsr::regs::StbyCrDeviceCharAnon33WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrDeviceCharReadVal`]; Write value: [`i3ccsr::regs::StbyCrDeviceCharWriteVal`]
     #[inline(always)]
     pub fn stby_cr_device_char(
         &self,
@@ -982,7 +982,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrIntrStatusAnon35ReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrStatusAnon35WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrIntrStatusReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrStatusWriteVal`]
     #[inline(always)]
     pub fn stby_cr_intr_status(
         &self,
@@ -1004,7 +1004,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrIntrSignalEnableAnon37ReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrSignalEnableAnon37WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrIntrSignalEnableReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrSignalEnableWriteVal`]
     #[inline(always)]
     pub fn stby_cr_intr_signal_enable(
         &self,
@@ -1016,7 +1016,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrIntrForceAnon38ReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrForceAnon38WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrIntrForceReadVal`]; Write value: [`i3ccsr::regs::StbyCrIntrForceWriteVal`]
     #[inline(always)]
     pub fn stby_cr_intr_force(
         &self,
@@ -1028,7 +1028,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrCccConfigGetcapsAnon39ReadVal`]; Write value: [`i3ccsr::regs::StbyCrCccConfigGetcapsAnon39WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrCccConfigGetcapsReadVal`]; Write value: [`i3ccsr::regs::StbyCrCccConfigGetcapsWriteVal`]
     #[inline(always)]
     pub fn stby_cr_ccc_config_getcaps(
         &self,
@@ -1040,7 +1040,7 @@ impl<TMmio: ureg::Mmio> StdbyctrlmodeBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::StbyCrCccConfigRstactParamsAnon40ReadVal`]; Write value: [`i3ccsr::regs::StbyCrCccConfigRstactParamsAnon40WriteVal`]
+    /// Read value: [`i3ccsr::regs::StbyCrCccConfigRstactParamsReadVal`]; Write value: [`i3ccsr::regs::StbyCrCccConfigRstactParamsWriteVal`]
     #[inline(always)]
     pub fn stby_cr_ccc_config_rstact_params(
         &self,
@@ -1079,7 +1079,7 @@ pub struct TtiBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     mmio: TMmio,
 }
 impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
-    /// Read value: [`i3ccsr::regs::ExtcapHeaderAnon43ReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderAnon43WriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiExtcapHeader, &TMmio> {
         unsafe {
@@ -1115,9 +1115,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Queue Reset Control
     ///
-    /// Read value: [`i3ccsr::regs::ResetControlAnon46ReadVal`]; Write value: [`i3ccsr::regs::ResetControlAnon46WriteVal`]
+    /// Read value: [`i3ccsr::regs::TtiResetControlReadVal`]; Write value: [`i3ccsr::regs::TtiResetControlWriteVal`]
     #[inline(always)]
-    pub fn reset_control(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiResetControl, &TMmio> {
+    pub fn tti_reset_control(
+        &self,
+    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiResetControl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -1127,7 +1129,7 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Interrupt Status
     ///
-    /// Read value: [`i3ccsr::regs::InterruptStatusAnon47ReadVal`]; Write value: [`i3ccsr::regs::InterruptStatusAnon47WriteVal`]
+    /// Read value: [`i3ccsr::regs::InterruptStatusReadVal`]; Write value: [`i3ccsr::regs::InterruptStatusWriteVal`]
     #[inline(always)]
     pub fn interrupt_status(
         &self,
@@ -1141,7 +1143,7 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Interrupt Enable
     ///
-    /// Read value: [`i3ccsr::regs::InterruptEnableAnon48ReadVal`]; Write value: [`i3ccsr::regs::InterruptEnableAnon48WriteVal`]
+    /// Read value: [`i3ccsr::regs::InterruptEnableReadVal`]; Write value: [`i3ccsr::regs::InterruptEnableWriteVal`]
     #[inline(always)]
     pub fn interrupt_enable(
         &self,
@@ -1155,7 +1157,7 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Interrupt Force
     ///
-    /// Read value: [`i3ccsr::regs::InterruptForceAnon49ReadVal`]; Write value: [`i3ccsr::regs::InterruptForceAnon49WriteVal`]
+    /// Read value: [`i3ccsr::regs::InterruptForceReadVal`]; Write value: [`i3ccsr::regs::InterruptForceWriteVal`]
     #[inline(always)]
     pub fn interrupt_force(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiInterruptForce, &TMmio> {
         unsafe {
@@ -1221,7 +1223,7 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn ibi_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiIbiPort, &TMmio> {
+    pub fn tti_ibi_port(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiIbiPort, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
@@ -1231,9 +1233,9 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Queue Size
     ///
-    /// Read value: [`i3ccsr::regs::QueueSizeAnon55ReadVal`]; Write value: [`i3ccsr::regs::QueueSizeAnon55WriteVal`]
+    /// Read value: [`i3ccsr::regs::TtiQueueSizeReadVal`]; Write value: [`i3ccsr::regs::TtiQueueSizeWriteVal`]
     #[inline(always)]
-    pub fn queue_size(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiQueueSize, &TMmio> {
+    pub fn tti_queue_size(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueSize, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x30 / core::mem::size_of::<u32>()),
@@ -1243,9 +1245,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// IBI Queue Size
     ///
-    /// Read value: [`i3ccsr::regs::IbiQueueSizeAnon56ReadVal`]; Write value: [`i3ccsr::regs::IbiQueueSizeAnon56WriteVal`]
+    /// Read value: [`i3ccsr::regs::IbiTtiQueueSizeReadVal`]; Write value: [`i3ccsr::regs::IbiTtiQueueSizeWriteVal`]
     #[inline(always)]
-    pub fn ibi_queue_size(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiIbiQueueSize, &TMmio> {
+    pub fn ibi_tti_queue_size(
+        &self,
+    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiIbiTtiQueueSize, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x34 / core::mem::size_of::<u32>()),
@@ -1255,9 +1259,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// Queue Threshold Control
     ///
-    /// Read value: [`i3ccsr::regs::QueueThldCtrlAnon57ReadVal`]; Write value: [`i3ccsr::regs::QueueThldCtrlAnon57WriteVal`]
+    /// Read value: [`i3ccsr::regs::TtiQueueThldCtrlReadVal`]; Write value: [`i3ccsr::regs::TtiQueueThldCtrlWriteVal`]
     #[inline(always)]
-    pub fn queue_thld_ctrl(&self) -> ureg::RegRef<crate::i3ccsr::meta::TtiQueueThldCtrl, &TMmio> {
+    pub fn tti_queue_thld_ctrl(
+        &self,
+    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiQueueThldCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x38 / core::mem::size_of::<u32>()),
@@ -1267,11 +1273,11 @@ impl<TMmio: ureg::Mmio> TtiBlock<TMmio> {
     }
     /// IBI Queue Threshold Control
     ///
-    /// Read value: [`i3ccsr::regs::DataBufferThldCtrlAnon58ReadVal`]; Write value: [`i3ccsr::regs::DataBufferThldCtrlAnon58WriteVal`]
+    /// Read value: [`i3ccsr::regs::TtiDataBufferThldCtrlReadVal`]; Write value: [`i3ccsr::regs::TtiDataBufferThldCtrlWriteVal`]
     #[inline(always)]
-    pub fn data_buffer_thld_ctrl(
+    pub fn tti_data_buffer_thld_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiDataBufferThldCtrl, &TMmio> {
+    ) -> ureg::RegRef<crate::i3ccsr::meta::TtiTtiDataBufferThldCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x3c / core::mem::size_of::<u32>()),
@@ -1286,7 +1292,7 @@ pub struct SocmgmtifBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     mmio: TMmio,
 }
 impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
-    /// Read value: [`i3ccsr::regs::ExtcapHeaderAnon59ReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderAnon59WriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(
         &self,
@@ -1370,7 +1376,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::SocPadConfAnon66ReadVal`]; Write value: [`i3ccsr::regs::SocPadConfAnon66WriteVal`]
+    /// Read value: [`i3ccsr::regs::SocPadConfReadVal`]; Write value: [`i3ccsr::regs::SocPadConfWriteVal`]
     #[inline(always)]
     pub fn soc_pad_conf(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadConf, &TMmio> {
         unsafe {
@@ -1380,7 +1386,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::SocPadAttrAnon67ReadVal`]; Write value: [`i3ccsr::regs::SocPadAttrAnon67WriteVal`]
+    /// Read value: [`i3ccsr::regs::SocPadAttrReadVal`]; Write value: [`i3ccsr::regs::SocPadAttrWriteVal`]
     #[inline(always)]
     pub fn soc_pad_attr(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifSocPadAttr, &TMmio> {
         unsafe {
@@ -1414,7 +1420,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TRRegAnon70ReadVal`]; Write value: [`i3ccsr::regs::TRRegAnon70WriteVal`]
+    /// Read value: [`i3ccsr::regs::TRRegReadVal`]; Write value: [`i3ccsr::regs::TRRegWriteVal`]
     #[inline(always)]
     pub fn t_r_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTRReg, &TMmio> {
         unsafe {
@@ -1424,7 +1430,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TFRegAnon71ReadVal`]; Write value: [`i3ccsr::regs::TFRegAnon71WriteVal`]
+    /// Read value: [`i3ccsr::regs::TFRegReadVal`]; Write value: [`i3ccsr::regs::TFRegWriteVal`]
     #[inline(always)]
     pub fn t_f_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTFReg, &TMmio> {
         unsafe {
@@ -1434,7 +1440,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TSuDatRegAnon72ReadVal`]; Write value: [`i3ccsr::regs::TSuDatRegAnon72WriteVal`]
+    /// Read value: [`i3ccsr::regs::TSuDatRegReadVal`]; Write value: [`i3ccsr::regs::TSuDatRegWriteVal`]
     #[inline(always)]
     pub fn t_su_dat_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuDatReg, &TMmio> {
         unsafe {
@@ -1444,7 +1450,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::THdDatRegAnon73ReadVal`]; Write value: [`i3ccsr::regs::THdDatRegAnon73WriteVal`]
+    /// Read value: [`i3ccsr::regs::THdDatRegReadVal`]; Write value: [`i3ccsr::regs::THdDatRegWriteVal`]
     #[inline(always)]
     pub fn t_hd_dat_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdDatReg, &TMmio> {
         unsafe {
@@ -1454,7 +1460,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::THighRegAnon74ReadVal`]; Write value: [`i3ccsr::regs::THighRegAnon74WriteVal`]
+    /// Read value: [`i3ccsr::regs::THighRegReadVal`]; Write value: [`i3ccsr::regs::THighRegWriteVal`]
     #[inline(always)]
     pub fn t_high_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHighReg, &TMmio> {
         unsafe {
@@ -1464,7 +1470,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TLowRegAnon75ReadVal`]; Write value: [`i3ccsr::regs::TLowRegAnon75WriteVal`]
+    /// Read value: [`i3ccsr::regs::TLowRegReadVal`]; Write value: [`i3ccsr::regs::TLowRegWriteVal`]
     #[inline(always)]
     pub fn t_low_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTLowReg, &TMmio> {
         unsafe {
@@ -1474,7 +1480,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::THdStaRegAnon76ReadVal`]; Write value: [`i3ccsr::regs::THdStaRegAnon76WriteVal`]
+    /// Read value: [`i3ccsr::regs::THdStaRegReadVal`]; Write value: [`i3ccsr::regs::THdStaRegWriteVal`]
     #[inline(always)]
     pub fn t_hd_sta_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTHdStaReg, &TMmio> {
         unsafe {
@@ -1484,7 +1490,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TSuStaRegAnon77ReadVal`]; Write value: [`i3ccsr::regs::TSuStaRegAnon77WriteVal`]
+    /// Read value: [`i3ccsr::regs::TSuStaRegReadVal`]; Write value: [`i3ccsr::regs::TSuStaRegWriteVal`]
     #[inline(always)]
     pub fn t_su_sta_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStaReg, &TMmio> {
         unsafe {
@@ -1494,7 +1500,7 @@ impl<TMmio: ureg::Mmio> SocmgmtifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::TSuStoRegAnon78ReadVal`]; Write value: [`i3ccsr::regs::TSuStoRegAnon78WriteVal`]
+    /// Read value: [`i3ccsr::regs::TSuStoRegReadVal`]; Write value: [`i3ccsr::regs::TSuStoRegWriteVal`]
     #[inline(always)]
     pub fn t_su_sto_reg(&self) -> ureg::RegRef<crate::i3ccsr::meta::SocmgmtifTSuStoReg, &TMmio> {
         unsafe {
@@ -1541,7 +1547,7 @@ pub struct CtrlcfgBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     mmio: TMmio,
 }
 impl<TMmio: ureg::Mmio> CtrlcfgBlock<TMmio> {
-    /// Read value: [`i3ccsr::regs::ExtcapHeaderAnon82ReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderAnon82WriteVal`]
+    /// Read value: [`i3ccsr::regs::ExtcapHeaderReadVal`]; Write value: [`i3ccsr::regs::ExtcapHeaderWriteVal`]
     #[inline(always)]
     pub fn extcap_header(&self) -> ureg::RegRef<crate::i3ccsr::meta::CtrlcfgExtcapHeader, &TMmio> {
         unsafe {
@@ -1551,7 +1557,7 @@ impl<TMmio: ureg::Mmio> CtrlcfgBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::ControllerConfigAnon83ReadVal`]; Write value: [`i3ccsr::regs::ControllerConfigAnon83WriteVal`]
+    /// Read value: [`i3ccsr::regs::ControllerConfigReadVal`]; Write value: [`i3ccsr::regs::ControllerConfigWriteVal`]
     #[inline(always)]
     pub fn controller_config(
         &self,
@@ -2116,6 +2122,32 @@ pub mod regs {
     impl From<DevCtxSgReadVal> for u32 {
         #[inline(always)]
         fn from(val: DevCtxSgReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ExtcapHeaderReadVal(u32);
+    impl ExtcapHeaderReadVal {
+        /// Capability Structure Length in DWORDs
+        #[inline(always)]
+        pub fn cap_length(&self) -> u32 {
+            (self.0 >> 8) & 0xffff
+        }
+        /// Extended Capability ID
+        #[inline(always)]
+        pub fn cap_id(&self) -> u32 {
+            (self.0 >> 0) & 0xff
+        }
+    }
+    impl From<u32> for ExtcapHeaderReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ExtcapHeaderReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: ExtcapHeaderReadVal) -> u32 {
             val.0
         }
     }
@@ -3697,2672 +3729,6 @@ pub mod regs {
             val.0
         }
     }
-    #[derive(Clone, Copy)]
-    pub struct TerminationExtcapHeaderReadVal(u32);
-    impl TerminationExtcapHeaderReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for TerminationExtcapHeaderReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TerminationExtcapHeaderReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TerminationExtcapHeaderReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ExtcapHeaderAnon0ReadVal(u32);
-    impl ExtcapHeaderAnon0ReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for ExtcapHeaderAnon0ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ExtcapHeaderAnon0ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ExtcapHeaderAnon0ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ExtcapHeaderAnon27ReadVal(u32);
-    impl ExtcapHeaderAnon27ReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for ExtcapHeaderAnon27ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ExtcapHeaderAnon27ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ExtcapHeaderAnon27ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrControlAnon28ReadVal(u32);
-    impl StbyCrControlAnon28ReadVal {
-        /// Enables or disables the Secondary Controller:
-        ///
-        /// 2'b00 - DISABLED: Secondary Controller is disabled.
-        ///
-        /// 2'b01 - ACM_INIT: Secondary Controller is enabled,
-        /// but Host Controller initializes in Active Controller mode.
-        ///
-        /// 2'b10 - SCM_RUNNING: Secondary Controller operation is enabled,
-        /// Host Controller initializes in Standby Controller mode.
-        ///
-        /// 2'b11 - SCM_HOT_JOIN: Secondary Controller operation is enabled,
-        /// Host Controller conditionally becomes a Hot-Joining Device
-        /// to receive its Dynamic Address before operating in Standby Controller mode.
-        #[inline(always)]
-        pub fn stby_cr_enable_init(&self) -> u32 {
-            (self.0 >> 30) & 3
-        }
-        /// Controls whether I3C Secondary Controller Logic supports RSTACT CCC with
-        /// Defining Byte 0x02.
-        ///
-        /// 1'b0: NOT_SUPPORTED: Do not ACK Defining Byte 0x02
-        ///
-        /// 1'b1: HANDLE_INTR: Support Defining Byte 0x02
-        #[inline(always)]
-        pub fn rstact_defbyte_02(&self) -> bool {
-            ((self.0 >> 20) & 1) != 0
-        }
-        /// Indicates ENTDAA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_entdaa_enable(&self) -> bool {
-            ((self.0 >> 15) & 1) != 0
-        }
-        /// Indicates SETDASA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_setdasa_enable(&self) -> bool {
-            ((self.0 >> 14) & 1) != 0
-        }
-        /// Indicates SETAASA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_setaasa_enable(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
-        }
-        /// Indicates whether Read-Type/Write-Type transaction servicing is enabled, via
-        /// an I3C Target Transaction Interface to software (Section 6.17.3).
-        ///
-        /// 1'b0: DISABLED: not available
-        ///
-        /// 1'b1: ENABLED: available for software
-        #[inline(always)]
-        pub fn target_xact_enable(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        /// Indicates which Ring Bundle will be used to capture Broadcast CCC data sent by the Active Controller.
-        /// The Ring Bundle must be configured and enabled, and its IBI Ring Pair must also be initialized and ready to receive data.
-        #[inline(always)]
-        pub fn bast_ccc_ibi_ring(&self) -> u32 {
-            (self.0 >> 8) & 7
-        }
-        /// Write of 1'b1 to this field shall instruct the Secondary Controller Logic
-        /// to attempt to send a Controller Role Request to the I3C Bus.
-        #[inline(always)]
-        pub fn cr_request_send(&self) -> bool {
-            ((self.0 >> 5) & 1) != 0
-        }
-        /// If this field has a value of 1'b1, then the Secondary Controller Logic shall
-        /// report a return from Deep Sleep state to the Active Controller.
-        /// Writing 1'b1 to this bit is sticky. This field shall automatically clear to 1'b0
-        /// after accepting the Controller Role and transitioning to Active Controller mode.
-        #[inline(always)]
-        pub fn handoff_deep_sleep(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn prime_accept_getacccr(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_fsm_op_select(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn handoff_delay_nack(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn pending_rx_nack(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrControlAnon28WriteVal {
-            StbyCrControlAnon28WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrControlAnon28ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrControlAnon28ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrControlAnon28ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrControlAnon28WriteVal(u32);
-    impl StbyCrControlAnon28WriteVal {
-        /// Enables or disables the Secondary Controller:
-        ///
-        /// 2'b00 - DISABLED: Secondary Controller is disabled.
-        ///
-        /// 2'b01 - ACM_INIT: Secondary Controller is enabled,
-        /// but Host Controller initializes in Active Controller mode.
-        ///
-        /// 2'b10 - SCM_RUNNING: Secondary Controller operation is enabled,
-        /// Host Controller initializes in Standby Controller mode.
-        ///
-        /// 2'b11 - SCM_HOT_JOIN: Secondary Controller operation is enabled,
-        /// Host Controller conditionally becomes a Hot-Joining Device
-        /// to receive its Dynamic Address before operating in Standby Controller mode.
-        #[inline(always)]
-        pub fn stby_cr_enable_init(self, val: u32) -> Self {
-            Self((self.0 & !(3 << 30)) | ((val & 3) << 30))
-        }
-        /// Controls whether I3C Secondary Controller Logic supports RSTACT CCC with
-        /// Defining Byte 0x02.
-        ///
-        /// 1'b0: NOT_SUPPORTED: Do not ACK Defining Byte 0x02
-        ///
-        /// 1'b1: HANDLE_INTR: Support Defining Byte 0x02
-        #[inline(always)]
-        pub fn rstact_defbyte_02(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 20)) | (u32::from(val) << 20))
-        }
-        /// Indicates ENTDAA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_entdaa_enable(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
-        }
-        /// Indicates SETDASA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_setdasa_enable(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        /// Indicates SETAASA method is enabled.
-        ///
-        /// 1'b0: DISABLED: will not respond
-        ///
-        /// 1'b1: ENABLED: will respond
-        #[inline(always)]
-        pub fn daa_setaasa_enable(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        /// Indicates whether Read-Type/Write-Type transaction servicing is enabled, via
-        /// an I3C Target Transaction Interface to software (Section 6.17.3).
-        ///
-        /// 1'b0: DISABLED: not available
-        ///
-        /// 1'b1: ENABLED: available for software
-        #[inline(always)]
-        pub fn target_xact_enable(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        /// Indicates which Ring Bundle will be used to capture Broadcast CCC data sent by the Active Controller.
-        /// The Ring Bundle must be configured and enabled, and its IBI Ring Pair must also be initialized and ready to receive data.
-        #[inline(always)]
-        pub fn bast_ccc_ibi_ring(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 8)) | ((val & 7) << 8))
-        }
-        /// Write of 1'b1 to this field shall instruct the Secondary Controller Logic
-        /// to attempt to send a Controller Role Request to the I3C Bus.
-        #[inline(always)]
-        pub fn cr_request_send(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-        /// If this field has a value of 1'b1, then the Secondary Controller Logic shall
-        /// report a return from Deep Sleep state to the Active Controller.
-        /// Writing 1'b1 to this bit is sticky. This field shall automatically clear to 1'b0
-        /// after accepting the Controller Role and transitioning to Active Controller mode.
-        #[inline(always)]
-        pub fn handoff_deep_sleep(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        ///
-        #[inline(always)]
-        pub fn prime_accept_getacccr(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_fsm_op_select(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        ///
-        #[inline(always)]
-        pub fn handoff_delay_nack(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        ///
-        #[inline(always)]
-        pub fn pending_rx_nack(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for StbyCrControlAnon28WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrControlAnon28WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrControlAnon28WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrDeviceAddrAnon29ReadVal(u32);
-    impl StbyCrDeviceAddrAnon29ReadVal {
-        /// Indicates whether or not the value in the DYNAMIC_ADDR field is valid.
-        /// 1'b0: DYNAMIC_ADDR field is not valid
-        /// 1'b1: DYNAMIC_ADDR field is valid
-        #[inline(always)]
-        pub fn dynamic_addr_valid(&self) -> bool {
-            ((self.0 >> 31) & 1) != 0
-        }
-        /// Contains the Host Controller Device’s Dynamic Address.
-        #[inline(always)]
-        pub fn dynamic_addr(&self) -> u32 {
-            (self.0 >> 16) & 0x7f
-        }
-        /// Indicates whether or not the value in the STATIC_ADDR field is valid.
-        ///
-        /// 1'b0: The Static Address field is not valid
-        ///
-        /// 1'b1: The Static Address field is valid
-        #[inline(always)]
-        pub fn static_addr_valid(&self) -> bool {
-            ((self.0 >> 15) & 1) != 0
-        }
-        /// This field contains the Host Controller Device’s Static Address.
-        #[inline(always)]
-        pub fn static_addr(&self) -> u32 {
-            (self.0 >> 0) & 0x7f
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrDeviceAddrAnon29WriteVal {
-            StbyCrDeviceAddrAnon29WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrDeviceAddrAnon29ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrDeviceAddrAnon29ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrDeviceAddrAnon29ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrDeviceAddrAnon29WriteVal(u32);
-    impl StbyCrDeviceAddrAnon29WriteVal {
-        /// Indicates whether or not the value in the DYNAMIC_ADDR field is valid.
-        /// 1'b0: DYNAMIC_ADDR field is not valid
-        /// 1'b1: DYNAMIC_ADDR field is valid
-        #[inline(always)]
-        pub fn dynamic_addr_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
-        }
-        /// Contains the Host Controller Device’s Dynamic Address.
-        #[inline(always)]
-        pub fn dynamic_addr(self, val: u32) -> Self {
-            Self((self.0 & !(0x7f << 16)) | ((val & 0x7f) << 16))
-        }
-        /// Indicates whether or not the value in the STATIC_ADDR field is valid.
-        ///
-        /// 1'b0: The Static Address field is not valid
-        ///
-        /// 1'b1: The Static Address field is valid
-        #[inline(always)]
-        pub fn static_addr_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
-        }
-        /// This field contains the Host Controller Device’s Static Address.
-        #[inline(always)]
-        pub fn static_addr(self, val: u32) -> Self {
-            Self((self.0 & !(0x7f << 0)) | ((val & 0x7f) << 0))
-        }
-    }
-    impl From<u32> for StbyCrDeviceAddrAnon29WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrDeviceAddrAnon29WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrDeviceAddrAnon29WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCapabilitiesAnon30ReadVal(u32);
-    impl StbyCrCapabilitiesAnon30ReadVal {
-        /// Defines whether Dynamic Address Assignment with ENTDAA CCC is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_entdaa_support(&self) -> bool {
-            ((self.0 >> 15) & 1) != 0
-        }
-        /// Defines whether Dynamic Address Assignment with SETDASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setdasa_support(&self) -> bool {
-            ((self.0 >> 14) & 1) != 0
-        }
-        /// Defines whether Dynamic Address Assignment with SETAASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setaasa_support(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
-        }
-        /// Defines whether an I3C Target Transaction Interface is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported via vendor-defined Extended Capability structure
-        #[inline(always)]
-        pub fn target_xact_support(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn simple_crr_support(&self) -> bool {
-            ((self.0 >> 5) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrCapabilitiesAnon30WriteVal {
-            StbyCrCapabilitiesAnon30WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrCapabilitiesAnon30ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCapabilitiesAnon30ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCapabilitiesAnon30ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCapabilitiesAnon30WriteVal(u32);
-    impl StbyCrCapabilitiesAnon30WriteVal {
-        /// Defines whether Dynamic Address Assignment with ENTDAA CCC is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_entdaa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
-        }
-        /// Defines whether Dynamic Address Assignment with SETDASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setdasa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        /// Defines whether Dynamic Address Assignment with SETAASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setaasa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        /// Defines whether an I3C Target Transaction Interface is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported via vendor-defined Extended Capability structure
-        #[inline(always)]
-        pub fn target_xact_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        ///
-        #[inline(always)]
-        pub fn simple_crr_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-    }
-    impl From<u32> for StbyCrCapabilitiesAnon30WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCapabilitiesAnon30WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCapabilitiesAnon30WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrStatusAnon32ReadVal(u32);
-    impl StbyCrStatusAnon32ReadVal {
-        ///
-        #[inline(always)]
-        pub fn hj_req_status(&self) -> bool {
-            ((self.0 >> 8) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn simple_crr_status(&self) -> u32 {
-            (self.0 >> 5) & 7
-        }
-        ///
-        #[inline(always)]
-        pub fn ac_current_own(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrStatusAnon32WriteVal {
-            StbyCrStatusAnon32WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrStatusAnon32ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrStatusAnon32ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrStatusAnon32ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrStatusAnon32WriteVal(u32);
-    impl StbyCrStatusAnon32WriteVal {
-        ///
-        #[inline(always)]
-        pub fn hj_req_status(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
-        }
-        ///
-        #[inline(always)]
-        pub fn simple_crr_status(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 5)) | ((val & 7) << 5))
-        }
-        ///
-        #[inline(always)]
-        pub fn ac_current_own(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-    }
-    impl From<u32> for StbyCrStatusAnon32WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrStatusAnon32WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrStatusAnon32WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrDeviceCharAnon33ReadVal(u32);
-    impl StbyCrDeviceCharAnon33ReadVal {
-        ///
-        #[inline(always)]
-        pub fn bcr_fixed(&self) -> u32 {
-            (self.0 >> 29) & 7
-        }
-        ///
-        #[inline(always)]
-        pub fn bcr_var(&self) -> u32 {
-            (self.0 >> 24) & 0x1f
-        }
-        ///
-        #[inline(always)]
-        pub fn dcr(&self) -> u32 {
-            (self.0 >> 16) & 0xff
-        }
-        ///
-        #[inline(always)]
-        pub fn pid_hi(&self) -> u32 {
-            (self.0 >> 1) & 0x7fff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrDeviceCharAnon33WriteVal {
-            StbyCrDeviceCharAnon33WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrDeviceCharAnon33ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrDeviceCharAnon33ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrDeviceCharAnon33ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrDeviceCharAnon33WriteVal(u32);
-    impl StbyCrDeviceCharAnon33WriteVal {
-        ///
-        #[inline(always)]
-        pub fn bcr_fixed(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 29)) | ((val & 7) << 29))
-        }
-        ///
-        #[inline(always)]
-        pub fn bcr_var(self, val: u32) -> Self {
-            Self((self.0 & !(0x1f << 24)) | ((val & 0x1f) << 24))
-        }
-        ///
-        #[inline(always)]
-        pub fn dcr(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 16)) | ((val & 0xff) << 16))
-        }
-        ///
-        #[inline(always)]
-        pub fn pid_hi(self, val: u32) -> Self {
-            Self((self.0 & !(0x7fff << 1)) | ((val & 0x7fff) << 1))
-        }
-    }
-    impl From<u32> for StbyCrDeviceCharAnon33WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrDeviceCharAnon33WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrDeviceCharAnon33WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrStatusAnon35ReadVal(u32);
-    impl StbyCrIntrStatusAnon35ReadVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_stat(&self) -> bool {
-            ((self.0 >> 19) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_stat(&self) -> bool {
-            ((self.0 >> 18) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_stat(&self) -> bool {
-            ((self.0 >> 17) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_stat(&self) -> bool {
-            ((self.0 >> 16) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_stat(&self) -> bool {
-            ((self.0 >> 14) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_stat(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_stat(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_stat(&self) -> bool {
-            ((self.0 >> 11) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_stat(&self) -> bool {
-            ((self.0 >> 10) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_m3_stat(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_fail_stat(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_primed_stat(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_remain_stat(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrIntrStatusAnon35WriteVal {
-            StbyCrIntrStatusAnon35WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrIntrStatusAnon35ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrStatusAnon35ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrStatusAnon35ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrStatusAnon35WriteVal(u32);
-    impl StbyCrIntrStatusAnon35WriteVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_m3_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_fail_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_primed_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_remain_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for StbyCrIntrStatusAnon35WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrStatusAnon35WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrStatusAnon35WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrSignalEnableAnon37ReadVal(u32);
-    impl StbyCrIntrSignalEnableAnon37ReadVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_signal_en(&self) -> bool {
-            ((self.0 >> 19) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_signal_en(&self) -> bool {
-            ((self.0 >> 18) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_signal_en(&self) -> bool {
-            ((self.0 >> 17) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_signal_en(&self) -> bool {
-            ((self.0 >> 16) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_signal_en(&self) -> bool {
-            ((self.0 >> 14) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_signal_en(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_signal_en(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_signal_en(&self) -> bool {
-            ((self.0 >> 11) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_signal_en(&self) -> bool {
-            ((self.0 >> 10) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_m3_signal_en(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_fail_signal_en(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_primed_signal_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_remain_signal_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrIntrSignalEnableAnon37WriteVal {
-            StbyCrIntrSignalEnableAnon37WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrIntrSignalEnableAnon37ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrSignalEnableAnon37ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrSignalEnableAnon37ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrSignalEnableAnon37WriteVal(u32);
-    impl StbyCrIntrSignalEnableAnon37WriteVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_m3_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_err_fail_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_primed_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        ///
-        #[inline(always)]
-        pub fn acr_handoff_ok_remain_signal_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for StbyCrIntrSignalEnableAnon37WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrSignalEnableAnon37WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrSignalEnableAnon37WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrForceAnon38ReadVal(u32);
-    impl StbyCrIntrForceAnon38ReadVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_force(&self) -> bool {
-            ((self.0 >> 19) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_force(&self) -> bool {
-            ((self.0 >> 18) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_force(&self) -> bool {
-            ((self.0 >> 17) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_force(&self) -> bool {
-            ((self.0 >> 16) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_force(&self) -> bool {
-            ((self.0 >> 14) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_force(&self) -> bool {
-            ((self.0 >> 13) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_force(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_force(&self) -> bool {
-            ((self.0 >> 11) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_force(&self) -> bool {
-            ((self.0 >> 10) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrIntrForceAnon38WriteVal {
-            StbyCrIntrForceAnon38WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrIntrForceAnon38ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrForceAnon38ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrForceAnon38ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrIntrForceAnon38WriteVal(u32);
-    impl StbyCrIntrForceAnon38WriteVal {
-        ///
-        #[inline(always)]
-        pub fn ccc_fatal_rstdaa_err_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 19)) | (u32::from(val) << 19))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_unhandled_nack_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 18)) | (u32::from(val) << 18))
-        }
-        ///
-        #[inline(always)]
-        pub fn ccc_param_modified_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 17)) | (u32::from(val) << 17))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_op_rstact_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 16)) | (u32::from(val) << 16))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_err_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_ok_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_accept_nacked_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        ///
-        #[inline(always)]
-        pub fn stby_cr_dyn_addr_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 11)) | (u32::from(val) << 11))
-        }
-        ///
-        #[inline(always)]
-        pub fn crr_response_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
-        }
-    }
-    impl From<u32> for StbyCrIntrForceAnon38WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrIntrForceAnon38WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrIntrForceAnon38WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCccConfigGetcapsAnon39ReadVal(u32);
-    impl StbyCrCccConfigGetcapsAnon39ReadVal {
-        ///
-        #[inline(always)]
-        pub fn f2_crcap2_dev_interact(&self) -> u32 {
-            (self.0 >> 8) & 0xf
-        }
-        ///
-        #[inline(always)]
-        pub fn f2_crcap1_bus_config(&self) -> u32 {
-            (self.0 >> 0) & 7
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrCccConfigGetcapsAnon39WriteVal {
-            StbyCrCccConfigGetcapsAnon39WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrCccConfigGetcapsAnon39ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCccConfigGetcapsAnon39ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCccConfigGetcapsAnon39ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCccConfigGetcapsAnon39WriteVal(u32);
-    impl StbyCrCccConfigGetcapsAnon39WriteVal {
-        ///
-        #[inline(always)]
-        pub fn f2_crcap2_dev_interact(self, val: u32) -> Self {
-            Self((self.0 & !(0xf << 8)) | ((val & 0xf) << 8))
-        }
-        ///
-        #[inline(always)]
-        pub fn f2_crcap1_bus_config(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
-        }
-    }
-    impl From<u32> for StbyCrCccConfigGetcapsAnon39WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCccConfigGetcapsAnon39WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCccConfigGetcapsAnon39WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCccConfigRstactParamsAnon40ReadVal(u32);
-    impl StbyCrCccConfigRstactParamsAnon40ReadVal {
-        ///
-        #[inline(always)]
-        pub fn reset_dynamic_addr(&self) -> bool {
-            ((self.0 >> 31) & 1) != 0
-        }
-        ///
-        #[inline(always)]
-        pub fn reset_time_target(&self) -> u32 {
-            (self.0 >> 16) & 0xff
-        }
-        ///
-        #[inline(always)]
-        pub fn reset_time_peripheral(&self) -> u32 {
-            (self.0 >> 8) & 0xff
-        }
-        ///
-        #[inline(always)]
-        pub fn rst_action(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrCccConfigRstactParamsAnon40WriteVal {
-            StbyCrCccConfigRstactParamsAnon40WriteVal(self.0)
-        }
-    }
-    impl From<u32> for StbyCrCccConfigRstactParamsAnon40ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCccConfigRstactParamsAnon40ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCccConfigRstactParamsAnon40ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCccConfigRstactParamsAnon40WriteVal(u32);
-    impl StbyCrCccConfigRstactParamsAnon40WriteVal {
-        ///
-        #[inline(always)]
-        pub fn reset_dynamic_addr(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
-        }
-        ///
-        #[inline(always)]
-        pub fn reset_time_target(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 16)) | ((val & 0xff) << 16))
-        }
-        ///
-        #[inline(always)]
-        pub fn reset_time_peripheral(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 8)) | ((val & 0xff) << 8))
-        }
-        ///
-        #[inline(always)]
-        pub fn rst_action(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
-        }
-    }
-    impl From<u32> for StbyCrCccConfigRstactParamsAnon40WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCccConfigRstactParamsAnon40WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCccConfigRstactParamsAnon40WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ExtcapHeaderAnon43ReadVal(u32);
-    impl ExtcapHeaderAnon43ReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for ExtcapHeaderAnon43ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ExtcapHeaderAnon43ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ExtcapHeaderAnon43ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ResetControlAnon46ReadVal(u32);
-    impl ResetControlAnon46ReadVal {
-        /// TTI IBI Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn ibi_queue_rst(&self) -> bool {
-            ((self.0 >> 5) & 1) != 0
-        }
-        /// TTI RX Data Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn rx_data_rst(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// TTI TX Data Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn tx_data_rst(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        /// TTI RX Descriptor Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn rx_desc_rst(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// TTI TX Descriptor Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn tx_desc_rst(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Target Core Software Reset
-        #[inline(always)]
-        pub fn soft_rst(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> ResetControlAnon46WriteVal {
-            ResetControlAnon46WriteVal(self.0)
-        }
-    }
-    impl From<u32> for ResetControlAnon46ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ResetControlAnon46ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ResetControlAnon46ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ResetControlAnon46WriteVal(u32);
-    impl ResetControlAnon46WriteVal {
-        /// TTI IBI Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn ibi_queue_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-        /// TTI RX Data Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn rx_data_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// TTI TX Data Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn tx_data_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// TTI RX Descriptor Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn rx_desc_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// TTI TX Descriptor Queue Buffer Software Reset
-        #[inline(always)]
-        pub fn tx_desc_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Target Core Software Reset
-        #[inline(always)]
-        pub fn soft_rst(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for ResetControlAnon46WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ResetControlAnon46WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: ResetControlAnon46WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptStatusAnon47ReadVal(u32);
-    impl InterruptStatusAnon47ReadVal {
-        /// Bus error occurred
-        #[inline(always)]
-        pub fn transfer_err_stat(&self) -> bool {
-            ((self.0 >> 31) & 1) != 0
-        }
-        /// Bus aborted transaction
-        #[inline(always)]
-        pub fn transfer_abort_stat(&self) -> bool {
-            ((self.0 >> 25) & 1) != 0
-        }
-        /// TTI IBI Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI IBI Queue is >= the value defined in `TTI_IBI_THLD`
-        #[inline(always)]
-        pub fn ibi_thld_stat(&self) -> bool {
-            ((self.0 >> 12) & 1) != 0
-        }
-        /// TTI RX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI RX Descriptor Queue is >= the value defined in `TTI_RX_DESC_THLD`
-        #[inline(always)]
-        pub fn rx_desc_thld_stat(&self) -> bool {
-            ((self.0 >> 11) & 1) != 0
-        }
-        /// TTI TX Descriptor Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Descriptor Queue is >= the value defined in `TTI_TX_DESC_THLD`
-        #[inline(always)]
-        pub fn tx_desc_thld_stat(&self) -> bool {
-            ((self.0 >> 10) & 1) != 0
-        }
-        /// TTI RX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of entries in the TTI RX Data Queue is >= the value defined in `TTI_RX_DATA_THLD`
-        #[inline(always)]
-        pub fn rx_data_thld_stat(&self) -> bool {
-            ((self.0 >> 9) & 1) != 0
-        }
-        /// TTI TX Data Buffer Threshold Status, the Target Controller shall set this bit to 1 when the number of available entries in the TTI TX Data Queue is >= the value defined in `TTI_TX_DATA_THLD`
-        #[inline(always)]
-        pub fn tx_data_thld_stat(&self) -> bool {
-            ((self.0 >> 8) & 1) != 0
-        }
-        /// Pending Write was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
-        #[inline(always)]
-        pub fn tx_desc_timeout(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        /// Pending Read was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
-        #[inline(always)]
-        pub fn rx_desc_timeout(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// There is a pending Write Transaction on the I3C Bus. Software should write data to the TX Descriptor Queue and the TX Data Queue
-        #[inline(always)]
-        pub fn tx_desc_stat(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// There is a pending Read Transaction. Software should read data from the RX Descriptor Queue and the RX Data Queue
-        #[inline(always)]
-        pub fn rx_desc_stat(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> InterruptStatusAnon47WriteVal {
-            InterruptStatusAnon47WriteVal(self.0)
-        }
-    }
-    impl From<u32> for InterruptStatusAnon47ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptStatusAnon47ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptStatusAnon47ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptStatusAnon47WriteVal(u32);
-    impl InterruptStatusAnon47WriteVal {
-        /// Bus error occurred
-        #[inline(always)]
-        pub fn transfer_err_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 31)) | (u32::from(val) << 31))
-        }
-        /// Bus aborted transaction
-        #[inline(always)]
-        pub fn transfer_abort_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 25)) | (u32::from(val) << 25))
-        }
-        /// Pending Write was NACK’ed, because the `TX_DESC_STAT` event was not handled in time
-        #[inline(always)]
-        pub fn tx_desc_timeout(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// Pending Read was NACK’ed, because the `RX_DESC_STAT` event was not handled in time
-        #[inline(always)]
-        pub fn rx_desc_timeout(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// There is a pending Write Transaction on the I3C Bus. Software should write data to the TX Descriptor Queue and the TX Data Queue
-        #[inline(always)]
-        pub fn tx_desc_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// There is a pending Read Transaction. Software should read data from the RX Descriptor Queue and the RX Data Queue
-        #[inline(always)]
-        pub fn rx_desc_stat(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for InterruptStatusAnon47WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptStatusAnon47WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptStatusAnon47WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptEnableAnon48ReadVal(u32);
-    impl InterruptEnableAnon48ReadVal {
-        /// Enables the corresponding interrupt bit `TTI_IBI_THLD_STAT`
-        #[inline(always)]
-        pub fn ibi_thld_stat_en(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// Enables the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT`
-        #[inline(always)]
-        pub fn rx_desc_thld_stat_en(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        /// Enables the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT`
-        #[inline(always)]
-        pub fn tx_desc_thld_stat_en(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Enables the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT`
-        #[inline(always)]
-        pub fn rx_data_thld_stat_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Enables the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT`
-        #[inline(always)]
-        pub fn tx_data_thld_stat_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> InterruptEnableAnon48WriteVal {
-            InterruptEnableAnon48WriteVal(self.0)
-        }
-    }
-    impl From<u32> for InterruptEnableAnon48ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptEnableAnon48ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptEnableAnon48ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptEnableAnon48WriteVal(u32);
-    impl InterruptEnableAnon48WriteVal {
-        /// Enables the corresponding interrupt bit `TTI_IBI_THLD_STAT`
-        #[inline(always)]
-        pub fn ibi_thld_stat_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Enables the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT`
-        #[inline(always)]
-        pub fn rx_desc_thld_stat_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// Enables the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT`
-        #[inline(always)]
-        pub fn tx_desc_thld_stat_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Enables the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT`
-        #[inline(always)]
-        pub fn rx_data_thld_stat_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Enables the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT`
-        #[inline(always)]
-        pub fn tx_data_thld_stat_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for InterruptEnableAnon48WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptEnableAnon48WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptEnableAnon48WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptForceAnon49ReadVal(u32);
-    impl InterruptForceAnon49ReadVal {
-        /// Forces the corresponding interrupt bit `TTI_IBI_THLD_STAT` to be set to 1
-        #[inline(always)]
-        pub fn ibi_thld_force(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// Forces the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn rx_desc_thld_force(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        /// Forces the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn tx_desc_thld_force(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Forces the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn rx_data_thld_force(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Forces the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn tx_data_thld_force(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> InterruptForceAnon49WriteVal {
-            InterruptForceAnon49WriteVal(self.0)
-        }
-    }
-    impl From<u32> for InterruptForceAnon49ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptForceAnon49ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptForceAnon49ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct InterruptForceAnon49WriteVal(u32);
-    impl InterruptForceAnon49WriteVal {
-        /// Forces the corresponding interrupt bit `TTI_IBI_THLD_STAT` to be set to 1
-        #[inline(always)]
-        pub fn ibi_thld_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Forces the corresponding interrupt bit `TTI_RX_DESC_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn rx_desc_thld_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// Forces the corresponding interrupt bit `TTI_TX_DESC_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn tx_desc_thld_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Forces the corresponding interrupt bit `TTI_RX_DATA_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn rx_data_thld_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Forces the corresponding interrupt bit `TTI_TX_DATA_THLD_STAT` to be set to `1`
-        #[inline(always)]
-        pub fn tx_data_thld_force(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for InterruptForceAnon49WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<InterruptForceAnon49WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: InterruptForceAnon49WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct QueueSizeAnon55ReadVal(u32);
-    impl QueueSizeAnon55ReadVal {
-        /// Transmit Data Buffer Size in DWORDs calculated as `2^(N+1)`
-        #[inline(always)]
-        pub fn tx_data_buffer_size(&self) -> u32 {
-            (self.0 >> 24) & 0xff
-        }
-        /// Receive Data Buffer Size in DWORDs calculated as `2^(N+1)`
-        #[inline(always)]
-        pub fn rx_data_buffer_size(&self) -> u32 {
-            (self.0 >> 16) & 0xff
-        }
-        /// TX Descriptor Buffer Size in DWORDs calculated as `2^(N+1)`
-        #[inline(always)]
-        pub fn tx_desc_buffer_size(&self) -> u32 {
-            (self.0 >> 8) & 0xff
-        }
-        /// RX Descriptor Buffer Size in DWORDs calculated as `2^(N+1)`
-        #[inline(always)]
-        pub fn rx_desc_buffer_size(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for QueueSizeAnon55ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<QueueSizeAnon55ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: QueueSizeAnon55ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct IbiQueueSizeAnon56ReadVal(u32);
-    impl IbiQueueSizeAnon56ReadVal {
-        /// IBI Queue Size in DWORDs calculated as `2^(N+1)`
-        #[inline(always)]
-        pub fn ibi_queue_size(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for IbiQueueSizeAnon56ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<IbiQueueSizeAnon56ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: IbiQueueSizeAnon56ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct QueueThldCtrlAnon57ReadVal(u32);
-    impl QueueThldCtrlAnon57ReadVal {
-        /// Controls the minimum number of IBI Queue entries needed to trigger the IBI threshold interrupt.
-        #[inline(always)]
-        pub fn ibi_thld(&self) -> u32 {
-            (self.0 >> 24) & 0xff
-        }
-        /// Controls the minimum number of TTI RX Descriptor Queue entries needed to trigger the TTI RX Descriptor interrupt.
-        #[inline(always)]
-        pub fn rx_desc_thld(&self) -> u32 {
-            (self.0 >> 8) & 0xff
-        }
-        /// Controls the minimum number of empty TTI TX Descriptor Queue entries needed to trigger the TTI TX Descriptor interrupt.
-        #[inline(always)]
-        pub fn tx_desc_thld(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> QueueThldCtrlAnon57WriteVal {
-            QueueThldCtrlAnon57WriteVal(self.0)
-        }
-    }
-    impl From<u32> for QueueThldCtrlAnon57ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<QueueThldCtrlAnon57ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: QueueThldCtrlAnon57ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct QueueThldCtrlAnon57WriteVal(u32);
-    impl QueueThldCtrlAnon57WriteVal {
-        /// Controls the minimum number of IBI Queue entries needed to trigger the IBI threshold interrupt.
-        #[inline(always)]
-        pub fn ibi_thld(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 24)) | ((val & 0xff) << 24))
-        }
-        /// Controls the minimum number of TTI RX Descriptor Queue entries needed to trigger the TTI RX Descriptor interrupt.
-        #[inline(always)]
-        pub fn rx_desc_thld(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 8)) | ((val & 0xff) << 8))
-        }
-        /// Controls the minimum number of empty TTI TX Descriptor Queue entries needed to trigger the TTI TX Descriptor interrupt.
-        #[inline(always)]
-        pub fn tx_desc_thld(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
-        }
-    }
-    impl From<u32> for QueueThldCtrlAnon57WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<QueueThldCtrlAnon57WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: QueueThldCtrlAnon57WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct DataBufferThldCtrlAnon58ReadVal(u32);
-    impl DataBufferThldCtrlAnon58ReadVal {
-        /// Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.
-        #[inline(always)]
-        pub fn rx_start_thld(&self) -> u32 {
-            (self.0 >> 24) & 7
-        }
-        /// Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.
-        #[inline(always)]
-        pub fn tx_start_thld(&self) -> u32 {
-            (self.0 >> 16) & 7
-        }
-        /// Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.
-        #[inline(always)]
-        pub fn rx_data_thld(&self) -> u32 {
-            (self.0 >> 8) & 7
-        }
-        /// Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.
-        #[inline(always)]
-        pub fn tx_data_thld(&self) -> u32 {
-            (self.0 >> 0) & 7
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> DataBufferThldCtrlAnon58WriteVal {
-            DataBufferThldCtrlAnon58WriteVal(self.0)
-        }
-    }
-    impl From<u32> for DataBufferThldCtrlAnon58ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<DataBufferThldCtrlAnon58ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: DataBufferThldCtrlAnon58ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct DataBufferThldCtrlAnon58WriteVal(u32);
-    impl DataBufferThldCtrlAnon58WriteVal {
-        /// Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.
-        #[inline(always)]
-        pub fn rx_start_thld(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 24)) | ((val & 7) << 24))
-        }
-        /// Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.
-        #[inline(always)]
-        pub fn tx_start_thld(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 16)) | ((val & 7) << 16))
-        }
-        /// Minimum number of TTI RX Data queue entries of data received, in DWORDs, that will trigger the TTI RX Data interrupt. Interrupt triggers when `2^(N+1)` RX Buffer DWORD entries are received during the Read transfer.
-        #[inline(always)]
-        pub fn rx_data_thld(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 8)) | ((val & 7) << 8))
-        }
-        /// Minimum number of available TTI TX Data queue entries, in DWORDs, that will trigger the TTI TX Data interrupt. Interrupt triggers when `2^(N+1)` TX Buffer DWORD entries are available.
-        #[inline(always)]
-        pub fn tx_data_thld(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
-        }
-    }
-    impl From<u32> for DataBufferThldCtrlAnon58WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<DataBufferThldCtrlAnon58WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: DataBufferThldCtrlAnon58WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ExtcapHeaderAnon59ReadVal(u32);
-    impl ExtcapHeaderAnon59ReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for ExtcapHeaderAnon59ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ExtcapHeaderAnon59ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ExtcapHeaderAnon59ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct SocPadConfAnon66ReadVal(u32);
-    impl SocPadConfAnon66ReadVal {
-        /// Select pad type
-        ///
-        /// 0 - Bidirectional
-        ///
-        /// 1 - Open-drain
-        ///
-        /// 2 - Input-only
-        ///
-        /// 3 - Analog input
-        #[inline(always)]
-        pub fn pad_type(&self) -> u32 {
-            (self.0 >> 24) & 0xff
-        }
-        /// Enable virtual open drain:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn virtual_od_en(&self) -> bool {
-            ((self.0 >> 7) & 1) != 0
-        }
-        /// Enable Open-Drain:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn od_en(&self) -> bool {
-            ((self.0 >> 6) & 1) != 0
-        }
-        /// Invert I/O signal:
-        ///
-        /// 0 - signals pass-through
-        ///
-        /// 1 - signals are inverted
-        #[inline(always)]
-        pub fn io_inversion(&self) -> bool {
-            ((self.0 >> 5) & 1) != 0
-        }
-        /// Enable Pull:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn pull_en(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// Direction of the pull:
-        ///
-        /// 0 - Pull down
-        ///
-        /// 1 - Pull up
-        #[inline(always)]
-        pub fn pull_dir(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
-        }
-        /// Enable the High-Keeper:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn keeper_en(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Enable the Schmitt Trigger:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn schmitt_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Enable input:
-        ///
-        /// 0 - enabled
-        ///
-        /// 1 - disabled
-        #[inline(always)]
-        pub fn input_enable(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> SocPadConfAnon66WriteVal {
-            SocPadConfAnon66WriteVal(self.0)
-        }
-    }
-    impl From<u32> for SocPadConfAnon66ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<SocPadConfAnon66ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: SocPadConfAnon66ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct SocPadConfAnon66WriteVal(u32);
-    impl SocPadConfAnon66WriteVal {
-        /// Select pad type
-        ///
-        /// 0 - Bidirectional
-        ///
-        /// 1 - Open-drain
-        ///
-        /// 2 - Input-only
-        ///
-        /// 3 - Analog input
-        #[inline(always)]
-        pub fn pad_type(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 24)) | ((val & 0xff) << 24))
-        }
-        /// Enable virtual open drain:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn virtual_od_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
-        }
-        /// Enable Open-Drain:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn od_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
-        }
-        /// Invert I/O signal:
-        ///
-        /// 0 - signals pass-through
-        ///
-        /// 1 - signals are inverted
-        #[inline(always)]
-        pub fn io_inversion(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-        /// Enable Pull:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn pull_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Direction of the pull:
-        ///
-        /// 0 - Pull down
-        ///
-        /// 1 - Pull up
-        #[inline(always)]
-        pub fn pull_dir(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// Enable the High-Keeper:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn keeper_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Enable the Schmitt Trigger:
-        ///
-        /// 0 - disabled
-        ///
-        /// 1 - enabled
-        #[inline(always)]
-        pub fn schmitt_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Enable input:
-        ///
-        /// 0 - enabled
-        ///
-        /// 1 - disabled
-        #[inline(always)]
-        pub fn input_enable(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for SocPadConfAnon66WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<SocPadConfAnon66WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: SocPadConfAnon66WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct SocPadAttrAnon67ReadVal(u32);
-    impl SocPadAttrAnon67ReadVal {
-        /// Select driver strength
-        ///
-        /// '0 - lowest
-        ///
-        /// '1 - highest
-        #[inline(always)]
-        pub fn drive_strength(&self) -> u32 {
-            (self.0 >> 24) & 0xff
-        }
-        /// Select driver slew rate
-        ///
-        /// '0 - lowest
-        ///
-        /// '1 - highest
-        #[inline(always)]
-        pub fn drive_slew_rate(&self) -> u32 {
-            (self.0 >> 8) & 0xff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> SocPadAttrAnon67WriteVal {
-            SocPadAttrAnon67WriteVal(self.0)
-        }
-    }
-    impl From<u32> for SocPadAttrAnon67ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<SocPadAttrAnon67ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: SocPadAttrAnon67ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct SocPadAttrAnon67WriteVal(u32);
-    impl SocPadAttrAnon67WriteVal {
-        /// Select driver strength
-        ///
-        /// '0 - lowest
-        ///
-        /// '1 - highest
-        #[inline(always)]
-        pub fn drive_strength(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 24)) | ((val & 0xff) << 24))
-        }
-        /// Select driver slew rate
-        ///
-        /// '0 - lowest
-        ///
-        /// '1 - highest
-        #[inline(always)]
-        pub fn drive_slew_rate(self, val: u32) -> Self {
-            Self((self.0 & !(0xff << 8)) | ((val & 0xff) << 8))
-        }
-    }
-    impl From<u32> for SocPadAttrAnon67WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<SocPadAttrAnon67WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: SocPadAttrAnon67WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TRRegAnon70ReadVal(u32);
-    impl TRRegAnon70ReadVal {
-        /// Rise time of both SDA and SCL in clock units
-        #[inline(always)]
-        pub fn t_r(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TRRegAnon70WriteVal {
-            TRRegAnon70WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TRRegAnon70ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TRRegAnon70ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TRRegAnon70ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TRRegAnon70WriteVal(u32);
-    impl TRRegAnon70WriteVal {
-        /// Rise time of both SDA and SCL in clock units
-        #[inline(always)]
-        pub fn t_r(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TRRegAnon70WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TRRegAnon70WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TRRegAnon70WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TFRegAnon71ReadVal(u32);
-    impl TFRegAnon71ReadVal {
-        /// Fall time of both SDA and SCL in clock units
-        #[inline(always)]
-        pub fn t_f(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TFRegAnon71WriteVal {
-            TFRegAnon71WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TFRegAnon71ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TFRegAnon71ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TFRegAnon71ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TFRegAnon71WriteVal(u32);
-    impl TFRegAnon71WriteVal {
-        /// Fall time of both SDA and SCL in clock units
-        #[inline(always)]
-        pub fn t_f(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TFRegAnon71WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TFRegAnon71WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TFRegAnon71WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuDatRegAnon72ReadVal(u32);
-    impl TSuDatRegAnon72ReadVal {
-        /// Data setup time in clock units
-        #[inline(always)]
-        pub fn t_su_dat(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TSuDatRegAnon72WriteVal {
-            TSuDatRegAnon72WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TSuDatRegAnon72ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuDatRegAnon72ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuDatRegAnon72ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuDatRegAnon72WriteVal(u32);
-    impl TSuDatRegAnon72WriteVal {
-        /// Data setup time in clock units
-        #[inline(always)]
-        pub fn t_su_dat(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TSuDatRegAnon72WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuDatRegAnon72WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuDatRegAnon72WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THdDatRegAnon73ReadVal(u32);
-    impl THdDatRegAnon73ReadVal {
-        /// Data hold time in clock units
-        #[inline(always)]
-        pub fn t_hd_dat(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> THdDatRegAnon73WriteVal {
-            THdDatRegAnon73WriteVal(self.0)
-        }
-    }
-    impl From<u32> for THdDatRegAnon73ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THdDatRegAnon73ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: THdDatRegAnon73ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THdDatRegAnon73WriteVal(u32);
-    impl THdDatRegAnon73WriteVal {
-        /// Data hold time in clock units
-        #[inline(always)]
-        pub fn t_hd_dat(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for THdDatRegAnon73WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THdDatRegAnon73WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: THdDatRegAnon73WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THighRegAnon74ReadVal(u32);
-    impl THighRegAnon74ReadVal {
-        ///
-        #[inline(always)]
-        pub fn t_high(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> THighRegAnon74WriteVal {
-            THighRegAnon74WriteVal(self.0)
-        }
-    }
-    impl From<u32> for THighRegAnon74ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THighRegAnon74ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: THighRegAnon74ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THighRegAnon74WriteVal(u32);
-    impl THighRegAnon74WriteVal {
-        ///
-        #[inline(always)]
-        pub fn t_high(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for THighRegAnon74WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THighRegAnon74WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: THighRegAnon74WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TLowRegAnon75ReadVal(u32);
-    impl TLowRegAnon75ReadVal {
-        /// Low period of the SCL in clock units
-        #[inline(always)]
-        pub fn t_low(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TLowRegAnon75WriteVal {
-            TLowRegAnon75WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TLowRegAnon75ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TLowRegAnon75ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TLowRegAnon75ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TLowRegAnon75WriteVal(u32);
-    impl TLowRegAnon75WriteVal {
-        /// Low period of the SCL in clock units
-        #[inline(always)]
-        pub fn t_low(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TLowRegAnon75WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TLowRegAnon75WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TLowRegAnon75WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THdStaRegAnon76ReadVal(u32);
-    impl THdStaRegAnon76ReadVal {
-        /// Hold time for (repeated) START in clock units
-        #[inline(always)]
-        pub fn t_hd_sta(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> THdStaRegAnon76WriteVal {
-            THdStaRegAnon76WriteVal(self.0)
-        }
-    }
-    impl From<u32> for THdStaRegAnon76ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THdStaRegAnon76ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: THdStaRegAnon76ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct THdStaRegAnon76WriteVal(u32);
-    impl THdStaRegAnon76WriteVal {
-        /// Hold time for (repeated) START in clock units
-        #[inline(always)]
-        pub fn t_hd_sta(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for THdStaRegAnon76WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<THdStaRegAnon76WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: THdStaRegAnon76WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuStaRegAnon77ReadVal(u32);
-    impl TSuStaRegAnon77ReadVal {
-        /// Setup time for repeated START in clock units
-        #[inline(always)]
-        pub fn t_su_sta(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TSuStaRegAnon77WriteVal {
-            TSuStaRegAnon77WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TSuStaRegAnon77ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuStaRegAnon77ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuStaRegAnon77ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuStaRegAnon77WriteVal(u32);
-    impl TSuStaRegAnon77WriteVal {
-        /// Setup time for repeated START in clock units
-        #[inline(always)]
-        pub fn t_su_sta(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TSuStaRegAnon77WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuStaRegAnon77WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuStaRegAnon77WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuStoRegAnon78ReadVal(u32);
-    impl TSuStoRegAnon78ReadVal {
-        /// Setup time for STOP in clock units
-        #[inline(always)]
-        pub fn t_su_sto(&self) -> u32 {
-            (self.0 >> 0) & 0xfffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> TSuStoRegAnon78WriteVal {
-            TSuStoRegAnon78WriteVal(self.0)
-        }
-    }
-    impl From<u32> for TSuStoRegAnon78ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuStoRegAnon78ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuStoRegAnon78ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct TSuStoRegAnon78WriteVal(u32);
-    impl TSuStoRegAnon78WriteVal {
-        /// Setup time for STOP in clock units
-        #[inline(always)]
-        pub fn t_su_sto(self, val: u32) -> Self {
-            Self((self.0 & !(0xfffff << 0)) | ((val & 0xfffff) << 0))
-        }
-    }
-    impl From<u32> for TSuStoRegAnon78WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<TSuStoRegAnon78WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: TSuStoRegAnon78WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ExtcapHeaderAnon82ReadVal(u32);
-    impl ExtcapHeaderAnon82ReadVal {
-        /// Capability Structure Length in DWORDs
-        #[inline(always)]
-        pub fn cap_length(&self) -> u32 {
-            (self.0 >> 8) & 0xffff
-        }
-        /// Extended Capability ID
-        #[inline(always)]
-        pub fn cap_id(&self) -> u32 {
-            (self.0 >> 0) & 0xff
-        }
-    }
-    impl From<u32> for ExtcapHeaderAnon82ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ExtcapHeaderAnon82ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ExtcapHeaderAnon82ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ControllerConfigAnon83ReadVal(u32);
-    impl ControllerConfigAnon83ReadVal {
-        ///
-        #[inline(always)]
-        pub fn operation_mode(&self) -> u32 {
-            (self.0 >> 4) & 3
-        }
-    }
-    impl From<u32> for ControllerConfigAnon83ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ControllerConfigAnon83ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ControllerConfigAnon83ReadVal) -> u32 {
-            val.0
-        }
-    }
 }
 pub mod enums {
     //! Enumerations used by some register fields.
@@ -6480,9 +3846,9 @@ pub mod meta {
         crate::i3ccsr::regs::PioControlWriteVal,
     >;
     pub type I3cEcTerminationExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::TerminationExtcapHeaderReadVal>;
+        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type SecfwrecoveryifExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderAnon0ReadVal>;
+        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type SecfwrecoveryifProtCap0 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SecfwrecoveryifProtCap1 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SecfwrecoveryifProtCap2 = ureg::ReadWriteReg32<0, u32, u32>;
@@ -6510,104 +3876,103 @@ pub mod meta {
     pub type SecfwrecoveryifIndirectFifoStatus5 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SecfwrecoveryifIndirectFifoData = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderAnon27ReadVal>;
+        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type StdbyctrlmodeStbyCrControl = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrControlAnon28ReadVal,
-        crate::i3ccsr::regs::StbyCrControlAnon28WriteVal,
+        crate::i3ccsr::regs::StbyCrControlReadVal,
+        crate::i3ccsr::regs::StbyCrControlWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrDeviceAddr = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrDeviceAddrAnon29ReadVal,
-        crate::i3ccsr::regs::StbyCrDeviceAddrAnon29WriteVal,
+        crate::i3ccsr::regs::StbyCrDeviceAddrReadVal,
+        crate::i3ccsr::regs::StbyCrDeviceAddrWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrCapabilities = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrCapabilitiesAnon30ReadVal,
-        crate::i3ccsr::regs::StbyCrCapabilitiesAnon30WriteVal,
+        crate::i3ccsr::regs::StbyCrCapabilitiesReadVal,
+        crate::i3ccsr::regs::StbyCrCapabilitiesWriteVal,
     >;
     pub type StdbyctrlmodeRsvd0 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeStbyCrStatus = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrStatusAnon32ReadVal,
-        crate::i3ccsr::regs::StbyCrStatusAnon32WriteVal,
+        crate::i3ccsr::regs::StbyCrStatusReadVal,
+        crate::i3ccsr::regs::StbyCrStatusWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrDeviceChar = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrDeviceCharAnon33ReadVal,
-        crate::i3ccsr::regs::StbyCrDeviceCharAnon33WriteVal,
+        crate::i3ccsr::regs::StbyCrDeviceCharReadVal,
+        crate::i3ccsr::regs::StbyCrDeviceCharWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrDevicePidLo = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeStbyCrIntrStatus = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrIntrStatusAnon35ReadVal,
-        crate::i3ccsr::regs::StbyCrIntrStatusAnon35WriteVal,
+        crate::i3ccsr::regs::StbyCrIntrStatusReadVal,
+        crate::i3ccsr::regs::StbyCrIntrStatusWriteVal,
     >;
     pub type StdbyctrlmodeRsvd1 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeStbyCrIntrSignalEnable = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrIntrSignalEnableAnon37ReadVal,
-        crate::i3ccsr::regs::StbyCrIntrSignalEnableAnon37WriteVal,
+        crate::i3ccsr::regs::StbyCrIntrSignalEnableReadVal,
+        crate::i3ccsr::regs::StbyCrIntrSignalEnableWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrIntrForce = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrIntrForceAnon38ReadVal,
-        crate::i3ccsr::regs::StbyCrIntrForceAnon38WriteVal,
+        crate::i3ccsr::regs::StbyCrIntrForceReadVal,
+        crate::i3ccsr::regs::StbyCrIntrForceWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrCccConfigGetcaps = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrCccConfigGetcapsAnon39ReadVal,
-        crate::i3ccsr::regs::StbyCrCccConfigGetcapsAnon39WriteVal,
+        crate::i3ccsr::regs::StbyCrCccConfigGetcapsReadVal,
+        crate::i3ccsr::regs::StbyCrCccConfigGetcapsWriteVal,
     >;
     pub type StdbyctrlmodeStbyCrCccConfigRstactParams = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::StbyCrCccConfigRstactParamsAnon40ReadVal,
-        crate::i3ccsr::regs::StbyCrCccConfigRstactParamsAnon40WriteVal,
+        crate::i3ccsr::regs::StbyCrCccConfigRstactParamsReadVal,
+        crate::i3ccsr::regs::StbyCrCccConfigRstactParamsWriteVal,
     >;
     pub type StdbyctrlmodeRsvd2 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeRsvd3 = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TtiExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderAnon43ReadVal>;
+    pub type TtiExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type TtiControl = ureg::ReadWriteReg32<0, u32, u32>;
     pub type TtiStatus = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type TtiResetControl = ureg::ReadWriteReg32<
+    pub type TtiTtiResetControl = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::ResetControlAnon46ReadVal,
-        crate::i3ccsr::regs::ResetControlAnon46WriteVal,
+        crate::i3ccsr::regs::TtiResetControlReadVal,
+        crate::i3ccsr::regs::TtiResetControlWriteVal,
     >;
     pub type TtiInterruptStatus = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::InterruptStatusAnon47ReadVal,
-        crate::i3ccsr::regs::InterruptStatusAnon47WriteVal,
+        crate::i3ccsr::regs::InterruptStatusReadVal,
+        crate::i3ccsr::regs::InterruptStatusWriteVal,
     >;
     pub type TtiInterruptEnable = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::InterruptEnableAnon48ReadVal,
-        crate::i3ccsr::regs::InterruptEnableAnon48WriteVal,
+        crate::i3ccsr::regs::InterruptEnableReadVal,
+        crate::i3ccsr::regs::InterruptEnableWriteVal,
     >;
     pub type TtiInterruptForce = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::InterruptForceAnon49ReadVal,
-        crate::i3ccsr::regs::InterruptForceAnon49WriteVal,
+        crate::i3ccsr::regs::InterruptForceReadVal,
+        crate::i3ccsr::regs::InterruptForceWriteVal,
     >;
     pub type TtiRxDescQueuePort = ureg::ReadOnlyReg32<u32>;
     pub type TtiRxDataPort = ureg::ReadOnlyReg32<u32>;
     pub type TtiTxDescQueuePort = ureg::WriteOnlyReg32<0, u32>;
     pub type TtiTxDataPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type TtiIbiPort = ureg::WriteOnlyReg32<0, u32>;
-    pub type TtiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::QueueSizeAnon55ReadVal>;
-    pub type TtiIbiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::IbiQueueSizeAnon56ReadVal>;
-    pub type TtiQueueThldCtrl = ureg::ReadWriteReg32<
+    pub type TtiTtiIbiPort = ureg::WriteOnlyReg32<0, u32>;
+    pub type TtiTtiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::TtiQueueSizeReadVal>;
+    pub type TtiIbiTtiQueueSize = ureg::ReadOnlyReg32<crate::i3ccsr::regs::IbiTtiQueueSizeReadVal>;
+    pub type TtiTtiQueueThldCtrl = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::QueueThldCtrlAnon57ReadVal,
-        crate::i3ccsr::regs::QueueThldCtrlAnon57WriteVal,
+        crate::i3ccsr::regs::TtiQueueThldCtrlReadVal,
+        crate::i3ccsr::regs::TtiQueueThldCtrlWriteVal,
     >;
-    pub type TtiDataBufferThldCtrl = ureg::ReadWriteReg32<
+    pub type TtiTtiDataBufferThldCtrl = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::DataBufferThldCtrlAnon58ReadVal,
-        crate::i3ccsr::regs::DataBufferThldCtrlAnon58WriteVal,
+        crate::i3ccsr::regs::TtiDataBufferThldCtrlReadVal,
+        crate::i3ccsr::regs::TtiDataBufferThldCtrlWriteVal,
     >;
-    pub type SocmgmtifExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderAnon59ReadVal>;
+    pub type SocmgmtifExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type SocmgmtifSocMgmtControl = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocMgmtStatus = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocMgmtRsvd0 = ureg::ReadWriteReg32<0, u32, u32>;
@@ -6616,66 +3981,65 @@ pub mod meta {
     pub type SocmgmtifSocMgmtRsvd3 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocPadConf = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::SocPadConfAnon66ReadVal,
-        crate::i3ccsr::regs::SocPadConfAnon66WriteVal,
+        crate::i3ccsr::regs::SocPadConfReadVal,
+        crate::i3ccsr::regs::SocPadConfWriteVal,
     >;
     pub type SocmgmtifSocPadAttr = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::SocPadAttrAnon67ReadVal,
-        crate::i3ccsr::regs::SocPadAttrAnon67WriteVal,
+        crate::i3ccsr::regs::SocPadAttrReadVal,
+        crate::i3ccsr::regs::SocPadAttrWriteVal,
     >;
     pub type SocmgmtifSocMgmtFeature2 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifSocMgmtFeature3 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifTRReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TRRegAnon70ReadVal,
-        crate::i3ccsr::regs::TRRegAnon70WriteVal,
+        crate::i3ccsr::regs::TRRegReadVal,
+        crate::i3ccsr::regs::TRRegWriteVal,
     >;
     pub type SocmgmtifTFReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TFRegAnon71ReadVal,
-        crate::i3ccsr::regs::TFRegAnon71WriteVal,
+        crate::i3ccsr::regs::TFRegReadVal,
+        crate::i3ccsr::regs::TFRegWriteVal,
     >;
     pub type SocmgmtifTSuDatReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TSuDatRegAnon72ReadVal,
-        crate::i3ccsr::regs::TSuDatRegAnon72WriteVal,
+        crate::i3ccsr::regs::TSuDatRegReadVal,
+        crate::i3ccsr::regs::TSuDatRegWriteVal,
     >;
     pub type SocmgmtifTHdDatReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::THdDatRegAnon73ReadVal,
-        crate::i3ccsr::regs::THdDatRegAnon73WriteVal,
+        crate::i3ccsr::regs::THdDatRegReadVal,
+        crate::i3ccsr::regs::THdDatRegWriteVal,
     >;
     pub type SocmgmtifTHighReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::THighRegAnon74ReadVal,
-        crate::i3ccsr::regs::THighRegAnon74WriteVal,
+        crate::i3ccsr::regs::THighRegReadVal,
+        crate::i3ccsr::regs::THighRegWriteVal,
     >;
     pub type SocmgmtifTLowReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TLowRegAnon75ReadVal,
-        crate::i3ccsr::regs::TLowRegAnon75WriteVal,
+        crate::i3ccsr::regs::TLowRegReadVal,
+        crate::i3ccsr::regs::TLowRegWriteVal,
     >;
     pub type SocmgmtifTHdStaReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::THdStaRegAnon76ReadVal,
-        crate::i3ccsr::regs::THdStaRegAnon76WriteVal,
+        crate::i3ccsr::regs::THdStaRegReadVal,
+        crate::i3ccsr::regs::THdStaRegWriteVal,
     >;
     pub type SocmgmtifTSuStaReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TSuStaRegAnon77ReadVal,
-        crate::i3ccsr::regs::TSuStaRegAnon77WriteVal,
+        crate::i3ccsr::regs::TSuStaRegReadVal,
+        crate::i3ccsr::regs::TSuStaRegWriteVal,
     >;
     pub type SocmgmtifTSuStoReg = ureg::ReadWriteReg32<
         0,
-        crate::i3ccsr::regs::TSuStoRegAnon78ReadVal,
-        crate::i3ccsr::regs::TSuStoRegAnon78WriteVal,
+        crate::i3ccsr::regs::TSuStoRegReadVal,
+        crate::i3ccsr::regs::TSuStoRegWriteVal,
     >;
     pub type SocmgmtifTFreeReg = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifTAvalReg = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SocmgmtifTIdleReg = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CtrlcfgExtcapHeader =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderAnon82ReadVal>;
+    pub type CtrlcfgExtcapHeader = ureg::ReadOnlyReg32<crate::i3ccsr::regs::ExtcapHeaderReadVal>;
     pub type CtrlcfgControllerConfig =
-        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ControllerConfigAnon83ReadVal>;
+        ureg::ReadOnlyReg32<crate::i3ccsr::regs::ControllerConfigReadVal>;
 }

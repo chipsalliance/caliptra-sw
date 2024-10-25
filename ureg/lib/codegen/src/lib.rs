@@ -565,14 +565,11 @@ fn generate_array_type(
     }
 }
 
-static mut TYPE_NUM: usize = 0;
-
 fn generate_block_registers(
     registers: &[Rc<Register>],
     raw_ptr_type: &Ident,
     meta_tokens: &mut TokenStream,
     block_tokens: &mut TokenStream,
-    anon_type_tokens: &mut TokenStream,
     meta_prefix: &str,
     options: &OptionsInternal,
 ) {
@@ -583,20 +580,7 @@ fn generate_block_registers(
         if registers.len() == 1 && camel_ident(&reg.name) == meta_prefix {
             reg_meta_name = camel_ident(&reg.name);
         }
-        let ty = match reg.ty.name {
-            Some(_) => reg.ty.as_ref().clone(),
-            _ => {
-                let mut new_ty = reg.ty.as_ref().clone();
-                // Safety: this is a single-threaded program.
-                new_ty.name = Some(format!("{}_anon_{}", reg_name, unsafe { TYPE_NUM }));
-                // Safety: this is a single-threaded program.
-                unsafe { TYPE_NUM += 1 };
-                let tokens = generate_register_types([new_ty.clone()].iter());
-                anon_type_tokens.extend(tokens);
-                new_ty
-            }
-        };
-        let ty = &ty;
+        let ty = &reg.ty.as_ref().clone();
         let default_val = hex_literal(reg.default_val);
         let (read_type, write_type) = read_write_types(ty, options);
         let ptr_offset = hex_literal(reg.offset);
@@ -849,13 +833,11 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 }
             });
         }
-        let mut anon_type_tokens = TokenStream::new();
         generate_block_registers(
             &block.block().registers,
             &raw_ptr_type,
             &mut meta_tokens,
             &mut block_inner_tokens,
-            &mut anon_type_tokens,
             "",
             &options,
         );
@@ -869,10 +851,8 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 &mut subblock_type_tokens,
                 &mut subblock_instance_type_tokens,
                 &mut meta_tokens,
-                &mut anon_type_tokens,
             );
         }
-        reg_tokens.extend(anon_type_tokens);
         block_tokens = quote! {
             #[allow(dead_code)]
             #[derive(Clone, Copy)]
@@ -959,7 +939,6 @@ fn generate_subblock_code(
     subblock_type_tokens: &mut TokenStream,
     subblock_instance_type_tokens: &mut TokenStream,
     meta_tokens: &mut TokenStream,
-    anon_type_tokens: &mut TokenStream,
 ) {
     let mut subblock_tokens = TokenStream::new();
     let subblock_name = format_ident!("{}Block", camel_ident(&sb.block().name));
@@ -1026,7 +1005,6 @@ fn generate_subblock_code(
         &raw_ptr_type,
         meta_tokens,
         &mut subblock_tokens,
-        anon_type_tokens,
         &meta_prefix,
         options,
     );
@@ -1078,7 +1056,6 @@ fn generate_subblock_code(
             subblock_type_tokens,
             subblock_instance_type_tokens,
             meta_tokens,
-            anon_type_tokens,
         );
     }
 }
