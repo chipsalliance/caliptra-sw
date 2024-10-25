@@ -125,6 +125,19 @@ run: build-emu build-fw-image build-rom
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
+run-active: build-emu build-fw-image build-rom
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
+		-p caliptra-emu \
+		-- \
+		--req-idevid-csr \
+		--idevid-key-id-algo sha1 \
+		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
+		--device-lifecycle unprovisioned \
+		--active-mode \
+
 run-update: build-emu build-fw-image build-rom
 		cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
