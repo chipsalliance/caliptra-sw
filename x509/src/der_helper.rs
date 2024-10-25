@@ -34,7 +34,7 @@ fn encode_length(val: &[u8]) -> usize {
             return val.len() - i + (val[i] >> 7) as usize;
         }
     }
-    return 1;
+    1
 }
 
 /// Compute len of DER encoding of an unsinged integer

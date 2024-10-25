@@ -101,6 +101,57 @@ impl Signature<108> for Ecdsa384Signature {
     }
 }
 
+/// Ml-Dsa87 Signature
+pub struct MlDsa87Signature {
+    pub sig: [u8; 4627],
+}
+
+impl Default for MlDsa87Signature {
+    /// Returns the "default value" for a type.
+    fn default() -> Self {
+        Self { sig: [0; 4627] }
+    }
+}
+
+impl Signature<4635> for MlDsa87Signature {
+    fn to_der(&self, buf: &mut [u8; 4635]) -> Option<usize> {
+        let ml_dsa_signature_len = der_uint_len(&self.sig)?;
+
+        //
+        // Signature DER Sequence encoding
+        //
+        // sig_seq_len = TAG (1 byte) + LEN (3 byte) + ml_dsa_signature_len
+        //
+        let sig_seq_len = 4 + ml_dsa_signature_len;
+        let mut pos = 0;
+
+        // Encode Signature DER Bit String
+        *buf.get_mut(pos)? = DER_BIT_STR_TAG;
+        pos += 1;
+        pos += der_encode_len(1 + sig_seq_len, buf.get_mut(pos..)?)?;
+        // Not sure?
+        *buf.get_mut(pos)? = 0x0;
+        pos += 1;
+
+        // Encode Signature DER Sequence
+        *buf.get_mut(pos)? = DER_SEQ_TAG;
+        pos += 1;
+        pos += der_encode_len(ml_dsa_signature_len, buf.get_mut(pos..)?)?;
+
+        // Encode Ml-Dsa87 signature
+        pos += der_encode_uint(&self.sig, buf.get_mut(pos..)?)?;
+
+        Some(pos)
+    }
+
+    fn oid_der() -> &'static [u8] {
+        // TODO this is wrong and just copied from ECC
+        &[
+            0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03,
+        ]
+    }
+}
+
 /// Generic Certificate Builder
 #[derive(Debug)]
 pub struct CertBuilder<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> {
@@ -187,9 +238,9 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
 
         // Max Cert or CSR size is 4096 bytes
         let len_bytes = match len {
-            0..=127 => 1_usize,
-            128..=255 => 2,
-            256..=4096 => 3,
+            0..=0x7f => 1_usize,
+            0x80..=0xff => 2,
+            0x100..=0xffff => 3,
             _ => None?,
         };
 
@@ -205,3 +256,7 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
 // Type alias for ECDSA-384 Certificate Builder
 pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, 108>;
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
+
+// Type alias for Ml-Dsa87 Certificate Builder
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, MlDsa87Signature, 4627>;
+pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;
