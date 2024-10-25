@@ -575,28 +575,9 @@ fn all_regs(regs: &[Rc<Register>], sub_blocks: &[RegisterSubBlock]) -> Vec<Rc<Re
     all_regs_vec
 }
 
-fn all_regs_mut<'a>(
-    regs: &'a mut [Rc<Register>],
-    sub_blocks: &'a mut [RegisterSubBlock],
-) -> impl Iterator<Item = &'a mut Rc<Register>> {
-    // TODO: Do this recursively
-    regs.iter_mut().chain(
-        sub_blocks
-            .iter_mut()
-            .flat_map(|a| a.block_mut().registers.iter_mut()),
-    )
-}
-
 impl RegisterBlock {
     pub fn validate_and_dedup(mut self) -> Result<ValidatedRegisterBlock, ValidationError> {
-        self.registers.sort_by_key(|reg| reg.offset);
-        self.sub_blocks
-            .sort_by_key(|sub_array| sub_array.start_offset());
-
-        for sb in self.sub_blocks.iter_mut() {
-            // TODO: Do this recursively
-            sb.block_mut().registers.sort_by_key(|reg| reg.offset);
-        }
+        self.sort_by_offset();
 
         let mut enum_types: HashMap<String, Rc<Enum>> = HashMap::new();
         {
@@ -649,24 +630,8 @@ impl RegisterBlock {
                 }
             }
 
-            for reg in all_regs_mut(&mut self.registers, &mut self.sub_blocks) {
-                let reg = Rc::make_mut(reg);
-                let ty = Rc::make_mut(&mut reg.ty);
-                reg.array_dimensions.retain(|d| *d != 1);
-                if reg.array_dimensions.contains(&0) {
-                    return Err(ValidationError::BadArrayDimension {
-                        block_name: self.name,
-                        reg_name: reg.name.clone(),
-                    });
-                }
-                for field in ty.fields.iter_mut() {
-                    if let Some(ref mut e) = field.enum_type {
-                        if let Some(new_e) = new_enums.get(e) {
-                            *e = new_e.clone();
-                        }
-                    }
-                }
-            }
+            self.clean_array_dimensions_field_enums(&mut new_enums)?;
+
             for e in new_enums.into_values() {
                 let enum_name = e.name.clone().unwrap();
                 if enum_types.contains_key(&enum_name) {
@@ -748,6 +713,45 @@ impl RegisterBlock {
         })
     }
 
+    fn clean_array_dimensions_field_enums(
+        &mut self,
+        new_enums: &mut HashMap<Rc<Enum>, Rc<Enum>>,
+    ) -> Result<(), ValidationError> {
+        for reg in self.registers.iter_mut() {
+            Self::clean_array_dimensions_field_enums_one(&self.name, reg, new_enums)?;
+        }
+        for block in self.sub_blocks.iter_mut() {
+            block
+                .block_mut()
+                .clean_array_dimensions_field_enums(new_enums)?;
+        }
+        Ok(())
+    }
+
+    fn clean_array_dimensions_field_enums_one(
+        block_name: &str,
+        reg: &mut Rc<Register>,
+        new_enums: &mut HashMap<Rc<Enum>, Rc<Enum>>,
+    ) -> Result<(), ValidationError> {
+        let reg = Rc::make_mut(reg);
+        let ty = Rc::make_mut(&mut reg.ty);
+        reg.array_dimensions.retain(|d| *d != 1);
+        if reg.array_dimensions.contains(&0) {
+            return Err(ValidationError::BadArrayDimension {
+                block_name: block_name.to_owned(),
+                reg_name: reg.name.clone(),
+            });
+        }
+        for field in ty.fields.iter_mut() {
+            if let Some(ref mut e) = field.enum_type {
+                if let Some(new_e) = new_enums.get(e) {
+                    *e = new_e.clone();
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn replace_register_types(&mut self, new_types: &HashMap<Rc<RegisterType>, Rc<RegisterType>>) {
         for reg in self.registers.iter_mut() {
             if let Some(new_type) = new_types.get(&reg.ty) {
@@ -761,6 +765,16 @@ impl RegisterBlock {
         }
         for block in self.sub_blocks.iter_mut() {
             block.block_mut().replace_register_types(new_types);
+        }
+    }
+
+    fn sort_by_offset(&mut self) {
+        self.registers.sort_by_key(|reg| reg.offset);
+        self.sub_blocks
+            .sort_by_key(|sub_array| sub_array.start_offset());
+
+        for sb in self.sub_blocks.iter_mut() {
+            sb.block_mut().sort_by_offset();
         }
     }
 }

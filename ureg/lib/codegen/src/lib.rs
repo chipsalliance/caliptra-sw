@@ -89,6 +89,7 @@ fn snake_ident(name: &str) -> Ident {
         result.push(c.to_ascii_lowercase());
     }
 
+    result = result.replace("i3_c", "i3c_").replace("__", "_"); // hack for I3C
     format_ident!("{}", tweak_keywords(result.trim_end_matches('_')))
 }
 #[cfg(test)]
@@ -580,7 +581,7 @@ fn generate_block_registers(
         if registers.len() == 1 && camel_ident(&reg.name) == meta_prefix {
             reg_meta_name = camel_ident(&reg.name);
         }
-        let ty = &reg.ty.as_ref().clone();
+        let ty = reg.ty.as_ref();
         let default_val = hex_literal(reg.default_val);
         let (read_type, write_type) = read_write_types(ty, options);
         let ptr_offset = hex_literal(reg.offset);

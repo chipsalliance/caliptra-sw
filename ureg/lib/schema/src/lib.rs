@@ -406,9 +406,7 @@ fn collect_used_reg_types(block: &RegisterBlock, used_types: &mut HashSet<Rc<Reg
         used_types.insert(reg.ty.clone());
     }
     for sb in block.sub_blocks.iter() {
-        for reg in sb.block().registers.iter() {
-            used_types.insert(reg.ty.clone());
-        }
+        collect_used_reg_types(sb.block(), used_types);
     }
 }
 
