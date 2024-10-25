@@ -22,10 +22,11 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
+use caliptra_api_types::SecurityState;
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
 use std::path::PathBuf;
 use std::rc::Rc;
 use tock_registers::registers::InMemoryRegister;
@@ -275,7 +276,8 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, mask = 0x0000_7fff)] // TODO update when known
     pub ml_dsa87: MlDsa87,
 
-    #[peripheral(offset = 0x1003_8000, mask = 0x0000_7fff)] // TODO
+    // We set I3C at 0x1003_8000 and EC is at 0x100 offset
+    #[peripheral(offset = 0x1003_8100, mask = 0x0000_7fff)] // TODO
     pub recovery: RecoveryRegisterInterface,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
@@ -343,7 +345,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: MlDsa87::new(clock),
+            ml_dsa87: MlDsa87::new(clock, key_vault.clone()),
             recovery: RecoveryRegisterInterface::new(recovery_image),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),

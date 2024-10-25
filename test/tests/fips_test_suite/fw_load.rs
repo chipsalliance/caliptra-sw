@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 use crate::common;
 
+use caliptra_api::SocManager;
 use caliptra_builder::firmware::{
     APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS,
 };

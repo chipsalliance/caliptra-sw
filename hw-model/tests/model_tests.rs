@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_builder::firmware;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_hw_model_types::ErrorInjectionMode;
