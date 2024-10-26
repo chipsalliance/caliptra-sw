@@ -47,8 +47,8 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_SECURITY_STATE            | 32           | Security State of the device. Contains two fields:  <br> **LIFECYCLE_STATE**: Unprovisioned, Manufacturing or Production  <br> **DEBUG_ENABLED**: Boolean indicating if debug is enabled or not |
-| FUSE_UDS_SEED                   | 384          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
+| FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
+| FUSE_FIELD_ENTROPY              | 512          | Obfuscated Field Entropy                                |
 | FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
 | FUSE_KEY_MANIFEST_PK_HASH_MASK  | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_PQC_REVOCATION             | 32           | Manufacturer LMS or MLDSA Public Key Revocation Mask    |
@@ -168,11 +168,16 @@ The following sections define the various cryptographic primitives used by Calip
 | Deobfuscation Engine | `doe_decrypt_uds(kv_slot, iv)` | Decrypt UDS to the specified key vault slot with specified initialization vector<br>**Input**:<br> ***kv_slot*** - key vault slot to decrypt the uds to<br>***iv*** - initialization vector |
 |   | `doe_decrypt_fe(kv_slot, iv)` | Decrypt Field Entropy to the specified key vault slot with specified initialization vector <br>**Input**:<br>***kv_slot*** - key vault slot to decrypt the field entropy to<br>***iv*** - initialization vector |
 |   | `doe_clear_secrets()` | Clear UDS Fuse Register, Field Entropy Fuse Register and Obfuscation key |
-| Hashed Message Authentication Code | `hmac384_mac(key,data,mac_kv_slot)` | Calculate the mac using a caller provided key and data. The resultant mac is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the mac to |
-|   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the mac using a caller provided key and data. The resultant mac is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the mac to |
+| Hashed Message Authentication Code | `hmac384_mac(key,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
+|   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
+| | `hmac512_mac(key,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
+|   | `hmac512_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
 | Elliptic Curve Cryptography | `ecc384_keygen(seed_kv_slot, priv_kv_slot) -> pub_key` | Generate ECC384 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>***priv_kv_slot*** - key vault slot to store the private key to<br>**Output**:<br>***pub-key*** - public key associated with the private key |
 |   | `ecc384_sign(priv_kv_slot, data) -> sig` | ECC384 signing operation<br>**Input**:<br>***priv_kv_slot*** - key vault slot to use a private key from<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
 | | `ecc384_verify(pub_key, data, sig) -> CaliptraResult<Array4xN<12, 48>>` | ECC384 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***Ecc384Result*** - verify.r value on success, else an error |
+| Module-Lattice-Based Digital Signature Algorithm | `mldsa87_keygen(seed_kv_slot) -> pub_key` | Generate MLDSA87 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>**Output**:<br>***pub-key*** - public key associated with the private key |
+|   | `mldsa87_sign(seed_kv_slot, data) -> sig` | MLDSA87 signing operation<br>**Input**:<br>***seed_kv_slot*** - key vault slot to use as seed for key generation for signing<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
+| | `mldsa87_verify(pub_key, data, sig) -> MlDsa87Result` | MLDSA87 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***MlDsa87Result*** - '0xAAAAAAAA' value on success, '0x55555555' on error |
 | Secure Hash Algorithm | `sha384_digest(data) -> digest` | Calculate the digest of the data<br>**Input**:<br>***data*** - data to verify<br>**Output**:<br>***digest*** - digest of the data |
 | Key Vault | `kv_clear(kv_slot)` | Key Vault slot to clear<br>**Input**:<br>***kv_slot*** - key vault slot to clear |
 | Data Vault | `dv48_store(data, dv_slot)` | Store the 48-byte data in the specified data vault slot<br>**Input**:<br>***data*** - data to store<br>***dv_slot*** - data vault slot |
@@ -237,9 +242,17 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
+    Recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
+
+    `hmac512(key: KvSlot0, value: b"uds_recon", MAC: KvSlot10)`
+
 2. Decrypt Field Entropy to Key Vault Slot 1
 
-    `doe_decrypt_uds(KvSlot1, DOE_IV)`
+    `doe_decrypt_fe(KvSlot1, DOE_IV)`
+
+    Recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
+
+    `hmac512(key: KvSlot1, value: b"fe_recon", MAC: KvSlot11)`
 
 3. Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -253,50 +266,81 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
-| 0 | UDS (48 bytes) | | | |
-| 1 | Field Entropy (32 bytes) | | | |
+| 0 | UDS for ECDSA (48 bytes) | | | |
+| 1 | Field Entropy for ECDSA (32 bytes) | | | |
+| 10 | Conditioned UDS for MLDSA | | | |
+| 11 | Conditioned Field Entropy for MLDSA | | | |
 
 ### Initial Device ID DICE layer
 
-Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing,  ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
+Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing, ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
 
 **Pre-conditions:**
 
-- UDS is loaded in Key Vault Slot 0
+- UDS for ECDSA is in Key Vault Slot 0
+- Conditioned UDS for MLDSA is in Key Vault Slot 10
 
 **Actions:**
 
-1. Derive the CDI using ROM specified label and UDS in Slot 0 as data and store the resultant mac in KeySlot6
+1. Derive the ECDSA CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6
 
     `hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
-2. Clear the UDS in key vault
+    Use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12
+
+    `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
+
+2. Clear the UDS(s) in key vault
 
     `kv_clear(KvSlot0)`
 
-3. Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7
+    `kv_clear(KvSlot10)`
 
-    `IDevIDSeed = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
-    `IDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+3. Derive ECC Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7
+
+    `IDevIDSeedEcdsa = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+
+    `IDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
+
     `kv_clear(KvSlot3)`
 
-*(Note: Steps 4-7 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
+    Derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
 
-4. Generate the `To Be Signed` DER Blob of the IDevId CSR
+    `IDevIDSeedMldsa = hmac512_kdf(KvSlot12, b"idevid_mldsa_keygen", KvSlot10)`
 
-    `IDevIdTbs = gen_tbs(IDEVID_CSR, IDevIdPubKey)`
+    `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot10)`
 
-5. Sign the IDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
+*(Note: Steps 4-11 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
-    `IDevIdTbsDigest = sha384_digest(IDevIdTbs)`
-    `IDevIdCertSig = ecc384_sign(KvSlot7, IDevIdTbsDigest)`
+4. Generate the `To Be Signed` DER Blob of the IDevId CSR with the ECDSA public key.
+
+    `IDevIdTbsEcdsa = gen_tbs(IDEVID_CSR, IDevIdPubKeyEcdsa)`
+
+5. Sign the IDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7
+
+    `IDevIdTbsDigestEcdsa = sha384_digest(IDevIdTbsEcdsa)`
+
+    `IDevIdCertSigEcdsa = ecc384_sign(KvSlot7, IDevIdTbsDigestEcdsa)`
 
 6. Verify the signature of IDevID `To Be Signed` Blob
 
-    `IDevIdTbsDigest = sha384_digest(IDevIdTbs)`
-    `Result = ecc384_verify(IDevIdPubKey, IDevIdTbsDigest, IDevIdCertSig)`
+    `Result = ecc384_verify(IDevIdPubKeyEcdsa, IDevIdTbsDigestEcdsa, IDevIdCertSigEcdsa)`
 
-7. Upload the CSR to mailbox and wait for JTAG to read the CSR out of the mailbox.
+7. Generate the `To Be Signed` DER Blob of the IDevId CSR with the MLDSA public key.
+
+    `IDevIdTbsMldsa = gen_tbs(IDEVID_CSR, IDevIdPubKeyMldsa)`
+
+8. Sign the IDevID `To Be Signed` DER Blob with IDevId MLDSA Private Key generated from the seed in Key Vault Slot 10.
+
+    `IDevIdTbsDigestMldsa = sha512_digest(IDevIdTbsMldsa)`
+
+    `IDevIdCertSigMldsa = mldsa87_sign(KvSlot10, IDevIdTbsDigestMldsa)`
+
+10. Verify the signature of IDevID `To Be Signed` Blob
+
+    `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
+
+11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox.
 
 **Post-conditions:**
 
@@ -305,8 +349,11 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
 | 1 |Field Entropy (32 bytes) | | | |
-| 6 |IDevID CDI (48 bytes) | | | |
-| 7 |IDevID Private Key (48 bytes) | | | |
+| 6 |IDevID CDI - ECDSA (48 bytes) | | | |
+| 7 |IDevID ECDSA Private Key (48 bytes) | | | |
+| 10 |IDevID MLDSA Key Seed (32 bytes) | | | |
+| 11 | Conditioned Field Entropy for MLDSA | | | |
+| 12 |IDevID CDI - MLDSA (64 bytes) | | | |
 
 ### Local Device ID DICE layer
 
@@ -315,72 +362,104 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 **Pre-conditions:**
 
 - Field Entropy is loaded in Key Vault Slot 1
-- IDevID CDI is stored in Key Vault Slot 6
+- IDevID CDI - ECDSA is stored in Key Vault Slot 6
 - IDevID Private Key is stored in Key Vault Slot 7
+- IDevID MLDSA Key Seed is stored in Key Vault Slot 10
+- Conditioned Field Entropy for MLDSA is stored in Key Vault Slot 11
+- IDevID CDI - MLDSA is stored in Key Vault Slot 12
 
 **Actions:**
 
-1. Derive the CDI using IDevID CDI in Key Vault Slot6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant mac is stored back in Slot 6
+1. Derive the ECDSA CDI using IDevID CDI - ECDSA in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant MAC is stored back in  Key Vault Slot 6
 
     `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
+
     `hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
+
+    Derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12
+
+    `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
+
+    `hmac512_mac(KvSlot12, KvSlot11, KvSlot12)`
 
 *(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
-2. Clear the Field Entropy in Key Vault Slot 1
+2. Clear the Field Entropy in Key Vault Slot 1 and 11
 
     `kv_clear(KvSlot1)`
 
-3. Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot5.
+    `kv_clear(KvSlot11)`
+
+3. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
     `LDevIDSeed = hmac384_kdf(KvSlot6, b"ldevid_keygen", KvSlot3)`
-    `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
+
+    `LDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot5)`
+
     `kv_clear(KvSlot3)`
 
-4. Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 2 and Slot 3
+4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
 
-    `dv48_store(LDevIdPubKey.X, Dv48Slot2)`
-    `dv48_lock_wr(Dv48Slot2)`
-    `dv48_store(LDevIdPubKey.Y, Dv48Slot3)`
-    `dv48_lock_wr(Dv48Slot3)`
+    `LDevIDSeed = hmac512_kdf(KvSlot12, b"ldevid_mldsa_keygen", KvSlot13)`
 
-5. Generate the `To Be Signed` DER Blob of the LDevId Certificate
+    `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot13)`
 
-    `LDevIdTbs = gen_cert_tbs(LDEVID_CERT, IDevIdPubKey, LDevIdPubKey)`
+5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM
 
-6. Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
+    `[TBD]`
 
-    `LDevIdTbsDigest = sha384_digest(LDevIdTbs)`
-    `LDevIdCertSig = ecc384_sign(KvSlot7, LDevIdTbsDigest)`
+5. Generate the `To Be Signed` DER Blob of the ECDSA LDevId Certificate
 
-7. Clear the IDevId Private Key in Key Vault Slot 7
+    `LDevIdTbsEcdsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyEcdsa, LDevIdPubKeyEcdsa)`
+
+6. Sign the LDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7
+
+    `LDevIdTbsDigestEcdsa = sha384_digest(LDevIdTbsEcdsa)`
+
+    `LDevIdCertSigEcdsa = ecc384_sign(KvSlot7, LDevIdTbsDigestEcdsa)`
+
+7. Clear the IDevId ECDSA Private Key in Key Vault Slot 7
 
     `kv_clear(KvSlot7)`
 
 8. Verify the signature of LDevID `To Be Signed` Blob
 
-    `LDevIdTbsDigest = sha384_digest(LDevIdTbs)`
-    `Result = ecc384_verify(LDevIdPubKey, LDevIdTbsDigest, LDevIdCertSig)`
+    `Result = ecc384_verify(IDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
 
-9. Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 0 & Slot 1
+9. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate
 
-    `dv48_store(LDevIdCertSig.R, Dv48Slot0)`
-    `dv48_lock_wr(Dv48Slot0)`
-    `dv48_store(LDevIdCertSig.S, Dv48Slot1)`
-    `dv48_lock_wr(Dv48Slot1)`
+    `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
+
+10. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 10
+
+    `LDevIdTbsDigestMldsa = sha512_digest(LDevIdTbsMldsa)`
+
+    `LDevIdCertSigMldsa = mldsa87_sign(KvSlot10, LDevIdTbsDigestMldsa)`
+
+11. Clear the IDevId Mldsa seed in Key Vault Slot 10
+
+    `kv_clear(KvSlot10)`
+
+12. Verify the signature of LDevID `To Be Signed` Blob
+
+    `Result = mldsa87_verify(IDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
+
+9. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in DCCM
+
+    `[TBD]`
 
 **Post-conditions:**
 
 - Vault state as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Cert Signature R | |
-| 1 | | | 🔒LDevID Cert Signature S | |
-| 2 | | | 🔒LDevID Pub Key X | |
-| 3 | | | 🔒LDevID Pub Key Y | |
-| 5 | LDevID Private Key (48 bytes) | | | |
-| 6 | LDevID CDI (48 bytes) | | | |
+| Slot | Key Vault | PCR Bank | DCCM |
+|------|-----------|----------|------|
+| X | | | 🔒LDevID Cert Signature |
+| X | | | 🔒LDevID Pub Key |
+| 5 | LDevID Private Key - ECDSA (48 bytes) | | |
+| 6 | LDevID CDI - ECDSA (48 bytes) | | |
+| 12 | LDevID CDI - MLDSA (48 bytes) | | |
+| 13 | LDevID Key Pair Seed - MLDSA (48 bytes) | | |
 
 ### Handling commands from mailbox
 
@@ -418,8 +497,10 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Pre-conditions:**
 
-- LDevID CDI is stored in Key Vault Slot 6
-- LDevID Private Key is stored in Key Vault Slot 5
+- LDevID CDI - ECDSA is stored in Key Vault Slot 6
+- LDevID ECDSA Private Key is stored in Key Vault Slot 5
+- LDevID CDI - MLDSA is stored in Key Vault Slot 12
+- LDevID Key Pair Seed is stored in Key Vault Slot 13
 - Firmware Image Bundle is successfully loaded and verified from the Mailbox
 - ROM has following information from Firmware Image Bundle
 - FMC_DIGEST - Digest of the FMC
@@ -450,69 +531,99 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     pcr_lock_clear(Pcr0 && Pcr1)
     ```
 
-2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6.
+2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI - ECDSA in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
 
     `Pcr0Measurement = pcr_read(Pcr0)`
-    `hmac384_kdf(KvSlot6, b"fmc_alias_cdi", Pcr0Measurement, KvSlot6)`
 
-3. Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
+    `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
 
-    `AliasFmcSeed = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
-    `AliasFmcPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+    LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
+
+    `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
+
+3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
+
+    `AliasFmcSeedEcdsa = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
+
+    `AliasFmcPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
+
     `kv_clear(KvSlot3)`
 
-4. Store and lock (for write) the FMC Public Key in Data Vault (48 bytes) Slot 6 & Slot 7
+    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
 
-    `dv48_store(FmcPubKey.X, Dv48Slot6)`
-    `dv48_lock_wr(Dv48Slot6)`
-    `dv48_store(FmcPubKey.Y, Dv48Slot7)`
-    `dv48_lock_wr(Dv48Slot7)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_mldsa_keygen", KvSlot14)`
 
-5. Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
+    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
 
-    `AliasFmcTbs = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKey, AliasFmcPubKey)`
 
-6. Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
+4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM
 
-    `AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
-    `AliasFmcTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)`
+    `[TBD]`
+
+5. Generate the `To Be Signed` DER Blob of the ECDSA Alias FMC Certificate
+
+    `AliasFmcTbsEcdsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyEcdsa, AliasFmcPubKeyEcdsa)`
+
+6. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5
+
+    `AliasFmcTbsDigestEcdsa = sha384_digest(AliasFmcTbsEcdsa)`
+
+    `AliasFmcTbsCertSigEcdsa = ecc384_sign(KvSlot5, AliasFmcTbsDigestEcdsa)`
 
 7. Clear the LDevId Private Key in Key Vault Slot 5
 
     `kv_clear(KvSlot5)`
 
-8. Verify the signature of Alias FMC `To Be Signed` Blob
+8. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob
 
-    `AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
-    `Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
+    `Result = ecc384_verify(LDevIdPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
 
-9. Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 4 and Slot 5
+9. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate
 
-    `dv48_store(FmcTbsCertSig.R, Dv48Slot4)`
-    `dv48_lock_wr(Dv48Slot4)`
+    `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
 
-    `dv48_store(FmcTbsCertSig.S, Dv48Slot5)`
-    `dv48_lock_wr(Dv48Slot5)`
+10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 13
 
-10. Lock critical state needed for warm and update reset in Data Vault
+    `AliasFmcTbsDigestMldsa = sha512_digest(AliasFmcTbsMldsa)`
+
+    `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot13, AliasFmcTbsDigestMldsa)`
+
+11. Clear the seed in Key Vault Slot 13 
+
+    `kv_clear(KvSlot13)`
+
+12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob
+
+    `Result = mldsa87_verify(LDevIdPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
+
+13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM
+
+    `[TBD]`
+
+14. Lock critical state needed for warm and update reset in the DCCM [TBD]
 
     `dv48_store(FMC_DIGEST, Dv48Slot8)`
+
     `dv48_lock_wr(Dv48Slot8)`
 
     `dv4_store(FMC_SVN, Dv4Slot0)`
+
     `dv4_lock_wr(Dv4Slot0)`
 
     `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
+
     `dv48_lock_wr(Dv48Slot9)`
 
     `dv4_store(MANUFACTURER_ECC_PK_INDEX, Dv4Slot3)`
+
     `dv4_lock_wr(Dv4Slot3)`
 
     `dv4_store(MANUFACTURER_LMS_PK_INDEX, Dv4Slot4)`
+
     `dv4_lock_wr(Dv4Slot4)`
-    **Note**: If LMS validation is not enabled, a value of 0xFFFFFFFF is stored.
 
     `dv4_store(ROM_COLD_BOOT_STATUS, Dv4Slot1)`
+
     `dv4_lock_wr(Dv4Slot1)`
     **Note**: A value of 0x140 is stored on a successful cold boot.
 
@@ -528,10 +639,12 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 | 3    |                                  | 🔒LDevID Pub Key Y           | 🔒Manufacturer ECC Public Key Index |
 | 4    |                                  | 🔒Alias FMC Cert Signature R | 🔒Manufacturer LMS Public Key Index |
 | 5    |                                  | 🔒Alias FMC Cert Signature S | |
-| 6    | Alias FMC CDI (48 bytes)         | 🔒Alias FMC Pub Key X        | |
-| 7    | Alias FMC Private Key (48 bytes) | 🔒Alias FMC Pub Key Y        | |
+| 6    | Alias FMC CDI - ECDSA (48 bytes) | 🔒Alias FMC Pub Key X        | |
+| 7    | Alias FMC Private Key - ECDSA (48 bytes) | 🔒Alias FMC Pub Key Y        | |
 | 8    |                                  | 🔒FMC Digest                 | |
 | 9    |                                  | 🔒Owner PK Hash              | |
+| 12   | Alias FMC CDI - MLDSA            | | |
+| 14   | Alias FMC Key Pair Seed - MLDSA | | |
 
 ## Warm reset flow
 
