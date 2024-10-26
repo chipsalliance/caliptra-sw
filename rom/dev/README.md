@@ -222,7 +222,6 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 - Keys Slot 0 - 31 are empty and Usage Bits are all cleared
 - PCR 0 - 31 are all cleared
 - Data Vault is all cleared
-- Dice mode is set to either “ECDSA-P-384 & ML-DSA-87” (aka Dual-Cert Mode) or “ECDSA-P-384 only” in the CPTRA_DICE_MODE register.
 
 **Actions:**
 
@@ -230,7 +229,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
-    If Dual-Cert Mode is enabled, recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
+    Recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
 
     `hmac512(key: KvSlot0, value: b"uds_recon", MAC: KvSlot10)`
 
@@ -238,7 +237,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     `doe_decrypt_fe(KvSlot1, DOE_IV)`
 
-    If Dual-Cert Mode is enabled, recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
+    Recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
 
     `hmac512(key: KvSlot1, value: b"fe_recon", MAC: KvSlot11)`
 
@@ -266,7 +265,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 **Pre-conditions:**
 
 - UDS for ECDSA is in Key Vault Slot 0
-- If Dual-Cert Mode is enabled, conditioned UDS for MLDSA is in Key Vault Slot 10
+- Conditioned UDS for MLDSA is in Key Vault Slot 10
 
 **Actions:**
 
@@ -274,15 +273,13 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
-    If Dual-Cert Mode is enabled, use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12
+    Use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12
 
     `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
 
 2. Clear the UDS(s) in key vault
 
     `kv_clear(KvSlot0)`
-
-    If Dual-Cert Mode is enabled:
 
     `kv_clear(KvSlot10)`
 
@@ -294,7 +291,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `kv_clear(KvSlot3)`
 
-    If Dual-Cert Mode is enabled, derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
+    Derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
 
     `IDevIDSeedMldsa = hmac512_kdf(KvSlot12, b"idevid_mldsa_keygen", KvSlot10)`
 
@@ -315,8 +312,6 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 6. Verify the signature of IDevID `To Be Signed` Blob
 
     `Result = ecc384_verify(IDevIdPubKeyEcdsa, IDevIdTbsDigestEcdsa, IDevIdCertSigEcdsa)`
-
-*(Note: Steps 7-10 are performed if Dual-Cert Mode is enabled)*
 
 7. Generate the `To Be Signed` DER Blob of the IDevId CSR with the MLDSA public key.
 
@@ -368,7 +363,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
 
-    If Dual-Cert Mode is enabled, derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12
+    Derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12
 
     `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
 
@@ -380,8 +375,6 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `kv_clear(KvSlot1)`
 
-    If Dual-Cert Mode is enabled:
-
     `kv_clear(KvSlot11)`
 
 3. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
@@ -392,13 +385,13 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `kv_clear(KvSlot3)`
 
-4. If Dual-Cert Mode is enabled, derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
+4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
 
     `LDevIDSeed = hmac512_kdf(KvSlot12, b"ldevid_mldsa_keygen", KvSlot13)`
 
     `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot13)`
 
-5. Store and lock (for write) the LDevID ECDSA and MLDSA (if Dual-Cert Mode is enabled) Public Keys in the DCCM
+5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM
 
     `[TBD]`
 
@@ -420,8 +413,6 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `Result = ecc384_verify(IDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
 
-*(Note: Steps 9-12 are performed if Dual-Cert Mode is enabled)*
-
 9. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate
 
     `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
@@ -440,7 +431,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
 
-9. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA (if Dual-Cert Mode is enabled) Signatures in DCCM
+9. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in DCCM
 
     `[TBD]`
 
@@ -533,7 +524,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
 
-    If Dual-Cert Mode is enabled, LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
+    LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
 
     `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
 
@@ -545,14 +536,14 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `kv_clear(KvSlot3)`
 
-    If Dual-Cert Mode is enabled, derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
+    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
 
     `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_mldsa_keygen", KvSlot14)`
 
     `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
 
 
-4. Store and lock (for write) the FMC ECDSA and MLDSA (if Dual-Cert Mode is enabled) Public Keys in the DCCM
+4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM
 
     `[TBD]`
 
@@ -574,8 +565,6 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `Result = ecc384_verify(LDevIdPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
 
-*(Note: Steps 9-12 are performed if Dual-Cert Mode is enabled)*
-
 9. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate
 
     `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
@@ -594,7 +583,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `Result = mldsa87_verify(LDevIdPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
 
-13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA (if Dual-Cert Mode is enabled) Signatures in the DCCM
+13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM
 
     `[TBD]`
 
