@@ -44,21 +44,25 @@ following topics:
 
 Following are the main FUSE & Architectural Registers used by the Caliptra ROM for DICE Derivations:
 
+### Fuse Registers
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
-| CPTRA_SECURITY_STATE            | 32           | Security State of the device. Contains two fields:  <br> **LIFECYCLE_STATE**: Unprovisioned, Manufacturing or Production  <br> **DEBUG_ENABLED**: Boolean indicating if debug is enabled or not |
-| FUSE_UDS_SEED                   | 384          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
-| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the four ECC and thirty-two LMS Manufacturer Public Keys   |
-| FUSE_KEY_MANIFEST_PK_HASH_MASK  | 32           | Manufacturer ECC Public Key Revocation Mask             |
+| FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
+| FUSE_FIELD_ENTROPY              | 512          | Obfuscated Field Entropy                                |
+| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
+| FUSE_ECC_REVOCATION (FUSE_KEY_MANIFEST_PK_HASH_MASK)  | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
-| FUSE_LMS_VERIFY                 | 32           | LMS Verification flag: <br> **0** - Verify Caliptra firmware images with ECDSA-only  <br> **1** - Verify Caliptra firmware images with both ECDSA and LMS |
-| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS Public Key Hash                       |
+| FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
+| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
 | FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
-| CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 15:8**: FIPS test hook code  <br> **Bit 30**: Fake ROM enable in production lifecycle mode <br> **Bit 31**: Fake ROM image verify enable           |
+| MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
+
+### Architectural Registers
+Please refer to the following link for SOC interface registers:
+https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
 ## Firmware image bundle
 
@@ -84,7 +88,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 - Loads the preamble from the mailbox.
 - Calculates the hash of the four Manufacturer ECC and thirty-two LMS (if LMS verification is enabled) Public Keys in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
-- Selects the appropriate Manufacturer Public Key(s) based on fuse (FUSE_KEY_MANIFEST_PK_HASH_MASK for ECC public key, FUSE_LMS_REVOCATION for LMS public key)
+- Selects the appropriate Manufacturer Public Key(s) based on fuse (FUSE_ECC_REVOCATION for ECC public key, FUSE_LMS_REVOCATION for LMS public key)
 
 *Note: All fields are little endian unless specified*
 
@@ -569,10 +573,10 @@ The following are the pre-conditions that should be satisfied:
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
 - The FUSES programmed by the soc are
   - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer keys present in preamble.
-  - fuse_key_manifest_pk_hash_mask : This is the bitmask of the ECC keys which are revoked.
+  - fuse_ecc_revocation : This is the bitmask of the ECC keys which are revoked.
   - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
+  - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
   - fuse_owner_pk_hash : The hash of the owner public key(s) in preamble.
-  - fuse_lms_verify: This fuse indicates if verification with LMS key is enabled.
   - fuse_key_manifest_svn : Used in FMC validation to make sure that the version number is good.
   - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
 - The SOC has written the data to the mailbox.
@@ -593,11 +597,11 @@ The following are the pre-conditions that should be satisfied:
 ### Preamble validation: Manufacturing key selection
 
 - Since there are four ECC key slots in the preamble, we will need to select one key out of four.
-- fuse_key_manifest_pk_hash_mask is the mask which revokes an ECC key.
+- fuse_ecc_revocation is the mask which revokes an ECC key.
   - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled.
   - If all the bits are zeros, all the keys are enabled.
   - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.
-- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the fuse_key_manifest_pk_hash_mask fuse.
+- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the fuse_ecc_revocation fuse.
   - If the key is disabled, fail the validation.
   - If the key is enabled, select the key.
 - Repeat the above procedure for LMS keys using the fuse_lms_revocation for key revocation.
