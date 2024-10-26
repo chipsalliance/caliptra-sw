@@ -49,11 +49,10 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | CPTRA_SECURITY_STATE            | 32           | Security State of the device. Contains two fields:  <br> **LIFECYCLE_STATE**: Unprovisioned, Manufacturing or Production  <br> **DEBUG_ENABLED**: Boolean indicating if debug is enabled or not |
 | FUSE_UDS_SEED                   | 384          | Obfuscated UDS                                          |
 | FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
-| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the four ECC and thirty-two LMS Manufacturer Public Keys   |
+| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
 | FUSE_KEY_MANIFEST_PK_HASH_MASK  | 32           | Manufacturer ECC Public Key Revocation Mask             |
-| FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
-| FUSE_LMS_VERIFY                 | 32           | LMS Verification flag: <br> **0** - Verify Caliptra firmware images with ECDSA-only  <br> **1** - Verify Caliptra firmware images with both ECDSA and LMS |
-| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS Public Key Hash                       |
+| FUSE_PQC_REVOCATION             | 32           | Manufacturer LMS or MLDSA Public Key Revocation Mask    |
+| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
 | FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
@@ -69,7 +68,7 @@ The Caliptra Firmware image has two main components:
 - ### **Firmware images**
 
 The firmware manifest is a combination of preamble and a signed header. It has
-public keys, signatures and table of contents which refer to the various
+public keys, public key hashes, signatures and table of contents which refer to the various
 firmware images contained in the bundle.
 
 ![Firmware Image Bundle](doc/svg/fw-img-bundle.svg)
@@ -83,30 +82,42 @@ Firmware manifest consists of preamble, header and table of contents.
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 
 - Loads the preamble from the mailbox.
-- Calculates the hash of the four Manufacturer ECC and thirty-two LMS (if LMS verification is enabled) Public Keys in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
-- Selects the appropriate Manufacturer Public Key(s) based on fuse (FUSE_KEY_MANIFEST_PK_HASH_MASK for ECC public key, FUSE_LMS_REVOCATION for LMS public key)
+- Calculates the hash of ECC and LMS or MLDSA Public Key Descriptors in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
+- Verifies the active Manufacturer Public Key(s) based on fuse (FUSE_KEY_MANIFEST_PK_HASH_MASK for ECC public key, FUSE_PQC_REVOCATION for LMS or MLDSA public key)
 
 *Note: All fields are little endian unless specified*
+
+*Public Key Descriptor*
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
+| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
+| Key Hash Count | 1 | Number of public key hashes (n) |
+| Public Key Hash(es) | 48 * n | List of SHA2-384 public key hashes |
+
+*Preamble*
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
 | Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D414E (‘CMAN’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
-| Manufacturer ECC Public Key 1 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
-| Manufacturer ECC Public Key 2 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
-| Manufacturer ECC Public Key 3 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
-| Manufacturer ECC Public Key 4 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
-| Manufacturer LMS Public Key 1 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
-| Manufacturer LMS Public Key 2 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
-|...<Manufacturer LMS Public Key 32> | | |
-| ECC Public Key Index Hint | 4 | The hint to ROM to indicate which ECC public key it should first use.  |
-| LMS Public Key Index Hint | 4 | The hint to ROM to indicate which LMS public key it should first use.  |
-| Manufacturer ECC Signature | 96 | Manufacturer ECDSA P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Manufacturer LMS Signature | 1620 | Manufacturer LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) |
+| Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & LMS Keys <br> 0x2 – ECC & MLDSA Keys <br> **Byte1-Byte3:** Reserved |
+| Manufacturer Key Descriptor - 1 | Variable | Public Key Descriptor for ECC keys |
+| Manufacturer Key Descriptor - 2 | Variable | Public Key Descriptor for LMS or MLDSA keys |
+| Active Key Index - 1 | 4 | Public Key Hash Index for the active ECC key |
+| Active Key - 1 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
+| Active Key Index - 2 | 4 | Public Key Hash Index for the active LMS or MLDSA key |
+| Active Key - 2 | 48 or 2592 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Manufacturer ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
+| Manufacturer LMS or MLDSA Signature | 1620 or 4628 | Manufacturer LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
+| Owner Key Descriptor - 1 | Variable | Public Key Descriptor for ECC keys |
+| Owner Key Descriptor - 2 | Variable | Public Key Descriptor for LMS or MLDSA keys |
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
-| Owner LMS Public Key | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
-| Owner ECC Signature | 96 | Manufacturer ECDSA P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Owner LMS Signature | 1620 | Owner LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) |
+| Owner LMS or MLDSA Public Key | 48 or 2592 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Owner ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
+| Owner LMS or MLDSA Signature | 1620 or 4628 | Owner LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Owner MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte) |
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
@@ -117,8 +128,8 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
 | Revision | 8 | 8-byte version of the firmware image bundle |
-| Vendor ECC public key index | 4 | The hint to ROM to indicate which ECC public key it should first use. |
-| Vendor LMS public key index | 4 | The hint to ROM to indicate which LMS public key it should first use. |
+| Vendor ECC public key hash index | 4 | The hint to ROM to indicate which ECC public key hash it should use to validate the active ECC public key. |
+| Vendor LMS or MLDSA public key hash index | 4 | The hint to ROM to indicate which LMS or MLDSA public key hash it should use to validate the active public key. |
 | Flags | 4 | Feature flags. <br> **Bit0:** - Interpret the pl0_pauser field. If not set, all PAUSERs are PL1 <br>**Bit1-Bit31:** Reserved |
 | TOC Entry Count | 4 | Number of entries in TOC. |
 | PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
@@ -645,13 +656,14 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 The basic flow for validating the firmware involves the following:
 
-- Validate the manufacturing keys in the preamble
-- Validate the owner keys in the preamble
-- Select the manufacturer keys
+- Validate the manufacturing keys descriptors in the preamble.
+- Validate the active manufacturing keys with the hash in the key descriptors.
+- Validate the owner keys in the preamble.
+- Validate the active manufacturer keys against the key revocation fuses.
 - Once both the validations are complete, download the header from the mailbox.
-- Validate the Manifest Header using the selected Manufacturer keys against the manufacturer signature.
-- Validate the Manifest Header using the owner key(s) against the owner signature.
-- On the completion of the last two validations, it is assured that the header portion is authentic.
+- Validate the Manifest Header using the active manufacturer keys against the manufacturer signatures.
+- Validate the Manifest Header using the owner keys against the owner signatures.
+- On the completion of these validations, it is assured that the header portion is authentic.
 - Load both the TOC entries from the mailbox.
 - Validate the downloaded TOC data against the TOC hash in the header.
 - This marks the TOC data as valid. The next step is to use the TOC Hash to validate image sections.
@@ -674,11 +686,10 @@ The following are the pre-conditions that should be satisfied:
 
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
 - The FUSES programmed by the soc are
-  - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer keys present in preamble.
+  - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer key descriptors present in preamble.
   - fuse_key_manifest_pk_hash_mask : This is the bitmask of the ECC keys which are revoked.
-  - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
-  - fuse_owner_pk_hash : The hash of the owner public key(s) in preamble.
-  - fuse_lms_verify: This fuse indicates if verification with LMS key is enabled.
+  - fuse_pqc_revocation : This is the bitmask of the LMS or MLDSA keys which are revoked.
+  - fuse_owner_pk_hash : The hash of the owner public keys in preamble.
   - fuse_key_manifest_svn : Used in FMC validation to make sure that the version number is good.
   - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
 - The SOC has written the data to the mailbox.
@@ -690,28 +701,27 @@ The following are the pre-conditions that should be satisfied:
 ## Preamble validation: Validate the manufacturing keys
 
 - Load the preamble bytes from the mailbox.
-- There are four ECC and thirty-two LMS manufacturing keys in the preamble.
-- fuse_key_manifest_pk_hash is the fuse that contains the hash of all the ECC and LMS manufacturing keys.
-- To validate the key region, take the hash of all the ECC and LMS keys and compare it against the hash in fuse.
+- There is an ECC key descriptor and either LMS or MLDSA key descriptor in the preamble. The ECC descriptor contains up to four ECC public key hashes. The LMS key descriptor contains up to 32 public key hashes. The MLDSA key descriptor contains up to four MLDSA public key hashes.
+- There is an ECC key and either LMS or MLDSA manufacturing key in the preamble. These are the active public keys.
+- fuse_key_manifest_pk_hash is the fuse that contains the hash of the ECC and LMS or MLDSA manufacturing key descriptors.
+- To validate the key region, take the hash of the ECC and LMS or MLDSA keys descriptors and compare it against the hash in fuse.
 - If the hash does not match, fail the image validation.
-- If the hash matches, all the ECC and LMS keys are validated.
+- If the hash matches, the ECC and LMS or MLDSA key descriptors are validated.
+- Validate the active public keys against one of the hashes in the key descriptors as indicated by the active key indices.
 
-### Preamble validation: Manufacturing key selection
+### Preamble validation: Manufacturing key validation
 
-- Since there are four ECC key slots in the preamble, we will need to select one key out of four.
 - fuse_key_manifest_pk_hash_mask is the mask which revokes an ECC key.
   - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled.
   - If all the bits are zeros, all the keys are enabled.
   - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.
-- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the fuse_key_manifest_pk_hash_mask fuse.
+- Validate that the 'Active Key Index' in the preamble is not disabled in the fuse_key_manifest_pk_hash_mask fuse.
   - If the key is disabled, fail the validation.
-  - If the key is enabled, select the key.
-- Repeat the above procedure for LMS keys using the fuse_lms_revocation for key revocation.
-- At this time, we have validated all the four ECC and thirty-two LMS keys and selected the ECC and LMS key that will be used for validation of the header against the manufacturer header signature field.
+- Repeat the above procedure for LMS or MLDSA keys using the fuse_pqc_revocation for key revocation.
 
 ### Preamble validation: Validate the owner key
 
-- There is one slot each for the owner ECC and LMS keys in the image preamble.
+- There is one slot each for the owner ECC and LMS or MLDSA keys in the image preamble.
 - fuse_owner_pk_hash contains the hash of the owner public keys.
 - The validation of owner public keys is done by hashing the owner public keys from the preamble and comparing the hash against the value in the fuse_owner_pk_hash.
 - If the hash matches, the owner public keys are valid.
@@ -728,8 +738,8 @@ The following are the pre-conditions that should be satisfied:
 - First signature is generated using one of the manufacturing keys.
 - Second signature is generated using the owner public key.
 - To validate the header, hash and then verify that the ECC manufacturer signature in the preamble is for the hash.
-- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. Repeat the same procedure with LMS manufacturer key if LMS verification is enabled.
-- The hash is already generated. Verify the signature for the above hash using the ECC owner public key. Repeat the same procedure with LMS owner key if LMS verification is enabled.
+- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. Repeat the same procedure with LMS or MLDSA manufacturer key.
+- The hash is already generated. Verify the signature for the above hash using the ECC owner public key. Repeat the same procedure with LMS or MLDSA owner key.
 
 ## Header validation steps
 
