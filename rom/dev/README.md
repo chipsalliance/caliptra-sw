@@ -601,22 +601,27 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 14. Lock critical state needed for warm and update reset in the DCCM [TBD]
 
     `dv48_store(FMC_DIGEST, Dv48Slot8)`
+
     `dv48_lock_wr(Dv48Slot8)`
 
     `dv4_store(FMC_SVN, Dv4Slot0)`
+
     `dv4_lock_wr(Dv4Slot0)`
 
     `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
+
     `dv48_lock_wr(Dv48Slot9)`
 
     `dv4_store(MANUFACTURER_ECC_PK_INDEX, Dv4Slot3)`
+
     `dv4_lock_wr(Dv4Slot3)`
 
     `dv4_store(MANUFACTURER_LMS_PK_INDEX, Dv4Slot4)`
+
     `dv4_lock_wr(Dv4Slot4)`
-    **Note**: If LMS validation is not enabled, a value of 0xFFFFFFFF is stored.
 
     `dv4_store(ROM_COLD_BOOT_STATUS, Dv4Slot1)`
+    
     `dv4_lock_wr(Dv4Slot1)`
     **Note**: A value of 0x140 is stored on a successful cold boot.
 
