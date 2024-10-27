@@ -452,6 +452,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E004D);
     pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
         CaliptraError::new_const(0x000E004E);
+    pub const RUNTIME_CMD_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x000E004F);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -507,6 +508,7 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
     pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
         CaliptraError::new_const(0x01020008);
+    pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
     pub const FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE: CaliptraError =
         CaliptraError::new_const(0x01020009);
 

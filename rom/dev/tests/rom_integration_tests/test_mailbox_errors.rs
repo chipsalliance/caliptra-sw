@@ -151,3 +151,27 @@ fn test_mailbox_invalid_req_size_zero() {
         ))
     );
 }
+
+#[test]
+// Changing PAUSER not supported on sw emulator
+#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+fn test_mailbox_reserved_pauser() {
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Set pauser to the reserved value
+    hw.set_axi_id(0xffffffff);
+
+    // Send anything
+    assert_eq!(
+        hw.mailbox_execute(0x0, &[]),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER.into()
+        ))
+    );
+
+    hw.step_until_fatal_error(
+        CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER.into(),
+        MAX_WAIT_CYCLES,
+    );
+}

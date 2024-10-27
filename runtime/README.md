@@ -327,12 +327,13 @@ Command Code: `0x4C4D_5356` ("LMSV")
 
 ### STASH\_MEASUREMENT
 
-Makes a measurement into the DPE default context. This command is intendend for
+Makes a measurement into the DPE default context. This command is intended for
 callers who update infrequently and cannot tolerate a changing DPE API surface.
 
 * Call the DPE DeriveContext command with the DefaultContext in the locality of
   the PL0 PAUSER.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
+* **Note**: This command can only be called in the locality of the PL0 PAUSER. 
 
 Command Code: `0x4D45_4153` ("MEAS")
 

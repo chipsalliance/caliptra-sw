@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_api_types::{DeviceLifecycle, SecurityState};
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
@@ -20,7 +21,6 @@ use caliptra_emu_periph::{
     TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
-use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;

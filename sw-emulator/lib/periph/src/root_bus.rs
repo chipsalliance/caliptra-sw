@@ -22,10 +22,11 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
+use caliptra_api_types::SecurityState;
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
 
@@ -340,7 +341,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: MlDsa87::new(clock),
+            ml_dsa87: MlDsa87::new(clock, key_vault.clone()),
             recovery: RecoveryRegisterInterface::new(),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),

@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use std::error::Error;
 use std::iter;
 

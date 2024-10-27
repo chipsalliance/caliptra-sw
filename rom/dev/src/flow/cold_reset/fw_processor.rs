@@ -43,6 +43,8 @@ use core::mem::{size_of, ManuallyDrop};
 use zerocopy::{AsBytes, LayoutVerified};
 use zeroize::Zeroize;
 
+const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+
 // [TODO] Read this from HW.
 const ACTIVE_MODE: bool = true;
 // [TODO] Read this from HW.
@@ -210,6 +212,12 @@ impl FirmwareProcessor {
 
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
+
+                // Drop all commands for invalid PAUSER
+                if txn.id() == RESERVED_PAUSER {
+                    return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
+                }
+
                 cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
 
                 // Handle FW load as a separate case due to the re-borrow explained below

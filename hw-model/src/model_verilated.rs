@@ -3,9 +3,9 @@
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
 use crate::EtrngResponse;
-use crate::ModelError;
-use crate::{HwModel, TrngMode};
+use crate::{HwModel, SocManager, TrngMode};
 use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::BusMmio;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
@@ -112,8 +112,26 @@ fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
         AhbTxnType::ReadU64 | AhbTxnType::WriteU64 => RvSize::Word,
     }
 }
+impl SocManager for ModelVerilated {
+    type TMmio<'a> = BusMmio<VerilatedAxiBus<'a>>;
 
-impl crate::HwModel for ModelVerilated {
+    fn mmio_mut(&mut self) -> Self::TMmio<'_> {
+        BusMmio::new(self.axi_bus())
+    }
+
+    fn delay(&mut self) {
+        self.step();
+    }
+
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
+    const SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+
+    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+}
+
+impl HwModel for ModelVerilated {
     type TBus<'a> = VerilatedAxiBus<'a>;
 
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>

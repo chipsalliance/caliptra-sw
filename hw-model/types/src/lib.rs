@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api_types::{self, Fuses, SecurityState};
 use std::array;
 
+pub use caliptra_api_types::DeviceLifecycle;
 use rand::{
     rngs::{StdRng, ThreadRng},
     RngCore, SeedableRng,
@@ -25,77 +27,15 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
 
-// Based on device_lifecycle_e from RTL
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub enum DeviceLifecycle {
-    #[default]
-    Unprovisioned = 0b00,
-    Manufacturing = 0b01,
-    Reserved2 = 0b10,
-    Production = 0b11,
-}
-impl TryFrom<u32> for DeviceLifecycle {
-    type Error = ();
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            0b00 => Ok(Self::Unprovisioned),
-            0b01 => Ok(Self::Manufacturing),
-            0b10 => Ok(Self::Reserved2),
-            0b11 => Ok(Self::Production),
-            _ => Err(()),
-        }
-    }
-}
-impl From<DeviceLifecycle> for u32 {
-    fn from(value: DeviceLifecycle) -> Self {
-        value as u32
-    }
-}
-
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
-pub struct SecurityState(u32);
-impl From<u32> for SecurityState {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-impl From<SecurityState> for u32 {
-    fn from(value: SecurityState) -> Self {
-        value.0
-    }
-}
-
-impl SecurityState {
-    pub fn debug_locked(self) -> bool {
-        (self.0 & (1 << 2)) != 0
-    }
-    pub fn set_debug_locked(&mut self, val: bool) -> &mut Self {
-        let mask = 1 << 2;
-        if val {
-            self.0 |= mask;
-        } else {
-            self.0 &= !mask
-        };
-        self
-    }
-    pub fn device_lifecycle(self) -> DeviceLifecycle {
-        DeviceLifecycle::try_from(self.0 & 0x3).unwrap()
-    }
-    pub fn set_device_lifecycle(&mut self, val: DeviceLifecycle) -> &mut Self {
-        self.0 |= (val as u32) & 0x3;
-        self
-    }
-}
-impl std::fmt::Debug for SecurityState {
+struct SecurityStateWrapper(SecurityState);
+impl std::fmt::Debug for SecurityStateWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SecurityState")
-            .field("debug_locked", &self.debug_locked())
-            .field("device_lifecycle", &self.device_lifecycle())
+            .field("debug_locked", &self.0.debug_locked())
+            .field("device_lifecycle", &self.0.device_lifecycle())
             .finish()
     }
 }
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum U4 {
     #[default]
@@ -166,63 +106,33 @@ impl TryFrom<u32> for U4 {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Fuses {
-    pub uds_seed: [u32; 12],
-    pub field_entropy: [u32; 8],
-    pub key_manifest_pk_hash: [u32; 12],
-    pub key_manifest_pk_hash_mask: U4,
-    pub owner_pk_hash: [u32; 12],
-    pub fmc_key_manifest_svn: u32,
-    pub runtime_svn: [u32; 4],
-    pub anti_rollback_disable: bool,
-    pub idevid_cert_attr: [u32; 24],
-    pub idevid_manuf_hsm_id: [u32; 4],
-    pub life_cycle: DeviceLifecycle,
-    pub lms_verify: bool,
-    pub fuse_lms_revocation: u32,
-    pub soc_stepping_id: u16,
-}
-impl Default for Fuses {
-    fn default() -> Self {
-        Self {
-            uds_seed: DEFAULT_UDS_SEED,
-            field_entropy: DEFAULT_FIELD_ENTROPY,
-            key_manifest_pk_hash: Default::default(),
-            key_manifest_pk_hash_mask: Default::default(),
-            owner_pk_hash: Default::default(),
-            fmc_key_manifest_svn: Default::default(),
-            runtime_svn: Default::default(),
-            anti_rollback_disable: Default::default(),
-            idevid_cert_attr: Default::default(),
-            idevid_manuf_hsm_id: Default::default(),
-            life_cycle: Default::default(),
-            lms_verify: Default::default(),
-            fuse_lms_revocation: Default::default(),
-            soc_stepping_id: Default::default(),
-        }
-    }
-}
-impl std::fmt::Debug for Fuses {
+struct FusesWrapper(Fuses);
+impl std::fmt::Debug for FusesWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Fuses")
-            .field("uds_seed", &HexSlice(&self.uds_seed))
-            .field("field_entropy", &HexSlice(&self.field_entropy))
+            .field("uds_seed", &HexSlice(&self.0.uds_seed))
+            .field("field_entropy", &HexSlice(&self.0.field_entropy))
             .field(
                 "key_manifest_pk_hash",
-                &HexSlice(&self.key_manifest_pk_hash),
+                &HexSlice(&self.0.key_manifest_pk_hash),
             )
-            .field("key_manifest_pk_hash_mask", &self.key_manifest_pk_hash_mask)
-            .field("owner_pk_hash", &HexSlice(&self.owner_pk_hash))
-            .field("fmc_key_manifest_svn", &self.fmc_key_manifest_svn)
-            .field("runtime_svn", &HexSlice(&self.runtime_svn))
-            .field("anti_rollback_disable", &self.anti_rollback_disable)
-            .field("idevid_cert_attr", &HexSlice(&self.idevid_cert_attr))
-            .field("idevid_manuf_hsm_id", &HexSlice(&self.idevid_manuf_hsm_id))
-            .field("life_cycle", &self.life_cycle)
-            .field("lms_verify", &self.lms_verify)
-            .field("fuse_lms_revocation", &self.fuse_lms_revocation)
-            .field("soc_stepping_id", &self.soc_stepping_id)
+            .field(
+                "key_manifest_pk_hash_mask",
+                &self.0.key_manifest_pk_hash_mask,
+            )
+            .field("owner_pk_hash", &HexSlice(&self.0.owner_pk_hash))
+            .field("fmc_key_manifest_svn", &self.0.fmc_key_manifest_svn)
+            .field("runtime_svn", &HexSlice(&self.0.runtime_svn))
+            .field("anti_rollback_disable", &self.0.anti_rollback_disable)
+            .field("idevid_cert_attr", &HexSlice(&self.0.idevid_cert_attr))
+            .field(
+                "idevid_manuf_hsm_id",
+                &HexSlice(&self.0.idevid_manuf_hsm_id),
+            )
+            .field("life_cycle", &self.0.life_cycle)
+            .field("lms_verify", &self.0.lms_verify)
+            .field("fuse_lms_revocation", &self.0.fuse_lms_revocation)
+            .field("soc_stepping_id", &self.0.soc_stepping_id)
             .finish()
     }
 }
@@ -309,18 +219,6 @@ pub enum ErrorInjectionMode {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_security_state() {
-        let mut ss = *SecurityState::default()
-            .set_debug_locked(true)
-            .set_device_lifecycle(DeviceLifecycle::Manufacturing);
-        assert_eq!(0x5u32, ss.into());
-        assert!(ss.debug_locked());
-        assert_eq!(ss.device_lifecycle(), DeviceLifecycle::Manufacturing);
-        ss.set_debug_locked(false);
-        assert_eq!(0x1u32, ss.into());
-    }
 
     #[test]
     fn test_hex_bytes() {

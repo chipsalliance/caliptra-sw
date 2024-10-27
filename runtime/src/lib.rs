@@ -39,7 +39,7 @@ pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
-pub use drivers::Drivers;
+pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
@@ -113,6 +113,8 @@ pub const PL0_PAUSER_FLAG: u32 = 1;
 pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
+const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+
 pub struct CptraDpeTypes;
 
 impl DpeTypes for CptraDpeTypes {
@@ -150,6 +152,11 @@ fn enter_idle(drivers: &mut Drivers) {
 ///
 /// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+    // Drop all commands for invalid PAUSER
+    if drivers.mbox.id() == RESERVED_PAUSER {
+        return Err(CaliptraError::RUNTIME_CMD_RESERVED_PAUSER);
+    }
+
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
         cfi_assert_eq(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
