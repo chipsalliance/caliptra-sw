@@ -853,3 +853,11 @@ Fake ROM reduces boot time by doing the following:
 - The image builder exposes the argument "fake" that can be used to generate the fake versions
 
 To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
+
+## Provisioning UDS during Manufacturing
+UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mode.
+
+1. When the SOC is in manufacturing mode (value 'DEVICE_MANUFACTURING' or 0x1 in the CPTRA_SECURITY_STATE register 'DEVICE_LIFECYCLE' bits), and the UDS_PROGRAM_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set, the ROM will execute the UDS seed programming flow on power-up.
+2. In this flow, the ROM reads a 512-bit value from the iTRNG and writes it to the address specified by the UDS_SEED_OFFSET register, utilizing the DMA hardware assist.
+3. Based on the outcome of the DMA operation, the ROM sets the UDS_PROGRAM_REQ bit in the CPTRA_DBG_MANUF_SERVICE_RSP_REG register to either UDS_PROGRAM_SUCCESS or UDS_PROGRAM_FAIL, indicating the completion of the flow.
+4. The manufacturing process polls/reads this bit and proceeds with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
