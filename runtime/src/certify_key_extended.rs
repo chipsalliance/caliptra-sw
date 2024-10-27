@@ -28,7 +28,8 @@ use dpe::{
 use zerocopy::{AsBytes, FromBytes};
 
 use crate::{
-    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG,
+    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, MAX_CERT_CHAIN_SIZE,
+    PL0_PAUSER_FLAG,
 };
 
 pub struct CertifyKeyExtendedCmd;
@@ -36,6 +37,15 @@ impl CertifyKeyExtendedCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = CertifyKeyExtendedReq::read_from(cmd_args)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        match drivers.caller_privilege_level() {
+            // CERTIFY_KEY_EXTENDED MUST only be called from PL0
+            PauserPrivileges::PL0 => (),
+            PauserPrivileges::PL1 => {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
+        }
+
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
@@ -73,15 +83,10 @@ impl CertifyKeyExtendedCmd {
             ),
         };
 
-        let locality = drivers.mbox.id();
-        // Cannot call CERTIFY_KEY_EXTENDED from PL1
-        if Drivers::is_caller_pl1(pl0_pauser, pdata.manifest1.header.flags, locality) {
-            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-        }
-
         let mut dpe = &mut pdata.dpe;
         let certify_key_cmd = CertifyKeyCmd::read_from(&cmd.certify_key_req[..])
             .ok_or(CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+        let locality = drivers.mbox.id();
         let resp = certify_key_cmd.execute(dpe, &mut env, locality);
 
         let certify_key_resp = match resp {

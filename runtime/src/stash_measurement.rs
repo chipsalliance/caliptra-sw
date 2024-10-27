@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
+use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
@@ -35,6 +35,18 @@ impl StashMeasurementCmd {
         let cmd = StashMeasurementReq::read_from(cmd_args)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let dpe_result = {
+            match drivers.caller_privilege_level() {
+                // Only PL0 can call STASH_MEASUREMENT
+                PauserPrivileges::PL0 => (),
+                PauserPrivileges::PL1 => {
+                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+                }
+            }
+
+            // Check that adding this measurement to DPE doesn't cause
+            // the PL0 context threshold to be exceeded.
+            drivers.is_dpe_context_threshold_exceeded()?;
+
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
             let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
@@ -62,15 +74,8 @@ impl StashMeasurementCmd {
                 ),
             };
 
-            let pl0_pauser = pdata.manifest1.header.pl0_pauser;
-            let flags = pdata.manifest1.header.flags;
             let locality = drivers.mbox.id();
-            // Check that adding this measurement to DPE doesn't cause
-            // the PL0 context threshold to be exceeded.
-            Drivers::is_dpe_context_threshold_exceeded(
-                pl0_pauser, flags, locality, &pdata.dpe, false,
-            )?;
-            // let pdata_mut = drivers.persistent_data.get_mut();
+
             let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: cmd.measurement,
@@ -78,7 +83,7 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::INPUT_ALLOW_CA
                     | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type: u32::from_be_bytes(cmd.metadata),
+                tci_type: u32::from_ne_bytes(cmd.metadata),
                 target_locality: locality,
             }
             .execute(&mut pdata.dpe, &mut env, locality);

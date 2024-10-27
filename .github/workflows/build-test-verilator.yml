@@ -99,7 +99,7 @@ jobs:
 
       # - name: Check that generated register code matches caliptra-rtl submodule
       #   run: |
-      #     cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl  hw/latest/registers/src
+      #     cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl hw/latest/i3c-core-rtl  hw/latest/registers/src
 
       # - name: Check that generated X.509 templates match default templates
       #   run: |

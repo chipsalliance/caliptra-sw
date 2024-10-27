@@ -13,6 +13,7 @@ caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
+caliptra-api-types.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-registers.workspace = true
 clap.workspace = true

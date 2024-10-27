@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp,
     CommandId, MailboxReq, MailboxReqHeader,

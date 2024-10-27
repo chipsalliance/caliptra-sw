@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
-
 #[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
 #[test]
 fn test_emu_coverage() {
     use std::path::PathBuf;
 
+    use caliptra_api::SocManager;
     use caliptra_builder::firmware;
     use caliptra_coverage::{calculator, collect_instr_pcs};
     use caliptra_emu_cpu::CoverageBitmaps;
