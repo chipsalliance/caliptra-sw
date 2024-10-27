@@ -1,6 +1,8 @@
 
 # Caliptra - ROM Specification v2.0
 
+*Spec Version: 0.5*
+
 ## Scope
 
 Caliptra is an open-source Hardware Root of Trust for Measurement (RTM). This document is the architecture specification
