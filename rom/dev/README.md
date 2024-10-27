@@ -19,8 +19,11 @@ following topics:
 
 5. Cryptographic Derivations
 
-##Spec Opens
-- Update the spec with support for MLDSA PQC algorithm for DICE derivation
+## Spec Opens
+- UDS Provisioning flow
+- CSR Envelop signing
+- Known answer tests
+- Manufacturing debug unlock
 
 ## Glossary
 
@@ -482,7 +485,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 
 ### Downloading firmware image from mailbox
 
-Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
+There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
@@ -497,7 +500,7 @@ Following is the sequence of the steps that are performed to download the parts 
 
 Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
 
-- On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set Recovery Interface (aka RI) PROT_CAP register [Byte11:Bit3] to 1 ('Flashless boot').
+- On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the Recovery Interface (aka RI) PROT_CAP register [Byte11:Bit3] to 1 ('Flashless boot').
 - Set the RI DEVICE_STATUS register Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
 - Set the RI DEVICE_STATUS register Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
 - Set the RI RECOVERY_STATUS register [Byte0:Bit[3:0]] to 0x1 ('Awaiting recovery image') and [Byte0:Bit[7:4]] to 0 (Recovery image index).
@@ -516,7 +519,9 @@ Following is the sequence of steps that are performed to download the firmware i
   - Image is downloaded into mailbox sram.
   - Loop on "image_activated" signal to wait for processing the image.
   - Set RI RECOVERY_STATUS register [Byte0:Bit[0:3]] to 0x2 "Booting recovery image".
-  - Validate the image per the [Image Validation Process](#firmware-image-validation-process). Once validated, set bit [TBD]
+  - Validate the image per the [Image Validation Process](#firmware-image-validation-process). 
+  - Once validated, set the RECOVERY_CTRL Byte2 to 0xFF.
+  - Release the mailbox lock.
 
 ### Image validation
 
