@@ -89,12 +89,12 @@ impl X509 {
 
         let digest: [u8; 20] = match env.soc_ifc.fuse_bank().idev_id_x509_key_id_algo() {
             X509KeyIdAlgo::Sha1 => {
-                cprintln!("[idev] Using Sha1 for KeyId Algorithm");
+                cprintln!("[idev] Sha1 KeyId Algorithm");
                 let digest = Crypto::sha1_digest(env, &data);
                 okref(&digest)?.into()
             }
             X509KeyIdAlgo::Sha256 => {
-                cprintln!("[idev] Using Sha256 for KeyId Algorithm");
+                cprintln!("[idev] Sha256 KeyId Algorithm");
                 let digest = Crypto::sha256_digest(env, &data);
                 let digest: [u8; 32] = okref(&digest)?.into();
                 digest[..20]
@@ -102,7 +102,7 @@ impl X509 {
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             }
             X509KeyIdAlgo::Sha384 => {
-                cprintln!("[idev] Using Sha384 for KeyId Algorithm");
+                cprintln!("[idev] Sha384 KeyId Algorithm");
                 let digest = Crypto::sha384_digest(env, &data);
                 let digest: [u8; 48] = okref(&digest)?.into();
                 digest[..20]
@@ -110,7 +110,7 @@ impl X509 {
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             }
             X509KeyIdAlgo::Fuse => {
-                cprintln!("[idev] Using Fuse for KeyId");
+                cprintln!("[idev] Fuse KeyId");
                 env.soc_ifc.fuse_bank().subject_key_id()
             }
         };

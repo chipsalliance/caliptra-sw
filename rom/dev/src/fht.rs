@@ -152,7 +152,7 @@ pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
 
     cprintln!(
-        "[fht] Storing FHT @ 0x{:08X}",
+        "[fht] FHT @ 0x{:08X}",
         &pdata.fht as *const _ as usize
     );
 

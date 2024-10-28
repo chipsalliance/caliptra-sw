@@ -171,7 +171,7 @@ impl LocalDevIdLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
+            "[ldev] Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());

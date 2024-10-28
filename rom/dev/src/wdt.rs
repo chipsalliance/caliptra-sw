@@ -36,7 +36,7 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
             wdt_timeout_cycles = 1;
         }
         cprintln!(
-            "[state] Starting the Watchdog Timer {} cycles",
+            "[state] Starting the WD Timer {} cycles",
             wdt_timeout_cycles
         );
         caliptra_common::wdt::start_wdt(
@@ -45,7 +45,7 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
         );
     } else {
         cprintln!(
-            "[state] Watchdog Timer is not started because the device is not locked for debugging"
+            "[state] WD Timer not started. Device not locked for debugging"
         );
     }
 }

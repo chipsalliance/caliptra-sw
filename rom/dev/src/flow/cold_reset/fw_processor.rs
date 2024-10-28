@@ -178,14 +178,14 @@ impl FirmwareProcessor {
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         let mut self_test_in_progress = false;
 
-        cprintln!("[fwproc] Waiting for Commands...");
+        cprintln!("[fwproc] Wait for Commands...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
 
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
-                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
+                cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
@@ -199,11 +199,11 @@ impl FirmwareProcessor {
                     // failure) or by a manual complete call upon success.
                     let txn = ManuallyDrop::new(txn.start_txn());
                     if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                        cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                        cprintln!("Invalid Img size: {} bytes" txn.dlen());
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
 
-                    cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
+                    cprintln!("[fwproc] Recv'd Img size: {} bytes" txn.dlen());
                     report_boot_status(FwProcessorDownloadImageComplete.into());
                     return Ok(txn);
                 }
@@ -265,7 +265,7 @@ impl FirmwareProcessor {
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!(
-                                "[fwproc] Maximum supported number of measurements already received."
+                                "[fwproc] Max # of measurements received."
                             );
                             txn.complete(false)?;
 
@@ -344,7 +344,7 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Image verified using Vendor ECC Key Index {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
             info.vendor_ecc_pub_key_idx,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
@@ -457,7 +457,7 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[fwproc] Loading FMC at address 0x{:08x} len {}",
+            "[fwproc] Load FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
@@ -470,7 +470,7 @@ impl FirmwareProcessor {
         txn.copy_request(fmc_dest.as_mut_bytes())?;
 
         cprintln!(
-            "[fwproc] Loading Runtime at address 0x{:08x} len {}",
+            "[fwproc] Load Runtime at address 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
