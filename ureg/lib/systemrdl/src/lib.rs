@@ -285,7 +285,7 @@ mod next_multiple_of_tests {
     }
 }
 
-fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
+fn translate_block(iref: InstanceRef, top: bool) -> Result<RegisterBlock, Error> {
     let wrap_err = |err: Error| Error::BlockError {
         block_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -315,11 +315,17 @@ fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
                 .registers
                 .push(Rc::new(translate_register(child).map_err(wrap_err)?));
         } else if child.instance.scope.ty == ComponentType::RegFile.into() {
-            let next_block = translate_block(child)?;
+            let parent_offset = if top {
+                0
+            } else {
+                iref.instance.offset.unwrap_or_default()
+            };
+            let next_block = translate_block(child, false)?;
             let next_block_size = calculate_reg_size(&next_block);
             let start_offset = child
                 .instance
                 .offset
+                .map(|o| parent_offset + o)
                 .or(next_offset.map(|o| {
                     if let Some(size) = next_block_size {
                         // align according to RDL spec
@@ -353,7 +359,7 @@ pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<Register
     expect_instance_type(addrmap, ComponentType::AddrMap.into())?;
     let mut blocks = vec![];
     for iref in addrmap.instance_iter() {
-        blocks.push(translate_block(iref)?);
+        blocks.push(translate_block(iref, true)?);
     }
     Ok(blocks)
 }
