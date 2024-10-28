@@ -243,7 +243,7 @@ impl InitDevIdLayer {
             return Ok(());
         }
 
-        cprintln!("[idev] CSR upload requested");
+        cprintln!("[idev] CSR upload begun");
 
         // Generate the CSR
         Self::make_csr(env, output)
@@ -274,7 +274,7 @@ impl InitDevIdLayer {
         let tbs = InitDevIdCsrTbs::new(&params);
 
         cprintln!(
-            "[idev] Signing CSR with SUBJECT.KEYID = {}",
+            "[idev] Sign CSR w/ SUBJECT.KEYID = {}",
             key_pair.priv_key as u8
         );
 
