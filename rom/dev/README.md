@@ -861,3 +861,25 @@ UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mo
 2. In this flow, the ROM reads a 512-bit value from the iTRNG and writes it to the address specified by the UDS_SEED_OFFSET register, utilizing the DMA hardware assist.
 3. Based on the outcome of the DMA operation, the ROM sets the UDS_PROGRAM_REQ bit in the CPTRA_DBG_MANUF_SERVICE_RSP_REG register to either UDS_PROGRAM_SUCCESS or UDS_PROGRAM_FAIL, indicating the completion of the flow.
 4. The manufacturing process polls/reads this bit and proceeds with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
+
+## Debug Unlock in Manufacturing mode
+1. Upon executing the Known Answer Test (KAT), the ROM checks if the MANUF_DEBUG_UNLOCK_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set.
+
+2. If set, the ROM enters a loop, awaiting a TOKEN command. The payload of this command is a 128-bit value.
+
+3. Upon receiving the TOKEN command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroes: <br>
+    **64-bit 0s || 128-bit value || 64-bit 0s**
+
+4. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
+
+5. The ROM reads the value from the MANUF_DEBUG_UNLOCK_TOKEN fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
+
+6. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
+    - MANUF_DEBUG_UNLOCK_SUCCESS to 1
+    - MANUF_DEBUG_UNLOCK_IN_PROGRESS to 0
+    - uCTAP_UNLOCK to 1
+
+7. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
+    - MANUF_DEBUG_UNLOCK_FAILURE to 1
+    - MANUF_DEBUG_UNLOCK_IN_PROGRESS to 0
+    - uCTAP_UNLOCK to 0
