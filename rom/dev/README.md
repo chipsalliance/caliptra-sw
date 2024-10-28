@@ -19,6 +19,12 @@ following topics:
 
 5. Cryptographic Derivations
 
+## Spec Opens
+- UDS Provisioning flow
+- CSR Envelop signing
+- Known answer tests
+- Manufacturing debug unlock
+
 ## Glossary
 
 | Term                | Description                                                               |
@@ -468,7 +474,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 ### Handling commands from mailbox
 
-ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
+ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in ACTIVE mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement).
 2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version).
@@ -477,9 +483,9 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
 
-### Downloading images from mailbox
+### Downloading firmware image from mailbox
 
-The following is the sequence of the steps that are required to download the parts of firmware image from mailbox.
+There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
@@ -491,6 +497,31 @@ The following is the sequence of the steps that are required to download the par
 - On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_NON_FATAL` register
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
+
+Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
+
+- On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the Recovery Interface (aka RI) PROT_CAP register [Byte11:Bit3] to 1 ('Flashless boot').
+- Set the RI DEVICE_STATUS register Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+- Set the RI DEVICE_STATUS register Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
+- Set the RI RECOVERY_STATUS register [Byte0:Bit[3:0]] to 0x1 ('Awaiting recovery image') and [Byte0:Bit[7:4]] to 0 (Recovery image index).
+- Loop on the 'payload_available' signal for the firmware image details to be available.
+- Read the image size from RI INDIRECT_FIFO_CTRL register Byte[2:5]. Image size in DWORDs.
+- Initiate image download from the recovery interface to the mailbox sram:
+  - Write the payload length to the DMA widget 'Byte Count' register.
+  - Write the block size with a value of 256 to the DMA widget 'Block Size' register.
+  - Write the source address to the DMA widget 'Source Address - Low' and 'Source Address - High' registers.
+  - Acquire the mailbox lock.
+  - Write DMA widget 'Control' register.
+    - Bits[17:16] (Read Route) - 0x1 (AXI RD -> Mailbox)
+    - Set Bit20 (Read Addr fixed).
+    - Set Bit0 (GO)
+  - Read DMA widget 'Status0' register in a loop till Status0.Busy=0 and Status0.Error=0
+  - Image is downloaded into mailbox sram.
+  - Loop on "image_activated" signal to wait for processing the image.
+  - Set RI RECOVERY_STATUS register [Byte0:Bit[0:3]] to 0x2 "Booting recovery image".
+  - Validate the image per the [Image Validation Process](#firmware-image-validation-process). 
+  - Once validated, set the RECOVERY_CTRL Byte2 to 0xFF.
+  - Release the mailbox lock.
 
 ### Image validation
 
