@@ -891,13 +891,20 @@ Command Code: `0x4154_5348` ("ATSH")
 
 These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
 
-### CM_SHA
+### CM_SHA_INIT
 
-This computes SHA hashes of data, which may be larger than a single mailbox command allows. It also supports additional algorithms.
+This starts the computation of a SHA hash of data, which may be larger than a single mailbox command allows. It also supports additional algorithms.
 
-Command Code: `0x434D_5348` ("CMSH")
+The sequence to use these are:
+* 1 `CM_SHA_INIT` command
+* 0 or more `CM_SHA_UPDATE` commands
+* 1 `CM_SHA_FINAL` command
 
-*Table: `CM_SHA` input arguments*
+For each command, the context from the previous command's output must be passed as an input.
+
+Command Code: `0x434D_5349` ("CMSI")
+
+*Table: `CM_SHA_INIT` input arguments*
 
 | **Name**       | **Type** | **Description**                   |
 | -------------- | -------- | --------------------------------- |
@@ -908,22 +915,18 @@ Command Code: `0x434D_5348` ("CMSH")
 |                |          | Value 1 = SHA2-256                |
 |                |          | Value 2 = SHA2-384                |
 |                |          | Value 3 = SHA2-512                |
-| context size   | u32      | Size of the context               |
-| context        | u8[...]  |                                   |
 | data size      | u32      |                                   |
 | data           | u8[...]  | Data to hash                      |
 
-*Table: `CM_SHA` output arguments*
-| **Name**     | **Type** | **Description**                           |
-| ------------ | -------- | ----------------------------------------- |
-| chksum       | u32      |                                           |
-| fips_status  | u32      | FIPS approved or an error                 |
-| context size | u32      | Can be 0 if this is the final message     |
-| context      | u8[...]  |                                           |
-| hash size    | u32      | Can be 0 if this is not the final message |
-| hash         | u8[...]  |                                           |
+*Table: `CM_SHA_INIT` output arguments*
+| **Name**     | **Type** | **Description**                            |
+| ------------ | -------- | ------------------------------------------ |
+| chksum       | u32      |                                            |
+| fips_status  | u32      | FIPS approved or an error                  |
+| context size | u32      |                                            |
+| context      | u8[...]  | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
 
-*Table: `CM_SHA` internal context*
+*Table: `CM_SHA_INIT` / `CM_SHA_UPDATE` / `CM_SHA_FINAL` internal context*
 | **Name**          | **Type** | **Description** |
 | ----------------- | -------- | --------------- |
 | input buffer      | u8[128]  |                 |
@@ -931,15 +934,70 @@ Command Code: `0x434D_5348` ("CMSH")
 | length            | u64      |                 |
 | hash algorithm    | u32      |                 |
 
+### CM_SHA_UPDATE
 
-### CM_HMAC
+This continues a SHA computation started by `CM_SHA_INIT` or from another `CM_SHA_UPDATE`.
+
+The context MUST be passed in from `CM_SHA_INIT` or `CM_SHA_UPDATE`.
+
+Command Code: `0x434D_5355` ("CMSU")
+
+*Table: `CM_SHA_UPDATE` input arguments*
+| **Name**       | **Type** | **Description**                      |
+| -------------- | -------- | ------------------------------------ |
+| chksum         | u32      |                                      |
+| context size   | u32      | Size of the context.                 |
+| context        | u8[...]  | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size      | u32      |                                      |
+| data           | u8[...]  | Data to hash                         |
+
+*Table: `CM_SHA_UPDATE` output arguments*
+| **Name**     | **Type** | **Description**                            |
+| ------------ | -------- | ------------------------------------------ |
+| chksum       | u32      |                                            |
+| fips_status  | u32      | FIPS approved or an error                  |
+| context size | u32      |                                            |
+| context      | u8[...]  | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
+
+### CM_SHA_FINAL
+
+This finalizes the computation of a SHA and produces the hash of all of the data.
+
+The context MUST be passed in from `CM_SHA_INIT` or `CMA_SHA_UPDATE`.
+
+Command Code: `0x434D_5346` ("CMSF")
+
+*Table: `CM_SHA_FINAL` input arguments*
+| **Name**       | **Type** | **Description**                      |
+| -------------- | -------- | ------------------------------------ |
+| chksum         | u32      |                                      |
+| context size   | u32      | Size of the context.                 |
+| context        | u8[...]  | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size      | u32      | May be 0                             |
+| data           | u8[...]  | Data to hash                         |
+
+*Table: `CM_SHA_FINAL` output arguments*
+| **Name**     | **Type** | **Description**           |
+| ------------ | -------- | ------------------------- |
+| chksum       | u32      |                           |
+| fips_status  | u32      | FIPS approved or an error |
+| hash size    | u32      |                           |
+| hash         | u8[...]  |                           |
+
+### CM_HMAC_INIT
 
 Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data may be larger than a single mailbox command allows.
 
-Command Code: `0x434D_484D` ("CMHM")
+The sequence to use these are:
+* 1 `CM_HMAC_INIT` command
+* 0 or more `CM_HMAC_UPDATE` commands
+* 1 `CM_HMAC_FINAL` command
 
-*Table: `CM_HMAC` input arguments*
+For each command, the context from the previous command's output must be passed as an input.
 
+Command Code: `0x434D_4849` ("CMHI")
+
+*Table: `CM_HMAC_INPUT` input arguments*
 | **Name**       | **Type** | **Description**                        |
 | -------------- | -------- | -------------------------------------- |
 | chksum         | u32      |                                        |
@@ -975,6 +1033,57 @@ Command Code: `0x434D_484D` ("CMHM")
 | hash algorithm    | u32      |                 |
 
 Note that although the `CM_HMAC` context is the same as the `CM_SHA` context, the `CM_HMAC` SHALL be encrypted.
+
+### CM_HMAC_UPDATE
+
+This continues an HMAC computation started by `CM_HMAC_INIT` or from another `CM_HMAC_UPDATE`.
+
+The context MUST be passed in from `CM_HMAC_INIT` or `CM_HMAC_UPDATE`.
+
+Command Code: `0x434D_4855` ("CMHU")
+
+*Table: `CM_HMAC_UPDATE` input arguments*
+| **Name**       | **Type** | **Description**                                  |
+| -------------- | -------- | ------------------------------------------------ |
+| chksum         | u32      |                                                  |
+| context size   | u32      | Size of the context                              |
+| context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
+| data size      | u32      | May be 0                                         |
+| data           | u8[...]  | Data to MAC                                      |
+
+*Table: `CM_HMAC_UPDATE` output arguments*
+| **Name**     | **Type** | **Description**                              |
+| ------------ | -------- | -------------------------------------------- |
+| chksum       | u32      |                                              |
+| fips_status  | u32      | FIPS approved or an error                    |
+| context size | u32      |                                              |
+| context      | u8[...]  | Passed to `CM_HMAC_UPDATE` / `CM_HMAC_FINAL` |
+
+### CM_HMAC_FINAL
+
+This finalizes the computation of an HMAC and produces the MAC of all of the data.
+
+The context MUST be passed in from `CM_HMAC_INIT` or `CMA_HMAC_UPDATE`.
+
+Command Code: `0x434D_4846` ("CMHF")
+
+*Table: `CM_HMAC_FINAL` input arguments*
+
+| **Name**       | **Type** | **Description**                                  |
+| -------------- | -------- | ------------------------------------------------ |
+| chksum         | u32      |                                                  |
+| context size   | u32      | Size of the context                              |
+| context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
+| data size      | u32      | May be 0                                         |
+| data           | u8[...]  | Data to MAC                                      |
+
+*Table: `CM_HMAC_FINAL` output arguments*
+| **Name**     | **Type** | **Description**                         |
+| ------------ | -------- | --------------------------------------- |
+| chksum       | u32      |                                         |
+| fips_status  | u32      | FIPS approved or an error               |
+| mac size     | u32      |                                         |
+| mac          | u8[...]  |                                         |
 
 ### CM_HKDF_EXTRACT
 
