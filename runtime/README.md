@@ -1,5 +1,7 @@
 # Caliptra Runtime Firmware v2.0
 
+*Spec version: 0.3*
+
 This specification describes the Caliptra Runtime Firmware.
 
 ## New in v1.1
@@ -8,9 +10,9 @@ This specification describes the Caliptra Runtime Firmware.
 
 ## New in v2.0
 
-Caliptra 2.0 firmware supports passive mode (same as 1.x) and active (or susbystem) mode.
+Caliptra 2.0 firmware supports passive mode (same as 1.x) and subsystem (or active) mode.
 
-* [MCU Runtime loading](#boot-and-initialization) (Active mode)
+* [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 
 ## Runtime Firmware environment
@@ -23,7 +25,7 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 
 * Initialize the [DICE Protection Environment (DPE)](#dice-protection-environment-dpe)
 * Initialize any SRAM structures used by Runtime Firmware
-* Upload the firwmare to the Manufacturer Control Unit (2.0, Active Mode Only)
+* Upload the firwmare to the Manufacturer Control Unit (2.0, susbystem mode only)
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
@@ -89,22 +91,25 @@ Asymmetric cryptographic services are currently only provided through DPE and th
 
 ### Contexts
 
-Several of the methods, such as SHA and AES, support contexts, so that multiple users can have in-flight requests at the same time.
+Several of the methods, such as SHA and AES, support contexts so that multiple users can have in-flight requests at the same time.
 
 The contexts contain the internal structures necessary to resume operations to support data that may exceed the size of a single mailbox command.
 
-These contexts are intended to be opaque to the user, and will be encrypted and authenticated if they contain sensitive internal data.
+These contexts are intended to be opaque to the user, and SHALL be encrypted and authenticated if they contain sensitive internal data.
 
 ### Data Storage
 
 The CM system has its own dedicated storage in DCCM.
-This storage is protected with authenticated encryption using internal keys.
+
+This storage is protected with authenticated encryption using internal keys that are randomly generated at power on and stored in the key vault.
 
 This storage is exposed to users through opaque 256-bit handles, called cryptographic mailbox IDs (CMIDs). These are mapped internally into DCCM storage blocks.
 
 Keys can be imported using `CM_IMPORT` and deleted via `CM_DELETE`.
 
 The entire contents can be cleared with `CM_CLEAR`.
+
+The status of the data storage can be queried with `CM_STATUS`.
 
 ### Storage Design
 
@@ -918,34 +923,58 @@ Command Code: `0x434D_5348` ("CMSH")
 | hash size    | u32      | Can be 0 if this is not the final message |
 | hash         | u8[...]  |                                           |
 
+*Table: `CM_SHA` internal context*
+| **Name**          | **Type** | **Description** |
+| ----------------- | -------- | --------------- |
+| input buffer      | u8[128]  |                 |
+| intermediate hash | u8[64]   |                 |
+| length            | u64      |                 |
+| hash algorithm    | u32      |                 |
+
+
 ### CM_HMAC
 
-Computes an HMAC with
+Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data may be larger than a single mailbox command allows.
 
 Command Code: `0x434D_484D` ("CMHM")
 
 *Table: `CM_HMAC` input arguments*
 
-| **Name**       | **Type** | **Description**    |
-| -------------- | -------- | ------------------ |
-| chksum         | u32      |                    |
-| Key CMID       | u8[32]   | CMID of key to use |
-| hash algorithm | u32      | Enum.              |
-|                |          | 0 = reserved       |
-|                |          | 1 = SHA2-256       |
-|                |          | 2 = SHA2-384       |
-|                |          | 3 = SHA2-512       |
-| data size      | u32      |                    |
-| data           | u8[...]  | Data to MAC        |
+| **Name**       | **Type** | **Description**                        |
+| -------------- | -------- | -------------------------------------- |
+| chksum         | u32      |                                        |
+| Key CMID       | u8[32]   | CMID of key to use                     |
+| flags          | u32      | Bit 0 = this is the final message      |
+| hash algorithm | u32      | Enum.                                  |
+|                |          | 0 = reserved                           |
+|                |          | 1 = SHA2-256                           |
+|                |          | 2 = SHA2-384                           |
+|                |          | 3 = SHA2-512                           |
+| context size   | u32      | Size of the context                    |
+|                |          | MUST be 0 if this is the first message |
+| context        | u8[...]  |                                        |
+| data size      | u32      |                                        |
+| data           | u8[...]  | Data to MAC                            |
 
 *Table: `CM_HMAC` output arguments*
-| **Name**    | **Type** | **Description**           |
-| ----------- | -------- | ------------------------- |
-| chksum      | u32      |                           |
-| fips_status | u32      | FIPS approved or an error |
-| mac size    | u32      |                           |
-| mac         | u8[...]  |                           |
+| **Name**     | **Type** | **Description**                         |
+| ------------ | -------- | --------------------------------------- |
+| chksum       | u32      |                                         |
+| fips_status  | u32      | FIPS approved or an error               |
+| context size | u32      | SHALL be 0 if this is the final message |
+| context      | u8[...]  |                                         |
+| mac size     | u32      |                                         |
+| mac          | u8[...]  |                                         |
 
+*Table: `CM_HMAC` internal context*
+| **Name**          | **Type** | **Description** |
+| ----------------- | -------- | --------------- |
+| input buffer      | u8[128]  |                 |
+| intermediate hash | u8[64]   |                 |
+| length            | u64      |                 |
+| hash algorithm    | u32      |                 |
+
+Note that although the `CM_HMAC` context is the same as the `CM_SHA` context, the `CM_HMAC` SHALL be encrypted.
 
 ### CM_HKDF_EXTRACT
 
@@ -967,16 +996,16 @@ Command Code: `0x434D_4B54` ("CMKT")
 | salt           | u8[...]  |                         |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
-| **Name**    | **Type** | **Description**                          |
-| ----------- | -------- | ---------------------------------------- |
-| chksum      | u32      |                                          |
-| fips_status | u32      | FIPS approved or an error                |
-| PRK CMID    | u8[32]   | CMID that stores the output (PRK) to use |
-|             |          | with HKDF-Expand                         |
+| **Name**    | **Type** | **Description**                             |
+| ----------- | -------- | ------------------------------------------- |
+| chksum      | u32      |                                             |
+| fips_status | u32      | FIPS approved or an error                   |
+| PRK CMID    | u8[32]   | CMID that refers to the output (PRK) to use |
+|             |          | with HKDF-Expand                            |
 
 ### CM_HKDF_EXPAND
 
-Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
+Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
 Command Code: `0x434D_4B50` ("CMKP")
 
@@ -995,11 +1024,11 @@ Command Code: `0x434D_4B50` ("CMKP")
 | Output length  | u32      | Number of bytes to output |
 
 *Table: `CM_HKDF_EXPAND` output arguments*
-| **Name**    | **Type** | **Description**                          |
-| ----------- | -------- | ---------------------------------------- |
-| chksum      | u32      |                                          |
-| fips_status | u32      | FIPS approved or an error                |
-| OKM CMID    | u8[32]   | CMID that stores the output key material |
+| **Name**    | **Type** | **Description**                                    |
+| ----------- | -------- | -------------------------------------------------- |
+| chksum      | u32      |                                                    |
+| fips_status | u32      | FIPS approved or an error                          |
+| OKM CMID    | u8[32]   | CMID that stores refers to the output key material |
 
 
 ### CM_AES_GCM_ENCRYPT
@@ -1009,28 +1038,29 @@ Currently only supports AES-256-GCM with a random 96-bit IV.
 Command Code: `0x434D_4745` ("CMGE")
 
 *Table: `CM_AES_GCM_ENCRYPT` input arguments*
-| **Name**       | **Type** | **Description**                    |
-| -------------- | -------- | ---------------------------------- |
-| chksum         | u32      |                                    |
-| flags          | u32      | Bit 0 = this is the final message  |
-| key CMID       | u8[32]   | CMID of the key to use             |
-| tag size       | u32      | Number of bytes to return for tag. |
-|                |          | Can be 0, 1, ..., 16               |
-| context size   | u32      | Size of the context                |
-| context        | u8[...]  |                                    |
-| aad size       | u32      | Additional authenticated data size |
-| aad            | u8[...]  | Additional authenticated data      |
-| plaintext size | u32      |                                    |
-| plaintext      | u8[...]  | Data to encrypt                    |
+| **Name**       | **Type** | **Description**                          |
+| -------------- | -------- | ---------------------------------------- |
+| chksum         | u32      |                                          |
+| flags          | u32      | Bit 0 = this is the final message        |
+| key CMID       | u8[32]   | CMID of the key to use                   |
+| tag size       | u32      | Number of bytes to return for tag.       |
+|                |          | Can be 0, 1, ..., 16                     |
+| context size   | u32      | Size of the context                      |
+| context        | u8[...]  |                                          |
+| aad size       | u32      | Additional authenticated data size       |
+|                |          | Must be 0 if this is not the first block |
+| aad            | u8[...]  | Additional authenticated data            |
+| plaintext size | u32      |                                          |
+| plaintext      | u8[...]  | Data to encrypt                          |
 
 *Table: `CM_AES_GCM_ENCRYPT` output arguments*
 | **Name**       | **Type** | **Description**                           |
 | -------------- | -------- | ----------------------------------------- |
 | chksum         | u32      |                                           |
 | fips_status    | u32      | FIPS approved or an error                 |
-| context size   | u32      | Can be 0 if this is the final message     |
+| context size   | u32      | SHALL be 0 if this is the final message   |
 | context        | u8[...]  |                                           |
-| cipertext size | u32      | Can be 0 if this is not the final message |
+| cipertext size | u32      | MAY be 0 if this is not the final message |
 | ciphertext     | u8[...]  |                                           |
 
 The encrypted and authenticated context's internal structure will be:
@@ -1040,9 +1070,9 @@ The encrypted and authenticated context's internal structure will be:
 | --------------- | -------- | --------------- |
 | tag size        | u32      |                 |
 | last length     | u32      |                 |
-| last counter    | u8[16]    |                 |
-| last GHASH      | u8[16]    |                 |
-| last ciphertext | u8[16]    |                 |
+| last counter    | u8[16]   |                 |
+| last GHASH      | u8[16]   |                 |
+| last ciphertext | u8[16]   |                 |
 
 ### CM_AES_GCM_DECRYPT
 
@@ -1087,18 +1117,18 @@ The encrypted and authenticated context's internal structure will be:
 | --------------- | -------- | --------------- |
 | tag size        | u32      |                 |
 | last length     | u32      |                 |
-| last iv         | u8[16]    |                 |
-| last GHASH      | u8[16]    |                 |
-| last ciphertext | u8[16]    |                 |
+| last iv         | u8[16]   |                 |
+| last GHASH      | u8[16]   |                 |
+| last ciphertext | u8[16]   |                 |
 
 
 ### CM_ECDH_GENERATE
 
-This computes the first half of an Elliptic Curve Diffie-Hellman exchange.
+This computes the first half of an Elliptic Curve Diffie-Hellman exchange to compute an ephemeral shared key pair with another party.
 
 Currently only supports the NIST P-384 curve.
 
-The returned context must be passed to the `CM_ECDH_FINISH` command.
+The returned context must be passed to the `CM_ECDH_FINISH` command. The context contains the (encrypted) secret coefficient.
 
 Command Code: `0x434D_4547` ("CMEG")
 
@@ -1109,14 +1139,19 @@ Command Code: `0x434D_4547` ("CMEG")
 | curve/flags | u32      | Must be 0. Reserved. |
 
 *Table: `CM_ECDH_GENERATE` output arguments*
-| **Name**           | **Type** | **Description**                      |
-| ------------------ | -------- | ------------------------------------ |
-| chksum             | u32      |                                      |
-| fips_status        | u32      | FIPS approved or an error            |
-| context size       | u32      | size of context                      |
-| context            | u8[...]  |                                      |
-| exchange data size | u32      | size of data to send in the exchange |
-| exchange data      | u8[...]  | i.e., the public point               |
+| **Name**           | **Type** | **Description**                       |
+| ------------------ | -------- | ------------------------------------- |
+| chksum             | u32      |                                       |
+| fips_status        | u32      | FIPS approved or an error             |
+| context size       | u32      | size of context                       |
+| context            | u8[...]  | Used as the input to `CM_ECDH_FINISH` |
+| exchange data size | u32      | size of data to send in the exchange  |
+| exchange data      | u8[...]  | i.e., the public point                |
+
+*Table: `CM_ECDH_GENERATE` / `CM_ECDH_FINISH` internal context*
+| **Name**           | **Type** | **Description** |
+| ------------------ | -------- | --------------- |
+| Secret coefficient | u8[48]   |                 |
 
 ### CM_ECDH_FINISH
 
@@ -1129,13 +1164,13 @@ The context must be passed from the `CM_ECDH_GENERATE` command.
 Command Code: `0x434D_4546` ("CMEF")
 
 *Table: `CM_ECDH_FINISH` input arguments*
-| **Name**                    | **Type** | **Description**               |
-| --------------------------- | -------- | ----------------------------- |
-| chksum                      | u32      |                               |
-| context size                | u32      | size of context               |
-| context                     | u8[...]  |                               |
-| incoming exchange data size | u32      |                               |
-| incoming exchange data      | u8[...]  | the other side's public point |
+| **Name**                    | **Type** | **Description**                                          |
+| --------------------------- | -------- | -------------------------------------------------------- |
+| chksum                      | u32      |                                                          |
+| context size                | u32      | size of context                                          |
+| context                     | u8[...]  | This MUST come from the output of the `CM_ECDH_GENERATE` |
+| incoming exchange data size | u32      |                                                          |
+| incoming exchange data      | u8[...]  | the other side's public point                            |
 
 *Table: `CM_ECDH_FINISH` output arguments*
 | **Name**    | **Type** | **Description**                  |
@@ -1201,8 +1236,8 @@ Command Code: `0x434D_494D` ("CMIM")
 | ---------- | -------- | ------------------------------------------ |
 | chksum     | u32      |                                            |
 | usage      | u32      | Tag to specify how the data can be used    |
-|            |          | `CMGE` - AES-256-GCM key, must be 32 bytes |
-|            |          | `HMAC` - Can be used for HMAC, HKDF        |
+|            |          | 0 - Can be used for HMAC, HKDF, AES        |
+|            |          | MUST be 0.                                 |
 | input size | u32      |                                            |
 | input      | u8[...]  |                                            |
 
@@ -1245,6 +1280,24 @@ Command Code: `0x434D_434C` ("CMCL")
 | ----------- | -------- | ---------------------------- |
 | chksum      | u32      |                              |
 | fips_status | u32      | FIPS approved or an error    |
+
+### CM_STATUS
+
+Queries the status of the data storage used by the cryptographic mailbox system.
+
+Note that the free blocks returned may not all be usable as they may not be contiguous, and the count may not reflect the storage overhead, e.g., a 16-byte GCM tag is used per block.
+
+Command Code: `0x434D_5354` ("CMST")
+
+`CM_STATUS` takes no input arguments.
+
+*Table: `CM_STATUS` output arguments*
+| **Name**     | **Type** | **Description**           |
+| ------------ | -------- | ------------------------- |
+| chksum       | u32      |                           |
+| fips_status  | u32      | FIPS approved or an error |
+| free blocks  | u32      | Available 16-byte blocks  |
+| total blocks | u32      | Total 16-byte blocks      |
 
 
 ## Checksum
