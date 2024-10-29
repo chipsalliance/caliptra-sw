@@ -4,14 +4,15 @@
 
 This specification describes the Caliptra Runtime Firmware.
 
-## New in v1.1
+## Changelog
+
+v1.1:
 
 * [LMS Signature Verification](#lms_signature_verify-new-in-11)
 
-## New in v2.0
+v2.0:
 
-Caliptra 2.0 firmware supports passive mode (same as 1.x) and subsystem (or active) mode.
-
+* Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 
