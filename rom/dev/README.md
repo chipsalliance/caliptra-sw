@@ -865,9 +865,9 @@ UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mo
 ## Debug Unlock in Manufacturing mode
 1. Upon executing the Known Answer Test (KAT), the ROM checks if the MANUF_DEBUG_UNLOCK_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set.
 
-2. If set, the ROM enters a loop, awaiting a TOKEN command. The payload of this command is a 128-bit value.
+2. If set, the ROM enters a loop, awaiting a TOKEN command on the mailbox. The payload of this command is a 128-bit value.
 
-3. Upon receiving the TOKEN command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroes: <br>
+3. Upon receiving the TOKEN command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroe values: <br>
     **64-bit 0s || 128-bit value || 64-bit 0s**
 
 4. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
@@ -883,3 +883,46 @@ UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mo
     - MANUF_DEBUG_UNLOCK_FAILURE to 1
     - MANUF_DEBUG_UNLOCK_IN_PROGRESS to 0
     - uCTAP_UNLOCK to 0
+
+## Debug Unlock in Production mode
+1. Upon the completing the execution of Known Answer Test (KAT), the ROM checks if the ROD_DEBUG_UNLOCK_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set.
+
+2. If the bit is set, the ROM enters a polling loop, awaiting a GO command on the mailbox. The payload for this command follows the specified format:
+
+*Note: All fields are little endian unless specified*
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Marker| 4 | Magic Number marking the start of the payload. The value must be 0x4442554E (‘DBUN’ in ASCII). |
+| Size| 4 | Size of the entire payload. |
+| ECC Public Key | 96 | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
+| MLDSA Public Key | 2592 | MLDSA-87 public key used to verify the Message Signature. |
+| Public Key Hash Index | 4 | Index of the SHA2-384 hash of the concatenation of the ECC and MLDSA public keys. |
+| Unique Device Id | 32 | Unique Id of Caliptra device. |
+| Message | 128 | Debug unlock message. |
+| ECC Signature |  96 | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). |
+| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-384. (4627 bytes + 1 Reserved byte). |
+
+3. On receiving this payload, ROM performs the following validations:
+    - Verifies that the Marker contains the value 0x4442554E.
+    - Ensures the value in the Size field matches the size of the payload.
+    - Confirms that the Public Key Hash Index does not exceed the value specified in the NUM_OF_DEBUG_AUTH_PK_HASHES register.
+    - Calculates the address of the hash fuse as follows: <br>
+        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + (Public Key Hash Index  * SHA2-384 hash size (48 bytes) )**
+    - Retrieves the SHA2-384 hash (48 bytes) from the calculated address using DMA assist.
+    - Computes the SHA2-384 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
+    - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
+      * PROD_DEBUG_UNLOCK_FAILURE to 1
+      * PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
+      * uCTAP_UNLOCK to 0
+    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command.
+
+4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the Message field within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
+
+      - PROD_DEBUG_UNLOCK_SUCCESS to 1
+      - PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
+      - uCTAP_UNLOCK to 1
+
+
+
+
