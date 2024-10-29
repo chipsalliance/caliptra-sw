@@ -217,7 +217,7 @@ impl FirmwareProcessor {
                     CommandId::VERSION => {
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_mut_bytes())?;
                     }
                     CommandId::SELF_TEST_START => {
                         if self_test_in_progress {
@@ -227,7 +227,7 @@ impl FirmwareProcessor {
                             run_fips_tests(env)?;
                             let mut resp = MailboxRespHeader::default();
                             resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
+                            txn.send_response(resp.as_mut_bytes())?;
                             self_test_in_progress = true;
                         }
                     }
@@ -238,14 +238,14 @@ impl FirmwareProcessor {
                         } else {
                             let mut resp = MailboxRespHeader::default();
                             resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
+                            txn.send_response(resp.as_mut_bytes())?;
                             self_test_in_progress = false;
                         }
                     }
                     CommandId::SHUTDOWN => {
                         let mut resp = MailboxRespHeader::default();
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_mut_bytes())?;
 
                         // Causing a ROM Fatal Error will zeroize the module
                         return Err(CaliptraError::RUNTIME_SHUTDOWN);
@@ -259,7 +259,7 @@ impl FirmwareProcessor {
                             capabilities: capabilities.to_bytes(),
                         };
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_mut_bytes())?;
                         continue;
                     }
                     CommandId::STASH_MEASUREMENT => {
@@ -281,7 +281,7 @@ impl FirmwareProcessor {
                             dpe_result: 0, // DPE_STATUS_SUCCESS
                         };
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_mut_bytes())?;
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
@@ -586,8 +586,9 @@ impl FirmwareProcessor {
         txn.copy_request(data)?;
 
         // Extract header out from the rest of the request
-        let req_hdr = MailboxReqHeader::read_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        let req_hdr =
+            MailboxReqHeader::read_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
+                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Verify checksum
         if !caliptra_common::checksum::verify_checksum(

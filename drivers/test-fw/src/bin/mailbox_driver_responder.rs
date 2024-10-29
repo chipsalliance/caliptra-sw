@@ -79,7 +79,7 @@ extern "C" fn main() {
             }
             // Test responding with 4 bytes copy_response and no request data
             0xA000_0000 => {
-                txn.send_response(&[0x12, 0x34, 0x56, 0x78]).unwrap();
+                txn.send_response(&mut [0x12, 0x34, 0x56, 0x78]).unwrap();
             }
             // Test responding with request data
             0xB000_0000 => {
@@ -91,16 +91,16 @@ extern "C" fn main() {
                     txn.copy_request(buf.as_mut_bytes()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }
-                txn.send_response(&[0x98, 0x76]).unwrap();
+                txn.send_response(&mut [0x98, 0x76]).unwrap();
             }
             // Test responding with 9 byte copy_response
             0xC000_0000 => {
-                txn.send_response(&[0x0A, 0x0B, 0x0C, 0x0D, 0x05, 0x04, 0x03, 0x02, 0x01])
+                txn.send_response(&mut [0x0A, 0x0B, 0x0C, 0x0D, 0x05, 0x04, 0x03, 0x02, 0x01])
                     .unwrap();
             }
             // Test responding with 0 byte copy_response
             0xD000_0000 => {
-                txn.send_response(&[]).unwrap();
+                txn.send_response(&mut []).unwrap();
             }
             // Test transaction dropped immediately
             _ => {}

@@ -159,7 +159,8 @@ impl FakeRomFlow {
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
                 let sha_op = env
                     .sha2_512_384_acc
-                    .try_start_operation(ShaAccLockState::AssumedLocked).unwrap();
+                    .try_start_operation(ShaAccLockState::AssumedLocked)
+                    .unwrap();
                 drop(sha_op);
 
                 // Download and validate firmware.

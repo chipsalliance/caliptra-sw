@@ -18,7 +18,7 @@ use caliptra_drivers::*;
 
 /// Wrapper to hold certificate buffer and length
 pub struct Certificate<'a, const LEN: usize> {
-    buf: &'a [u8; LEN],
+    buf: &'a mut [u8; LEN],
     len: usize,
 }
 
@@ -29,13 +29,12 @@ impl<'a, const LEN: usize> Certificate<'a, LEN> {
     ///
     /// * `buf` - Buffer
     /// * `len` - Buffer length  
-    pub fn new(buf: &'a [u8; LEN], len: usize) -> Self {
+    pub fn new(buf: &'a mut [u8; LEN], len: usize) -> Self {
         Self { buf, len }
     }
 
-    /// Get the buffer
-    pub fn get(&self) -> Option<&[u8]> {
-        self.buf.get(..self.len)
+    pub fn get_mut(&mut self) -> Option<&mut [u8]> {
+        self.buf.get_mut(..self.len)
     }
 }
 

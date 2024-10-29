@@ -44,8 +44,6 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
             WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
         );
     } else {
-        cprintln!(
-            "[state] WD Timer not started. Device not locked for debugging"
-        );
+        cprintln!("[state] WD Timer not started. Device not locked for debugging");
     }
 }

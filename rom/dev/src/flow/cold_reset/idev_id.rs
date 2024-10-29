@@ -282,7 +282,7 @@ impl InitDevIdLayer {
         report_boot_status(IDevIdMakeCsrComplete.into());
 
         // Execute Send CSR Flow
-        let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
+        let result = Self::send_csr(env, InitDevIdCsr::new(&mut csr, csr_len));
         csr.zeroize();
 
         result
@@ -294,12 +294,15 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `csr` - Certificate Signing Request to send to SOC
-    fn send_csr(env: &mut RomEnv, csr: InitDevIdCsr) -> CaliptraResult<()> {
+    fn send_csr(env: &mut RomEnv, mut csr: InitDevIdCsr) -> CaliptraResult<()> {
         loop {
             // Create Mailbox send transaction to send the CSR
             if let Some(mut txn) = env.mbox.try_start_send_txn() {
                 // Copy the CSR to mailbox
-                txn.send_request(0, csr.get().ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?)?;
+                txn.send_request(
+                    0,
+                    csr.get_mut().ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?,
+                )?;
 
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
                 env.soc_ifc.flow_status_set_idevid_csr_ready();

@@ -135,8 +135,8 @@ impl Mailbox {
     /// Copies word-aligned `buf` to the mailbox
     pub fn copy_bytes_to_mbox(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         let count = buf.len() / size_of::<u32>();
-        let (buf_words, suffix) =
-            <[u32]>::ref_from_prefix_with_elems(buf, count).map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+        let (buf_words, suffix) = <[u32]>::ref_from_prefix_with_elems(buf, count)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
         self.copy_words_to_mbox(&buf_words);
         if !suffix.is_empty() {
             if let Ok(last_word) = u32::ref_from_bytes(suffix) {
