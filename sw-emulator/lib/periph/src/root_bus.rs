@@ -268,7 +268,7 @@ pub struct CaliptraRootBus {
     pub sha256: HashSha256,
 
     #[peripheral(offset = 0x1003_0000, mask = 0x0000_7fff)] // TODO update when known
-    pub ml_dsa87: MlDsa87,
+    pub ml_dsa87: Box<MlDsa87>,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Iccm,
@@ -331,7 +331,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: MlDsa87::new(clock),
+            ml_dsa87: Box::new(MlDsa87::new(clock)),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
