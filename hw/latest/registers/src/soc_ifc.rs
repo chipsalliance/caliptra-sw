@@ -2237,7 +2237,7 @@ pub mod regs {
         }
         ///
         #[inline(always)]
-        pub fn i3_c_en(&self) -> bool {
+        pub fn i3c_en(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
         ///

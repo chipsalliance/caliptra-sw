@@ -146,6 +146,35 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .collect();
     rdl_files.append(&mut extra_rdl_files);
 
+    // eliminate duplicate type names
+    let patches = vec![
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_THLD_CTRL",
+            "TTI_QUEUE_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_SIZE",
+            "TTI_QUEUE_SIZE",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "IBI_PORT",
+            "TTI_IBI_PORT",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "DATA_BUFFER_THLD_CTRL",
+            "TTI_DATA_BUFFER_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "RESET_CONTROL",
+            "TTI_RESET_CONTROL",
+        ),
+    ];
+
     let rtl_commit_id = run_cmd_stdout(
         Command::new("git")
             .current_dir(rtl_dir)
@@ -176,6 +205,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let dest_dir = Path::new(&args[args.len() - 1]);
 
     let file_source = caliptra_systemrdl::FsFileSource::new();
+    for patch in patches {
+        file_source.add_patch(&patch.0, patch.1, patch.2);
+    }
     let scope = caliptra_systemrdl::Scope::parse_root(&file_source, &rdl_files)
         .map_err(|s| s.to_string())?;
     let scope = scope.as_parent();

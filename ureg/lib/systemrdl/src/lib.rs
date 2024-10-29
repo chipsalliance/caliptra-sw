@@ -250,24 +250,42 @@ pub fn translate_types(scope: systemrdl::ParentScope) -> Result<Vec<Rc<RegisterT
     Ok(result)
 }
 
-fn prod(nums: &[u64]) -> u64 {
-    if nums.is_empty() {
-        1
-    } else {
-        nums.iter().product()
-    }
-}
-
-/// Calculates offset automatically.
+/// Calculates size of the register block.
 fn calculate_reg_size(block: &RegisterBlock) -> Option<u64> {
     block
         .registers
         .iter()
-        .map(|r| r.offset + r.ty.width.in_bytes() * prod(&r.array_dimensions))
+        .map(|r| r.offset + r.ty.width.in_bytes() * r.array_dimensions.iter().product::<u64>())
         .max()
 }
 
-fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
+fn next_multiple_of(x: u64, mult: u64) -> u64 {
+    assert!(mult > 0);
+    if x % mult == 0 {
+        x
+    } else {
+        x + (mult - x % mult)
+    }
+}
+
+#[cfg(test)]
+mod next_multiple_of_tests {
+    use super::*;
+    #[test]
+    fn test_next_multiple_of() {
+        assert_eq!(0, next_multiple_of(0, 3));
+        assert_eq!(3, next_multiple_of(1, 3));
+        assert_eq!(3, next_multiple_of(2, 3));
+        assert_eq!(3, next_multiple_of(3, 3));
+        assert_eq!(6, next_multiple_of(4, 3));
+        for i in 1..128 {
+            assert_eq!(128, next_multiple_of(i, 128));
+            assert_eq!(256, next_multiple_of(128 + i, 128));
+        }
+    }
+}
+
+fn translate_block(iref: InstanceRef, top: bool) -> Result<RegisterBlock, Error> {
     let wrap_err = |err: Error| Error::BlockError {
         block_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -297,10 +315,29 @@ fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
                 .registers
                 .push(Rc::new(translate_register(child).map_err(wrap_err)?));
         } else if child.instance.scope.ty == ComponentType::RegFile.into() {
-            let Some(start_offset) = child.instance.offset.or(next_offset) else {
-                panic!("Offset not defined for register file {:?} and could not calculate automatically", child.instance.name);
+            let parent_offset = if top {
+                0
+            } else {
+                iref.instance.offset.unwrap_or_default()
             };
-            let next_block = translate_block(child)?;
+            let next_block = translate_block(child, false)?;
+            let next_block_size = calculate_reg_size(&next_block);
+            let start_offset = child
+                .instance
+                .offset
+                .map(|o| parent_offset + o)
+                .or(next_offset.map(|o| {
+                    if let Some(size) = next_block_size {
+                        // align according to RDL spec
+                        // TODO: when we upgrade Rust we can use o.next_multple_of()
+                        next_multiple_of(o, size.next_power_of_two())
+                    } else {
+                        o
+                    }
+                }))
+                .expect(
+                    "Offset not defined for register file and could not calculate automatically",
+                );
             next_offset = calculate_reg_size(&next_block).map(|size| start_offset + size);
             block.sub_blocks.push(RegisterSubBlock::Single {
                 block: next_block,
@@ -322,7 +359,7 @@ pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<Register
     expect_instance_type(addrmap, ComponentType::AddrMap.into())?;
     let mut blocks = vec![];
     for iref in addrmap.instance_iter() {
-        blocks.push(translate_block(iref)?);
+        blocks.push(translate_block(iref, true)?);
     }
     Ok(blocks)
 }
