@@ -4,18 +4,18 @@ This specification describes the Caliptra Runtime Firmware.
 
 ## New in v1.1
 
-* [LMS Signature Verification](#lms_signature_verify-11)
+* [LMS Signature Verification](#lms_signature_verify-new-in-11)
 
 ## New in v1.2
 
-* [Manifest-Based Image Authorization](#manifest-based-image-authorization-12)
+* [Manifest-Based Image Authorization](#manifest-based-image-authorization-new-in-12)
 
 ## New in v2.0
 
 Caliptra 2.0 firmware supports passive mode (same as 1.x) and active (or susbystem) mode.
 
 * [MCU Runtime loading](#boot-and-initialization) (Active mode)
-* [Cryptographic mailbox commands](#cryptographic-mailbox-commands-20)
+* [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 
 ## Runtime Firmware environment
 
@@ -74,7 +74,178 @@ Caliptra Runtime Firmware will share driver code with ROM and FMC where
 possible; however, it will have its own copies of all of these drivers linked into
 the Runtime Firmware binary.
 
-## Maibox commands
+## Manifest-Based Image Authorization (new in 1.2)
+
+Caliptra's goal is to enable integrators and vendors to meet standard security requirements for creating cryptographic identity and securely reporting measurements through DICE and DPE Certificate chains and Caliptra-owned private-public key pairs. In addition, Caliptra 1.0 provides an `ECDSA384_SIGNATURE_VERIFY` command to enable an SoC RoT to verify its own FW signatures so that it can develop an SoC secure boot using Caliptra cryptography. Caliptra 1.1 expanded the verify command to a PQC-safe `LMS_SIGNATURE_VERIFY` command. In each of these cases, it is left up to the vendor to ensure that they build a secure environment for introducing and verifying FW integrity and authenticity and then executing mutable FW.
+
+The Caliptra Measurement manifest feature expands on Caliptra-provided secure verifier abilities. The Measurement Manifest feature provides a standard Caliptra-supported definition to enable the following use cases for integrators, vendors, and owners.
+
+* Caliptra-Endorsed Aggregated Secure Boot
+* Caliptra-Endorsed Local Verifier
+
+Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
+
+Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_IMAGE_METADATA`](#set-image-metadata), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+
+### Caliptra-Endorsed Aggregated Secure Boot
+
+Aggregated Secure Boot is a verified boot where one signed manifest attests to FW integrity of many different FW measurements. The authenticity of the FW is tied to the trust in the public key signing the measurement manifest, which is endorsed by the Caliptra Vendor and/or Owner FW Keys.
+
+### Caliptra-Endorsed Local Verifier
+
+A local verifier provides an authentication of SoC FW by matching SoC FW measurements with measurements from the Caliptra measurement manifest. In this case, the SoC RoT still has its own FW public-key chain that is verified by the SoC RoT, but in addition the SoC RoT introduces the Caliptra Measurement Manifest, which is endorsed by the Caliptra FW key pair. Caliptra provides approval or disapproval of the measurement of any FW back to the SoC RoT. This effectively provides a multi-factor authentication of SoC FW.
+
+The Caliptra-Endorsed Local Verify could be required by the owner only or both the vendor and the owner.
+
+The main difference between Caliptra-Endorsed Aggregated Secure Boot and Caliptra-Endorsed Local Verifier is if the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed as using it as an additional verification.
+
+### SoC RoT Enforcement of Measurement Manifest
+
+In both use cases, the SoC RoT chooses to provide the Caliptra Measurement Manifest and to enforce the result of the authorization. Caliptra 1.x is not capable of providing any enforcement of measurements for SoC FW execution.
+
+### Caliptra Measurement Manifest Signing Keys Authenticity
+
+Caliptra 1.0 and 1.1 do not put any requirements on how the SoC RoT ensures integrity and authenticity of SoC FW other than requiring the SoC RoT to provide a measurement to Caliptra of any SoC FW before execution. Caliptra Measurement Manifest enables the SoC RoT to perform the integrity check through Caliptra-authorized FW signing keys.
+
+### Unique Measurement Manifest Signing Keys
+
+In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and possibly one for the vendor. These new key pairs are endorsed once using a single signature within the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
+
+### Caliptra Measurement Manifest Vendor Public Key Authenticity
+
+The Measurement Manifest MUST have an endorsement by the Caliptra Vendor Public Key. In order to fulfill this requirement, the Vendor has 2 options:
+
+* Vendor signing required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses the new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
+* Vendor signing **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
+
+### Caliptra Measurement Manifest Owner Public Key Authenticity
+
+Caliptra will always verify the endorsement of the Measurement Manifest Owner Public key and require that it signed the measurement manifest.
+
+This feature is accomplished by having the SoC send a manifest to Caliptra Runtime through the `SET_AUTH_MANIFEST` mailbox command. The manifest will include a set of hashes for the different SoC images. Later, the SOC will ask for authorization for its images from the Caliptra Runtime through the `AUTHORIZE_AND_STASH` new mailbox commands. Caliptra Runtime will authorize the image based on whether its hash was contained in the manifest.
+
+#### Preamble
+
+The manifest begins with the Preamble section, which contains new manifest ECC and LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
+
+#### Image Metadata Collection (IMC)
+
+The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 16 image hashes will be supported.
+
+#### Caliptra Measurement Manifest Keys Endorsement Verification Steps
+
+When Caliptra receives the Measurement Manifest, Caliptra will:
+
+* Verify the vendor endorsement using the Caliptra Vendor FW Public Key and compare with the vendor endorsement signature.
+* If the vendor endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+* If the vendor endorsement is valid, Caliptra will check if a vendor manifest measurement key is required:
+    * If the key is required, Caliptra will trust the Vendor Public key that was just endorsed.
+    * If the key is not required, Caliptra will not perform any more vendor verifications on this measurement manifest.
+* Verify the owner endorsement using the Caliptra owner public key and compare with the owner endorsement signature.
+    * If the owner endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+    * Otherwise, the owner public key will be trusted and Caliptra will use it to verify the overall measurement manifest.
+
+#### Measurement Manifest Version Number
+
+A Measurement Manifest VN is used to ensure that some enforcement is possible if a progression of measurements is required. 32 bits of the existing unused `IDEVID_MANUF_IDENTIFIER` fuse (128 bits) can be repurposed for this. This can be accomplished by updating Caliptra's main specification to redefine the fuse definition and its usage from "Programming time" to "Field Programmable".
+
+### Image Authorization Sequence
+
+The diagram below illustrates how this feature is part of the Caliptra boot flow, and the order of operations needed to use the feature.
+
+```mermaid
+sequenceDiagram
+    ROM->>FMC: Launch FMC
+    FMC->>Runtime: Launch RT
+    Runtime->>SOC: RDY_FOR_RT
+    Note over Runtime,SOC: Manifest Load
+    SOC->>Runtime: SET_MANIFEST
+    Runtime-->>SOC: Success/Failure
+    Note over Runtime,SOC: Image Authorization
+    loop n times
+        SOC->>Runtime: AUTHORIZE_AND_STASH
+        Runtime-->>SOC: Success/Failure
+    end
+
+    Note over Runtime,SOC: DPE Attestation
+    SOC->>Runtime: DPE Attestation
+```
+
+## Cryptographic Mailbox Commands (new in 2.0)
+
+Cryptographic mailbox (CM) commands are a flexible set of mailbox commands that provide access to Caliptra's cryptographic cabilities.
+This is meant for key storage and use, supporting protocols like SPDM and OCP LOCK.
+
+These commands are not meant to be high-performance as they are accessed via mailbox commands.
+
+These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
+Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
+
+### References
+
+* [SPDM 1.3.1 (DSP0274)](https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.1.pdf), dated 2024-07-01.
+* [OCP Attestation v1.1](https://docs.google.com/document/d/1wA0hbJdtCpcQ1NvsVsYr2IeCkwQbgC7e/edit)
+* [RFC 5869 (HKDF)](https://www.rfc-editor.org/rfc/rfc5869.html)
+* [RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) Section 7.4.2 & IEEE 1363 (TLS ECDH secret derivation)
+
+### Contexts
+
+Several of the methods, such as SHA and AES, support contexts, so that multiple users can have in-flight requests at the same time.
+
+The contexts contain the internal structures necessary to resume operations to support data that may exceed the size of a single mailbox command.
+
+These contexts are intended to be opaque to the user, and will be encrypted and authenticated if they contain sensitive internal data.
+
+### Data Storage
+
+The CM system has its own dedicated storage in DCCM.
+This storage is protected with authenticated encryption using internal keys.
+
+This storage is exposed to users through opaque 256-bit handles, called cryptographic mailbox IDs (CMIDs). These are mapped internally into DCCM storage blocks.
+
+Keys can be imported using `CM_IMPORT` and deleted via `CM_DELETE`.
+
+The entire contents can be cleared with `CM_CLEAR`.
+
+### Storage Design
+
+Data is stored in 16-byte blocks.
+
+Each block's status is tracked in a bitfield, 1 bit per block, with a value of 1 indicating that block is in use.
+
+For example, if we have 32 KB of storage for CM, this requires 256 bytes of additional storage.
+
+### CMIDs
+
+CMIDs require no additional storage.
+
+Unecrypted CMIDs have the following structure:
+
+| **Name**     | **Bits** | **Description**                             |
+| ------------ | -------- | ------------------------------------------- |
+| padding      | 80       | 0                                           |
+| block offset | 24       | Starting block number                       |
+| size         | 24       | Size (in bytes) of the data stored.         |
+|              |          | Does not have to be a multiple of 16 bytes. |
+
+Hence, data for a single CMID must be stored contiguously.
+
+Padding is kept for additional future features.
+
+The CMIDs are AES-256-GCM encrypted, with a 128-bit ciphertext concatenated with the 128-bit AES-GCM tag.
+
+### Storage Keys
+
+The key for the data referenced by a CMID is unique and derived via HKDF from the CDI<sub>RT</sub> with the info being the concatenation of `"CMID" || block offset || size`.
+
+The IV is the concatenation of `block offset || size`.
+
+This scheme avoids having to store the IV while avoiding IV reuse problems.
+
+GCM prevents an adversary from changing internal CMID parameters, such as changing an AES key to an ECDSA key, which has sensitive internal structure (although ECDSA is not currently supported).
+
+
+## Mailbox commands
 
 All mailbox command codes are little endian.
 
@@ -300,7 +471,7 @@ Command Code: `0x5349_4756` ("SIGV")
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
-### LMS\_SIGNATURE\_VERIFY (1.1)
+### LMS\_SIGNATURE\_VERIFY (new in 1.1)
 
 Verifies an LMS signature. The hash to be verified is taken from
 Caliptra's SHA384 accelerator peripheral.
@@ -349,7 +520,7 @@ callers who update infrequently and cannot tolerate a changing DPE API surface.
 * Call the DPE DeriveContext command with the DefaultContext in the locality of
   the PL0 PAUSER.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
-* **Note**: This command can only be called in the locality of the PL0 PAUSER. 
+* **Note**: This command can only be called in the locality of the PL0 PAUSER.
 
 Command Code: `0x4D45_4153` ("MEAS")
 
@@ -677,10 +848,10 @@ Table: `SHUTDOWN` output arguments
 
 ### ADD\_SUBJECT\_ALT\_NAME
 
-Provides a subject alternative name otherName. Whenever CERTIFY_KEY_EXTENDED is called with the 
-DMTF_OTHER_NAME flag after ADD_SUBJECT_ALT_NAME is called, the resulting DPE CSR or leaf certificate 
-will contain a subject alternative name extension containing the provided otherName, which must be a 
-DMTF device info. All such certificates produced by CERTIFY_KEY_EXTENDED will continue to have the 
+Provides a subject alternative name otherName. Whenever CERTIFY_KEY_EXTENDED is called with the
+DMTF_OTHER_NAME flag after ADD_SUBJECT_ALT_NAME is called, the resulting DPE CSR or leaf certificate
+will contain a subject alternative name extension containing the provided otherName, which must be a
+DMTF device info. All such certificates produced by CERTIFY_KEY_EXTENDED will continue to have the
 DMTF otherName subject alternative name extension until reset.
 
 Command Code: `0x414C_544E` ("ALTN")
@@ -844,7 +1015,7 @@ Command Code: `0x5349_4D44` ("SIMD")
 
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
-These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-20) system.
+These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
 
 ### CM_SHA
 
@@ -1000,9 +1171,9 @@ The encrypted and authenticated context's internal structure will be:
 | --------------- | -------- | --------------- |
 | tag size        | u32      |                 |
 | last length     | u32      |                 |
-| last counter    | u[16]    |                 |
-| last GHASH      | u[16]    |                 |
-| last ciphertext | u[16]    |                 |
+| last counter    | u8[16]    |                 |
+| last GHASH      | u8[16]    |                 |
+| last ciphertext | u8[16]    |                 |
 
 ### CM_AES_GCM_DECRYPT
 
@@ -1047,9 +1218,9 @@ The encrypted and authenticated context's internal structure will be:
 | --------------- | -------- | --------------- |
 | tag size        | u32      |                 |
 | last length     | u32      |                 |
-| last iv         | u[16]    |                 |
-| last GHASH      | u[16]    |                 |
-| last ciphertext | u[16]    |                 |
+| last iv         | u8[16]    |                 |
+| last GHASH      | u8[16]    |                 |
+| last ciphertext | u8[16]    |                 |
 
 
 ### CM_ECDH_GENERATE
@@ -1196,11 +1367,11 @@ Command Code: `0x434D_444C` ("CMDL")
 
 The entire contents of the CM storage is wiped.
 
-Command Code: `0x434D_5750` ("CMWP")
+Command Code: `0x434D_434C` ("CMCL")
 
-`CM_WIPE` takes no input arguments.
+`CM_CLEAR` takes no input arguments.
 
-*Table: `CM_WIPE` output arguments*
+*Table: `CM_CLEAR` output arguments*
 | **Name**    | **Type** | **Description**              |
 | ----------- | -------- | ---------------------------- |
 | chksum      | u32      |                              |
@@ -1469,175 +1640,3 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.
-
-
-## Manifest-Based Image Authorization (1.2)
-
-Caliptra's goal is to enable integrators and vendors to meet standard security requirements for creating cryptographic identity and securely reporting measurements through DICE and DPE Certificate chains and Caliptra-owned private-public key pairs. In addition, Caliptra 1.0 provides an `ECDSA384_SIGNATURE_VERIFY` command to enable an SoC RoT to verify its own FW signatures so that it can develop an SoC secure boot using Caliptra cryptography. Caliptra 1.1 expanded the verify command to a PQC-safe `LMS_SIGNATURE_VERIFY` command. In each of these cases, it is left up to the vendor to ensure that they build a secure environment for introducing and verifying FW integrity and authenticity and then executing mutable FW.
-
-The Caliptra Measurement manifest feature expands on Caliptra-provided secure verifier abilities. The Measurement Manifest feature provides a standard Caliptra-supported definition to enable the following use cases for integrators, vendors, and owners.
-
-* Caliptra-Endorsed Aggregated Secure Boot
-* Caliptra-Endorsed Local Verifier
-
-Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
-
-Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_IMAGE_METADATA`](#set-image-metadata), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
-
-### Caliptra-Endorsed Aggregated Secure Boot
-
-Aggregated Secure Boot is a verified boot where one signed manifest attests to FW integrity of many different FW measurements. The authenticity of the FW is tied to the trust in the public key signing the measurement manifest, which is endorsed by the Caliptra Vendor and/or Owner FW Keys.
-
-### Caliptra-Endorsed Local Verifier
-
-A local verifier provides an authentication of SoC FW by matching SoC FW measurements with measurements from the Caliptra measurement manifest. In this case, the SoC RoT still has its own FW public-key chain that is verified by the SoC RoT, but in addition the SoC RoT introduces the Caliptra Measurement Manifest, which is endorsed by the Caliptra FW key pair. Caliptra provides approval or disapproval of the measurement of any FW back to the SoC RoT. This effectively provides a multi-factor authentication of SoC FW.
-
-The Caliptra-Endorsed Local Verify could be required by the owner only or both the vendor and the owner.
-
-The main difference between Caliptra-Endorsed Aggregated Secure Boot and Caliptra-Endorsed Local Verifier is if the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed as using it as an additional verification.
-
-### SoC RoT Enforcement of Measurement Manifest
-
-In both use cases, the SoC RoT chooses to provide the Caliptra Measurement Manifest and to enforce the result of the authorization. Caliptra 1.x is not capable of providing any enforcement of measurements for SoC FW execution.
-
-### Caliptra Measurement Manifest Signing Keys Authenticity
-
-Caliptra 1.0 and 1.1 do not put any requirements on how the SoC RoT ensures integrity and authenticity of SoC FW other than requiring the SoC RoT to provide a measurement to Caliptra of any SoC FW before execution. Caliptra Measurement Manifest enables the SoC RoT to perform the integrity check through Caliptra-authorized FW signing keys.
-
-### Unique Measurement Manifest Signing Keys
-
-In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and possibly one for the vendor. These new key pairs are endorsed once using a single signature within the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
-
-### Caliptra Measurement Manifest Vendor Public Key Authenticity
-
-The Measurement Manifest MUST have an endorsement by the Caliptra Vendor Public Key. In order to fulfill this requirement, the Vendor has 2 options:
-
-* Vendor signing required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses the new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
-* Vendor signing **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
-
-### Caliptra Measurement Manifest Owner Public Key Authenticity
-
-Caliptra will always verify the endorsement of the Measurement Manifest Owner Public key and require that it signed the measurement manifest.
-
-This feature is accomplished by having the SoC send a manifest to Caliptra Runtime through the `SET_AUTH_MANIFEST` mailbox command. The manifest will include a set of hashes for the different SoC images. Later, the SOC will ask for authorization for its images from the Caliptra Runtime through the `AUTHORIZE_AND_STASH` new mailbox commands. Caliptra Runtime will authorize the image based on whether its hash was contained in the manifest.
-
-#### Preamble
-
-The manifest begins with the Preamble section, which contains new manifest ECC and LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
-
-#### Image Metadata Collection (IMC)
-
-The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 16 image hashes will be supported.
-
-#### Caliptra Measurement Manifest Keys Endorsement Verification Steps
-
-When Caliptra receives the Measurement Manifest, Caliptra will:
-
-* Verify the vendor endorsement using the Caliptra Vendor FW Public Key and compare with the vendor endorsement signature.
-* If the vendor endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
-* If the vendor endorsement is valid, Caliptra will check if a vendor manifest measurement key is required:
-    * If the key is required, Caliptra will trust the Vendor Public key that was just endorsed.
-    * If the key is not required, Caliptra will not perform any more vendor verifications on this measurement manifest.
-* Verify the owner endorsement using the Caliptra owner public key and compare with the owner endorsement signature.
-    * If the owner endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
-    * Otherwise, the owner public key will be trusted and Caliptra will use it to verify the overall measurement manifest.
-
-#### Measurement Manifest Version Number
-
-A Measurement Manifest VN is used to ensure that some enforcement is possible if a progression of measurements is required. 32 bits of the existing unused `IDEVID_MANUF_IDENTIFIER` fuse (128 bits) can be repurposed for this. This can be accomplished by updating Caliptra's main specification to redefine the fuse definition and its usage from "Programming time" to "Field Programmable".
-
-### Image Authorization Sequence
-
-The diagram below illustrates how this feature is part of the Caliptra boot flow, and the order of operations needed to use the feature.
-
-```mermaid
-sequenceDiagram
-    ROM->>FMC: Launch FMC
-    FMC->>Runtime: Launch RT
-    Runtime->>SOC: RDY_FOR_RT
-    Note over Runtime,SOC: Manifest Load
-    SOC->>Runtime: SET_MANIFEST
-    Runtime-->>SOC: Success/Failure
-    Note over Runtime,SOC: Image Authorization
-    loop n times
-        SOC->>Runtime: AUTHORIZE_AND_STASH
-        Runtime-->>SOC: Success/Failure
-    end
-
-    Note over Runtime,SOC: DPE Attestation
-    SOC->>Runtime: DPE Attestation
-```
-
-## Cryptographic Mailbox Commands (2.0)
-
-Cryptographic mailbox (CM) commands are a flexible set of mailbox commands that provide access to Caliptra's cryptographic cabilities.
-This is meant for key storage and use, supporting protocols like SPDM and OCP LOCK.
-
-These commands are not meant to be high-performance as they are accessed via mailbox commands.
-
-These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
-Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
-
-### References
-
-* [SPDM 1.3.1 (DSP0274)](https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.1.pdf), dated 2024-07-01.
-* [OCP Attestation v1.1](https://docs.google.com/document/d/1wA0hbJdtCpcQ1NvsVsYr2IeCkwQbgC7e/edit)
-* [RFC 5869 (HKDF)](https://www.rfc-editor.org/rfc/rfc5869.html)
-* [RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) Section 7.4.2 & IEEE 1363 (TLS ECDH secret derivation)
-
-### Contexts
-
-Several of the methods, such as SHA and AES, support contexts, so that multiple users can have in-inflight requests at the same time.
-
-The contexts contain the internal structures necessary to resume operations to support data that may exceed the size of a single mailbox command.
-
-These contexts are intended to be opaque to the user, and will be encrypted and authenticated if they contain sensitive internal data.
-
-### Data Storage
-
-The CM system has its own dedicated storage in DCCM.
-This storage is protected with authenticated encryption using internal keys.
-
-This storage is exposed to users through opaque 256-bit handles, called cryptographic mailbox IDs (CMIDs). These are mapped internally into DCCM storage blocks.
-
-Keys can be imported using `CM_IMPORT` and deleted via `CM_DELETE`.
-
-The entire contents can be cleared with `CM_CLEAR`.
-
-### Storage Design
-
-Data is stored in 16-byte blocks.
-
-Each block's status is tracked in a bitfield, 1 bit per block, with a value of 1 indicating that block is in use.
-
-For example, if we have 32 KB of storage for CM, this requires 256 bytes of additional storage.
-
-### CMIDs
-
-CMIDs require no additional storage.
-
-Unecrypted CMIDs have the following structure:
-
-| **Name**     | **Bits** | **Description**                             |
-| ------------ | -------- | ------------------------------------------- |
-| padding      | 80       | 0                                           |
-| block offset | 24       | Starting block number                       |
-| size         | 24       | Size (in bytes) of the data stored.         |
-|              |          | Does not have to be a multiple of 16 bytes. |
-
-Hence, data for a single CMID must be stored contiguously.
-
-Padding is kept for additional future features.
-
-The CMIDs are AES-256-GCM encrypted, with a 128-bit ciphertext concatenated with the 128-bit AES-GCM tag.
-
-### Storage Keys
-
-The key for the data referenced by a CMID is unique and derived via HKDF from the CDI<sub>RT</sub> with the info being the concatenation of `"CMID" || block offset || size`.
-
-The IV is the concatenation of `block offset || size`.
-
-This scheme avoids having to store the IV while avoiding IV reuse problems.
-
-The use of GCM is to prevent the CMID from being modified outside of Caliptra.
-Although this concern is minor in the current design, where all of the keys are uniformly random bits, if the CMID ever uses additional bits to designate key usage (or other parameters), then GCM prevents an adversary from changing those paramters, changing an AES key to an ECDSA key, which has sensitive internal structure.
