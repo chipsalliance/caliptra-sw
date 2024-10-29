@@ -58,7 +58,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 512          | Obfuscated Field Entropy                                |
+| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
 | FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
 | FUSE_ECC_REVOCATION (FUSE_KEY_MANIFEST_PK_HASH_MASK)  | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
@@ -71,7 +71,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
 
 ### Architectural Registers
-Please refer to the following link for SOC interface registers:
+Refer to the following link for SOC interface registers:
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
 ## Firmware image bundle
@@ -234,6 +234,10 @@ The initialization step involves a traditional startup script for microcontrolle
 - Zeros ICCM & DCCM memories (to initialize ECC)
 - Jumps to Rust entry point
 
+## DICE flow
+
+![DICE Flow](doc/svg/dice-diagram.svg)
+
 ### Decrypt secrets
 
 DICE Unique Device Secret (UDS) is stored in an SOC backed fuse (or derived from PUF). The raw UDS is not directly used. UDS is deobfuscated using Deobfuscation Engine. UDS is provisioned by the Silicon Vendor.
@@ -257,17 +261,9 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
-    Recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
-
-    `hmac512(key: KvSlot0, value: b"uds_recon", MAC: KvSlot10)`
-
 2. Decrypt Field Entropy to Key Vault Slot 1
 
     `doe_decrypt_fe(KvSlot1, DOE_IV)`
-
-    Recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
-
-    `hmac512(key: KvSlot1, value: b"fe_recon", MAC: KvSlot11)`
 
 3. Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -279,51 +275,42 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 - Obfuscation Key cleared from Deobfuscation Engine
 - Vault State is as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | UDS for ECDSA (48 bytes) | | | |
-| 1 | Field Entropy for ECDSA (48 bytes) | | | |
-| 10 | Conditioned UDS for MLDSA (64 bytes) | | | |
-| 11 | Conditioned Field Entropy for MLDSA (64 bytes) | | | |
+| Slot | Key Vault                |
+|------|-----------------------   |
+| 0    | UDS (64 bytes)           |
+| 1    | Field Entropy (32 bytes) |
 
 ### Initial Device ID DICE layer
 
-Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing, ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
+Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing, ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
 
 **Pre-conditions:**
 
-- UDS for ECDSA is in Key Vault Slot 0
-- Conditioned UDS for MLDSA is in Key Vault Slot 10
+- UDS is in Key Vault Slot 0
 
 **Actions:**
 
-1. Derive the ECDSA CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6.
+1. Derive the CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6.
 
-    `hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
+    `hmac512_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
-    Use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12.
-
-    `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
-
-2. Clear the UDS(s) in key vault.
+2. Clear the UDS in the key vault.
 
     `kv_clear(KvSlot0)`
 
-    `kv_clear(KvSlot10)`
-
 3. Derive ECC Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
 
-    `IDevIDSeedEcdsa = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+    `IDevIDSeedEcdsa = hmac512_kdf(KvSlot6, b"idevid_ecc_key", KvSlot3)`
 
     `IDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
 
     `kv_clear(KvSlot3)`
 
-    Derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
+    Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 8.
 
-    `IDevIDSeedMldsa = hmac512_kdf(KvSlot12, b"idevid_mldsa_keygen", KvSlot10)`
+    `IDevIDSeedMldsa = hmac512_kdf(KvSlot6, b"idevid_mldsa_key", KvSlot8)`
 
-    `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot10)`
+    `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
 *(Note: Steps 4-11 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
@@ -345,11 +332,11 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `IDevIdTbsMldsa = gen_tbs(IDEVID_CSR, IDevIdPubKeyMldsa)`
 
-8. Sign the IDevID `To Be Signed` DER Blob with IDevId MLDSA Private Key generated from the seed in Key Vault Slot 10.
+8. Sign the IDevID `To Be Signed` DER Blob with IDevId MLDSA Private Key generated from the seed in Key Vault Slot 8.
 
     `IDevIdTbsDigestMldsa = sha512_digest(IDevIdTbsMldsa)`
 
-    `IDevIdCertSigMldsa = mldsa87_sign(KvSlot10, IDevIdTbsDigestMldsa)`
+    `IDevIdCertSigMldsa = mldsa87_sign(KvSlot8, IDevIdTbsDigestMldsa)`
 
 10. Verify the signature of IDevID `To Be Signed` Blob.
 
@@ -359,65 +346,53 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
 **Post-conditions:**
 
-- Vault state as follows:
+- Vault state is as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 1 |Field Entropy (32 bytes) | | | |
-| 6 |IDevID CDI - ECDSA (48 bytes) | | | |
-| 7 |IDevID ECDSA Private Key (48 bytes) | | | |
-| 10 |IDevID MLDSA Key Seed (32 bytes) | | | |
-| 11 | Conditioned Field Entropy for MLDSA | | | |
-| 12 |IDevID CDI - MLDSA (64 bytes) | | | |
+| Slot | Key Vault                             |
+|------|---------------------------------------|
+| 1    | Field Entropy (32 bytes)              |
+| 6    | IDevID CDI (64 bytes)                 |
+| 7    | IDevID ECDSA Private Key (48 bytes)   |
+| 8    | IDevID MLDSA Key Pair Seed (32 bytes) |
 
 ### Local Device ID DICE layer
 
-Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
+Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
 
 **Pre-conditions:**
 
 - Field Entropy is loaded in Key Vault Slot 1
-- IDevID CDI - ECDSA is stored in Key Vault Slot 6
+- IDevID CDI is stored in Key Vault Slot 6
 - IDevID Private Key is stored in Key Vault Slot 7
-- IDevID MLDSA Key Seed is stored in Key Vault Slot 10
-- Conditioned Field Entropy for MLDSA is stored in Key Vault Slot 11
-- IDevID CDI - MLDSA is stored in Key Vault Slot 12
+- IDevID MLDSA Key Generation Seed is stored in Key Vault Slot 8
 
 **Actions:**
 
-1. Derive the ECDSA CDI using IDevID CDI - ECDSA in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant MAC is stored back in  Key Vault Slot 6.
+1. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in  Key Vault Slot 6.
 
-    `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
+    `hmac512_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 
-    `hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
-
-    Derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12.
-
-    `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
-
-    `hmac512_mac(KvSlot12, KvSlot11, KvSlot12)`
+    `hmac512_mac(KvSlot6, KvSlot1, KvSlot6)`
 
 *(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
-2. Clear the Field Entropy in Key Vault Slot 1 and 11.
+2. Clear the Field Entropy in Key Vault Slot 1.
 
     `kv_clear(KvSlot1)`
 
-    `kv_clear(KvSlot11)`
-
 3. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
-    `LDevIDSeed = hmac384_kdf(KvSlot6, b"ldevid_keygen", KvSlot3)`
+    `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_ecc_key", KvSlot3)`
 
     `LDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot5)`
 
     `kv_clear(KvSlot3)`
 
-4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
+4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 4.
 
-    `LDevIDSeed = hmac512_kdf(KvSlot12, b"ldevid_mldsa_keygen", KvSlot13)`
+    `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_mldsa_key", KvSlot4)`
 
-    `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot13)`
+    `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot4)`
 
 5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM datavault.
 
@@ -443,15 +418,15 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
     `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
 
-11. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 10.
+11. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 8.
 
     `LDevIdTbsDigestMldsa = sha512_digest(LDevIdTbsMldsa)`
 
-    `LDevIdCertSigMldsa = mldsa87_sign(KvSlot10, LDevIdTbsDigestMldsa)`
+    `LDevIdCertSigMldsa = mldsa87_sign(KvSlot8, LDevIdTbsDigestMldsa)`
 
-12. Clear the IDevId Mldsa seed in Key Vault Slot 10.
+12. Clear the IDevId Mldsa seed in Key Vault Slot 8.
 
-    `kv_clear(KvSlot10)`
+    `kv_clear(KvSlot8)`
 
 13. Verify the signature of LDevID `To Be Signed` Blob.
 
@@ -462,16 +437,20 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 **Post-conditions:**
 
-- Vault state as follows:
+- Vault state is as follows:
 
-| Slot | Key Vault | PCR Bank | DCCM |
-|------|-----------|----------|------|
-| X | | | 🔒LDevID Cert Signature |
-| X | | | 🔒LDevID Pub Key |
-| 5 | LDevID Private Key - ECDSA (48 bytes) | | |
-| 6 | LDevID CDI - ECDSA (48 bytes) | | |
-| 12 | LDevID CDI - MLDSA (48 bytes) | | |
-| 13 | LDevID Key Pair Seed - MLDSA (48 bytes) | | |
+ | Slot | Key Vault                               |
+ |------|-----------------------------------------|
+ | 4    | LDevID Key Pair Seed - MLDSA (32 bytes) |
+ | 5    | LDevID Private Key - ECDSA (48 bytes)   |
+ | 6    | LDevID CDI (64 bytes)                   |
+
+ | DCCM Datavault                 |
+ |--------------------------------|
+ | 🔒LDevID Cert ECDSA Signature |
+ | 🔒LDevID ECDSA Pub Key        |
+ | 🔒LDevID Cert MLDSA Signature |
+ | 🔒LDevID MLDSA Pub Key        |
 
 ### Handling commands from mailbox
 
@@ -534,10 +513,9 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Pre-conditions:**
 
-- LDevID CDI - ECDSA is stored in Key Vault Slot 6
+- LDevID CDI is stored in Key Vault Slot 6
+- LDevID MLDSA Key Pair Seed is stored in Key Vault Slot 4
 - LDevID ECDSA Private Key is stored in Key Vault Slot 5
-- LDevID CDI - MLDSA is stored in Key Vault Slot 12
-- LDevID Key Pair Seed is stored in Key Vault Slot 13
 - Firmware Image Bundle is successfully loaded and verified from the Mailbox
 - ROM has following information from Firmware Image Bundle
 - FMC_DIGEST - Digest of the FMC
@@ -558,7 +536,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         ECC_VENDOR_PK_INDEX,
         FMC_SVN,
         FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        LMS_VENDOR_PK_INDEX,
+        PQC_VENDOR_PK_INDEX,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
@@ -568,29 +546,25 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     pcr_lock_clear(Pcr0 && Pcr1)
     ```
 
-2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID ECDSA CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
+2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
 
     `Pcr0Measurement = pcr_read(Pcr0)`
 
-    `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
-
-    LDevID MLDSA CDI in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
-
-    `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
+    `hmac512_kdf(KvSlot6, label: b"alias_fmc_cdi", context: Pcr0Measurement, KvSlot6)`
 
 3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
 
-    `AliasFmcSeedEcdsa = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
+    `AliasFmcSeedEcdsa = hmac512_kdf(KvSlot6, b"fmc_alias_ecc_key", KvSlot3)`
 
     `AliasFmcPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
 
     `kv_clear(KvSlot3)`
 
-    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
+    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key pair generation seed in Key Vault Slot 8.
 
-    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_mldsa_keygen", KvSlot14)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6d, b"fmc_alias_mldsa_key", KvSlot8)`
 
-    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
+    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
 
 4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM datavault.
@@ -617,15 +591,15 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
 
-10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 13.
+10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 4.
 
     `AliasFmcTbsDigestMldsa = sha512_digest(AliasFmcTbsMldsa)`
 
-    `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot13, AliasFmcTbsDigestMldsa)`
+    `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot4, AliasFmcTbsDigestMldsa)`
 
-11. Clear the seed in Key Vault Slot 13.
+11. Clear the LDevId MLDSA key generation seed in Key Vault Slot 4.
 
-    `kv_clear(KvSlot13)`
+    `kv_clear(KvSlot4)`
 
 12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob.
 
@@ -635,49 +609,51 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 14. Lock critical state needed for warm and update reset in the DCCM datavault.
 
-    `dv48_store(FMC_DIGEST, Dv48Slot8)`
+    `dccm_dv_store(FMC_DIGEST, lock_for_wr)`
 
-    `dv48_lock_wr(Dv48Slot8)`
+    `dccm_dv_store(FMC_SVN, lock_for_wr)`
 
-    `dv4_store(FMC_SVN, Dv4Slot0)`
+    `dccm_dv_store(FUSE_OWNER_PK_HASH, lock_for_wr)`
 
-    `dv4_lock_wr(Dv4Slot0)`
+    `dccm_dv_store(MANUFACTURER_ECC_PK_INDEX, lock_for_wr)`
 
-    `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
+    `dccm_dv_store(MANUFACTURER_PQC_PK_INDEX, lock_for_wr)`
 
-    `dv48_lock_wr(Dv48Slot9)`
+    `dccm_dv_store(ROM_COLD_BOOT_STATUS, lock_for_wr)`
 
-    `dv4_store(MANUFACTURER_ECC_PK_INDEX, Dv4Slot3)`
-
-    `dv4_lock_wr(Dv4Slot3)`
-
-    `dv4_store(MANUFACTURER_LMS_PK_INDEX, Dv4Slot4)`
-
-    `dv4_lock_wr(Dv4Slot4)`
-
-    `dv4_store(ROM_COLD_BOOT_STATUS, Dv4Slot1)`
-
-    `dv4_lock_wr(Dv4Slot1)`
     **Note**: A value of 0x140 is stored on a successful cold boot.
 
 **Post-conditions:**
 
 - Vault state as follows:
 
-| Slot | Key Vault                        | DCCM datavault 48 Byte (Sticky)   | DCCM datavault 4 Byte (Sticky) |
-|------|----------------------------------|-------------------------------|----------------------------|
-| 0    |                                  | 🔒LDevID Cert Signature R    | 🔒FMC SVN |
-| 1    |                                  | 🔒LDevID Cert Signature S    | 🔒ROM Cold Boot Status |
-| 2    |                                  | 🔒LDevID Pub Key X           | 🔒FMC Entry Point |
-| 3    |                                  | 🔒LDevID Pub Key Y           | 🔒Manufacturer ECC Public Key Index |
-| 4    |                                  | 🔒Alias FMC Cert Signature R | 🔒Manufacturer LMS Public Key Index |
-| 5    |                                  | 🔒Alias FMC Cert Signature S | |
-| 6    | Alias FMC CDI - ECDSA (48 bytes) | 🔒Alias FMC Pub Key X        | |
-| 7    | Alias FMC Private Key - ECDSA (48 bytes) | 🔒Alias FMC Pub Key Y        | |
-| 8    |                                  | 🔒FMC Digest                 | |
-| 9    |                                  | 🔒Owner PK Hash              | |
-| 12   | Alias FMC CDI - MLDSA            | | |
-| 14   | Alias FMC Key Pair Seed - MLDSA | | |
+ | Slot | Key Vault                                  |
+ |------|--------------------------------------------|
+ | 6    | Alias FMC CDI (48 bytes)                   |
+ | 7    | Alias FMC Private Key - ECDSA (48 bytes)   |
+ | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+
+ | DCCM datavault                         |
+ |----------------------------------------|
+ | 🔒LDevID Cert ECDSA Signature R       |
+ | 🔒LDevID Cert ECDSA Signature S       |
+ | 🔒LDevID Cert MLDSA Signature         |
+ | 🔒LDevID Pub Key ECDSA X              |
+ | 🔒LDevID Pub Key ECDSA Y              |
+ | 🔒LDevID Pub Key MLDSA                |
+ | 🔒Alias FMC Cert ECDSA Signature R    |
+ | 🔒Alias FMC Cert ECDSA Signature S    |
+ | 🔒Alias FMC Cert MLDSA Signature      |
+ | 🔒FMC SVN                             |
+ | 🔒ROM Cold Boot Status                |
+ | 🔒FMC Entry Point                     |
+ | 🔒Manufacturer ECDSA Public Key Index |
+ | 🔒Manufacturer PQC Public Key Index   |
+ | 🔒Alias FMC ECDSA Pub Key X           |
+ | 🔒Alias FMC ECDSA Pub Key Y           |
+ | 🔒Alias FMC MLDSA Pub Key             |
+ | 🔒FMC Digest                          |
+ | 🔒Owner PK Hash                       |
 
 ## Warm reset flow
 
@@ -832,17 +808,21 @@ The following are the pre-conditions that should be satisfied:
   - Save the hash of the FMC portion of the image in a separate register.
   - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
   - The data vault is saved with the following values:-
-    - LDevId Dice Signature.
-    - LDevId Dice Public Key.
-    - Fmc Dice Signature.
-    - Fmc Public Key.
+    - LDevId Dice ECDSA Signature.
+    - LDevId Dice MLDSA Signature.
+    - LDevId Dice ECDSA Public Key.
+    - LDevId Dice MLDSA Public Key.
+    - Alias FMC Dice ECDSA Signature.
+    - Alias FMC Dice MLDSA Signature.
+    - Alias FMC Public ECDSA Key.
+    - Alias FMC Public MLDSA Key.
     - Digest of the FMC part of the image.
-    - Digest of the ECC and LMS owner public keys portion of preamble.
+    - Digest of the ECC and LMS or MLDSA owner public keys portion of preamble.
     - FMC SVN.
     - ROM Cold Boot Status.
     - Fmc Entry Point.
     - ECC Vendor public key index.
-    - LMS Vendor public key index.
+    - LMS or MLDSA Vendor public key index.
 - Warm Boot Mode
   - In this mode there is no validation or load required for any parts of the image.
   - All the contents of ICCM and DCCM are preserved.
