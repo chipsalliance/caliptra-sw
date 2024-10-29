@@ -163,6 +163,9 @@ All mailbox command codes are little endian.
 | `BAD_SIG`        | `0x4253_4947` ("BSIG") | Generic signature check failure (for crypto offload)
 | `BAD_IMAGE`      | `0x4249_4D47` ("BIMG") | Malformed input image
 | `BAD_CHKSUM`     | `0x4243_484B` ("BCHK") | Checksum check failed on input arguments
+| `CME_BAD_CMID`   | `0x434D_4249` ("CMBI") | Invalid CMID
+| `CME_BAD_CTXT`   | `0x434D_4243` ("CMBC") | Bad context
+| `CME_FULL`       | `0x434D_4546` ("CMEF") | Cryptographic Mailbox Full
 
 Relevant registers:
 
