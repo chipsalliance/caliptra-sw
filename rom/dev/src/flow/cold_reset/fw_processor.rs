@@ -264,9 +264,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
-                            cprintln!(
-                                "[fwproc] Max # of measurements received."
-                            );
+                            cprintln!("[fwproc] Max # of measurements received.");
                             txn.complete(false)?;
 
                             // Raise a fatal error on hitting the max. limit.
@@ -588,9 +586,8 @@ impl FirmwareProcessor {
         txn.copy_request(data)?;
 
         // Extract header out from the rest of the request
-        let req_hdr: &MailboxReqHeader =
-            MailboxReqHeader::ref_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
-                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        let req_hdr = MailboxReqHeader::read_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Verify checksum
         if !caliptra_common::checksum::verify_checksum(

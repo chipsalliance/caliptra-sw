@@ -292,6 +292,7 @@ mod fifo {
             *word = mbox.dataout().read();
         }
     }
+
     pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) -> CaliptraResult<()> {
         let dlen_bytes = mbox.regs().dlen().read() as usize;
         if dlen_bytes < buf.len() {
@@ -305,17 +306,14 @@ mod fifo {
         if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
             let last_word = mbox.regs().dataout().read();
             let suffix_len = suffix.len();
-            suffix
-                .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
+            suffix.copy_from_slice(&last_word.as_bytes()[..suffix_len]);
         }
         Ok(())
     }
 
-    fn enqueue_words(mbox: &mut MboxCsr, buf: &[u32]) {
+    fn enqueue_word(mbox: &mut MboxCsr, word: u32) {
         let mbox = mbox.regs_mut();
-        for word in buf {
-            mbox.datain().write(|_| *word);
-        }
+        mbox.datain().write(|_| word);
     }
 
     /// Writes buf.len() bytes to the mailbox datain reg as dwords
@@ -325,13 +323,20 @@ mod fifo {
             return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
         }
         let count = buf.len() / size_of::<u32>();
-        let (buf_words, suffix) = <[u32]>::ref_from_prefix_with_elems(buf, count)
-            .map_err(|_| CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
-        enqueue_words(mbox, &buf_words);
-        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
+        let buf_iter = buf.chunks_exact(count);
+        let remainder = buf_iter.remainder();
+
+        for chunk in buf_iter {
+            let word = u32::read_from_bytes(&chunk)
+                .map_err(|_| CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
+            enqueue_word(mbox, word);
+        }
+
+        if !remainder.is_empty() && remainder.len() <= size_of::<u32>()  {
             let mut last_word = 0_u32;
-            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
-            enqueue_words(mbox, &[last_word]);
+            last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+
+            enqueue_word(mbox, last_word);
         }
         Ok(())
     }
