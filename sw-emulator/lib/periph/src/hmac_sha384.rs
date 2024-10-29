@@ -16,7 +16,7 @@ use crate::helpers::bytes_from_words_le;
 use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_crypto::EndianessTransform;
-use caliptra_emu_crypto::{Hmac512, Hmac512Mode};
+use caliptra_emu_crypto::{Hmac512, Hmac512Interface, Hmac512Mode};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -185,7 +185,7 @@ pub struct HmacSha384 {
     hide_tag_from_cpu: bool,
 
     /// HMAC engine
-    hmac: Hmac512<HMAC_KEY_SIZE>,
+    hmac: Box<dyn Hmac512Interface>,
 
     /// Key Vault
     key_vault: KeyVault,
@@ -231,7 +231,7 @@ impl HmacSha384 {
     /// * `Self` - Instance of HMAC-SHA-384 Engine
     pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
         Self {
-            hmac: Hmac512::<HMAC_KEY_SIZE>::new(Hmac512Mode::Sha384),
+            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE>::new(Hmac512Mode::Sha384)),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
             name1: ReadOnlyRegister::new(Self::NAME1_VAL),
             version0: ReadOnlyRegister::new(Self::VERSION0_VAL),
