@@ -122,7 +122,7 @@ For example, if we have 32 KB of storage for CM, this requires 256 bytes of addi
 
 ### CMIDs
 
-CMIDs require no additional storage.
+CMIDs offload storage of key metadata to mailbox callers. They therefore impose no additional storage within Caliptra Core.
 
 Unecrypted CMIDs have the following structure:
 
