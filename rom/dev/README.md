@@ -562,7 +562,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key pair generation seed in Key Vault Slot 8.
 
-    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6d, b"fmc_alias_mldsa_key", KvSlot8)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6, b"fmc_alias_mldsa_key", KvSlot8)`
 
     `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
