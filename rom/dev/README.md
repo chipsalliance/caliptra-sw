@@ -9,7 +9,7 @@ Caliptra is an open-source Hardware Root of Trust for Measurement (RTM). This do
 for Caliptra Read Only Memory Code (ROM). As an architecture specification for ROM, this document describes the
 following topics:
 
-1. Provide high level architecture and requirements
+1. Provide high level architecture
 2. Describe ROM DICE Layering Architecture
 3. Describe ROM functionality
 4. Define ROM boot flows
@@ -22,10 +22,9 @@ following topics:
 5. Cryptographic Derivations
 
 ## Spec Opens
-- UDS Provisioning flow
 - CSR Envelop signing
-- Known answer tests
-- Manufacturing debug unlock
+- Describe in-memory logs
+- Describe Update Reset Flow
 
 ## Glossary
 
@@ -78,9 +77,9 @@ https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_
 
 The Caliptra Firmware image has two main components:
 
-- ### **Firmware manifest**
+- **Firmware manifest**
 
-- ### **Firmware images**
+- **Firmware images**
 
 The firmware manifest is a combination of preamble and a signed header. It has
 public keys, public key hashes, signatures and table of contents which refer to the various
@@ -234,7 +233,109 @@ The initialization step involves a traditional startup script for microcontrolle
 - Zeros ICCM & DCCM memories (to initialize ECC)
 - Jumps to Rust entry point
 
-## DICE flow
+The following flows are conducted exclusively when the ROM is operating in ACTIVE mode.
+
+### Manufacturing Flows:
+The following flows are conducted when the ROM is operating in the manufacturing mode, indicated by a value of `DEVICE_MANUFACTURING` (0x1) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
+
+#### UDS Provisioning
+1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set. If the bit is set, the ROM initiates the UDS seed programming flow.
+
+2. In this procedure, the ROM retrieves a 512-bit value from the iTRNG and writes it to the address specified by the `UDS_SEED_OFFSET` register, utilizing DMA hardware assistance.
+
+3. Following the DMA operation, the ROM updates the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to either `UDS_PROGRAM_SUCCESS` or `UDS_PROGRAM_FAIL`, indicating the outcome of the operation.
+
+4. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
+
+#### Debug Unlock
+1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set.
+
+2. If the bit is set, the ROM enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 128-bit value.
+
+3. Upon receiving the `TOKEN` command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroed values: <br>
+    **64-bit 0s || 128-bit value || 64-bit 0s**
+
+4. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
+
+5. The ROM reads the value from the MANUF_DEBUG_UNLOCK_TOKEN fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
+
+6. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
+    - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_SUCCESS` bit to 1.
+    - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
+    - `uCTAP_UNLOCK` to 1.
+
+7. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
+    - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_FAILURE` to 1.
+    - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
+    - `uCTAP_UNLOCK` to 0.
+
+8. ROM then completes the mailbox command.
+
+### Production Flows
+The following flows are conducted when the ROM is operating in the production mode, indicated by a value of `DEVICE_PRODUCTION` (0x3) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
+
+#### Debug Unlock
+1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set.
+
+2. If the bit is set, the ROM enters a polling loop, awaiting a `GO` command on the mailbox. The payload for this command follows the specified format:
+
+*Note: All fields are little endian unless specified*
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Marker| 4 | Magic Number marking the start of the payload. The value must be 0x4442554E (‘DBUN’ in ASCII). |
+| Size| 4 | Size of the entire payload. |
+| ECC Public Key | 96 | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
+| MLDSA Public Key | 2592 | MLDSA-87 public key used to verify the Message Signature. |
+| Public Key Hash Index | 4 | Index of the SHA2-512 hash of the concatenation of the ECC and MLDSA public keys. |
+| Unique Device Id | 32 | Unique Id of Caliptra device. |
+| None | ?? | ??? |
+| Message | 128 | Debug unlock message. |
+| ECC Signature |  96 | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). |
+| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
+
+3. On receiving this payload, ROM performs the following validations:
+    - Verifies that the Marker contains the value 0x4442554E.
+    - Ensures the value in the Size field matches the size of the payload.
+    - Confirms that the Public Key Hash Index does not exceed the value specified in the NUM_OF_DEBUG_AUTH_PK_HASHES register.
+    - Calculates the address of the hash fuse as follows: <br>
+        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Public Key Hash Index  * SHA2-512 hash size (64 bytes) )**
+    - Retrieves the SHA2-512 hash (64 bytes) from the calculated address using DMA assist.
+    - Computes the SHA2-512 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
+    - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
+      - `PROD_DEBUG_UNLOCK_FAILURE` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
+      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+      - `uCTAP_UNLOCK` to 0.
+    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command(?).
+
+4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the Message field within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
+
+      - `PROD_DEBUG_UNLOCK_SUCCESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
+      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+      - `uCTAP_UNLOCK` to 1.
+
+5. ROM then completes the mailbox command with success (?)
+
+### Known Answer Test (KAT)
+
+To certify a cryptographic module, pre-operational self-tests must be performed when the system is booted. Implementing KATs is required for FIPS certification. However, regardless of FIPS certification, it is considered a security best practice to ensure that the supported cryptographic algorithms are functioning properly to guarantee correct security posture.
+
+KAT execution is described as two types:
+
+* Pre-operational Self-Test (POST)
+* Conditional Algorithm Self-Test (CAST)
+
+ROM performs the following POST tests to ensure that needed cryptographic modules are functioning correctly and are operational before any cryptographic operations are performed:
+
+ - SHA1
+ - SHA2-256
+ - SHA2-384
+ - SHA2-384-ACC
+ - ECC-384
+ - HMAC-384Kdf
+ - LMS
+
+### DICE Flow
 
 ![DICE Flow](doc/svg/dice-diagram.svg)
 
@@ -251,9 +352,9 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 - Caliptra subsystem is being cold reset
 - Obfuscation Key loaded in deobfuscation engine
 - UDS and Field Entropy loaded in Caliptra Fuse Registers
-- Keys Slot 0 - 31 are empty and Usage Bits are all cleared
+- Keys Slot 0 - 23 are empty and Usage Bits are all cleared
 - PCR 0 - 31 are all cleared
-- Data Vault is all cleared
+- DCCM datavault is cleared
 
 **Actions:**
 
@@ -355,6 +456,13 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 | 7    | IDevID ECDSA Private Key (48 bytes)   |
 | 8    | IDevID MLDSA Key Pair Seed (32 bytes) |
 
+ | DCCM Datavault                 |
+ |--------------------------------|
+ | 🔒IDevID Cert ECDSA Signature |
+ | 🔒IDevID ECDSA Pub Key        |
+ | 🔒IDevID Cert MLDSA Signature |
+ | 🔒IDevID MLDSA Pub Key        |
+
 ### Local Device ID DICE layer
 
 Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
@@ -368,7 +476,7 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 **Actions:**
 
-1. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in  Key Vault Slot 6.
+1. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in Key Vault Slot 6.
 
     `hmac512_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 
@@ -447,12 +555,19 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
  | DCCM Datavault                 |
  |--------------------------------|
+ | 🔒IDevID Cert ECDSA Signature |
+ | 🔒IDevID ECDSA Pub Key        |
+ | 🔒IDevID Cert MLDSA Signature |
+ | 🔒IDevID MLDSA Pub Key        |
  | 🔒LDevID Cert ECDSA Signature |
  | 🔒LDevID ECDSA Pub Key        |
  | 🔒LDevID Cert MLDSA Signature |
  | 🔒LDevID MLDSA Pub Key        |
 
-### Handling commands from mailbox
+### Firmware Processor Stage
+During this phase, the ROM executes specific mailbox commands. Based on the operational mode (ACTIVE versus PASSIVE), the ROM also initiates the download of the firmware image. This download is conducted either through a mailbox command or via the Recovery Register Interface.
+
+#### Handling commands from mailbox
 
 ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in ACTIVE mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
@@ -463,7 +578,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
 
-### Downloading firmware image from mailbox
+#### Downloading firmware image from mailbox
 
 There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
 
@@ -499,11 +614,11 @@ Following is the sequence of steps that are performed to download the firmware i
   - Image is downloaded into mailbox sram.
   - Loop on "image_activated" signal to wait for processing the image.
   - Set RI RECOVERY_STATUS register [Byte0:Bit[0:3]] to 0x2 "Booting recovery image".
-  - Validate the image per the [Image Validation Process](#firmware-image-validation-process). 
+  - Validate the image per the [Image Validation Process](#firmware-image-validation-process).
   - Once validated, set the RECOVERY_CTRL Byte2 to 0xFF.
   - Release the mailbox lock.
 
-### Image validation
+#### Image validation
 
 See Firmware [Image Validation Process](#firmware-image-validation-process).
 
@@ -565,7 +680,6 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6, b"fmc_alias_mldsa_key", KvSlot8)`
 
     `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot8)`
-
 
 4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM datavault.
 
@@ -635,6 +749,10 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
  | DCCM datavault                         |
  |----------------------------------------|
+ | 🔒IDevID Cert ECDSA Signature         |
+ | 🔒IDevID ECDSA Pub Key                |
+ | 🔒IDevID Cert MLDSA Signature         |
+ | 🔒IDevID MLDSA Pub Key                |
  | 🔒LDevID Cert ECDSA Signature R       |
  | 🔒LDevID Cert ECDSA Signature S       |
  | 🔒LDevID Cert MLDSA Signature         |
@@ -655,9 +773,61 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  | 🔒FMC Digest                          |
  | 🔒Owner PK Hash                       |
 
+### Locking of memory regions and registers
+ ROM locks the following entities to prevent any updates:
+
+ - **Cold Reset Unlockable values:**
+ These values are unlocked on a Cold Reset:
+    - FMC TCI
+    - FMC SVN
+    - FMC Entry Point
+    - Owner Pub Key Hash
+    - Ecc Vendor Pub Key Index
+    - PQC Vendor Pub Key Index
+    - ROM Cold Boot Status
+
+ - **Warm Reset unlockable values:**
+ These values are unlocked on a Warm or Cold Reset:
+    - RT TCI
+    - RT SVN
+    - RT Entry Point
+    - Manifest Addr
+    - ROM Update Reset Status
+
+ - **PCR values**
+    - FMC_CURRENT
+    - FMC_JOURNEY
+    - STASH_MEASUREMENT
+
+ - **ICCM**
+
+### Launch FMC
+The ROM initializes and populates the Firmware Handoff Table (FHT) to relay essential parameters to the FMC. The format of the FHT is documented [here](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/fmc/README.md#firmware-handoff-table). Upon successful population, the ROM transfers execution control to the FMC.
+
 ## Warm reset flow
+ROM does not perform any DICE derivations or firmware validation during warm reset.
 
 ![WARM RESET](doc/svg/warm-reset.svg)
+
+### Initialization
+ROM performs the same initialization sequence as specified [here](#Initialization)
+
+### Locking of memory regions and registers
+ROM locks the following entities to prevent any updates:
+
+ - **Warm Reset unlockable values:**
+    - RT TCI
+    - RT SVN
+    - RT Entry Point
+    - Manifest Addr
+    - ROM Update Reset Status
+
+ - **PCR values**
+    - FMC_CURRENT
+    - FMC_JOURNEY
+    - STASH_MEASUREMENT
+
+ - **ICCM**
 
 ## Update reset flow
 
@@ -665,6 +835,23 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 <br> *(Note: Please note that Image validation for the update reset flow has some differences as compared to the cold boot flow. Please refer to the Image Validation Section for further details.)
 
 ## Unknown/spurious reset flow
+
+### Initialization
+ROM performs the same initialization sequence as specified [here](#Initialization)
+
+### Error handling
+The ROM executes the following operations:
+  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
+  - Zeroizes the following cryptographic hardware modules:
+    - Ecc384
+    - Hmac384
+    - Sha256
+    - Sha384
+    - Sha2-512-384Acc
+    - KeyVault
+  - Stops the WatchDog Timer.
+  - Enters an infinite loop, awaiting a reset.
+<br><br>
 
 ![UNKNOWN RESET](doc/svg/unknown-reset.svg)
 
@@ -693,6 +880,7 @@ The basic flow for validating the firmware involves the following:
 - On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_FATAL` register
 
 ### **Overall validation flow**
+[TODO] Rewrite this.
 
 ![Overall Validation Flow](doc/svg/overall-validation-flow.svg)
 
@@ -861,78 +1049,6 @@ Fake ROM reduces boot time by doing the following:
 - The image builder exposes the argument "fake" that can be used to generate the fake versions
 
 To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
-
-## Provisioning UDS during Manufacturing
-UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mode.
-
-1. When the SOC is in manufacturing mode (value 'DEVICE_MANUFACTURING' or 0x1 in the CPTRA_SECURITY_STATE register 'DEVICE_LIFECYCLE' bits), and the UDS_PROGRAM_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set, the ROM will execute the UDS seed programming flow on power-up.
-2. In this flow, the ROM reads a 512-bit value from the iTRNG and writes it to the address specified by the UDS_SEED_OFFSET register, utilizing the DMA hardware assist.
-3. Based on the outcome of the DMA operation, the ROM sets the UDS_PROGRAM_REQ bit in the CPTRA_DBG_MANUF_SERVICE_RSP_REG register to either UDS_PROGRAM_SUCCESS or UDS_PROGRAM_FAIL, indicating the completion of the flow.
-4. The manufacturing process polls/reads this bit and proceeds with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
-
-## Debug Unlock in Manufacturing mode
-1. Upon executing the Known Answer Test (KAT), the ROM checks if the MANUF_DEBUG_UNLOCK_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set.
-
-2. If set, the ROM enters a loop, awaiting a TOKEN command on the mailbox. The payload of this command is a 128-bit value.
-
-3. Upon receiving the TOKEN command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroe values: <br>
-    **64-bit 0s || 128-bit value || 64-bit 0s**
-
-4. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
-
-5. The ROM reads the value from the MANUF_DEBUG_UNLOCK_TOKEN fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
-
-6. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
-    - MANUF_DEBUG_UNLOCK_SUCCESS to 1
-    - MANUF_DEBUG_UNLOCK_IN_PROGRESS to 0
-    - uCTAP_UNLOCK to 1
-
-7. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
-    - MANUF_DEBUG_UNLOCK_FAILURE to 1
-    - MANUF_DEBUG_UNLOCK_IN_PROGRESS to 0
-    - uCTAP_UNLOCK to 0
-
-## Debug Unlock in Production mode
-1. Upon the completing the execution of Known Answer Test (KAT), the ROM checks if the ROD_DEBUG_UNLOCK_REQ bit in the CPTRA_DBG_MANUF_SERVICE_REQ_REG register is set.
-
-2. If the bit is set, the ROM enters a polling loop, awaiting a GO command on the mailbox. The payload for this command follows the specified format:
-
-*Note: All fields are little endian unless specified*
-
-| Field | Size (bytes) | Description|
-|-------|--------|------------|
-| Marker| 4 | Magic Number marking the start of the payload. The value must be 0x4442554E (‘DBUN’ in ASCII). |
-| Size| 4 | Size of the entire payload. |
-| ECC Public Key | 96 | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
-| MLDSA Public Key | 2592 | MLDSA-87 public key used to verify the Message Signature. |
-| Public Key Hash Index | 4 | Index of the SHA2-512 hash of the concatenation of the ECC and MLDSA public keys. |
-| Unique Device Id | 32 | Unique Id of Caliptra device. |
-| Message | 128 | Debug unlock message. |
-| ECC Signature |  96 | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). |
-| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
-
-3. On receiving this payload, ROM performs the following validations:
-    - Verifies that the Marker contains the value 0x4442554E.
-    - Ensures the value in the Size field matches the size of the payload.
-    - Confirms that the Public Key Hash Index does not exceed the value specified in the NUM_OF_DEBUG_AUTH_PK_HASHES register.
-    - Calculates the address of the hash fuse as follows: <br>
-        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Public Key Hash Index  * SHA2-512 hash size (64 bytes) )**
-    - Retrieves the SHA2-512 hash (64 bytes) from the calculated address using DMA assist.
-    - Computes the SHA2-512 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
-    - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
-      * PROD_DEBUG_UNLOCK_FAILURE to 1
-      * PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
-      * uCTAP_UNLOCK to 0
-    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command(?).
-
-4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the Message field within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
-
-      - PROD_DEBUG_UNLOCK_SUCCESS to 1
-      - PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
-      - uCTAP_UNLOCK to 1
-
-    - ROM then completes the mailbox command with success (?)
-
 
 
 
