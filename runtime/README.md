@@ -16,6 +16,10 @@ v2.0:
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 
+## Spec Opens
+
+* Cryptographic Mailbox: ML-KEM support
+
 ## Runtime Firmware environment
 
 This section provides an overview of the Runtime Firmware environment.
