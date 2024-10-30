@@ -67,8 +67,8 @@ fn retrieve_csr_test() {
     let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
-    // std::fs::write("tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
     println!("csr: {}", csr_txt);
 
@@ -215,8 +215,8 @@ fn smoke_test() {
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
     // To update the ldev cert testdata:
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),
@@ -278,8 +278,8 @@ fn smoke_test() {
         dice_tcb_info,
         [
             DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("Device".into()),
+                vendor: None,
+                model: None,
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
                 fwids: vec![DiceFwid {
@@ -287,13 +287,13 @@ fn smoke_test() {
                     digest: device_info_hash.to_vec(),
                 },],
 
-                flags: Some(0x80000000),
+                flags: Some(0x00000001),
                 ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("FMC".into()),
+                vendor: None,
+                model: None,
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
                 fwids: vec![DiceFwid {
@@ -459,8 +459,8 @@ fn smoke_test() {
     assert_eq!(
         rt_dice_tcb_info,
         Some(DiceTcbInfo {
-            vendor: Some("Caliptra".into()),
-            model: Some("RT".into()),
+            vendor: None,
+            model: None,
             svn: Some(0x100),
             fwids: vec![DiceFwid {
                 // RT
@@ -609,8 +609,8 @@ fn smoke_test() {
     assert_eq!(
         rt_dice_tcb_info2,
         Some(DiceTcbInfo {
-            vendor: Some("Caliptra".into()),
-            model: Some("RT".into()),
+            vendor: None,
+            model: None,
             svn: Some(0x100),
             fwids: vec![DiceFwid {
                 // FMC
