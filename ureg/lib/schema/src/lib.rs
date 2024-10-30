@@ -136,6 +136,30 @@ pub struct RegisterType {
     pub fields: Vec<RegisterField>,
 }
 
+impl RegisterType {
+    /// Returns true if the types are equal except comments.
+    fn equals_except_comment(&self, other: &RegisterType) -> bool {
+        if self.name != other.name || self.width != other.width {
+            return false;
+        }
+
+        if self.fields.len() != other.fields.len() {
+            return false;
+        }
+
+        for i in 0..self.fields.len() {
+            let mut a = self.fields[i].clone();
+            let mut b = other.fields[i].clone();
+            a.comment = "".to_string();
+            b.comment = "".to_string();
+            if a != b {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum FieldType {
     #[default]
@@ -382,9 +406,7 @@ fn collect_used_reg_types(block: &RegisterBlock, used_types: &mut HashSet<Rc<Reg
         used_types.insert(reg.ty.clone());
     }
     for sb in block.sub_blocks.iter() {
-        for reg in sb.block().registers.iter() {
-            used_types.insert(reg.ty.clone());
-        }
+        collect_used_reg_types(sb.block(), used_types);
     }
 }
 

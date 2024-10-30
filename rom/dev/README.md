@@ -1,6 +1,8 @@
 
 # Caliptra - ROM Specification v2.0
 
+*Spec Version: 0.5*
+
 ## Scope
 
 Caliptra is an open-source Hardware Root of Trust for Measurement (RTM). This document is the architecture specification
@@ -19,6 +21,12 @@ following topics:
 
 5. Cryptographic Derivations
 
+## Spec Opens
+- UDS Provisioning flow
+- CSR Envelop signing
+- Known answer tests
+- Manufacturing debug unlock
+
 ## Glossary
 
 | Term                | Description                                                               |
@@ -27,11 +35,13 @@ following topics:
 | CSR                 | Certificate Signing Request                                               |
 | DCCM                | Data Closely Coupled Memory                                               |
 | DICE                | Device Identifier Composition Engine                                      |
+| ECC                 | Elliptic Curve Cryptography                                               |
 | FHT                 | Firmware Handoff Table                                                    |
 | FMC                 | First Mutable Code                                                        |
 | FW                  | Firmware                                                                  |
 | ICCM                | Instruction Closely Coupled Memory                                        |
 | IDEVID              | Initial Device ID DICE Layer                                              |
+| MLDSA               | Module-Lattice-Based Digital Signature Algorithm                          |
 | RoT                 | Root of Trust                                                             |
 | RT                  | Runtime                                                                   |
 | RTM                 | Root of Trust for Measurement                                             |
@@ -48,7 +58,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | Register                        | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
-| FUSE_FIELD_ENTROPY              | 512          | Obfuscated Field Entropy                                |
+| FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
 | FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
 | FUSE_ECC_REVOCATION (FUSE_KEY_MANIFEST_PK_HASH_MASK)  | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
@@ -61,7 +71,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
 
 ### Architectural Registers
-Please refer to the following link for SOC interface registers:
+Refer to the following link for SOC interface registers:
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
 ## Firmware image bundle
@@ -87,20 +97,10 @@ Firmware manifest consists of preamble, header and table of contents.
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 
 - Loads the preamble from the mailbox.
-- Calculates the hash of ECC and LMS or MLDSA Public Key Descriptors in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
+- Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
 - Verifies the active Manufacturer Public Key(s) based on fuse (FUSE_ECC_REVOCATION for ECC public key, FUSE_LMS_REVOCATION for LMS public key or FUSE_MLDSA_REVOCATION for MLDSA public key)
 
 *Note: All fields are little endian unless specified*
-
-*Public Key Descriptor*
-
-| Field | Size (bytes) | Description|
-|-------|--------|------------|
-| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
-| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
-| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
-| Key Hash Count | 1 | Number of public key hashes (n) |
-| Public Key Hash(es) | 48 * n | List of SHA2-384 public key hashes |
 
 *Preamble*
 
@@ -109,22 +109,32 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D414E (‘CMAN’ in ASCII)|
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
 | Firmware Manifest Type | 4 |  **Byte0:** - Type <br> 0x1 – ECC & LMS Keys <br> 0x2 – ECC & MLDSA Keys <br> **Byte1-Byte3:** Reserved |
-| Manufacturer Key Descriptor - 1 | Variable | Public Key Descriptor for ECC keys |
-| Manufacturer Key Descriptor - 2 | Variable | Public Key Descriptor for LMS or MLDSA keys |
-| Active Key Index - 1 | 4 | Public Key Hash Index for the active ECC key |
-| Active Key - 1 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
-| Active Key Index - 2 | 4 | Public Key Hash Index for the active LMS or MLDSA key |
-| Active Key - 2 | 48 or 2592 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Manufacturer ECC Key Descriptor | 196 | Public Key Descriptor for ECC keys |
+| Manufacturer LMS or MLDSA Key Descriptor | 1540 | Public Key Descriptor for LMS (1540 bytes) or MLDSA (196 bytes + 1344 unused bytes) keys |
+| Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
+| Active ECC Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
+| Active LMS or MLDSA Key Index | 4 | Public Key Hash Index for the active LMS or MLDSA key |
+| Active LMS or MLDSA Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Manufacturer ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Manufacturer LMS or MLDSA Signature | 1620 or 4628 | Manufacturer LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
-| Owner Key Descriptor - 1 | Variable | Public Key Descriptor for ECC keys |
-| Owner Key Descriptor - 2 | Variable | Public Key Descriptor for LMS or MLDSA keys |
+| Manufacturer LMS or MLDSA Signature | 4628 | Manufacturer LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
+| Owner ECC Key Descriptor | 52 | Public Key Descriptor for ECC key |
+| Owner LMS or MLDSA Key Descriptor | 52 | Public Key Descriptor for LMS or MLDSA key |
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
-| Owner LMS or MLDSA Public Key | 48 or 2592 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Owner LMS or MLDSA Public Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Owner ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Owner LMS or MLDSA Signature | 1620 or 4628 | Owner LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Owner MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte) |
+| Owner LMS or MLDSA Signature | 4628 | Owner LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Owner MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte) |
 | Reserved | 8 | Reserved 8 bytes |
 <br>
+
+#### Public Key Descriptor
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Key Descriptor Version | 1 | Version of the Key Descriptor. The value must be 0x1 for Caliptra 2.x |
+| Intent | 1 | Type of the descriptor <br> 0x1 - Vendor  <br> 0x2 - Owner |
+| Key Type | 1 | Type of the key in the descriptor <br> 0x1 - ECC  <br> 0x2 - LMS <br> 0x3 - MLDSA |
+| Key Hash Count | 1 | Number of valid public key hashes  |
+| Public Key Hash(es) | 48 * n | List of valid and invalid (if any) SHA2-384 public key hashes. ECDSA: n = 4, LMS: n = 32, MLDSA: n = 4 |
 
 #### Header
 
@@ -224,6 +234,10 @@ The initialization step involves a traditional startup script for microcontrolle
 - Zeros ICCM & DCCM memories (to initialize ECC)
 - Jumps to Rust entry point
 
+## DICE flow
+
+![DICE Flow](doc/svg/dice-diagram.svg)
+
 ### Decrypt secrets
 
 DICE Unique Device Secret (UDS) is stored in an SOC backed fuse (or derived from PUF). The raw UDS is not directly used. UDS is deobfuscated using Deobfuscation Engine. UDS is provisioned by the Silicon Vendor.
@@ -247,17 +261,9 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
     `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
-    Recondition the decrypted UDS for MLDSA keypair generation and store it in Key Vault Slot 10:
-
-    `hmac512(key: KvSlot0, value: b"uds_recon", MAC: KvSlot10)`
-
 2. Decrypt Field Entropy to Key Vault Slot 1
 
     `doe_decrypt_fe(KvSlot1, DOE_IV)`
-
-    Recondition the decrypted FE for MLDSA keypair generation and store it in Key Vault Slot 11:
-
-    `hmac512(key: KvSlot1, value: b"fe_recon", MAC: KvSlot11)`
 
 3. Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -269,51 +275,42 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 - Obfuscation Key cleared from Deobfuscation Engine
 - Vault State is as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | UDS for ECDSA (48 bytes) | | | |
-| 1 | Field Entropy for ECDSA (32 bytes) | | | |
-| 10 | Conditioned UDS for MLDSA | | | |
-| 11 | Conditioned Field Entropy for MLDSA | | | |
+| Slot | Key Vault                |
+|------|-----------------------   |
+| 0    | UDS (64 bytes)           |
+| 1    | Field Entropy (32 bytes) |
 
 ### Initial Device ID DICE layer
 
-Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing, ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
+Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing, ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
 
 **Pre-conditions:**
 
-- UDS for ECDSA is in Key Vault Slot 0
-- Conditioned UDS for MLDSA is in Key Vault Slot 10
+- UDS is in Key Vault Slot 0
 
 **Actions:**
 
-1. Derive the ECDSA CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6
+1. Derive the CDI using ROM specified label and UDS in Key Vault Slot 0 as data and store the resultant MAC in Key Vault Slot 6.
 
-    `hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
+    `hmac512_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
-    Use the conditioned UDS to derive the MLDSA CDI and store the resultant MAC in Key Vault Slot 12
-
-    `hmac512_kdf(KvSlot10, b"idevid_mldsa_cdi", KvSlot12)`
-
-2. Clear the UDS(s) in key vault
+2. Clear the UDS in the key vault.
 
     `kv_clear(KvSlot0)`
 
-    `kv_clear(KvSlot10)`
+3. Derive ECC Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
 
-3. Derive ECC Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7
-
-    `IDevIDSeedEcdsa = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+    `IDevIDSeedEcdsa = hmac512_kdf(KvSlot6, b"idevid_ecc_key", KvSlot3)`
 
     `IDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
 
     `kv_clear(KvSlot3)`
 
-    Derive the MLDSA Key Pair using the conditioned CDI in Key Vault Slot 12.
+    Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 8.
 
-    `IDevIDSeedMldsa = hmac512_kdf(KvSlot12, b"idevid_mldsa_keygen", KvSlot10)`
+    `IDevIDSeedMldsa = hmac512_kdf(KvSlot6, b"idevid_mldsa_key", KvSlot8)`
 
-    `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot10)`
+    `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
 *(Note: Steps 4-11 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
@@ -321,13 +318,13 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `IDevIdTbsEcdsa = gen_tbs(IDEVID_CSR, IDevIdPubKeyEcdsa)`
 
-5. Sign the IDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7
+5. Sign the IDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7.
 
     `IDevIdTbsDigestEcdsa = sha384_digest(IDevIdTbsEcdsa)`
 
     `IDevIdCertSigEcdsa = ecc384_sign(KvSlot7, IDevIdTbsDigestEcdsa)`
 
-6. Verify the signature of IDevID `To Be Signed` Blob
+6. Verify the signature of IDevID `To Be Signed` Blob.
 
     `Result = ecc384_verify(IDevIdPubKeyEcdsa, IDevIdTbsDigestEcdsa, IDevIdCertSigEcdsa)`
 
@@ -335,13 +332,13 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
     `IDevIdTbsMldsa = gen_tbs(IDEVID_CSR, IDevIdPubKeyMldsa)`
 
-8. Sign the IDevID `To Be Signed` DER Blob with IDevId MLDSA Private Key generated from the seed in Key Vault Slot 10.
+8. Sign the IDevID `To Be Signed` DER Blob with IDevId MLDSA Private Key generated from the seed in Key Vault Slot 8.
 
     `IDevIdTbsDigestMldsa = sha512_digest(IDevIdTbsMldsa)`
 
-    `IDevIdCertSigMldsa = mldsa87_sign(KvSlot10, IDevIdTbsDigestMldsa)`
+    `IDevIdCertSigMldsa = mldsa87_sign(KvSlot8, IDevIdTbsDigestMldsa)`
 
-10. Verify the signature of IDevID `To Be Signed` Blob
+10. Verify the signature of IDevID `To Be Signed` Blob.
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
 
@@ -349,126 +346,115 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 
 **Post-conditions:**
 
-- Vault state as follows:
+- Vault state is as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 1 |Field Entropy (32 bytes) | | | |
-| 6 |IDevID CDI - ECDSA (48 bytes) | | | |
-| 7 |IDevID ECDSA Private Key (48 bytes) | | | |
-| 10 |IDevID MLDSA Key Seed (32 bytes) | | | |
-| 11 | Conditioned Field Entropy for MLDSA | | | |
-| 12 |IDevID CDI - MLDSA (64 bytes) | | | |
+| Slot | Key Vault                             |
+|------|---------------------------------------|
+| 1    | Field Entropy (32 bytes)              |
+| 6    | IDevID CDI (64 bytes)                 |
+| 7    | IDevID ECDSA Private Key (48 bytes)   |
+| 8    | IDevID MLDSA Key Pair Seed (32 bytes) |
 
 ### Local Device ID DICE layer
 
-Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
+Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
 
 **Pre-conditions:**
 
 - Field Entropy is loaded in Key Vault Slot 1
-- IDevID CDI - ECDSA is stored in Key Vault Slot 6
+- IDevID CDI is stored in Key Vault Slot 6
 - IDevID Private Key is stored in Key Vault Slot 7
-- IDevID MLDSA Key Seed is stored in Key Vault Slot 10
-- Conditioned Field Entropy for MLDSA is stored in Key Vault Slot 11
-- IDevID CDI - MLDSA is stored in Key Vault Slot 12
+- IDevID MLDSA Key Generation Seed is stored in Key Vault Slot 8
 
 **Actions:**
 
-1. Derive the ECDSA CDI using IDevID CDI - ECDSA in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant MAC is stored back in  Key Vault Slot 6
+1. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in  Key Vault Slot 6.
 
-    `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
+    `hmac512_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 
-    `hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
-
-    Derive the MLDSA CDI using IDevID CDI - MLDSA in Key Vault Slot 12 as HMAC Key and condtioned Field Entropy stored in Key Vault Slot 11 as data. The resultant MAC is stored back in Slot 12
-
-    `hmac512_mac(KvSlot12, b"ldevid_mldsa_cdi", KvSlot12)`
-
-    `hmac512_mac(KvSlot12, KvSlot11, KvSlot12)`
+    `hmac512_mac(KvSlot6, KvSlot1, KvSlot6)`
 
 *(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
-2. Clear the Field Entropy in Key Vault Slot 1 and 11
+2. Clear the Field Entropy in Key Vault Slot 1.
 
     `kv_clear(KvSlot1)`
 
-    `kv_clear(KvSlot11)`
-
 3. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
-    `LDevIDSeed = hmac384_kdf(KvSlot6, b"ldevid_keygen", KvSlot3)`
+    `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_ecc_key", KvSlot3)`
 
     `LDevIdPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot5)`
 
     `kv_clear(KvSlot3)`
 
-4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key generation seed in Key Vault Slot 13.
+4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 4.
 
-    `LDevIDSeed = hmac512_kdf(KvSlot12, b"ldevid_mldsa_keygen", KvSlot13)`
+    `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_mldsa_key", KvSlot4)`
 
-    `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot13)`
+    `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot4)`
 
-5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM
+5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM datavault.
 
-    `[TBD]`
-
-5. Generate the `To Be Signed` DER Blob of the ECDSA LDevId Certificate
+6. Generate the `To Be Signed` DER Blob of the ECDSA LDevId Certificate.
 
     `LDevIdTbsEcdsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyEcdsa, LDevIdPubKeyEcdsa)`
 
-6. Sign the LDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7
+7. Sign the LDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7.
 
     `LDevIdTbsDigestEcdsa = sha384_digest(LDevIdTbsEcdsa)`
 
     `LDevIdCertSigEcdsa = ecc384_sign(KvSlot7, LDevIdTbsDigestEcdsa)`
 
-7. Clear the IDevId ECDSA Private Key in Key Vault Slot 7
+8. Clear the IDevId ECDSA Private Key in Key Vault Slot 7.
 
     `kv_clear(KvSlot7)`
 
-8. Verify the signature of LDevID `To Be Signed` Blob
+9. Verify the signature of LDevID `To Be Signed` Blob.
 
     `Result = ecc384_verify(IDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
 
-9. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate
+10. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate.
 
     `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
 
-10. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 10
+11. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 8.
 
     `LDevIdTbsDigestMldsa = sha512_digest(LDevIdTbsMldsa)`
 
-    `LDevIdCertSigMldsa = mldsa87_sign(KvSlot10, LDevIdTbsDigestMldsa)`
+    `LDevIdCertSigMldsa = mldsa87_sign(KvSlot8, LDevIdTbsDigestMldsa)`
 
-11. Clear the IDevId Mldsa seed in Key Vault Slot 10
+12. Clear the IDevId Mldsa seed in Key Vault Slot 8.
 
-    `kv_clear(KvSlot10)`
+    `kv_clear(KvSlot8)`
 
-12. Verify the signature of LDevID `To Be Signed` Blob
+13. Verify the signature of LDevID `To Be Signed` Blob.
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
 
-9. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in DCCM
+14. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
 
-    `[TBD]`
 
 **Post-conditions:**
 
-- Vault state as follows:
+- Vault state is as follows:
 
-| Slot | Key Vault | PCR Bank | DCCM |
-|------|-----------|----------|------|
-| X | | | 🔒LDevID Cert Signature |
-| X | | | 🔒LDevID Pub Key |
-| 5 | LDevID Private Key - ECDSA (48 bytes) | | |
-| 6 | LDevID CDI - ECDSA (48 bytes) | | |
-| 12 | LDevID CDI - MLDSA (48 bytes) | | |
-| 13 | LDevID Key Pair Seed - MLDSA (48 bytes) | | |
+ | Slot | Key Vault                               |
+ |------|-----------------------------------------|
+ | 4    | LDevID Key Pair Seed - MLDSA (32 bytes) |
+ | 5    | LDevID Private Key - ECDSA (48 bytes)   |
+ | 6    | LDevID CDI (64 bytes)                   |
+
+ | DCCM Datavault                 |
+ |--------------------------------|
+ | 🔒LDevID Cert ECDSA Signature |
+ | 🔒LDevID ECDSA Pub Key        |
+ | 🔒LDevID Cert MLDSA Signature |
+ | 🔒LDevID MLDSA Pub Key        |
 
 ### Handling commands from mailbox
 
-ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
+ROM supports the following set of commands before handling the FW_DOWNLOAD command in PASSIVE mode (described in section 9.6) or RI_DOWNLOAD_FIRMWARE command in ACTIVE mode. Once the FW_DOWNLOAD or RI_DOWNLOAD_FIRMWARE is issued, ROM stops processing any additional mailbox commands.
 
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement).
 2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version).
@@ -477,9 +463,9 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
 
-### Downloading images from mailbox
+### Downloading firmware image from mailbox
 
-The following is the sequence of the steps that are required to download the parts of firmware image from mailbox.
+There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
@@ -492,6 +478,31 @@ The following is the sequence of the steps that are required to download the par
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
 
+Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
+
+- On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the Recovery Interface (aka RI) PROT_CAP register [Byte11:Bit3] to 1 ('Flashless boot').
+- Set the RI DEVICE_STATUS register Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+- Set the RI DEVICE_STATUS register Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
+- Set the RI RECOVERY_STATUS register [Byte0:Bit[3:0]] to 0x1 ('Awaiting recovery image') and [Byte0:Bit[7:4]] to 0 (Recovery image index).
+- Loop on the 'payload_available' signal for the firmware image details to be available.
+- Read the image size from RI INDIRECT_FIFO_CTRL register Byte[2:5]. Image size in DWORDs.
+- Initiate image download from the recovery interface to the mailbox sram:
+  - Write the payload length to the DMA widget 'Byte Count' register.
+  - Write the block size with a value of 256 to the DMA widget 'Block Size' register.
+  - Write the source address to the DMA widget 'Source Address - Low' and 'Source Address - High' registers.
+  - Acquire the mailbox lock.
+  - Write DMA widget 'Control' register.
+    - Bits[17:16] (Read Route) - 0x1 (AXI RD -> Mailbox)
+    - Set Bit20 (Read Addr fixed).
+    - Set Bit0 (GO)
+  - Read DMA widget 'Status0' register in a loop till Status0.Busy=0 and Status0.Error=0
+  - Image is downloaded into mailbox sram.
+  - Loop on "image_activated" signal to wait for processing the image.
+  - Set RI RECOVERY_STATUS register [Byte0:Bit[0:3]] to 0x2 "Booting recovery image".
+  - Validate the image per the [Image Validation Process](#firmware-image-validation-process). 
+  - Once validated, set the RECOVERY_CTRL Byte2 to 0xFF.
+  - Release the mailbox lock.
+
 ### Image validation
 
 See Firmware [Image Validation Process](#firmware-image-validation-process).
@@ -502,10 +513,9 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Pre-conditions:**
 
-- LDevID CDI - ECDSA is stored in Key Vault Slot 6
+- LDevID CDI is stored in Key Vault Slot 6
+- LDevID MLDSA Key Pair Seed is stored in Key Vault Slot 4
 - LDevID ECDSA Private Key is stored in Key Vault Slot 5
-- LDevID CDI - MLDSA is stored in Key Vault Slot 12
-- LDevID Key Pair Seed is stored in Key Vault Slot 13
 - Firmware Image Bundle is successfully loaded and verified from the Mailbox
 - ROM has following information from Firmware Image Bundle
 - FMC_DIGEST - Digest of the FMC
@@ -526,7 +536,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         ECC_VENDOR_PK_INDEX,
         FMC_SVN,
         FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        LMS_VENDOR_PK_INDEX,
+        PQC_VENDOR_PK_INDEX,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
@@ -536,120 +546,114 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     pcr_lock_clear(Pcr0 && Pcr1)
     ```
 
-2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI - ECDSA in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
+2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 6.
 
     `Pcr0Measurement = pcr_read(Pcr0)`
 
-    `hmac384_kdf(KvSlot6, label: b"fmc_alias_cdi", context: Pcr0Measurement, KvSlot6)`
-
-    LDevID CDI - MLDSA in Key Vault Slot 12 is used as HMAC Key and contents of PCR0 are used as data. The resultant MAC is stored back in Slot 12.
-
-    `hmac512_kdf(KvSlot12, label: b"fmc_alias_mldsa_cdi", context: Pcr0Measurement, KvSlot12)`
+    `hmac512_kdf(KvSlot6, label: b"alias_fmc_cdi", context: Pcr0Measurement, KvSlot6)`
 
 3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
 
-    `AliasFmcSeedEcdsa = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
+    `AliasFmcSeedEcdsa = hmac512_kdf(KvSlot6, b"fmc_alias_ecc_key", KvSlot3)`
 
     `AliasFmcPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
 
     `kv_clear(KvSlot3)`
 
-    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 12 and store the key pair generation seed in Key Vault Slot 14.
+    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key pair generation seed in Key Vault Slot 8.
 
-    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot12, b"fmc_alias_mldsa_keygen", KvSlot14)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6, b"fmc_alias_mldsa_key", KvSlot8)`
 
-    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
+    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
 
-4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM
+4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM datavault.
 
-    `[TBD]`
-
-5. Generate the `To Be Signed` DER Blob of the ECDSA Alias FMC Certificate
+5. Generate the `To Be Signed` DER Blob of the ECDSA Alias FMC Certificate.
 
     `AliasFmcTbsEcdsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyEcdsa, AliasFmcPubKeyEcdsa)`
 
-6. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5
+6. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5.
 
     `AliasFmcTbsDigestEcdsa = sha384_digest(AliasFmcTbsEcdsa)`
 
     `AliasFmcTbsCertSigEcdsa = ecc384_sign(KvSlot5, AliasFmcTbsDigestEcdsa)`
 
-7. Clear the LDevId Private Key in Key Vault Slot 5
+7. Clear the LDevId Private Key in Key Vault Slot 5.
 
     `kv_clear(KvSlot5)`
 
-8. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob
+8. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob.
 
     `Result = ecc384_verify(LDevIdPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
 
-9. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate
+9. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate.
 
     `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
 
-10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 13
+10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 4.
 
     `AliasFmcTbsDigestMldsa = sha512_digest(AliasFmcTbsMldsa)`
 
-    `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot13, AliasFmcTbsDigestMldsa)`
+    `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot4, AliasFmcTbsDigestMldsa)`
 
-11. Clear the seed in Key Vault Slot 13 
+11. Clear the LDevId MLDSA key generation seed in Key Vault Slot 4.
 
-    `kv_clear(KvSlot13)`
+    `kv_clear(KvSlot4)`
 
-12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob
+12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob.
 
     `Result = mldsa87_verify(LDevIdPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
 
-13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM
+13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
 
-    `[TBD]`
+14. Lock critical state needed for warm and update reset in the DCCM datavault.
 
-14. Lock critical state needed for warm and update reset in the DCCM [TBD]
+    `dccm_dv_store(FMC_DIGEST, lock_for_wr)`
 
-    `dv48_store(FMC_DIGEST, Dv48Slot8)`
+    `dccm_dv_store(FMC_SVN, lock_for_wr)`
 
-    `dv48_lock_wr(Dv48Slot8)`
+    `dccm_dv_store(FUSE_OWNER_PK_HASH, lock_for_wr)`
 
-    `dv4_store(FMC_SVN, Dv4Slot0)`
+    `dccm_dv_store(MANUFACTURER_ECC_PK_INDEX, lock_for_wr)`
 
-    `dv4_lock_wr(Dv4Slot0)`
+    `dccm_dv_store(MANUFACTURER_PQC_PK_INDEX, lock_for_wr)`
 
-    `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
+    `dccm_dv_store(ROM_COLD_BOOT_STATUS, lock_for_wr)`
 
-    `dv48_lock_wr(Dv48Slot9)`
-
-    `dv4_store(MANUFACTURER_ECC_PK_INDEX, Dv4Slot3)`
-
-    `dv4_lock_wr(Dv4Slot3)`
-
-    `dv4_store(MANUFACTURER_LMS_PK_INDEX, Dv4Slot4)`
-
-    `dv4_lock_wr(Dv4Slot4)`
-
-    `dv4_store(ROM_COLD_BOOT_STATUS, Dv4Slot1)`
-
-    `dv4_lock_wr(Dv4Slot1)`
     **Note**: A value of 0x140 is stored on a successful cold boot.
 
 **Post-conditions:**
 
 - Vault state as follows:
 
-| Slot | Key Vault                        | Data Vault 48 Byte (Sticky)   | Data Vault 4 Byte (Sticky) |
-|------|----------------------------------|-------------------------------|----------------------------|
-| 0    |                                  | 🔒LDevID Cert Signature R    | 🔒FMC SVN |
-| 1    |                                  | 🔒LDevID Cert Signature S    | 🔒ROM Cold Boot Status |
-| 2    |                                  | 🔒LDevID Pub Key X           | 🔒FMC Entry Point |
-| 3    |                                  | 🔒LDevID Pub Key Y           | 🔒Manufacturer ECC Public Key Index |
-| 4    |                                  | 🔒Alias FMC Cert Signature R | 🔒Manufacturer LMS Public Key Index |
-| 5    |                                  | 🔒Alias FMC Cert Signature S | |
-| 6    | Alias FMC CDI - ECDSA (48 bytes) | 🔒Alias FMC Pub Key X        | |
-| 7    | Alias FMC Private Key - ECDSA (48 bytes) | 🔒Alias FMC Pub Key Y        | |
-| 8    |                                  | 🔒FMC Digest                 | |
-| 9    |                                  | 🔒Owner PK Hash              | |
-| 12   | Alias FMC CDI - MLDSA            | | |
-| 14   | Alias FMC Key Pair Seed - MLDSA | | |
+ | Slot | Key Vault                                  |
+ |------|--------------------------------------------|
+ | 6    | Alias FMC CDI (48 bytes)                   |
+ | 7    | Alias FMC Private Key - ECDSA (48 bytes)   |
+ | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+
+ | DCCM datavault                         |
+ |----------------------------------------|
+ | 🔒LDevID Cert ECDSA Signature R       |
+ | 🔒LDevID Cert ECDSA Signature S       |
+ | 🔒LDevID Cert MLDSA Signature         |
+ | 🔒LDevID Pub Key ECDSA X              |
+ | 🔒LDevID Pub Key ECDSA Y              |
+ | 🔒LDevID Pub Key MLDSA                |
+ | 🔒Alias FMC Cert ECDSA Signature R    |
+ | 🔒Alias FMC Cert ECDSA Signature S    |
+ | 🔒Alias FMC Cert MLDSA Signature      |
+ | 🔒FMC SVN                             |
+ | 🔒ROM Cold Boot Status                |
+ | 🔒FMC Entry Point                     |
+ | 🔒Manufacturer ECDSA Public Key Index |
+ | 🔒Manufacturer PQC Public Key Index   |
+ | 🔒Alias FMC ECDSA Pub Key X           |
+ | 🔒Alias FMC ECDSA Pub Key Y           |
+ | 🔒Alias FMC MLDSA Pub Key             |
+ | 🔒FMC Digest                          |
+ | 🔒Owner PK Hash                       |
 
 ## Warm reset flow
 
@@ -668,11 +672,11 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 The basic flow for validating the firmware involves the following:
 
-- Validate the manufacturing keys descriptors in the preamble.
+- Validate the manufacturing key descriptors in the preamble.
 - Validate the active manufacturing keys with the hash in the key descriptors.
 - Validate the owner keys in the preamble.
 - Validate the active manufacturer keys against the key revocation fuses.
-- Once both the validations are complete, download the header from the mailbox.
+- Once these validations are complete, download the header from the mailbox.
 - Validate the Manifest Header using the active manufacturer keys against the manufacturer signatures.
 - Validate the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
@@ -804,17 +808,21 @@ The following are the pre-conditions that should be satisfied:
   - Save the hash of the FMC portion of the image in a separate register.
   - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
   - The data vault is saved with the following values:-
-    - LDevId Dice Signature.
-    - LDevId Dice Public Key.
-    - Fmc Dice Signature.
-    - Fmc Public Key.
+    - LDevId Dice ECDSA Signature.
+    - LDevId Dice MLDSA Signature.
+    - LDevId Dice ECDSA Public Key.
+    - LDevId Dice MLDSA Public Key.
+    - Alias FMC Dice ECDSA Signature.
+    - Alias FMC Dice MLDSA Signature.
+    - Alias FMC Public ECDSA Key.
+    - Alias FMC Public MLDSA Key.
     - Digest of the FMC part of the image.
-    - Digest of the ECC and LMS owner public keys portion of preamble.
+    - Digest of the ECC and LMS or MLDSA owner public keys portion of preamble.
     - FMC SVN.
     - ROM Cold Boot Status.
     - Fmc Entry Point.
     - ECC Vendor public key index.
-    - LMS Vendor public key index.
+    - LMS or MLDSA Vendor public key index.
 - Warm Boot Mode
   - In this mode there is no validation or load required for any parts of the image.
   - All the contents of ICCM and DCCM are preserved.
