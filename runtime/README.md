@@ -913,7 +913,6 @@ Command Code: `0x434D_5349` ("CMSI")
 | **Name**       | **Type** | **Description**                   |
 | -------------- | -------- | --------------------------------- |
 | chksum         | u32      |                                   |
-| flags          | u32      | Bit 0 = this is the final message |
 | hash algorithm | u32      | Enum.                             |
 |                |          | Value 0 = reserved                |
 |                |          | Value 1 = SHA2-256                |
@@ -1001,34 +1000,28 @@ For each command, the context from the previous command's output must be passed 
 
 Command Code: `0x434D_4849` ("CMHI")
 
-*Table: `CM_HMAC_INPUT` input arguments*
+*Table: `CM_HMAC_INIT` input arguments*
 | **Name**       | **Type** | **Description**                        |
 | -------------- | -------- | -------------------------------------- |
 | chksum         | u32      |                                        |
 | Key CMID       | u8[32]   | CMID of key to use                     |
-| flags          | u32      | Bit 0 = this is the final message      |
 | hash algorithm | u32      | Enum.                                  |
 |                |          | 0 = reserved                           |
 |                |          | 1 = SHA2-256                           |
 |                |          | 2 = SHA2-384                           |
 |                |          | 3 = SHA2-512                           |
-| context size   | u32      | Size of the context                    |
-|                |          | MUST be 0 if this is the first message |
-| context        | u8[...]  |                                        |
 | data size      | u32      |                                        |
 | data           | u8[...]  | Data to MAC                            |
 
-*Table: `CM_HMAC` output arguments*
+*Table: `CM_HMAC_INIT` output arguments*
 | **Name**     | **Type** | **Description**                         |
 | ------------ | -------- | --------------------------------------- |
 | chksum       | u32      |                                         |
 | fips_status  | u32      | FIPS approved or an error               |
 | context size | u32      | SHALL be 0 if this is the final message |
 | context      | u8[...]  |                                         |
-| mac size     | u32      |                                         |
-| mac          | u8[...]  |                                         |
 
-*Table: `CM_HMAC` internal context*
+*Table: `CM_HMAC_INIT` internal context*
 | **Name**          | **Type** | **Description** |
 | ----------------- | -------- | --------------- |
 | input buffer      | u8[128]  |                 |
@@ -1052,7 +1045,7 @@ Command Code: `0x434D_4855` ("CMHU")
 | chksum         | u32      |                                                  |
 | context size   | u32      | Size of the context                              |
 | context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-| data size      | u32      | May be 0                                         |
+| data size      | u32      |                                                  |
 | data           | u8[...]  | Data to MAC                                      |
 
 *Table: `CM_HMAC_UPDATE` output arguments*
@@ -1078,8 +1071,6 @@ Command Code: `0x434D_4846` ("CMHF")
 | chksum         | u32      |                                                  |
 | context size   | u32      | Size of the context                              |
 | context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-| data size      | u32      | May be 0                                         |
-| data           | u8[...]  | Data to MAC                                      |
 
 *Table: `CM_HMAC_FINAL` output arguments*
 | **Name**     | **Type** | **Description**                         |
@@ -1122,7 +1113,7 @@ Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc
 
 Command Code: `0x434D_4B50` ("CMKP")
 
-*Table: `CM_HKDF` input arguments*
+*Table: `CM_HKDF_EXPAND` input arguments*
 | **Name**       | **Type** | **Description**           |
 | -------------- | -------- | ------------------------- |
 | chksum         | u32      |                           |
@@ -1147,6 +1138,8 @@ Command Code: `0x434D_4B50` ("CMKP")
 ### CM_AES_GCM_ENCRYPT
 
 Currently only supports AES-256-GCM with a random 96-bit IV.
+
+If the key material is larger than 256 bits, then it will be truncated before use.
 
 Command Code: `0x434D_4745` ("CMGE")
 
@@ -1243,6 +1236,8 @@ Currently only supports the NIST P-384 curve.
 
 The returned context must be passed to the `CM_ECDH_FINISH` command. The context contains the (encrypted) secret coefficient.
 
+The returned exchange data format is the concatenation of the x- and y-coordinates of the public point.
+
 Command Code: `0x434D_4547` ("CMEG")
 
 *Table: `CM_ECDH_GENERATE` input arguments*
@@ -1258,8 +1253,7 @@ Command Code: `0x434D_4547` ("CMEG")
 | fips_status        | u32      | FIPS approved or an error             |
 | context size       | u32      | size of context                       |
 | context            | u8[...]  | Used as the input to `CM_ECDH_FINISH` |
-| exchange data size | u32      | size of data to send in the exchange  |
-| exchange data      | u8[...]  | i.e., the public point                |
+| exchange data      | u8[96]   | i.e., the public point                |
 
 *Table: `CM_ECDH_GENERATE` / `CM_ECDH_FINISH` internal context*
 | **Name**           | **Type** | **Description** |
@@ -1274,6 +1268,10 @@ Currently only supports the NIST P-384 curve.
 
 The context must be passed from the `CM_ECDH_GENERATE` command.
 
+The incoming exchange data MUST be the concatenation of the x- and y- coordinates of the other side's public point.
+
+The produced shared secret is 384 bits.
+
 Command Code: `0x434D_4546` ("CMEF")
 
 *Table: `CM_ECDH_FINISH` input arguments*
@@ -1282,8 +1280,7 @@ Command Code: `0x434D_4546` ("CMEF")
 | chksum                      | u32      |                                                          |
 | context size                | u32      | size of context                                          |
 | context                     | u8[...]  | This MUST come from the output of the `CM_ECDH_GENERATE` |
-| incoming exchange data size | u32      |                                                          |
-| incoming exchange data      | u8[...]  | the other side's public point                            |
+| incoming exchange data      | u8[96]   | the other side's public point                            |
 
 *Table: `CM_ECDH_FINISH` output arguments*
 | **Name**    | **Type** | **Description**                  |
