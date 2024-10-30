@@ -22,7 +22,6 @@ following topics:
 5. Cryptographic Derivations
 
 ## Spec Opens
-- CSR Envelop signing
 - Describe in-memory logs
 - Describe Update Reset Flow
 
@@ -413,7 +412,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `IDevIdPubKeyMldsa = mldsa87_keygen(KvSlot8)`
 
-*(Note: Steps 4-11 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
+*(Note: Steps 4-12 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
 4. Generate the `To Be Signed` DER Blob of the IDevId CSR with the ECDSA public key.
 
@@ -443,7 +442,28 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
 
-11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox.
+11. Generate the MACs over the tbs digests as follows:
+
+    `IDevIdTbsEcdsaMac = hmac384_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa)`
+
+    `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa)`
+
+12. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
+
+#### IDevID CSR Format
+
+*Note: All fields are little endian unless specified*
+
+| Field | Size (bytes) | Description|
+|-------|--------|------------|
+| Marker| 4 | Magic Number marking the start of the CSR. The value must be 0x435352 (‘CSR’ in ASCII). |
+| Size| 4 | Size of the entire CSR. |
+| ECC CSR Size | 4 | Size of the ECC CSR (m bytes) |
+| ECC CSR MAC | 48 | ECC CSR HMAC-384 MAC. |
+| MLDSA CSR Size | 4 | Size of the ECC CSR (n bytes) |
+| MLDSA CSR MAC | 64 | ECC CSR HMAC-512 MAC. |
+| ECC CSR | m | ECC CSR bytes. |
+| MLDSA CSR | n | MLDSA CSR bytes. |
 
 **Post-conditions:**
 
