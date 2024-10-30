@@ -454,16 +454,16 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
 *Note: All fields are little endian unless specified*
 
-| Field | Size (bytes) | Description|
-|-------|--------|------------|
-| Marker| 4 | Magic Number marking the start of the CSR. The value must be 0x435352 (‘CSR’ in ASCII). |
-| Size| 4 | Size of the entire CSR. |
-| ECC CSR Size | 4 | Size of the ECC CSR (m bytes) |
-| ECC CSR MAC | 48 | ECC CSR HMAC-384 MAC. |
-| MLDSA CSR Size | 4 | Size of the ECC CSR (n bytes) |
-| MLDSA CSR MAC | 64 | ECC CSR HMAC-512 MAC. |
-| ECC CSR | m | ECC CSR bytes. |
-| MLDSA CSR | n | MLDSA CSR bytes. |
+| Field          | Size (bytes) | Description                                                                                     |
+|----------------|--------------|-------------------------------------------------------------------------------------------------|
+| Marker         | 4            | Magic Number marking the start of the CSR payload. The value must be 0x435352 (‘CSR’ in ASCII). |
+| Size           | 4            | Size of the entire CSR payload.                                                                 |
+| ECC CSR Size   | 4            | Size of the ECC CSR (m bytes)                                                                   |
+| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC.                                                                           |
+| MLDSA CSR Size | 4            | Size of the ECC CSR (n bytes)                                                                   |
+| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC.                                                                           |
+| ECC CSR        | m            | ECC CSR bytes.                                                                                  |
+| MLDSA CSR      | n            | MLDSA CSR bytes.                                                                                |
 
 **Post-conditions:**
 
@@ -600,7 +600,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 
 #### Downloading firmware image from mailbox
 
-There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download the parts of firmware image from mailbox in PASSIVE mode.
+There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Following is the sequence of the steps that are performed to download parts of firmware image from mailbox in PASSIVE mode.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
@@ -879,28 +879,27 @@ The ROM executes the following operations:
 
 The basic flow for validating the firmware involves the following:
 
-- Validate the manufacturing key descriptors in the preamble.
-- Validate the active manufacturing keys with the hash in the key descriptors.
-- Validate the owner keys in the preamble.
-- Validate the active manufacturer keys against the key revocation fuses.
-- Once these validations are complete, download the header from the mailbox.
-- Validate the Manifest Header using the active manufacturer keys against the manufacturer signatures.
-- Validate the Manifest Header using the owner keys against the owner signatures.
+- Validating the manufacturer key descriptors in the preamble.
+- Validating the active manufacturer keys with the corresponding hash in the key descriptors.
+- Validating the owner key descriptors in the preamble.
+- Validating the owner keys with the hash in the key descriptors.
+- Validating the active manufacturer keys against the key revocation fuses.
+- Validating the Manifest Header using the active manufacturer keys against the manufacturer signatures.
+- Validating the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
-- Load both the TOC entries from the mailbox.
-- Validate the downloaded TOC data against the TOC hash in the header.
-- This marks the TOC data as valid. The next step is to use the TOC Hash to validate image sections.
-- Download the FMC Image portion of the Image.
-- Validate the FMC Image against the hash in the TOC entry for the FMC.
+- Loading the FMC and Rutime (RT) TOC entries from the mailbox.
+- Validating the TOCs against the TOC hash in the header.
+- On successful validation, it is assured that the TOCs are valid. The next step is to use the Hash entry in the TOCs to validate the image sections.
+- Downloading the FMC Image portion of the firmware Image.
+- Validating the FMC Image against the hash in the TOC entry for the FMC.
   - If this is a cold reset, the FMC version number should be stored in a register.
-- Download the RT Image part of the firmware Image.
-- Validate the RT Image against the hash in the TOC entry for the RT.
-- If all the above validations are complete, the entire image is validated.
-- Let the SOC know that the firmware download command is complete.
-- On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_FATAL` register
+- Downloading the RT Image part of the firmware Image.
+- Validating the RT Image against the hash in the TOC entry for the RT.
+- On the successful completion of these validations, the entire image is validated.
+- Indicating to the SOC of validation success by completing the mailbox command.
+- On validation failure, reporting the appropriate error in the `CPTRA_FW_ERROR_FATAL` register and invoking the [error handler](#Error-handling)
 
 ### **Overall validation flow**
-[TODO] Rewrite this.
 
 ![Overall Validation Flow](doc/svg/overall-validation-flow.svg)
 
@@ -926,31 +925,29 @@ The following are the pre-conditions that should be satisfied:
 ## Preamble validation: Validate the manufacturing keys
 
 - Load the preamble bytes from the mailbox.
-- There is an ECC key descriptor and either LMS or MLDSA key descriptor in the preamble. The ECC descriptor contains up to four ECC public key hashes. The LMS key descriptor contains up to 32 public key hashes. The MLDSA key descriptor contains up to four MLDSA public key hashes.
-- There is an ECC key and either LMS or MLDSA manufacturing key in the preamble. These are the active public keys.
-- fuse_key_manifest_pk_hash is the fuse that contains the hash of the ECC and LMS or MLDSA manufacturing key descriptors.
-- To validate the key region, take the hash of the ECC and LMS or MLDSA keys descriptors and compare it against the hash in fuse.
-- If the hash does not match, fail the image validation.
-- If the hash matches, the ECC and LMS or MLDSA key descriptors are validated.
-- Validate the active public keys against one of the hashes in the key descriptors as indicated by the active key indices.
+- Based on the firmware image type, the image includes an ECC key descriptor and either an LMS or MLDSA key descriptor within the preamble. The ECC descriptor encapsulates up to four ECC public key hashes, the LMS descriptor up to 32 public key hashes, and the MLDSA descriptor up to four MLDSA public key hashes.
+- The firmware image, depending on its type, incorporates an ECC key and either an LMS or MLDSA manufacturing public key within the preamble. These constitute the active public keys.
+- The fuse_key_manifest_pk_hash fuse holds the SHA2-384 hash of the ECC, and LMS or MLDSA manufacturing key descriptors.
+- The key descriptors are validated by generating a SHA2-384 hash of the ECC and LMS or MLDSA key descriptors and comparing it against the hash stored in the fuse. If the hashes do not match, the image validation fails.
+- Upon a successful hash match, the ECC, and LMS or MLDSA key descriptors are deemed valid.
+- Subsequently, the active manufacturer public keys are validated against one of the hashes in the key descriptors. The specific hash for comparison is identified by the active key indices.
 
 ### Preamble validation: Manufacturing key validation
 
-- fuse_ecc_revocation is the mask which revokes an ECC key.
-  - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled.
-  - If all the bits are zeros, all the keys are enabled.
-  - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.
-- Validate that the 'Active Key Index' in the preamble is not disabled in the fuse_ecc_revocation fuse.
-  - If the key is disabled, fail the validation.
-- Repeat the above procedure for LMS or MLDSA keys using the fuse_lms_revocation or fuse_mldsa_revocation fuses respectively for key revocation.
+- fuse_ecc_revocation serves as the bitmask for revoking ECC keys.
+  - If bit-n is set, the nth key is disabled. All other higher bits that are zeros indicate the keys are still enabled.
+  - If all the bits are zeros, all ECC keys remain enabled.
+- Ensure that the Active Key Index in the preamble is not disabled by the fuse_ecc_revocation fuse.
+  - If the key is disabled, the validation process fails.
+- Repeat the above procedure for LMS or MLDSA keys using the fuse_lms_revocation or fuse_mldsa_revocation fuses, respectively, for key revocation.
 
-### Preamble validation: Validate the owner key
+### Preamble validation: Validate the Owner key
 
-- There is one slot each for the owner ECC and LMS or MLDSA keys in the image preamble.
-- fuse_owner_pk_hash contains the hash of the owner public keys.
-- The validation of owner public keys is done by hashing the owner public keys from the preamble and comparing the hash against the value in the fuse_owner_pk_hash.
-- If the hash matches, the owner public keys are valid.
-- If the hash match fails, fail the image validation.
+- The preamble includes a designated slot for the owner ECC key and a slot for either LMS or MLDSA keys.
+- The fuse_owner_pk_hash contains the hash of the owner public keys.
+- The validation process for owner public keys involves generating a SHA2-384 hash from the owner public keys within the preamble and comparing it to the hash stored in the fuse_owner_pk_hash register.
+- If the computed hash matches the value in fuse_owner_pk_hash, the owner public keys are deemed valid.
+- If there is a hash mismatch, the image validation process fails.
 
 ## Preamble validation steps
 
@@ -958,13 +955,15 @@ The following are the pre-conditions that should be satisfied:
 
 ## Header validation
 
-- Load the header portion of the firmware image from the mailbox.
-- Header is the only signed component. There are two signatures generated for the header.
-- First signature is generated using one of the manufacturing keys.
-- Second signature is generated using the owner public key.
-- To validate the header, hash and then verify that the ECC manufacturer signature in the preamble is for the hash.
-- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. Repeat the same procedure with LMS or MLDSA manufacturer key.
-- The hash is already generated. Verify the signature for the above hash using the ECC owner public key. Repeat the same procedure with LMS or MLDSA owner key.
+- Retrieve the header portion of the firmware image from the mailbox.
+- Note that the header is the sole signed component, featuring two distinct signatures pairs.
+- The first signature pair is generated using the active ECC and LMS or MLDSA manufacturing keys.
+- The second signature pair is generated using the owner ECC and LMS or MLDSA public keys.
+- To validate the header:
+  - Compute the SHA2-384 hash of the header.
+  - Verify the ECC manufacturer signature in the preamble against the computed hash.
+  - If the ECC manufacturer signature is invalid, fail the validation process. If the ECC manufacturer signature is valid, apply the same procedure using the LMS or MLDSA manufacturer key.
+  - Similarly, utilize the precomputed hash to verify the signature with the ECC owner public key. Repeat the process using the LMS or MLDSA owner key.
 
 ## Header validation steps
 
@@ -972,13 +971,12 @@ The following are the pre-conditions that should be satisfied:
 
 ## Table of contents validation
 
-- At this point all the previous steps of validation are complete.
-- The Preamble and the header are validated.
-- Load both the TOCs (FMC TOC and RT TOC) from the mailbox.
-- Generate the hash of the entire TOC data.
-- Compare the hash of the TOC data with the hash in the header.
-- If the hash matches, the TOC data is valid.
-- Ensure that Fw.Svn >= Fuse.Svn.
+- At this point both the Preamble and the Header have been validated.
+- Load the TOC entries (FMC TOC and RT TOC) from the mailbox.
+- Compute the SHA2-384 hash of the complete TOC data.
+- Compare the computed TOC hash with the hash embedded in the Header.
+  - If the hashes match, the TOC data is validated.
+- Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)
 
@@ -990,16 +988,16 @@ The following are the pre-conditions that should be satisfied:
 
 ## Validating image sections
 
-- Once the TOC is validated, the image section associated with each TOC needs validation.
-- The hash for each image section is stored in the TOC data.
-- Load the FMC Image section. The Offset and the size of the section is present in TOC.
-- Calculate the SHA-384 hash of the FMC image section.
-- Compare the hash with the hash available in the FMC TOC.
-- If the hash matches, the FMC image section is validated. If the hash does not match, reject the image.
-- Load the RT Image section from the mail box. The offset and the size of the section is present in the TOC.
-- Calculate the SHA-384 hash of the RT image section.
-- Compare the hash with the hash in the RT TOC.
-- If the hash matches, the RT image section is validated. If the hash does not match, reject the image.
+- Upon successful validation of the TOC, each image section corresponding to the TOC requires validation.
+- The hash for each image section is encapsulated within the TOC data.
+- Retrieve the FMC Image section. The offset and size of the section are specified in the TOC.
+- Compute the SHA2-384 hash for the FMC image section.
+- Compare the computed hash with the hash specified in the FMC TOC.
+  - If the hashes match, the FMC image section is considered validated. If the hashes do not match, the image is rejected.
+- Retrieve the RT Image section from the mailbox. The offset and size of the section are specified in the TOC.
+- Compute the SHA2-384 hash for the RT image section.
+Compare the computed hash with the hash specified in the RT TOC.
+  - If the hashes match, the RT image section is considered validated. If the hashes do not match, the image is rejected.
 
 ## Image section validation steps
 
@@ -1028,7 +1026,7 @@ The following are the pre-conditions that should be satisfied:
     - Digest of the ECC and LMS or MLDSA owner public keys portion of preamble.
     - FMC SVN.
     - ROM Cold Boot Status.
-    - Fmc Entry Point.
+    - FMC Entry Point.
     - ECC Vendor public key index.
     - LMS or MLDSA Vendor public key index.
 - Warm Boot Mode
