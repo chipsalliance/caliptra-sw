@@ -925,31 +925,33 @@ UDS provisioning is performed exclusively when the ROM is operating in ACTIVE mo
 | Size| 4 | Size of the entire payload. |
 | ECC Public Key | 96 | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
 | MLDSA Public Key | 2592 | MLDSA-87 public key used to verify the Message Signature. |
-| Public Key Hash Index | 4 | Index of the SHA2-384 hash of the concatenation of the ECC and MLDSA public keys. |
+| Public Key Hash Index | 4 | Index of the SHA2-512 hash of the concatenation of the ECC and MLDSA public keys. |
 | Unique Device Id | 32 | Unique Id of Caliptra device. |
 | Message | 128 | Debug unlock message. |
 | ECC Signature |  96 | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). |
-| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-384. (4627 bytes + 1 Reserved byte). |
+| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
 
 3. On receiving this payload, ROM performs the following validations:
     - Verifies that the Marker contains the value 0x4442554E.
     - Ensures the value in the Size field matches the size of the payload.
     - Confirms that the Public Key Hash Index does not exceed the value specified in the NUM_OF_DEBUG_AUTH_PK_HASHES register.
     - Calculates the address of the hash fuse as follows: <br>
-        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + (Public Key Hash Index  * SHA2-384 hash size (48 bytes) )**
-    - Retrieves the SHA2-384 hash (48 bytes) from the calculated address using DMA assist.
-    - Computes the SHA2-384 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
+        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Public Key Hash Index  * SHA2-512 hash size (64 bytes) )**
+    - Retrieves the SHA2-512 hash (64 bytes) from the calculated address using DMA assist.
+    - Computes the SHA2-512 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
     - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
       * PROD_DEBUG_UNLOCK_FAILURE to 1
       * PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
       * uCTAP_UNLOCK to 0
-    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command.
+    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command(?).
 
 4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the Message field within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
 
       - PROD_DEBUG_UNLOCK_SUCCESS to 1
       - PROD_DEBUG_UNLOCK_IN_PROGRESS to 0
       - uCTAP_UNLOCK to 1
+
+    - ROM then completes the mailbox command with success (?)
 
 
 
