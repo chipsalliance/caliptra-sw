@@ -1,4 +1,6 @@
-# Caliptra - FMC Specification v1.0
+# Caliptra - FMC Specification v2.0
+
+*Spec Version: 0.5*
 
 ## Scope
 
@@ -97,41 +99,54 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | Field                 | Size (bytes) | Written By | Description                                                                                              |
 |:----------------------|:-------------|:-----------|:---------------------------------------------------------------------------------------------------------|
 | fht_marker            | 4            | ROM        | Magic Number marking start of FHT. Value must be 0x54484643, ‘CFHT’ when viewed as little-endian ASCII.  |
-| fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
+| fht_major_ver         | 2            | ROM        | Major version of FHT. |
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
-| manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
+| manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM. |
 | fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.   |
-| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                    |
-| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                               |
-| fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                           |
-| fmc_priv_key_kv_hdl   | 4            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                        |
-| fmc_pub_key_x_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                           |
-| fmc_pub_key_y_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                            |
-| fmc_cert_sig_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                       |
-| fmc_cert_sig_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                       |
-| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the Data Vault.                                                               |
-| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the Data Vault.                                                                |
-| rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                 |
-| rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                         |
-| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault.                                                                |
-| rt_min_svn_dv_hdl     | 4            | FMC        | Handle of Min RT SVN value in the Data Vault.                                                            |
-| ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                                                                             |
-| fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.                                                                                   |
-| ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.                                                                                |
-| fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.                                                                                      |
-| pcr_log_addr          | 4            | ROM        | PCR Log Address.                                                                                         |
-| pcr_log_index         | 4            | ROM        | Last empty PCR log entry slot index.                                                                     |
-| meas_log_addr         | 4            | ROM        | Measurement Log Address.                                                                                 |
-| meas_log_index        | 4            | ROM        | Last empty Measurement log entry slot index.                                                             |
-| fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
-| rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
-| rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
-| ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                    |
-| ldevid_cert_sig_s_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                    |
-| idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
-| rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                       |
-| reserved              | 1650         |            | Reserved for future use.                                                                                 |
+| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in DCCM datavault. SRAM. |
+| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the DCCM datavault. |
+| fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present. |
+| fmc_priv_key_ecdsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias ECDSA Private Key in the Key Vault. |
+| fmc_keypair_seed_mldsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias MLDSA Key Pair Generation Seed in the Key Vault. |
+| fmc_pub_key_ecdsa_x_dv_hdl  | 4            | ROM        | Handle of FMC Alias ECDSA Public Key X Coordinate in the DCCM datavault. |
+| fmc_pub_key_ecdsa_y_dv_hdl  | 4            | ROM        | Handle of FMC Alias ECDSA Public Key Y Coordinate in the DCCM datavault. |
+| fmc_pub_key_mldsa_dv_hdl  | 4            | ROM        | Handle of FMC Alias MLDSA Public Key in the DCCM datavault. |
+| fmc_cert_sig_ecdsa_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate ECDSA Signature R Component in the DCCM datavault. |
+| fmc_cert_sig_ecdsa_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate ECDSA Signature S Component in the DCCM datavault.                                       |
+| fmc_cert_sig_mldsa_dv_hdl | 4            | ROM        | Handle of FMC Certificate MLDSA Signature in the DCCM datavault. |
+| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the DCCM datavault. |
+| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the DCCM datavault. |
+| rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault. |
+| rt_priv_key_ecdsa_kv_hdl    | 4            | FMC        | Handle of RT Alias ECDSA Private Key in the Key Vault. |
+| rt_keygen_seed_mldsa_kv_hdl    | 4            | FMC        | Handle of RT Alias MLDSA Key Generation Seed in the Key Vault. |
+| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the DCCM datavault. |
+| rt_min_svn_dv_hdl     | 4            | FMC        | Handle of Min RT SVN value in the DCCM datavault. |
+| ldevid_tbs_ecdsa_addr       | 4            | ROM        | Local Device ID ECDSA TBS Address. |
+| fmcalias_tbs_ecdsa_addr     | 4            | ROM        | FMC Alias TBS ECDSA Address. |
+| ldevid_tbs_mldsa_addr       | 4            | ROM        | Local Device ID MLDSA TBS Address. |
+| fmcalias_tbs_mldsa_addr     | 4            | ROM        | FMC Alias TBS MLDSA Address. |
+| ldevid_tbs_ecdsa_size       | 2            | ROM        | Local Device ID ECDSA TBS Size. |
+| fmcalias_tbs_ecdsa_size     | 2            | ROM        | FMC Alias TBS ECDSA Size. |
+| ldevid_tbs_mldsa_size       | 2            | ROM        | Local Device ID MLDSA TBS Size. |
+| fmcalias_tbs_mldsa_size     | 2            | ROM        | FMC Alias TBS MLDSA Size. |
+| pcr_log_addr          | 4            | ROM        | PCR Log Address. |
+| pcr_log_index         | 4            | ROM        | Last empty PCR log entry slot index. |
+| meas_log_addr         | 4            | ROM        | Measurement Log Address. |
+| meas_log_index        | 4            | ROM        | Last empty Measurement log entry slot index. |
+| fuse_log_addr         | 4            | ROM        | Fuse Log Address. |
+| rt_dice_pub_key_ecdsa | 96           | FMC        | RT Alias DICE ECDSA Public Key. |
+| rt_dice_pub_key_mldsa_dv_hdl | 4           | FMC        | RT Alias DICE MLDSA Public Key in the DCCM datavault. |
+| rt_dice_sign_ecdsa     | 96           | FMC        | RT Alias DICE ECDSA signature. |
+| rt_dice_sign_mldsa_dv_hdl     | 4           | FMC        | RT Alias DICE MLDSA signature in the DCCM datavault. |
+| ldevid_cert_sig_ecdsa_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate ECDSA Signature R Component in the DCCM datavault. |
+| ldevid_cert_sig_ecdsa_s_dv_hdl | 4         | ROM        | Handle of LDevId Certificate ECDSA Signature S Component in the DCCM datavault. |
+| ldevid_cert_sig_mldsa_dv_hdl | 4         | ROM        | Handle of LDevId Certificate MLDSA Signature in the DCCM datavault. |
+| idev_dice_pub_key_ecdsa     | 96           | ROM        | Initial Device ID ECDSA Public Key. |
+| idev_dice_pub_key_mldsa_dv_hdl     | 4           | ROM        | Initial Device ID MLDSA Public Key in the DCCM datavault. |
+| rom_info_addr         | 4            | ROM        | Address of ROM Info struct describing the ROM digest and git commit. |
+| rtalias_tbs_ecdsa_size      | 2            | FMC        | RT Alias ECDSA TBS Size. |
+| rtalias_tbs_mldsa_size      | 2            | FMC        | RT Alias MLDSA TBS Size. |
+| reserved              | 1588         |            | Reserved for future use. |
 
 *FHT is currently defined to be 2048 bytes in length.*
 
@@ -167,63 +182,95 @@ This field provides the Handle of the DV entry that stores the physical address 
 
 ### fmc_tci_dv_hdl
 
-This field provides the Handle into the Data Vault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
+This field provides the Handle into the DCCM datavault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
 
 ### fmc_cdi_kv_hdl
 
 This field provides the Handle into the Key Vault where the CDI<sub>FMC</sub> is stored.
 
-### fmc_priv_key_kv_hdl
+### fmc_priv_key_ecdsa_kv_hdl
 
-This field provides the Handle into the Key Vault where the PrivateKey<sub>FMC</sub> is stored.
+This field provides the Handle into the Key Vault where the ECDSA PrivateKey<sub>FMC</sub> is stored.
 
-### fmc_pub_key_x_dv_hdl, fmc_pub_key_y_dv_hdl
+### fmc_keypair_seed_mldsa_kv_hdl
 
-These fields provide the indices into the Data Vault where the PublicKey<sub>FMC</sub> X and Y coordinates are stored.
+This field provides the Handle into the Key Vault where the MLDSA Key Generation Seed<sub>FMC</sub> is stored.
 
-### fmc_cert_sig_r_dv_hdl, fmc_cert_sig_s_dv_hdl
+### fmc_pub_key_ecdsa_x_dv_hdl, fmc_pub_key_ecdsa_y_dv_hdl
 
-These fields provide the indices into the Data Vault where the Signature<sub>FMC</sub> R and S coordinates are stored.
+These fields provide the Handle into the DCCM datavault where the ECDSA PublicKey<sub>FMC</sub> X and Y coordinates are stored.
+
+### fmc_pub_key_mldsa_dv_hdl
+
+This field provides the Handle into the DCCM datavault where the MLDSA PublicKey<sub>FMC</sub> is stored.
+
+### fmc_cert_sig_ecdsa_r_dv_hdl, fmc_cert_sig_ecdsa_s_dv_hdl
+
+These fields provide the Handle into the DCCM datavault where the ECDSA Signature<sub>FMC</sub> R and S coordinates are stored.
+
+### fmc_cert_sig_mldsa_dv_hdl
+
+This field provides the Handle into the DCCM datavault where the MLDSA Signature<sub>FMC</sub> is stored.
 
 ### fmc_svn_dv_hdl
 
-This field provides the Handle into the Data Vault where the SVN<sub>FMC</sub> is stored.
+This field provides the Handle into the DCCM datavault where the SVN<sub>FMC</sub> is stored.
 
 ### rt_tci_dv_hdl
 
-This field provides the Handle into the Data Vault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
+This field provides the Handle into the DCCM datavault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
 
 ### rt_cdi_kv_hdl
 
 This field provides the Handle into the Key Vault where the CDI<sub>RT</sub> is stored.
 
-### rt_priv_key_kv_hdl
+### rt_priv_key_ecdsa_kv_hdl
 
-This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
+This field provides the Handle into the Key Vault where the ECDSA PrivateKey<sub>RT</sub> is stored.
+
+### rt_keygen_seed_mldsa_kv_hdl
+
+This field provides the Handle into the Key Vault where the MLDSA Key Generation Seed<sub>RT</sub> is stored.
 
 ### rt_svn_dv_hdl
 
-This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is stored.
+This field provides the Handle into the DCCM datavault where the SVN<sub>RT</sub> is stored.
 
 ### rt_min_svn_dv_hdl
 
-This field provides the Handle into the Data Vault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
+This field provides the Handle into the DCCM datavault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
 
-### ldevid_tbs_addr
+### ldevid_tbs_ecdsa_addr
 
-This field provides the address of the *To Be Signed* portion of the LDevID certificate.
+This field provides the address of the *To Be Signed* portion of the LDevID ECDSA certificate.
 
-### fmcalias_tbs_addr
+### fmcalias_tbs_ecdsa_addr
 
-This field provides the address of the *To Be Signed* portion of the FMC Alias certificate.
+This field provides the address of the *To Be Signed* portion of the FMC Alias ECDSA certificate.
 
-### ldevid_tbs_size
+### ldevid_tbs_mldsa_addr
 
-This field provides the size of the *To Be Signed* portion of the LDevID certificate.
+This field provides the address of the *To Be Signed* portion of the LDevID MLDSA certificate.
 
-### fmcalias_tbs_size
+### fmcalias_tbs_mldsa_addr
 
-This field provides the size of the *To Be Signed* portion of the FMC Alias certificate.
+This field provides the address of the *To Be Signed* portion of the FMC Alias MLDSA certificate.
+
+### ldevid_tbs_ecdsa_size
+
+This field provides the size of the *To Be Signed* portion of the LDevID ECDSA certificate.
+
+### fmcalias_tbs_ecdsa_size
+
+This field provides the size of the *To Be Signed* portion of the FMC Alias ECDSA certificate.
+
+### ldevid_tbs_mldsa_size
+
+This field provides the size of the *To Be Signed* portion of the LDevID MLDSA certificate.
+
+### fmcalias_tbs_mldsa_size
+
+This field provides the size of the *To Be Signed* portion of the FMC Alias MLDSA certificate.
 
 ### pcr_log_addr
 
@@ -245,29 +292,49 @@ Index within the measurement log of the next available log entry
 
 This field provides the address of the Fuse Log
 
-### rt_dice_pub_key
+### rt_dice_pub_key_ecdsa
 
-This field provides the Runtime Alias Public Key.
+This field provides the Runtime Alias ECDSA Public Key.
 
-### rt_dice_sign
+### rt_dice_pub_key_mldsa_dv_hdl
 
-This field provides the Runtime Alias certificate signature.
+This field provides the Handle into the DCCM datavault where the Runtime Alias MLDSA Public Key is stored.
 
-### ldevid_cert_sig_r_dv_hdl, ldevid_cert_sig_s_dv_hdl
+### rt_dice_sign_ecdsa
 
-These fields provide the indices into the Data Vault where the Signature<sub>LDevId</sub> R and S coordinates are stored.
+This field provides the Runtime Alias certificate ECDSA signature.
 
-### idev_dice_pub_key
+### rt_dice_sign_mldsa_dv_hdl
 
-This field provides the IDevID Public Key.
+This field provides the Handle into the DCCM datavault where the Runtime Alias certificate MLDSA signature is stored.
+
+### ldevid_cert_sig_ecdsa_r_dv_hdl, ldevid_cert_sig_ecdsa_s_dv_hdl
+
+These fields provide the Handle into the DCCM datavault where the ECDSA Signature<sub>LDevId</sub> R and S coordinates are stored.
+
+### ldevid_cert_sig_mldsa_dv_hdl
+
+This field provides the Handle into the DCCM datavault where the MLDSA Signature<sub>LDevId</sub> is stored.
+
+### idev_dice_pub_key_ecdsa
+
+This field provides the ECDSA IDevID Public Key.
+
+### idev_dice_pub_key_mldsa_dv_hdl
+
+This field provides the Handle into the DCCM datavault where the MLDSA IDevID Public Key is stored.
 
 ### rom_info_addr
 
 This field provides the address of the RomInfo structure.
 
-### rtalias_tbs_size
+### rtalias_tbs_ecdsa_size
 
-This field provides the size of the *To Be Signed* portion of the Runtime Alias certificate.
+This field provides the size of the *To Be Signed* portion of the Runtime Alias ECDSA certificate.
+
+### rtalias_tbs_mldsa_size
+
+This field provides the size of the *To Be Signed* portion of the Runtime Alias MLDSA certificate.
 
 ### rt_hash_chain_max_svn
 
@@ -299,21 +366,22 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC locates the discrete FW-based FIPS Crypto Module in ICCM using fht.fips_fw_base_addr (if not 0xFFFF_FFFF) and calls its initialization routine. Otherwise FMC
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
 1. FMC locates the Manifest at fht.manifest_load_addr.
-1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
+1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the DCCM datavault that has previously been validated by ROM.
 1. FMC reads the manifest address of the Image Bundle from the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
 1. FMC clears Current PCR
 1. FMC extends Current and Journey PCR registers with TCI<sub>RT</sub>.
 1. FMC extends Current and Journey PCR registers with TCI<sub>MAN</sub>.
 1. FMC locks Current and Journey PCR registers.
 1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with TCI<sub>RT</sub> and TCI<sub>MAN</sub>, then stores it in the Key Vault.
-1. FMC updates fht.rt_cdi_kv_hdl in the FHT.
-1. FMC derives AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The Private Key is stored in the Key Vault while the Public Key X and Y coordinates are stored
-   in the Data Vault.
-1. FMC updates fht.rt_priv_key_kv_hdl, fht.rt_pub_key_x_dv_hdl, and fht.rt_pub_key_y_dv_hdl in the FHT.
-1. FMC generates an x509 certificate with PubKey<sub>RT</sub> as the subject and signed by PrivKey<sub>FMC</sub>.
-1. FMC stores the Cert<sub>RT</sub> signature in the Data Vault.
-1. FMC updates fht.rt_cert_sig_r_dv_hdl and fht.rt_cert_sig_r_dv_hdl in the FHT.
-1. FMC ensures that CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> are locked to block further usage until the next boot.
+1. FMC updates fht.rt_cdi_ecdsa_kv_hdl and fht.rt_cdi_mldsa_kv_hdl in the FHT.
+1. FMC derives ECDSA and MLDSA AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The ECDSA Private Key and the MLDSA Key Generation Seed are stored in the Key Vault, while the ECDSA Public Key X and Y coordinates and MLDSA Public Key are stored in the DCCM datavault.
+1. FMC updates fht.rt_priv_key_ecdsa_kv_hdl, fht.rt_pub_key_ecdsa_x_dv_hdl, and fht.rt_pub_key_ecdsa_y_dv_hdl in the FHT.
+1. FMC updates fht.rt_keypair_seed_mldsa_kv_hdl and fht.rt_pub_key_mldsa_dv_hdl in the FHT.
+1. FMC generates ECDSA and MLDSA x509 certificates with ECDSA and MLDSA PubKeys<sub>RT</sub> as the subject and signed by PrivKeys<sub>FMC</sub>.
+1. FMC stores the ECDSA and MLDSA Cert<sub>RT</sub> signatures in the DCCM datavault.
+1. FMC updates fht.rt_cert_sig_ecdsa_r_dv_hdl and fht.rt_cert_sig_ecdsa_s_dv_hdl in the FHT.
+1. FMC updates fht.rt_cert_sig_mldsa_dv_hdl in the FHT.
+1. FMC ensures that CDI<sub>FMC</sub>, ECDSA PrivateKey<sub>FMC</sub> and MLDSA KeyPair Generation Seed<sub>FMC</sub> are locked to block further usage until the next boot.
 1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
 1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
 
@@ -321,18 +389,31 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 
 - Vault state as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
-| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
-| 4 | | | 🔒Alias FMC Pub Key X |
-| 5 | | | 🔒Alias FMC Pub Key Y |
-| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
-| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
-| 8 |  | | 🔒FMC Digest |
-| 9 |  | | 🔒Owner PK Hash |
+| Slot | Key Vault                                  |
+|------|--------------------------------------------|
+| 6    | Alias FMC CDI (64 bytes)                   |
+| 7    | Alias FMC Private Key - ECDSA (48 bytes)   |
+| 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+
+| DCCM datavault                    |
+|-----------------------------------|
+| 🔒LDevID ECDSA Pub Key X         |
+| 🔒LDevID ECDSA Pub Key Y         |
+| 🔒LDevID MLDSA Pub Key           |
+| 🔒LDevID Cert ECDSA Signature R  |
+| 🔒LDevID Cert ECDSA Signature S  |
+| 🔒LDevID Cert MLDSA Signature    |
+| 🔒Alias FMC ECDSA Pub Key X      |
+| 🔒Alias FMC ECDSA Pub Key Y      |
+| 🔒Alias FMC MLDSA Pub Key        |
+| 🔒Alias FMC Cert Signature R     |
+| 🔒Alias FMC Cert Signature S     |
+| 🔒Alias FMC Cert MLDSA Signature |
+| 🔒FMC Digest                     |
+| 🔒FMC SVN                        |
+| 🔒Owner PK Hash                  |
+| 🔒Manufacturer Public Key Index  |
+
 
 <center>
 <br> *FMC Boot Sequence*
@@ -375,15 +456,20 @@ sequenceDiagram
     rect rgba(0, 0, 200, .2)
     note over FIPS, FMC: DICE-related derivations will be<br> defined in greater detail later
 
-    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvhdl, "rt_alias_cdi", RtTci)
+    FMC->>+FIPS: DeriveCdi(fht.fmc_cdi_kv_hdl, "alias_rt_cdi", RtTci)
     FIPS-->>-FMC: return(fht.rt_cdi_kv_hdl)
-    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl, "rt_alias_keygen")
-    FIPS-->>-FMC: return(fht.rt_priv_key_kv_hdl,<br> fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl)
-    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl,<br> fht.fmc_priv_key_kv_hdl)
-    FIPS-->>-FMC: return(fht.rt_cert_sig_r_dv_hdl, fht.rt_cert_sig_s_dv_hdl)
+    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl, "alias_rt_ecc_key")
+    FIPS-->>-FMC: return(fht.rt_priv_key_ecdsa_kv_hdl,<br> fht.rt_pub_key_ecdsa_x_dv_hdl,<br> fht.rt_pub_key_ecdsa_y_dv_hdl)
+    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_ecdsa_x_dv_hdl,<br> fht.rt_pub_key_ecdsa_y_dv_hdl,<br> fht.fmc_priv_key_ecdsa_kv_hdl)
+    FIPS-->>-FMC: return(fht.rt_cert_sig_ecdsa_r_dv_hdl, fht.rt_cert_sig_ecdsa_s_dv_hdl)
+    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl, "alias_rt_mldsa_key")
+    FIPS-->>-FMC: return(fht.rt_mldsa_seed_kv_hdl,<br> fht.rt_pub_key_mldsa_dv_hdl)
+    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_mldsa_dv_hdl,<br> fht.fmc_seed_mldsa_kv_hdl)
+    FIPS-->>-FMC: return(fht.rt_cert_sig_mldsa_dv_hdl)
     FMC->>+FIPS: LockKey(fht.fmc_cdi_kv_hdl)
     FIPS-->>-FMC: return()
-    FMC->>+FIPS: LockKey(fht.fmc_priv_key_kv_hdl)
+    FMC->>+FIPS: LockKey(fht.fmc_priv_key_ecdsa_kv_hdl)
+    FMC->>+FIPS: LockKey(fht.fmc_seed_mldsa_kv_hdl)
     FIPS-->>-FMC: return()
 
     end %% rect
@@ -402,18 +488,33 @@ sequenceDiagram
 
 - Vault state as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
-| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
-| 4 | Alias RT CDI (48 bytes) | | 🔒Alias FMC Pub Key X |
-| 5 | Alias RT Private Key (48 bytes)| | 🔒Alias FMC Pub Key Y |
-| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
-| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
-| 8 |  | | 🔒FMC Digest |
-| 9 |  | | 🔒Owner PK Hash |
+| Slot | Key Vault                                  |
+|------|--------------------------------------------|
+| 4    | Alias RT CDI (64 bytes)                    |
+| 5    | Alias RT Private Key (48 bytes)            |
+| 6    | Alias FMC CDI (64 bytes)                   |
+| 7    | Alias FMC Private Key (48 bytes)           |
+| 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+| 9    | Alias RT Key Pair Seed - MLDSA (32 bytes)  |
+
+| DCCM datavault                      |
+|-------------------------------------|
+| 🔒LDevID ECDSA Pub Key X           |
+| 🔒LDevID ECDSA Pub Key Y           |
+| 🔒LDevID MLDSA Pub Key             |
+| 🔒LDevID Cert ECDA Signature R     |
+| 🔒LDevID Cert ECDSA Signature S    |
+| 🔒LDevID Cert MLDSA Signature      |
+| 🔒Alias FMC ECDSA Pub Key X        |
+| 🔒Alias FMC ECDSA Pub Key Y        |
+| 🔒Alias FMC MLDSA Pub Key          |
+| 🔒Alias FMC Cert ECDSA Signature R |
+| 🔒Alias FMC Cert ECDSA Signature S |
+| 🔒Alias FMC Cert MLDSA Signature   |
+| 🔒FMC Digest                       |
+| 🔒FMC SVN                          |
+| 🔒Owner PK Hash                    |
+| 🔒Manufacturer Public Key Index    |
 
 ## Resets
 
