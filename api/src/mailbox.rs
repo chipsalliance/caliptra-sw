@@ -1051,9 +1051,26 @@ pub struct AuthorizeAndStashResp {
 }
 impl Response for AuthorizeAndStashResp {}
 
+/// Retrieves dlen bytes  from the mailbox.
+pub fn mbox_read_response(
+    mbox: mbox::RegisterBlock<impl MmioMut>,
+    buf: &mut [u8],
+) -> Result<&[u8], CaliptraApiError> {
+    let dlen_bytes = mbox.dlen().read() as usize;
+
+    // Buffer must be big enough to store dlen bytes.
+    let buf = buf
+        .get_mut(..dlen_bytes)
+        .ok_or(CaliptraApiError::ReadBuffTooSmall)?;
+
+    mbox_read_fifo(mbox, buf)?;
+
+    Ok(buf)
+}
+
 pub fn mbox_read_fifo(
     mbox: mbox::RegisterBlock<impl MmioMut>,
-    mut buf: &mut [u8],
+    buf: &mut [u8],
 ) -> core::result::Result<(), CaliptraApiError> {
     use zerocopy::Unalign;
 
@@ -1065,9 +1082,9 @@ pub fn mbox_read_fifo(
 
     let dlen_bytes = mbox.dlen().read() as usize;
 
-    if dlen_bytes < buf.len() {
-        buf = &mut buf[..dlen_bytes];
-    }
+    let buf = buf
+        .get_mut(..dlen_bytes)
+        .ok_or(CaliptraApiError::UnableToReadMailbox)?;
 
     let len_words = buf.len() / size_of::<u32>();
     let (mut buf_words, suffix) = LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words)
