@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, run_rt_test_lms};
+use crate::common::{assert_error, run_rt_test_lms, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
@@ -106,7 +106,7 @@ fn test_auth_manifest() -> AuthorizationManifest {
 
 #[test]
 fn test_set_auth_manifest_cmd() {
-    let mut model = run_rt_test_lms(None, None, None, true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -135,7 +135,7 @@ fn test_set_auth_manifest_cmd() {
 
 #[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
-    let mut model = run_rt_test_lms(None, None, None, true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -183,7 +183,7 @@ fn test_set_auth_manifest_cmd_invalid_len() {
 }
 
 fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: CaliptraError) {
-    let mut model = run_rt_test_lms(None, None, None, true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

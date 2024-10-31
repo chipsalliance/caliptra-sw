@@ -2,7 +2,7 @@
 
 use crate::common::{
     execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
-    DpeResult, TEST_LABEL,
+    DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
@@ -58,7 +58,11 @@ fn test_rt_cert_with_custom_dates() {
 
     opts.owner_config = Some(own_config);
 
-    let mut model = run_rt_test(None, Some(opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -85,7 +89,7 @@ fn test_rt_cert_with_custom_dates() {
 
 #[test]
 fn test_idev_id_cert() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // generate 48 byte ECDSA key pair
     let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
@@ -172,7 +176,7 @@ fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
 
 #[test]
 fn test_ldev_cert() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let ldev_resp = get_ldev_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
@@ -200,7 +204,7 @@ fn test_ldev_cert() {
 
 #[test]
 fn test_fmc_alias_cert() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let ldev_resp = get_ldev_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
@@ -221,7 +225,7 @@ fn test_fmc_alias_cert() {
 
 #[test]
 fn test_rt_alias_cert() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let fmc_resp = get_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
@@ -242,7 +246,7 @@ fn test_rt_alias_cert() {
 
 #[test]
 fn test_dpe_leaf_cert() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let rt_resp = get_rt_alias_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
@@ -279,7 +283,7 @@ fn test_dpe_leaf_cert() {
 
 #[test]
 fn test_full_cert_chain() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let ldev_resp = get_ldev_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
