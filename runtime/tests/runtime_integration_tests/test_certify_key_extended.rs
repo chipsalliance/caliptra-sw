@@ -17,11 +17,11 @@ use x509_parser::{
 };
 use zerocopy::{AsBytes, FromBytes};
 
-use crate::common::{assert_error, run_rt_test, TEST_LABEL};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
 #[test]
 fn test_dmtf_other_name_validation_fail() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -54,7 +54,7 @@ fn test_dmtf_other_name_validation_fail() {
 
 #[test]
 fn test_dmtf_other_name_extension_present() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -123,7 +123,7 @@ fn test_dmtf_other_name_extension_present() {
 
 #[test]
 fn test_dmtf_other_name_extension_not_present() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
