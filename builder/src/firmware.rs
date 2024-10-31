@@ -159,6 +159,11 @@ pub mod driver_tests {
         features: &["emu"],
     };
 
+    pub const DMA: FwId = FwId {
+        bin_name: "axi_dma_tests",
+        ..BASE_FWID
+    };
+
     pub const DOE: FwId = FwId {
         bin_name: "doe",
         ..BASE_FWID
@@ -404,6 +409,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
+    &driver_tests::DMA,
     &driver_tests::DOE,
     &driver_tests::ECC384,
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,

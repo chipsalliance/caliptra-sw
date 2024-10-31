@@ -440,4 +440,8 @@ impl ModelVerilated {
             self.v.input.itrng_valid = false;
         }
     }
+
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        todo!()
+    }
 }
