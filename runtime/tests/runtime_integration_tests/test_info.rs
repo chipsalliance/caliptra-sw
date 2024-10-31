@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::run_rt_test;
+use crate::common::{run_rt_test, RuntimeTestArgs};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
@@ -159,7 +159,7 @@ fn test_fw_info() {
 
 #[test]
 fn test_idev_id_info() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
     };
@@ -172,7 +172,7 @@ fn test_idev_id_info() {
 
 #[test]
 fn test_capabilities() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
     };
