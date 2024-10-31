@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{execute_dpe_cmd, generate_test_x509_cert, run_rt_test, DpeResult};
+use crate::common::{
+    execute_dpe_cmd, generate_test_x509_cert, run_rt_test, DpeResult, RuntimeTestArgs,
+};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq};
 use caliptra_error::CaliptraError;
@@ -68,7 +70,7 @@ fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_cert
 
 #[test]
 fn test_populate_idev_cert_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

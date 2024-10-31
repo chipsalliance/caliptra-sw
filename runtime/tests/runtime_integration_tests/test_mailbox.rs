@@ -5,13 +5,13 @@ use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
 use zerocopy::AsBytes;
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 
 /// When a successful command runs after a failed command, ensure the error
 /// register is cleared.
 #[test]
 fn test_error_cleared() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -37,7 +37,7 @@ fn test_error_cleared() {
 
 #[test]
 fn test_unimplemented_cmds() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -61,7 +61,7 @@ fn test_unimplemented_cmds() {
 // Changing PAUSER not supported on sw emulator
 #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 fn test_reserved_pauser() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 

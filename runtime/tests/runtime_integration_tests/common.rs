@@ -40,20 +40,22 @@ pub const TEST_DIGEST: [u8; 48] = [
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
 
-pub fn run_rt_test_lms(
-    test_fwid: Option<&'static FwId>,
-    test_image_options: Option<ImageOptions>,
-    init_params: Option<InitParams>,
-    lms_verify: bool,
-) -> DefaultHwModel {
+#[derive(Default)]
+pub struct RuntimeTestArgs<'a> {
+    pub test_fwid: Option<&'static FwId<'static>>,
+    pub test_image_options: Option<ImageOptions>,
+    pub init_params: Option<InitParams<'a>>,
+}
+
+pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
     } else {
         &APP_WITH_UART
     };
-    let runtime_fwid = test_fwid.unwrap_or(default_rt_fwid);
+    let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
 
-    let image_options = test_image_options.unwrap_or_else(|| {
+    let image_options = args.test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
         opts.vendor_config.pl0_pauser = Some(0x1);
         opts.fmc_version = DEFAULT_FMC_VERSION;
@@ -62,7 +64,7 @@ pub fn run_rt_test_lms(
     });
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let init_params = match init_params {
+    let init_params = match args.init_params {
         Some(init_params) => init_params,
         None => InitParams {
             rom: &rom,
@@ -93,12 +95,8 @@ pub fn run_rt_test_lms(
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
-pub fn run_rt_test(
-    test_fwid: Option<&'static FwId>,
-    test_image_options: Option<ImageOptions>,
-    init_params: Option<InitParams>,
-) -> DefaultHwModel {
-    run_rt_test_lms(test_fwid, test_image_options, init_params, false)
+pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
+    run_rt_test_lms(args, false)
 }
 
 pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {

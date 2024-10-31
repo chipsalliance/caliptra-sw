@@ -13,11 +13,11 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{AsBytes, LayoutVerified};
 
-use crate::common::run_rt_test;
+use crate::common::{run_rt_test, RuntimeTestArgs};
 
 #[test]
 fn test_stash_measurement() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -82,7 +82,11 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_pcr31_extended_upon_stash_measurement() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // Read PCR_ID_STASH_MEASUREMENT
     let pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();

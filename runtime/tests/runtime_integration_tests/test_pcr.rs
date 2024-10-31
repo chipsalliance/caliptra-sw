@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{get_fmc_alias_cert, run_rt_test};
+use crate::common::{get_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
@@ -20,7 +20,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn test_pcr_quote() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     const RESET_PCR: u32 = 7;
 
@@ -114,7 +114,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
     }
 
     // 0. Get fresh pcr state and verify
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     assert_eq!(get_model_pcrs(&mut model)[4], [0u8; 48]);
 
     // 1.0 Testing for extension_data [0,...,0]
@@ -159,7 +159,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
 
 #[test]
 fn test_extend_pcr_cmd_invalid_pcr_index() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     let extension_data: [u8; 48] = [0u8; 48];
 
     // 3. Invalid PCR index
@@ -175,7 +175,7 @@ fn test_extend_pcr_cmd_invalid_pcr_index() {
 
 #[test]
 fn test_extend_pcr_cmd_reserved_range() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     let extension_data: [u8; 48] = [0u8; 48];
 
     // 4. Ensure reserved PCR range

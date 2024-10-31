@@ -23,7 +23,7 @@ use dpe::{
 };
 use zerocopy::{AsBytes, FromBytes};
 
-use crate::common::run_rt_test;
+use crate::common::{run_rt_test, RuntimeTestArgs};
 
 fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
@@ -37,7 +37,7 @@ fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: Imag
 
 #[test]
 fn test_rt_journey_pcr_updated_in_dpe() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -57,7 +57,7 @@ fn test_rt_journey_pcr_updated_in_dpe() {
 
 #[test]
 fn test_tags_persistence() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -97,7 +97,11 @@ fn test_tags_persistence() {
 
 #[test]
 fn test_context_tags_validation() {
-    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // make context_tags validation fail by "tagging" an inactive context
     let mut context_tags = [0u32; MAX_HANDLES];
@@ -119,7 +123,11 @@ fn test_context_tags_validation() {
 
 #[test]
 fn test_context_has_tag_validation() {
-    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // make context_has_tag validation fail by "tagging" an inactive context
     let mut context_has_tag = [U8Bool::new(false); MAX_HANDLES];
@@ -141,7 +149,11 @@ fn test_context_has_tag_validation() {
 
 #[test]
 fn test_dpe_validation_deformed_structure() {
-    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -187,7 +199,11 @@ fn test_dpe_validation_deformed_structure() {
 
 #[test]
 fn test_dpe_validation_illegal_state() {
-    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -231,7 +247,11 @@ fn test_dpe_validation_illegal_state() {
 
 #[test]
 fn test_dpe_validation_used_context_threshold_exceeded() {
-    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -281,7 +301,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
 #[test]
 fn test_pcr_reset_counter_persistence() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
