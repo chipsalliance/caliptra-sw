@@ -65,7 +65,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
-| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11,12**: Unique Endpoint ID <br> **Words 13,14,15,16**: Manufacturer Serial Number |
+| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11,12**: Unique Endpoint ID <br> **Words 13,14,15,16**: Manufacturer Serial Number |
 | MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
 
 ### Architectural Registers
@@ -247,73 +247,101 @@ The following flows are conducted when the ROM is operating in the manufacturing
 4. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
-1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set.
+1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set
 
-2. If the bit is set, the ROM enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 128-bit value.
+2. If they are set, the ROM enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 128-bit value.
 
-3. Upon receiving the `TOKEN` command, the ROM constructs a token by prepending and appending the 128-bit value with two 64-bit zeroed values: <br>
+3. Upon receiving the `TOKEN` command, ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
+
+4. The ROM then constructs a token by prepending and appending the 128-bit value with two 64-bit zeroed values: <br>
     **64-bit 0s || 128-bit value || 64-bit 0s**
 
-4. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
+5. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
 
-5. The ROM reads the value from the MANUF_DEBUG_UNLOCK_TOKEN fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
+6. The ROM reads the value from the `MANUF_DEBUG_UNLOCK_TOKEN` fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
 
-6. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
+7. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_SUCCESS` bit to 1.
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
     - `uCTAP_UNLOCK` to 1.
 
-7. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
+8. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_FAILURE` to 1.
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
     - `uCTAP_UNLOCK` to 0.
 
-8. ROM then completes the mailbox command.
+9. ROM then completes the mailbox command with success or failure depending on the outcome of the unlock operation.
 
 ### Production Flows
 The following flows are conducted when the ROM is operating in the production mode, indicated by a value of `DEVICE_PRODUCTION` (0x3) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### Debug Unlock
-1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set.
+1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set.
 
-2. If the bit is set, the ROM enters a polling loop, awaiting a `GO` command on the mailbox. The payload for this command follows the specified format:
+2. If they are set, the ROM enters a polling loop, awaiting a `AUTH_DEBUG_UNLOCK_REQ` command on the mailbox. The payload for this command is of the following format:
 
-*Note: All fields are little endian unless specified*
+| Field            | Size (bytes) | Description                                        |
+|------------------|--------------|----------------------------------------------------|
+| Vendor ID        | 2            | Vendor Id.                                         |
+| Object Data Type | 1            | Data type of the object.                           |
+| Reserved         | 1            | Reserved field.                                    |
+| Length           | 3            | Length of the message in DWORDs. This should be 3. |
+| Reserved         | 1            | Reserved field.                                    |
+| Unlock Category  | 3            | Bits[0:3] - Debug unlock Level.                    |
+| Reserved         | 1            | Reserved field.                                    |
 
-| Field | Size (bytes) | Description|
-|-------|--------|------------|
-| Marker| 4 | Magic Number marking the start of the payload. The value must be 0x4442554E (‘DBUN’ in ASCII). |
-| Size| 4 | Size of the entire payload. |
-| ECC Public Key | 96 | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
-| MLDSA Public Key | 2592 | MLDSA-87 public key used to verify the Message Signature. |
-| Public Key Hash Index | 4 | Index of the SHA2-512 hash of the concatenation of the ECC and MLDSA public keys. |
-| Unique Device Id | 32 | Unique Id of Caliptra device. |
-| None | ?? | ??? |
-| Message | 128 | Debug unlock message. |
-| ECC Signature |  96 | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes). |
-| MLDSA Signature | 4628 | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
+3. The ROM validates the payload and on successful validation sends the following payload via the `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command:
+
+| Field                    | Size (bytes) | Description                                        |
+|--------------------------|--------------|----------------------------------------------------|
+| Vendor ID                | 2            | Vendor Id.                                         |
+| Object Data Type         | 1            | Data type of the object.                           |
+| Reserved                 | 1            | Reserved field.                                    |
+| Length                   | 3            | Length of the message in DWORDs. This should be 8. |
+| Reserved                 | 1            | Reserved field.                                    |
+| Unique Device Identifier | 32           | Device identifier of the Caliptra Device.          |
+| Challenge                | 48           | Random number.                                     |
+
+4. In reponse to this mailbox command, the SOC sends the following payload via the `AUTH_DEBUG_UNLOCK_TOKEN` mailbox command:
+
+| Field                    | Size (bytes) | Description                                                                           |
+|--------------------------|--------------|---------------------------------------------------------------------------------------|
+| Vendor ID                | 2            | Vendor Id.                                                                            |
+| Object Data Type         | 1            | Data type of the object.                                                              |
+| Reserved                 | 1            | Reserved field.                                                                       |
+| Length                   | 3            | Length of the message in DWORDs. This should be 0x754.                                |
+| Reserved                 | 1            | Reserved field.                                                                       |
+| Unique Device Identifier | 32           | Device identifier sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.      |
+| Unlock Category          | 1            | **Bits[0:1]** - Allow/Deny debug unlock. <br> **Bits[2:3]** - Debug unlock Level.             |
+| Reserved                 | 3            | Reserved field.                                                                       |
+| Challenge                | 48           | Random number sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.          |
+| ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian)                         |
+| MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature.                             |
+| ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes).                                                                                   |
+| MLDSA Signature          | 4628         | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
 
 3. On receiving this payload, ROM performs the following validations:
-    - Verifies that the Marker contains the value 0x4442554E.
-    - Ensures the value in the Size field matches the size of the payload.
-    - Confirms that the Public Key Hash Index does not exceed the value specified in the NUM_OF_DEBUG_AUTH_PK_HASHES register.
-    - Calculates the address of the hash fuse as follows: <br>
-        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Public Key Hash Index  * SHA2-512 hash size (64 bytes) )**
+    - ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
+    - Ensures the value in the `Length` field matches the size of the payload.
+    - Confirms that the `Debug unlock level` does not exceed the value specified in the `NUM_OF_DEBUG_AUTH_PK_HASHES` register.
+    - Calculates the address of the public key hash fuse as follows: <br>
+        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Debug Unlock Level * SHA2-512 hash size (64 bytes) )**
     - Retrieves the SHA2-512 hash (64 bytes) from the calculated address using DMA assist.
     - Computes the SHA2-512 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
     - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
       - `PROD_DEBUG_UNLOCK_FAILURE` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
       - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
       - `uCTAP_UNLOCK` to 0.
-    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command(?).
+    - Upon hash comparison failure, the ROM exits the payload validation flow and fails the mailbox command.
 
-4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the Message field within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
+4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the `Challenge`, `Device Identifier` and `Unlock Category` fields within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
 
       - `PROD_DEBUG_UNLOCK_SUCCESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
       - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
       - `uCTAP_UNLOCK` to 1.
+      - Setting the Debug unlock level in the `CALIPTRA_SOC_DEBUG_UNLOCK_LEVEL` register
 
-5. ROM then completes the mailbox command with success (?)
+5. ROM then completes the mailbox command with success or failure depending on the outcome of the unlock operation.
 
 ### Known Answer Test (KAT)
 
