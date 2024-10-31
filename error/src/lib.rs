@@ -345,6 +345,13 @@ impl CaliptraError {
     pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
         CaliptraError::new_const(0x000D104);
 
+    /// DMA driver Errors
+    pub const DRIVER_DMA_TRANSACTION_ALREADY_BUSY: CaliptraError =
+        CaliptraError::new_const(0x0000f000);
+    pub const DRIVER_DMA_TRANSACTION_ERROR: CaliptraError = CaliptraError::new_const(0x0000f001);
+    pub const DRIVER_DMA_FIFO_UNDERRUN: CaliptraError = CaliptraError::new_const(0x0000f002);
+    pub const DRIVER_DMA_FIFO_OVERRUN: CaliptraError = CaliptraError::new_const(0x0000f003);
+
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);
@@ -469,6 +476,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E004D);
     pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
         CaliptraError::new_const(0x000E004E);
+    pub const RUNTIME_CMD_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x000E004F);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -524,6 +532,7 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
     pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
         CaliptraError::new_const(0x01020008);
+    pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);

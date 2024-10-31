@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api_types::Fuses;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART},
     ImageOptions,
@@ -8,7 +9,6 @@ use caliptra_common::mailbox_api::{
     CommandId, GetFmcAliasCertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
-use caliptra_hw_model_types::Fuses;
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, LDevId},
     swap_word_bytes, swap_word_bytes_inplace,

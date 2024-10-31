@@ -21,7 +21,7 @@ static const uint16_t itrng_entropy_high_threshold = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
-static const uint32_t apb_pauser = 0x1;
+static const uint32_t axi_pauser = 0x1;
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
@@ -76,14 +76,14 @@ int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
                                      itrng_entropy_repetition_count);
 
     // Set up our PAUSER value for the mailbox regs
-    status = caliptra_mbox_pauser_set_and_lock(apb_pauser);
+    status = caliptra_mbox_pauser_set_and_lock(axi_pauser);
     if (status) {
         printf("Set MBOX pauser Failed: 0x%x\n", status);
         return status;
     }
 
     // Set up our PAUSER value for the fuse regs
-    status = caliptra_fuse_pauser_set_and_lock(apb_pauser);
+    status = caliptra_fuse_pauser_set_and_lock(axi_pauser);
     if (status) {
         printf("Set FUSE pauser Failed: 0x%x\n", status);
         return status;

@@ -1,12 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::soc_mgr::SocManager;
+use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
 use openssl::sha::Sha384;

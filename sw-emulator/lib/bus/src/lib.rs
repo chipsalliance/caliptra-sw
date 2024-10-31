@@ -11,7 +11,6 @@ Abstract:
     File contains exports for for Caliptra Emulator Bus library.
 
 --*/
-mod bus;
 mod clock;
 mod dynamic_bus;
 mod mem;
@@ -22,7 +21,6 @@ mod register_array;
 mod rom;
 pub mod testing;
 
-pub use crate::bus::{Bus, BusError};
 pub use crate::clock::{ActionHandle, Clock, Timer, TimerAction};
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::mmio::BusMmio;
@@ -33,3 +31,4 @@ pub use crate::register::{
 };
 pub use crate::register_array::{ReadWriteRegisterArray, RegisterArray};
 pub use crate::rom::Rom;
+pub use caliptra_emu_types::bus::{Bus, BusError};

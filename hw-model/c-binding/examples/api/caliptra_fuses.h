@@ -17,7 +17,7 @@ extern "C" {
 
 static inline void caliptra_fuse_write(caliptra_model *model, uint32_t offset, uint32_t data)
 {
-    caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
+    caliptra_model_axi_write_u32(model, (offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
 }
 
 static inline void caliptra_fuse_array_write(caliptra_model *model, uint32_t offset, uint32_t *data, size_t size)

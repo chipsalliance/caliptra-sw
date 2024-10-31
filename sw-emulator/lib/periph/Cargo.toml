@@ -11,6 +11,7 @@ edition = "2021"
 aes.workspace = true
 arrayref.workspace = true
 bitfield.workspace = true
+caliptra-api-types.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-crypto.workspace = true

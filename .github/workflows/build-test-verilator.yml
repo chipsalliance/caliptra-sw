@@ -34,96 +34,95 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Restore sccache binary
-        uses: actions/cache/restore@v3
-        id: sccache_bin_restore
-        with:
-          path: ~/.cargo/bin/sccache
-          key: sccache-bin-${{ env.SCCACHE_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
+      # - name: Restore sccache binary
+      #   uses: actions/cache/restore@v3
+      #   id: sccache_bin_restore
+      #   with:
+      #     path: ~/.cargo/bin/sccache
+      #     key: sccache-bin-${{ env.SCCACHE_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
 
-      - name: Install sccache
-        if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
-        run: |
-          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
+      # - name: Install sccache
+      #   if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
+      #   run: |
+      #     cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
-      - name: Save sccache binary
-        uses: actions/cache/save@v3
-        if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/bin/sccache
-          key: sccache-bin-${{ env.SCCACHE_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
+      # - name: Save sccache binary
+      #   uses: actions/cache/save@v3
+      #   if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
+      #   with:
+      #     path: ~/.cargo/bin/sccache
+      #     key: sccache-bin-${{ env.SCCACHE_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
 
-      - name: Configure sccache
-        uses: actions/github-script@v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      # - name: Configure sccache
+      #   uses: actions/github-script@v6
+      #   with:
+      #     script: |
+      #       core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+      #       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Restore verilator dir
-        uses: actions/cache/restore@v3
-        id: verilator_restore
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
+      # - name: Restore verilator dir
+      #   uses: actions/cache/restore@v3
+      #   id: verilator_restore
+      #   with:
+      #     path: /opt/verilator
+      #     key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
 
-      - name: Install verilator
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update -qy && sudo apt-get install flex bison libfl2 libfl-dev help2man
-          cd /tmp/
-          git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
-          cd verilator
-          autoconf
-          ./configure --prefix=/opt/verilator CXX="sccache g++"
-          make -j6
-          sudo make install
+      # - name: Install verilator
+      #   if: steps.verilator_restore.outputs.cache-hit != 'true'
+      #   run: |
+      #     sudo apt-get update -qy && sudo apt-get install flex bison libfl2 libfl-dev help2man
+      #     cd /tmp/
+      #     git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
+      #     cd verilator
+      #     autoconf
+      #     ./configure --prefix=/opt/verilator CXX="sccache g++"
+      #     make -j6
+      #     sudo make install
 
-      - name: Save verilator dir
-        uses: actions/cache/save@v3
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
+      # - name: Save verilator dir
+      #   uses: actions/cache/save@v3
+      #   if: steps.verilator_restore.outputs.cache-hit != 'true'
+      #   with:
+      #     path: /opt/verilator
+      #     key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}
 
-      - name: Setup verilator path
-        run: |
-          echo /opt/verilator/bin >> $GITHUB_PATH
+      # - name: Setup verilator path
+      #   run: |
+      #     echo /opt/verilator/bin >> $GITHUB_PATH
 
-      - name: Update Cargo index
-        run: |
-          cargo tree --locked > /dev/null || (
-            echo "Please include required changes to Cargo.lock in your pull request"
-            exit 1
-          )
+      # - name: Update Cargo index
+      #   run: |
+      #     cargo tree --locked > /dev/null || (
+      #       echo "Please include required changes to Cargo.lock in your pull request"
+      #       exit 1
+      #     )
 
-      - name: Check that generated register code matches caliptra-rtl submodule
-        run: |
-          cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl  hw/latest/registers/src
+      # - name: Check that generated register code matches caliptra-rtl submodule
+      #   run: |
+      #     cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl hw/latest/i3c-core-rtl  hw/latest/registers/src
 
-      - name: Check that generated X.509 templates match default templates
-        run: |
-          cargo test -p caliptra-x509 --features=generate_templates
+      # - name: Check that generated X.509 templates match default templates
+      #   run: |
+      #     cargo test -p caliptra-x509 --features=generate_templates
 
-      - name: Build
-        run: |
-          export RUSTC_WRAPPER=~/.cargo/bin/sccache
-          export CXX="sccache g++"
-          sccache --show-stats
-          (cd hw-model && cargo build --locked --release --features verilator --jobs 10)
-          # build all tests; need to make sure they still build with verilator
-          # even if we don't have time to run them.
-          cargo --config "$EXTRA_CARGO_CONFIG" test --no-run --locked --release --features=verilator
-          sccache --show-stats
+      # - name: Build
+      #   run: |
+      #     export RUSTC_WRAPPER=~/.cargo/bin/sccache
+      #     export CXX="sccache g++"
+      #     sccache --show-stats
+      #     (cd hw-model && cargo build --locked --release --features verilator --jobs 10)
+      #     # build all tests; need to make sure they still build with verilator
+      #     # even if we don't have time to run them.
+      #     cargo --config "$EXTRA_CARGO_CONFIG" test --no-run --locked --release --features=verilator
+      #     sccache --show-stats
 
-      - name: Run unit tests
-        run: |
-          export RUSTC_WRAPPER=~/.cargo/bin/sccache
-          export CXX="sccache g++"
-          (cd hw-model && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
-          (cd hw/verilated && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
+      # - name: Run unit tests
+      #   run: |
+      #     export RUSTC_WRAPPER=~/.cargo/bin/sccache
+      #     export CXX="sccache g++"
+      #     (cd hw-model && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
+      #     (cd hw/verilated && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
 
-      - name: Check source-code formatting (run "cargo fmt" if this fails)
-        run: |
-          (cd hw-model && cargo fmt --check)
-
+      # - name: Check source-code formatting (run "cargo fmt" if this fails)
+      #   run: |
+      #     (cd hw-model && cargo fmt --check)

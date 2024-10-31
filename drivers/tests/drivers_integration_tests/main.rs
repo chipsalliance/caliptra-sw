@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use std::error::Error;
 use std::iter;
 
@@ -1123,4 +1124,24 @@ fn test_uart() {
 #[test]
 fn test_mailbox_txn_drop() {
     run_driver_test(&firmware::driver_tests::MBOX_SEND_TXN_DROP);
+}
+
+#[test]
+fn test_dma() {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DMA).unwrap();
+    let recovery_image = &[0xab; 512];
+
+    let init_params = InitParams {
+        rom: &rom,
+        ..default_init_params()
+    };
+
+    let boot_params = BootParams {
+        ..Default::default()
+    };
+
+    let mut model = caliptra_hw_model::new_unbooted(init_params).unwrap();
+    model.put_firmware_in_rri(recovery_image).unwrap();
+    model.boot(boot_params).unwrap();
+    model.step_until_exit_success().unwrap();
 }

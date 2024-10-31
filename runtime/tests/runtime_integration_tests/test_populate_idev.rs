@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{execute_dpe_cmd, generate_test_x509_cert, run_rt_test, DpeResult};
+use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};

@@ -138,13 +138,13 @@ impl Hmac384 {
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
         if matches!(&mut tag, Hmac384Tag::Array4x12(_)) {
-            KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?;
+            KvAccess::begin_copy_to_arr(hmac.hmac512_kv_wr_status(), hmac.hmac512_kv_wr_ctrl())?;
         }
 
         // Configure the hardware to use key to use for the HMAC operation
         let key = match key {
             Hmac384Key::Array4x12(arr) => {
-                KvAccess::copy_from_arr(arr, hmac.key())?;
+                KvAccess::copy_from_arr(arr, hmac.hmac512_key().truncate::<12>())?;
                 None
             }
             Hmac384Key::Key(key) => Some(*key),
@@ -176,8 +176,7 @@ impl Hmac384 {
 
         let rand_data = trng.generate()?;
         let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-        KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
-
+        KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.hmac512_lfsr_seed())?;
         Ok(())
     }
 
@@ -205,7 +204,10 @@ impl Hmac384 {
         // caller.
         let dest_key = match &mut tag {
             Hmac384Tag::Array4x12(_arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?;
+                KvAccess::begin_copy_to_arr(
+                    hmac.hmac512_kv_wr_status(),
+                    hmac.hmac512_kv_wr_ctrl(),
+                )?;
                 None
             }
             Hmac384Tag::Key(dest_key) => Some(*dest_key),
@@ -214,7 +216,7 @@ impl Hmac384 {
         // Configure the hardware to use key to use for the HMAC operation
         let key = match *key {
             Hmac384Key::Array4x12(arr) => {
-                KvAccess::copy_from_arr(arr, hmac.key())?;
+                KvAccess::copy_from_arr(arr, hmac.hmac512_key().truncate::<12>())?;
                 None
             }
             Hmac384Key::Key(key) => Some(key),
@@ -231,7 +233,9 @@ impl Hmac384 {
 
         // Copy the tag to the specified location
         let result = match &mut tag {
-            Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
+            Hmac384Tag::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(hmac.hmac512_tag().truncate::<12>(), arr)
+            }
             _ => Ok(()),
         };
 
@@ -242,7 +246,10 @@ impl Hmac384 {
 
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
-        self.hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
+        self.hmac
+            .regs_mut()
+            .hmac512_ctrl()
+            .write(|w| w.zeroize(true));
     }
 
     /// Zeroize the hardware registers.
@@ -257,7 +264,7 @@ impl Hmac384 {
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
         let mut hmac = HmacReg::new();
-        hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
+        hmac.regs_mut().hmac512_ctrl().write(|w| w.zeroize(true));
     }
 
     ///
@@ -331,8 +338,12 @@ impl Hmac384 {
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
 
-        KvAccess::copy_from_kv(data_key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())
-            .map_err(|err| err.into_read_data_err())?;
+        KvAccess::copy_from_kv(
+            data_key,
+            hmac.hmac512_kv_rd_block_status(),
+            hmac.hmac512_kv_rd_block_ctrl(),
+        )
+        .map_err(|err| err.into_read_data_err())?;
 
         self.hmac_op(true, key, dest_key)
     }
@@ -394,7 +405,7 @@ impl Hmac384 {
         dest_key: Option<KeyWriteArgs>,
     ) -> CaliptraResult<()> {
         let hmac384 = self.hmac.regs_mut();
-        Array4x32::from(block).write_to_reg(hmac384.block());
+        Array4x32::from(block).write_to_reg(hmac384.hmac512_block());
         self.hmac_op(first, key, dest_key)
     }
 
@@ -414,29 +425,37 @@ impl Hmac384 {
         let hmac = self.hmac.regs_mut();
 
         if let Some(key) = key {
-            KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
-                .map_err(|err| err.into_read_key_err())?
+            KvAccess::copy_from_kv(
+                key,
+                hmac.hmac512_kv_rd_key_status(),
+                hmac.hmac512_kv_rd_key_ctrl(),
+            )
+            .map_err(|err| err.into_read_key_err())?
         };
         if let Some(dest_key) = dest_key {
-            KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), dest_key)?;
+            KvAccess::begin_copy_to_kv(
+                hmac.hmac512_kv_wr_status(),
+                hmac.hmac512_kv_wr_ctrl(),
+                dest_key,
+            )?;
         }
 
         // Wait for the hardware to be ready
-        wait::until(|| hmac.status().read().ready());
+        wait::until(|| hmac.hmac512_status().read().ready());
 
         if first {
             // Submit the first block
-            hmac.ctrl().write(|w| w.init(true).next(false));
+            hmac.hmac512_ctrl().write(|w| w.init(true).next(false));
         } else {
             // Submit next block in existing hashing chain
-            hmac.ctrl().write(|w| w.init(false).next(true));
+            hmac.hmac512_ctrl().write(|w| w.init(false).next(true));
         }
 
         // Wait for the hmac operation to finish
-        wait::until(|| hmac.status().read().valid());
+        wait::until(|| hmac.hmac512_status().read().valid());
 
         if let Some(dest_key) = dest_key {
-            KvAccess::end_copy_to_kv(hmac.kv_wr_status(), dest_key)
+            KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), dest_key)
                 .map_err(|err| err.into_write_tag_err())?;
         }
 
@@ -561,8 +580,10 @@ impl<'a> Hmac384Op<'a> {
 
         // Copy the tag to the specified location
         match &mut self.tag {
-            Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
-            Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
+            Hmac384Tag::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(hmac.hmac512_tag().truncate::<12>(), arr)
+            }
+            Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), *key)
                 .map_err(|err| err.into_write_tag_err()),
         }
     }

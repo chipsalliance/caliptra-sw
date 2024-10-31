@@ -2,8 +2,8 @@
 
 use caliptra_builder::{firmware, get_elf_path, ImageOptions};
 
+use caliptra_api_types::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::DeviceLifecycle;
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
 use openssl::sha::Sha384;

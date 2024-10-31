@@ -4,7 +4,7 @@
 /// firmware, for use in end-to-end test-cases.
 ///
 /// DO NOT REFACTOR THIS FILE TO RE-USE CODE FROM OTHER PARTS OF CALIPTRA
-use caliptra_hw_model_types::SecurityState;
+use caliptra_api_types::SecurityState;
 use caliptra_image_types::ImageManifest;
 use openssl::{
     pkey::{PKey, Public},
@@ -13,7 +13,7 @@ use openssl::{
 use zerocopy::{transmute, AsBytes};
 
 #[cfg(test)]
-use caliptra_hw_model_types::DeviceLifecycle;
+use caliptra_api_types::DeviceLifecycle;
 
 use crate::{
     crypto::{self, derive_ecdsa_key, hmac384, hmac384_drbg_keygen, hmac384_kdf},

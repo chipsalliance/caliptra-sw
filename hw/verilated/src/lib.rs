@@ -233,9 +233,9 @@ impl CaliptraVerilated {
         }
     }
 
-    /// Initiates a read transaction on the SoC->Caliptra APB bus with user
+    /// Initiates a read transaction on the SoC->Caliptra AXI bus with user
     /// `pauser` and `addr`, and returns the word read from the bus.
-    pub fn apb_read_u32(&mut self, pauser: u32, addr: u32) -> u32 {
+    pub fn axi_read_u32(&mut self, pauser: u32, addr: u32) -> u32 {
         self.input.paddr = addr;
         self.input.psel = true;
         self.input.penable = false;
@@ -259,9 +259,9 @@ impl CaliptraVerilated {
         self.output.prdata
     }
 
-    /// Initiates a write transaction on the SoC->Caliptra APB bus with user
+    /// Initiates a write transaction on the SoC->Caliptra AXI bus with user
     /// `pauser`, `addr` and `data`.
-    pub fn apb_write_u32(&mut self, pauser: u32, addr: u32, data: u32) {
+    pub fn axi_write_u32(&mut self, pauser: u32, addr: u32, data: u32) {
         self.input.paddr = addr;
         self.input.psel = true;
         self.input.penable = false;

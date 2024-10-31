@@ -1,6 +1,28 @@
-# Caliptra Runtime Firmware v1.1
+# Caliptra Runtime Firmware v2.0
+
+*Spec version: 0.3*
 
 This specification describes the Caliptra Runtime Firmware.
+
+## Changelog
+
+v1.1:
+
+* [LMS Signature Verification](#lms_signature_verify-new-in-11)
+
+v1.2:
+
+* [Manifest-Based Image Authorization](#manifest-based-image-authorization-new-in-12)
+
+v2.0:
+
+* Add support for passive mode (same as 1.x) and subsystem (or active) mode
+* [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
+* [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
+
+## Spec Opens
+
+* Cryptographic Mailbox: ML-KEM support
 
 ## Runtime Firmware environment
 
@@ -12,6 +34,7 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 
 * Initialize the [DICE Protection Environment (DPE)](#dice-protection-environment-dpe)
 * Initialize any SRAM structures used by Runtime Firmware
+* Upload the firwmare to the Manufacturer Control Unit (2.0, susbystem mode only)
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
@@ -58,7 +81,180 @@ Caliptra Runtime Firmware will share driver code with ROM and FMC where
 possible; however, it will have its own copies of all of these drivers linked into
 the Runtime Firmware binary.
 
-## Maibox commands
+## Cryptographic Mailbox Commands (new in 2.0)
+
+Cryptographic mailbox (CM) commands are a flexible set of mailbox commands that provide access to Caliptra's cryptographic cabilities.
+This is meant for key storage and use, supporting protocols like SPDM and OCP LOCK.
+
+These commands are not meant to be high-performance as they are accessed via mailbox commands.
+
+These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
+Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
+
+### References
+
+* [SPDM 1.3.1 (DSP0274)](https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.1.pdf), dated 2024-07-01.
+* [OCP Attestation v1.1](https://docs.google.com/document/d/1wA0hbJdtCpcQ1NvsVsYr2IeCkwQbgC7e/edit)
+* [RFC 5869 (HKDF)](https://www.rfc-editor.org/rfc/rfc5869.html)
+* [RFC 8446](https://datatracker.ietf.org/doc/html/rfc8446) Section 7.4.2 & IEEE 1363 (TLS ECDH secret derivation)
+
+### Contexts
+
+Several of the methods, such as SHA and AES, support contexts so that multiple users can have in-flight requests at the same time.
+
+The contexts contain the internal structures necessary to resume operations to support data that may exceed the size of a single mailbox command.
+
+These contexts are intended to be opaque to the user, and SHALL be encrypted and authenticated if they contain sensitive internal data.
+
+### Data Storage
+
+The CM system has its own dedicated storage in DCCM.
+
+This storage is protected with authenticated encryption using internal keys that are randomly generated at power on and stored in the key vault.
+
+This storage is exposed to users through opaque 256-bit handles, called cryptographic mailbox IDs (CMIDs). These are mapped internally into DCCM storage blocks.
+
+Keys can be imported using `CM_IMPORT` and deleted via `CM_DELETE`.
+
+The entire contents can be cleared with `CM_CLEAR`.
+
+The status of the data storage can be queried with `CM_STATUS`.
+
+### Storage Design
+
+Data is stored in 16-byte blocks.
+
+Each block's status is tracked in a bitfield, 1 bit per block, with a value of 1 indicating that block is in use.
+
+For example, if we have 32 KB of storage for CM, this requires 256 bytes of additional storage.
+
+### CMIDs
+
+CMIDs offload storage of key metadata to mailbox callers. They therefore impose no additional storage within Caliptra Core.
+
+Unecrypted CMIDs have the following structure:
+
+| **Name**     | **Bits** | **Description**                             |
+| ------------ | -------- | ------------------------------------------- |
+| padding      | 80       | 0                                           |
+| block offset | 24       | Starting block number                       |
+| size         | 24       | Size (in bytes) of the data stored.         |
+|              |          | Does not have to be a multiple of 16 bytes. |
+
+Hence, data for a single CMID must be stored contiguously.
+
+Padding is kept for additional future features.
+
+The CMIDs are AES-256-GCM encrypted, with a 128-bit ciphertext concatenated with the 128-bit AES-GCM tag.
+
+### Storage Keys
+
+The key for the data referenced by a CMID is unique and derived via HKDF from the CDI<sub>RT</sub> with the info being the concatenation of `"CMID" || block offset || size`.
+
+The IV is the concatenation of `block offset || size`.
+
+This scheme avoids having to store the IV while avoiding IV reuse problems.
+
+GCM prevents an adversary from changing internal CMID parameters, such as changing an AES key to an ECDSA key, which has sensitive internal structure (although ECDSA is not currently supported).
+
+## Manifest-Based Image Authorization (new in 1.2)
+
+Caliptra's goal is to enable integrators to meet standard security requirements for creating cryptographic identity and securely reporting measurements through DICE and DPE Certificate chains and Caliptra-owned private-public key pairs. In addition, Caliptra 1.0 provides an `ECDSA384_SIGNATURE_VERIFY` command to enable an SoC RoT to verify its own FW signatures so that it can develop an SoC secure boot using Caliptra cryptography. Caliptra 1.1 expanded the verify command to a PQC-safe `LMS_SIGNATURE_VERIFY` command. In each of these cases, it is left up to the vendor to ensure that they build a secure environment for introducing and verifying FW integrity and authenticity and then executing mutable FW.
+
+The Caliptra Measurement manifest feature expands on Caliptra-provided secure verifier abilities. The Measurement Manifest feature provides a standard Caliptra-supported definition to enable the following use cases for integrators, vendors, and owners.
+
+* Caliptra-Endorsed Aggregated Measured Boot
+* Caliptra-Endorsed Local Verifier
+
+Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
+
+Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_IMAGE_METADATA`](#set-image-metadata), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+
+### Caliptra-Endorsed Aggregated Measured Boot
+
+Aggregated Measured Boot is a verified boot where one signed manifest attests to FW integrity of many different FW measurements. The authenticity of the FW is tied to the trust in the public key signing the measurement manifest, which is endorsed by the Caliptra Vendor and/or Owner FW Keys.
+
+### Caliptra-Endorsed Local Verifier
+
+A local verifier provides an authentication of SoC FW by matching SoC FW measurements with measurements from the Caliptra measurement manifest. In this case, the SoC RoT still has its own FW public-key chain that is verified by the SoC RoT, but in addition the SoC RoT introduces the Caliptra Measurement Manifest, which is endorsed by the Caliptra FW key pair. Caliptra provides approval or disapproval of the measurement of any FW back to the SoC RoT. This effectively provides a multi-factor authentication of SoC FW.
+
+The Caliptra-Endorsed Local Verifier could be required by the owner only or both the vendor and the owner.
+
+The main difference between Caliptra-Endorsed Aggregated Measured Boot and Caliptra-Endorsed Local Verifier is if the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed as using it as an additional verification.
+
+### SoC RoT Enforcement of Measurement Manifest
+
+In both use cases, the SoC RoT chooses to provide the Caliptra Measurement Manifest and to enforce the result of the authorization. Caliptra 1.x is not capable of providing any enforcement of measurements for SoC FW execution.
+
+### Caliptra Measurement Manifest Signing Keys Authenticity
+
+Caliptra 1.0 and 1.1 do not put any requirements on how the SoC RoT ensures integrity and authenticity of SoC FW other than requiring the SoC RoT to provide a measurement to Caliptra of any SoC FW before execution. Caliptra Measurement Manifest enables the SoC RoT to perform the integrity check through Caliptra-authorized FW signing keys.
+
+### Unique Measurement Manifest Signing Keys
+
+In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and possibly one for the vendor. These new key pairs are endorsed once using a single signature within the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
+
+### Caliptra Measurement Manifest Vendor Public Key Authenticity
+
+The Measurement Manifest MUST have an endorsement by the Caliptra Vendor Public Key. In order to fulfill this requirement, the Vendor has 2 options:
+
+* Vendor signing required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses the new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
+* Vendor signing **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
+
+### Caliptra Measurement Manifest Owner Public Key Authenticity
+
+Caliptra will always verify the endorsement of the Measurement Manifest Owner Public key and require that it signed the measurement manifest.
+
+This feature is accomplished by having the SoC send a manifest to Caliptra Runtime through the `SET_AUTH_MANIFEST` mailbox command. The manifest will include a set of hashes for the different SoC images. Later, the SOC will ask for authorization for its images from the Caliptra Runtime through the `AUTHORIZE_AND_STASH` new mailbox commands. Caliptra Runtime will authorize the image based on whether its hash was contained in the manifest.
+
+#### Preamble
+
+The manifest begins with the Preamble section, which contains new manifest ECC and LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
+
+#### Image Metadata Collection (IMC)
+
+The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 16 image hashes will be supported.
+
+#### Caliptra Measurement Manifest Keys Endorsement Verification Steps
+
+When Caliptra receives the Measurement Manifest, Caliptra will:
+
+* Verify the vendor endorsement using the Caliptra Vendor FW Public Key and compare with the vendor endorsement signature.
+* If the vendor endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+* If the vendor endorsement is valid, Caliptra will check if a vendor manifest measurement key is required:
+    * If the key is required, Caliptra will trust the Vendor Public key that was just endorsed.
+    * If the key is not required, Caliptra will not perform any more vendor verifications on this measurement manifest.
+* Verify the owner endorsement using the Caliptra owner public key and compare with the owner endorsement signature.
+    * If the owner endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+    * Otherwise, the owner public key will be trusted and Caliptra will use it to verify the overall measurement manifest.
+
+#### Measurement Manifest Version Number
+
+A Measurement Manifest VN is used to ensure that some enforcement is possible if a progression of measurements is required. 32 bits of the existing unused `IDEVID_MANUF_IDENTIFIER` fuse (128 bits) can be repurposed for this. This can be accomplished by updating Caliptra's main specification to redefine the fuse definition and its usage from "Programming time" to "Field Programmable".
+
+### Image Authorization Sequence
+
+The diagram below illustrates how this feature is part of the Caliptra boot flow, and the order of operations needed to use the feature.
+
+```mermaid
+sequenceDiagram
+    ROM->>FMC: Launch FMC
+    FMC->>Runtime: Launch RT
+    Runtime->>SOC: RDY_FOR_RT
+    Note over Runtime,SOC: Manifest Load
+    SOC->>Runtime: SET_MANIFEST
+    Runtime-->>SOC: Success/Failure
+    Note over Runtime,SOC: Image Authorization
+    loop n times
+        SOC->>Runtime: AUTHORIZE_AND_STASH
+        Runtime-->>SOC: Success/Failure
+    end
+
+    Note over Runtime,SOC: DPE Attestation
+    SOC->>Runtime: DPE Attestation
+```
+
+## Mailbox commands
 
 All mailbox command codes are little endian.
 
@@ -72,6 +268,9 @@ All mailbox command codes are little endian.
 | `BAD_SIG`        | `0x4253_4947` ("BSIG") | Generic signature check failure (for crypto offload)
 | `BAD_IMAGE`      | `0x4249_4D47` ("BIMG") | Malformed input image
 | `BAD_CHKSUM`     | `0x4243_484B` ("BCHK") | Checksum check failed on input arguments
+| `CME_BAD_CMID`   | `0x434D_4249` ("CMBI") | Invalid CMID
+| `CME_BAD_CTXT`   | `0x434D_4243` ("CMBC") | Bad context
+| `CME_FULL`       | `0x434D_4546` ("CMEF") | Cryptographic Mailbox Full
 
 Relevant registers:
 
@@ -284,7 +483,7 @@ Command Code: `0x5349_4756` ("SIGV")
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
-### LMS\_SIGNATURE\_VERIFY
+### LMS\_SIGNATURE\_VERIFY (new in 1.1)
 
 Verifies an LMS signature. The hash to be verified is taken from
 Caliptra's SHA384 accelerator peripheral.
@@ -327,12 +526,13 @@ Command Code: `0x4C4D_5356` ("LMSV")
 
 ### STASH\_MEASUREMENT
 
-Makes a measurement into the DPE default context. This command is intendend for
+Makes a measurement into the DPE default context. This command is intended for
 callers who update infrequently and cannot tolerate a changing DPE API surface.
 
 * Call the DPE DeriveContext command with the DefaultContext in the locality of
   the PL0 PAUSER.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
+* **Note**: This command can only be called in the locality of the PL0 PAUSER.
 
 Command Code: `0x4D45_4153` ("MEAS")
 
@@ -660,10 +860,10 @@ Table: `SHUTDOWN` output arguments
 
 ### ADD\_SUBJECT\_ALT\_NAME
 
-Provides a subject alternative name otherName. Whenever CERTIFY_KEY_EXTENDED is called with the 
-DMTF_OTHER_NAME flag after ADD_SUBJECT_ALT_NAME is called, the resulting DPE CSR or leaf certificate 
-will contain a subject alternative name extension containing the provided otherName, which must be a 
-DMTF device info. All such certificates produced by CERTIFY_KEY_EXTENDED will continue to have the 
+Provides a subject alternative name otherName. Whenever CERTIFY_KEY_EXTENDED is called with the
+DMTF_OTHER_NAME flag after ADD_SUBJECT_ALT_NAME is called, the resulting DPE CSR or leaf certificate
+will contain a subject alternative name extension containing the provided otherName, which must be a
+DMTF device info. All such certificates produced by CERTIFY_KEY_EXTENDED will continue to have the
 DMTF otherName subject alternative name extension until reset.
 
 Command Code: `0x414C_544E` ("ALTN")
@@ -691,107 +891,646 @@ Command Code: `0x434B_4558` ("CKEX")
 
 *Table: `CERTIFY_KEY_EXTENDED` input arguments*
 
-| **Name**           | **Type** | **Description**
-| --------           | -------- | ---------------
-| chksum             | u32      | Checksum over other input arguments, computed by the caller. Little endian.
-| certify\_key\_req  | u8[72]   | Certify Key Request.
-| flags              | u32      | Flags determining which custom extensions to include in the certificate.
+| **Name**          | **Type** | **Description**                                                             |
+| ----------------- | -------- | --------------------------------------------------------------------------- |
+| chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+| certify\_key\_req | u8[72]   | Certify Key Request.                                                        |
+| flags             | u32      | Flags determining which custom extensions to include in the certificate.    |
 
 *Table: `CERTIFY_KEY_EXTENDED` input flags*
 
-| **Name**              | **Offset** 
-| --------              | ----------
-| DMTF_OTHER_NAME       | 1 << 31      
+| **Name**        | **Offset** |
+| --------------- | ---------- |
+| DMTF_OTHER_NAME | 1 << 31    |
 
 *Table: `CERTIFY_KEY_EXTENDED` output arguments*
 
-| **Name**            | **Type**  | **Description**
-| --------            | --------  | ---------------
-| chksum              | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status        | u32       | Indicates if the command is FIPS approved or an error.
-| certify\_key\_resp  | u8[2176]  | Certify Key Response.
+| **Name**           | **Type** | **Description**                                                            |
+| ------------------ | -------- | -------------------------------------------------------------------------- |
+| chksum             | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status       | u32      | Indicates if the command is FIPS approved or an error.                     |
+| certify\_key\_resp | u8[2176] | Certify Key Response.                                                      |
 
-### SET\_AUTH\_MANIFEST
+### SET_AUTH_MANIFEST
+
+The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use.
 
 Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `SET_AUTH_MANIFEST` input arguments*
-
-| **Name**            | **Type**  | **Description**
-| --------            | --------  | ---------------
-| chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
-| manifest size                 | u32          | The size of the full Authentication Manifest                                |
-| preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
-| preamble\_size                | u32          | Size of the preamble                                                        |
-| preamble\_version             | u32          | Version of the preamble                                                     |
-| preamble\_flags               | u32          | Preamble flags                                                              |
-| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
-| preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
-| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
-| preamble\_vendor\_LMS\_sig    | u32[1344]    | Vendor LMOTS-SHA192-W4 signature                                            |
-| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
-| preamble\_owner\_lms\_key     | u32[6]       | Owner LMS-SHA192-H15 key                                                    |
-| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
-| preamble\_owner\_LMS\_sig     | u32[1344]    | Owner LMOTS-SHA192-W4 signature                                             |
-| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
-| metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
-| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
-| metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
-| metadata\_header\_revision    | u32          | Revision of the metadata header                                             |
-| metadata\_header\_reserved    | u32[3]       | Reserved                                                                    |
-| metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | MetaData[16] | The max number of metadata is 16 but less can be used                       |
-
+| **Name**                   | **Type**  | **Description**                                                             |
+| -------------------------- | --------- | --------------------------------------------------------------------------- |
+| chksum                     | u32       | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size              | u32       | The size of the full Authentication Manifest                                |
+| preamble_marker            | u32       | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
+| preamble_size              | u32       | Size of the preamble                                                        |
+| preamble_version           | u32       | Version of the preamble                                                     |
+| preamble_flags             | u32       | Preamble flags                                                              |
+| preamble_vendor_ecc384_key | u32[24]   | Vendor ECC384 public key with X and Y coordinates in that order             |
+| preamble_vendor_lms_key    | u32[6]    | Vendor LMS-SHA192-H15 public key                                            |
+| preamble_vendor_ecc384_sig | u32[24]   | Vendor ECC384 signature                                                     |
+| preamble_vendor_LMS_sig    | u32[1344] | Vendor LMOTS-SHA192-W4 signature                                            |
+| preamble_owner_ecc384_key  | u32[24]   | Owner ECC384 key with X and Y coordinates in that order                     |
+| preamble_owner_lms_key     | u32[6]    | Owner LMS-SHA192-H15 key                                                    |
+| preamble_owner_ecc384_sig  | u32[24]   | Owner ECC384 signature                                                      |
+| preamble_owner_LMS_sig     | u32[1344] | Owner LMOTS-SHA192-W4 signature                                             |
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
-
 | **Name**                  | **Value** |
-|---------------------------|-----------|
+| ------------------------- | --------- |
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
-
-*Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
-
-| **Name**      | **Type** | **Description**        |
-|---------------|----------|------------------------|
-| digest        | u32[48]  | Digest of the metadata |
-| image\_source | u32      | Image source           |
 
 *Table: `SET_AUTH_MANIFEST` output arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**     | **Type** | **Description**                                                            |
+| ------------ | -------- | -------------------------------------------------------------------------- |
+| chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.                     |
 
+### SET_IMAGE_METADATA
+
+This command is used alonside `SET_AUTH_MANIFEST` to provide image metadata signatures for manifest-based image authorization.
+
+Command Code: `0x5349_4D44` ("SIMD")
+
+*Table: `SET_IMAGE_METADATA` input arguments*
+| **Name**                   | **Type**     | **Description**                                                             |
+| -------------------------- | ------------ | --------------------------------------------------------------------------- |
+| chksum                     | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
+| metadata_vendor_ecc384_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
+| metadata_vendor_LMS_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
+| metadata_owner_ecc384_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
+| metadata_owner_LMS_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
+| metadata_header_revision   | u32          | Revision of the metadata header                                             |
+| metadata_header_reserved   | u32[3]       | Reserved                                                                    |
+| metadata_entry_entry_count | u32          | number of metadata entries                                                  |
+| metadata_entries           | MetaData[16] | The max number of metadata is 16 but less can be used                       |
+
+*Table: `SET_IMAGE_METADATA_ENTRY` digest entries*
+| **Name**     | **Type** | **Description**        |
+| ------------ | -------- | ---------------------- |
+| digest       | u32[48]  | Digest of the metadata |
+| image_source | u32      | Image source           |
+
+*Table: `SET_IMAGE_METADATA` output arguments*
+| **Name**    | **Type** | **Description**                                                            |
+| ----------- | -------- | -------------------------------------------------------------------------- |
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status | u32      | Indicates if the command is FIPS approved or an error.                     |
 
 ### AUTHORIZE_AND_STASH
+
+The SoC uses this command to request authorization of its various SoC images. This command has the option to receive the image hash directly from SoC or from an external source (e.g., SHA Acc).
+
+The SoC uses this command repeatedly to ask for authorization to run its different images. The Runtime will verify that the image hash is contained in the IMC and will allow or reject the image based on that check. The command also enables stashing of the image hash by default with an option to skip stashing if needed. The SVN field is intended for anti-rollback protection.
+
 
 Command Code: `0x4154_5348` ("ATSH")
 
 *Table: `AUTHORIZE_AND_STASH` input arguments*
-
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
+| **Name**    | **Type** | **Description**                                                                     |
+| ----------- | -------- | ----------------------------------------------------------------------------------- |
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
 | metadata    | u8[4]    | 4-byte measurement identifier.                                                      |
 | measurement | u8[48]   | Digest of measured                                                                  |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | SVN                                                                                 |
 | flags       | u32      | Flags                                                                               |
-| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
+| source      | u32      | Enumeration values: |
+|             |          | 1 = InRequest |
+|             |          | 2 = ShaAcc |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
-
-| **Name**   | **Value** |
-|------------|-----------|
-| SKIP\_STASH | 1 << 0    |
+| **Name**    | **Value** |
+| ----------- | --------- |
+| SKIP_STASH | 1 << 0    |
 
 *Table: `AUTHORIZE_AND_STASH` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
+| **Name**        | **Type** | **Description**                                                            |
+| --------------- | -------- | -------------------------------------------------------------------------- |
+| chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
+| auth_req_result | u32      | Authorized: `0xDEADC0DE` |
+|                 |          | Denied: `0x21523F21`     |
+
+## Mailbox commands: Cryptographic Mailbox (2.0)
+
+These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
+
+### CM_SHA_INIT
+
+This starts the computation of a SHA hash of data, which may be larger than a single mailbox command allows. It also supports additional algorithms.
+
+The sequence to use these are:
+* 1 `CM_SHA_INIT` command
+* 0 or more `CM_SHA_UPDATE` commands
+* 1 `CM_SHA_FINAL` command
+
+For each command, the context from the previous command's output must be passed as an input.
+
+Command Code: `0x434D_5349` ("CMSI")
+
+*Table: `CM_SHA_INIT` input arguments*
+
+| **Name**       | **Type** | **Description**                   |
+| -------------- | -------- | --------------------------------- |
+| chksum         | u32      |                                   |
+| hash algorithm | u32      | Enum.                             |
+|                |          | Value 0 = reserved                |
+|                |          | Value 1 = SHA2-256                |
+|                |          | Value 2 = SHA2-384                |
+|                |          | Value 3 = SHA2-512                |
+| data size      | u32      |                                   |
+| data           | u8[...]  | Data to hash                      |
+
+*Table: `CM_SHA_INIT` output arguments*
+| **Name**     | **Type** | **Description**                            |
+| ------------ | -------- | ------------------------------------------ |
+| chksum       | u32      |                                            |
+| fips_status  | u32      | FIPS approved or an error                  |
+| context size | u32      |                                            |
+| context      | u8[...]  | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
+
+*Table: `CM_SHA_INIT` / `CM_SHA_UPDATE` / `CM_SHA_FINAL` internal context*
+| **Name**          | **Type** | **Description** |
+| ----------------- | -------- | --------------- |
+| input buffer      | u8[128]  |                 |
+| intermediate hash | u8[64]   |                 |
+| length            | u64      |                 |
+| hash algorithm    | u32      |                 |
+
+### CM_SHA_UPDATE
+
+This continues a SHA computation started by `CM_SHA_INIT` or from another `CM_SHA_UPDATE`.
+
+The context MUST be passed in from `CM_SHA_INIT` or `CM_SHA_UPDATE`.
+
+Command Code: `0x434D_5355` ("CMSU")
+
+*Table: `CM_SHA_UPDATE` input arguments*
+| **Name**       | **Type** | **Description**                      |
+| -------------- | -------- | ------------------------------------ |
+| chksum         | u32      |                                      |
+| context size   | u32      | Size of the context.                 |
+| context        | u8[...]  | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size      | u32      |                                      |
+| data           | u8[...]  | Data to hash                         |
+
+*Table: `CM_SHA_UPDATE` output arguments*
+| **Name**     | **Type** | **Description**                            |
+| ------------ | -------- | ------------------------------------------ |
+| chksum       | u32      |                                            |
+| fips_status  | u32      | FIPS approved or an error                  |
+| context size | u32      |                                            |
+| context      | u8[...]  | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
+
+### CM_SHA_FINAL
+
+This finalizes the computation of a SHA and produces the hash of all of the data.
+
+The context MUST be passed in from `CM_SHA_INIT` or `CMA_SHA_UPDATE`.
+
+Command Code: `0x434D_5346` ("CMSF")
+
+*Table: `CM_SHA_FINAL` input arguments*
+| **Name**       | **Type** | **Description**                      |
+| -------------- | -------- | ------------------------------------ |
+| chksum         | u32      |                                      |
+| context size   | u32      | Size of the context.                 |
+| context        | u8[...]  | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size      | u32      | May be 0                             |
+| data           | u8[...]  | Data to hash                         |
+
+*Table: `CM_SHA_FINAL` output arguments*
+| **Name**     | **Type** | **Description**           |
+| ------------ | -------- | ------------------------- |
+| chksum       | u32      |                           |
+| fips_status  | u32      | FIPS approved or an error |
+| hash size    | u32      |                           |
+| hash         | u8[...]  |                           |
+
+### CM_HMAC_INIT
+
+Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data may be larger than a single mailbox command allows.
+
+The sequence to use these are:
+* 1 `CM_HMAC_INIT` command
+* 0 or more `CM_HMAC_UPDATE` commands
+* 1 `CM_HMAC_FINAL` command
+
+For each command, the context from the previous command's output must be passed as an input.
+
+Command Code: `0x434D_4849` ("CMHI")
+
+*Table: `CM_HMAC_INIT` input arguments*
+| **Name**       | **Type** | **Description**                        |
+| -------------- | -------- | -------------------------------------- |
+| chksum         | u32      |                                        |
+| Key CMID       | u8[32]   | CMID of key to use                     |
+| hash algorithm | u32      | Enum.                                  |
+|                |          | 0 = reserved                           |
+|                |          | 1 = SHA2-256                           |
+|                |          | 2 = SHA2-384                           |
+|                |          | 3 = SHA2-512                           |
+| data size      | u32      |                                        |
+| data           | u8[...]  | Data to MAC                            |
+
+*Table: `CM_HMAC_INIT` output arguments*
+| **Name**     | **Type** | **Description**                         |
+| ------------ | -------- | --------------------------------------- |
+| chksum       | u32      |                                         |
+| fips_status  | u32      | FIPS approved or an error               |
+| context size | u32      | SHALL be 0 if this is the final message |
+| context      | u8[...]  |                                         |
+
+*Table: `CM_HMAC_INIT` internal context*
+| **Name**          | **Type** | **Description** |
+| ----------------- | -------- | --------------- |
+| input buffer      | u8[128]  |                 |
+| intermediate hash | u8[64]   |                 |
+| length            | u64      |                 |
+| hash algorithm    | u32      |                 |
+
+Note that although the `CM_HMAC` context is the same as the `CM_SHA` context, the `CM_HMAC` SHALL be encrypted.
+
+### CM_HMAC_UPDATE
+
+This continues an HMAC computation started by `CM_HMAC_INIT` or from another `CM_HMAC_UPDATE`.
+
+The context MUST be passed in from `CM_HMAC_INIT` or `CM_HMAC_UPDATE`.
+
+Command Code: `0x434D_4855` ("CMHU")
+
+*Table: `CM_HMAC_UPDATE` input arguments*
+| **Name**       | **Type** | **Description**                                  |
+| -------------- | -------- | ------------------------------------------------ |
+| chksum         | u32      |                                                  |
+| context size   | u32      | Size of the context                              |
+| context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
+| data size      | u32      |                                                  |
+| data           | u8[...]  | Data to MAC                                      |
+
+*Table: `CM_HMAC_UPDATE` output arguments*
+| **Name**     | **Type** | **Description**                              |
+| ------------ | -------- | -------------------------------------------- |
+| chksum       | u32      |                                              |
+| fips_status  | u32      | FIPS approved or an error                    |
+| context size | u32      |                                              |
+| context      | u8[...]  | Passed to `CM_HMAC_UPDATE` / `CM_HMAC_FINAL` |
+
+### CM_HMAC_FINAL
+
+This finalizes the computation of an HMAC and produces the MAC of all of the data.
+
+The context MUST be passed in from `CM_HMAC_INIT` or `CMA_HMAC_UPDATE`.
+
+Command Code: `0x434D_4846` ("CMHF")
+
+*Table: `CM_HMAC_FINAL` input arguments*
+
+| **Name**       | **Type** | **Description**                                  |
+| -------------- | -------- | ------------------------------------------------ |
+| chksum         | u32      |                                                  |
+| context size   | u32      | Size of the context                              |
+| context        | u8[...]  | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
+
+*Table: `CM_HMAC_FINAL` output arguments*
+| **Name**     | **Type** | **Description**                         |
+| ------------ | -------- | --------------------------------------- |
+| chksum       | u32      |                                         |
+| fips_status  | u32      | FIPS approved or an error               |
+| mac size     | u32      |                                         |
+| mac          | u8[...]  |                                         |
+
+### CM_HKDF_EXTRACT
+
+Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
+
+Command Code: `0x434D_4B54` ("CMKT")
+
+*Table: `CM_HKDF_EXTRACT` input arguments*
+| **Name**       | **Type** | **Description**         |
+| -------------- | -------- | ----------------------- |
+| chksum         | u32      |                         |
+| hash algorithm | u32      | Enum.                   |
+|                |          | Value 0 = reserved      |
+|                |          | Value 1 = SHA2-256      |
+|                |          | Value 2 = SHA2-384      |
+|                |          | Value 3 = SHA2-512      |
+| IKM CMID       | u8[32]   | Input key material CMID |
+| salt length    | u32      | May be 0                |
+| salt           | u8[...]  |                         |
+
+*Table: `CM_HKDF_EXTRACT` output arguments*
+| **Name**    | **Type** | **Description**                             |
+| ----------- | -------- | ------------------------------------------- |
+| chksum      | u32      |                                             |
+| fips_status | u32      | FIPS approved or an error                   |
+| PRK CMID    | u8[32]   | CMID that refers to the output (PRK) to use |
+|             |          | with HKDF-Expand                            |
+
+### CM_HKDF_EXPAND
+
+Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
+
+Command Code: `0x434D_4B50` ("CMKP")
+
+*Table: `CM_HKDF_EXPAND` input arguments*
+| **Name**       | **Type** | **Description**           |
+| -------------- | -------- | ------------------------- |
+| chksum         | u32      |                           |
+| hash algorithm | u32      | Enum.                     |
+|                |          | Value 0 = reserved        |
+|                |          | Value 1 = SHA2-256        |
+|                |          | Value 2 = SHA2-384        |
+|                |          | Value 3 = SHA2-512        |
+| PRK CMID       | u8[32]   |                           |
+| Info length    | u32      |                           |
+| Info           | u8[...]  |                           |
+| Output length  | u32      | Number of bytes to output |
+
+*Table: `CM_HKDF_EXPAND` output arguments*
+| **Name**    | **Type** | **Description**                                    |
+| ----------- | -------- | -------------------------------------------------- |
+| chksum      | u32      |                                                    |
+| fips_status | u32      | FIPS approved or an error                          |
+| OKM CMID    | u8[32]   | CMID that stores refers to the output key material |
+
+
+### CM_AES_GCM_ENCRYPT
+
+Currently only supports AES-256-GCM with a random 96-bit IV.
+
+If the key material is larger than 256 bits, then it will be truncated before use.
+
+Command Code: `0x434D_4745` ("CMGE")
+
+*Table: `CM_AES_GCM_ENCRYPT` input arguments*
+| **Name**       | **Type** | **Description**                          |
+| -------------- | -------- | ---------------------------------------- |
+| chksum         | u32      |                                          |
+| flags          | u32      | Bit 0 = this is the final message        |
+| key CMID       | u8[32]   | CMID of the key to use                   |
+| tag size       | u32      | Number of bytes to return for tag.       |
+|                |          | Can be 0, 1, ..., 16                     |
+| context size   | u32      | Size of the context                      |
+| context        | u8[...]  |                                          |
+| aad size       | u32      | Additional authenticated data size       |
+|                |          | Must be 0 if this is not the first block |
+| aad            | u8[...]  | Additional authenticated data            |
+| plaintext size | u32      |                                          |
+| plaintext      | u8[...]  | Data to encrypt                          |
+
+*Table: `CM_AES_GCM_ENCRYPT` output arguments*
+| **Name**       | **Type** | **Description**                           |
+| -------------- | -------- | ----------------------------------------- |
+| chksum         | u32      |                                           |
+| fips_status    | u32      | FIPS approved or an error                 |
+| context size   | u32      | SHALL be 0 if this is the final message   |
+| context        | u8[...]  |                                           |
+| cipertext size | u32      | MAY be 0 if this is not the final message |
+| ciphertext     | u8[...]  |                                           |
+
+The encrypted and authenticated context's internal structure will be:
+
+*Table: `CM_AES_GCM_ENCRYPT` internal context*
+| **Name**        | **Type** | **Description** |
+| --------------- | -------- | --------------- |
+| tag size        | u32      |                 |
+| last length     | u32      |                 |
+| last counter    | u8[16]   |                 |
+| last GHASH      | u8[16]   |                 |
+| last ciphertext | u8[16]   |                 |
+
+### CM_AES_GCM_DECRYPT
+
+Currently only supports AES-256-GCM with a 96-bit IV.
+
+Command Code: `0x434D_4744` ("CMGD")
+
+*Table: `CM_AES_GCM_DECRYPT` input arguments*
+| **Name**        | **Type** | **Description**                          |
+| --------------- | -------- | ---------------------------------------- |
+| chksum          | u32      |                                          |
+| flags           | u32      | Bit 0 = this is the final message        |
+| key CMID        | u8[32]   | CMID of the key to use                   |
+| tag size        | u32      | Number of bytes in the tag.              |
+|                 |          | Can be 0, 1, ..., 16                     |
+|                 |          | Must be 0 if this is not the first block |
+| tag             | u8[...]  |                                          |
+| context size    | u32      | Size of the context                      |
+| context         | u8[...]  |                                          |
+| iv size         | u32      | 12 (first message) or 0 (subsequent)     |
+| iv              | u8[...]  |                                          |
+| aad size        | u32      | Additional authenticated data size       |
+|                 |          | Must be 0 if this is not the first block |
+| aad             | u8[...]  | Additional authenticated data            |
+| ciphertext size | u32      |                                          |
+| ciphertext      | u8[...]  | Data to decrypt                          |
+
+*Table: `CM_AES_GCM_DECRYPT` output arguments*
+| **Name**       | **Type** | **Description**                           |
+| -------------- | -------- | ----------------------------------------- |
+| chksum         | u32      |                                           |
+| fips_status    | u32      | FIPS approved or an error                 |
+| context size   | u32      | Can be 0 if this is the final message     |
+| context        | u8[...]  |                                           |
+| plaintext size | u32      | Can be 0 if this is not the final message |
+| plaintext      | u8[...]  |                                           |
+
+The encrypted and authenticated context's internal structure will be:
+
+*Table: `CM_AES_GCM_DECRYPT` internal context*
+| **Name**        | **Type** | **Description** |
+| --------------- | -------- | --------------- |
+| tag size        | u32      |                 |
+| last length     | u32      |                 |
+| last iv         | u8[16]   |                 |
+| last GHASH      | u8[16]   |                 |
+| last ciphertext | u8[16]   |                 |
+
+
+### CM_ECDH_GENERATE
+
+This computes the first half of an Elliptic Curve Diffie-Hellman exchange to compute an ephemeral shared key pair with another party.
+
+Currently only supports the NIST P-384 curve.
+
+The returned context must be passed to the `CM_ECDH_FINISH` command. The context contains the (encrypted) secret coefficient.
+
+The returned exchange data format is the concatenation of the x- and y-coordinates of the public point.
+
+Command Code: `0x434D_4547` ("CMEG")
+
+*Table: `CM_ECDH_GENERATE` input arguments*
+| **Name**    | **Type** | **Description**      |
+| ----------- | -------- | -------------------- |
+| chksum      | u32      |                      |
+| curve/flags | u32      | Must be 0. Reserved. |
+
+*Table: `CM_ECDH_GENERATE` output arguments*
+| **Name**           | **Type** | **Description**                       |
+| ------------------ | -------- | ------------------------------------- |
+| chksum             | u32      |                                       |
+| fips_status        | u32      | FIPS approved or an error             |
+| context size       | u32      | size of context                       |
+| context            | u8[...]  | Used as the input to `CM_ECDH_FINISH` |
+| exchange data      | u8[96]   | i.e., the public point                |
+
+*Table: `CM_ECDH_GENERATE` / `CM_ECDH_FINISH` internal context*
+| **Name**           | **Type** | **Description** |
+| ------------------ | -------- | --------------- |
+| Secret coefficient | u8[48]   |                 |
+
+### CM_ECDH_FINISH
+
+This computes the second half of an Elliptic Curve Diffie-Hellman exchange.
+
+Currently only supports the NIST P-384 curve.
+
+The context must be passed from the `CM_ECDH_GENERATE` command.
+
+The incoming exchange data MUST be the concatenation of the x- and y- coordinates of the other side's public point.
+
+The produced shared secret is 384 bits.
+
+Command Code: `0x434D_4546` ("CMEF")
+
+*Table: `CM_ECDH_FINISH` input arguments*
+| **Name**                    | **Type** | **Description**                                          |
+| --------------------------- | -------- | -------------------------------------------------------- |
+| chksum                      | u32      |                                                          |
+| context size                | u32      | size of context                                          |
+| context                     | u8[...]  | This MUST come from the output of the `CM_ECDH_GENERATE` |
+| incoming exchange data      | u8[96]   | the other side's public point                            |
+
+*Table: `CM_ECDH_FINISH` output arguments*
+| **Name**    | **Type** | **Description**                  |
+| ----------- | -------- | -------------------------------- |
+| chksum      | u32      |                                  |
+| fips_status | u32      | FIPS approved or an error        |
+| output CMID | u8[32]   | Output CMID of the shared secret |
+
+
+### CM_RANDOM_STIR
+
+This allows additional entropy to be added to the underlying deterministic random bit generator.
+
+Command Code: `0x434D_5253` ("CMRS")
+
+*Table: `CM_RANDOM_STIR` input arguments*
+
+| **Name**   | **Type** | **Description** |
+| ---------- | -------- | --------------- |
+| chksum     | u32      |                 |
+| input size | u32      | size of input   |
+| input      | u8[...]  |                 |
+
+*Table: `CM_RANDOM_STIR` output arguments*
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+
+### CM_RANDOM_GENERATE
+
+This generates random bytes that are returned from the internal RNG.
+
+Command Code: `0x434D_5247` ("CMRG")
+
+*Table: `CM_RANDOM_GENERATE` input arguments*
+
+| **Name**            | **Type** | **Description** |
+| ------------------- | -------- | --------------- |
+| chksum              | u32      |                 |
+| data size to return | u32      |                 |
+
+
+*Table: `CM_RANDOM_GENERATE` output arguments*
+| **Name**    | **Type** | **Description**           |
+| ----------- | -------- | ------------------------- |
+| chksum      | u32      |                           |
+| fips_status | u32      | FIPS approved or an error |
+| output size | u32      | size of output            |
+| output      | u8[...]  |                           |
+
+### CM_IMPORT
+
+Imports the specified data and returns a CMID for it.
+
+Usage information is required so that the data can be verified and used appropriately.
+
+Command Code: `0x434D_494D` ("CMIM")
+
+*Table: `CM_IMPORT` input arguments*
+
+| **Name**   | **Type** | **Description**                            |
+| ---------- | -------- | ------------------------------------------ |
+| chksum     | u32      |                                            |
+| usage      | u32      | Tag to specify how the data can be used    |
+|            |          | 0 - Can be used for HMAC, HKDF, AES        |
+|            |          | MUST be 0.                                 |
+| input size | u32      |                                            |
+| input      | u8[...]  |                                            |
+
+*Table: `CM_IMPORT` output arguments*
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+| CMID        | u8[32]   | CMID containing imported key |
+
+### CM_DELETE
+
+Deletes the object stored with the given mailbox ID.
+
+Command Code: `0x434D_444C` ("CMDL")
+
+*Table: `CM_DELETE` input arguments*
+
+| **Name** | **Type** | **Description**            |
+| -------- | -------- | -------------------------- |
+| chksum   | u32      |                            |
+| CMID     | u8[32]   | CMID of the data to delete |
+
+*Table: `CM_DELETE` output arguments*
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+
+### CM_CLEAR
+
+The entire contents of the CM storage is wiped.
+
+Command Code: `0x434D_434C` ("CMCL")
+
+`CM_CLEAR` takes no input arguments.
+
+*Table: `CM_CLEAR` output arguments*
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+
+### CM_STATUS
+
+Queries the status of the data storage used by the cryptographic mailbox system.
+
+Note that the free blocks returned may not all be usable as they may not be contiguous, and the count may not reflect the storage overhead, e.g., a 16-byte GCM tag is used per block.
+
+Command Code: `0x434D_5354` ("CMST")
+
+`CM_STATUS` takes no input arguments.
+
+*Table: `CM_STATUS` output arguments*
+| **Name**     | **Type** | **Description**           |
+| ------------ | -------- | ------------------------- |
+| chksum       | u32      |                           |
+| fips_status  | u32      | FIPS approved or an error |
+| free blocks  | u32      | Available 16-byte blocks  |
+| total blocks | u32      | Total 16-byte blocks      |
+
 
 ## Checksum
 
@@ -820,10 +1559,10 @@ currently no use case for any other responses or error values.
 
 *Table: FIPS status codes*
 
-| **Name**         | **Value**                   | Description
-| -------          | -----                       | -----------
-| `FIPS_APPROVED`  | `0x0000_0000`               | Status of command is FIPS approved
-| `RESERVED`       | `0x0000_0001 - 0xFFFF_FFFF` | Other values reserved, will not be sent by Caliptra
+| **Name**        | **Value**                   | Description                                         |
+| --------------- | --------------------------- | --------------------------------------------------- |
+| `FIPS_APPROVED` | `0x0000_0000`               | Status of command is FIPS approved                  |
+| `RESERVED`      | `0x0000_0001 - 0xFFFF_FFFF` | Other values reserved, will not be sent by Caliptra |
 
 ## Runtime Firmware updates
 
@@ -887,8 +1626,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   PL1 callers should use the CSR format instead.
 
 PAUSER and Locality map 1:1. Consequently, only the single DPE Client associated
-with PL0 level, is authorized to invoke CertifyKey DPE command with format=x509. 
-All other DPE Clients have instead restricted privileges associated to PL1 (as 
+with PL0 level, is authorized to invoke CertifyKey DPE command with format=x509.
+All other DPE Clients have instead restricted privileges associated to PL1 (as
 described above).
 
 #### PAUSER privilege level active context limits
@@ -921,15 +1660,15 @@ of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
 The DPE iRoT profile leaves some choices up to implementers. This section
 describes specific requirements for the Caliptra DPE implementation.
 
-| Name                       | Value                          | Description
-| ----                       | -----                          | -----------
-| Profile Variant            | `DPE_PROFILE_IROT_P384_SHA384` | The profile variant that Caliptra implements.
-| KDF                        | SP800-108 HMAC-CTR             | KDF to use for CDI (tcg.derive.kdf-sha384) and asymmetric key (tcg.derive.kdf-sha384-p384) derivation.
-| Simulation Context Support | Yes                            | Whether Caliptra implements the optional Simulation Contexts feature.
-| Supports ExtendTci         | Yes                            | Whether Caliptra implements the optional ExtendTci command.
-| Supports Auto Init         | Yes                            | Whether Caliptra will automatically initialize the default DPE context.
-| Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.
-| CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates that are produced by the DPE CertifyKey command.
+| Name                       | Value                          | Description                                                                                            |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Profile Variant            | `DPE_PROFILE_IROT_P384_SHA384` | The profile variant that Caliptra implements.                                                          |
+| KDF                        | SP800-108 HMAC-CTR             | KDF to use for CDI (tcg.derive.kdf-sha384) and asymmetric key (tcg.derive.kdf-sha384-p384) derivation. |
+| Simulation Context Support | Yes                            | Whether Caliptra implements the optional Simulation Contexts feature.                                  |
+| Supports ExtendTci         | Yes                            | Whether Caliptra implements the optional ExtendTci command.                                            |
+| Supports Auto Init         | Yes                            | Whether Caliptra will automatically initialize the default DPE context.                                |
+| Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.                                    |
+| CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates that are produced by the DPE CertifyKey command.        |
 
 ### Supported DPE commands
 
@@ -1009,12 +1748,12 @@ To derive an asymmetric key for Sign and CertifyKey, Runtime Firmware does the f
 
 ### Internal representation of TCI nodes
 
-| **Byte offset** | **Bits** | **Name**         | **Description**
-| -----           | ----     | ---------------- | -----------------------------------------------------
-| 0x00            | 383:0    | `TCI_CURRENT`    | Current TCI measurement value
-| 0x30            | 383:0    | `TCI_CUMULATIVE` | TCI measurement value
-| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveContext call that created this node
-| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveContext call that created this node (PAUSER)
+| **Byte offset** | **Bits** | **Name**         | **Description**                                                                       |
+| --------------- | -------- | ---------------- | ------------------------------------------------------------------------------------- |
+| 0x00            | 383:0    | `TCI_CURRENT`    | Current TCI measurement value                                                         |
+| 0x30            | 383:0    | `TCI_CUMULATIVE` | TCI measurement value                                                                 |
+| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveContext call that created this node                     |
+| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveContext call that created this node (PAUSER) |
 
 ### Certificate generation
 
@@ -1029,29 +1768,29 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
 ### DPE leaf certificate definition
 
-| Field                          | Sub field   | Value
-| -------------                  | ---------   | ---------
-| Version                        | v3          | 2
-| Serial Number                  |             | First 20 bytes of sha256 hash of DPE Alias public key
-| Issuer Name                    | CN          | Caliptra Runtime Alias
-|                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key
-| Validity                       | notBefore   | notBefore from firmware manifest
-|                                | notAfter    | notAfter from firmware manifest
-| Subject Name                   | CN          | Caliptra DPE Leaf
-|                                | serialNumber | SHA384 hash of Subject public key
-| Subject Public Key Info        | Algorithm   | ecdsa-with-SHA384
-|                                | Parameters  | Named Curve = prime384v1
-|                                | Public Key  | DPE Alias Public Key value
-| Signature Algorithm Identifier | Algorithm   | ecdsa-with-SHA384
-|                                | Parameters  | Named Curve = prime384v1
-| Signature Value                |             | Digital signature for the certificate
-| KeyUsage                       | keyCertSign | 1
-| Basic Constraints              | CA          | False
-| Policy OIDs                    |             | id-tcg-kp-attestLoc
-| tcg-dice-MultiTcbInfo\*        | FWIDs       | [0] "Journey" TCI Value
-|                                |             | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext.
-|                                | Type        | 4-byte TYPE field of TCI node
-|                                | VendorInfo  | Locality of the caller (analog for PAUSER)
+| Field                          | Sub field    | Value                                                               |
+| ------------------------------ | ------------ | ------------------------------------------------------------------- |
+| Version                        | v3           | 2                                                                   |
+| Serial Number                  |              | First 20 bytes of sha256 hash of DPE Alias public key               |
+| Issuer Name                    | CN           | Caliptra Runtime Alias                                              |
+|                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key           |
+| Validity                       | notBefore    | notBefore from firmware manifest                                    |
+|                                | notAfter     | notAfter from firmware manifest                                     |
+| Subject Name                   | CN           | Caliptra DPE Leaf                                                   |
+|                                | serialNumber | SHA384 hash of Subject public key                                   |
+| Subject Public Key Info        | Algorithm    | ecdsa-with-SHA384                                                   |
+|                                | Parameters   | Named Curve = prime384v1                                            |
+|                                | Public Key   | DPE Alias Public Key value                                          |
+| Signature Algorithm Identifier | Algorithm    | ecdsa-with-SHA384                                                   |
+|                                | Parameters   | Named Curve = prime384v1                                            |
+| Signature Value                |              | Digital signature for the certificate                               |
+| KeyUsage                       | keyCertSign  | 1                                                                   |
+| Basic Constraints              | CA           | False                                                               |
+| Policy OIDs                    |              | id-tcg-kp-attestLoc                                                 |
+| tcg-dice-MultiTcbInfo\*        | FWIDs        | [0] "Journey" TCI Value                                             |
+|                                |              | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext. |
+|                                | Type         | 4-byte TYPE field of TCI node                                       |
+|                                | VendorInfo   | Locality of the caller (analog for PAUSER)                          |
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.

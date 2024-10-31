@@ -22,17 +22,19 @@ use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
 use crate::bus_logger::BusLogger;
 use crate::bus_logger::LogFile;
 use crate::trace_path_or_env;
+use crate::HwModel;
 use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, BusMmio};
 
-pub struct EmulatedApbBus<'a> {
+use caliptra_api::soc_mgr::SocManager;
+pub struct EmulatedAxiBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
-impl<'a> Bus for EmulatedApbBus<'a> {
+impl<'a> Bus for EmulatedAxiBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
@@ -106,8 +108,27 @@ fn hash_slice(slice: &[u8]) -> u64 {
     hasher.finish()
 }
 
-impl crate::HwModel for ModelEmulated {
-    type TBus<'a> = EmulatedApbBus<'a>;
+impl SocManager for ModelEmulated {
+    type TMmio<'a> = BusMmio<EmulatedAxiBus<'a>>;
+
+    fn delay(&mut self) {
+        self.step();
+    }
+
+    fn mmio_mut(&mut self) -> Self::TMmio<'_> {
+        BusMmio::new(self.axi_bus())
+    }
+
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
+    const SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+
+    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+}
+
+impl HwModel for ModelEmulated {
+    type TBus<'a> = EmulatedAxiBus<'a>;
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
@@ -201,8 +222,8 @@ impl crate::HwModel for ModelEmulated {
     fn ready_for_fw(&self) -> bool {
         self.ready_for_fw.get()
     }
-    fn apb_bus(&mut self) -> Self::TBus<'_> {
-        EmulatedApbBus { model: self }
+    fn axi_bus(&mut self) -> Self::TBus<'_> {
+        EmulatedAxiBus { model: self }
     }
 
     fn step(&mut self) {
@@ -261,12 +282,17 @@ impl crate::HwModel for ModelEmulated {
         }
     }
 
-    fn set_apb_pauser(&mut self, _pauser: u32) {
+    fn set_axi_id(&mut self, _axi_id: u32) {
         unimplemented!();
     }
 
     fn warm_reset(&mut self) {
         self.cpu.warm_reset();
         self.step();
+    }
+
+    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        self.cpu.bus.bus.recovery.cms_data = Some(Rc::new(firmware.to_vec()));
+        Ok(())
     }
 }

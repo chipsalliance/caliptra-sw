@@ -20,6 +20,7 @@ static HEADER_SUFFIX: &str = r"
 ";
 
 static CALIPTRA_RDL_FILES: &[&str] = &[
+    "src/axi/rtl/axi_dma_reg.rdl",
     "src/pcrvault/rtl/pv_def.rdl",
     "src/pcrvault/rtl/pv_reg.rdl",
     "src/datavault/rtl/dv_reg.rdl",
@@ -40,6 +41,8 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/uart/data/uart.rdl",
     "src/integration/rtl/caliptra_reg.rdl",
 ];
+
+static I3C_CORE_RDL_FILES: &[&str] = &["src/rdl/registers.rdl"];
 
 static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
 
@@ -114,8 +117,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         write_file
     };
 
-    if args.len() < 4 {
-        Err("Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_dir>")?;
+    if args.len() < 5 {
+        Err(
+            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_dir> <i3c_core_dir",
+        )?;
     }
 
     let rtl_dir = Path::new(&args[1]);
@@ -125,6 +130,14 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
 
+    let i3c_core_rdl_dir = Path::new(&args[3]);
+    let mut i3c_core_rdl_files: Vec<PathBuf> = I3C_CORE_RDL_FILES
+        .iter()
+        .map(|p| i3c_core_rdl_dir.join(p))
+        .filter(|p| p.exists())
+        .collect();
+    rdl_files.append(&mut i3c_core_rdl_files);
+
     let extra_rdl_dir = Path::new(&args[2]);
     let mut extra_rdl_files: Vec<PathBuf> = CALIPTRA_EXTRA_RDL_FILES
         .iter()
@@ -132,6 +145,35 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
     rdl_files.append(&mut extra_rdl_files);
+
+    // eliminate duplicate type names
+    let patches = vec![
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_THLD_CTRL",
+            "TTI_QUEUE_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_SIZE",
+            "TTI_QUEUE_SIZE",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "IBI_PORT",
+            "TTI_IBI_PORT",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "DATA_BUFFER_THLD_CTRL",
+            "TTI_DATA_BUFFER_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "RESET_CONTROL",
+            "TTI_RESET_CONTROL",
+        ),
+    ];
 
     let rtl_commit_id = run_cmd_stdout(
         Command::new("git")
@@ -163,6 +205,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let dest_dir = Path::new(&args[args.len() - 1]);
 
     let file_source = caliptra_systemrdl::FsFileSource::new();
+    for patch in patches {
+        file_source.add_patch(&patch.0, patch.1, patch.2);
+    }
     let scope = caliptra_systemrdl::Scope::parse_root(&file_source, &rdl_files)
         .map_err(|s| s.to_string())?;
     let scope = scope.as_parent();
@@ -276,8 +321,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     ureg_schema::filter_unused_types(&mut all_blocks);
 
     for block in validated_blocks {
-        let module_ident = format_ident!("{}", block.block().name);
-        let dest_file = dest_dir.join(format!("{}.rs", block.block().name));
+        // rust expects modules and files in lowercase naming
+        let block_name = block.block().name.to_lowercase();
+        let module_ident = format_ident!("{}", block_name);
+        let dest_file = dest_dir.join(format!("{}.rs", block_name));
 
         let tokens = ureg_codegen::generate_code(
             &block,

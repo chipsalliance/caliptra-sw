@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
 use zerocopy::AsBytes;
@@ -52,6 +53,31 @@ fn test_unimplemented_cmds() {
     assert_error(
         &mut model,
         caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND,
+        resp,
+    );
+}
+
+#[test]
+// Changing PAUSER not supported on sw emulator
+#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+fn test_reserved_pauser() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Set pauser to the reserved value
+    model.set_axi_id(0xffffffff);
+
+    // Send anything
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMD_RESERVED_PAUSER,
         resp,
     );
 }

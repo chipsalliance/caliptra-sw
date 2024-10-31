@@ -213,9 +213,17 @@ name = "caliptra-api"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-api-types",
+ "caliptra-emu-types",
  "caliptra-error",
+ "caliptra-registers",
+ "ureg",
  "zerocopy",
 ]
+
+[[package]]
+name = "caliptra-api-types"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-auth-man-gen"
@@ -354,6 +362,7 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-api",
  "caliptra-auth-man-types",
  "caliptra-builder",
  "caliptra-cfi-derive",
@@ -396,6 +405,7 @@ dependencies = [
 name = "caliptra-emu"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api-types",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
@@ -460,6 +470,7 @@ dependencies = [
  "aes",
  "arrayref",
  "bitfield",
+ "caliptra-api-types",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-crypto",
@@ -525,6 +536,7 @@ dependencies = [
  "bit-vec",
  "bitfield",
  "caliptra-api",
+ "caliptra-api-types",
  "caliptra-builder",
  "caliptra-coverage",
  "caliptra-emu-bus",
@@ -549,6 +561,7 @@ dependencies = [
 name = "caliptra-hw-model-c-binding"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "caliptra-hw-model",
@@ -570,6 +583,7 @@ dependencies = [
 name = "caliptra-hw-model-types"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api-types",
  "rand",
 ]
 
@@ -717,6 +731,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "caliptra-api",
  "caliptra-builder",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
@@ -778,6 +793,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags 2.4.0",
+ "caliptra-api",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",
@@ -851,6 +867,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "asn1",
+ "caliptra-api",
+ "caliptra-api-types",
  "caliptra-builder",
  "caliptra-coverage",
  "caliptra-drivers",
@@ -1359,11 +1377,12 @@ dependencies = [
 
 [[package]]
 name = "fips204"
-version = "0.2.1"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a7a91da22e550a56b4ace2681cd344cc0c3fd1640235ac433a32561668d58b9"
+checksum = "a2f6698c48aedd28ff9060f0f9b9712bd465db780ddcfd0d64fd3da199577ca1"
 dependencies = [
  "rand_core",
+ "sha2",
  "sha3",
  "zeroize",
 ]
@@ -2201,9 +2220,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.6"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e6b795fe2e3b1e845bafcb27aa35405c4d47cdfc92af5fc8d3002f76cebdc0"
+checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
