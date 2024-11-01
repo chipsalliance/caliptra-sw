@@ -45,6 +45,7 @@ mod rv32_builder;
 pub use api::mailbox::mbox_write_fifo;
 pub use api_types::{DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
+pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
 use output::ExitStatus;
 pub use output::Output;
 
@@ -176,6 +177,10 @@ pub struct InitParams<'a> {
     // A trace path to use. If None, the CPTRA_TRACE_PATH environment variable
     // will be used
     pub trace_path: Option<PathBuf>,
+
+    // Information about the stack Caliptra is using. When set the emulator will check if the stack
+    // overflows.
+    pub stack_info: Option<StackInfo>,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -210,6 +215,7 @@ impl<'a> Default for InitParams<'a> {
             }),
             random_sram_puf: true,
             trace_path: None,
+            stack_info: None,
         }
     }
 }
