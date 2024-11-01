@@ -15,7 +15,6 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::sha384;
-use openssl::sha::Sha384;
 use std::io::Write;
 use zerocopy::AsBytes;
 
@@ -61,24 +60,13 @@ fn fake_boot_test() {
         },
     )
     .unwrap();
-    let mut hash_ctx = Sha384::new();
-    let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
-    hash_ctx.update(vendor_pub_key_info.ecc_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.ecc_pub_key_hashes)
-            [..vendor_pub_key_info.ecc_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    hash_ctx.update(vendor_pub_key_info.lms_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.lms_pub_key_hashes)
-            [..vendor_pub_key_info.lms_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    let vendor_pk_hash = bytes_to_be_words_48(&hash_ctx.finish());
+    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
+        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
+    ));
 
-    let owner_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
+        image.manifest.preamble.owner_pub_key_info.as_bytes(),
+    ));
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -87,8 +75,8 @@ fn fake_boot_test() {
         },
         BootParams {
             fuses: Fuses {
-                key_manifest_pk_hash: vendor_pk_hash,
-                owner_pk_hash,
+                key_manifest_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash: owner_pk_desc_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 ..Default::default()
             },

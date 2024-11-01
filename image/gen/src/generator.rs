@@ -13,7 +13,6 @@ Abstract:
 --*/
 use anyhow::bail;
 use caliptra_image_types::*;
-use core::mem::size_of;
 use memoffset::offset_of;
 use zerocopy::AsBytes;
 
@@ -94,20 +93,10 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             &header_digest_owner,
         )?;
 
-        let vendor_pub_key_info = &preamble.vendor_pub_key_info;
-
-        // Calculate the actual size of the manifest.
-        let manifest_size = size_of::<ImageManifest>() as u32
-            - (((vendor_pub_key_info.ecc_pub_key_hashes.len() as u32
-                - vendor_pub_key_info.ecc_key_descriptor.key_hash_count as u32)
-                + vendor_pub_key_info.lms_pub_key_hashes.len() as u32
-                - vendor_pub_key_info.lms_key_descriptor.key_hash_count as u32)
-                * size_of::<ImageDigest>() as u32);
-
         // Create Manifest
         let manifest = ImageManifest {
             marker: MANIFEST_MARKER,
-            size: manifest_size,
+            size: core::mem::size_of::<ImageManifest>() as u32,
             fw_image_type: config.fw_image_type.into(),
             reserved: [0u8; 3],
             preamble,
@@ -171,31 +160,32 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         }
 
         let mut vendor_pub_key_info = ImageVendorPubKeyInfo {
-            ecc_key_descriptor: ImageKeyDescriptor {
+            ecc_key_descriptor: ImageEccKeyDescriptor {
                 version: KEY_DESCRIPTOR_VERSION,
                 intent: Intent::Vendor.into(),
-                key_type: KeyType::ECC.into(),
+                reserved: 0,
                 key_hash_count: config.vendor_config.ecc_key_count as u8,
+                key_hash: ImageEccKeyHashes::default(),
             },
-            lms_key_descriptor: ImageKeyDescriptor {
+            pqc_key_descriptor: ImagePqcKeyDescriptor {
                 version: KEY_DESCRIPTOR_VERSION,
                 intent: Intent::Vendor.into(),
                 key_type: KeyType::LMS.into(),
                 key_hash_count: config.vendor_config.lms_key_count as u8,
+                key_hash: ImagePqcKeyHashes::default(),
             },
-            ..Default::default()
         };
 
-        // Hash the ECC and LMS public keys.
+        // Hash the ECC and LMS vendor public keys.
         for i in 0..config.vendor_config.ecc_key_count {
             let ecc_pub_key = config.vendor_config.pub_keys.ecc_pub_keys[i as usize];
             let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
-            vendor_pub_key_info.ecc_pub_key_hashes[i as usize] = ecc_pub_key_digest;
+            vendor_pub_key_info.ecc_key_descriptor.key_hash[i as usize] = ecc_pub_key_digest;
         }
         for i in 0..config.vendor_config.lms_key_count {
             let lms_pub_key = config.vendor_config.pub_keys.lms_pub_keys[i as usize];
             let lms_pub_key_digest = self.crypto.sha384_digest(lms_pub_key.as_bytes())?;
-            vendor_pub_key_info.lms_pub_key_hashes[i as usize] = lms_pub_key_digest;
+            vendor_pub_key_info.pqc_key_descriptor.key_hash[i as usize] = lms_pub_key_digest;
         }
 
         let mut preamble = ImagePreamble {
@@ -212,22 +202,34 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         };
 
         if let Some(owner_config) = &config.owner_config {
-            preamble.owner_pub_keys = owner_config.pub_keys;
-
-            preamble.owner_pub_key_info = ImageOwnerPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+            let mut owner_pub_key_info = ImageOwnerPubKeyInfo {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Owner.into(),
-                    key_type: KeyType::ECC.into(),
-                    key_hash_count: 0,
+                    reserved: 0,
+                    key_hash_count: 1,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Owner.into(),
                     key_type: KeyType::LMS.into(),
-                    key_hash_count: 0,
+                    key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
             };
+
+            // Hash the ECC and LMS owner public keys.
+            let ecc_pub_key = owner_config.pub_keys.ecc_pub_key;
+            let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
+            owner_pub_key_info.ecc_key_descriptor.key_hash[0_usize] = ecc_pub_key_digest;
+
+            let lms_pub_key = owner_config.pub_keys.lms_pub_key;
+            let lms_pub_key_digest = self.crypto.sha384_digest(lms_pub_key.as_bytes())?;
+            owner_pub_key_info.pqc_key_descriptor.key_hash[0_usize] = lms_pub_key_digest;
+
+            preamble.owner_pub_key_info = owner_pub_key_info;
+            preamble.owner_pub_keys = owner_config.pub_keys;
         }
 
         Ok(preamble)
@@ -283,13 +285,13 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         self.crypto.sha384_digest(header.as_bytes())
     }
 
-    /// Calculate owner public key(s) digest
+    /// Calculate owner public key descriptor digest.
     pub fn owner_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest> {
         self.crypto
-            .sha384_digest(preamble.owner_pub_keys.as_bytes())
+            .sha384_digest(preamble.owner_pub_key_info.as_bytes())
     }
 
-    /// Calculate vendor public key(s) digest
+    /// Calculate vendor public key descriptor digest.
     pub fn vendor_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest> {
         self.crypto
             .sha384_digest(preamble.vendor_pub_key_info.as_bytes())

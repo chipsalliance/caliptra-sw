@@ -273,8 +273,6 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0043);
     pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INTENT_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b0044);
-    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_TYPE_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0045);
     pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
         CaliptraError::new_const(0x000b0046);
     pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_MARKER_MISMATCH: CaliptraError =

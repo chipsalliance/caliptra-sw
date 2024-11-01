@@ -216,31 +216,17 @@ impl Default for ImageManifest {
     }
 }
 impl ImageManifest {
-    /// Returns the `Range<u32>` containing the vendor public keys
-    pub fn vendor_pub_keys_range() -> Range<u32> {
+    /// Returns the `Range<u32>` containing the vendor public key descriptors
+    pub fn vendor_pub_key_descriptors_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
         let span = span_of!(ImagePreamble, vendor_pub_key_info);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
-    /// Returns the `Range<u32>` containing the vendor ECC key descriptor
-    pub fn vendor_ecc_key_descriptor_range() -> Range<u32> {
+    /// Returns the `Range<u32>` containing the owner public key descriptors
+    pub fn owner_pub_key_descriptors_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImageVendorPubKeyInfo, ecc_key_descriptor);
-        span.start as u32 + offset..span.end as u32 + offset
-    }
-
-    /// Returns the `Range<u32>` containing the vendor LMS key descriptor
-    pub fn vendor_lms_key_descriptor_range() -> Range<u32> {
-        let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImageVendorPubKeyInfo, lms_key_descriptor);
-        span.start as u32 + offset..span.end as u32 + offset
-    }
-
-    /// Returns `Range<u32>` containing the owner public key
-    pub fn owner_pub_key_range() -> Range<u32> {
-        let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImagePreamble, owner_pub_keys);
+        let span = span_of!(ImagePreamble, owner_pub_key_info);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
@@ -270,22 +256,18 @@ pub struct ImageVendorPubKeys {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeyInfo {
-    pub ecc_key_descriptor: ImageKeyDescriptor,
+    pub ecc_key_descriptor: ImageEccKeyDescriptor,
 
-    pub ecc_pub_key_hashes: ImageEccKeyHashes,
-
-    pub lms_key_descriptor: ImageKeyDescriptor,
-
-    pub lms_pub_key_hashes: ImageLmsKeyHashes,
+    pub pqc_key_descriptor: ImagePqcKeyDescriptor,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeyInfo {
-    pub ecc_key_descriptor: ImageKeyDescriptor,
+    pub ecc_key_descriptor: ImageEccKeyDescriptor,
 
-    pub lms_key_descriptor: ImageKeyDescriptor,
+    pub pqc_key_descriptor: ImagePqcKeyDescriptor,
 }
 
 #[repr(C)]
@@ -322,19 +304,33 @@ pub struct ImageSignatures {
     pub lms_sig: ImageLmsSignature,
 }
 
-/// Caliptra Image Key Descriptor
+/// Caliptra Image ECC Key Descriptor
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct ImageKeyDescriptor {
+pub struct ImageEccKeyDescriptor {
+    pub version: u8,
+    pub intent: u8,
+    pub reserved: u8,
+    pub key_hash_count: u8,
+    pub key_hash: ImageEccKeyHashes,
+}
+
+/// Caliptra Image LMS/MLDSA Key Descriptor
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImagePqcKeyDescriptor {
     pub version: u8,
     pub intent: u8,
     pub key_type: u8,
     pub key_hash_count: u8,
+    pub key_hash: ImagePqcKeyHashes,
 }
 
 pub type ImageEccKeyHashes = [ImageDigest; VENDOR_ECC_MAX_KEY_COUNT as usize];
 pub type ImageLmsKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
+pub type ImagePqcKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
 
 /// Caliptra Image Bundle Preamble
 #[repr(C)]

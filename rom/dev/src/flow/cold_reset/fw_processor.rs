@@ -31,11 +31,11 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
-use caliptra_image_types::{ImageDigest, ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, LayoutVerified};
 use zeroize::Zeroize;
 
@@ -328,115 +328,7 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
-
-        txn.copy_request(manifest.marker.as_bytes_mut())?;
-        txn.copy_request(manifest.size.as_bytes_mut())?;
-
-        let mut temp = [0u8; 4];
-        txn.copy_request(&mut temp)?;
-        manifest.fw_image_type = temp[0];
-
-        // Copy the ECC vendor key descriptor.
-        txn.copy_request(
-            manifest
-                .preamble
-                .vendor_pub_key_info
-                .ecc_key_descriptor
-                .as_bytes_mut(),
-        )?;
-
-        let key_hash_count = manifest
-            .preamble
-            .vendor_pub_key_info
-            .ecc_key_descriptor
-            .key_hash_count as usize;
-        if key_hash_count
-            > manifest
-                .preamble
-                .vendor_pub_key_info
-                .ecc_pub_key_hashes
-                .len()
-        {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT);
-        }
-
-        // Copy the ECC public key hashes.
-        let ecc_key_hashes_size = manifest
-            .preamble
-            .vendor_pub_key_info
-            .ecc_key_descriptor
-            .key_hash_count as usize
-            * size_of::<ImageDigest>();
-
-        let mut ecc_key_hashes = manifest
-            .preamble
-            .vendor_pub_key_info
-            .ecc_pub_key_hashes
-            .as_bytes_mut();
-
-        // Resize the ecc_key_hashes slice to the correct size.
-        ecc_key_hashes = &mut ecc_key_hashes[..ecc_key_hashes_size];
-        txn.copy_request(ecc_key_hashes)?;
-
-        // Copy the LMS vendor key descriptor.
-        txn.copy_request(
-            manifest
-                .preamble
-                .vendor_pub_key_info
-                .lms_key_descriptor
-                .as_bytes_mut(),
-        )?;
-
-        let key_hash_count = manifest
-            .preamble
-            .vendor_pub_key_info
-            .lms_key_descriptor
-            .key_hash_count as usize;
-
-        if key_hash_count
-            > manifest
-                .preamble
-                .vendor_pub_key_info
-                .lms_pub_key_hashes
-                .len()
-        {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INVALID_HASH_COUNT);
-        }
-
-        // Copy the LMS public key hashes.
-        let lms_key_hashes_size = manifest
-            .preamble
-            .vendor_pub_key_info
-            .lms_key_descriptor
-            .key_hash_count as usize
-            * size_of::<ImageDigest>();
-
-        let mut lms_key_hashes = manifest
-            .preamble
-            .vendor_pub_key_info
-            .lms_pub_key_hashes
-            .as_bytes_mut();
-
-        // Resize the lms_key_hashes slice to the correct size.
-        lms_key_hashes = &mut lms_key_hashes[..lms_key_hashes_size];
-        txn.copy_request(lms_key_hashes)?;
-
-        txn.copy_request(manifest.preamble.vendor_ecc_pub_key_idx.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.vendor_ecc_active_pub_key.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.vendor_lms_pub_key_idx.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.vendor_lms_active_pub_key.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.vendor_sigs.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.owner_pub_key_info.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.owner_pub_keys.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble.owner_sigs.as_bytes_mut())?;
-        txn.copy_request(manifest.preamble._rsvd.as_bytes_mut())?;
-
-        txn.copy_request(manifest.header.as_bytes_mut())?;
-
-        txn.copy_request(manifest.fmc.as_bytes_mut())?;
-
-        txn.copy_request(manifest.runtime.as_bytes_mut())?;
-
+        txn.copy_request(manifest.as_bytes_mut())?;
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }

@@ -6,7 +6,6 @@ use caliptra_api_types::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
-use openssl::sha::Sha384;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{ChildStdin, Command, Stdio};
 use zerocopy::AsBytes;
@@ -95,28 +94,14 @@ fn gdb_test() {
         },
     )
     .unwrap();
-    let mut hash_ctx = Sha384::new();
-    let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
-    hash_ctx.update(vendor_pub_key_info.ecc_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.ecc_pub_key_hashes)
-            [..vendor_pub_key_info.ecc_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    hash_ctx.update(vendor_pub_key_info.lms_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.lms_pub_key_hashes)
-            [..vendor_pub_key_info.lms_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    let vendor_pk_hash = &hash_ctx.finish();
-    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
-    let vendor_pk_hash_words = bytes_to_be_words_48(vendor_pk_hash);
-    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
+    let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
+    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
+    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_hash_words,
-        owner_pk_hash: owner_pk_hash_words,
+        key_manifest_pk_hash: vendor_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_desc_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         lms_verify: true,
         ..Default::default()

@@ -20,7 +20,6 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder};
 use caliptra_drivers::*;
 use caliptra_image_types::*;
-use core::mem::size_of;
 use memoffset::offset_of;
 
 const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
@@ -92,15 +91,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Check if manifest size is valid
-        let vendor_pub_key_info = &manifest.preamble.vendor_pub_key_info;
-        let manifest_size = size_of::<ImageManifest>() as u32
-            - (((vendor_pub_key_info.ecc_pub_key_hashes.len() as u32
-                - vendor_pub_key_info.ecc_key_descriptor.key_hash_count as u32)
-                + vendor_pub_key_info.lms_pub_key_hashes.len() as u32
-                - vendor_pub_key_info.lms_key_descriptor.key_hash_count as u32)
-                * size_of::<ImageDigest>() as u32);
-
-        if manifest.size != manifest_size {
+        if manifest.size as usize != core::mem::size_of::<ImageManifest>() {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)?;
         }
 
@@ -154,9 +145,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify Vendor Public Key Info Digest
         self.verify_vendor_pub_key_info_digest(&preamble.vendor_pub_key_info)?;
 
-        // Verify Owner Public Key Digest
+        // Verify Owner Public Key Info Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
-            self.verify_owner_pk_digest(reason)?;
+            self.verify_owner_pub_key_info_digest(reason)?;
 
         // Verify ECC Vendor Key Index
         let (vendor_ecc_pub_key_idx, vendor_ecc_pub_key_revocation) =
@@ -276,7 +267,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let revocation = self.env.vendor_lms_pub_key_revocation();
         let key_hash_count = preamble
             .vendor_pub_key_info
-            .lms_key_descriptor
+            .pqc_key_descriptor
             .key_hash_count;
         let last_key_idx: u32 = key_hash_count as u32 - 1;
 
@@ -340,9 +331,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if pub_key_info.ecc_key_descriptor.intent != Intent::Vendor as u8 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INTENT_MISMATCH)?;
         }
-        if pub_key_info.ecc_key_descriptor.key_type != KeyType::ECC as u8 {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_TYPE_MISMATCH)?;
-        }
         if pub_key_info.ecc_key_descriptor.key_hash_count == 0 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
         }
@@ -350,29 +338,24 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
         }
 
-        let vendor_ecc_key_descriptor_range = ImageManifest::vendor_ecc_key_descriptor_range();
-        let vendor_ecc_key_hashes_offset =
-            vendor_ecc_key_descriptor_range.start + vendor_ecc_key_descriptor_range.len() as u32;
-
         // Validate the LMS key descriptor.
-        if pub_key_info.lms_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
+        if pub_key_info.pqc_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_VERSION_MISMATCH)?;
         }
-        if pub_key_info.lms_key_descriptor.intent != Intent::Vendor as u8 {
+        if pub_key_info.pqc_key_descriptor.intent != Intent::Vendor as u8 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INTENT_MISMATCH)?;
         }
-        if pub_key_info.lms_key_descriptor.key_type != KeyType::LMS as u8 {
+        if pub_key_info.pqc_key_descriptor.key_type != KeyType::LMS as u8 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_TYPE_MISMATCH)?;
         }
-        if pub_key_info.lms_key_descriptor.key_hash_count == 0 {
+        if pub_key_info.pqc_key_descriptor.key_hash_count == 0 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
         }
-        if pub_key_info.lms_key_descriptor.key_hash_count > VENDOR_LMS_MAX_KEY_COUNT as u8 {
+        if pub_key_info.pqc_key_descriptor.key_hash_count > VENDOR_LMS_MAX_KEY_COUNT as u8 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
         }
-        let vendor_lms_key_descriptor_range = ImageManifest::vendor_lms_key_descriptor_range();
-        let vendor_lms_key_hashes_offset =
-            vendor_lms_key_descriptor_range.start + vendor_lms_key_descriptor_range.len() as u32;
+
+        let range = ImageManifest::vendor_pub_key_descriptors_range();
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -384,26 +367,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let actual = self
             .env
-            .vendor_pub_key_info_digest_from_image(
-                (
-                    vendor_ecc_key_descriptor_range.start,
-                    vendor_ecc_key_descriptor_range.len() as u32,
-                ),
-                (
-                    vendor_ecc_key_hashes_offset,
-                    pub_key_info.ecc_key_descriptor.key_hash_count as u32
-                        * size_of::<ImageDigest>() as u32,
-                ),
-                (
-                    vendor_lms_key_descriptor_range.start,
-                    vendor_lms_key_descriptor_range.len() as u32,
-                ),
-                (
-                    vendor_lms_key_hashes_offset,
-                    pub_key_info.lms_key_descriptor.key_hash_count as u32
-                        * size_of::<ImageDigest>() as u32,
-                ),
-            )
+            .sha384_digest(range.start, range.len() as u32)
             .map_err(|err| {
                 self.env.set_fw_extended_error(err.into());
                 CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
@@ -422,11 +386,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify owner public key digest.
     /// Returns a bool indicating whether the digest was in fuses.
-    fn verify_owner_pk_digest(
+    fn verify_owner_pub_key_info_digest(
         &mut self,
         reason: ResetReason,
     ) -> CaliptraResult<(ImageDigest, bool)> {
-        let range = ImageManifest::owner_pub_key_range();
+        let range = ImageManifest::owner_pub_key_descriptors_range();
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -1036,19 +1000,20 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 1,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -1067,20 +1032,20 @@ mod tests {
 
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 4,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-
-                ..Default::default()
             },
             vendor_ecc_pub_key_idx: 2,
             ..Default::default()
@@ -1107,19 +1072,20 @@ mod tests {
 
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 1,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -1193,19 +1159,20 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 1,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -1270,19 +1237,20 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 1,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -1302,19 +1270,20 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble {
             vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageKeyDescriptor {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
-                    key_type: KeyType::ECC as u8,
                     key_hash_count: 1,
+                    reserved: 0,
+                    key_hash: ImageEccKeyHashes::default(),
                 },
-                lms_key_descriptor: ImageKeyDescriptor {
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
                     intent: Intent::Vendor as u8,
                     key_type: KeyType::LMS as u8,
                     key_hash_count: 1,
+                    key_hash: ImagePqcKeyHashes::default(),
                 },
-                ..Default::default()
             },
             ..Default::default()
         };

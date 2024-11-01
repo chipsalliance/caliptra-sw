@@ -155,28 +155,14 @@ fn smoke_test() {
         },
     )
     .unwrap();
-    let mut hash_ctx = Sha384::new();
-    let vendor_pub_key_info = &image.manifest.preamble.vendor_pub_key_info;
-    hash_ctx.update(vendor_pub_key_info.ecc_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.ecc_pub_key_hashes)
-            [..vendor_pub_key_info.ecc_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    hash_ctx.update(vendor_pub_key_info.lms_key_descriptor.as_bytes());
-    hash_ctx.update(
-        (&vendor_pub_key_info.lms_pub_key_hashes)
-            [..vendor_pub_key_info.lms_key_descriptor.key_hash_count as usize]
-            .as_bytes(),
-    );
-    let vendor_pk_hash = &hash_ctx.finish();
-    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
-    let vendor_pk_hash_words = bytes_to_be_words_48(vendor_pk_hash);
-    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
+    let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
+    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
+    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_hash_words,
-        owner_pk_hash: owner_pk_hash_words,
+        key_manifest_pk_hash: vendor_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_desc_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         lms_verify: true,
         ..Default::default()
@@ -283,8 +269,8 @@ fn smoke_test() {
     hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
     hasher.update(&[fuses.lms_verify as u8]);
     hasher.update(&[true as u8]);
-    hasher.update(vendor_pk_hash.as_bytes());
-    hasher.update(&owner_pk_hash);
+    hasher.update(vendor_pk_desc_hash.as_bytes());
+    hasher.update(&owner_pk_desc_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
@@ -327,8 +313,8 @@ fn smoke_test() {
         &Pcr0::derive(&Pcr0Input {
             security_state,
             fuse_anti_rollback_disable: false,
-            vendor_pub_key_hash: vendor_pk_hash_words,
-            owner_pub_key_hash: owner_pk_hash_words,
+            vendor_pub_key_hash: vendor_pk_desc_hash_words,
+            owner_pub_key_hash: owner_pk_desc_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
