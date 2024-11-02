@@ -60,10 +60,13 @@ fn fake_boot_test() {
         },
     )
     .unwrap();
-    let vendor_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
-    let owner_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
+        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
+    ));
+
+    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
+        image.manifest.preamble.owner_pub_key_info.as_bytes(),
+    ));
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -72,8 +75,8 @@ fn fake_boot_test() {
         },
         BootParams {
             fuses: Fuses {
-                key_manifest_pk_hash: vendor_pk_hash,
-                owner_pk_hash,
+                key_manifest_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash: owner_pk_desc_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 ..Default::default()
             },

@@ -26,13 +26,11 @@ use caliptra_common::mailbox_api::{
     CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader, Response,
     StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
-use caliptra_common::verifier::FirmwareImageVerificationEnv;
-use caliptra_common::PcrLogEntry;
-use caliptra_common::PcrLogEntryId;
-use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
-use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::*;
+use caliptra_common::{
+    pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
+    PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
+};
+use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
@@ -102,7 +100,7 @@ impl FirmwareProcessor {
             )
         };
 
-        // Load the manifest
+        // Load the manifest into DCCM.
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 

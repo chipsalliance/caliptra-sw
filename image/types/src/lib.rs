@@ -26,8 +26,9 @@ use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
-pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
-pub const VENDOR_LMS_KEY_COUNT: u32 = 32;
+pub const KEY_DESCRIPTOR_VERSION: u8 = 1;
+pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
+pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -79,6 +80,47 @@ pub struct ImageEccSignature {
 pub type ImageLmsSignature =
     LmsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM, IMAGE_LMS_KEY_HEIGHT>;
 pub type ImageLmOTSSignature = LmotsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM>;
+
+pub enum Intent {
+    Vendor = 1,
+    Owner = 2,
+}
+
+impl From<Intent> for u8 {
+    fn from(val: Intent) -> Self {
+        val as u8
+    }
+}
+
+pub enum KeyType {
+    ECC = 1,
+    LMS = 2,
+    MLDSA = 3,
+}
+
+impl From<KeyType> for u8 {
+    fn from(val: KeyType) -> Self {
+        val as u8
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum FwImageType {
+    EccLms = 1,
+    EccMldsa = 2,
+}
+
+impl From<FwImageType> for u8 {
+    fn from(val: FwImageType) -> Self {
+        val as u8
+    }
+}
+
+impl Default for FwImageType {
+    fn default() -> Self {
+        Self::EccLms
+    }
+}
 
 /// Caliptra Image Bundle
 #[cfg(feature = "std")]
@@ -141,7 +183,12 @@ pub struct ImageManifest {
     /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Preabmle
+    /// Firmware image type (ECC + LMS keys or ECC + MLDSA keys)
+    pub fw_image_type: u8,
+
+    pub reserved: [u8; 3],
+
+    /// Preamble
     pub preamble: ImagePreamble,
 
     /// Header
@@ -159,6 +206,8 @@ impl Default for ImageManifest {
         Self {
             marker: Default::default(),
             size: size_of::<ImageManifest>() as u32,
+            fw_image_type: 0,
+            reserved: [0u8; 3],
             preamble: ImagePreamble::default(),
             header: ImageHeader::default(),
             fmc: ImageTocEntry::default(),
@@ -167,17 +216,17 @@ impl Default for ImageManifest {
     }
 }
 impl ImageManifest {
-    /// Returns the `Range<u32>` containing the vendor public keys
-    pub fn vendor_pub_keys_range() -> Range<u32> {
+    /// Returns the `Range<u32>` containing the vendor public key descriptors
+    pub fn vendor_pub_key_descriptors_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImagePreamble, vendor_pub_keys);
+        let span = span_of!(ImagePreamble, vendor_pub_key_info);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
-    /// Returns `Range<u32>` containing the owner public key
-    pub fn owner_pub_key_range() -> Range<u32> {
+    /// Returns the `Range<u32>` containing the owner public key descriptors
+    pub fn owner_pub_key_descriptors_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImagePreamble, owner_pub_keys);
+        let span = span_of!(ImagePreamble, owner_pub_key_info);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
@@ -198,17 +247,35 @@ impl ImageManifest {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
-    pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
-    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
+    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageVendorPubKeyInfo {
+    pub ecc_key_descriptor: ImageEccKeyDescriptor,
+
+    pub pqc_key_descriptor: ImagePqcKeyDescriptor,
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageOwnerPubKeyInfo {
+    pub ecc_key_descriptor: ImageEccKeyDescriptor,
+
+    pub pqc_key_descriptor: ImagePqcKeyDescriptor,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageVendorPrivKeys {
-    pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
-    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
+    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
 }
 
 #[repr(C)]
@@ -237,22 +304,60 @@ pub struct ImageSignatures {
     pub lms_sig: ImageLmsSignature,
 }
 
-/// Calipatra Image Bundle Preamble
+/// Caliptra Image ECC Key Descriptor
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageEccKeyDescriptor {
+    pub version: u8,
+    pub intent: u8,
+    pub reserved: u8,
+    pub key_hash_count: u8,
+    pub key_hash: ImageEccKeyHashes,
+}
+
+/// Caliptra Image LMS/MLDSA Key Descriptor
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImagePqcKeyDescriptor {
+    pub version: u8,
+    pub intent: u8,
+    pub key_type: u8,
+    pub key_hash_count: u8,
+    pub key_hash: ImagePqcKeyHashes,
+}
+
+pub type ImageEccKeyHashes = [ImageDigest; VENDOR_ECC_MAX_KEY_COUNT as usize];
+pub type ImageLmsKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
+pub type ImagePqcKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
+
+/// Caliptra Image Bundle Preamble
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
-    /// Vendor  Public Keys
-    pub vendor_pub_keys: ImageVendorPubKeys,
+    /// Vendor Public Key Descriptor + Key Hashes
+    pub vendor_pub_key_info: ImageVendorPubKeyInfo,
 
     /// Vendor ECC Public Key Index
     pub vendor_ecc_pub_key_idx: u32,
 
+    /// Vendor Active Public Key
+    pub vendor_ecc_active_pub_key: ImageEccPubKey,
+
     /// Vendor LMS Public Key Index
     pub vendor_lms_pub_key_idx: u32,
 
+    /// Vendor Active LMS Public Key
+    #[zeroize(skip)]
+    pub vendor_lms_active_pub_key: ImageLmsPublicKey,
+
     /// Vendor Signatures
     pub vendor_sigs: ImageSignatures,
+
+    /// Owner Public Key Descriptor (no Key Hashes)
+    pub owner_pub_key_info: ImageOwnerPubKeyInfo,
 
     /// Owner Public Key
     pub owner_pub_keys: ImageOwnerPubKeys,

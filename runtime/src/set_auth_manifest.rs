@@ -118,16 +118,10 @@ impl SetAuthManifestCmd {
         )?;
 
         // Verify the vendor ECC signature.
-        let vendor_fw_ecc_key = &fw_preamble
-            .vendor_pub_keys
-            .ecc_pub_keys
-            .get(fw_preamble.vendor_ecc_pub_key_idx as usize)
-            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-
         let verify_r = Self::ecc384_verify(
             ecc384,
             &digest_vendor,
-            vendor_fw_ecc_key,
+            &fw_preamble.vendor_ecc_active_pub_key,
             &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig,
         )
         .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
@@ -146,11 +140,7 @@ impl SetAuthManifestCmd {
 
         // Verify vendor LMS signature.
         if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let vendor_fw_lms_key = &fw_preamble
-                .vendor_pub_keys
-                .lms_pub_keys
-                .get(fw_preamble.vendor_lms_pub_key_idx as usize)
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+            let vendor_fw_lms_key = &fw_preamble.vendor_lms_active_pub_key;
 
             let candidate_key = Self::lms_verify(
                 sha256,
