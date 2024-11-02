@@ -229,10 +229,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b002a);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED: CaliptraError =
         CaliptraError::new_const(0x000b002b);
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
         CaliptraError::new_const(0x000b002c);
-    // 0x000b002d was IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE: CaliptraError =
+    // 0x000b002d was IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_MIN_SUPPORTED
+    pub const IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE: CaliptraError =
         CaliptraError::new_const(0x000b002e);
     pub const IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE: CaliptraError =
         CaliptraError::new_const(0x000b002f);
@@ -410,10 +410,11 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E002A);
     pub const RUNTIME_CMD_BUSY_DURING_WARM_RESET: CaliptraError =
         CaliptraError::new_const(0x000E002B);
-    pub const RUNTIME_RT_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
-    pub const RUNTIME_RT_MIN_SVN_HANDOFF_FAILED: CaliptraError =
+    pub const RUNTIME_FW_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
+    pub const RUNTIME_FW_MIN_SVN_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E002D);
-    pub const RUNTIME_FMC_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002E);
+    pub const RUNTIME_COLD_BOOT_FW_SVN_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E002E);
     pub const RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E002F);
     pub const RUNTIME_LDEV_ID_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0030);

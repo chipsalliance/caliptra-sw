@@ -24,7 +24,6 @@ use std::path::PathBuf;
 #[derive(Default)]
 pub struct ElfExecutable {
     version: u32,
-    svn: u32,
     rev: ImageRevision,
     load_addr: u32,
     entry_point: u32,
@@ -50,22 +49,12 @@ fn load_into_image(
 }
 
 impl ElfExecutable {
-    pub fn open(
-        path: &PathBuf,
-        version: u32,
-        svn: u32,
-        rev: ImageRevision,
-    ) -> anyhow::Result<Self> {
+    pub fn open(path: &PathBuf, version: u32, rev: ImageRevision) -> anyhow::Result<Self> {
         let file_data = std::fs::read(path).with_context(|| "Failed to read file")?;
-        ElfExecutable::new(&file_data, version, svn, rev)
+        ElfExecutable::new(&file_data, version, rev)
     }
     /// Create new instance of `ElfExecutable`.
-    pub fn new(
-        elf_bytes: &[u8],
-        version: u32,
-        svn: u32,
-        rev: ImageRevision,
-    ) -> anyhow::Result<Self> {
+    pub fn new(elf_bytes: &[u8], version: u32, rev: ImageRevision) -> anyhow::Result<Self> {
         let mut content = vec![];
 
         let elf_file = ElfBytes::<AnyEndian>::minimal_parse(elf_bytes)
@@ -99,7 +88,6 @@ impl ElfExecutable {
 
         Ok(Self {
             version,
-            svn,
             rev,
             load_addr,
             entry_point,
@@ -112,11 +100,6 @@ impl ImageGeneratorExecutable for ElfExecutable {
     /// Executable Version Number
     fn version(&self) -> u32 {
         self.version
-    }
-
-    /// Executable Security Version Number
-    fn svn(&self) -> u32 {
-        self.svn
     }
 
     /// Executable Revision

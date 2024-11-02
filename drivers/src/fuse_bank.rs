@@ -258,32 +258,17 @@ impl FuseBank<'_> {
         soc_ifc_regs.fuse_anti_rollback_disable().read().dis()
     }
 
-    /// Get the fmc fuse security version number.
+    /// Get the firmware fuse security version number.
     ///
     /// # Arguments
     /// * None
     ///
     /// # Returns
-    ///     fmc security version number
+    ///     firmware security version number
     ///
-    pub fn fmc_fuse_svn(&self) -> u32 {
+    pub fn fw_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        32 - soc_ifc_regs
-            .fuse_fmc_key_manifest_svn()
-            .read()
-            .leading_zeros()
-    }
-
-    /// Get the runtime fuse security version number.
-    ///
-    /// # Arguments
-    /// * None
-    ///
-    /// # Returns
-    ///     runtime security version number
-    ///
-    pub fn runtime_fuse_svn(&self) -> u32 {
-        let soc_ifc_regs = self.soc_ifc.regs();
+        // The legacy name of this register is `fuse_runtime_svn`
         first_set_msbit(&soc_ifc_regs.fuse_runtime_svn().read())
     }
 

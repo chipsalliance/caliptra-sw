@@ -175,14 +175,14 @@ impl HandOff {
         }
     }
 
-    /// Retrieve runtime SVN.
-    pub fn rt_svn(env: &FmcEnv) -> u32 {
+    /// Retrieve firmware SVN.
+    pub fn fw_svn(env: &FmcEnv) -> u32 {
         let ds: DataStore =
             Self::fht(env)
-                .rt_svn_dv_hdl
+                .fw_svn_dv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT SVN handle");
+                    cprintln!("[fht] Invalid FW SVN handle");
                     handle_fatal_error(e.into())
                 });
 
