@@ -39,12 +39,12 @@ impl FhtDataStore {
     pub const fn fmc_priv_key_store() -> HandOffDataHandle {
         HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_ECDSA_PRIV_KEY as u32)
     }
-    /// The FMC SVN is stored in a 32-bit DataVault sticky register.
-    pub const fn fmc_svn_store() -> HandOffDataHandle {
+    /// The FW SVN is stored in a 32-bit DataVault sticky register.
+    pub const fn cold_boot_fw_svn_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::Sticky32BitReg as u32) << 8
-                | ColdResetEntry4::FmcSvn as u32,
+                | ColdResetEntry4::ColdBootFwSvn as u32,
         )
     }
     /// The FMC TCI is stored in a 384-bit DataVault sticky register.
@@ -93,20 +93,20 @@ impl FhtDataStore {
                 | ColdResetEntry48::FmcPubKeyY as u32,
         )
     }
-    /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
-    pub const fn rt_svn_data_store() -> HandOffDataHandle {
+    /// The FW SVN is stored in a 32-bit DataVault non-sticky register.
+    pub const fn fw_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky32BitReg as u32) << 8
-                | WarmResetEntry4::RtSvn as u32,
+                | WarmResetEntry4::FwSvn as u32,
         )
     }
-    /// The RT Min SVN is stored in a 32-bit DataVault non-sticky register.
-    pub const fn rt_min_svn_data_store() -> HandOffDataHandle {
+    /// The FW Min SVN is stored in a 32-bit DataVault non-sticky register.
+    pub const fn fw_min_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky32BitReg as u32) << 8
-                | WarmResetEntry4::RtMinSvn as u32,
+                | WarmResetEntry4::FwMinSvn as u32,
         )
     }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
@@ -167,12 +167,12 @@ pub fn initialize_fht(env: &mut RomEnv) {
         fmc_cert_sig_r_dv_hdl: FhtDataStore::fmc_cert_sig_r_store(),
         fmc_cert_sig_s_dv_hdl: FhtDataStore::fmc_cert_sig_s_store(),
         fmc_tci_dv_hdl: FhtDataStore::fmc_tci_store(),
-        fmc_svn_dv_hdl: FhtDataStore::fmc_svn_store(),
+        cold_boot_fw_svn_dv_hdl: FhtDataStore::cold_boot_fw_svn_store(),
         rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
-        rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
-        rt_min_svn_dv_hdl: FhtDataStore::rt_min_svn_data_store(),
+        fw_svn_dv_hdl: FhtDataStore::fw_svn_data_store(),
+        fw_min_svn_dv_hdl: FhtDataStore::fw_min_svn_data_store(),
         ldevid_cert_sig_r_dv_hdl: FhtDataStore::ldevid_cert_sig_r_store(),
         ldevid_cert_sig_s_dv_hdl: FhtDataStore::ldevid_cert_sig_s_store(),
         rom_info_addr: RomAddr::from(unsafe { &CALIPTRA_ROM_INFO }),

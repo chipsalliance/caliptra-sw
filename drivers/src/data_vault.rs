@@ -69,7 +69,7 @@ impl From<ColdResetEntry48> for usize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry4 {
-    FmcSvn = 0,
+    ColdBootFwSvn = 0,
     RomColdBootStatus = 1,
     FmcEntryPoint = 2,
     EccVendorPubKeyIndex = 3,
@@ -80,7 +80,7 @@ impl TryFrom<u8> for ColdResetEntry4 {
     type Error = ();
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::FmcSvn),
+            0 => Ok(Self::ColdBootFwSvn),
             2 => Ok(Self::FmcEntryPoint),
             3 => Ok(Self::EccVendorPubKeyIndex),
             4 => Ok(Self::LmsVendorPubKeyIndex),
@@ -132,10 +132,10 @@ impl From<WarmResetEntry48> for usize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarmResetEntry4 {
-    RtSvn = 0,
+    FwSvn = 0,
     RtEntryPoint = 1,
     ManifestAddr = 2,
-    RtMinSvn = 3,
+    FwMinSvn = 3,
     RomUpdateResetStatus = 4,
 }
 
@@ -161,10 +161,10 @@ impl TryFrom<u8> for WarmResetEntry4 {
     type Error = ();
     fn try_from(original: u8) -> Result<Self, Self::Error> {
         match original {
-            0 => Ok(Self::RtSvn),
+            0 => Ok(Self::FwSvn),
             1 => Ok(Self::RtEntryPoint),
             2 => Ok(Self::ManifestAddr),
-            3 => Ok(Self::RtMinSvn),
+            3 => Ok(Self::FwMinSvn),
             _ => Err(()),
         }
     }
@@ -298,13 +298,13 @@ impl DataVault {
         self.read_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash)
     }
 
-    /// Get the fmc security version number.
+    /// Get the cold-boot firmware security version number.
     ///
     /// # Returns
-    /// * fmc security version number
+    /// * cold-boot firmware security version number
     ///
-    pub fn fmc_svn(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::FmcSvn)
+    pub fn cold_boot_fw_svn(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::ColdBootFwSvn)
     }
 
     /// Get the fmc entry.
@@ -361,22 +361,22 @@ impl DataVault {
         self.read_warm_reset_entry48(WarmResetEntry48::RtTci)
     }
 
-    /// Get the rt security version number.
+    /// Get the fw security version number.
     ///
     /// # Returns
-    /// * rt security version number
+    /// * fw security version number
     ///
-    pub fn rt_svn(&self) -> u32 {
-        self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
+    pub fn fw_svn(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::FwSvn)
     }
 
-    /// Get the rt minimum security version number.
+    /// Get the fw minimum security version number.
     ///
     /// # Returns
-    /// * rt minimum security version number
+    /// * fw minimum security version number
     ///
-    pub fn rt_min_svn(&self) -> u32 {
-        self.read_warm_reset_entry4(WarmResetEntry4::RtMinSvn)
+    pub fn fw_min_svn(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::FwMinSvn)
     }
 
     /// Get the rt entry.

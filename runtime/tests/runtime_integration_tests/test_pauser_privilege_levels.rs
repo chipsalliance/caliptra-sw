@@ -557,17 +557,11 @@ fn test_pl0_unset_in_header() {
                 fmc: ElfExecutable::new(
                     &fmc_elf,
                     opts.fmc_version as u32,
-                    opts.fmc_svn,
                     *b"~~~~~NO_GIT_REVISION",
                 )
                 .unwrap(),
-                runtime: ElfExecutable::new(
-                    &app_elf,
-                    opts.app_version,
-                    opts.app_svn,
-                    *b"~~~~~NO_GIT_REVISION",
-                )
-                .unwrap(),
+                runtime: ElfExecutable::new(&app_elf, opts.app_version, *b"~~~~~NO_GIT_REVISION")
+                    .unwrap(),
                 vendor_config: opts.vendor_config,
                 owner_config: opts.owner_config,
                 fw_image_type: FwImageType::EccLms,

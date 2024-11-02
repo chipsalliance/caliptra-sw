@@ -43,10 +43,9 @@ fn test_fw_info() {
     image_opts.vendor_config.pl0_pauser = Some(0x1);
     image_opts.fmc_version = 0xaaaa;
     image_opts.app_version = 0xbbbbbbbb;
-    image_opts.fmc_svn = 5;
 
     let mut image_opts10 = image_opts.clone();
-    image_opts10.app_svn = 10;
+    image_opts10.vendor_config.fw_svn = 10;
 
     // Cannot use run_rt_test since we need the rom and image to verify info
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
@@ -107,9 +106,9 @@ fn test_fw_info() {
     let info = get_fwinfo(&mut model);
     // Verify FW info
     assert_eq!(info.pl0_pauser, 0x1);
-    assert_eq!(info.fmc_manifest_svn, 10);
-    assert_eq!(info.runtime_svn, 10);
-    assert_eq!(info.min_runtime_svn, 10);
+    assert_eq!(info.cold_boot_fw_svn, 10);
+    assert_eq!(info.fw_svn, 10);
+    assert_eq!(info.min_fw_svn, 10);
     // Verify revision (Commit ID) and digest of each component
     assert_eq!(info.rom_revision, rom_info.revision);
     assert_eq!(info.fmc_revision, image.manifest.fmc.revision);
@@ -120,7 +119,7 @@ fn test_fw_info() {
 
     // Make image with newer SVN.
     let mut image_opts20 = image_opts.clone();
-    image_opts20.app_svn = 20;
+    image_opts20.vendor_config.fw_svn = 20;
 
     let image20 =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts20)
@@ -132,13 +131,13 @@ fn test_fw_info() {
     update_to(&mut model, &image20);
 
     let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 20);
-    assert_eq!(info.min_runtime_svn, 10);
-    assert_eq!(info.fmc_manifest_svn, 10);
+    assert_eq!(info.fw_svn, 20);
+    assert_eq!(info.min_fw_svn, 10);
+    assert_eq!(info.cold_boot_fw_svn, 10);
 
     // Make image with older SVN.
     let mut image_opts5 = image_opts;
-    image_opts5.app_svn = 5;
+    image_opts5.vendor_config.fw_svn = 5;
 
     let image5 =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts5)
@@ -148,16 +147,16 @@ fn test_fw_info() {
 
     update_to(&mut model, &image5);
     let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 5);
-    assert_eq!(info.min_runtime_svn, 5);
-    assert_eq!(info.fmc_manifest_svn, 10);
+    assert_eq!(info.fw_svn, 5);
+    assert_eq!(info.min_fw_svn, 5);
+    assert_eq!(info.cold_boot_fw_svn, 10);
 
     // Go back to SVN 20
     update_to(&mut model, &image20);
     let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 20);
-    assert_eq!(info.min_runtime_svn, 5);
-    assert_eq!(info.fmc_manifest_svn, 10);
+    assert_eq!(info.fw_svn, 20);
+    assert_eq!(info.min_fw_svn, 5);
+    assert_eq!(info.cold_boot_fw_svn, 10);
 }
 
 #[test]

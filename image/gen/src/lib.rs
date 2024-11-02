@@ -24,9 +24,6 @@ pub trait ImageGeneratorExecutable {
     /// Executable Version Number
     fn version(&self) -> u32;
 
-    /// Executable Security Version Number
-    fn svn(&self) -> u32;
-
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
 
@@ -109,6 +106,8 @@ pub struct ImageGeneratorVendorConfig {
     pub not_after: [u8; 15],
 
     pub pl0_pauser: Option<u32>,
+
+    pub fw_svn: u32,
 }
 
 /// Image Generator Owner Configuration

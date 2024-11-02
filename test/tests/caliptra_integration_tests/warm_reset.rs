@@ -8,6 +8,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
+use caliptra_image_gen::ImageGeneratorVendorConfig;
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
 use zerocopy::AsBytes;
@@ -29,8 +30,10 @@ fn warm_reset_basic() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -52,8 +55,7 @@ fn warm_reset_basic() {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -71,8 +73,7 @@ fn warm_reset_basic() {
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 
@@ -93,8 +94,10 @@ fn warm_reset_during_fw_load() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -116,8 +119,7 @@ fn warm_reset_during_fw_load() {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: None,
@@ -146,8 +148,7 @@ fn warm_reset_during_fw_load() {
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 

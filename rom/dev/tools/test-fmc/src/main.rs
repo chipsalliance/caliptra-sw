@@ -310,8 +310,8 @@ fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
 fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    send_to_mailbox(mbox, (FmcSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.fmc_svn().as_bytes(), false);
+    send_to_mailbox(mbox, (ColdBootFwSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.fw_svn().as_bytes(), false);
 
     send_to_mailbox(mbox, (RomColdBootStatus as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.rom_cold_boot_status().as_bytes(), false);
@@ -332,8 +332,8 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
 
 fn read_datavault_warmresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    send_to_mailbox(mbox, (RtSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rt_svn().as_bytes(), false);
+    send_to_mailbox(mbox, (FwSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.fw_svn().as_bytes(), false);
 
     send_to_mailbox(mbox, (RtEntryPoint as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.rt_entry_point().as_bytes(), false);
@@ -341,8 +341,8 @@ fn read_datavault_warmresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, (ManifestAddr as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.manifest_addr().as_bytes(), false);
 
-    send_to_mailbox(mbox, (RtMinSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rt_min_svn().as_bytes(), false);
+    send_to_mailbox(mbox, (FwMinSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.fw_min_svn().as_bytes(), false);
 
     send_to_mailbox(mbox, (RomUpdateResetStatus as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.rom_update_reset_status().as_bytes(), false);

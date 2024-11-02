@@ -62,8 +62,8 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
 | FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
-| FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
-| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
+| FUSE_FIRMARE_SVN                | 128          | Firmware Security Version Number                        |
+| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set       |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11,12**: Unique Endpoint ID <br> **Words 13,14,15,16**: Manufacturer Serial Number |
 | MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
 
@@ -836,8 +836,8 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  - **Warm Reset unlockable values:**
  These values are unlocked on a Warm or Cold Reset:
     - RT TCI
-    - RT SVN
     - RT Entry Point
+    - FW SVN
     - Manifest Addr
     - ROM Update Reset Status
 
@@ -864,8 +864,8 @@ ROM locks the following entities to prevent any updates:
 
  - **Warm Reset unlockable values:**
     - RT TCI
-    - RT SVN
     - RT Entry Point
+    - FW SVN
     - Manifest Addr
     - ROM Update Reset Status
 
@@ -941,7 +941,7 @@ The following are the pre-conditions that should be satisfied:
   - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
   - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
   - fuse_owner_pk_hash : The hash of the owner public keys in preamble.
-  - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
+  - fuse_firmware_svn : Used in FW validation to make sure that the firmware image's SVN is good.
 - The SOC has written the data to the mailbox.
 - The SOC has written the data length in the DLEN mailbox register.
 - The SOC has put the FW_DOWNLOAD command in the command register.

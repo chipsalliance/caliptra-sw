@@ -59,9 +59,9 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
     env.data_vault
         .lock_cold_reset_entry48(ColdResetEntry48::FmcTci);
 
-    // Lock the FMC SVN  in data vault until next cold reset
+    // Lock the cold-boot FW SVN in data vault until next cold reset
     env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::FmcSvn);
+        .lock_cold_reset_entry4(ColdResetEntry4::ColdBootFwSvn);
 
     // Lock the FMC entry point in data vault until next cold reset
     env.data_vault
@@ -95,13 +95,13 @@ fn lock_common_reg_set(env: &mut RomEnv) {
     env.data_vault
         .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
 
-    // Lock the Runtime SVN in data vault until next reset
+    // Lock the Firmware SVN in data vault until next reset
     env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
+        .lock_warm_reset_entry4(WarmResetEntry4::FwSvn);
 
     // Lock the Firmware Min-SVN in data vault until next reset
     env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn);
+        .lock_warm_reset_entry4(WarmResetEntry4::FwMinSvn);
 
     // Lock the Runtime entry point in data vault until next reset
     env.data_vault

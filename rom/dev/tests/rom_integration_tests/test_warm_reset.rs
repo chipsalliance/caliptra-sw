@@ -9,6 +9,7 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_image_gen::ImageGeneratorVendorConfig;
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
 use zerocopy::AsBytes;
@@ -32,8 +33,10 @@ fn test_warm_reset_success() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -56,8 +59,7 @@ fn test_warm_reset_success() {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -75,8 +77,7 @@ fn test_warm_reset_success() {
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 

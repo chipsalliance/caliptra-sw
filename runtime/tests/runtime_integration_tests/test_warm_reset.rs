@@ -7,6 +7,7 @@ use caliptra_builder::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_image_gen::ImageGeneratorVendorConfig;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use dpe::DPE_PROFILE;
 use openssl::sha::sha384;
@@ -35,7 +36,10 @@ fn test_rt_journey_pcr_validation() {
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions {
-            fmc_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -57,7 +61,6 @@ fn test_rt_journey_pcr_validation() {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -78,7 +81,6 @@ fn test_rt_journey_pcr_validation() {
     model.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
-        fmc_key_manifest_svn: 0b1111111,
         ..Default::default()
     });
 
@@ -102,7 +104,10 @@ fn test_mbox_busy_during_warm_reset() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -124,7 +129,6 @@ fn test_mbox_busy_during_warm_reset() {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -145,7 +149,6 @@ fn test_mbox_busy_during_warm_reset() {
     model.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
-        fmc_key_manifest_svn: 0b1111111,
         ..Default::default()
     });
 

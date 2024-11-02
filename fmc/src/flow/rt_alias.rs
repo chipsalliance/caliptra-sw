@@ -281,7 +281,7 @@ impl RtAliasLayer {
         let serial_number = &X509::cert_sn(env, pub_key)?;
 
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
-        let rt_svn = HandOff::rt_svn(env) as u8;
+        let fw_svn = HandOff::fw_svn(env) as u8;
 
         // Certificate `To Be Signed` Parameters
         let params = RtAliasCertTbsParams {
@@ -295,7 +295,7 @@ impl RtAliasLayer {
             public_key: &pub_key.to_der(),
             not_before,
             not_after,
-            tcb_info_rt_svn: &rt_svn.to_be_bytes(),
+            tcb_info_fw_svn: &fw_svn.to_be_bytes(),
             tcb_info_rt_tci: &rt_tci,
             // Are there any fields missing?
         };

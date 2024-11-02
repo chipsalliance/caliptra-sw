@@ -301,8 +301,8 @@ pub struct Pcr0Input {
     pub owner_pub_key_hash_from_fuses: bool,
     pub ecc_vendor_pub_key_index: u32,
     pub fmc_digest: [u32; 12],
-    pub fmc_svn: u32,
-    pub fmc_fuse_svn: u32,
+    pub fw_svn: u32,
+    pub fw_fuse_svn: u32,
     pub lms_vendor_pub_key_index: u32,
     pub rom_verify_config: u32,
 }
@@ -324,8 +324,8 @@ impl Pcr0 {
                 input.security_state.debug_locked() as u8,
                 input.fuse_anti_rollback_disable as u8,
                 input.ecc_vendor_pub_key_index as u8,
-                input.fmc_svn as u8,
-                input.fmc_fuse_svn as u8,
+                input.fw_svn as u8,
+                input.fw_fuse_svn as u8,
                 input.lms_vendor_pub_key_index as u8,
                 input.rom_verify_config as u8,
                 input.owner_pub_key_hash_from_fuses as u8,
@@ -368,8 +368,8 @@ fn test_derive_pcr0() {
             0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
             0x1bb5034b, 0x587eea1f, 0xfcdd0e0f, 0x8e88d406, 0x3327a3fe,
         ],
-        fmc_svn: 5,
-        fmc_fuse_svn: 2,
+        fw_svn: 5,
+        fw_fuse_svn: 2,
         lms_vendor_pub_key_index: u32::MAX,
         rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
     });

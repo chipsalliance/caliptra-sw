@@ -342,6 +342,7 @@ pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendor
     not_before: [0u8; 15],
     not_after: [0u8; 15],
     pl0_pauser: Some(0x1),
+    fw_svn: 0,
 };
 
 pub const VENDOR_CONFIG_KEY_1: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {

@@ -21,13 +21,13 @@ pub enum FuseLogEntryId {
     Invalid = 0,
     VendorEccPubKeyIndex = 1,      // 4 bytes  (From Manifest)
     VendorEccPubKeyRevocation = 2, // 4 bytes  (From Fuse)
-    ManifestFmcSvn = 3,            // 4 bytes
+    ColdBootFwSvn = 3,             // 4 bytes
     ManifestReserved0 = 4,         // 4 bytes
     #[deprecated]
     _DeprecatedFuseFmcSvn = 5, // 4 bytes
-    ManifestRtSvn = 6,             // 4 bytes
+    ManifestFwSvn = 6,             // 4 bytes
     ManifestReserved1 = 7,         // 4 bytes
-    FuseRtSvn = 8,                 // 4 bytes
+    FuseFwSvn = 8,                 // 4 bytes
     VendorLmsPubKeyIndex = 9,      // 4 bytes  (From Manifest)
     VendorLmsPubKeyRevocation = 10, // 4 bytes  (From Fuse)
 }
@@ -38,12 +38,12 @@ impl From<u32> for FuseLogEntryId {
         match id {
             1 => FuseLogEntryId::VendorEccPubKeyIndex,
             2 => FuseLogEntryId::VendorEccPubKeyRevocation,
-            3 => FuseLogEntryId::ManifestFmcSvn,
+            3 => FuseLogEntryId::ColdBootFwSvn,
             4 => FuseLogEntryId::ManifestReserved0,
             5 => FuseLogEntryId::_DeprecatedFuseFmcSvn,
-            6 => FuseLogEntryId::ManifestRtSvn,
+            6 => FuseLogEntryId::ManifestFwSvn,
             7 => FuseLogEntryId::ManifestReserved1,
-            8 => FuseLogEntryId::FuseRtSvn,
+            8 => FuseLogEntryId::FuseFwSvn,
             9 => FuseLogEntryId::VendorLmsPubKeyIndex,
             10 => FuseLogEntryId::VendorLmsPubKeyRevocation,
             _ => FuseLogEntryId::Invalid,

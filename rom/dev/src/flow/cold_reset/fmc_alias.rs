@@ -185,7 +185,7 @@ impl FmcAliasLayer {
 
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
-        let svn = env.data_vault.fmc_svn() as u8;
+        let svn = env.data_vault.fw_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
@@ -217,8 +217,8 @@ impl FmcAliasLayer {
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),
             tcb_info_flags: &flags,
-            tcb_info_fmc_svn: &svn.to_be_bytes(),
-            tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),
+            tcb_info_fw_svn: &svn.to_be_bytes(),
+            tcb_info_fw_svn_fuses: &fuse_svn.to_be_bytes(),
             not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
             not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };

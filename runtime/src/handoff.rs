@@ -46,27 +46,27 @@ impl RtHandoff<'_> {
         }
     }
 
-    /// Retrieve runtime SVN.
-    pub fn rt_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.rt_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_RT_SVN_HANDOFF_FAILED)
+    /// Retrieve firmware SVN.
+    pub fn fw_svn(&self) -> CaliptraResult<u32> {
+        self.read_from_ds(self.fht.fw_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_FW_SVN_HANDOFF_FAILED)
     }
 
-    /// Retrieve runtime minimum SVN.
-    pub fn rt_min_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.rt_min_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_RT_MIN_SVN_HANDOFF_FAILED)
+    /// Retrieve firmware minimum SVN.
+    pub fn fw_min_svn(&self) -> CaliptraResult<u32> {
+        self.read_from_ds(self.fht.fw_min_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_FW_MIN_SVN_HANDOFF_FAILED)
     }
 
-    /// Retrieve FMC SVN.
-    pub fn fmc_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.fmc_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_FMC_SVN_HANDOFF_FAILED)
+    /// Retrieve cold-boot FW SVN.
+    pub fn cold_boot_fw_svn(&self) -> CaliptraResult<u32> {
+        self.read_from_ds(self.fht.cold_boot_fw_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_COLD_BOOT_FW_SVN_HANDOFF_FAILED)
     }
 
-    /// Retrieve the RT FW hash chain.
-    pub fn rt_hash_chain(&self) -> CaliptraResult<KeyId> {
-        self.read_as_kv(self.fht.rt_hash_chain_kv_hdl.try_into()?)
+    /// Retrieve the FW hash chain.
+    pub fn fw_hash_chain(&self) -> CaliptraResult<KeyId> {
+        self.read_as_kv(self.fht.fw_hash_chain_kv_hdl.try_into()?)
             .map_err(|_| CaliptraError::RUNTIME_HASH_CHAIN_HANDOFF_FAILED)
     }
 }

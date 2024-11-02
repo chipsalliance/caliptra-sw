@@ -768,9 +768,9 @@ Command Code: `0x494E_464F` ("INFO")
 | chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
 | fips\_status           | u32            | Indicates if the command is FIPS approved or an error.
 | pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header).
-| runtime_svn            | u32            | Runtime SVN.
-| min_runtime_svn        | u32            | Min Runtime SVN.
-| fmc_manifest_svn       | u32            | FMC SVN.
+| firmware_svn           | u32            | Firmware SVN.
+| min_firmware_svn       | u32            | Min Firmware SVN.
+| cold_boot_fw_svn       | u32            | Cold-boot Firmware SVN.
 | attestation_disabled   | u32            | State of attestation disable.
 | rom_revision           | u8[20]         | Revision (Git commit ID) of ROM build.
 | fmc_revision           | u8[20]         | Revision (Git commit ID) of FMC build.

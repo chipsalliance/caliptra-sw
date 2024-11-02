@@ -28,17 +28,17 @@ impl FwInfoCmd {
             fht: &pdata.fht,
         };
 
-        let runtime_svn = handoff.rt_svn()?;
-        let min_runtime_svn = handoff.rt_min_svn()?;
-        let fmc_manifest_svn = handoff.fmc_svn()?;
+        let fw_svn = handoff.fw_svn()?;
+        let min_fw_svn = handoff.fw_min_svn()?;
+        let cold_boot_fw_svn = handoff.cold_boot_fw_svn()?;
         let rom_info = handoff.fht.rom_info_addr.get()?;
 
         Ok(MailboxResp::FwInfo(FwInfoResp {
             hdr: MailboxRespHeader::default(),
             pl0_pauser: pdata.manifest1.header.pl0_pauser,
-            runtime_svn,
-            min_runtime_svn,
-            fmc_manifest_svn,
+            fw_svn,
+            min_fw_svn,
+            cold_boot_fw_svn,
             attestation_disabled: pdata.attestation_disabled.get().into(),
             rom_revision: rom_info.revision,
             fmc_revision: pdata.manifest1.fmc.revision,

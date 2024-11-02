@@ -428,10 +428,10 @@ impl FirmwareProcessor {
                 .as_bytes(),
         )?;
 
-        // Log ManifestFmcSvn
+        // Log cold-boot FW SVN
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestFmcSvn,
+            FuseLogEntryId::ColdBootFwSvn,
             log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
@@ -442,7 +442,7 @@ impl FirmwareProcessor {
             log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log DeprecatedFuseFmcSvn (which is now the same as FuseRtSvn)
+        // Log DeprecatedFuseFmcSvn (which is now the same as FuseFwSvn)
         #[allow(deprecated)]
         log_fuse_data(
             log,
@@ -450,10 +450,10 @@ impl FirmwareProcessor {
             log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log ManifestRtSvn
+        // Log ManifestFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestRtSvn,
+            FuseLogEntryId::ManifestFwSvn,
             log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
@@ -464,10 +464,10 @@ impl FirmwareProcessor {
             log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseRtSvn
+        // Log FuseFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseRtSvn,
+            FuseLogEntryId::FuseFwSvn,
             log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
@@ -543,7 +543,7 @@ impl FirmwareProcessor {
     ) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fw_svn);
+        data_vault.write_cold_reset_entry4(ColdResetEntry4::ColdBootFwSvn, info.fw_svn);
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
 
@@ -566,8 +566,8 @@ impl FirmwareProcessor {
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.fw_svn);
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtMinSvn, info.fw_svn); // At cold-boot, min_svn == curr_svn
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::FwSvn, info.fw_svn);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::FwMinSvn, info.fw_svn); // At cold-boot, min_svn == curr_svn
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 

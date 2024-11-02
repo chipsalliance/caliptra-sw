@@ -4,6 +4,7 @@ use caliptra_builder::{firmware, get_elf_path, ImageOptions};
 
 use caliptra_api_types::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_image_gen::ImageGeneratorVendorConfig;
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
 use std::io::{BufRead, BufReader, Write};
@@ -89,8 +90,10 @@ fn gdb_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            vendor_config: ImageGeneratorVendorConfig {
+                fw_svn: 9,
+                ..caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0
+            },
             ..Default::default()
         },
     )
@@ -103,7 +106,7 @@ fn gdb_test() {
     let fuses = Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash_words,
         owner_pk_hash: owner_pk_desc_hash_words,
-        fmc_key_manifest_svn: 0b1111111,
+        fw_svn: [0x7F, 0, 0, 0],
         lms_verify: true,
         ..Default::default()
     };

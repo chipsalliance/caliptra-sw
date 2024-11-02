@@ -2102,7 +2102,7 @@ mod tests {
             self.fmc_digest
         }
 
-        fn runtime_fuse_svn(&self) -> u32 {
+        fn fw_fuse_svn(&self) -> u32 {
             0
         }
 

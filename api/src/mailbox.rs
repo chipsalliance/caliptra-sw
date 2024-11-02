@@ -776,9 +776,9 @@ impl Response for FipsVersionResp {}
 pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
-    pub runtime_svn: u32,
-    pub min_runtime_svn: u32,
-    pub fmc_manifest_svn: u32,
+    pub fw_svn: u32,
+    pub min_fw_svn: u32,
+    pub cold_boot_fw_svn: u32,
     pub attestation_disabled: u32,
     pub rom_revision: [u8; 20],
     pub fmc_revision: [u8; 20],

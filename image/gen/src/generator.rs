@@ -54,15 +54,18 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             );
         }
 
+        // The firmware SVN is placed in the RT FW TOC entry. The FMC TOC entry's SVN is left as zero.
+
         // Create FMC TOC & Content
         let id = ImageTocEntryId::Fmc;
         let offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
-        let (fmc_toc, fmc) = self.gen_image(&config.fmc, id, offset)?;
+        let (fmc_toc, fmc) = self.gen_image(&config.fmc, id, offset, 0)?;
 
         // Create Runtime TOC & Content
         let id = ImageTocEntryId::Runtime;
         let offset = offset + fmc_toc.size;
-        let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
+        let (runtime_toc, runtime) =
+            self.gen_image(&config.runtime, id, offset, config.vendor_config.fw_svn)?;
 
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
@@ -303,6 +306,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         image: &E,
         id: ImageTocEntryId,
         offset: u32,
+        fw_svn: u32,
     ) -> anyhow::Result<(ImageTocEntry, Vec<u8>)>
     where
         E: ImageGeneratorExecutable,
@@ -315,7 +319,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             r#type: r#type.into(),
             revision: *image.rev(),
             version: image.version(),
-            svn: image.svn(),
+            svn: fw_svn,
             reserved: 0,
             load_addr: image.load_addr(),
             entry_point: image.entry_point(),

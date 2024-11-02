@@ -74,12 +74,11 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--lms-pk-idx 3 \
 		--fmc $(TARGET_DIR)/caliptra-rom-test-fmc \
 		--fmc-version 0 \
-		--fmc-svn 0 \
 		--fmc-rev $(GIT_REV) \
 		--rt $(TARGET_DIR)/caliptra-rom-test-rt \
 		--rt-version 0 \
-		--rt-svn 0 \
 		--rt-rev $(GIT_REV) \
+		--fw-svn 0 \
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
 
 bloat: build

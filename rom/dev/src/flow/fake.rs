@@ -341,8 +341,8 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     }
 
     // Get Fuse FW Manifest SVN
-    fn runtime_fuse_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().runtime_fuse_svn()
+    fn fw_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().fw_fuse_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {
