@@ -40,12 +40,23 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 /// DICE  Layer Key Pair
 #[derive(Debug, Zeroize)]
 pub struct Ecc384KeyPair {
-    /// Private Key
+    /// Private Key KV Slot Id
     #[zeroize(skip)]
     pub priv_key: KeyId,
 
     /// Public Key
     pub pub_key: Ecc384PubKey,
+}
+
+/// DICE  Layer Key Pair
+#[derive(Debug, Zeroize)]
+pub struct MlDsaKeyPair {
+    /// Key Pair Generation KV Slot Id
+    #[zeroize(skip)]
+    pub key_pair_seed: KeyId,
+
+    /// Public Key
+    pub pub_key: MlDsa87PubKey,
 }
 
 pub enum Crypto {}
