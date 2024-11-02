@@ -121,8 +121,7 @@ impl std::fmt::Debug for FusesWrapper {
                 &self.0.key_manifest_pk_hash_mask,
             )
             .field("owner_pk_hash", &HexSlice(&self.0.owner_pk_hash))
-            .field("fmc_key_manifest_svn", &self.0.fmc_key_manifest_svn)
-            .field("runtime_svn", &HexSlice(&self.0.runtime_svn))
+            .field("firmware_svn", &HexSlice(&self.0.fw_svn))
             .field("anti_rollback_disable", &self.0.anti_rollback_disable)
             .field("idevid_cert_attr", &HexSlice(&self.0.idevid_cert_attr))
             .field(
