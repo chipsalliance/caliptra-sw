@@ -78,7 +78,6 @@ impl AuthorizeAndStashCmd {
 
             let flags: AuthAndStashFlags = cmd.flags.into();
             if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                // TODO do we need to return this?
                 let dpe_result = StashMeasurementCmd::stash_measurement(
                     drivers,
                     &cmd.metadata,
