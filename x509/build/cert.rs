@@ -112,13 +112,13 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         });
 
         self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new("tcb_info_fmc_svn", 0, std::mem::size_of_val(&svn)),
+            tbs_param: TbsParam::new("tcb_info_fw_svn", 0, std::mem::size_of_val(&svn)),
             needle: svn.to_be_bytes().to_vec(),
         });
 
         self.params.push(CertTemplateParam {
             tbs_param: TbsParam::new(
-                "tcb_info_fmc_svn_fuses",
+                "tcb_info_fw_svn_fuses",
                 0,
                 std::mem::size_of_val(&svn_fuses),
             ),
@@ -143,7 +143,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
             .unwrap();
 
         self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new("tcb_info_rt_svn", 0, std::mem::size_of_val(&svn)),
+            tbs_param: TbsParam::new("tcb_info_fw_svn", 0, std::mem::size_of_val(&svn)),
             needle: svn.to_be_bytes().to_vec(),
         });
 

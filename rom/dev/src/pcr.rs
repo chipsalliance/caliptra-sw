@@ -89,7 +89,7 @@ pub(crate) fn extend_pcrs(
         soc_ifc.debug_locked() as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,
         data_vault.vendor_ecc_pk_index() as u8,
-        data_vault.fmc_svn() as u8,
+        data_vault.cold_boot_fw_svn() as u8,
         info.effective_fuse_svn as u8,
         data_vault.vendor_pqc_pk_index() as u8,
         info.pqc_key_type as u8,

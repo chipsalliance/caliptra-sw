@@ -21,8 +21,7 @@ fn warm_reset_basic() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
@@ -40,8 +39,7 @@ fn warm_reset_basic() {
             fuses: Fuses {
                 vendor_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -59,8 +57,7 @@ fn warm_reset_basic() {
     hw.warm_reset_flow(&Fuses {
         vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 
@@ -81,8 +78,7 @@ fn warm_reset_during_fw_load() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
@@ -100,8 +96,7 @@ fn warm_reset_during_fw_load() {
             fuses: Fuses {
                 vendor_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: None,
@@ -130,8 +125,7 @@ fn warm_reset_during_fw_load() {
     hw.warm_reset_flow(&Fuses {
         vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 

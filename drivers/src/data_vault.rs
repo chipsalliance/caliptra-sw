@@ -29,7 +29,7 @@ pub struct ColdResetEntries {
     fmc_mldsa_pk: Mldsa87PubKey,
     fmc_tci: Array4x12,
     owner_pk_hash: Array4x12,
-    fmc_svn: u32,
+    cold_boot_fw_svn: u32,
     rom_cold_boot_status: u32,
     fmc_entry_point: u32,
     vendor_ecc_pk_index: u32,
@@ -40,10 +40,10 @@ pub struct ColdResetEntries {
 #[derive(FromBytes, AsBytes, Zeroize, Default)]
 pub struct WarmResetEntries {
     rt_tci: Array4x12,
-    rt_svn: u32,
+    fw_svn: u32,
     rt_entry_point: u32,
     manifest_addr: u32,
-    rt_min_svn: u32,
+    fw_min_svn: u32,
     rom_update_reset_status: u32,
 }
 
@@ -240,22 +240,22 @@ impl DataVault {
         self.cold_reset_entries.owner_pk_hash
     }
 
-    /// Set the fmc security version number.
+    /// Set the cold-boot firmware security version number.
     ///
     /// # Arguments
-    /// * `svn` - fmc security version number
+    /// * `svn` - firmware security version number
     ///
-    pub fn set_fmc_svn(&mut self, svn: u32) {
-        self.cold_reset_entries.fmc_svn = svn;
+    pub fn set_cold_boot_fw_svn(&mut self, svn: u32) {
+        self.cold_reset_entries.cold_boot_fw_svn = svn;
     }
 
-    /// Get the fmc security version number.
+    /// Get the cold-boot firmware security version number.
     ///
     /// # Returns
-    /// * fmc security version number
+    /// * cold-boot firmware security version number
     ///
-    pub fn fmc_svn(&self) -> u32 {
-        self.cold_reset_entries.fmc_svn
+    pub fn cold_boot_fw_svn(&self) -> u32 {
+        self.cold_reset_entries.cold_boot_fw_svn
     }
 
     /// Set the fmc entry point.
@@ -366,40 +366,40 @@ impl DataVault {
         self.warm_reset_entries.rt_tci
     }
 
-    /// Set the rt security version number.
+    /// Set the fw security version number.
     ///
     /// # Arguments
-    /// * `svn` - rt security version number
+    /// * `svn` - fw security version number
     ///
-    pub fn set_rt_svn(&mut self, svn: u32) {
-        self.warm_reset_entries.rt_svn = svn;
+    pub fn set_fw_svn(&mut self, svn: u32) {
+        self.warm_reset_entries.fw_svn = svn;
     }
 
-    /// Get the rt security version number.
+    /// Get the fw security version number.
     ///
     /// # Returns
-    /// * rt security version number
+    /// * fw security version number
     ///
-    pub fn rt_svn(&self) -> u32 {
-        self.warm_reset_entries.rt_svn
+    pub fn fw_svn(&self) -> u32 {
+        self.warm_reset_entries.fw_svn
     }
 
-    /// Set the rt minimum security version number.
+    /// Set the fw minimum security version number.
     ///
     /// # Arguments
-    /// * `svn` - rt minimum security version number
+    /// * `svn` - fw minimum security version number
     ///
-    pub fn set_rt_min_svn(&mut self, svn: u32) {
-        self.warm_reset_entries.rt_min_svn = svn;
+    pub fn set_fw_min_svn(&mut self, svn: u32) {
+        self.warm_reset_entries.fw_min_svn = svn;
     }
 
-    /// Get the rt minimum security version number.
+    /// Get the fw minimum security version number.
     ///
     /// # Returns
-    /// * rt minimum security version number
+    /// * fw minimum security version number
     ///
-    pub fn rt_min_svn(&self) -> u32 {
-        self.warm_reset_entries.rt_min_svn
+    pub fn fw_min_svn(&self) -> u32 {
+        self.warm_reset_entries.fw_min_svn
     }
 
     /// Set the rt entry.
