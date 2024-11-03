@@ -78,9 +78,9 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
     }
 
-    /// Retrieve Vendor Public Key Digest
-    fn vendor_pub_key_digest(&self) -> ImageDigest {
-        self.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
+    /// Retrieve Vendor Public Key Info Digest
+    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest {
+        self.soc_ifc.fuse_bank().vendor_pub_key_info_hash().into()
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask

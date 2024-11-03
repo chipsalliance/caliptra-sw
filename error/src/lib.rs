@@ -267,6 +267,28 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0040);
     pub const IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0041);
+    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_MARKER_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0042);
+    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_VERSION_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0043);
+    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INTENT_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0044);
+    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
+        CaliptraError::new_const(0x000b0046);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_MARKER_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0047);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_VERSION_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0048);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INTENT_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0049);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_TYPE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b004a);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
+        CaliptraError::new_const(0x000b004b);
+    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000b004c);
+    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000b004d);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =

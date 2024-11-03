@@ -291,8 +291,8 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     }
 
     /// Retrieve Vendor Public Key Digest
-    fn vendor_pub_key_digest(&self) -> ImageDigest {
-        self.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
+    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest {
+        self.soc_ifc.fuse_bank().vendor_pub_key_info_hash().into()
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask

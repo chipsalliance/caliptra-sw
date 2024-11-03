@@ -26,7 +26,9 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::dice;
-use caliptra_common::keyids::{KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::keyids::{
+    KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
@@ -80,7 +82,7 @@ impl FmcAliasLayer {
             ecc_subj_sn,
             ecc_subj_key_id,
             mldsa_subj_key_id: [0; 20],
-            mldsa_subj_key_pair: MlDsaKeyPair{
+            mldsa_subj_key_pair: MlDsaKeyPair {
                 key_pair_seed: KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
                 pub_key: Default::default(),
             },
@@ -177,7 +179,7 @@ impl FmcAliasLayer {
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
-            env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+            env.soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
         ))?;
         hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
         hasher.finalize(&mut fuse_info_digest)?;

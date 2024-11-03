@@ -67,8 +67,8 @@ fn retrieve_csr_test() {
     let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
-    // std::fs::write("tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
     println!("csr: {}", csr_txt);
 
@@ -155,14 +155,14 @@ fn smoke_test() {
         },
     )
     .unwrap();
-    let vendor_pk_hash = sha384(image.manifest.preamble.vendor_pub_keys.as_bytes());
-    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
-    let vendor_pk_hash_words = bytes_to_be_words_48(&vendor_pk_hash);
-    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
+    let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
+    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
+    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_hash_words,
-        owner_pk_hash: owner_pk_hash_words,
+        key_manifest_pk_hash: vendor_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_desc_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         lms_verify: true,
         ..Default::default()
@@ -215,8 +215,8 @@ fn smoke_test() {
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
     // To update the ldev cert testdata:
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),
@@ -269,8 +269,8 @@ fn smoke_test() {
     hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
     hasher.update(&[fuses.lms_verify as u8]);
     hasher.update(&[true as u8]);
-    hasher.update(&vendor_pk_hash);
-    hasher.update(&owner_pk_hash);
+    hasher.update(vendor_pk_desc_hash.as_bytes());
+    hasher.update(&owner_pk_desc_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
@@ -313,8 +313,8 @@ fn smoke_test() {
         &Pcr0::derive(&Pcr0Input {
             security_state,
             fuse_anti_rollback_disable: false,
-            vendor_pub_key_hash: vendor_pk_hash_words,
-            owner_pub_key_hash: owner_pk_hash_words,
+            vendor_pub_key_hash: vendor_pk_desc_hash_words,
+            owner_pub_key_hash: owner_pk_desc_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,

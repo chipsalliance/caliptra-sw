@@ -24,9 +24,7 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED;
-use caliptra_common::keyids::{
-    KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI,
-};
+use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;

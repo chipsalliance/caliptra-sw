@@ -23,8 +23,8 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{
-    KEY_ID_FE, KEY_ID_UDS, KEY_ID_IDEVID_ECDSA_PRIV_KEY,
-    KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+    KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+    KEY_ID_UDS,
 };
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
@@ -78,11 +78,7 @@ impl InitDevIdLayer {
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        Self::derive_cdi(
-            env,
-            KEY_ID_UDS,
-            KEY_ID_ROM_FMC_CDI,
-        )?;
+        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
 
         // Derive DICE Key Pair from CDI
         let (ecc_key_pair, mldsa_pub_key) = Self::derive_key_pair(
@@ -125,7 +121,8 @@ impl InitDevIdLayer {
         }
 
         // Write IDevID public key to FHT
-        env.persistent_data.get_mut().fht.idev_dice_ecdsa_pub_key = output.ecc_subj_key_pair.pub_key;
+        env.persistent_data.get_mut().fht.idev_dice_ecdsa_pub_key =
+            output.ecc_subj_key_pair.pub_key;
 
         // Copy the MLDSA public key to Persistent Data.
         env.persistent_data.get_mut().idevid_mldsa_pub_key = mldsa_pub_key;
@@ -224,12 +221,8 @@ impl InitDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let mldsa_pub_key = Crypto::mldsa_key_gen(
-                env,
-                cdi,
-                b"idevid_mldsa_key",
-                mldsa_keypair_seed,
-            )?;
+        let mldsa_pub_key =
+            Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed)?;
         Ok((ecc_keypair, mldsa_pub_key))
     }
 

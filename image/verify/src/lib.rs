@@ -121,8 +121,8 @@ pub trait ImageVerificationEnv {
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>>;
 
-    /// Get Vendor Public Key Digest
-    fn vendor_pub_key_digest(&self) -> ImageDigest;
+    /// Get Vendor Public Key Digest from fuses
+    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest;
 
     /// Get Vendor ECC Public Key Revocation list
     fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;

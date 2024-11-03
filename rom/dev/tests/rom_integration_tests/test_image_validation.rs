@@ -24,7 +24,7 @@ use caliptra_image_fake_keys::{
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
-    ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
+    FwImageType, ImageBundle, ImageManifest, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
 };
 use openssl::asn1::Asn1Integer;
 use openssl::asn1::Asn1Time;
@@ -180,8 +180,8 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 #[test]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
-    const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_KEY_COUNT as usize] = [
+    const LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 1;
+    const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_MAX_KEY_COUNT as usize] = [
         VENDOR_CONFIG_KEY_0,
         VENDOR_CONFIG_KEY_1,
         VENDOR_CONFIG_KEY_2,
@@ -245,9 +245,9 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    const LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 1;
+    const LAST_KEY_IDX: u32 = VENDOR_LMS_MAX_KEY_COUNT - 1;
 
-    for idx in 0..VENDOR_LMS_KEY_COUNT {
+    for idx in 0..VENDOR_LMS_MAX_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
             ecc_key_idx: 3,
             lms_key_idx: idx,
@@ -304,7 +304,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
-    for idx in 0..VENDOR_LMS_KEY_COUNT {
+    for idx in 0..VENDOR_LMS_MAX_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
             ecc_key_idx: 3,
             lms_key_idx: idx,
@@ -347,7 +347,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
 fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_KEY_COUNT;
+    image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_MAX_KEY_COUNT;
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -371,7 +371,7 @@ fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_KEY_COUNT;
+    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -390,7 +390,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_KEY_COUNT;
+    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -401,12 +401,13 @@ fn test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check() {
 fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
 
     // Set ecc_pub_key.x to zero.
-    let ecc_pub_key_x_backup =
-        image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx].x;
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    let ecc_pub_key_x_backup = image_bundle.manifest.preamble.vendor_ecc_active_pub_key.x;
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .x
         .fill(0);
 
@@ -428,9 +429,11 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // Set ecc_pub_key.y to zero.
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx].x =
-        ecc_pub_key_x_backup;
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    image_bundle.manifest.preamble.vendor_ecc_active_pub_key.x = ecc_pub_key_x_backup;
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .y
         .fill(0);
 
@@ -496,16 +499,20 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
 fn test_header_verify_vendor_ecc_sig_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
 
     // Modify the vendor public key.
-    let ecc_pub_key_backup =
-        image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx];
+    let ecc_pub_key_backup = image_bundle.manifest.preamble.vendor_ecc_active_pub_key;
 
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .x
         .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx]
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_ecc_active_pub_key
         .y
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
@@ -527,8 +534,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // Modify the vendor signature.
-    image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx] =
-        ecc_pub_key_backup;
+    image_bundle.manifest.preamble.vendor_ecc_active_pub_key = ecc_pub_key_backup;
     image_bundle
         .manifest
         .preamble
@@ -566,14 +572,15 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    let vendor_lms_pub_key_idx = image_bundle.manifest.preamble.vendor_lms_pub_key_idx as usize;
 
     // Modify the vendor public key.
-    let lms_pub_key_backup =
-        image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx];
+    let lms_pub_key_backup = image_bundle.manifest.preamble.vendor_lms_active_pub_key;
 
-    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx].digest =
-        [Default::default(); 6];
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_lms_active_pub_key
+        .digest = [Default::default(); 6];
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into()
@@ -591,8 +598,7 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Modify the vendor signature.
-    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx] =
-        lms_pub_key_backup;
+    image_bundle.manifest.preamble.vendor_lms_active_pub_key = lms_pub_key_backup;
     image_bundle.manifest.preamble.vendor_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
 
     assert_eq!(
@@ -617,14 +623,15 @@ fn test_header_verify_vendor_lms_optional_no_sig_mismatch_check() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    let vendor_lms_pub_key_idx = image_bundle.manifest.preamble.vendor_lms_pub_key_idx as usize;
 
     // Modify the vendor public key.
-    let lms_pub_key_backup =
-        image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx];
+    let lms_pub_key_backup = image_bundle.manifest.preamble.vendor_lms_active_pub_key;
 
-    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx].digest =
-        [Default::default(); 6];
+    image_bundle
+        .manifest
+        .preamble
+        .vendor_lms_active_pub_key
+        .digest = [Default::default(); 6];
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(u32::from(ColdResetComplete), true);
@@ -638,8 +645,7 @@ fn test_header_verify_vendor_lms_optional_no_sig_mismatch_check() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Modify the vendor signature.
-    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx] =
-        lms_pub_key_backup;
+    image_bundle.manifest.preamble.vendor_lms_active_pub_key = lms_pub_key_backup;
     image_bundle.manifest.preamble.vendor_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -2020,6 +2026,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
         runtime: ElfExecutable::default(),
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
+        fw_image_type: FwImageType::EccLms,
     };
 
     let gen = ImageGenerator::new(Crypto::default());

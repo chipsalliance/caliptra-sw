@@ -169,7 +169,7 @@ impl IDevId {
 
         let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
             swap_word_bytes(&cdi).as_bytes(),
-            b"idevid_keygen",
+            b"idevid_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
@@ -208,12 +208,12 @@ fn test_idevid() {
         idevid,
         IDevId {
             cdi: [
-                0x4c4f422c, 0x8eda4e83, 0x1f669172, 0xa4315915, 0x9be4b317, 0x449ff543, 0x81ffef29,
-                0xf7be0784, 0x0586992c, 0x170e7c92, 0x8d4f72b2, 0xaa4051ad,
+                0x4C4F422C, 0x8EDA4E83, 0x1F669172, 0xA4315915, 0x9BE4B317, 0x449FF543, 0x81FFEF29,
+                0xF7BE0784, 0x0586992C, 0x170E7C92, 0x8D4F72B2, 0xAA4051AD,
             ],
             priv_key: [
-                0x7ae85bb7, 0x6cd5f6da, 0x1fb660a5, 0xdc5eb069, 0xa8b56f6, 0x12cc9b28, 0x62a56e49,
-                0x2ddeddde, 0x29fd1f28, 0x11a26f28, 0x1aff584d, 0x7ca598d5,
+                0x9437E80E, 0x5C402F62, 0xA9CF3A1C, 0x5EA40A12, 0xE6E3FAC3, 0x96F31B72, 0xA4C3AB28,
+                0x3455C2C7, 0x824571EE, 0x27609F5C, 0x46907450, 0x12F7AA8D,
             ],
         }
     );
