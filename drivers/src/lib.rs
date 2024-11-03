@@ -73,7 +73,7 @@ pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
 pub use fuse_bank::{
-    FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
+    FuseBank, IdevidCertAttr, RomPqcVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};

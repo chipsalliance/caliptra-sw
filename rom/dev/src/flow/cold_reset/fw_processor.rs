@@ -50,6 +50,8 @@ pub struct FwProcInfo {
     pub fmc_effective_fuse_svn: u32,
 
     pub owner_pub_keys_digest_in_fuses: bool,
+
+    pub pqc_verify_config: u8,
 }
 
 pub struct FirmwareProcessor {}
@@ -148,6 +150,7 @@ impl FirmwareProcessor {
             fmc_cert_valid_not_after: nf,
             fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
+            pqc_verify_config: info.pqc_verify_config as u8,
         })
     }
 
@@ -443,24 +446,18 @@ impl FirmwareProcessor {
         )?;
 
         // Log VendorLmsPubKeyIndex
-        if let Some(vendor_lms_pub_key_idx) = log_info.vendor_lms_pub_key_idx {
-            log_fuse_data(
-                log,
-                FuseLogEntryId::VendorLmsPubKeyIndex,
-                vendor_lms_pub_key_idx.as_bytes(),
-            )?;
-        }
+        log_fuse_data(
+            log,
+            FuseLogEntryId::VendorLmsPubKeyIndex,
+            log_info.vendor_lms_pub_key_idx.as_bytes(),
+        )?;
 
         // Log VendorLmsPubKeyRevocation
-        if let Some(fuse_vendor_lms_pub_key_revocation) =
-            log_info.fuse_vendor_lms_pub_key_revocation
-        {
-            log_fuse_data(
-                log,
-                FuseLogEntryId::VendorLmsPubKeyRevocation,
-                fuse_vendor_lms_pub_key_revocation.as_bytes(),
-            )?;
-        }
+        log_fuse_data(
+            log,
+            FuseLogEntryId::VendorLmsPubKeyRevocation,
+            log_info.fuse_vendor_lms_pub_key_revocation.as_bytes(),
+        )?;
 
         Ok(())
     }
@@ -538,7 +535,7 @@ impl FirmwareProcessor {
         // to indicate the index is invalid.
         data_vault.write_cold_reset_entry4(
             ColdResetEntry4::LmsVendorPubKeyIndex,
-            info.vendor_lms_pub_key_idx.unwrap_or(u32::MAX),
+            info.vendor_lms_pub_key_idx,
         );
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
