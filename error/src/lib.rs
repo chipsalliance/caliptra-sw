@@ -441,6 +441,8 @@ impl CaliptraError {
     pub const RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE: CaliptraError =
         CaliptraError::new_const(0x000E004E);
     pub const RUNTIME_CMD_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x000E004F);
+    pub const RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR: CaliptraError =
+        CaliptraError::new_const(0x000E0050);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
