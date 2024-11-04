@@ -205,6 +205,66 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
+    /// 648 32-bit registers storing the public key in big-endian representation.
+    /// These registers are read by MLDSA user after keygen operation,
+    /// or set before verifying operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn pubkey(&self) -> ureg::Array<648, ureg::RegRef<crate::mldsa::meta::Pubkey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x1000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1157 32-bit registers storing the signature of the message in big-endian representation.
+    /// These registers are read by MLDSA user after signing operation,
+    /// or set before verifying operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn signature(
+        &self,
+    ) -> ureg::Array<1157, ureg::RegRef<crate::mldsa::meta::Signature, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x2000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1224 32-bit registers storing the private key for keygen in big-endian representation.
+    /// These registers are read by MLDSA user after keygen operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn privkey_out(
+        &self,
+    ) -> ureg::Array<1224, ureg::RegRef<crate::mldsa::meta::PrivkeyOut, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x4000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1224 32-bit entries storing the private key for signing in big-endian representation.
+    /// These entries must be set before signing operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn privkey_in(
+        &self,
+    ) -> ureg::Array<1224, ureg::RegRef<crate::mldsa::meta::PrivkeyIn, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x6000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
@@ -1167,6 +1227,10 @@ pub mod meta {
     pub type SignRnd = ureg::WriteOnlyReg32<0, u32>;
     pub type Msg = ureg::WriteOnlyReg32<0, u32>;
     pub type VerifyRes = ureg::ReadOnlyReg32<u32>;
+    pub type Pubkey = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Signature = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type PrivkeyOut = ureg::ReadOnlyReg32<u32>;
+    pub type PrivkeyIn = ureg::WriteOnlyReg32<0, u32>;
     pub type KvRdSeedCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,

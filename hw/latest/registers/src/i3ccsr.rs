@@ -73,6 +73,26 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn dat(&self) -> ureg::Array<256, ureg::RegRef<crate::i3ccsr::meta::Dat, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x400 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn dct(&self) -> ureg::Array<512, ureg::RegRef<crate::i3ccsr::meta::Dct, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x800 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
     #[inline(always)]
     pub fn i3c_base(&self) -> I3cbaseBlock<&TMmio> {
         I3cbaseBlock {
@@ -6246,6 +6266,8 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
+    pub type Dat = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dct = ureg::ReadWriteReg32<0, u32, u32>;
     pub type I3cbaseHciVersion = ureg::ReadOnlyReg32<u32>;
     pub type I3cbaseHcControl = ureg::ReadWriteReg32<
         0,
