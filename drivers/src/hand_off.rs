@@ -478,7 +478,7 @@ mod tests {
     use super::*;
     use core::mem;
     const FHT_SIZE: usize = 2048;
-    const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId5;
+    const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))

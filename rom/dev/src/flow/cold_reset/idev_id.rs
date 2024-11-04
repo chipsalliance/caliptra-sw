@@ -57,8 +57,9 @@ impl InitDevIdLayer {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!(
-            "[idev] SUBJECT.KEYID = {}",
-            KEY_ID_IDEVID_ECDSA_PRIV_KEY as u8
+            "[idev] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
+            KEY_ID_IDEVID_ECDSA_PRIV_KEY as u8,
+            KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED as u8
         );
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
@@ -80,8 +81,8 @@ impl InitDevIdLayer {
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
 
-        // Derive DICE Key Pair from CDI
-        let (ecc_key_pair, mldsa_pub_key) = Self::derive_key_pair(
+        // Derive DICE ECC and MLDSA Key Pairs from CDI
+        let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
             env,
             KEY_ID_ROM_FMC_CDI,
             KEY_ID_IDEVID_ECDSA_PRIV_KEY,
@@ -105,10 +106,7 @@ impl InitDevIdLayer {
             ecc_subj_sn,
             ecc_subj_key_id,
             mldsa_subj_key_id: [0; 20],
-            mldsa_subj_key_pair: MlDsaKeyPair {
-                key_pair_seed: KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
-                pub_key: mldsa_pub_key,
-            },
+            mldsa_subj_key_pair: mldsa_key_pair,
             mldsa_subj_sn: [0; 64],
         };
 
@@ -125,7 +123,7 @@ impl InitDevIdLayer {
             output.ecc_subj_key_pair.pub_key;
 
         // Copy the MLDSA public key to Persistent Data.
-        env.persistent_data.get_mut().idevid_mldsa_pub_key = mldsa_pub_key;
+        env.persistent_data.get_mut().idevid_mldsa_pub_key = output.mldsa_subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -193,37 +191,39 @@ impl InitDevIdLayer {
         Ok(())
     }
 
-    /// Derive Dice Layer Key Pair
+    /// Derive Dice Layer ECC and MLDSA Key Pairs
     ///
     /// # Arguments
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `priv_key` - Key slot to store the private key into
+    /// * `ecdsa_priv_key` - Key slot to store the ECC private key into
+    /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
     ///
-    /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         ecdsa_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
-    ) -> CaliptraResult<(Ecc384KeyPair, MlDsa87PubKey)> {
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
         let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecdsa_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
-            report_boot_status(IDevIdKeyPairDerivationComplete.into());
         } else {
             cfi_assert!(result.is_err());
         }
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let mldsa_pub_key =
+        let mldsa_key_pair =
             Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed)?;
-        Ok((ecc_keypair, mldsa_pub_key))
+
+        report_boot_status(IDevIdKeyPairDerivationComplete.into());
+        Ok((ecc_keypair, mldsa_key_pair))
     }
 
     /// Generate Local Device ID CSR
