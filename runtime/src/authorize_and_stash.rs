@@ -76,18 +76,21 @@ impl AuthorizeAndStashCmd {
                 }
             }
 
-            let flags: AuthAndStashFlags = cmd.flags.into();
-            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                let dpe_result = StashMeasurementCmd::stash_measurement(
-                    drivers,
-                    &cmd.metadata,
-                    &cmd.measurement,
-                )?;
-                if dpe_result != DpeErrorCode::NoError {
-                    drivers
-                        .soc_ifc
-                        .set_fw_extended_error(dpe_result.get_error_code());
-                    Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+            // Stash the measurement if the image is authorized.
+            if auth_result == AUTHORIZE_IMAGE {
+                let flags: AuthAndStashFlags = cmd.flags.into();
+                if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
+                    let dpe_result = StashMeasurementCmd::stash_measurement(
+                        drivers,
+                        &cmd.metadata,
+                        &cmd.measurement,
+                    )?;
+                    if dpe_result != DpeErrorCode::NoError {
+                        drivers
+                            .soc_ifc
+                            .set_fw_extended_error(dpe_result.get_error_code());
+                        Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+                    }
                 }
             }
 
