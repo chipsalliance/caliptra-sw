@@ -39,10 +39,13 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/soc_ifc/rtl/soc_ifc_reg.rdl",
     "src/soc_ifc/rtl/sha512_acc_csr.rdl",
     "src/uart/data/uart.rdl",
-    "src/integration/rtl/caliptra_reg.rdl",
 ];
 
+static CALIPTRA_INTEGRATION_RDL_FILE: &str = "src/integration/rtl/caliptra_reg.rdl";
+
 static I3C_CORE_RDL_FILES: &[&str] = &["src/rdl/registers.rdl"];
+
+static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/mldsa_top/rtl/mldsa_reg.rdl"];
 
 static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
 
@@ -117,18 +120,27 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         write_file
     };
 
-    if args.len() < 5 {
+    if args.len() < 6 {
         Err(
-            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_dir> <i3c_core_dir",
+            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <adamsbridge_dir> <dir_core_dir>",
         )?;
     }
 
     let rtl_dir = Path::new(&args[1]);
+
     let mut rdl_files: Vec<PathBuf> = CALIPTRA_RDL_FILES
         .iter()
         .map(|p| rtl_dir.join(p))
         .filter(|p| p.exists())
         .collect();
+
+    let adamsbridge_rdl_dir = Path::new(&args[4]);
+    let mut adamsbridge_rdl_files: Vec<PathBuf> = ADAMSBRIDGE_RDL_FILES
+        .iter()
+        .map(|p| adamsbridge_rdl_dir.join(p))
+        .filter(|p| p.exists())
+        .collect();
+    rdl_files.append(&mut adamsbridge_rdl_files);
 
     let i3c_core_rdl_dir = Path::new(&args[3]);
     let mut i3c_core_rdl_files: Vec<PathBuf> = I3C_CORE_RDL_FILES
@@ -137,6 +149,11 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
     rdl_files.append(&mut i3c_core_rdl_files);
+
+    let integration_rdl_file = rtl_dir.join(CALIPTRA_INTEGRATION_RDL_FILE);
+    if integration_rdl_file.exists() {
+        rdl_files.push(integration_rdl_file);
+    }
 
     let extra_rdl_dir = Path::new(&args[2]);
     let mut extra_rdl_files: Vec<PathBuf> = CALIPTRA_EXTRA_RDL_FILES
