@@ -9,11 +9,11 @@
 /// programs create one of these in unsafe code near the top of
 /// main(), and pass it to the driver responsible for managing
 /// all access to the hardware.
-pub struct Sha512Reg {
+pub struct MldsaReg {
     _priv: (),
 }
-impl Sha512Reg {
-    pub const PTR: *mut u32 = 0x10020000 as *mut u32;
+impl MldsaReg {
+    pub const PTR: *mut u32 = 0x10030000 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -74,11 +74,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers representing of the name
-    /// of SHA512 component.
+    /// of MLDSA component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Name, &TMmio>> {
+    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::mldsa::meta::Name, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -87,11 +87,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Two 32-bit read-only registers representing of the version
-    /// of SHA512 component.
+    /// of MLDSA component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Version, &TMmio>> {
+    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::mldsa::meta::Version, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -99,11 +99,19 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// SHA512 component control register type definition
+    /// Control register to set the type of MLDSA operations.
+    /// [br] bit #[1:0]: This can be:
+    /// [br]            000 for NONE
+    /// [br]            001 for KEYGEN
+    /// [br]            010 for SIGNING
+    /// [br]            011 for VERIFYING
+    /// [br]            100 for KEYGEN+SIGN
     ///
-    /// Read value: [`sha512::regs::CtrlReadVal`]; Write value: [`sha512::regs::CtrlWriteVal`]
+    /// [br] bit #3: Zeroize all internal registers after MLDSA process, to avoid SCA leakage.
+    ///
+    /// Read value: [`mldsa::regs::CtrlReadVal`]; Write value: [`mldsa::regs::CtrlWriteVal`]
     #[inline(always)]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::sha512::meta::Ctrl, &TMmio> {
+    pub fn ctrl(&self) -> ureg::RegRef<crate::mldsa::meta::Ctrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -111,40 +119,88 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// SHA512 component status register type definition
+    /// One 2-bit register including the following flags:
+    /// bit #0: READY : ​Indicates if the core is ready to take
+    ///                a control command and process the inputs.  
+    /// bit #1: VALID : ​Indicates if the process is done and the
+    ///                result is valid.
     ///
-    /// Read value: [`sha512::regs::StatusReadVal`]; Write value: [`sha512::regs::StatusWriteVal`]
+    /// Read value: [`mldsa::regs::StatusReadVal`]; Write value: [`mldsa::regs::StatusWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::sha512::meta::Status, &TMmio> {
+    pub fn status(&self) -> ureg::RegRef<crate::mldsa::meta::Status, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 16 32-bit registers storing the 512-bit entropy  in big-endian representation
+    /// required for SCA countermeasures with no change on the outputs.
+    /// The entropy can be any 512-bit value in [0 : 2^512-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn entropy(&self) -> ureg::Array<16, ureg::RegRef<crate::mldsa::meta::Entropy, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// SHA512 component block register type definition
-    /// 32 32-bit registers storing the 1024-bit padded input in big-endian representation.
+    /// 8 32-bit registers storing the 256-bit seed for keygen in big-endian representation.
+    /// The seed can be any 256-bit value in [0 : 2^256-1].
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn block(&self) -> ureg::Array<32, ureg::RegRef<crate::sha512::meta::Block, &TMmio>> {
+    pub fn seed(&self) -> ureg::Array<8, ureg::RegRef<crate::mldsa::meta::Seed, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// SHA512 component digest register type definition
-    /// 16 32-bit registers storing the 512-bit digest output in big-endian representation.
+    /// 8 32-bit registers storing the 256-bit sign_rnd for signing in big-endian representation.
+    /// The sign_rnd can be any 256-bit value in [0 : 2^256-1].
+    /// sign_rnd should be all zero for deterministic variant.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512::meta::Digest, &TMmio>> {
+    pub fn sign_rnd(&self) -> ureg::Array<8, ureg::RegRef<crate::mldsa::meta::SignRnd, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 16 32-bit registers storing the hash of the message in big-endian representation.
+    /// The hashed message can be any 512-bit value in [0 : 2^512-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn msg(&self) -> ureg::Array<16, ureg::RegRef<crate::mldsa::meta::Msg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 16 32-bit registers storing the result of verifying operation in big-endian representation.
+    /// If this register is equal to the first part of the given signature, i.e. c~,
+    /// the signature is verified.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn verify_res(
+        &self,
+    ) -> ureg::Array<16, ureg::RegRef<crate::mldsa::meta::VerifyRes, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xd8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -153,10 +209,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     #[inline(always)]
-    pub fn vault_rd_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::VaultRdCtrl, &TMmio> {
+    pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::mldsa::meta::KvRdSeedCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x8000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -165,88 +221,10 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     #[inline(always)]
-    pub fn vault_rd_status(&self) -> ureg::RegRef<crate::sha512::meta::VaultRdStatus, &TMmio> {
+    pub fn kv_rd_seed_status(&self) -> ureg::RegRef<crate::mldsa::meta::KvRdSeedStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Controls the Key Vault write access for this engine
-    ///
-    /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
-    #[inline(always)]
-    pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::KvWrCtrl, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x608 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Reports the Key Vault flow status for this engine
-    ///
-    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    #[inline(always)]
-    pub fn kv_wr_status(&self) -> ureg::RegRef<crate::sha512::meta::KvWrStatus, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x60c / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Nonce for PCR Gen Hash Function
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn gen_pcr_hash_nonce(
-        &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::sha512::meta::GenPcrHashNonce, &TMmio>> {
-        unsafe {
-            ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x610 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Control register for PCR Gen Hash Function
-    ///
-    /// Read value: [`sha512::regs::GenPcrHashCtrlReadVal`]; Write value: [`sha512::regs::GenPcrHashCtrlWriteVal`]
-    #[inline(always)]
-    pub fn gen_pcr_hash_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::GenPcrHashCtrl, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x630 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Status register for PCR Gen Hash Function
-    ///
-    /// Read value: [`sha512::regs::GenPcrHashStatusReadVal`]; Write value: [`sha512::regs::GenPcrHashStatusWriteVal`]
-    #[inline(always)]
-    pub fn gen_pcr_hash_status(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::GenPcrHashStatus, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x634 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// 12 32-bit registers storing the 384-bit digest output.
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn gen_pcr_hash_digest(
-        &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::sha512::meta::GenPcrHashDigest, &TMmio>> {
-        unsafe {
-            ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x638 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x8004 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -254,7 +232,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
         IntrBlockRfBlock {
-            ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x8100 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -271,7 +249,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn global_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -281,11 +259,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`sha512_acc::regs::ErrorIntrEnTReadVal`]; Write value: [`sha512_acc::regs::ErrorIntrEnTWriteVal`]
+    /// Read value: [`mldsa::regs::ErrorIntrEnTReadVal`]; Write value: [`mldsa::regs::ErrorIntrEnTWriteVal`]
     #[inline(always)]
     pub fn error_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
@@ -295,11 +273,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrEnTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrEnTWriteVal`]
+    /// Read value: [`mldsa::regs::NotifIntrEnTReadVal`]; Write value: [`mldsa::regs::NotifIntrEnTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -321,7 +299,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -343,7 +321,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -354,11 +332,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
     ///
-    /// Read value: [`sha512_acc::regs::ErrorIntrTReadVal`]; Write value: [`sha512_acc::regs::ErrorIntrTWriteVal`]
+    /// Read value: [`mldsa::regs::ErrorIntrTReadVal`]; Write value: [`mldsa::regs::ErrorIntrTWriteVal`]
     #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
@@ -369,11 +347,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTWriteVal`]
+    /// Read value: [`mldsa::regs::NotifIntrTReadVal`]; Write value: [`mldsa::regs::NotifIntrTWriteVal`]
     #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
@@ -387,11 +365,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// trigger register bit results in the corresponding interrupt
     /// status bit being set to 1.
     ///
-    /// Read value: [`sha512_acc::regs::ErrorIntrTrigTReadVal`]; Write value: [`sha512_acc::regs::ErrorIntrTrigTWriteVal`]
+    /// Read value: [`mldsa::regs::ErrorIntrTrigTReadVal`]; Write value: [`mldsa::regs::ErrorIntrTrigTWriteVal`]
     #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
@@ -405,11 +383,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// trigger register bit results in the corresponding interrupt
     /// status bit being set to 1.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTrigTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTrigTWriteVal`]
+    /// Read value: [`mldsa::regs::NotifIntrTrigTReadVal`]; Write value: [`mldsa::regs::NotifIntrTrigTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
@@ -423,9 +401,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn error0_intr_count_r(
+    pub fn error_internal_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError0IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
@@ -439,57 +417,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn error1_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError1IntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn error2_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError2IntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn error3_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError3IntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
     pub fn notif_cmd_done_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
@@ -508,9 +438,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
     #[inline(always)]
-    pub fn error0_intr_count_incr_r(
+    pub fn error_internal_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError0IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
@@ -529,75 +459,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
     #[inline(always)]
-    pub fn error1_intr_count_incr_r(
+    pub fn notif_cmd_done_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError1IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::mldsa::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn error2_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn error3_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn notif_cmd_done_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::sha512::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -612,7 +479,7 @@ pub struct IntrBlockRf {
     _priv: (),
 }
 impl IntrBlockRf {
-    pub const PTR: *mut u32 = 0x800 as *mut u32;
+    pub const PTR: *mut u32 = 0x8100 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -647,52 +514,15 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CtrlWriteVal(u32);
     impl CtrlWriteVal {
-        /// Control init command bit: Trigs the SHA512 core to start the
-        /// processing for the first padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
+        /// Control command field
         #[inline(always)]
-        pub fn init(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        pub fn ctrl(self, val: u32) -> Self {
+            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
         }
-        /// Control next command bit: Trigs the SHA512 core to start the
-        /// processing for the remining padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn next(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Control mode command bits: Indicates the SHA512 core to set dynamically
-        /// the type of hashing algorithm. This can be:
-        /// 00 for SHA512/224
-        /// 01 for SHA512/256
-        /// 10 for SHA384
-        /// 11 for SHA512
-        #[inline(always)]
-        pub fn mode(self, val: u32) -> Self {
-            Self((self.0 & !(3 << 2)) | ((val & 3) << 2))
-        }
-        /// Zeroize all internal registers: Zeroize all internal registers after SHA process, to avoid SCA leakage.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
+        /// Zeroize all internal registers
         #[inline(always)]
         pub fn zeroize(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Indicates last iteration for keyvault or hash extend function.
-        /// Result of this INIT or NEXT cycle will be written back to the appropriate vault
-        #[inline(always)]
-        pub fn last(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-        /// Control restore command bit: Restore SHA512 core to use the given digest to continue the
-        /// processing for the remining padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn restore(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for CtrlWriteVal {
@@ -708,63 +538,14 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct GenPcrHashCtrlWriteVal(u32);
-    impl GenPcrHashCtrlWriteVal {
-        /// Command to start hash function
-        #[inline(always)]
-        pub fn start(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for GenPcrHashCtrlWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GenPcrHashCtrlWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: GenPcrHashCtrlWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct GenPcrHashStatusReadVal(u32);
-    impl GenPcrHashStatusReadVal {
+    pub struct StatusReadVal(u32);
+    impl StatusReadVal {
         /// Status ready bit
         #[inline(always)]
         pub fn ready(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
         /// Status valid bit
-        #[inline(always)]
-        pub fn valid(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-    }
-    impl From<u32> for GenPcrHashStatusReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GenPcrHashStatusReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: GenPcrHashStatusReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StatusReadVal(u32);
-    impl StatusReadVal {
-        /// Status ready bit: ​Indicates if the core is ready to take
-        /// a control command and process the block.
-        #[inline(always)]
-        pub fn ready(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Status valid bit: Indicates if the process is done and the
-        /// hash value stored in DIGEST registers is valid.
         #[inline(always)]
         pub fn valid(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
@@ -785,25 +566,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTReadVal(u32);
     impl ErrorIntrEnTReadVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Internal Errors
         #[inline(always)]
-        pub fn error0_en(&self) -> bool {
+        pub fn error_internal_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Enable bit for Event 1
-        #[inline(always)]
-        pub fn error1_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Enable bit for Event 2
-        #[inline(always)]
-        pub fn error2_en(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Enable bit for Event 3
-        #[inline(always)]
-        pub fn error3_en(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -826,25 +592,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTWriteVal(u32);
     impl ErrorIntrEnTWriteVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Internal Errors
         #[inline(always)]
-        pub fn error0_en(self, val: bool) -> Self {
+        pub fn error_internal_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Enable bit for Event 1
-        #[inline(always)]
-        pub fn error1_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Enable bit for Event 2
-        #[inline(always)]
-        pub fn error2_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Enable bit for Event 3
-        #[inline(always)]
-        pub fn error3_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrEnTWriteVal {
@@ -862,25 +613,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTReadVal(u32);
     impl ErrorIntrTReadVal {
-        /// Interrupt Event 0 status bit
+        /// Internal Errors status bit
         #[inline(always)]
-        pub fn error0_sts(&self) -> bool {
+        pub fn error_internal_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Interrupt Event 1 status bit
-        #[inline(always)]
-        pub fn error1_sts(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Interrupt Event 2 status bit
-        #[inline(always)]
-        pub fn error2_sts(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Interrupt Event 3 status bit
-        #[inline(always)]
-        pub fn error3_sts(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -903,25 +639,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTWriteVal(u32);
     impl ErrorIntrTWriteVal {
-        /// Interrupt Event 0 status bit
+        /// Internal Errors status bit
         #[inline(always)]
-        pub fn error0_sts(self, val: bool) -> Self {
+        pub fn error_internal_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Interrupt Event 1 status bit
-        #[inline(always)]
-        pub fn error1_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Interrupt Event 2 status bit
-        #[inline(always)]
-        pub fn error2_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Interrupt Event 3 status bit
-        #[inline(always)]
-        pub fn error3_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrTWriteVal {
@@ -939,25 +660,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTrigTReadVal(u32);
     impl ErrorIntrTrigTReadVal {
-        /// Interrupt Trigger 0 bit
+        /// Internal Errors trigger bit
         #[inline(always)]
-        pub fn error0_trig(&self) -> bool {
+        pub fn error_internal_trig(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Interrupt Trigger 1 bit
-        #[inline(always)]
-        pub fn error1_trig(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Interrupt Trigger 2 bit
-        #[inline(always)]
-        pub fn error2_trig(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Interrupt Trigger 3 bit
-        #[inline(always)]
-        pub fn error3_trig(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -980,25 +686,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTrigTWriteVal(u32);
     impl ErrorIntrTrigTWriteVal {
-        /// Interrupt Trigger 0 bit
+        /// Internal Errors trigger bit
         #[inline(always)]
-        pub fn error0_trig(self, val: bool) -> Self {
+        pub fn error_internal_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Interrupt Trigger 1 bit
-        #[inline(always)]
-        pub fn error1_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Interrupt Trigger 2 bit
-        #[inline(always)]
-        pub fn error2_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Interrupt Trigger 3 bit
-        #[inline(always)]
-        pub fn error3_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrTrigTWriteVal {
@@ -1014,108 +705,9 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct GlobalIntrEnTReadVal(u32);
-    impl GlobalIntrEnTReadVal {
-        /// Global enable bit for all events of type 'Error'
-        #[inline(always)]
-        pub fn error_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Global enable bit for all events of type 'Notification'
-        #[inline(always)]
-        pub fn notif_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> GlobalIntrEnTWriteVal {
-            GlobalIntrEnTWriteVal(self.0)
-        }
-    }
-    impl From<u32> for GlobalIntrEnTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrEnTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrEnTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct GlobalIntrEnTWriteVal(u32);
-    impl GlobalIntrEnTWriteVal {
-        /// Global enable bit for all events of type 'Error'
-        #[inline(always)]
-        pub fn error_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Global enable bit for all events of type 'Notification'
-        #[inline(always)]
-        pub fn notif_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-    }
-    impl From<u32> for GlobalIntrEnTWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrEnTWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrEnTWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct GlobalIntrTReadVal(u32);
-    impl GlobalIntrTReadVal {
-        /// Interrupt Event Aggregation status bit
-        #[inline(always)]
-        pub fn agg_sts(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-    }
-    impl From<u32> for GlobalIntrTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct IntrCountIncrTReadVal(u32);
-    impl IntrCountIncrTReadVal {
-        /// Pulse mirrors interrupt event occurrence
-        #[inline(always)]
-        pub fn pulse(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-    }
-    impl From<u32> for IntrCountIncrTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<IntrCountIncrTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: IntrCountIncrTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
     pub struct NotifIntrEnTReadVal(u32);
     impl NotifIntrEnTReadVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done
         #[inline(always)]
         pub fn notif_cmd_done_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1141,7 +733,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrEnTWriteVal(u32);
     impl NotifIntrEnTWriteVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done
         #[inline(always)]
         pub fn notif_cmd_done_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1162,7 +754,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTReadVal(u32);
     impl NotifIntrTReadVal {
-        /// Command Done Interrupt status bit
+        /// Command Done status bit
         #[inline(always)]
         pub fn notif_cmd_done_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1188,7 +780,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTWriteVal(u32);
     impl NotifIntrTWriteVal {
-        /// Command Done Interrupt status bit
+        /// Command Done status bit
         #[inline(always)]
         pub fn notif_cmd_done_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1209,7 +801,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTrigTReadVal(u32);
     impl NotifIntrTrigTReadVal {
-        /// Interrupt Trigger 0 bit
+        /// Command Done trigger bit
         #[inline(always)]
         pub fn notif_cmd_done_trig(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1235,7 +827,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTrigTWriteVal(u32);
     impl NotifIntrTrigTWriteVal {
-        /// Interrupt Trigger 0 bit
+        /// Command Done trigger bit
         #[inline(always)]
         pub fn notif_cmd_done_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1568,26 +1160,19 @@ pub mod meta {
     //! Additional metadata needed by ureg.
     pub type Name = ureg::ReadOnlyReg32<u32>;
     pub type Version = ureg::ReadOnlyReg32<u32>;
-    pub type Ctrl = ureg::WriteOnlyReg32<8, crate::sha512::regs::CtrlWriteVal>;
-    pub type Status = ureg::ReadOnlyReg32<crate::sha512::regs::StatusReadVal>;
-    pub type Block = ureg::WriteOnlyReg32<0, u32>;
-    pub type Digest = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type VaultRdCtrl = ureg::ReadWriteReg32<
+    pub type Ctrl = ureg::WriteOnlyReg32<0, crate::mldsa::regs::CtrlWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::mldsa::regs::StatusReadVal>;
+    pub type Entropy = ureg::WriteOnlyReg32<0, u32>;
+    pub type Seed = ureg::WriteOnlyReg32<0, u32>;
+    pub type SignRnd = ureg::WriteOnlyReg32<0, u32>;
+    pub type Msg = ureg::WriteOnlyReg32<0, u32>;
+    pub type VerifyRes = ureg::ReadOnlyReg32<u32>;
+    pub type KvRdSeedCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,
         crate::regs::KvReadCtrlRegWriteVal,
     >;
-    pub type VaultRdStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
-    pub type KvWrCtrl = ureg::ReadWriteReg32<
-        0,
-        crate::regs::KvWriteCtrlRegReadVal,
-        crate::regs::KvWriteCtrlRegWriteVal,
-    >;
-    pub type KvWrStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
-    pub type GenPcrHashNonce = ureg::WriteOnlyReg32<0, u32>;
-    pub type GenPcrHashCtrl = ureg::WriteOnlyReg32<0, crate::sha512::regs::GenPcrHashCtrlWriteVal>;
-    pub type GenPcrHashStatus = ureg::ReadOnlyReg32<crate::sha512::regs::GenPcrHashStatusReadVal>;
-    pub type GenPcrHashDigest = ureg::ReadOnlyReg32<u32>;
+    pub type KvRdSeedStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
     pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
         0,
         crate::sha512_acc::regs::GlobalIntrEnTReadVal,
@@ -1595,13 +1180,13 @@ pub mod meta {
     >;
     pub type IntrBlockRfErrorIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ErrorIntrEnTReadVal,
-        crate::sha512_acc::regs::ErrorIntrEnTWriteVal,
+        crate::mldsa::regs::ErrorIntrEnTReadVal,
+        crate::mldsa::regs::ErrorIntrEnTWriteVal,
     >;
     pub type IntrBlockRfNotifIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrEnTReadVal,
-        crate::sha512_acc::regs::NotifIntrEnTWriteVal,
+        crate::mldsa::regs::NotifIntrEnTReadVal,
+        crate::mldsa::regs::NotifIntrEnTWriteVal,
     >;
     pub type IntrBlockRfErrorGlobalIntrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
@@ -1609,36 +1194,27 @@ pub mod meta {
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
     pub type IntrBlockRfErrorInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ErrorIntrTReadVal,
-        crate::sha512_acc::regs::ErrorIntrTWriteVal,
+        crate::mldsa::regs::ErrorIntrTReadVal,
+        crate::mldsa::regs::ErrorIntrTWriteVal,
     >;
     pub type IntrBlockRfNotifInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTReadVal,
-        crate::sha512_acc::regs::NotifIntrTWriteVal,
+        crate::mldsa::regs::NotifIntrTReadVal,
+        crate::mldsa::regs::NotifIntrTWriteVal,
     >;
     pub type IntrBlockRfErrorIntrTrigR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ErrorIntrTrigTReadVal,
-        crate::sha512_acc::regs::ErrorIntrTrigTWriteVal,
+        crate::mldsa::regs::ErrorIntrTrigTReadVal,
+        crate::mldsa::regs::ErrorIntrTrigTWriteVal,
     >;
     pub type IntrBlockRfNotifIntrTrigR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTrigTReadVal,
-        crate::sha512_acc::regs::NotifIntrTrigTWriteVal,
+        crate::mldsa::regs::NotifIntrTrigTReadVal,
+        crate::mldsa::regs::NotifIntrTrigTWriteVal,
     >;
-    pub type IntrBlockRfError0IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError1IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError2IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError3IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInternalIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfNotifCmdDoneIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError0IntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfError1IntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfError2IntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfError3IntrCountIncrR =
+    pub type IntrBlockRfErrorInternalIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifCmdDoneIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;

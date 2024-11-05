@@ -285,7 +285,10 @@ impl Scope {
             let peek1 = tokens.peek(1).clone();
             if let Ok(component_type) = component_keyword(&peek0, &peek1) {
                 if tokens.next() == Token::External {
-                    tokens.expect(Token::Reg)?;
+                    let token = tokens.next();
+                    if token != Token::Reg && token != Token::Mem {
+                        return Err(RdlError::UnexpectedToken(token));
+                    }
                 }
                 let type_name = if *tokens.peek(0) == Token::BraceOpen {
                     None
@@ -493,6 +496,7 @@ fn component_keyword<'a>(token: &Token<'a>, token2: &Token<'a>) -> Result<'a, Co
     match (token, token2) {
         (Token::Field, _) => Ok(ComponentType::Field),
         (Token::External, Token::Reg) => Ok(ComponentType::Reg),
+        (Token::External, Token::Mem) => Ok(ComponentType::Mem),
         (Token::Reg, _) => Ok(ComponentType::Reg),
         (Token::RegFile, _) => Ok(ComponentType::RegFile),
         (Token::AddrMap, _) => Ok(ComponentType::AddrMap),
