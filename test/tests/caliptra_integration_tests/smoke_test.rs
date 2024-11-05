@@ -299,7 +299,7 @@ fn smoke_test() {
                 fwids: vec![DiceFwid {
                     // FMC
                     hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: swap_word_bytes(&image.manifest.fmc.digest)
+                    digest: swap_word_bytes(&image.manifest.fmc.digest.0)
                         .as_bytes()
                         .to_vec(),
                 },],
@@ -317,7 +317,7 @@ fn smoke_test() {
             owner_pub_key_hash: owner_pk_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
-            fmc_digest: image.manifest.fmc.digest,
+            fmc_digest: image.manifest.fmc.digest.0,
             fmc_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
@@ -432,7 +432,7 @@ fn smoke_test() {
     );
     let expected_rt_alias_key = RtAliasKey::derive(
         &PcrRtCurrentInput {
-            runtime_digest: image.manifest.runtime.digest,
+            runtime_digest: image.manifest.runtime.digest.0,
             manifest: image.manifest,
         },
         &expected_fmc_alias_key,
@@ -465,7 +465,7 @@ fn smoke_test() {
             fwids: vec![DiceFwid {
                 // RT
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                digest: swap_word_bytes(&image.manifest.runtime.digest)
+                digest: swap_word_bytes(&image.manifest.runtime.digest.0)
                     .as_bytes()
                     .to_vec(),
             },],
@@ -615,7 +615,7 @@ fn smoke_test() {
             fwids: vec![DiceFwid {
                 // FMC
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                digest: swap_word_bytes(&image2.manifest.runtime.digest)
+                digest: swap_word_bytes(&image2.manifest.runtime.digest.0)
                     .as_bytes()
                     .to_vec(),
             },],
