@@ -14,6 +14,38 @@ Abstract:
 
 use crate::{helpers::EndianessTransform, Sha512, Sha512Mode};
 
+pub trait Hmac512Interface {
+    /// Create a new instance
+    fn new(mode: Hmac512Mode) -> Self
+    where
+        Self: Sized;
+
+    /// Reset the state
+    fn reset(&mut self);
+
+    /// Initialize the HMAC Algorithm
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Key to use for HMAC
+    /// * `block` - Block to calculate MAC over
+    fn init(&mut self, key: &[u8], block: &[u8; BLOCK_SIZE]);
+
+    /// Update the MAC with the block
+    ///
+    /// # Arguments
+    ///
+    /// * `block` - Block to calculate MAC over
+    fn update(&mut self, block: &[u8; BLOCK_SIZE]);
+
+    /// Retrieve the tag
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - Buffer to copy the tag to
+    fn tag(&self, tag: &mut [u8]);
+}
+
 /// HMAC-512 Mode
 #[derive(Debug, Copy, Clone)]
 pub enum Hmac512Mode {
@@ -65,22 +97,8 @@ pub struct Hmac512<const KEY_SIZE: usize> {
     opad: [u8; BLOCK_SIZE],
 }
 
-impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
-    /// Block Size
-    pub const BLOCK_SIZE: usize = BLOCK_SIZE;
-
-    /// Tag Size
-    pub const MAX_TAG_SIZE: usize = MAX_TAG_SIZE;
-
-    /// Length field size
-    pub const LEN_SIZE: usize = LEN_SIZE;
-
-    /// Create a new instance of Hash Message Authentication Code
-    ///
-    /// # Arguments
-    ///
-    /// * `mode` - Mode of the HMAC Operation
-    pub fn new(mode: Hmac512Mode) -> Self {
+impl<const KEY_SIZE: usize> Hmac512Interface for Hmac512<KEY_SIZE> {
+    fn new(mode: Hmac512Mode) -> Self {
         Self {
             hash1: Sha512::new(mode.into()),
             hash2: Sha512::new(mode.into()),
@@ -89,8 +107,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
         }
     }
 
-    /// Reset the state
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         // Reset both hashing engines
         self.hash1.reset(self.mode.into());
         self.hash2.reset(self.mode.into());
@@ -103,7 +120,8 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     ///
     /// * `key` - Key to use for HMAC
     /// * `block` - Block to calculate MAC over
-    pub fn init(&mut self, key: &[u8; KEY_SIZE], block: &[u8; BLOCK_SIZE]) {
+    fn init(&mut self, key: &[u8], block: &[u8; BLOCK_SIZE]) {
+        let key: &[u8; KEY_SIZE] = key.try_into().expect("key size mismatch");
         assert!(KEY_SIZE <= BLOCK_SIZE, "key is larger than block size");
 
         // Reset the state
@@ -137,7 +155,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     /// # Arguments
     ///
     /// * `block` - Block to calculate MAC over
-    pub fn update(&mut self, block: &[u8; BLOCK_SIZE]) {
+    fn update(&mut self, block: &[u8; BLOCK_SIZE]) {
         // hash the block
         self.hash1.update(block);
 
@@ -179,7 +197,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     /// # Arguments
     ///
     /// * `tag` - Buffer to copy the tag to
-    pub fn tag(&self, tag: &mut [u8]) {
+    fn tag(&self, tag: &mut [u8]) {
         self.hash2.copy_hash(tag);
     }
 }
@@ -197,7 +215,7 @@ mod tests {
         let len = len * 8;
         block[BLOCK_SIZE - LEN_SIZE..].copy_from_slice(&len.to_be_bytes());
 
-        let mut hmac = Hmac512::new(mode);
+        let mut hmac: Hmac512<N> = Hmac512::new(mode);
         block.to_big_endian();
         key.to_big_endian();
         hmac.init(key, &block);
