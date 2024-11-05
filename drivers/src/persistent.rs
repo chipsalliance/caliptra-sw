@@ -133,6 +133,7 @@ impl PersistentData {
                 memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
                     + memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_MAX_SIZE
             );
+            assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
     }
 }
