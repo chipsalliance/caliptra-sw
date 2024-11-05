@@ -32,7 +32,11 @@ register_bitfields! [
         INIT OFFSET(0) NUMBITS(1) [],
         NEXT OFFSET(1) NUMBITS(1) [],
         ZEROIZE OFFSET(2) NUMBITS(1) [],
-        RSVD OFFSET(3) NUMBITS(29) [],
+        MODE OFFSET(3) NUMBITS(1) [
+            HMAC384 = 0,
+            HMAC512 = 1,
+        ],
+        RSVD OFFSET(4) NUMBITS(28) [],
     ],
 
     /// Status Register Fields
@@ -84,14 +88,17 @@ register_bitfields! [
 
 ];
 
-/// HMAC Key Size.
-const HMAC_KEY_SIZE: usize = 48;
+/// HMAC384 Key Size.
+const HMAC_KEY_SIZE_384: usize = 48;
+
+/// HMAC512 Key Size.
+const HMAC_KEY_SIZE_512: usize = 64;
 
 /// HMAC Block Size
-const HMAC_BLOCK_SIZE: usize = 128;
+const HMAC_BLOCK_SIZE: usize = 128; // SHA-384/512 block size is 128 bytes
 
-/// HMAC Tag Size
-const HMAC_TAG_SIZE: usize = 48;
+/// HMAC512 Tag Size
+const HMAC_TAG_SIZE_512: usize = 64; // SHA512 produces 64-byte tags
 
 /// The number of CPU clock cycles it takes to perform initialization action.
 const INIT_TICKS: u64 = 1000;
@@ -110,7 +117,7 @@ const HMAC_LFSR_SEED_SIZE: usize = 48;
 #[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
-pub struct HmacSha384 {
+pub struct HmacSha {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
     name0: ReadOnlyRegister<u32>,
@@ -136,16 +143,16 @@ pub struct HmacSha384 {
     status: ReadOnlyRegister<u32, Status::Register>,
 
     /// HMAC Key Register
-    #[register_array(offset = 0x0000_0040, item_size = 4, len = 12, read_fn = read_access_fault, write_fn = on_write_key)]
-    key: [u32; HMAC_KEY_SIZE / 4],
+    #[register_array(offset = 0x0000_0040, item_size = 4, len = 16, read_fn = read_access_fault, write_fn = on_write_key)]
+    key: [u32; HMAC_KEY_SIZE_512 / 4],
 
     /// HMAC Block Register
     #[register_array(offset = 0x0000_0080, item_size = 4, len = 32, read_fn = read_access_fault, write_fn = on_write_block)]
     block: [u32; HMAC_BLOCK_SIZE / 4],
 
     /// HMAC Tag Register
-    #[register_array(offset = 0x0000_0100, item_size = 4, len = 12, read_fn = on_read_tag, write_fn = write_access_fault)]
-    tag: [u32; HMAC_TAG_SIZE / 4],
+    #[register_array(offset = 0x0000_0100, item_size = 4, len = 16, read_fn = on_read_tag, write_fn = write_access_fault)]
+    tag: [u32; HMAC_TAG_SIZE_512 / 4],
 
     /// LSFR Seed Register
     #[register_array(offset = 0x0000_0140)]
@@ -206,7 +213,7 @@ pub struct HmacSha384 {
     op_tag_write_complete_action: Option<ActionHandle>,
 }
 
-impl HmacSha384 {
+impl HmacSha {
     /// NAME0 Register Value
     const NAME0_VAL: RvData = 0x63616d68; // hmac
 
@@ -231,7 +238,7 @@ impl HmacSha384 {
     /// * `Self` - Instance of HMAC-SHA-384 Engine
     pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
         Self {
-            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE>::new(Hmac512Mode::Sha384)),
+            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_512>::new(Hmac512Mode::Sha512)),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
             name1: ReadOnlyRegister::new(Self::NAME1_VAL),
             version0: ReadOnlyRegister::new(Self::VERSION0_VAL),
@@ -298,6 +305,13 @@ impl HmacSha384 {
         Ok(self.tag[index])
     }
 
+    fn key_len(&self) -> usize {
+        match self.control.reg.read_as_enum(Control::MODE).unwrap() {
+            Control::MODE::Value::HMAC384 => 12,
+            Control::MODE::Value::HMAC512 => 16,
+        }
+    }
+
     /// On Write callback for `control` register
     ///
     /// # Arguments
@@ -323,12 +337,27 @@ impl HmacSha384 {
                 .reg
                 .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
+            let mode512 = self.control.reg.is_set(Control::MODE);
+
             if self.control.reg.is_set(Control::INIT) {
+                if mode512 {
+                    self.hmac = Box::new(Hmac512::<HMAC_KEY_SIZE_512>::new(Hmac512Mode::Sha512))
+                } else {
+                    self.hmac = Box::new(Hmac512::<HMAC_KEY_SIZE_384>::new(Hmac512Mode::Sha384))
+                }
+
                 // Initialize the HMAC engine with key and initial data block
-                self.hmac.init(
-                    &bytes_from_words_le(&self.key),
-                    &bytes_from_words_le(&self.block),
-                );
+                if mode512 {
+                    self.hmac.init(
+                        &bytes_from_words_le::<[u32; 16]>(&self.key[..16].try_into().unwrap()),
+                        &bytes_from_words_le(&self.block),
+                    );
+                } else {
+                    self.hmac.init(
+                        &bytes_from_words_le::<[u32; 12]>(&self.key[..12].try_into().unwrap()),
+                        &bytes_from_words_le(&self.block),
+                    );
+                }
 
                 // Schedule a future call to poll() complete the operation.
                 self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
@@ -484,7 +513,8 @@ impl HmacSha384 {
 
     fn op_complete(&mut self) {
         // Retrieve the tag
-        self.hmac.tag(self.tag.as_bytes_mut());
+        let key_len = self.key_len();
+        self.hmac.tag(self.tag[..key_len].as_bytes_mut());
         // Don't reveal the tag to the CPU if the inputs came from the
         // key-vault.
         self.hide_tag_from_cpu = self.block_from_kv || self.key_from_kv;
@@ -532,9 +562,10 @@ impl HmacSha384 {
 
         if let Some(key) = &key {
             self.key_from_kv = true;
-            self.key
+            let key_len = self.key_len();
+            self.key[..key_len]
                 .as_bytes_mut()
-                .copy_from_slice(&key[..HMAC_KEY_SIZE]);
+                .copy_from_slice(&key[..key_len * 4]);
         }
 
         self.key_read_status.reg.modify(
@@ -610,7 +641,7 @@ impl HmacSha384 {
             .key_vault
             .write_key(
                 key_id,
-                self.tag.as_bytes(),
+                &self.tag.as_bytes()[..self.key_len() * 4],
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()
@@ -647,6 +678,9 @@ mod tests {
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
 
+    /// HMAC384 Tag Size
+    const HMAC_TAG_SIZE_384: usize = 48; // SHA384 produces 48-byte tags
+
     const OFFSET_NAME0: RvAddr = 0x0;
     const OFFSET_NAME1: RvAddr = 0x4;
     const OFFSET_VERSION0: RvAddr = 0x8;
@@ -666,7 +700,7 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
 
         let name0 = hmac.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -679,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
 
         let version0 = hmac.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -692,20 +726,20 @@ mod tests {
 
     #[test]
     fn test_control() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
     #[test]
     fn test_key() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
-        for addr in (OFFSET_KEY..(OFFSET_KEY + HMAC_KEY_SIZE as u32)).step_by(4) {
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        for addr in (OFFSET_KEY..(OFFSET_KEY + HMAC_KEY_SIZE_384 as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, 0xFF).ok(), Some(()));
             assert_eq!(
                 hmac.read(RvSize::Word, addr).err(),
@@ -716,7 +750,7 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + HMAC_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
             assert_eq!(
@@ -728,8 +762,8 @@ mod tests {
 
     #[test]
     fn test_tag() {
-        let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
-        for addr in (OFFSET_TAG..(OFFSET_TAG + HMAC_TAG_SIZE as u32)).step_by(4) {
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        for addr in (OFFSET_TAG..(OFFSET_TAG + HMAC_TAG_SIZE_384 as u32)).step_by(4) {
             assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(0));
             assert_eq!(
                 hmac.write(RvSize::Word, addr, 0xFF).err(),
@@ -749,12 +783,7 @@ mod tests {
         TagWriteFailTest(bool),
     }
 
-    fn test_hmac(
-        key: &mut [u8; HMAC_KEY_SIZE],
-        data: &[u8],
-        result: &[u8],
-        keyvault_actions: &[KeyVaultAction],
-    ) {
+    fn test_hmac(key: &mut [u8], data: &[u8], result: &[u8], keyvault_actions: &[KeyVaultAction]) {
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
@@ -772,7 +801,7 @@ mod tests {
         let mut key_id: u32 = u32::MAX;
         let mut block_id: u32 = u32::MAX;
         let mut tag_id: u32 = u32::MAX;
-        let mut tag_le: [u8; 48] = [0; 48];
+        let mut tag_le: [u8; 64] = [0; 64];
         let mut key_read_disallowed = false;
         let mut key_disallowed_for_hmac = false;
         let mut block_read_disallowed = false;
@@ -924,7 +953,7 @@ mod tests {
             );
         }
 
-        let mut hmac = HmacSha384::new(&clock, key_vault);
+        let mut hmac = HmacSha::new(&clock, key_vault);
 
         if tag_to_kv {
             // Instruct tag to be read from key-vault.
@@ -1032,16 +1061,38 @@ mod tests {
                 }
             }
 
+            let mode512 = key.len() == 64;
+
             if idx == 0 {
                 assert_eq!(
-                    hmac.write(RvSize::Word, OFFSET_CONTROL, Control::INIT::SET.into())
-                        .ok(),
+                    hmac.write(
+                        RvSize::Word,
+                        OFFSET_CONTROL,
+                        (Control::INIT::SET
+                            + if mode512 {
+                                Control::MODE::HMAC512
+                            } else {
+                                Control::MODE::HMAC384
+                            })
+                        .into()
+                    )
+                    .ok(),
                     Some(())
                 );
             } else {
                 assert_eq!(
-                    hmac.write(RvSize::Word, OFFSET_CONTROL, Control::NEXT::SET.into())
-                        .ok(),
+                    hmac.write(
+                        RvSize::Word,
+                        OFFSET_CONTROL,
+                        (Control::NEXT::SET
+                            + if mode512 {
+                                Control::MODE::HMAC512
+                            } else {
+                                Control::MODE::HMAC384
+                            })
+                        .into()
+                    )
+                    .ok(),
                     Some(())
                 );
             }
@@ -1078,16 +1129,18 @@ mod tests {
         if tag_to_kv {
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
-            tag_le.clone_from_slice(
-                &hmac.key_vault.read_key(tag_id, key_usage).unwrap()[..HMAC_TAG_SIZE],
+            tag_le[..key.len()].clone_from_slice(
+                &hmac.key_vault.read_key(tag_id, key_usage).unwrap()[..key.len()],
             );
         } else {
-            tag_le.clone_from_slice(hmac.tag.as_bytes());
+            tag_le[..key.len()].clone_from_slice(hmac.tag[..key.len() / 4].as_bytes());
         }
 
         tag_le.to_little_endian();
 
-        assert_eq!(tag_le, result);
+        println!("{:#x?}", tag_le);
+
+        assert_eq!(&tag_le[..key.len()], result);
     }
 
     #[test]
@@ -1534,5 +1587,32 @@ mod tests {
                 ],
             );
         }
+    }
+
+    #[test]
+    fn test_hmac_sha512() {
+        // Use full 64-byte key for HMAC-512
+        let mut key: [u8; 64] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ];
+
+        let data: [u8; 28] = [
+            0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e,
+            0x74, 0x20, 0x66, 0x6f, 0x72, 0x20, 0x6e, 0x6f, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x3f,
+        ];
+
+        let result: [u8; 64] = [
+            0xcb, 0x37, 0x9, 0x17, 0xae, 0x8a, 0x7c, 0xe2, 0x8c, 0xfd, 0x1d, 0x8f, 0x47, 0x5, 0xd6,
+            0x14, 0x1c, 0x17, 0x3b, 0x2a, 0x93, 0x62, 0xc1, 0x5d, 0xf2, 0x35, 0xdf, 0xb2, 0x51,
+            0xb1, 0x54, 0x54, 0x6a, 0xa3, 0x34, 0xae, 0x9f, 0xb9, 0xaf, 0xc2, 0x18, 0x49, 0x32,
+            0xd8, 0x69, 0x5e, 0x39, 0x7b, 0xfa, 0xf, 0xfb, 0x93, 0x46, 0x6c, 0xfc, 0xce, 0xaa,
+            0xe3, 0x8c, 0x83, 0x3b, 0x7d, 0xba, 0x38,
+        ];
+
+        test_hmac(&mut key, &data, &result, &[]);
     }
 }
