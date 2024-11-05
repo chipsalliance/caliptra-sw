@@ -576,8 +576,11 @@ pub mod regs {
     impl CtrlWriteVal {
         /// Control command field
         #[inline(always)]
-        pub fn ctrl(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
+        pub fn ctrl(
+            self,
+            f: impl FnOnce(super::enums::selector::CtrlSelector) -> super::enums::Ctrl,
+        ) -> Self {
+            Self((self.0 & !(7 << 0)) | (u32::from(f(super::enums::selector::CtrlSelector())) << 0))
         }
         /// Zeroize all internal registers
         #[inline(always)]
@@ -910,6 +913,56 @@ pub mod enums {
     //! Enumerations used by some register fields.
     #[derive(Clone, Copy, Eq, PartialEq)]
     #[repr(u32)]
+    pub enum Ctrl {
+        None = 0,
+        Keygen = 1,
+        Signing = 2,
+        Verifying = 3,
+        KeygenSign = 4,
+        Reserved5 = 5,
+        Reserved6 = 6,
+        Reserved7 = 7,
+    }
+    impl Ctrl {
+        #[inline(always)]
+        pub fn none(&self) -> bool {
+            *self == Self::None
+        }
+        #[inline(always)]
+        pub fn keygen(&self) -> bool {
+            *self == Self::Keygen
+        }
+        #[inline(always)]
+        pub fn signing(&self) -> bool {
+            *self == Self::Signing
+        }
+        #[inline(always)]
+        pub fn verifying(&self) -> bool {
+            *self == Self::Verifying
+        }
+        #[inline(always)]
+        pub fn keygen_sign(&self) -> bool {
+            *self == Self::KeygenSign
+        }
+    }
+    impl TryFrom<u32> for Ctrl {
+        type Error = ();
+        #[inline(always)]
+        fn try_from(val: u32) -> Result<Ctrl, ()> {
+            if val < 8 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
+            }
+        }
+    }
+    impl From<Ctrl> for u32 {
+        fn from(val: Ctrl) -> Self {
+            val as u32
+        }
+    }
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    #[repr(u32)]
     pub enum KvErrorE {
         Success = 0,
         KvReadFail = 1,
@@ -1199,6 +1252,29 @@ pub mod enums {
         }
     }
     pub mod selector {
+        pub struct CtrlSelector();
+        impl CtrlSelector {
+            #[inline(always)]
+            pub fn none(&self) -> super::Ctrl {
+                super::Ctrl::None
+            }
+            #[inline(always)]
+            pub fn keygen(&self) -> super::Ctrl {
+                super::Ctrl::Keygen
+            }
+            #[inline(always)]
+            pub fn signing(&self) -> super::Ctrl {
+                super::Ctrl::Signing
+            }
+            #[inline(always)]
+            pub fn verifying(&self) -> super::Ctrl {
+                super::Ctrl::Verifying
+            }
+            #[inline(always)]
+            pub fn keygen_sign(&self) -> super::Ctrl {
+                super::Ctrl::KeygenSign
+            }
+        }
         pub struct KvErrorESelector();
         impl KvErrorESelector {
             #[inline(always)]

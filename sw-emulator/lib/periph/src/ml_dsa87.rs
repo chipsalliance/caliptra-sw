@@ -157,7 +157,7 @@ pub struct MlDsa87 {
     error_global_intr: ReadOnlyRegister<u32>,
 
     /// Error Internal Intr register
-    #[register(offset = 0x0000_8014)]
+    #[register(offset = 0x0000_8114)]
     error_internal_intr: ReadOnlyRegister<u32>,
 
     private_key: [u8; ML_DSA87_PRIVKEY_SIZE],

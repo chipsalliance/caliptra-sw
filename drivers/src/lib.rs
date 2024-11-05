@@ -85,6 +85,9 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use mldsa87::{
+    MlDsa87, MlDsa87MsgScalar, MlDsa87PubKey, MlDsa87Result, MlDsa87SignRndScalar, MlDsa87Signature,
+};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
