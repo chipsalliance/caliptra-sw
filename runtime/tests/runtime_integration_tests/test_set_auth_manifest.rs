@@ -97,7 +97,7 @@ fn test_auth_manifest() -> AuthorizationManifest {
         owner_man_key_info,
         image_metadata_list,
         version: 1,
-        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQURIED,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
@@ -134,7 +134,7 @@ fn test_set_auth_manifest_cmd() {
 }
 
 #[test]
-fn test_set_auth_manifest_cmd_invalid_len() {
+fn test_set_auth_manifest_cum_invalid_len() {
     let mut model = run_rt_test_lms(None, None, None, true);
 
     model.step_until(|m| {
@@ -273,7 +273,7 @@ fn test_set_auth_manifest_invalid_owner_lms_sig() {
 #[test]
 fn test_set_auth_manifest_invalid_metadata_list_count() {
     let mut auth_manifest = test_auth_manifest();
-    auth_manifest.image_metadata_col.header.entry_count = 0;
+    auth_manifest.image_metadata_col.entry_count = 0;
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
