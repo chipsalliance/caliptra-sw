@@ -148,7 +148,7 @@ pub struct HmacSha384 {
     tag: [u32; HMAC_TAG_SIZE / 4],
 
     /// LSFR Seed Register
-    #[register_array(offset = 0x0000_0130)]
+    #[register_array(offset = 0x0000_0140)]
     lfsr_seed: [u32; HMAC_LFSR_SEED_SIZE / 4],
 
     /// Key Read Control Register
