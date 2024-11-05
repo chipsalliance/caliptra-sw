@@ -222,19 +222,16 @@ fn translate_mem(iref: systemrdl::InstanceRef, start_offset: u64) -> Result<ureg
         width: RegisterWidth::_32,
     };
 
-    match iref.instance.scope.properties.get("memwidth") {
-        Some(Value::U64(memwidth)) => {
-            ty.width = match *memwidth {
-                8 => RegisterWidth::_8,
-                16 => RegisterWidth::_16,
-                32 => RegisterWidth::_32,
-                64 => RegisterWidth::_64,
-                128 => RegisterWidth::_128,
-                _ => return Err(wrap_err(Error::UnsupportedRegWidth(*memwidth))),
-            }
+    if let Some(Value::U64(memwidth)) = iref.instance.scope.properties.get("memwidth") {
+        ty.width = match *memwidth {
+            8 => RegisterWidth::_8,
+            16 => RegisterWidth::_16,
+            32 => RegisterWidth::_32,
+            64 => RegisterWidth::_64,
+            128 => RegisterWidth::_128,
+            _ => return Err(wrap_err(Error::UnsupportedRegWidth(*memwidth))),
         }
-        _ => {}
-    }
+    };
     let mut double = 1;
     if ty.width == RegisterWidth::_128 {
         // hack: convert to four u32s
