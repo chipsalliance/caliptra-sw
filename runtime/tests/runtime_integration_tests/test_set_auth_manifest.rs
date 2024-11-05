@@ -17,7 +17,7 @@ use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::AsBytes;
 
-fn test_auth_manifest() -> AuthorizationManifest {
+pub fn test_auth_manifest() -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeys {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
