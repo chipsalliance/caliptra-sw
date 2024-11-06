@@ -136,10 +136,6 @@ impl ImageVerificationEnv for TestEnv {
         }
     }
 
-    fn lms_verify_enabled(&self) -> bool {
-        true
-    }
-
     fn set_fw_extended_error(&mut self, _err: u32) {}
 }
 

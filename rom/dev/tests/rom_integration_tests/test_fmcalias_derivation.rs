@@ -16,7 +16,7 @@ use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
+use caliptra_drivers::{ColdResetEntry4, PcrId, RomPqcVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -202,7 +202,7 @@ fn test_pcr_log() {
             FMC_SVN as u8,
             0_u8,
             VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
-            RomVerifyConfig::EcdsaAndLms as u8,
+            RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
     );
@@ -304,7 +304,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             0_u8,
             0_u8,
             VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
-            RomVerifyConfig::EcdsaAndLms as u8,
+            RomPqcVerifyConfig::EcdsaAndLms as u8,
             false as u8,
         ],
     );
@@ -396,8 +396,8 @@ fn test_pcr_log_fmc_fuse_svn() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             FMC_FUSE_SVN as u8,
-            u8::MAX,
-            RomVerifyConfig::EcdsaOnly as u8,
+            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
     );
@@ -750,54 +750,6 @@ fn test_fht_info() {
     assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
     assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
-}
-
-#[test]
-fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
-    let fuses = Fuses {
-        lms_verify: false,
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        BootParams {
-            fuses,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
-
-    let coldresetentry4_array = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first 4 entries
-
-    // Check LmsVendorPubKeyIndex datavault value.
-    let coldresetentry4_id =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(
-        coldresetentry4_id,
-        ColdResetEntry4::LmsVendorPubKeyIndex as u32
-    );
-    coldresetentry4_offset += core::mem::size_of::<u32>();
-    let coldresetentry4_value =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(coldresetentry4_value, u32::MAX);
 }
 
 #[test]
