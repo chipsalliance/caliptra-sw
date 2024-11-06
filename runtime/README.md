@@ -739,7 +739,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
 | metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | MetaData[128] | The max number of metadata is 16 but less can be used                      |
+| metadata\_entries             | MetaData[128] | The max number of metadata entries is 128 but less can be used             |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*

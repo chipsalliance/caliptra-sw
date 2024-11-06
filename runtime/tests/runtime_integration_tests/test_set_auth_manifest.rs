@@ -134,7 +134,7 @@ fn test_set_auth_manifest_cmd() {
 }
 
 #[test]
-fn test_set_auth_manifest_cum_invalid_len() {
+fn test_set_auth_manifest_cmd_invalid_len() {
     let mut model = run_rt_test_lms(None, None, None, true);
 
     model.step_until(|m| {
