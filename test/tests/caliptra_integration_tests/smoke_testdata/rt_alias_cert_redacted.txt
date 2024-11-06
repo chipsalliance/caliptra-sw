@@ -4,11 +4,11 @@ Certificate:
         Serial Number:
             44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
         Signature Algorithm: ecdsa-with-SHA384
-        Issuer: CN=Caliptra 1.0 FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        Issuer: CN=Caliptra 1.x FMC Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
         Validity
             Not Before: Jan  1 00:00:00 2023 GMT
             Not After : Dec 31 23:59:59 9999 GMT
-        Subject: CN=Caliptra 1.0 Rt Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        Subject: CN=Caliptra 1.x Rt Alias/serialNumber=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
@@ -30,7 +30,7 @@ Certificate:
             2.23.133.5.4.4: 
                 0....................
             2.23.133.5.4.1: 
-                DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+                DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
             X509v3 Subject Key Identifier: 
                 44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
             X509v3 Authority Key Identifier: 
