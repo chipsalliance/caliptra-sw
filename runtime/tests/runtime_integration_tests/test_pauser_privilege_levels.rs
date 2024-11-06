@@ -30,13 +30,15 @@ use dpe::{
 };
 use zerocopy::AsBytes;
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, TEST_LABEL};
+use crate::common::{
+    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
+};
 
 const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
 
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -102,7 +104,12 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -164,7 +171,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
 
 #[test]
 fn test_pl0_init_ctx_dpe_context_thresholds() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -203,7 +210,12 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -244,7 +256,11 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -271,7 +287,11 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -298,7 +318,12 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -323,7 +348,12 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -354,7 +384,12 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
-    let mut model = run_rt_test(None, Some(image_opts), None);
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -390,7 +425,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
 
 #[test]
 fn test_stash_measurement_pl_context_thresholds() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -435,7 +470,7 @@ fn test_stash_measurement_pl_context_thresholds() {
 
 #[test]
 fn test_measurement_log_pl_context_threshold() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
