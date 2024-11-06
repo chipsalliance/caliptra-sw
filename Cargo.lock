@@ -673,6 +673,8 @@ name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
@@ -709,6 +711,8 @@ name = "caliptra-lms-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "zerocopy",
  "zeroize",
 ]
