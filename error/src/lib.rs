@@ -56,29 +56,22 @@ impl CaliptraError {
     pub const DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
         CaliptraError::new_const(0x00038000);
 
-    /// Driver Error: HMAC384
-    pub const DRIVER_HMAC384_READ_KEY_KV_READ: CaliptraError = CaliptraError::new_const(0x00040001);
-    pub const DRIVER_HMAC384_READ_KEY_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040002);
-    pub const DRIVER_HMAC384_READ_KEY_KV_UNKNOWN: CaliptraError =
-        CaliptraError::new_const(0x00040003);
-    pub const DRIVER_HMAC384_READ_DATA_KV_READ: CaliptraError =
-        CaliptraError::new_const(0x00040004);
-    pub const DRIVER_HMAC384_READ_DATA_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040005);
-    pub const DRIVER_HMAC384_READ_DATA_KV_UNKNOWN: CaliptraError =
+    /// Driver Error: HMAC
+    pub const DRIVER_HMAC_READ_KEY_KV_READ: CaliptraError = CaliptraError::new_const(0x00040001);
+    pub const DRIVER_HMAC_READ_KEY_KV_WRITE: CaliptraError = CaliptraError::new_const(0x00040002);
+    pub const DRIVER_HMAC_READ_KEY_KV_UNKNOWN: CaliptraError = CaliptraError::new_const(0x00040003);
+    pub const DRIVER_HMAC_READ_DATA_KV_READ: CaliptraError = CaliptraError::new_const(0x00040004);
+    pub const DRIVER_HMAC_READ_DATA_KV_WRITE: CaliptraError = CaliptraError::new_const(0x00040005);
+    pub const DRIVER_HMAC_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x00040006);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_READ: CaliptraError =
-        CaliptraError::new_const(0x00040007);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040008);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_UNKNOWN: CaliptraError =
+    pub const DRIVER_HMAC_WRITE_TAG_KV_READ: CaliptraError = CaliptraError::new_const(0x00040007);
+    pub const DRIVER_HMAC_WRITE_TAG_KV_WRITE: CaliptraError = CaliptraError::new_const(0x00040008);
+    pub const DRIVER_HMAC_WRITE_TAG_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x00040009);
-    pub const DRIVER_HMAC384_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x0004000b);
-    pub const DRIVER_HMAC384_MAX_DATA: CaliptraError = CaliptraError::new_const(0x0004000c);
-    pub const DRIVER_HMAC384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0004000d);
-    pub const DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS: CaliptraError =
-        CaliptraError::new_const(0x0004000e);
+    pub const DRIVER_HMAC_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x0004000b);
+    pub const DRIVER_HMAC_MAX_DATA: CaliptraError = CaliptraError::new_const(0x0004000c);
+    pub const DRIVER_HMAC_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0004000d);
+    pub const DRIVER_HMAC_INDEX_OUT_OF_BOUNDS: CaliptraError = CaliptraError::new_const(0x0004000e);
 
     /// Driver Error: ECC384
     pub const DRIVER_ECC384_READ_SEED_KV_READ: CaliptraError = CaliptraError::new_const(0x00050001);

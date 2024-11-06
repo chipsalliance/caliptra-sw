@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    hmac384.rs
+    hmac.rs
 
 Abstract:
 
-    File contains API for HMAC-384 Cryptography operations
+    File contains API for HMAC-384 and HMAC-512 Cryptography operations
 
 --*/
 
@@ -27,7 +27,7 @@ const HMAC_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC_MAX_DATA_SIZE: usize = 1024 * 1024;
 
-/// HMAC-384 Data
+/// HMAC Data
 #[derive(Debug, Copy, Clone)]
 pub enum HmacData<'a> {
     /// Slice
@@ -59,7 +59,7 @@ impl From<KeyReadArgs> for HmacData<'_> {
     }
 }
 
-/// Hmac-384 Tag
+/// Hmac Tag
 #[derive(Debug)]
 pub enum HmacTag<'a> {
     /// Array - 48 Bytes
@@ -87,7 +87,7 @@ impl<'a> From<KeyWriteArgs> for HmacTag<'a> {
 }
 
 ///
-/// Hmac-384 Key
+/// Hmac Key
 ///
 #[derive(Debug, Copy, Clone)]
 pub enum HmacKey<'a> {
@@ -309,7 +309,7 @@ impl Hmac {
     ) -> CaliptraResult<()> {
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC_MAX_DATA_SIZE {
-            return Err(CaliptraError::DRIVER_HMAC384_MAX_DATA);
+            return Err(CaliptraError::DRIVER_HMAC_MAX_DATA);
         }
 
         let mut first = true;
@@ -327,7 +327,7 @@ impl Hmac {
                         self.hmac_partial_block(slice, first, buf.len(), key, dest_key, mode)?;
                         break;
                     } else {
-                        return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
+                        return Err(CaliptraError::DRIVER_HMAC_INVALID_SLICE);
                     }
                 }
 
@@ -341,7 +341,7 @@ impl Hmac {
                         bytes_remaining -= HMAC_BLOCK_SIZE_BYTES;
                         first = false;
                     } else {
-                        return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
+                        return Err(CaliptraError::DRIVER_HMAC_INVALID_SLICE);
                     }
                 }
             }
@@ -397,7 +397,7 @@ impl Hmac {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            return Err(CaliptraError::DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS);
+            return Err(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;
@@ -434,8 +434,8 @@ impl Hmac {
         dest_key: Option<KeyWriteArgs>,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
-        let hmac384 = self.hmac.regs_mut();
-        Array4x32::from(block).write_to_reg(hmac384.hmac512_block());
+        let hmac = self.hmac.regs_mut();
+        Array4x32::from(block).write_to_reg(hmac.hmac512_block());
         self.hmac_op(first, key, dest_key, mode)
     }
 
@@ -474,18 +474,14 @@ impl Hmac {
         // Wait for the hardware to be ready
         wait::until(|| hmac.hmac512_status().read().ready());
 
-        // Set the mode
-        hmac.hmac512_ctrl()
-            .write(|w| w.mode(mode == HmacMode::Hmac512));
-
         if first {
             // Submit the first block
             hmac.hmac512_ctrl()
-                .write(|w| w.init(true).next(false).mode(false));
+                .write(|w| w.init(true).next(false).mode(mode == HmacMode::Hmac512));
         } else {
             // Submit next block in existing hashing chain
             hmac.hmac512_ctrl()
-                .write(|w| w.init(false).next(true).mode(false));
+                .write(|w| w.init(false).next(true).mode(mode == HmacMode::Hmac512));
         }
 
         // Wait for the hmac operation to finish
@@ -514,7 +510,7 @@ enum HmacOpState {
 
 /// HMAC multi step operation
 pub struct HmacOp<'a> {
-    /// Hmac-384 Engine
+    /// Hmac Engine
     hmac_engine: &'a mut Hmac,
 
     /// State
@@ -549,11 +545,11 @@ impl<'a> HmacOp<'a> {
     ///
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == HmacOpState::Final {
-            return Err(CaliptraError::DRIVER_HMAC384_INVALID_STATE);
+            return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
         }
 
         if self.data_size + data.len() > HMAC_MAX_DATA_SIZE {
-            return Err(CaliptraError::DRIVER_HMAC384_MAX_DATA);
+            return Err(CaliptraError::DRIVER_HMAC_MAX_DATA);
         }
 
         for byte in data {
@@ -562,7 +558,7 @@ impl<'a> HmacOp<'a> {
             // PANIC-FREE: Following check optimizes the out of bounds
             // panic in indexing the `buf`
             if self.buf_idx >= self.buf.len() {
-                return Err(CaliptraError::DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS);
+                return Err(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS);
             }
 
             // Copy the data to the buffer
@@ -588,11 +584,11 @@ impl<'a> HmacOp<'a> {
     /// Finalize the digest operations
     pub fn finalize(&mut self) -> CaliptraResult<()> {
         if self.state == HmacOpState::Final {
-            return Err(CaliptraError::DRIVER_HMAC384_INVALID_STATE);
+            return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
         }
 
         if self.buf_idx > self.buf.len() {
-            return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
+            return Err(CaliptraError::DRIVER_HMAC_INVALID_SLICE);
         }
 
         // Calculate the hmac of the final block
@@ -650,8 +646,8 @@ impl<'a> HmacOp<'a> {
     }
 }
 
-/// HMAC-384 key access error trait
-trait Hmac384KeyAccessErr {
+/// HMAC key access error trait
+trait HmacKeyAccessErr {
     /// Convert to read key operation error
     fn into_read_key_err(self) -> CaliptraError;
 
@@ -662,31 +658,31 @@ trait Hmac384KeyAccessErr {
     fn into_write_tag_err(self) -> CaliptraError;
 }
 
-impl Hmac384KeyAccessErr for KvAccessErr {
+impl HmacKeyAccessErr for KvAccessErr {
     /// Convert to read seed operation error
     fn into_read_key_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_UNKNOWN,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC_READ_KEY_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC_READ_KEY_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC_READ_KEY_KV_UNKNOWN,
         }
     }
 
     /// Convert to read data operation error
     fn into_read_data_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_UNKNOWN,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC_READ_DATA_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC_READ_DATA_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC_READ_DATA_KV_UNKNOWN,
         }
     }
 
     /// Convert to write tag operation error
     fn into_write_tag_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_UNKNOWN,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC_WRITE_TAG_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC_WRITE_TAG_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC_WRITE_TAG_KV_UNKNOWN,
         }
     }
 }
