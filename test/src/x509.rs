@@ -68,7 +68,10 @@ impl DiceTcbInfo {
                 })
                 .transpose()?
                 .unwrap_or_default(),
-            flags: d.read_optional_implicit_element(7)?,
+            flags: d
+                .read_optional_implicit_element::<asn1::BitString>(7)?
+                .and_then(|b| b.as_bytes().try_into().ok())
+                .map(u32::from_be_bytes),
             vendor_info: d
                 .read_optional_implicit_element::<&[u8]>(8)?
                 .map(|s| s.to_vec()),
