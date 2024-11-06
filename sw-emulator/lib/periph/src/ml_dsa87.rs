@@ -521,20 +521,14 @@ mod tests {
         let mut seed = [0u8; 32];
         seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
         for i in (0..seed.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .unwrap();
         }
 
-        assert_eq!(
-            ml_dsa87
-                .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
-                .ok(),
-            Some(())
-        );
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -564,52 +558,40 @@ mod tests {
         let mut seed = [0u8; 32];
         seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
         for i in (0..seed.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .unwrap();
         }
 
         let mut msg = [0u8; 64];
         msg.to_big_endian(); // Change DWORDs to big-endian. TODO is this necessary
 
         for i in (0..msg.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
+                .unwrap();
         }
 
         let mut sign_rnd = SIGN_RND;
         sign_rnd.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..SIGN_RND.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(
-                        RvSize::Word,
-                        OFFSET_SIGN_RND + i as RvAddr,
-                        make_word(i, &sign_rnd)
-                    )
-                    .ok(),
-                Some(())
-            );
-        }
-
-        assert_eq!(
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_CONTROL,
-                    Control::CTRL::KEYGEN_AND_SIGN.into()
+                    OFFSET_SIGN_RND + i as RvAddr,
+                    make_word(i, &sign_rnd),
                 )
-                .ok(),
-            Some(())
-        );
+                .unwrap();
+        }
+
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::CTRL::KEYGEN_AND_SIGN.into(),
+            )
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -638,28 +620,22 @@ mod tests {
 
         let msg = [0u8; 64];
         for i in (0..msg.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
+                .unwrap();
         }
 
         let mut pub_key = PUB_KEY;
         pub_key.to_big_endian();
 
         for i in (0..pub_key.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(
-                        RvSize::Word,
-                        OFFSET_PK + i as RvAddr,
-                        make_word(i, &pub_key)
-                    )
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_PK + i as RvAddr,
+                    make_word(i, &pub_key),
+                )
+                .unwrap();
         }
 
         // Good signature
@@ -667,28 +643,22 @@ mod tests {
         signature.to_big_endian();
 
         for i in (0..signature.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(
-                        RvSize::Word,
-                        OFFSET_SIGNATURE + i as RvAddr,
-                        make_word(i, &signature)
-                    )
-                    .ok(),
-                Some(())
-            );
-        }
-
-        assert_eq!(
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_CONTROL,
-                    Control::CTRL::VERIFYING.into()
+                    OFFSET_SIGNATURE + i as RvAddr,
+                    make_word(i, &signature),
                 )
-                .ok(),
-            Some(())
-        );
+                .unwrap();
+        }
+
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::CTRL::VERIFYING.into(),
+            )
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -712,28 +682,22 @@ mod tests {
         signature.to_big_endian();
 
         for i in (0..signature.len()).step_by(4) {
-            assert_eq!(
-                ml_dsa87
-                    .write(
-                        RvSize::Word,
-                        OFFSET_SIGNATURE + i as RvAddr,
-                        make_word(i, &signature)
-                    )
-                    .ok(),
-                Some(())
-            );
-        }
-
-        assert_eq!(
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_CONTROL,
-                    Control::CTRL::VERIFYING.into()
+                    OFFSET_SIGNATURE + i as RvAddr,
+                    make_word(i, &signature),
                 )
-                .ok(),
-            Some(())
-        );
+                .unwrap();
+        }
+
+        ml_dsa87
+            .write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::CTRL::VERIFYING.into(),
+            )
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -775,24 +739,18 @@ mod tests {
             let mut seed = [0xABu8; 32];
             seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
             for i in (0..seed.len()).step_by(4) {
-                assert_eq!(
-                    ml_dsa87
-                        .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
-                        .ok(),
-                    Some(())
-                );
+                ml_dsa87
+                    .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                    .unwrap();
             }
 
             // Instruct seed to be read from key-vault.
             let seed_ctrl = InMemoryRegister::<u32, KvRdSeedCtrl::Register>::new(0);
             seed_ctrl.modify(KvRdSeedCtrl::READ_ENTRY.val(key_id) + KvRdSeedCtrl::READ_EN.val(1));
 
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_KV_RD_SEED_CONTROL, seed_ctrl.get())
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_KV_RD_SEED_CONTROL, seed_ctrl.get())
+                .unwrap();
 
             // Wait for ml_dsa87 periph to retrieve the seed from key-vault.
             loop {
@@ -812,12 +770,9 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
             }
 
-            assert_eq!(
-                ml_dsa87
-                    .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
-                    .ok(),
-                Some(())
-            );
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
+                .unwrap();
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
