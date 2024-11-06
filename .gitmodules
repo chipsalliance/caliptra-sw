@@ -12,3 +12,6 @@
 [submodule "hw/latest/i3c-core-rtl"]
 	path = hw/latest/i3c-core-rtl
 	url = https://github.com/chipsalliance/i3c-core.git
+[submodule "hw/latest/adams-bridge"]
+	path = hw/latest/adams-bridge
+	url = https://github.com/chipsalliance/adams-bridge.git

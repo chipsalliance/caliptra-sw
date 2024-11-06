@@ -25,8 +25,7 @@ pub use sha256::Sha256Mode;
 pub use sha512::Sha512;
 pub use sha512::Sha512Mode;
 
-pub use hmac512::Hmac512;
-pub use hmac512::Hmac512Mode;
+pub use hmac512::{Hmac512, Hmac512Interface, Hmac512Mode};
 
 pub use ecc384::Ecc384;
 pub use ecc384::Ecc384PrivKey;
