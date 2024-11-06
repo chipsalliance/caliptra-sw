@@ -136,21 +136,29 @@ pub struct MlDsa87 {
     verify_res: [u32; ML_DSA87_VERIFICATION_SIZE / 4],
 
     /// Public key
-    #[register_array(offset = 0x0000_0118)]
+    #[register_array(offset = 0x0000_1000)]
     pubkey: [u32; ML_DSA87_PUBKEY_SIZE / 4],
 
     /// Signature
-    #[register_array(offset = 0x0000_0b38)]
+    #[register_array(offset = 0x0000_2000)]
     signature: [u32; ML_DSA87_SIGNATURE_SIZE / 4],
 
     // Private Key In & Out (We don't want to use this)
     /// Key Vault Read Control
-    #[register(offset = 0x6000, write_fn = on_write_kv_rd_seed_ctrl)]
+    #[register(offset = 0x8000, write_fn = on_write_kv_rd_seed_ctrl)]
     kv_rd_seed_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
 
     /// Key Vault Read Status
-    #[register(offset = 0x6004)]
+    #[register(offset = 0x8004)]
     kv_rd_seed_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
+
+    /// Error Global Intr register
+    #[register(offset = 0x0000_810c)]
+    error_global_intr: ReadOnlyRegister<u32>,
+
+    /// Error Internal Intr register
+    #[register(offset = 0x0000_8014)]
+    error_internal_intr: ReadOnlyRegister<u32>,
 
     private_key: [u8; ML_DSA87_PRIVKEY_SIZE],
 
@@ -195,6 +203,8 @@ impl MlDsa87 {
             signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
             kv_rd_seed_ctrl: ReadWriteRegister::new(0),
             kv_rd_seed_status: ReadOnlyRegister::new(0),
+            error_global_intr: ReadOnlyRegister::new(0),
+            error_internal_intr: ReadOnlyRegister::new(0),
             private_key: [0; ML_DSA87_PRIVKEY_SIZE],
             timer: Timer::new(clock),
             key_vault,
@@ -311,8 +321,8 @@ impl MlDsa87 {
     }
 
     fn sign(&mut self) {
-        let seed_bytes = &bytes_from_words_le(&self.seed);
-        let mut rng = StdRng::from_seed(*seed_bytes);
+        let sign_seed = &bytes_from_words_le(&self.sign_rnd);
+        let mut rng = StdRng::from_seed(*sign_seed);
 
         let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
 
@@ -341,11 +351,15 @@ impl MlDsa87 {
 
         let signature = &bytes_from_words_le(&self.signature);
 
-        let result = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
+        let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
 
-        self.verify_res
-            .iter_mut()
-            .for_each(|e| *e = if result { 1 } else { 0 });
+        if success {
+            self.verify_res
+                .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
+        } else {
+            self.verify_res
+                .copy_from_slice(&[0; ML_DSA87_VERIFICATION_SIZE / 4]);
+        }
     }
 
     fn op_complete(&mut self) {
@@ -439,19 +453,12 @@ mod tests {
     const OFFSET_SEED: RvAddr = 0x58;
     const OFFSET_SIGN_RND: RvAddr = 0x78;
     const OFFSET_MSG: RvAddr = 0x98;
-    //    const OFFSET_SK_IN: RvAddr = 0x1620;
-    const OFFSET_PK: RvAddr = 0x118;
-    const OFFSET_SIGNATURE: RvAddr = 0xb38;
-    const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x6000;
-    const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x6004;
+    const OFFSET_PK: RvAddr = 0x1000;
+    const OFFSET_SIGNATURE: RvAddr = 0x2000;
+    const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
+    const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x8004;
 
     include!("./test_data/ml_dsa87_test_data.rs");
-
-    const VERIFICATION_SUCCES: [u8; 64] = [
-        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
-        0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
-        0, 0, 0, 1,
-    ];
 
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
@@ -675,7 +682,7 @@ mod tests {
         let mut result = bytes_from_words_le(&ml_dsa87.verify_res);
         result.to_little_endian();
 
-        assert_eq!(&result, &VERIFICATION_SUCCES);
+        assert_eq!(result, &SIGNATURE[..ML_DSA87_VERIFICATION_SIZE]);
 
         // Bad signature
         let mut signature = [0; SIG_LEN + 1];
