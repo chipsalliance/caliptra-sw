@@ -17,8 +17,8 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
-    KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
+    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
 use caliptra_kat::Hmac384KdfKat;
 use caliptra_registers::csrng::CsrngReg;
@@ -31,7 +31,7 @@ use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -64,6 +64,7 @@ fn test_hmac0() {
         &(&data).into(),
         &mut trng,
         (&mut out_tag).into(),
+        HmacMode::Hmac384,
     );
 
     assert!(actual.is_ok());
@@ -71,7 +72,7 @@ fn test_hmac0() {
 }
 
 fn test_hmac1() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -106,6 +107,7 @@ fn test_hmac1() {
         &(&data).into(),
         &mut trng,
         (&mut out_tag).into(),
+        HmacMode::Hmac384,
     );
 
     assert!(actual.is_ok());
@@ -113,7 +115,7 @@ fn test_hmac1() {
 }
 
 fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &[u8; 48]) {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -150,6 +152,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
             &data.into(),
             &mut trng,
             KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en()).into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
 
@@ -305,7 +308,7 @@ fn test_hmac_kv_multiblock() {
 ///
 ///
 fn test_hmac5() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -357,6 +360,7 @@ fn test_hmac5() {
         &(&data).into(),
         &mut trng,
         (&mut out_tag).into(),
+        HmacMode::Hmac384,
     );
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
@@ -370,13 +374,20 @@ fn test_hmac5() {
         &(&result).into(),
         &mut trng,
         (&mut hmac_step_1).into(),
+        HmacMode::Hmac384,
     );
     assert!(actual.is_ok());
     assert_eq!(hmac_step_1, Array4x12::from(step_1_result_expected));
 
     // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
     let out_tag = KeyWriteArgs::new(KeyId::KeyId5, KeyUsage::default().set_hmac_data_en());
-    let actual = hmac384.hmac(&key.into(), &(&data).into(), &mut trng, out_tag.into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&data).into(),
+        &mut trng,
+        out_tag.into(),
+        HmacMode::Hmac384,
+    );
     assert!(actual.is_ok());
 
     // Data From Key Vault generate HMAC in to output buffer
@@ -388,6 +399,7 @@ fn test_hmac5() {
         &data_input.into(),
         &mut trng,
         (&mut hmac_step_2).into(),
+        HmacMode::Hmac384,
     );
 
     assert!(actual.is_ok());
@@ -402,7 +414,7 @@ fn test_kdf(
     out_pub_x: &[u8; 48],
     out_pub_y: &[u8; 48],
 ) {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -427,6 +439,7 @@ fn test_kdf(
             &(&msg_0.into()),
             &mut trng,
             kdf_key_out.into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
 
@@ -534,7 +547,7 @@ fn test_kdf1() {
 
 // Test using a NIST vector.
 fn test_kdf2() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -579,7 +592,7 @@ fn test_kdf2() {
 }
 
 fn test_hmac_multi_block() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -621,6 +634,7 @@ fn test_hmac_multi_block() {
         &(&data).into(),
         &mut trng,
         (&mut out_tag).into(),
+        HmacMode::Hmac384,
     );
 
     assert!(actual.is_ok());
@@ -628,7 +642,7 @@ fn test_hmac_multi_block() {
 }
 
 fn test_hmac_exact_single_block() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -670,6 +684,7 @@ fn test_hmac_exact_single_block() {
         &(&data).into(),
         &mut trng,
         (&mut out_tag).into(),
+        HmacMode::Hmac384,
     );
 
     assert!(actual.is_ok());
@@ -677,7 +692,7 @@ fn test_hmac_exact_single_block() {
 }
 
 fn test_hmac_multi_block_two_step() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -719,6 +734,7 @@ fn test_hmac_multi_block_two_step() {
             &(&Array4x12::from(key)).into(),
             &mut trng,
             (&mut out_tag).into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
     assert!(hmac_op.update(&data).is_ok());
@@ -728,7 +744,7 @@ fn test_hmac_multi_block_two_step() {
 }
 
 fn test_kat() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
