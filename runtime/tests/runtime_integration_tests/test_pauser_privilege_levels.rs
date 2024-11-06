@@ -15,6 +15,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
+use caliptra_image_types::FwImageType;
 use caliptra_runtime::{
     RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
@@ -534,6 +535,7 @@ fn test_pl0_unset_in_header() {
                 .unwrap(),
                 vendor_config: opts.vendor_config,
                 owner_config: opts.owner_config,
+                fw_image_type: FwImageType::EccLms,
             },
             ecc_index,
             lms_index,

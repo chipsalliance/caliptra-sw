@@ -19,7 +19,7 @@ use crate::{
     ml_dsa87::MlDsa87,
     recovery::RecoveryRegisterInterface,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
+    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_api_types::SecurityState;
@@ -28,7 +28,6 @@ use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
 use std::path::PathBuf;
-use std::rc::Rc;
 use tock_registers::registers::InMemoryRegister;
 
 /// Default Deobfuscation engine key
@@ -211,7 +210,6 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
-    pub recovery_image: Rc<Vec<u8>>,
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
@@ -234,7 +232,6 @@ impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
         Self {
             rom: Default::default(),
-            recovery_image: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
             tb_services_cb: Default::default(),
@@ -262,7 +259,7 @@ pub struct CaliptraRootBus {
     pub ecc384: AsymEcc384,
 
     #[peripheral(offset = 0x1001_0000, mask = 0x0000_07ff)]
-    pub hmac: HmacSha384,
+    pub hmac: HmacSha,
 
     #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
     pub key_vault: KeyVault,
@@ -327,7 +324,6 @@ impl CaliptraRootBus {
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
-        let recovery_image = args.recovery_image.clone();
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -341,12 +337,12 @@ impl CaliptraRootBus {
             rom,
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
-            hmac: HmacSha384::new(clock, key_vault.clone()),
+            hmac: HmacSha::new(clock, key_vault.clone()),
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: MlDsa87::new(clock),
-            recovery: RecoveryRegisterInterface::new(recovery_image),
+            ml_dsa87: MlDsa87::new(clock, key_vault.clone()),
+            recovery: RecoveryRegisterInterface::new(),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

@@ -564,37 +564,20 @@ fn determine_enum_name_from_reg_ty(reg_ty: &RegisterType, field: &RegisterField)
     field.name.clone()
 }
 
-fn all_regs<'a>(
-    regs: &'a [Rc<Register>],
-    sub_blocks: &'a [RegisterSubBlock],
-) -> impl Iterator<Item = &'a Rc<Register>> {
-    // TODO: Do this recursively
-    regs.iter()
-        .chain(sub_blocks.iter().flat_map(|a| a.block().registers.iter()))
-}
-
-fn all_regs_mut<'a>(
-    regs: &'a mut [Rc<Register>],
-    sub_blocks: &'a mut [RegisterSubBlock],
-) -> impl Iterator<Item = &'a mut Rc<Register>> {
-    // TODO: Do this recursively
-    regs.iter_mut().chain(
-        sub_blocks
-            .iter_mut()
-            .flat_map(|a| a.block_mut().registers.iter_mut()),
-    )
+fn all_regs(regs: &[Rc<Register>], sub_blocks: &[RegisterSubBlock]) -> Vec<Rc<Register>> {
+    let mut all_regs_vec: Vec<Rc<Register>> = regs.to_vec();
+    for sub in sub_blocks.iter() {
+        all_regs_vec.extend(all_regs(
+            sub.block().registers.as_slice(),
+            sub.block().sub_blocks.as_slice(),
+        ));
+    }
+    all_regs_vec
 }
 
 impl RegisterBlock {
     pub fn validate_and_dedup(mut self) -> Result<ValidatedRegisterBlock, ValidationError> {
-        self.registers.sort_by_key(|reg| reg.offset);
-        self.sub_blocks
-            .sort_by_key(|sub_array| sub_array.start_offset());
-
-        for sb in self.sub_blocks.iter_mut() {
-            // TODO: Do this recursively
-            sb.block_mut().registers.sort_by_key(|reg| reg.offset);
-        }
+        self.sort_by_offset();
 
         let mut enum_types: HashMap<String, Rc<Enum>> = HashMap::new();
         {
@@ -605,7 +588,7 @@ impl RegisterBlock {
                         enum_names
                             .entry(e.clone())
                             .or_default()
-                            .insert(determine_enum_name(reg, field));
+                            .insert(determine_enum_name(&reg, field));
                     }
                 }
             }
@@ -647,24 +630,8 @@ impl RegisterBlock {
                 }
             }
 
-            for reg in all_regs_mut(&mut self.registers, &mut self.sub_blocks) {
-                let reg = Rc::make_mut(reg);
-                let ty = Rc::make_mut(&mut reg.ty);
-                reg.array_dimensions.retain(|d| *d != 1);
-                if reg.array_dimensions.contains(&0) {
-                    return Err(ValidationError::BadArrayDimension {
-                        block_name: self.name,
-                        reg_name: reg.name.clone(),
-                    });
-                }
-                for field in ty.fields.iter_mut() {
-                    if let Some(ref mut e) = field.enum_type {
-                        if let Some(new_e) = new_enums.get(e) {
-                            *e = new_e.clone();
-                        }
-                    }
-                }
-            }
+            self.clean_array_dimensions_field_enums(&mut new_enums)?;
+
             for e in new_enums.into_values() {
                 let enum_name = e.name.clone().unwrap();
                 if enum_types.contains_key(&enum_name) {
@@ -721,20 +688,15 @@ impl RegisterBlock {
             new_types.insert(reg_type, Rc::new(new_type));
         }
         // Replace the old duplicate register types with the new shared types
-        for reg in all_regs_mut(&mut self.registers, &mut self.sub_blocks) {
-            if let Some(new_type) = new_types.get(&reg.ty) {
-                Rc::make_mut(reg).ty = new_type.clone();
-            }
-        }
-        for reg_type in self.declared_register_types.iter_mut() {
-            if let Some(new_type) = new_types.get(reg_type) {
-                *reg_type = new_type.clone();
-            }
-        }
-        let mut register_types = HashMap::new();
+        self.replace_register_types(&new_types);
+        let mut register_types: HashMap<String, Rc<RegisterType>> = HashMap::new();
         for reg_type in new_types.into_values() {
             let reg_type_name = reg_type.name.clone().unwrap();
             if let Some(existing_reg_type) = register_types.get(&reg_type_name) {
+                if existing_reg_type.equals_except_comment(&reg_type) {
+                    // skip
+                    continue;
+                }
                 println!("Duplicate: {:#?} vs {:#?}", existing_reg_type, reg_type);
                 return Err(ValidationError::DuplicateRegisterTypeName {
                     block_name: self.name,
@@ -749,5 +711,70 @@ impl RegisterBlock {
             register_types,
             enum_types,
         })
+    }
+
+    fn clean_array_dimensions_field_enums(
+        &mut self,
+        new_enums: &mut HashMap<Rc<Enum>, Rc<Enum>>,
+    ) -> Result<(), ValidationError> {
+        for reg in self.registers.iter_mut() {
+            Self::clean_array_dimensions_field_enums_one(&self.name, reg, new_enums)?;
+        }
+        for block in self.sub_blocks.iter_mut() {
+            block
+                .block_mut()
+                .clean_array_dimensions_field_enums(new_enums)?;
+        }
+        Ok(())
+    }
+
+    fn clean_array_dimensions_field_enums_one(
+        block_name: &str,
+        reg: &mut Rc<Register>,
+        new_enums: &mut HashMap<Rc<Enum>, Rc<Enum>>,
+    ) -> Result<(), ValidationError> {
+        let reg = Rc::make_mut(reg);
+        let ty = Rc::make_mut(&mut reg.ty);
+        reg.array_dimensions.retain(|d| *d != 1);
+        if reg.array_dimensions.contains(&0) {
+            return Err(ValidationError::BadArrayDimension {
+                block_name: block_name.to_owned(),
+                reg_name: reg.name.clone(),
+            });
+        }
+        for field in ty.fields.iter_mut() {
+            if let Some(ref mut e) = field.enum_type {
+                if let Some(new_e) = new_enums.get(e) {
+                    *e = new_e.clone();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn replace_register_types(&mut self, new_types: &HashMap<Rc<RegisterType>, Rc<RegisterType>>) {
+        for reg in self.registers.iter_mut() {
+            if let Some(new_type) = new_types.get(&reg.ty) {
+                Rc::make_mut(reg).ty = new_type.clone();
+            }
+        }
+        for reg_type in self.declared_register_types.iter_mut() {
+            if let Some(new_type) = new_types.get(reg_type) {
+                *reg_type = new_type.clone();
+            }
+        }
+        for block in self.sub_blocks.iter_mut() {
+            block.block_mut().replace_register_types(new_types);
+        }
+    }
+
+    fn sort_by_offset(&mut self) {
+        self.registers.sort_by_key(|reg| reg.offset);
+        self.sub_blocks
+            .sort_by_key(|sub_array| sub_array.start_offset());
+
+        for sb in self.sub_blocks.iter_mut() {
+            sb.block_mut().sort_by_offset();
+        }
     }
 }

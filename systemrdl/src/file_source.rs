@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::string_arena::StringArena;
-use std::path::Path;
+use std::{cell::RefCell, path::Path};
 
 #[cfg(test)]
 use std::{
@@ -17,19 +17,35 @@ pub trait FileSource {
 #[derive(Default)]
 pub struct FsFileSource {
     arena: StringArena,
+    patches: RefCell<Vec<(String, String, String)>>,
 }
 
 impl FsFileSource {
     pub fn new() -> Self {
         FsFileSource {
             arena: StringArena::new(),
+            patches: RefCell::new(Vec::new()),
         }
+    }
+
+    pub fn add_patch(&self, path: &Path, from: &str, to: &str) {
+        self.patches.borrow_mut().push((
+            path.display().to_string(),
+            from.to_owned(),
+            to.to_owned(),
+        ));
     }
 }
 
 impl FileSource for FsFileSource {
     fn read_to_string(&self, path: &Path) -> std::io::Result<&str> {
-        Ok(self.arena.add(std::fs::read_to_string(path)?))
+        let mut contents = std::fs::read_to_string(path)?;
+        for (patch_path, from, to) in self.patches.borrow().iter() {
+            if path.display().to_string() == *patch_path {
+                contents = contents.replace(from, to);
+            }
+        }
+        Ok(self.arena.add(contents))
     }
 }
 

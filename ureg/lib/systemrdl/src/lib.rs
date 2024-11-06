@@ -8,10 +8,10 @@ use ureg::{RegisterSubBlock, RegisterType};
 
 use std::rc::Rc;
 
-use caliptra_systemrdl as systemrdl;
+use caliptra_systemrdl::{self as systemrdl, Value};
 use caliptra_systemrdl::{ComponentType, ScopeType};
 use systemrdl::{AccessType, InstanceRef, ParentScope, RdlError};
-use ureg_schema as ureg;
+use ureg_schema::{self as ureg, FieldType, RegisterField, RegisterWidth};
 use ureg_schema::{RegisterBlock, RegisterBlockInstance};
 
 fn unpad_description(desc: &str) -> String {
@@ -195,6 +195,88 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
 
     Ok(result)
 }
+
+// Translates a memory into a register array
+fn translate_mem(iref: systemrdl::InstanceRef, start_offset: u64) -> Result<ureg::Register, Error> {
+    let wrap_err = |err: Error| Error::RegisterError {
+        register_name: iref.instance.name.clone(),
+        err: Box::new(err),
+    };
+
+    expect_instance_type(iref.scope, ComponentType::Mem.into()).map_err(wrap_err)?;
+    let inst = iref.instance;
+
+    let description: String = inst
+        .scope
+        .property_val_opt("desc")
+        .unwrap()
+        .unwrap_or_default();
+
+    if inst.reset.is_some() {
+        return Err(wrap_err(Error::ResetValueOnRegisterUnsupported));
+    }
+
+    let mut ty = RegisterType {
+        name: inst.type_name.clone(),
+        fields: vec![],
+        width: RegisterWidth::_32,
+    };
+
+    if let Some(Value::U64(memwidth)) = iref.instance.scope.properties.get("memwidth") {
+        ty.width = match *memwidth {
+            8 => RegisterWidth::_8,
+            16 => RegisterWidth::_16,
+            32 => RegisterWidth::_32,
+            64 => RegisterWidth::_64,
+            128 => RegisterWidth::_128,
+            _ => return Err(wrap_err(Error::UnsupportedRegWidth(*memwidth))),
+        }
+    };
+    let mut double = 1;
+    if ty.width == RegisterWidth::_128 {
+        // hack: convert to four u32s
+        ty.width = RegisterWidth::_32;
+        double = 4;
+    } else if ty.width == RegisterWidth::_64 {
+        // hack: convert to two u32s
+        ty.width = RegisterWidth::_32;
+        double = 2;
+    }
+    let entries = match iref.instance.scope.properties.get("mementries") {
+        Some(Value::U64(mementries)) => *mementries * double,
+        _ => return Err(wrap_err(Error::ValueNotDefined)),
+    };
+    let access_type = match iref.instance.scope.properties.get("sw") {
+        Some(Value::AccessType(AccessType::Rw)) => FieldType::RW,
+        Some(Value::AccessType(AccessType::Rw1)) => FieldType::RW,
+        Some(Value::AccessType(AccessType::R)) => FieldType::RO,
+        Some(Value::AccessType(AccessType::W)) => FieldType::WO,
+        Some(Value::AccessType(AccessType::W1)) => FieldType::WO,
+        _ => FieldType::RW,
+    };
+
+    ty.fields.push(RegisterField {
+        name: "single".to_string(),
+        ty: access_type,
+        default_val: 0,
+        comment: "".to_string(),
+        enum_type: None,
+        position: 0,
+        width: (ty.width.in_bytes() * 8) as u8,
+    });
+
+    let result = ureg_schema::Register {
+        name: inst.name.clone(),
+        offset: inst.offset.unwrap_or(start_offset),
+        default_val: 0,
+        comment: unpad_description(&description),
+        array_dimensions: vec![entries],
+        ty: Rc::new(ty),
+    };
+
+    Ok(result)
+}
+
 fn translate_register_ty(
     type_name: Option<String>,
     scope: ParentScope,
@@ -250,24 +332,54 @@ pub fn translate_types(scope: systemrdl::ParentScope) -> Result<Vec<Rc<RegisterT
     Ok(result)
 }
 
-fn prod(nums: &[u64]) -> u64 {
-    if nums.is_empty() {
-        1
-    } else {
-        nums.iter().product()
-    }
-}
-
-/// Calculates offset automatically.
+/// Calculates size of the register block.
 fn calculate_reg_size(block: &RegisterBlock) -> Option<u64> {
     block
         .registers
         .iter()
-        .map(|r| r.offset + r.ty.width.in_bytes() * prod(&r.array_dimensions))
+        .map(|r| r.offset + r.ty.width.in_bytes() * r.array_dimensions.iter().product::<u64>())
         .max()
 }
 
-fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
+fn calculate_mem_size(iref: systemrdl::InstanceRef) -> u64 {
+    let bits = match iref.instance.scope.properties.get("memwidth") {
+        Some(Value::U64(memwidth)) => *memwidth,
+        _ => 32,
+    };
+    let entries = match iref.instance.scope.properties.get("mementries") {
+        Some(Value::U64(mementries)) => *mementries,
+        _ => panic!("No mementries found for memory"),
+    };
+    bits / 8 * entries
+}
+
+fn next_multiple_of(x: u64, mult: u64) -> u64 {
+    assert!(mult > 0);
+    if x % mult == 0 {
+        x
+    } else {
+        x + (mult - x % mult)
+    }
+}
+
+#[cfg(test)]
+mod next_multiple_of_tests {
+    use super::*;
+    #[test]
+    fn test_next_multiple_of() {
+        assert_eq!(0, next_multiple_of(0, 3));
+        assert_eq!(3, next_multiple_of(1, 3));
+        assert_eq!(3, next_multiple_of(2, 3));
+        assert_eq!(3, next_multiple_of(3, 3));
+        assert_eq!(6, next_multiple_of(4, 3));
+        for i in 1..128 {
+            assert_eq!(128, next_multiple_of(i, 128));
+            assert_eq!(256, next_multiple_of(128 + i, 128));
+        }
+    }
+}
+
+fn translate_block(iref: InstanceRef, top: bool) -> Result<RegisterBlock, Error> {
     let wrap_err = |err: Error| Error::BlockError {
         block_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -292,23 +404,58 @@ fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
     }
     let mut next_offset = Some(0u64);
     for child in iref.scope.instance_iter() {
+        let parent_offset = if top {
+            0
+        } else {
+            iref.instance.offset.unwrap_or_default()
+        };
+
         if child.instance.scope.ty == ComponentType::Reg.into() {
-            block
-                .registers
-                .push(Rc::new(translate_register(child).map_err(wrap_err)?));
+            let r = Rc::new(translate_register(child).map_err(wrap_err)?);
+            block.registers.push(r.clone());
+            next_offset =
+                Some(r.offset + r.ty.width.in_bytes() * r.array_dimensions.iter().product::<u64>());
+        } else if child.instance.scope.ty == ComponentType::Mem.into() {
+            let mem_size = calculate_mem_size(child);
+            let start_offset = child
+                .instance
+                .offset
+                .map(|o| parent_offset + o)
+                .or(next_offset.map(|o| {
+                    // align according to RDL spec
+                    // TODO: when we upgrade Rust we can use o.next_multple_of()
+                    next_multiple_of(o, mem_size.next_power_of_two())
+                }))
+                .expect("Offset not defined for memory and could not calculate automatically");
+            next_offset = Some(start_offset + calculate_mem_size(child));
+            block.registers.push(Rc::new(
+                translate_mem(child, start_offset).map_err(wrap_err)?,
+            ));
         } else if child.instance.scope.ty == ComponentType::RegFile.into() {
-            let Some(start_offset) = child.instance.offset.or(next_offset) else {
-                panic!("Offset not defined for register file {:?} and could not calculate automatically", child.instance.name);
-            };
-            let next_block = translate_block(child)?;
+            let next_block = translate_block(child, false)?;
+            let next_block_size = calculate_reg_size(&next_block);
+            let start_offset = child
+                .instance
+                .offset
+                .map(|o| parent_offset + o)
+                .or(next_offset.map(|o| {
+                    if let Some(size) = next_block_size {
+                        // align according to RDL spec
+                        // TODO: when we upgrade Rust we can use o.next_multple_of()
+                        next_multiple_of(o, size.next_power_of_two())
+                    } else {
+                        o
+                    }
+                }))
+                .expect(
+                    "Offset not defined for register file and could not calculate automatically",
+                );
             next_offset = calculate_reg_size(&next_block).map(|size| start_offset + size);
             block.sub_blocks.push(RegisterSubBlock::Single {
                 block: next_block,
                 start_offset,
             });
-        } else if child.instance.scope.ty == ComponentType::Signal.into()
-            || child.instance.scope.ty == ComponentType::Mem.into()
-        {
+        } else if child.instance.scope.ty == ComponentType::Signal.into() {
             // ignore
             next_offset = None;
         } else {
@@ -322,7 +469,7 @@ pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<Register
     expect_instance_type(addrmap, ComponentType::AddrMap.into())?;
     let mut blocks = vec![];
     for iref in addrmap.instance_iter() {
-        blocks.push(translate_block(iref)?);
+        blocks.push(translate_block(iref, true)?);
     }
     Ok(blocks)
 }
