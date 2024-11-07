@@ -19,6 +19,7 @@ use caliptra_image_types::RomInfo;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
         let pdata = drivers.persistent_data.get();
 
@@ -51,6 +52,7 @@ impl FwInfoCmd {
 
 pub struct IDevIdInfoCmd;
 impl IDevIdInfoCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
         let pdata = drivers.persistent_data.get();
         let pub_key = pdata.fht.idev_dice_pub_key;

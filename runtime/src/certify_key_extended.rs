@@ -34,6 +34,7 @@ use crate::{
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = CertifyKeyExtendedReq::read_from(cmd_args)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;

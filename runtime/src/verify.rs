@@ -28,6 +28,7 @@ use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = EcdsaVerifyReq::read_from(cmd_args)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
@@ -60,6 +61,7 @@ impl EcdsaVerifyCmd {
 pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         // Re-run LMS KAT once (since LMS is more SW-based than other crypto)
         if let Err(e) =

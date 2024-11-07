@@ -20,6 +20,7 @@ use caliptra_error::CaliptraResult;
 
 pub struct CapabilitiesCmd;
 impl CapabilitiesCmd {
+    #[inline(never)]
     pub(crate) fn execute() -> CaliptraResult<MailboxResp> {
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::RT_BASE;
