@@ -24,8 +24,7 @@ STACK_ORG        = 0x5001C000;
 ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
 
-
-ICCM_SIZE         = 128K;
+ICCM_SIZE         = 16K;
 DCCM_SIZE         = 128K;
 DATA_SIZE         = 93K;
 STACK_SIZE        = 14K;
@@ -80,6 +79,14 @@ SECTIONS
 		. = ALIGN(4);
 	    _edata = .;
 	} > DATA AT> ICCM
+
+    .padding : ALIGN(4)
+    {
+        _padding = .;
+        . += ICCM_SIZE - SIZEOF(.rodata) - SIZEOF(.text) - SIZEOF(.data) - 1;
+        BYTE(0xff);
+        _epadding = .;
+    } > ICCM
 
 	.bss (NOLOAD) : ALIGN(4) 
     {

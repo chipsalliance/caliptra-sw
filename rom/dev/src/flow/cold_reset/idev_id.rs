@@ -266,7 +266,8 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
-        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+        let ecdsa384_sig = sig.to_ecdsa();
+        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
         sig.zeroize();
 
