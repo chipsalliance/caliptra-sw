@@ -90,9 +90,11 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         device_fwids: &[FwidParam],
         fmc_fwids: &[FwidParam],
     ) -> Self {
+        // This method of finding the offsets is fragile. Especially for the 1 byte values.
+        // These may need to be updated to stay unique when the cert template is updated.
         let flags: u32 = 0xC0C1C2C3;
         let svn: u8 = 0xC4;
-        let svn_fuses: u8 = 0xC5;
+        let svn_fuses: u8 = 0xC6;
 
         self.exts
             .push(x509::make_fmc_dice_tcb_info_ext(

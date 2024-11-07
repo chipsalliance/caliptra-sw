@@ -86,10 +86,13 @@ fn main() {
         use x509_parser::signature_value::EcdsaSigValue;
 
         let ws_dir = workspace_dir();
-        let ldev_file = std::fs::read(
-            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der"),
-        )
-        .unwrap();
+        let ldev_file_path =
+            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+        println!(
+            "cargo:rerun-if-changed={}",
+            ldev_file_path.to_str().unwrap()
+        );
+        let ldev_file = std::fs::read(ldev_file_path).unwrap();
 
         let mut parser = X509CertificateParser::new();
         let (_, cert) = parser.parse(&ldev_file).unwrap();

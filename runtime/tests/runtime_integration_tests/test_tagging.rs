@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult};
+use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
@@ -20,7 +20,7 @@ const BAD_HANDLE: [u8; 16] = [1u8; 16];
 
 #[test]
 fn test_tagging_default_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // Tag default context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -52,7 +52,7 @@ fn test_tagging_default_context() {
 
 #[test]
 fn test_tagging_a_tagged_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // Tag default context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -85,7 +85,7 @@ fn test_tagging_a_tagged_context() {
 
 #[test]
 fn test_duplicate_tag() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // Tag default context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -118,7 +118,7 @@ fn test_duplicate_tag() {
 
 #[test]
 fn test_get_tagged_tci_on_non_existent_tag() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // Check that DPE_GET_TAGGED_TCI fails if the tag does not exist
     let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
@@ -141,7 +141,7 @@ fn test_get_tagged_tci_on_non_existent_tag() {
 
 #[test]
 fn test_tagging_inactive_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // check that we cannot tag an inactive context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -162,7 +162,7 @@ fn test_tagging_inactive_context() {
 
 #[test]
 fn test_tagging_destroyed_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // Tag default context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -210,7 +210,7 @@ fn test_tagging_destroyed_context() {
 
 #[test]
 fn test_tagging_retired_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     // retire context via DeriveContext
     let derive_context_cmd = DeriveContextCmd {

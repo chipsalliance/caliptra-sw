@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
@@ -382,7 +383,7 @@ impl From<u32> for MfgFlags {
 }
 
 /// Reset Reason
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Launder)]
 pub enum ResetReason {
     /// Cold Reset
     ColdReset,

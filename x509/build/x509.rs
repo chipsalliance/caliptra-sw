@@ -316,12 +316,12 @@ pub fn make_fmc_dice_tcb_info_ext(
     let wide_svn_fuses = fixed_width_svn(svn_fuses);
 
     let be_flags = flags.to_be_bytes();
-    let be_flags_mask = FLAG_MASK.to_be_bytes();
+    let be_flags_mask = FLAG_MASK.reverse_bits().to_be_bytes();
 
     let device_asn1_fwids: Vec<&Fwid> = device_fwids.iter().map(|f| &f.fwid).collect();
     let device_info = TcbInfo {
-        vendor: Some(asn1::Utf8String::new("Caliptra")),
-        model: Some(asn1::Utf8String::new("Device")),
+        vendor: None,
+        model: None,
         version: None,
         svn: Some(wide_svn_fuses.into()),
         layer: None,
@@ -335,8 +335,8 @@ pub fn make_fmc_dice_tcb_info_ext(
 
     let fmc_asn1_fwids: Vec<&Fwid> = fmc_fwids.iter().map(|f| &f.fwid).collect();
     let fmc_info = TcbInfo {
-        vendor: Some(asn1::Utf8String::new("Caliptra")),
-        model: Some(asn1::Utf8String::new("FMC")),
+        vendor: None,
+        model: None,
         version: None,
         svn: Some(wide_svn.into()),
         layer: None,
@@ -362,8 +362,8 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
     let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
 
     let rt_info = TcbInfo {
-        vendor: Some(asn1::Utf8String::new("Caliptra")),
-        model: Some(asn1::Utf8String::new("RT")),
+        vendor: None,
+        model: None,
         version: None,
         svn: Some(wide_svn.into()),
         layer: None,
@@ -421,6 +421,16 @@ pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
 pub fn init_param(needle: &[u8], haystack: &[u8], param: TbsParam) -> TbsParam {
     assert_eq!(needle.len(), param.len);
     eprintln!("{}", param.name);
+    // Throw an error if there are multiple instances of our "needle"
+    // This could lead to incorrect offsets in the cert template
+    if haystack.windows(param.len).filter(|w| *w == needle).count() > 1 {
+        panic!(
+            "Multiple instances of needle '{}' with value\n\n{}\n\nin haystack\n\n{}",
+            param.name,
+            needle.encode_hex::<String>(),
+            haystack.encode_hex::<String>()
+        );
+    }
     let pos = haystack.windows(param.len).position(|w| w == needle);
 
     match pos {
