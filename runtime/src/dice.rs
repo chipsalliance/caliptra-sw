@@ -28,6 +28,7 @@ use zerocopy::AsBytes;
 
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
+    #[inline(never)]
     pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
             let mut cmd = GetIdevCertReq::default();
@@ -65,6 +66,7 @@ impl IDevIdCertCmd {
 
 pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetLdevCertResp::default();
 
@@ -80,6 +82,7 @@ impl GetLdevCertCmd {
 
 pub struct GetFmcAliasCertCmd;
 impl GetFmcAliasCertCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetFmcAliasCertResp::default();
 
@@ -95,6 +98,7 @@ impl GetFmcAliasCertCmd {
 
 pub struct GetRtAliasCertCmd;
 impl GetRtAliasCertCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetRtAliasCertResp::default();
 

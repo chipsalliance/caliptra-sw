@@ -212,6 +212,7 @@ pub mod fips_self_test_cmd {
 pub struct FipsShutdownCmd;
 impl FipsShutdownCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         FipsModule::zeroize(env);
         env.is_shutdown = true;
