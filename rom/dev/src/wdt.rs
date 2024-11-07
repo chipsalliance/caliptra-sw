@@ -21,6 +21,8 @@ use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::WdtTimeout;
 use caliptra_drivers::SocIfc;
 
+use crate::cprintln;
+
 /// Start the Watchdog Timer
 /// Note: WDT is configured only if the device is in non-debug mode (i.e debug_locked = 1)
 ///
@@ -34,9 +36,15 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
         if wdt_timeout_cycles == 0 {
             wdt_timeout_cycles = 1;
         }
+        cprintln!(
+            "[state] Starting the WD Timer {} cycles",
+            wdt_timeout_cycles
+        );
         caliptra_common::wdt::start_wdt(
             soc_ifc,
             WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
         );
+    } else {
+        cprintln!("[state] WD Timer not started. Device not locked for debugging");
     }
 }
