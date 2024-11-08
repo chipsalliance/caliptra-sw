@@ -62,7 +62,7 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
-            let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
+            Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
             let mut venv = FirmwareImageVerificationEnv {
@@ -75,7 +75,10 @@ impl UpdateResetFlow {
                 image: recv_txn.raw_mailbox_contents(),
             };
 
-            let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
+            let info = {
+                let manifest = &env.persistent_data.get().manifest2;
+                Self::verify_image(&mut venv, manifest, recv_txn.dlen())
+            };
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
@@ -91,7 +94,8 @@ impl UpdateResetFlow {
                 info.vendor_ecc_pub_key_idx
             );
 
-            Self::load_image(&manifest, &mut recv_txn)?;
+            let manifest = &env.persistent_data.get().manifest2;
+            Self::load_image(manifest, &mut recv_txn)?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -197,9 +201,9 @@ impl UpdateResetFlow {
     fn load_manifest(
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
-    ) -> CaliptraResult<ImageManifest> {
+    ) -> CaliptraResult<()> {
         txn.copy_request(persistent_data.manifest2.as_bytes_mut())?;
-        Ok(persistent_data.manifest2)
+        Ok(())
     }
 
     /// Populate data vault
