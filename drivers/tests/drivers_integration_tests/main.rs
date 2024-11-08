@@ -336,6 +336,11 @@ fn test_ecc384_sign_validation_failure() {
 }
 
 #[test]
+fn test_ml_dsa87() {
+    run_driver_test(&firmware::driver_tests::ML_DSA87);
+}
+
+#[test]
 fn test_error_reporter() {
     run_driver_test(&firmware::driver_tests::ERROR_REPORTER);
 }

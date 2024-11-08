@@ -178,3 +178,8 @@ required-features = ["riscv"]
 name = "axi_dma_tests"
 path = "src/bin/dma_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "ml_dsa87"
+path = "src/bin/mldsa87_tests.rs"
+required-features = ["riscv"]
