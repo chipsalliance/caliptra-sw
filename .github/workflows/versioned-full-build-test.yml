@@ -1,0 +1,59 @@
+name: Versioned Build Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      firmware-version:
+        default: "main"
+        type: string
+
+  pull_request:
+    inputs:
+      todo-remove-before-merging:
+        default: ""
+        type: string
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      firmware-version:
+        default: "main"
+        type: string
+
+jobs:
+  fpga-full-suite-etrng-log:
+    name: FPGA Suite (etrng, log)
+
+  fpga-full-suite-etrng-nolog:
+    name: FPGA Suite (etrng, nolog)
+
+  fpga-full-suite-itrng-log:
+    name: FPGA Suite (itrng, log)
+
+  fpga-full-suite-itrng-nolog:
+    name: FPGA Suite (itrng, nolog)
+
+  sw-emulator-full-suite-etrng-log:
+    name: sw-emulator Suite (etrng, log)
+
+  sw-emulator-full-suite-etrng-nolog:
+    name: sw-emulator Suite (etrng, nolog)
+
+  sw-emulator-full-suite-itrng-log:
+    name: sw-emulator Suite (itrng, log)
+
+  sw-emulator-full-suite-itrng-nolog:
+    name: sw-emulator Suite (itrng, nolog)
+
+  build-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
