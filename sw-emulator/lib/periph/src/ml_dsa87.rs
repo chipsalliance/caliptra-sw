@@ -145,11 +145,11 @@ pub struct MlDsa87 {
 
     // Private Key In & Out (We don't want to use this)
     /// Key Vault Read Control
-    #[register(offset = 0x8000, write_fn = on_write_kv_rd_seed_ctrl)]
+    #[register(offset = 0x0000_8000, write_fn = on_write_kv_rd_seed_ctrl)]
     kv_rd_seed_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
 
     /// Key Vault Read Status
-    #[register(offset = 0x8004)]
+    #[register(offset = 0x0000_8004)]
     kv_rd_seed_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
 
     /// Error Global Intr register
@@ -224,7 +224,6 @@ impl MlDsa87 {
 
     fn zeroize(&mut self) {
         self.control.reg.set(0);
-        self.status.reg.set(0);
         self.seed = Default::default();
         self.sign_rnd = Default::default();
         self.msg = Default::default();
@@ -337,8 +336,7 @@ impl MlDsa87 {
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-        self.signature
-            .copy_from_slice(&words_from_bytes_le(&signature_extended));
+        self.signature = words_from_bytes_le(&signature_extended);
     }
 
     fn verify(&mut self) {

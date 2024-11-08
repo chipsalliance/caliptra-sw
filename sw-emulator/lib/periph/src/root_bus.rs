@@ -270,11 +270,11 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1002_8000, mask = 0x0000_7fff)]
     pub sha256: HashSha256,
 
-    #[peripheral(offset = 0x1003_0000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1003_0000, mask = 0x0000_ffff)]
     pub ml_dsa87: MlDsa87,
 
-    // We set I3C at 0x1003_8000 and EC is at 0x100 offset
-    #[peripheral(offset = 0x1003_8100, mask = 0x0000_7fff)] // TODO
+    // We set I3C at 0x1004_0000 and EC is at 0x100 offset
+    #[peripheral(offset = 0x1004_0100, mask = 0x0000_7fff)] // TODO
     pub recovery: RecoveryRegisterInterface,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]

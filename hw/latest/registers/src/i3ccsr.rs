@@ -13,7 +13,7 @@ pub struct I3ccsr {
     _priv: (),
 }
 impl I3ccsr {
-    pub const PTR: *mut u32 = 0x10038000 as *mut u32;
+    pub const PTR: *mut u32 = 0x10040000 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
