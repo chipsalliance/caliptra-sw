@@ -31,7 +31,7 @@ use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
-    let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -59,7 +59,7 @@ fn test_hmac0() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let actual = hmac384.hmac(
+    let actual = hmac.hmac(
         &(&Array4x12::from(key)).into(),
         &(&data).into(),
         &mut trng,

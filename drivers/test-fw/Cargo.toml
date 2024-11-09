@@ -55,6 +55,11 @@ path = "src/bin/hmac384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "hmac512"
+path = "src/bin/hmac512_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "doe"
 path = "src/bin/doe_tests.rs"
 required-features = ["riscv"]

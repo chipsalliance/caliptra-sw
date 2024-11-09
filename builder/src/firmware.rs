@@ -189,6 +189,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const HMAC512: FwId = FwId {
+        bin_name: "hmac512",
+        ..BASE_FWID
+    };
+
     pub const KEYVAULT: FwId = FwId {
         bin_name: "keyvault",
         ..BASE_FWID
@@ -415,6 +420,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
     &driver_tests::ERROR_REPORTER,
     &driver_tests::HMAC384,
+    &driver_tests::HMAC512,
     &driver_tests::KEYVAULT,
     &driver_tests::KEYVAULT_FPGA,
     &driver_tests::MAILBOX_DRIVER_RESPONDER,
