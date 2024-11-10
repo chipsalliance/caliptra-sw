@@ -47,9 +47,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         let slice = config.image_metadata_list.as_slice();
         auth_manifest.image_metadata_col.image_metadata_list[..slice.len()].copy_from_slice(slice);
 
-        auth_manifest.image_metadata_col.header.entry_count =
-            config.image_metadata_list.len() as u32;
-        auth_manifest.image_metadata_col.header.revision = 0; // [TODO] Need to update this.
+        auth_manifest.image_metadata_col.entry_count = config.image_metadata_list.len() as u32;
 
         // Generate the preamble.
         auth_manifest.preamble.marker = AUTH_MANIFEST_MARKER;
@@ -118,7 +116,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         // Sign the IMC with the vendor manifest public keys if indicated in the flags.
         if config
             .flags
-            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED)
+            .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
         {
             if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
