@@ -948,7 +948,7 @@ pub struct SetAuthManifestReq {
     pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
 }
 impl SetAuthManifestReq {
-    pub const MAX_MAN_SIZE: usize = 8192;
+    pub const MAX_MAN_SIZE: usize = 14 * 1024;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
         if self.manifest_size as usize > Self::MAX_MAN_SIZE {

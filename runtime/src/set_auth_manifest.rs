@@ -18,8 +18,8 @@ use core::mem::size_of;
 use crate::verify;
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadataCollection,
-    AuthManifestImageMetadataCollectionHeader, AuthManifestPreamble, AUTH_MANIFEST_MARKER,
+    AuthManifestFlags, AuthManifestImageMetadataCollection, AuthManifestPreamble,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -30,7 +30,6 @@ use caliptra_drivers::{
     pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
     CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
     PersistentData, RomPqcVerifyConfig, Sha256, Sha384, SocIfc,
-    AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
 };
 use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
@@ -221,7 +220,7 @@ impl SetAuthManifestCmd {
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
         let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
-        if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQURIED) {
+        if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
             return Ok(());
         }
         // Verify the vendor ECC signature over the image metadata collection.
@@ -340,7 +339,7 @@ impl SetAuthManifestCmd {
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        if cmd_buf.len() < size_of::<AuthManifestImageMetadataCollectionHeader>() {
+        if cmd_buf.len() < size_of::<u32>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
         }
 
@@ -354,9 +353,8 @@ impl SetAuthManifestCmd {
 
         image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
 
-        if image_metadata_col.header.entry_count == 0
-            || image_metadata_col.header.entry_count
-                > AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT as u32
+        if image_metadata_col.entry_count == 0
+            || image_metadata_col.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
         }
