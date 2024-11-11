@@ -18,6 +18,7 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use super::x509::X509;
 use crate::cprintln;
+use crate::flow::cold_reset::crypto::MlDsaKeyPair;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -25,7 +26,9 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::dice;
-use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::keyids::{
+    KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
@@ -45,7 +48,7 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
         cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
+        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_ECDSA_PRIV_KEY as u8);
         cprintln!(
             "[afmc] AUTHORITY.KEYID = {}",
             input.auth_key_pair.priv_key as u8
@@ -60,26 +63,33 @@ impl FmcAliasLayer {
         result?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_PRIV_KEY)?;
+        let ecc_key_pair =
+            Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_ECDSA_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::subj_key_id(env, &ecc_key_pair.pub_key)?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let mut output = DiceOutput {
-            subj_key_pair: key_pair,
-            subj_sn,
-            subj_key_id,
+            ecc_subj_key_pair: ecc_key_pair,
+            ecc_subj_sn,
+            ecc_subj_key_id,
+            mldsa_subj_key_id: [0; 20],
+            mldsa_subj_key_pair: MlDsaKeyPair {
+                key_pair_seed: KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
+                pub_key: Default::default(),
+            },
+            mldsa_subj_sn: [0; 64],
         };
 
-        // Generate Local Device ID Certificate
+        // Generate FMC Alias Certificate
         let result = Self::generate_cert_sig(env, input, &output, fw_proc_info);
         output.zeroize();
         result?;
@@ -150,7 +160,7 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.auth_key_pair.priv_key;
         let auth_pub_key = &input.auth_key_pair.pub_key;
-        let pub_key = &output.subj_key_pair.pub_key;
+        let pub_key = &output.ecc_subj_key_pair.pub_key;
 
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
@@ -177,8 +187,8 @@ impl FmcAliasLayer {
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
-            subject_sn: &output.subj_sn,
-            subject_key_id: &output.subj_key_id,
+            subject_sn: &output.ecc_subj_sn,
+            subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.auth_sn,
             authority_key_id: input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,

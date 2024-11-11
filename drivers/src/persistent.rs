@@ -16,7 +16,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    FirmwareHandoffTable,
+    FirmwareHandoffTable, MlDsa87PubKey,
 };
 
 #[cfg(feature = "runtime")]
@@ -55,6 +55,10 @@ pub struct PersistentData {
 
     pub fht: FirmwareHandoffTable,
     reserved2: [u8; memory_layout::FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
+
+    pub idevid_mldsa_pub_key: MlDsa87PubKey,
+    reserved2_1:
+        [u8; memory_layout::IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize - size_of::<MlDsa87PubKey>()],
 
     // TODO: Do we want to hide these fields from the FMC/runtime and force them
     // to go through the FHT addresses?
@@ -110,6 +114,10 @@ impl PersistentData {
             assert_eq!(addr_of!((*P).manifest1) as u32, layout::MAN1_ORG);
             assert_eq!(addr_of!((*P).manifest2) as u32, layout::MAN2_ORG);
             assert_eq!(addr_of!((*P).fht) as u32, layout::FHT_ORG);
+            assert_eq!(
+                addr_of!((*P).idevid_mldsa_pub_key) as u32,
+                layout::IDEVID_MLDSA_PUB_KEY_ORG
+            );
             assert_eq!(addr_of!((*P).ldevid_tbs) as u32, layout::LDEVID_TBS_ORG);
             assert_eq!(addr_of!((*P).fmcalias_tbs) as u32, layout::FMCALIAS_TBS_ORG);
             assert_eq!(addr_of!((*P).rtalias_tbs) as u32, layout::RTALIAS_TBS_ORG);

@@ -67,8 +67,8 @@ fn retrieve_csr_test() {
     let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
-    // std::fs::write("tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
     println!("csr: {}", csr_txt);
 
@@ -215,8 +215,8 @@ fn smoke_test() {
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
     // To update the ldev cert testdata:
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),

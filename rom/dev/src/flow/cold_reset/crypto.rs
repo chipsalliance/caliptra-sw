@@ -40,12 +40,23 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 /// DICE  Layer Key Pair
 #[derive(Debug, Zeroize)]
 pub struct Ecc384KeyPair {
-    /// Private Key
+    /// Private Key KV Slot Id
     #[zeroize(skip)]
     pub priv_key: KeyId,
 
     /// Public Key
     pub pub_key: Ecc384PubKey,
+}
+
+/// DICE  Layer Key Pair
+#[derive(Debug, Zeroize)]
+pub struct MlDsaKeyPair {
+    /// Key Pair Generation KV Slot Id
+    #[zeroize(skip)]
+    pub key_pair_seed: KeyId,
+
+    /// Public Key
+    pub pub_key: MlDsa87PubKey,
 }
 
 pub enum Crypto {}
@@ -226,5 +237,39 @@ impl Crypto {
         let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
         digest.0.zeroize();
         result
+    }
+
+    /// Generate MLDSA Key Pair
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `cdi` - Key slot to retrieve the CDI from
+    /// * `label` - Value for hmac kdf.
+    /// * `key_pair_seed` - Key slot to store the keypair generation seed.
+    ///
+    /// # Returns
+    ///
+    /// * `MlDsa87PubKey` - Public key
+    #[inline(always)]
+    pub fn mldsa_key_gen(
+        env: &mut RomEnv,
+        cdi: KeyId,
+        label: &[u8],
+        key_pair_seed: KeyId,
+    ) -> CaliptraResult<MlDsaKeyPair> {
+        // Generate the seed for key pair generation.
+        // [CAP2][TODO] Change this to hmac512_kdfwhen available.
+        Crypto::hmac384_kdf(env, cdi, label, None, key_pair_seed)?;
+
+        // Generate the public key.
+        let pub_key = env
+            .mldsa
+            .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
+
+        Ok(MlDsaKeyPair {
+            key_pair_seed,
+            pub_key,
+        })
     }
 }
