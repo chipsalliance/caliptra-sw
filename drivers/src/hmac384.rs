@@ -249,7 +249,7 @@ impl Hmac384 {
         self.hmac
             .regs_mut()
             .hmac512_ctrl()
-            .write(|w| w.zeroize(true));
+            .write(|w| w.zeroize(true).mode(false));
     }
 
     /// Zeroize the hardware registers.
@@ -264,7 +264,9 @@ impl Hmac384 {
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
         let mut hmac = HmacReg::new();
-        hmac.regs_mut().hmac512_ctrl().write(|w| w.zeroize(true));
+        hmac.regs_mut()
+            .hmac512_ctrl()
+            .write(|w| w.zeroize(true).mode(false));
     }
 
     ///
@@ -445,10 +447,12 @@ impl Hmac384 {
 
         if first {
             // Submit the first block
-            hmac.hmac512_ctrl().write(|w| w.init(true).next(false));
+            hmac.hmac512_ctrl()
+                .write(|w| w.init(true).next(false).mode(false));
         } else {
             // Submit next block in existing hashing chain
-            hmac.hmac512_ctrl().write(|w| w.init(false).next(true));
+            hmac.hmac512_ctrl()
+                .write(|w| w.init(false).next(true).mode(false));
         }
 
         // Wait for the hmac operation to finish

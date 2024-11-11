@@ -373,7 +373,11 @@ fn generate_register(reg: &RegisterType) -> TokenStream {
     for field in reg.fields.iter() {
         let field_ident = snake_ident(&field.name);
         let position = Literal::u64_unsuffixed(field.position.into());
-        let mask = hex_literal((1u64 << field.width) - 1);
+        let mask = if field.width == 64 {
+            hex_literal(u64::MAX)
+        } else {
+            hex_literal((1u64 << field.width) - 1)
+        };
         let access_expr = quote! {
             (self.0 >> #position) & #mask
         };

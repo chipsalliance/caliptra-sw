@@ -267,7 +267,7 @@ fn smoke_test() {
     hasher.update(&[fuses.anti_rollback_disable as u8]);
     hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
     hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
-    hasher.update(&[fuses.lms_verify as u8]);
+    hasher.update(&[image.manifest.fw_image_type]);
     hasher.update(&[true as u8]);
     hasher.update(vendor_pk_desc_hash.as_bytes());
     hasher.update(&owner_pk_desc_hash);

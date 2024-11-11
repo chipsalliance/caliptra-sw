@@ -783,6 +783,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-image-types",
  "cfg-if 1.0.0",
  "ufmt",
 ]
