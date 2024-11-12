@@ -53,7 +53,7 @@ pub struct IDevIdInfoCmd;
 impl IDevIdInfoCmd {
     pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
         let pdata = drivers.persistent_data.get();
-        let pub_key = pdata.fht.idev_dice_pub_key;
+        let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
 
         Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
             hdr: MailboxRespHeader::default(),

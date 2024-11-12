@@ -29,7 +29,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::{
     pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
     CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
-    PersistentData, RomVerifyConfig, Sha256, Sha384, SocIfc,
+    PersistentData, RomPqcVerifyConfig, Sha256, Sha384, SocIfc,
     AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
 };
 use caliptra_image_types::{

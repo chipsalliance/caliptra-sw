@@ -22,7 +22,10 @@ use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
+use caliptra_common::keyids::{
+    KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+    KEY_ID_UDS,
+};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -53,7 +56,11 @@ impl InitDevIdLayer {
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
+        cprintln!(
+            "[idev] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
+            KEY_ID_IDEVID_ECDSA_PRIV_KEY as u8,
+            KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED as u8
+        );
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
         // If CSR is not requested, indicate to the SOC that it can start
@@ -74,23 +81,33 @@ impl InitDevIdLayer {
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
 
-        // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
+        // Derive DICE ECC and MLDSA Key Pairs from CDI
+        let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
+            env,
+            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_IDEVID_ECDSA_PRIV_KEY,
+            KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
+        )?;
 
-        // Generate the Subject Serial Number and Subject Key Identifier.
+        // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::idev_subj_key_id(env, &ecc_key_pair.pub_key)?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
+
+        // [TODO] Generate the Subject Serial Number and Subject Key Identifier for MLDSA.
 
         // Generate the output for next layer
         let output = DiceOutput {
-            subj_key_pair: key_pair,
-            subj_sn,
-            subj_key_id,
+            ecc_subj_key_pair: ecc_key_pair,
+            ecc_subj_sn,
+            ecc_subj_key_id,
+            mldsa_subj_key_id: [0; 20],
+            mldsa_subj_key_pair: mldsa_key_pair,
+            mldsa_subj_sn: [0; 64],
         };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
@@ -102,7 +119,11 @@ impl InitDevIdLayer {
         }
 
         // Write IDevID public key to FHT
-        env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
+        env.persistent_data.get_mut().fht.idev_dice_ecdsa_pub_key =
+            output.ecc_subj_key_pair.pub_key;
+
+        // Copy the MLDSA public key to Persistent Data.
+        env.persistent_data.get_mut().idevid_mldsa_pub_key = output.mldsa_subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -170,31 +191,39 @@ impl InitDevIdLayer {
         Ok(())
     }
 
-    /// Derive Dice Layer Key Pair
+    /// Derive Dice Layer ECC and MLDSA Key Pairs
     ///
     /// # Arguments
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `priv_key` - Key slot to store the private key into
+    /// * `ecdsa_priv_key` - Key slot to store the ECC private key into
+    /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
     ///
-    /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_keygen", priv_key);
+        ecdsa_priv_key: KeyId,
+        mldsa_keypair_seed: KeyId,
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecdsa_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
-            report_boot_status(IDevIdKeyPairDerivationComplete.into());
         } else {
             cfi_assert!(result.is_err());
         }
-        result
+        let ecc_keypair = result?;
+
+        // Derive the MLDSA Key Pair.
+        let mldsa_key_pair =
+            Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed)?;
+
+        report_boot_status(IDevIdKeyPairDerivationComplete.into());
+        Ok((ecc_keypair, mldsa_key_pair))
     }
 
     /// Generate Local Device ID CSR
@@ -227,7 +256,7 @@ impl InitDevIdLayer {
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
     fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
-        let key_pair = &output.subj_key_pair;
+        let key_pair = &output.ecc_subj_key_pair;
 
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsParams {
@@ -235,7 +264,7 @@ impl InitDevIdLayer {
             ueid: &X509::ueid(env)?,
 
             // Subject Name
-            subject_sn: &output.subj_sn,
+            subject_sn: &output.ecc_subj_sn,
 
             // Public Key
             public_key: &key_pair.pub_key.to_der(),
@@ -266,7 +295,8 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
-        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+        let ecdsa384_sig = sig.to_ecdsa();
+        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
         sig.zeroize();
 
@@ -278,6 +308,8 @@ impl InitDevIdLayer {
         if csr_len > csr.len() {
             return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
+
+        // [TODO] Generate MLDSA CSR.
 
         cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
         report_boot_status(IDevIdMakeCsrComplete.into());

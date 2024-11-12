@@ -20,7 +20,9 @@ fn main() {
             use std::path::PathBuf;
 
             let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-            fs::write(out_dir.join("rt.ld"), include_bytes!("src/rt.ld")).unwrap();
+            let ld_script = include_str!("src/rt.ld")
+                .replace("#MANIFEST_SIZE#", &caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE.to_string());
+            fs::write(out_dir.join("rt.ld"), ld_script).unwrap();
 
             println!("cargo:rustc-link-search={}", out_dir.display());
             println!("cargo:rustc-link-arg=-Trt.ld");
