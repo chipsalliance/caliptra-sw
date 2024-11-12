@@ -23,7 +23,8 @@ use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::keyids::KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED;
+use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -48,7 +49,10 @@ impl LocalDevIdLayer {
     pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[ldev] SUBJECT.KEYID = {}", KEY_ID_LDEVID_PRIV_KEY as u8);
+        cprintln!(
+            "[ldev] SUBJECT.KEYID = {}",
+            KEY_ID_LDEVID_ECDSA_PRIV_KEY as u8
+        );
         cprintln!(
             "[ldev] AUTHORITY.KEYID = {}",
             input.auth_key_pair.priv_key as u8
@@ -62,23 +66,30 @@ impl LocalDevIdLayer {
         Self::derive_cdi(env, KEY_ID_FE, KEY_ID_ROM_FMC_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_LDEVID_PRIV_KEY)?;
+        let key_pair =
+            Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_LDEVID_ECDSA_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
-            subj_key_pair: key_pair,
-            subj_sn,
-            subj_key_id,
+            ecc_subj_key_pair: key_pair,
+            ecc_subj_sn,
+            ecc_subj_key_id,
+            mldsa_subj_key_id: [0; 20],
+            mldsa_subj_key_pair: MlDsaKeyPair {
+                key_pair_seed: KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
+                pub_key: Default::default(),
+            },
+            mldsa_subj_sn: [0; 64],
         };
 
         // Generate Local Device ID Certificate
@@ -149,7 +160,7 @@ impl LocalDevIdLayer {
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.auth_key_pair.priv_key;
         let auth_pub_key = &input.auth_key_pair.pub_key;
-        let pub_key = &output.subj_key_pair.pub_key;
+        let pub_key = &output.ecc_subj_key_pair.pub_key;
 
         let serial_number = X509::cert_sn(env, pub_key);
         let serial_number = okref(&serial_number)?;
@@ -157,8 +168,8 @@ impl LocalDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = LocalDevIdCertTbsParams {
             ueid: &X509::ueid(env)?,
-            subject_sn: &output.subj_sn,
-            subject_key_id: &output.subj_key_id,
+            subject_sn: &output.ecc_subj_sn,
+            subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.auth_sn,
             authority_key_id: input.auth_key_id,
             serial_number,

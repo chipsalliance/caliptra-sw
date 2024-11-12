@@ -63,10 +63,21 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RomVerifyConfig {
-    EcdsaOnly = 0,
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum RomPqcVerifyConfig {
+    #[default]
     EcdsaAndLms = 1,
+    EcdsaAndMldsa = 2,
+}
+
+impl From<u8> for RomPqcVerifyConfig {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => RomPqcVerifyConfig::EcdsaAndLms,
+            2 => RomPqcVerifyConfig::EcdsaAndMldsa,
+            _ => RomPqcVerifyConfig::default(),
+        }
+    }
 }
 
 impl FuseBank<'_> {
@@ -286,25 +297,6 @@ impl FuseBank<'_> {
     pub fn lms_revocation(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.fuse_lms_revocation().read()
-    }
-
-    /// Get the lms verification config.
-    ///
-    /// # Arguments
-    /// * None
-    ///
-    /// # Returns
-    ///     RomVerifyConfig
-    ///         EcdsaOnly: Verify Caliptra firmware images with ECDSA-only
-    ///         EcdsaAndLms: Verify Caliptra firmware images with ECDSA and LMS
-    ///
-    pub fn lms_verify(&self) -> RomVerifyConfig {
-        let soc_ifc_regs = self.soc_ifc.regs();
-        if !soc_ifc_regs.fuse_lms_verify().read().lms_verify() {
-            RomVerifyConfig::EcdsaOnly
-        } else {
-            RomVerifyConfig::EcdsaAndLms
-        }
     }
 }
 
