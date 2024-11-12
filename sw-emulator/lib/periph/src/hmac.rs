@@ -237,7 +237,6 @@ impl HmacSha {
     ///
     /// * `Self` - Instance of HMAC-SHA-384 Engine
     pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
-        println!("self");
         Self {
             hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_512>::new(Hmac512Mode::Sha512)),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
@@ -282,7 +281,6 @@ impl HmacSha {
     }
 
     fn on_write_key(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
-        println!("on_write_key");
         if self.key_from_kv {
             self.key_from_kv = false;
             self.key.fill(0);
@@ -292,7 +290,6 @@ impl HmacSha {
     }
 
     fn on_write_block(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
-        println!("on_write_block");
         if self.block_from_kv {
             self.block_from_kv = false;
             self.block.fill(0);

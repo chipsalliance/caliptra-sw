@@ -23,9 +23,6 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
 
-// TODO: delete
-use crate::cprintln;
-
 const HMAC_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC_MAX_DATA_SIZE: usize = 1024 * 1024;
@@ -235,7 +232,6 @@ impl Hmac {
         tag: HmacTag,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
-        cprintln!("hmac");
         let hmac = self.hmac.regs_mut();
         let mut tag = tag;
 
@@ -252,8 +248,6 @@ impl Hmac {
             HmacTag::Key(dest_key) => Some(*dest_key),
         };
 
-        cprintln!("1");
-
         // Configure the hardware to use key to use for the HMAC operation
         let key = match *key {
             HmacKey::Array4x12(arr) => {
@@ -269,15 +263,12 @@ impl Hmac {
         // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
-        cprintln!("2");
-
         // Calculate the hmac
         match data {
             HmacData::Slice(buf) => self.hmac_buf(buf, key, dest_key, mode)?,
             HmacData::Key(data_key) => self.hmac_key(*data_key, key, dest_key, mode)?,
         }
         let hmac = self.hmac.regs();
-        cprintln!("3");
 
         // Copy the tag to the specified location
         let result = match &mut tag {
@@ -287,10 +278,8 @@ impl Hmac {
             HmacTag::Array4x16(arr) => KvAccess::end_copy_to_arr(hmac.hmac512_tag(), arr),
             _ => Ok(()),
         };
-        cprintln!("4");
 
         self.zeroize_internal();
-        cprintln!("5");
 
         result
     }
