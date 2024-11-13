@@ -1172,6 +1172,21 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Get IDev CSR
+int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_IDEV_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Self test start
 int caliptra_self_test_start(bool async)
 {
