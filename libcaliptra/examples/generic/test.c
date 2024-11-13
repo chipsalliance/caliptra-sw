@@ -664,6 +664,28 @@ int rom_test_devid_csr(const test_info* info)
         printf("IDEV CSR matches\n");
     }
 
+    caliptra_req_idev_csr_complete();
+    caliptra_ready_for_firmware();
+
+    // Test Get Idev CSR now that a CSR is provisioned.
+    // GET IDEV CSR
+    struct caliptra_get_idev_csr_resp csr_resp = {0};
+
+    status = caliptra_get_idev_csr(&csr_resp, false);
+
+    if (status) {
+        printf("Get IDev CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        if (memcmp(csr_resp.data, idev_csr_bytes, csr_resp.data_size) != 0) {
+            printf("IDEV CSR does not match\n");
+            failure = 1;
+        } else {
+            printf("Get IDev CSR: OK\n");
+        }
+    }
+
     free((void*)caliptra_idevid_csr_buf.data);
     return failure;
 }

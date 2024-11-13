@@ -218,6 +218,12 @@ struct caliptra_capabilities_resp {
     uint8_t capabilities[16];
 };
 
+struct caliptra_get_idev_csr_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[512];
+};
+
 // DPE commands
 
 #define DPE_MAGIC    0x44504543 // "DPEC"
