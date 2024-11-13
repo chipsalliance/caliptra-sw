@@ -7,7 +7,7 @@ use caliptra_cfi_lib_git::cfi_launder;
 
 use caliptra_common::{
     cprintln,
-    mailbox_api::{GetIdevIdCsrReq, GetIdevIdCsrResp, MailboxResp, MailboxRespHeader},
+    mailbox_api::{GetIdevCsrReq, GetIdevCsrResp, MailboxResp, MailboxRespHeader},
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -15,12 +15,12 @@ use caliptra_drivers::IdevIdCsr;
 
 use zerocopy::{AsBytes, FromBytes};
 
-pub struct GetIdevIdCsrCmd;
-impl GetIdevIdCsrCmd {
+pub struct GetIdevCsrCmd;
+impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = GetIdevIdCsrReq::read_from(cmd_args) {
+        if let Some(cmd) = GetIdevCsrReq::read_from(cmd_args) {
             let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr;
 
             match csr_persistent_mem.get_csr_len() {
@@ -33,7 +33,7 @@ impl GetIdevIdCsrCmd {
                         .get()
                         .ok_or(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)?;
 
-                    let mut resp = GetIdevIdCsrResp {
+                    let mut resp = GetIdevCsrResp {
                         data_size: len,
                         ..Default::default()
                     };
@@ -43,10 +43,10 @@ impl GetIdevIdCsrCmd {
                     // `resp.data_size` by the `IDevIDCsr::get` API.
                     //
                     // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
-                    // size of the buffer in `GetIdevIdCsrResp`
+                    // size of the buffer in `GetIdevCsrResp`
                     resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
-                    Ok(MailboxResp::GetIdevIdCsr(resp))
+                    Ok(MailboxResp::GetIdevCsr(resp))
                 }
             }
         } else {

@@ -23,7 +23,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, GetIdevIdCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
+    CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
     StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::{
@@ -311,7 +311,7 @@ impl FirmwareProcessor {
                         Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
                         let csr_persistent_mem = &persistent_data.idevid_csr;
-                        let mut resp = GetIdevIdCsrResp::default();
+                        let mut resp = GetIdevCsrResp::default();
 
                         if csr_persistent_mem.is_unprovisioned() {
                             // CSR was never written to DCCM. This means the gen_idev_id_csr
