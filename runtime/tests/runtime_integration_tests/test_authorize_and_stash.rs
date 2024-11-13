@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::run_rt_test;
+use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::test_auth_manifest;
 use caliptra_api::SocManager;
 use caliptra_builder::{
@@ -20,7 +20,7 @@ use zerocopy::FromBytes;
 
 #[test]
 fn test_authorize_and_stash_cmd_deny_authorization() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -89,7 +89,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
 
 #[test]
 fn test_authorize_and_stash_cmd_succes() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

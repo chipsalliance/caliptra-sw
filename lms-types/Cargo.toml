@@ -9,5 +9,7 @@ edition = "2021"
 
 [dependencies]
 arbitrary = { workspace = true, optional = true }
+caliptra-cfi-derive.workspace = true
+caliptra-cfi-lib.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true

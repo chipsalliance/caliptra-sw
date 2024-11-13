@@ -13,7 +13,7 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::AsBytes;
 
-use crate::common::{run_rt_test, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
+use crate::common::{run_rt_test, RuntimeTestArgs, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
@@ -22,14 +22,18 @@ fn test_standard() {
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 }
 
 #[test]
 fn test_boot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&firmware::runtime_tests::BOOT),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     model.step_until_exit_success().unwrap();
 }
@@ -38,14 +42,18 @@ fn test_boot() {
 /// This test differs from the drivers' test_persistent() in that it is ran with the "runtime" flag so
 /// it allows us to test conditionally compiled runtime-only persistent data that ROM/FMC may have corrupted.
 fn test_persistent_data() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::PERSISTENT_RT), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&firmware::runtime_tests::PERSISTENT_RT),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     model.step_until_exit_success().unwrap();
 }
 
 #[test]
 fn test_fw_version() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -78,7 +86,7 @@ fn test_update() {
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -117,7 +125,7 @@ fn test_stress_update() {
             .unwrap(),
     ];
 
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let stress_num = if cfg!(feature = "slow_tests") { 500 } else { 1 };
     let mut image_select = 0;
@@ -146,7 +154,11 @@ fn test_stress_update() {
 
 #[test]
 fn test_boot_tci_data() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let args = RuntimeTestArgs {
+        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();

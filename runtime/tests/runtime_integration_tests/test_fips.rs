@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::{
@@ -14,15 +14,15 @@ const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
 
 #[test]
 fn test_fips_version() {
-    let mut model = run_rt_test(
-        None,
-        Some(ImageOptions {
+    let args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
             fmc_version: version::get_fmc_version(),
             app_version: version::get_runtime_version(),
             ..Default::default()
         }),
-        None,
-    );
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -72,7 +72,7 @@ fn test_fips_version() {
 
 #[test]
 fn test_fips_shutdown() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 

@@ -738,10 +738,8 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
 | metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
-| metadata\_header\_revision    | u32          | Revision of the metadata header                                             |
-| metadata\_header\_reserved    | u32[3]       | Reserved                                                                    |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | MetaData[16] | The max number of metadata is 16 but less can be used                       |
+| metadata\_entries             | MetaData[128] | The max number of metadata entries is 128 but less can be used             |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
@@ -793,6 +791,33 @@ Command Code: `0x4154_5348` ("ATSH")
 | chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
+
+### GET\_IDEVID\_CSR
+
+Command Code: `0x4944_4352` ("IDCR")
+
+*Table: `GET_IDEVID_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_IDEVID_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
+
+The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR. 
+
+When called from ROM, if the CSR was not previously provisioned this command will return `FW_PROC_MAILBOX_UNPROVISIONED_CSR(0x0102000A)`. 
+
+When called from runtime, if the CSR was not previously provisioned this command will return `RUNTIME_GET_IDEV_ID_UNPROVISIONED(0x000E0051)`. If the ROM did not support CSR generation, this command will return `RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM(0x000E0052)`.
+
+
+
+When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
 
 ## Checksum
 

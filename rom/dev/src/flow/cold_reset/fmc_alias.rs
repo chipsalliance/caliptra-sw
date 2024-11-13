@@ -22,7 +22,7 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
@@ -196,14 +196,14 @@ impl FmcAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
+            "[afmc] Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
+        cprintln!("[afmc] Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key).map_err(|err| {
             sig.zeroize();
             err
@@ -252,6 +252,6 @@ impl FmcAliasLayer {
             flags |= dice::FLAG_BIT_DEBUG;
         }
 
-        flags.to_be_bytes()
+        flags.reverse_bits().to_be_bytes()
     }
 }
