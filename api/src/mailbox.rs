@@ -154,7 +154,7 @@ pub enum MailboxResp {
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
-    GetIdevIdCsr(GetIdevIdCsrResp),
+    GetIdevCsr(GetIdevCsrResp),
 }
 
 impl MailboxResp {
@@ -175,7 +175,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
-            MailboxResp::GetIdevIdCsr(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -196,7 +196,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
-            MailboxResp::GetIdevIdCsr(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -986,28 +986,28 @@ impl Default for SetAuthManifestReq {
 // GET_IDEVID_CSR
 #[repr(C)]
 #[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct GetIdevIdCsrReq {
+pub struct GetIdevCsrReq {
     pub hdr: MailboxReqHeader,
 }
 
-impl Request for GetIdevIdCsrReq {
+impl Request for GetIdevCsrReq {
     const ID: CommandId = CommandId::GET_IDEV_CSR;
-    type Resp = GetIdevIdCsrResp;
+    type Resp = GetIdevCsrResp;
 }
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct GetIdevIdCsrResp {
+pub struct GetIdevCsrResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
     pub data: [u8; Self::DATA_MAX_SIZE],
 }
-impl GetIdevIdCsrResp {
+impl GetIdevCsrResp {
     pub const DATA_MAX_SIZE: usize = 512;
 }
-impl ResponseVarSize for GetIdevIdCsrResp {}
+impl ResponseVarSize for GetIdevCsrResp {}
 
-impl Default for GetIdevIdCsrResp {
+impl Default for GetIdevCsrResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),

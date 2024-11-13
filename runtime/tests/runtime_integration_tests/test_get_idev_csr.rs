@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_common::mailbox_api::{CommandId, GetIdevIdCsrResp, MailboxReqHeader};
+use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
 use caliptra_drivers::{IdevIdCsr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -30,7 +30,7 @@ fn test_get_csr() {
         .unwrap()
         .unwrap();
 
-    let get_idv_csr_resp = GetIdevIdCsrResp::read_from(response.as_bytes()).unwrap();
+    let get_idv_csr_resp = GetIdevCsrResp::read_from(response.as_bytes()).unwrap();
 
     assert_ne!(IdevIdCsr::UNPROVISIONED_CSR, get_idv_csr_resp.data_size);
     assert_ne!(0, get_idv_csr_resp.data_size);
