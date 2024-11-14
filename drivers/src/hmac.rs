@@ -79,6 +79,13 @@ impl<'a> From<&'a mut Array4x12> for HmacTag<'a> {
     }
 }
 
+impl<'a> From<&'a mut Array4x16> for HmacTag<'a> {
+    /// Converts to this type from the input type.
+    fn from(value: &'a mut Array4x16) -> Self {
+        Self::Array4x16(value)
+    }
+}
+
 impl<'a> From<KeyWriteArgs> for HmacTag<'a> {
     /// Converts to this type from the input type.
     fn from(value: KeyWriteArgs) -> Self {
@@ -107,6 +114,15 @@ impl<'a> From<&'a Array4x12> for HmacKey<'a> {
     ///
     fn from(value: &'a Array4x12) -> Self {
         Self::Array4x12(value)
+    }
+}
+
+impl<'a> From<&'a Array4x16> for HmacKey<'a> {
+    ///
+    /// Converts to this type from the input type.
+    ///
+    fn from(value: &'a Array4x16) -> Self {
+        Self::Array4x16(value)
     }
 }
 
