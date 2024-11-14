@@ -23,6 +23,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
 
+use crate::cprintln;
+
 const HMAC_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC_MAX_DATA_SIZE: usize = 1024 * 1024;
@@ -162,6 +164,7 @@ impl Hmac {
         mut tag: HmacTag<'a>,
         mode: HmacMode,
     ) -> CaliptraResult<HmacOp> {
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         let hmac = self.hmac.regs_mut();
 
         // Configure the hardware so that the output tag is stored at a location specified by the
@@ -232,6 +235,7 @@ impl Hmac {
         tag: HmacTag,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         let hmac = self.hmac.regs_mut();
         let mut tag = tag;
 
@@ -323,6 +327,7 @@ impl Hmac {
         dest_key: Option<KeyWriteArgs>,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_HMAC_MAX_DATA);
@@ -380,6 +385,7 @@ impl Hmac {
         dest_key: Option<KeyWriteArgs>,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         let hmac = self.hmac.regs_mut();
 
         KvAccess::copy_from_kv(
@@ -401,6 +407,7 @@ impl Hmac {
         dest_key: Option<KeyWriteArgs>,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         /// Set block length
         fn set_block_len(buf_size: usize, block: &mut [u8; HMAC_BLOCK_SIZE_BYTES]) {
             let bit_len = ((buf_size + HMAC_BLOCK_SIZE_BYTES) as u128) << 3;
@@ -452,6 +459,7 @@ impl Hmac {
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
         Array4x32::from(block).write_to_reg(hmac.hmac512_block());
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
         self.hmac_op(first, key, dest_key, mode)
     }
 
@@ -489,6 +497,7 @@ impl Hmac {
 
         // Wait for the hardware to be ready
         wait::until(|| hmac.hmac512_status().read().ready());
+        cprintln!("512: {}", mode == HmacMode::Hmac512);
 
         if first {
             // Submit the first block
@@ -560,6 +569,7 @@ impl<'a> HmacOp<'a> {
     /// * `data` - Data to used to update the digest
     ///
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
+        cprintln!("512: {}", self.mode == HmacMode::Hmac512);
         if self.state == HmacOpState::Final {
             return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
         }
@@ -599,6 +609,7 @@ impl<'a> HmacOp<'a> {
 
     /// Finalize the digest operations
     pub fn finalize(&mut self) -> CaliptraResult<()> {
+        cprintln!("512: {}", self.mode == HmacMode::Hmac512);
         if self.state == HmacOpState::Final {
             return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
         }
