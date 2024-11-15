@@ -32,21 +32,23 @@ use caliptra_error::CaliptraResult;
 ///               the label and context.
 /// * `trng` - TRNG driver instance
 /// * `output` - Location to store the output
+/// * `mode` - HMAC Mode
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn hmac384_kdf(
+pub fn hmac_kdf(
     hmac: &mut Hmac,
     key: HmacKey,
     label: &[u8],
     context: Option<&[u8]>,
     trng: &mut Trng,
     output: HmacTag,
+    mode: HmacMode,
 ) -> CaliptraResult<()> {
     #[cfg(feature = "fips-test-hooks")]
     unsafe {
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
 
-    let mut hmac_op = hmac.hmac_init(&key, trng, output, HmacMode::Hmac384)?;
+    let mut hmac_op = hmac.hmac_init(&key, trng, output, mode)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;

@@ -77,7 +77,7 @@ pub use fuse_bank::{
 };
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
-pub use hmac384_kdf::hmac384_kdf;
+pub use hmac384_kdf::hmac_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{

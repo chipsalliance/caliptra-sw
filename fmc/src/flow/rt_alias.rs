@@ -28,8 +28,7 @@ use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
-    ResetReason,
+    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId, PersistentData, ResetReason
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
@@ -252,7 +251,7 @@ impl RtAliasLayer {
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi)?;
+        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi, HmacMode::Hmac384,)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         Ok(())
     }
