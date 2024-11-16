@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_drivers::{
-    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox,
+    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac, KeyVault, Mailbox,
     Sha256, Sha2_512_384Acc, Sha384, SocIfc,
 };
 
@@ -17,7 +17,7 @@ pub fn handle_fatal_error(code: u32) -> ! {
     unsafe {
         // Zeroize the crypto blocks.
         Ecc384::zeroize();
-        Hmac384::zeroize();
+        Hmac::zeroize();
         Sha256::zeroize();
         Sha384::zeroize();
         Sha2_512_384Acc::zeroize();

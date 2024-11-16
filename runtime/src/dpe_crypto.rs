@@ -19,8 +19,8 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
-    Ecc384Seed, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
-    KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
+    Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault,
+    KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
 use zerocopy::AsBytes;
@@ -30,7 +30,7 @@ pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
     trng: &'a mut Trng,
     ecc384: &'a mut Ecc384,
-    hmac384: &'a mut Hmac384,
+    hmac384: &'a mut Hmac,
     key_vault: &'a mut KeyVault,
     rt_pub_key: &'a mut Ecc384PubKey,
     key_id_rt_cdi: KeyId,
@@ -43,7 +43,7 @@ impl<'a> DpeCrypto<'a> {
         sha384: &'a mut Sha384,
         trng: &'a mut Trng,
         ecc384: &'a mut Ecc384,
-        hmac384: &'a mut Hmac384,
+        hmac384: &'a mut Hmac,
         key_vault: &'a mut KeyVault,
         rt_pub_key: &'a mut Ecc384PubKey,
         key_id_rt_cdi: KeyId,
@@ -331,11 +331,11 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 let mut hmac_key = Array4x12::default();
                 hmac384_kdf(
                     self.hmac384,
-                    Hmac384Key::Array4x12(&Array4x12::from(hmac_ikm)),
+                    HmacKey::Array4x12(&Array4x12::from(hmac_ikm)),
                     &[],
                     None,
                     self.trng,
-                    Hmac384Tag::Array4x12(&mut hmac_key),
+                    HmacTag::Array4x12(&mut hmac_key),
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 hmac_ikm.zeroize();
@@ -344,10 +344,11 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 let mut tag = Array4x12::default();
                 self.hmac384
                     .hmac(
-                        &Hmac384Key::Array4x12(&hmac_key),
-                        &Hmac384Data::Slice(digest.bytes()),
+                        &HmacKey::Array4x12(&hmac_key),
+                        &HmacData::Slice(digest.bytes()),
                         self.trng,
-                        Hmac384Tag::Array4x12(&mut tag),
+                        HmacTag::Array4x12(&mut tag),
+                        HmacMode::Hmac384,
                     )
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 hmac_key.zeroize();

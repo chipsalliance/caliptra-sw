@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Hmac384, Hmac384Key, Hmac384Tag, Trng};
+use crate::{Hmac, HmacKey, HmacMode, HmacTag, Trng};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::CaliptraResult;
@@ -34,19 +34,19 @@ use caliptra_error::CaliptraResult;
 /// * `output` - Location to store the output
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn hmac384_kdf(
-    hmac: &mut Hmac384,
-    key: Hmac384Key,
+    hmac: &mut Hmac,
+    key: HmacKey,
     label: &[u8],
     context: Option<&[u8]>,
     trng: &mut Trng,
-    output: Hmac384Tag,
+    output: HmacTag,
 ) -> CaliptraResult<()> {
     #[cfg(feature = "fips-test-hooks")]
     unsafe {
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
 
-    let mut hmac_op = hmac.hmac_init(&key, trng, output)?;
+    let mut hmac_op = hmac.hmac_init(&key, trng, output, HmacMode::Hmac384)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;

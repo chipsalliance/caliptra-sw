@@ -341,8 +341,8 @@ fn test_error_reporter() {
 }
 
 #[test]
-fn test_hmac384() {
-    run_driver_test(&firmware::driver_tests::HMAC384);
+fn test_hmac() {
+    run_driver_test(&firmware::driver_tests::HMAC);
 }
 
 #[test]

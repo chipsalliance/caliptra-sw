@@ -125,7 +125,7 @@ impl Crypto {
     pub fn hmac384_mac(
         env: &mut RomEnv,
         key: KeyId,
-        data: &Hmac384Data,
+        data: &HmacData,
         tag: KeyId,
     ) -> CaliptraResult<()> {
         env.hmac384.hmac(
@@ -139,6 +139,7 @@ impl Crypto {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
+            HmacMode::Hmac384,
         )
     }
 

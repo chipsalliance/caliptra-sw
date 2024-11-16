@@ -16,7 +16,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, PersistentDataAccessor,
+    CaliptraResult, DataVault, Ecc384, Hmac, KeyVault, Mailbox, PcrBank, PersistentDataAccessor,
     Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
 };
 use caliptra_registers::{
@@ -40,7 +40,7 @@ pub struct FmcEnv {
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
     /// Hmac384 Engine
-    pub hmac384: Hmac384,
+    pub hmac384: Hmac,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
@@ -88,7 +88,7 @@ impl FmcEnv {
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac384::new(HmacReg::new()),
+            hmac384: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             key_vault: KeyVault::new(KvReg::new()),
             data_vault: DataVault::new(DvReg::new()),
