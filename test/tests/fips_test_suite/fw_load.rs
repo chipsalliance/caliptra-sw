@@ -1119,7 +1119,7 @@ fn fw_load_error_owner_lms_signature_invalid() {
 #[test]
 fn fw_load_error_vendor_lms_pub_key_revoked() {
     let vendor_config = ImageGeneratorVendorConfig {
-        lms_key_idx: 5,
+        pqc_key_idx: 5,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -1130,7 +1130,7 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
-        fuse_lms_revocation: 1u32 << image_options.vendor_config.lms_key_idx,
+        fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
         ..Default::default()
     };
 
@@ -1177,7 +1177,7 @@ fn fw_load_error_runtime_size_zero() {
 #[test]
 fn fw_load_error_update_reset_vendor_lms_pub_key_idx_mismatch() {
     let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        lms_key_idx: 2,
+        pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options_update_reset = ImageOptions {
@@ -1387,7 +1387,7 @@ fn fw_load_blank_pub_keys() {
         .vendor_pub_key_info
         .ecc_key_descriptor
         .key_hash = [[0u32; SHA384_DIGEST_WORD_SIZE]; VENDOR_ECC_MAX_KEY_COUNT as usize];
-    fw_image.manifest.preamble.owner_pub_keys = caliptra_image_types::ImageOwnerPubKeys::default();
+    fw_image.manifest.preamble.owner_pub_keys = caliptra_image_types::OwnerPubKeyConfig::default();
 
     fw_load_bad_pub_key_flow(
         fw_image,

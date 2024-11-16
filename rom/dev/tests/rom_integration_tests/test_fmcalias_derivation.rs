@@ -201,7 +201,7 @@ fn test_pcr_log() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
@@ -303,7 +303,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             0_u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomVerifyConfig::EcdsaAndLms as u8,
             false as u8,
         ],
@@ -702,7 +702,7 @@ fn test_fuse_log() {
         fuse_log_entry.entry_id,
         FuseLogEntryId::VendorLmsPubKeyIndex as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.lms_key_idx);
+    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.pqc_key_idx);
 
     // Validate that the ID is VendorPubKeyRevocation
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();

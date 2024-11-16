@@ -13,7 +13,11 @@ Abstract:
 --*/
 use anyhow::bail;
 use caliptra_image_types::*;
+use fips204::ml_dsa_87::{PrivateKey, PublicKey, SIG_LEN};
+use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use zerocopy::AsBytes;
 
 use crate::*;
@@ -76,11 +80,11 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         }
 
         let ecc_key_idx = config.vendor_config.ecc_key_idx;
-        let lms_key_idx = config.vendor_config.lms_key_idx;
+        let pqc_key_idx = config.vendor_config.pqc_key_idx;
 
         // Create Header
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
-        let header = self.gen_header(config, ecc_key_idx, lms_key_idx, toc_digest)?;
+        let header = self.gen_header(config, ecc_key_idx, pqc_key_idx, toc_digest)?;
 
         // Create Preamble
         let header_digest_vendor = self.header_digest_vendor(&header)?;
@@ -88,7 +92,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let preamble = self.gen_preamble(
             config,
             ecc_key_idx,
-            lms_key_idx,
+            pqc_key_idx,
             &header_digest_vendor,
             &header_digest_owner,
         )?;
@@ -115,12 +119,55 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         Ok(image)
     }
 
+    fn mldsa_sign(
+        &self,
+        digest: &ImageDigest,
+        priv_key: &ImageMldsaPrivKey,
+        pub_key: &ImageMldsaPubKey,
+    ) -> anyhow::Result<ImageMldsaSignature> {
+        /// Convert the slice to hardware format
+        fn to_hw_format<const NUM_WORDS: usize>(value: &[u8]) -> [u32; NUM_WORDS] {
+            let mut result = [0u32; NUM_WORDS];
+            for i in 0..result.len() {
+                result[i] = u32::from_be_bytes(value[i * 4..][..4].try_into().unwrap())
+            }
+            result
+        }
+
+        let mut rng = StdRng::from_seed([0u8; 32]);
+
+        let priv_key = {
+            let key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
+                priv_key.0.as_bytes().try_into().unwrap();
+            PrivateKey::try_from_bytes(key_bytes).unwrap()
+        };
+
+        let pub_key = {
+            let key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] =
+                pub_key.0.as_bytes().try_into().unwrap();
+            PublicKey::try_from_bytes(key_bytes).unwrap()
+        };
+
+        let signature = priv_key
+            .try_sign_with_rng(&mut rng, digest.as_bytes(), &[])
+            .unwrap();
+
+        let signature_extended = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature);
+            sig
+        };
+        let sig: ImageMldsaSignature;
+        sig.0[..signature_extended.len()].copy_from_slice(&signature_extended);
+        Ok(sig)
+    }
+
     /// Create preamble
     pub fn gen_preamble<E>(
         &self,
         config: &ImageGeneratorConfig<E>,
         ecc_vendor_key_idx: u32,
-        lms_vendor_key_idx: u32,
+        pqc_vendor_key_idx: u32,
         digest_vendor: &ImageDigest,
         digest_owner: &ImageDigest,
     ) -> anyhow::Result<ImagePreamble>
@@ -137,11 +184,21 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                 &config.vendor_config.pub_keys.ecc_pub_keys[ecc_vendor_key_idx as usize],
             )?;
             vendor_sigs.ecc_sig = sig;
-            let lms_sig = self.crypto.lms_sign(
-                digest_vendor,
-                &priv_keys.lms_priv_keys[lms_vendor_key_idx as usize],
-            )?;
-            vendor_sigs.lms_sig = lms_sig;
+            let pqc_sig = if config.fw_image_type == FwImageType::EccLms {
+                let lms_sig = self.crypto.lms_sign(
+                    digest_vendor,
+                    &priv_keys.lms_priv_keys[pqc_vendor_key_idx as usize],
+                )?;
+                lms_sig.as_bytes()
+            } else {
+                let mldsa_sig = self.mldsa_sign(
+                    digest_vendor,
+                    &priv_keys.mldsa_priv_keys[pqc_vendor_key_idx as usize],
+                )?;
+                mldsa_sig.as_bytes()
+            };
+
+            vendor_sigs.pqc_sig[..pqc_sig.len()].copy_from_slice(pqc_sig);
         }
 
         if let Some(owner_config) = &config.owner_config {
@@ -193,9 +250,9 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             vendor_ecc_pub_key_idx: ecc_vendor_key_idx,
             vendor_ecc_active_pub_key: config.vendor_config.pub_keys.ecc_pub_keys
                 [ecc_vendor_key_idx as usize],
-            vendor_lms_pub_key_idx: lms_vendor_key_idx,
+            vendor_lms_pub_key_idx: pqc_vendor_key_idx,
             vendor_lms_active_pub_key: config.vendor_config.pub_keys.lms_pub_keys
-                [lms_vendor_key_idx as usize],
+                [pqc_vendor_key_idx as usize],
             vendor_sigs,
             owner_sigs,
             ..Default::default()
@@ -219,17 +276,29 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                 },
             };
 
-            // Hash the ECC and LMS owner public keys.
+            // Hash the ECC owner public key.
             let ecc_pub_key = owner_config.pub_keys.ecc_pub_key;
             let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
             owner_pub_key_info.ecc_key_descriptor.key_hash[0_usize] = ecc_pub_key_digest;
 
-            let lms_pub_key = owner_config.pub_keys.lms_pub_key;
-            let lms_pub_key_digest = self.crypto.sha384_digest(lms_pub_key.as_bytes())?;
-            owner_pub_key_info.pqc_key_descriptor.key_hash[0_usize] = lms_pub_key_digest;
+            // Store the ECC public key in the Preamble.
+            preamble.owner_pub_keys.ecc_pub_key = owner_config.pub_keys.ecc_pub_key;
 
+            // Hash the LMS or MLDSA owner public key.
+            let pqc_pub_key: &[u8];
+            if config.fw_image_type == FwImageType::EccLms {
+                pqc_pub_key = owner_config.pub_keys.lms_pub_key.as_bytes();
+            } else {
+                pqc_pub_key = owner_config.pub_keys.mldsa_pub_key.as_bytes();
+            }
+            let pqc_pub_key_digest = self.crypto.sha384_digest(pqc_pub_key)?;
+            owner_pub_key_info.pqc_key_descriptor.key_hash[0_usize] = pqc_pub_key_digest;
+
+            // Store the public key hashes
             preamble.owner_pub_key_info = owner_pub_key_info;
-            preamble.owner_pub_keys = owner_config.pub_keys;
+
+            // Store the LMS or MLDSA public key in the Preamble.
+            preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()].copy_from_slice(pqc_pub_key);
         }
 
         Ok(preamble)

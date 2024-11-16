@@ -506,7 +506,7 @@ fn test_pl0_unset_in_header() {
 
     let opts = ImageOptions::default();
     let ecc_index = opts.vendor_config.ecc_key_idx;
-    let lms_index = opts.vendor_config.lms_key_idx;
+    let lms_index = opts.vendor_config.pqc_key_idx;
     let gen = ImageGenerator::new(Crypto::default());
     let header_digest_vendor = gen
         .header_digest_vendor(&image_bundle.manifest.header)

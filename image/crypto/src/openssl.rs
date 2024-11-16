@@ -139,6 +139,18 @@ impl ImageGeneratorCrypto for OsslCrypto {
 
         Ok(to_hw_format(&priv_key))
     }
+
+    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+    }
+
+    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
+    }
 }
 
 pub struct OpensslHasher(Sha256);

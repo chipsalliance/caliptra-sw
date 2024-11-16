@@ -87,20 +87,30 @@ pub trait ImageGeneratorCrypto {
 
     /// Read ECC-384 Private Key from PEM file
     fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
+
+    /// Read MLDSA Public Key from file
+    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey>;
+
+    /// Read MLDSA Private Key from file
+    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey>;
 }
 
 /// Image Generator Vendor Configuration
 #[derive(Default, Clone)]
 pub struct ImageGeneratorVendorConfig {
+    pub fw_image_type: FwImageType,
+
     pub ecc_key_count: u32,
 
     pub lms_key_count: u32,
+
+    pub mldsa_key_count: u32,
 
     pub pub_keys: ImageVendorPubKeys,
 
     pub ecc_key_idx: u32,
 
-    pub lms_key_idx: u32,
+    pub pqc_key_idx: u32,
 
     pub priv_keys: Option<ImageVendorPrivKeys>,
 
@@ -114,7 +124,7 @@ pub struct ImageGeneratorVendorConfig {
 /// Image Generator Owner Configuration
 #[derive(Default, Clone)]
 pub struct ImageGeneratorOwnerConfig {
-    pub pub_keys: ImageOwnerPubKeys,
+    pub pub_keys: OwnerPubKeyConfig,
 
     pub priv_keys: Option<ImageOwnerPrivKeys>,
 

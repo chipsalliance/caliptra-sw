@@ -306,8 +306,21 @@ impl MlDsa87 {
         let mut rng = StdRng::from_seed(*seed_bytes);
         let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
 
+        let pkey = pk.clone().into_bytes();
         self.pubkey = words_from_bytes_le(&pk.into_bytes());
         self.private_key = sk.into_bytes();
+
+        println!("Public key: len: {}", pkey.len());
+        for i in 0..pkey.len() {
+            print!("0x{:02x}, ", pkey[i]);
+        }
+        println!();
+
+        println!("Private key: len: {}", self.private_key.len());
+        for i in 0..self.private_key.len() {
+            print!("0x{:02x}, ", self.private_key[i]);
+        }
+        println!();
     }
 
     fn sign(&mut self) {

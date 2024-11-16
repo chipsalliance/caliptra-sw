@@ -37,7 +37,7 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"lms-pk-idx" <U32> "Vendor LMS Public Key Index")
+            arg!(--"pqc-pk-idx" <U32> "Vendor PQC (LMS or MLDSA) Public Key Index")
                 .required(false)
                 .value_parser(value_parser!(u32)),
         )

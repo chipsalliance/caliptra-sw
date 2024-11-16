@@ -250,17 +250,17 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
     for idx in 0..VENDOR_LMS_MAX_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
             ecc_key_idx: 3,
-            lms_key_idx: idx,
+            pqc_key_idx: idx,
             ..VENDOR_CONFIG_KEY_0
         };
 
         let mut image_options = ImageOptions::default();
-        let key_idx = vendor_config.lms_key_idx;
+        let key_idx = vendor_config.pqc_key_idx;
         image_options.vendor_config = vendor_config;
 
         let fuses = caliptra_hw_model::Fuses {
             lms_verify: true,
-            fuse_lms_revocation: 1u32 << image_options.vendor_config.lms_key_idx,
+            fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
             ..Default::default()
         };
 
@@ -307,7 +307,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
     for idx in 0..VENDOR_LMS_MAX_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
             ecc_key_idx: 3,
-            lms_key_idx: idx,
+            pqc_key_idx: idx,
             ..VENDOR_CONFIG_KEY_0
         };
         let image_options = caliptra_builder::ImageOptions {
@@ -317,7 +317,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
 
         let fuses = caliptra_hw_model::Fuses {
             lms_verify: false,
-            fuse_lms_revocation: 1u32 << image_options.vendor_config.lms_key_idx,
+            fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
             ..Default::default()
         };
 

@@ -345,7 +345,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
-        lms_key_idx: 3,
+        pqc_key_idx: 3,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -361,7 +361,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     // Generate firmware with a different vendor LMS key index.
     let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        lms_key_idx: 2,
+        pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
