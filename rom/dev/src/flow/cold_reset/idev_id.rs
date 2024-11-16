@@ -92,22 +92,23 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::idev_subj_key_id(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            X509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
-
-        // [TODO] Generate the Subject Serial Number and Subject Key Identifier for MLDSA.
 
         // Generate the output for next layer
         let output = DiceOutput {
             ecc_subj_key_pair: ecc_key_pair,
             ecc_subj_sn,
             ecc_subj_key_id,
-            mldsa_subj_key_id: [0; 20],
+            mldsa_subj_key_id,
             mldsa_subj_key_pair: mldsa_key_pair,
-            mldsa_subj_sn: [0; 64],
+            mldsa_subj_sn,
         };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
@@ -197,7 +198,7 @@ impl InitDevIdLayer {
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `ecdsa_priv_key` - Key slot to store the ECC private key into
+    /// * `ecc_priv_key` - Key slot to store the ECC private key into
     /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
@@ -207,10 +208,10 @@ impl InitDevIdLayer {
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
-        ecdsa_priv_key: KeyId,
+        ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecdsa_priv_key);
+        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecc_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
