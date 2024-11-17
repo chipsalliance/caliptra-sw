@@ -4,7 +4,7 @@ Certificate:
         Serial Number:
             44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
         Signature Algorithm: ecdsa-with-SHA384
-        Issuer: CN=Caliptra 1.0 LDevID/serialNumber=21EEEF9A4C61D4B9E3D94BEA46F9A12AC6887CE2188559F40FF95777E8014889
+        Issuer: CN=Caliptra 1.0 LDevID/serialNumber=EA618DBDBEEE078A3797C5E3BEC6855C4160BC30C4A4533581F94C5C8B4B3709
         Validity
             Not Before: Jan  1 00:00:00 2023 GMT
             Not After : Dec 31 23:59:59 9999 GMT
@@ -34,7 +34,7 @@ Certificate:
             X509v3 Subject Key Identifier: 
                 44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44:44
             X509v3 Authority Key Identifier: 
-                21:EE:EF:9A:4C:61:D4:B9:E3:D9:4B:EA:46:F9:A1:2A:C6:88:7C:E2
+                EA:61:8D:BD:BE:EE:07:8A:37:97:C5:E3:BE:C6:85:5C:41:60:BC:30
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
         30:64:02:30:44:44:44:44:44:44:44:44:44:44:44:44:44:44:
