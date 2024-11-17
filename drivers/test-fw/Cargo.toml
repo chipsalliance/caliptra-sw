@@ -50,8 +50,8 @@ path = "src/bin/sha384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "hmac384"
-path = "src/bin/hmac384_tests.rs"
+name = "hmac"
+path = "src/bin/hmac_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

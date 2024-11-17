@@ -130,8 +130,8 @@ pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResu
 
 fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput {
     DiceInput {
-        auth_key_pair: &dice_output.subj_key_pair,
-        auth_sn: &dice_output.subj_sn,
-        auth_key_id: &dice_output.subj_key_id,
+        auth_key_pair: &dice_output.ecc_subj_key_pair,
+        auth_sn: &dice_output.ecc_subj_sn,
+        auth_key_id: &dice_output.ecc_subj_key_id,
     }
 }

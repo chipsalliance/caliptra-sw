@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::{
-    Ecc384, Hmac384, Lms, Sha1, Sha256, Sha2_512_384Acc, Sha384, ShaAccLockState, Trng,
+    Ecc384, Hmac, Lms, Sha1, Sha256, Sha2_512_384Acc, Sha384, ShaAccLockState, Trng,
 };
 
 pub struct KatsEnv<'a> {
@@ -18,7 +18,7 @@ pub struct KatsEnv<'a> {
     pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
 
     /// Hmac384 Engine
-    pub hmac384: &'a mut Hmac384,
+    pub hmac384: &'a mut Hmac,
 
     /// Cryptographically Secure Random Number Generator
     pub trng: &'a mut Trng,

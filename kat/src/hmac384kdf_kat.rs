@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Hmac384, Trng};
+use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Hmac, Trng};
 
 const KEY: Array4x12 = Array4x12::new([
     0xb57dc523, 0x54afee11, 0xedb4c905, 0x2a528344, 0x348b2c6b, 0x6c39f321, 0x33ed3bb7, 0x2035a4ab,
@@ -49,7 +49,7 @@ impl Hmac384KdfKat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, hmac: &mut Hmac384, trng: &mut Trng) -> CaliptraResult<()> {
+    pub fn execute(&self, hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
         self.kat_nist_vector(hmac, trng)?;
         Ok(())
     }
@@ -64,7 +64,7 @@ impl Hmac384KdfKat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    fn kat_nist_vector(&self, hmac: &mut Hmac384, trng: &mut Trng) -> CaliptraResult<()> {
+    fn kat_nist_vector(&self, hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
         let mut out = Array4x12::default();
 
         hmac384_kdf(hmac, (&KEY).into(), &LABEL, None, trng, (&mut out).into())

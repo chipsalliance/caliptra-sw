@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Array4x12, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
+    Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, MlDsa87, MlDsa87MsgScalar, MlDsa87PubKey, MlDsa87Result, MlDsa87SignRndScalar,
     MlDsa87Signature, Trng,
 };
@@ -405,17 +405,18 @@ fn test_gen_key_pair() {
 
     let mut ml_dsa87 = unsafe { MlDsa87::new(MldsaReg::new()) };
 
-    let mut hmac = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
     };
 
     hmac.hmac(
-        &Hmac384Key::from(&Array4x12::default()),
-        &Hmac384Data::from(&[0]),
+        &HmacKey::from(&Array4x12::default()),
+        &HmacData::from(&[0]),
         &mut trng,
-        Hmac384Tag::Key(key_out_1),
+        HmacTag::Key(key_out_1),
+        HmacMode::Hmac384,
     )
     .unwrap();
 

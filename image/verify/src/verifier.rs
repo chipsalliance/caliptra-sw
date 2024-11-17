@@ -2067,16 +2067,6 @@ mod tests {
             }
         }
 
-        fn vendor_pub_key_info_digest_from_image(
-            &mut self,
-            _ecc_key_desc: (u32, u32),
-            _ecc_pub_key_hashes: (u32, u32),
-            _lms_key_desc: (u32, u32),
-            _lms_pub_key_hashes: (u32, u32),
-        ) -> CaliptraResult<ImageDigest> {
-            Ok(self.digest)
-        }
-
         fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest {
             self.vendor_pub_key_digest
         }
