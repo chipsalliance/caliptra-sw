@@ -13,7 +13,6 @@ Abstract:
 --*/
 
 use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI},

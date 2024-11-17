@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 use crate::{cprintln, rom_env::RomEnv};
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
 use caliptra_common::RomBootStatus::*;

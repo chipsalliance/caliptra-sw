@@ -87,7 +87,7 @@ impl X509 {
     }
 
     fn pub_key_digest(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<Array4x8> {
-        let mut pub_key_bytes: [u8; size_of::<MlDsa87PubKey>()] = [0; size_of::<MlDsa87PubKey>()];
+        let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
         Crypto::sha256_digest(env, &pub_key_bytes[..pub_key_size])
     }
@@ -119,7 +119,7 @@ impl X509 {
     ///
     /// `[u8; 20]` - X509 Subject Key Identifier
     pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u8; 20]> {
-        let mut pub_key_bytes: [u8; size_of::<MlDsa87PubKey>()] = [0; size_of::<MlDsa87PubKey>()];
+        let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
         let data: &[u8] = &pub_key_bytes[..pub_key_size];
 

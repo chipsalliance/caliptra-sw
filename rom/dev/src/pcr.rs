@@ -21,7 +21,6 @@ Note:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{

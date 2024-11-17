@@ -26,7 +26,6 @@ build:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu no-cfi"
 
 build-emu:
 	cargo \
@@ -35,7 +34,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu no-cfi"
+		--features "emu"
 
 build-test-fmc:
 	cargo \
@@ -90,7 +89,6 @@ bloat: build
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu no-cfi" \
 		-n 1000 \
 
 objdump:
@@ -101,7 +99,6 @@ objdump:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu no-cfi" \
 		-- \
 		-d \
 		--no-print-imm-hex \
@@ -148,7 +145,6 @@ size:
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		--bin caliptra-rom \
-		--features no-cfi \
 
 nm:
 	 cargo \
@@ -158,7 +154,6 @@ nm:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features no-cfi \
 		-- \
 		-v \
 

@@ -19,7 +19,6 @@ use super::x509::*;
 use crate::cprintln;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{

@@ -17,7 +17,6 @@ use crate::fuse::log_fuse_data;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
