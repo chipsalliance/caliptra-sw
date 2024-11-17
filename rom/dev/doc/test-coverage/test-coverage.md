@@ -7,21 +7,16 @@ Test Scenario| Test Name | ROM Error Code
  Check if the vendor public key hash from fuse matches the hash of the vendor public keys in the Preamble 	| **test_preamble_vendor_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
  Check if the owner public key hash from fuse_owner_pk_hash fuse is not zero and matches the hash of the owner public key in the Preamble 	| **test_preamble_owner_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
  Check revoking of key idx 0/1/2 <br> * Check that last key (idx = 3) is not revocable 	| **test_preamble_vendor_ecc_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
- Check revoking of key idx 0/1/2 ..30<br> * Check if last key (idx = 31) is not revocable 	| **test_preamble_vendor_lms_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED
- Check vendor LMS key revocation is skipped when  lms_verify fuse is set to false	| **test_preamble_vendor_lms_optional_no_pubkey_revocation_check** | 	 Success
+ Check revoking of key idx 0/1/2 ..30<br> * Check if last key (idx = 31) is not revocable 	| **test_preamble_vendor_lms_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED 
  Check if vendor ECC key idx is >= 4 	| **test_preamble_vendor_ecc_pubkey_out_of_bounds** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
  Check if vendor LMS key idx is >= 32 	| **test_preamble_vendor_lms_pubkey_out_of_bounds** | 	IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS
- Check vendor LMS key idx validation is skipped when lms_verify fuse is set to false	| **test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check** | 	  Success
  Check if vendor ECC public key is zero 	| **test_header_verify_vendor_sig_zero_ecc_pubkey** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG
  Check if vendor ECC signature is zero 	| **test_header_verify_vendor_sig_zero_ecc_signature** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG
  Check if vendor ECC signature from Preamble and computed header signature match 	| **test_header_verify_vendor_ecc_sig_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
  Check if vendor LMS signature from Preamble and computed header signature match 	| **test_header_verify_vendor_lms_sig_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID
- Check if vendor LMS signature from Preamble validation is skipped when lms_verify fuse is set to false	| **test_header_verify_vendor_lms_optional_no_sig_mismatch_check** | 	 Success
  Check if owner LMS signature from Preamble and computed header signature match 	| **test_header_verify_owner_lms_sig_mismatch** | 	 IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID
- Check if owner LMS signature from Preamble validation is skipped when lms_verify fuse is set to false	| **test_header_verify_owner_lms_optional_no_sig_mismatch_check** | 	 Success
  Check if the vendor ECC public key index in Preamble and Header match 	| **test_header_verify_vendor_ecc_pub_key_in_preamble_and_header** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
  Check if the vendor LMS public key index in Preamble and Header match 	| **test_header_verify_vendor_lms_pub_key_in_preamble_and_header** | 	 IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH
-Check if the vendor LMS public key index validation is skipped when lms_verify fuse is set to false	| **test_header_verify_vendor_lms_optional_no_pub_key_in_preamble_and_header_check** | 	 Success
  Check if the owner ECC public key.x in Preamble is zero 	| **test_header_verify_owner_ecc_sig_zero_pubkey_x** | 	IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG
  Check if the owner ECC public key.y in Preamble is zero 	| **test_header_verify_owner_ecc_sig_zero_pubkey_y** | 	IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG
  Check if the owner ECC signature.r in Preamble is zero 	| **test_header_verify_owner_ecc_sig_zero_signature_r** | 	 IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
@@ -66,7 +61,6 @@ Tests with X509KeyIdAlgo::[SHA1/SHA256/SHA384/Fuse] for generating  IDEVID Subje
 Requests CSR and downloads the CSR  | **test_generate_csr**  | N/A
 Check value in ColdResetEntry4::RomColdBootStatus datavault register | **test_check_rom_cold_boot_status_reg**   | N/A
 Check if entries are correctly added in Firmware Handoff table | **test_fht_info**   | N/A
-Check if LMS Vendor PubKey Index in datavault is 0xFFFFFFFF when LMS verification is not enabled | **test_check_no_lms_info_in_datavault_on_lms_unavailable**   | N/A
 Check if boot statuses are correctly reported | **test_cold_reset_status_reporting** | N/A
 Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. |**test_generate_csr_stress** | N/A
 

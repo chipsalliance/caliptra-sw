@@ -1,18 +1,18 @@
 Certificate Request:
     Data:
         Version: 1 (0x0)
-        Subject: CN=Caliptra 1.0 IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
+        Subject: CN=Caliptra 1.0 IDevID/serialNumber=ED4E1CD29CAA3DE158DFEA7C409738139EE05F4CA1A2F8A033AAB171B68A1312
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
                 pub:
-                    04:d7:b4:85:f2:9f:11:5c:1c:b3:04:6b:84:0b:45:
-                    89:b5:78:62:f5:eb:f9:9d:84:6f:be:3f:d2:d1:43:
-                    96:f5:f6:9a:37:9a:59:ac:c5:a2:ae:c8:36:9e:cb:
-                    65:90:44:37:b4:bc:7c:d9:a5:a8:40:3c:5b:b1:91:
-                    52:23:aa:86:be:f2:c1:bc:92:14:5f:fc:27:c1:25:
-                    c6:db:fa:d4:9c:91:e8:48:c5:44:ac:7f:0e:95:d6:
-                    cd:8c:ac:fb:92:3f:a6
+                    04:5b:13:09:96:1b:c5:66:e3:4d:37:2a:7b:52:2b:
+                    9b:4c:d7:b4:78:e8:45:22:eb:32:33:51:00:ba:e0:
+                    90:de:bf:9f:34:0a:4a:4c:c6:a8:16:b9:0c:3b:f3:
+                    04:62:ad:52:0f:22:93:a0:9e:b5:ac:38:e4:99:5a:
+                    54:6c:0c:7e:da:2e:58:cc:bc:d9:23:d0:48:2c:78:
+                    ca:f8:71:d1:7b:5a:66:0b:1c:05:6a:d2:c9:99:ab:
+                    48:73:1c:b9:ee:38:26
                 ASN1 OID: secp384r1
                 NIST CURVE: P-384
         Attributes:
@@ -25,9 +25,9 @@ Certificate Request:
                     0....................
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
-        30:64:02:30:7c:74:fd:28:ce:0f:f9:e9:da:ef:90:84:a5:af:
-        c0:42:d1:e2:08:84:67:d6:6a:e8:dc:46:cc:02:1d:80:da:37:
-        50:91:ee:75:09:ed:15:55:0f:31:15:23:c9:bb:e6:e1:02:30:
-        24:fd:1b:5b:47:cc:14:4a:66:a5:bb:e7:04:74:f0:21:36:37:
-        f4:9e:5d:cd:a1:42:bf:f6:82:5c:a1:f4:51:43:e2:97:fc:95:
-        ce:56:b1:67:e1:bf:e1:26:3a:ce:a1:f3
+        30:65:02:31:00:ac:8c:0f:d8:fa:b7:d3:bc:60:67:68:84:cf:
+        9e:df:a5:cf:4f:b8:09:f2:b2:8d:c6:22:f7:4d:3b:7d:03:2f:
+        57:1d:77:59:b1:6a:71:7f:58:7f:c7:41:04:40:05:2a:89:02:
+        30:4b:67:94:80:ba:89:47:79:6e:ae:7a:91:8a:d5:56:15:08:
+        73:68:3c:4b:05:db:b9:d2:9b:b1:7d:06:db:af:ea:4a:d6:65:
+        b2:13:c7:ca:ed:5f:7f:6d:cc:9b:8a:6d:60

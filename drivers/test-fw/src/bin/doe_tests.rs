@@ -16,8 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384, Hmac384Data,
-    Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
+    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
+    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
@@ -45,7 +45,7 @@ fn test_decrypt() {
     let mut test_results = DoeTestResults::default();
 
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut hmac384 = Hmac384::new(unsafe { HmacReg::new() });
+    let mut hmac384 = Hmac::new(unsafe { HmacReg::new() });
     let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -74,9 +74,10 @@ fn test_decrypt() {
     hmac384
         .hmac(
             &KeyReadArgs::new(KeyId::KeyId0).into(),
-            &Hmac384Data::Slice("Hello world!".as_bytes()),
+            &HmacData::Slice("Hello world!".as_bytes()),
             &mut trng,
             key_out.into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
     test_results.hmac_uds_as_key_out_pub = export_result_from_kv(&mut ecc, &mut trng, key_out_id);
@@ -84,10 +85,11 @@ fn test_decrypt() {
     // Make sure the UDS can be used as HMAC data
     hmac384
         .hmac(
-            &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            &HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            &HmacData::Key(KeyReadArgs { id: KeyId::KeyId0 }),
             &mut trng,
             key_out.into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
     test_results.hmac_uds_as_data_out_pub = export_result_from_kv(&mut ecc, &mut trng, key_out_id);
@@ -98,10 +100,11 @@ fn test_decrypt() {
     // Make sure the FE can be used as a HMAC key
     hmac384
         .hmac(
-            &Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId1 }),
-            &Hmac384Data::Slice("Hello world!".as_bytes()),
+            &HmacKey::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            &HmacData::Slice("Hello world!".as_bytes()),
             &mut trng,
             key_out.into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
     test_results.hmac_field_entropy_as_key_out_pub =
@@ -110,10 +113,11 @@ fn test_decrypt() {
     // Make sure the FE can be used as HMAC data
     hmac384
         .hmac(
-            &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            &HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            &HmacData::Key(KeyReadArgs { id: KeyId::KeyId1 }),
             &mut trng,
             key_out.into(),
+            HmacMode::Hmac384,
         )
         .unwrap();
     test_results.hmac_field_entropy_as_data_out_pub =

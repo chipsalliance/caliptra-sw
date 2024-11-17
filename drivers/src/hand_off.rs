@@ -280,8 +280,11 @@ pub struct FirmwareHandoffTable {
     /// Index of LdevId Certificate Signature S Component in the Data Vault.
     pub ldevid_cert_sig_s_dv_hdl: HandOffDataHandle,
 
-    /// IDevID public key
-    pub idev_dice_pub_key: Ecc384PubKey,
+    /// IDevID ECDSA public key
+    pub idev_dice_ecdsa_pub_key: Ecc384PubKey,
+
+    /// IDevID MLDSA public key address in DCCM
+    pub idev_dice_mldsa_pub_key_load_addr: u32,
 
     /// Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
@@ -299,10 +302,10 @@ pub struct FirmwareHandoffTable {
 
     /// Reserved for future use.
     #[cfg(any(feature = "fmc", feature = "runtime"))]
-    pub reserved: [u8; 1636],
+    pub reserved: [u8; 1632],
 
     #[cfg(not(any(feature = "fmc", feature = "runtime")))]
-    pub reserved: [u8; 1642],
+    pub reserved: [u8; 1638],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -340,7 +343,8 @@ impl Default for FirmwareHandoffTable {
             rt_dice_sign: Ecc384Signature::default(),
             ldevid_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
-            idev_dice_pub_key: Ecc384PubKey::default(),
+            idev_dice_ecdsa_pub_key: Ecc384PubKey::default(),
+            idev_dice_mldsa_pub_key_load_addr: 0,
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
 
@@ -349,10 +353,10 @@ impl Default for FirmwareHandoffTable {
             #[cfg(any(feature = "fmc", feature = "runtime"))]
             rt_hash_chain_kv_hdl: HandOffDataHandle(0),
             #[cfg(any(feature = "fmc", feature = "runtime"))]
-            reserved: [0u8; 1636],
+            reserved: [0u8; 1632],
 
             #[cfg(not(any(feature = "fmc", feature = "runtime")))]
-            reserved: [0u8; 1642],
+            reserved: [0u8; 1638],
         }
     }
 }
@@ -405,6 +409,10 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
     crate::cprintln!("RT Min SVN DV Handle: 0x{:08x}", fht.rt_min_svn_dv_hdl.0);
 
+    crate::cprintln!(
+        "IdevId MLDSA Public Key Address: 0x{:08x}",
+        fht.idev_dice_mldsa_pub_key_load_addr
+    );
     crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
     crate::cprintln!(
@@ -470,14 +478,14 @@ mod tests {
     use super::*;
     use core::mem;
     const FHT_SIZE: usize = 2048;
-    const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId5;
+    const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
     }
 
     fn fmc_priv_key_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_PRIV_KEY as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_ECDSA_PRIV_KEY as u32)
     }
 
     fn fmc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
@@ -541,9 +549,9 @@ mod tests {
         // Check the key slot is correct
         assert_eq!(
             fht.fmc_priv_key_kv_hdl.reg_num(),
-            KEY_ID_FMC_PRIV_KEY.into()
+            KEY_ID_FMC_ECDSA_PRIV_KEY.into()
         );
 
-        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_PRIV_KEY);
+        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_ECDSA_PRIV_KEY);
     }
 }

@@ -16,7 +16,7 @@ use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, Hmac384Key, KeyReadArgs,
+    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, HmacKey, KeyReadArgs,
     KeyUsage, KeyWriteArgs,
 };
 use dpe::U8Bool;
@@ -56,7 +56,7 @@ impl DisableAttestationCmd {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         hmac384_kdf(
             &mut drivers.hmac384,
-            Hmac384Key::Array4x12(&Array4x12::default()),
+            HmacKey::Array4x12(&Array4x12::default()),
             b"zero_rt_cdi",
             None,
             &mut drivers.trng,

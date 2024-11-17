@@ -443,16 +443,18 @@ static int caliptra_mailbox_read_fifo(struct caliptra_buffer *buffer, uint32_t *
     uint32_t remaining_len = caliptra_mbox_read_dlen();
 
     // Check that the buffer is not null
-    if (buffer == NULL)
+    if (buffer == NULL) {
         return INVALID_PARAMS;
+    }
 
     if (bytes_read) {
         *bytes_read = 0;
     }
 
     // Check we have enough room in the buffer
-    if (buffer->len < remaining_len || !buffer->data)
+    if (buffer->len < remaining_len || !buffer->data) {
         return INVALID_PARAMS;
+    }
 
     uint32_t *data_dw = (uint32_t *)buffer->data;
 

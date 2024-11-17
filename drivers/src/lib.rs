@@ -31,7 +31,7 @@ pub mod fips_test_hooks;
 mod fuse_bank;
 pub mod fuse_log;
 pub mod hand_off;
-mod hmac384;
+mod hmac;
 mod hmac384_kdf;
 mod key_vault;
 mod kv_access;
@@ -73,10 +73,10 @@ pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
 pub use fuse_bank::{
-    FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
+    FuseBank, IdevidCertAttr, RomPqcVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };
 pub use hand_off::FirmwareHandoffTable;
-pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
+pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
 pub use hmac384_kdf::hmac384_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
@@ -85,6 +85,7 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use mldsa87::{MlDsa87, MlDsa87PubKey, MlDsa87Reg, MlDsa87Signature};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};

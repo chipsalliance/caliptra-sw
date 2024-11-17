@@ -80,6 +80,16 @@ SECTIONS
 	    _edata = .;
 	} > DATA AT> ICCM
 
+    .padding : ALIGN(4)
+    {
+        _padding = .;
+        // The manifest size gets replaced in build.rs
+        . += ICCM_SIZE - SIZEOF(.rodata) - SIZEOF(.text) - SIZEOF(.data) - 1 - #MANIFEST_SIZE#;
+        BYTE(0xff);
+        _epadding = .;
+    } > ICCM
+
+
 	.bss (NOLOAD) : ALIGN(4) 
     {
 		_sbss = .;

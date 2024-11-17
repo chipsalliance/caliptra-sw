@@ -17,7 +17,7 @@ use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
-use caliptra_drivers::Hmac384;
+use caliptra_drivers::Hmac;
 use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha2_512_384Acc;
@@ -38,7 +38,7 @@ impl FipsModule {
         unsafe {
             // Zeroize the crypto blocks.
             Ecc384::zeroize();
-            Hmac384::zeroize();
+            Hmac::zeroize();
             Sha256::zeroize();
             Sha384::zeroize();
             Sha2_512_384Acc::zeroize();

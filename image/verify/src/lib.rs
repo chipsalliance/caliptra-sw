@@ -59,14 +59,14 @@ pub struct ImageVerificationLogInfo {
     // ECC Vendor Public Key Index To Log
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Vendor ECC Public Key Revocation Fuse    
+    /// Vendor ECC Public Key Revocation Fuse
     pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
 
     // LMS Vendor Public Key Index
-    pub vendor_lms_pub_key_idx: Option<u32>,
+    pub vendor_lms_pub_key_idx: u32,
 
     /// Vendor LMS Public Key Revocation Fuse
-    pub fuse_vendor_lms_pub_key_revocation: Option<u32>,
+    pub fuse_vendor_lms_pub_key_revocation: u32,
 
     /// First Mutable code's logging information
     pub fmc_log_info: ImageSvnLogInfo,
@@ -82,7 +82,10 @@ pub struct ImageVerificationInfo {
     pub vendor_ecc_pub_key_idx: u32,
 
     /// Vendor LMS public key index
-    pub vendor_lms_pub_key_idx: Option<u32>,
+    pub vendor_lms_pub_key_idx: u32,
+
+    /// PQC Verification Configuration
+    pub pqc_verify_config: RomPqcVerifyConfig,
 
     /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest,
@@ -124,15 +127,6 @@ pub trait ImageVerificationEnv {
     /// Get Vendor Public Key Digest from fuses
     fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest;
 
-    /// Compute theVendor Public Key Digest from Image
-    fn vendor_pub_key_info_digest_from_image(
-        &mut self,
-        ecc_key_desc: (u32, u32),
-        ecc_pub_key_hashes: (u32, u32),
-        lms_key_desc: (u32, u32),
-        lms_pub_key_hashes: (u32, u32),
-    ) -> CaliptraResult<ImageDigest>;
-
     /// Get Vendor ECC Public Key Revocation list
     fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
 
@@ -168,9 +162,6 @@ pub trait ImageVerificationEnv {
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;
-
-    // LMS Verification enabled
-    fn lms_verify_enabled(&self) -> bool;
 
     // Set the extended error code
     fn set_fw_extended_error(&mut self, err: u32);

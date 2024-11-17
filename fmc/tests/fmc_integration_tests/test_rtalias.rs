@@ -3,7 +3,12 @@ use caliptra_builder::{
     firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::RomBootStatus::*;
+use caliptra_common::{
+    memory_layout::{
+        FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, MEASUREMENT_LOG_ORG, PCR_LOG_ORG,
+    },
+    RomBootStatus::*,
+};
 
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
@@ -92,11 +97,11 @@ fn test_fht_info() {
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 552);
     assert_eq!(fht.fmcalias_tbs_size, 786);
-    assert_eq!(fht.ldevid_tbs_addr, 0x50004C00);
-    assert_eq!(fht.fmcalias_tbs_addr, 0x50005000);
-    assert_eq!(fht.pcr_log_addr, 0x50005800);
-    assert_eq!(fht.meas_log_addr, 0x50005C00);
-    assert_eq!(fht.fuse_log_addr, 0x50006000);
+    assert_eq!(fht.ldevid_tbs_addr, LDEVID_TBS_ORG);
+    assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
+    assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
+    assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
+    assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
 }
 
 #[test]

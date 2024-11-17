@@ -13,19 +13,22 @@ Abstract:
 
 --*/
 
-pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
-
-/// MAX Signature length
-const MAX_ECDSA384_SIG_LEN: usize = 108;
-
-/// DER Integer Tag
-const DER_INTEGER_TAG: u8 = 0x02;
+use crate::{der_encode_len, der_encode_uint, der_uint_len};
 
 /// DER Bit String Tag
 const DER_BIT_STR_TAG: u8 = 0x03;
 
 /// DER Sequence Tag
 const DER_SEQ_TAG: u8 = 0x30;
+
+/// Trait for signature types
+pub trait Signature<const MAX_DER_SIZE: usize> {
+    /// Convert the signature to DER format
+    fn to_der(&self, buf: &mut [u8; MAX_DER_SIZE]) -> Option<usize>;
+
+    /// DER Encoded Sequence with signature algorithm OID
+    fn oid_der() -> &'static [u8];
+}
 
 /// ECDSA-384 Signature
 #[derive(Debug)]
@@ -38,11 +41,10 @@ pub struct Ecdsa384Signature {
 }
 
 impl Default for Ecdsa384Signature {
-    /// Returns the "default value" for a type.
     fn default() -> Self {
         Self {
-            r: [0u8; Self::ECDSA_COORD_LEN],
-            s: [0u8; Self::ECDSA_COORD_LEN],
+            r: [0; Self::ECDSA_COORD_LEN],
+            s: [0; Self::ECDSA_COORD_LEN],
         }
     }
 }
@@ -50,77 +52,15 @@ impl Default for Ecdsa384Signature {
 impl Ecdsa384Signature {
     /// ECDSA Coordinate length
     pub const ECDSA_COORD_LEN: usize = 48;
+}
 
-    /// Get the length of DER encoded unsigned integer
-    #[inline(never)]
-    #[allow(clippy::needless_return)]
-    fn der_uint_len(&self, val: &[u8; Self::ECDSA_COORD_LEN]) -> usize {
-        //
-        // len = TAG (1 byte) + LEN (1 byte) + Coordinate Len
-        //
-        for (idx, byte) in val.iter().enumerate() {
-            if *byte != 0x00 {
-                return 2 + val.len() - idx + if *byte > 127 { 1 } else { 0 };
-            }
-        }
-
-        return 2 + 1;
-    }
-
-    // DER Encode unsigned integer
-    fn der_encode_uint(&self, val: &[u8; Self::ECDSA_COORD_LEN], buf: &mut [u8]) -> Option<usize> {
-        let mut pos = 0;
-
-        // Count the leading zeros
-        let clz = val
-            .iter()
-            .enumerate()
-            .find(|(_, byte)| **byte != 0)
-            .map_or(val.len(), |(idx, _)| idx);
-
-        *buf.get_mut(pos)? = DER_INTEGER_TAG;
-        pos += 1;
-
-        if clz == val.len() {
-            // Encode length
-            *buf.get_mut(pos)? = 1;
-
-            // Encode Value
-            *buf.get_mut(pos + 1)? = 0;
-
-            pos += 2;
-        } else {
-            // Check if the most significant bit is set
-            let msb_set = *val.get(clz)? > 127_u8;
-
-            // Encode length
-            let val_size = val.len() - clz + if msb_set { 1 } else { 0 };
-            *buf.get_mut(pos)? = val_size as u8;
-            pos += 1;
-
-            // Encode the value
-
-            // If MSB is set encode extra zero to indicate it is positive unsigned integer
-            if msb_set {
-                *buf.get_mut(pos)? = 0;
-                pos += 1;
-            }
-
-            let val = val.get(clz..)?;
-            buf.get_mut(pos..pos + val.len())?.copy_from_slice(val);
-            pos += val.len();
-        };
-
-        Some(pos)
-    }
-
-    /// Convert the signature to DER format
-    fn to_der(&self) -> Option<([u8; MAX_ECDSA384_SIG_LEN], usize)> {
+impl Signature<108> for Ecdsa384Signature {
+    fn to_der(&self, buf: &mut [u8; 108]) -> Option<usize> {
         // Encode Signature R Coordinate
-        let r_uint_len = self.der_uint_len(&self.r);
+        let r_uint_len = der_uint_len(&self.r)?;
 
         // Encode Signature S Coordinate
-        let s_uint_len = self.der_uint_len(&self.s);
+        let s_uint_len = der_uint_len(&self.s)?;
 
         //
         // Signature DER Sequence encoding
@@ -129,7 +69,6 @@ impl Ecdsa384Signature {
         //
         let sig_seq_len = 2 + r_uint_len + s_uint_len;
 
-        let mut buf = [0u8; MAX_ECDSA384_SIG_LEN];
         let mut pos = 0;
 
         // Encode Signature DER Bit String
@@ -147,52 +86,97 @@ impl Ecdsa384Signature {
         pos += 1;
 
         // Encode R-Coordinate
-        pos += self.der_encode_uint(&self.r, buf.get_mut(pos..)?)?;
+        pos += der_encode_uint(&self.r, buf.get_mut(pos..)?)?;
 
         // Encode S-Coordinate
-        pos += self.der_encode_uint(&self.s, buf.get_mut(pos..)?)?;
+        pos += der_encode_uint(&self.s, buf.get_mut(pos..)?)?;
 
-        Some((buf, pos))
+        Some(pos)
+    }
+
+    fn oid_der() -> &'static [u8] {
+        &[
+            0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03,
+        ]
     }
 }
 
-/// ECDSA-384 Certificate Builder
+/// Ml-Dsa87 Signature
+pub struct MlDsa87Signature {
+    pub sig: [u8; 4627],
+}
+
+impl Default for MlDsa87Signature {
+    /// Returns the "default value" for a type.
+    fn default() -> Self {
+        Self { sig: [0; 4627] }
+    }
+}
+
+impl Signature<4635> for MlDsa87Signature {
+    fn to_der(&self, buf: &mut [u8; 4635]) -> Option<usize> {
+        let ml_dsa_signature_len = der_uint_len(&self.sig)?;
+
+        //
+        // Signature DER Sequence encoding
+        //
+        // sig_seq_len = TAG (1 byte) + LEN (3 byte) + ml_dsa_signature_len
+        //
+        let sig_seq_len = 4 + ml_dsa_signature_len;
+        let mut pos = 0;
+
+        // Encode Signature DER Bit String
+        *buf.get_mut(pos)? = DER_BIT_STR_TAG;
+        pos += 1;
+        pos += der_encode_len(1 + sig_seq_len, buf.get_mut(pos..)?)?;
+        // Not sure?
+        *buf.get_mut(pos)? = 0x0;
+        pos += 1;
+
+        // Encode Signature DER Sequence
+        *buf.get_mut(pos)? = DER_SEQ_TAG;
+        pos += 1;
+        pos += der_encode_len(ml_dsa_signature_len, buf.get_mut(pos..)?)?;
+
+        // Encode Ml-Dsa87 signature
+        pos += der_encode_uint(&self.sig, buf.get_mut(pos..)?)?;
+
+        Some(pos)
+    }
+
+    fn oid_der() -> &'static [u8] {
+        // TODO this is wrong and just copied from ECC
+        &[
+            0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03,
+        ]
+    }
+}
+
+/// Generic Certificate Builder
 #[derive(Debug)]
-pub struct Ecdsa384CertBuilder<'a> {
+pub struct CertBuilder<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> {
     /// DER encoded To be signed portion
     tbs: &'a [u8],
 
-    /// DER encoded Signature
-    sig: [u8; MAX_ECDSA384_SIG_LEN],
-
-    /// DER encoded Signature length
-    sig_len: usize,
+    /// Signature of the To be signed portion
+    sig: &'a S,
 
     /// Length of the signed Cert/CSR
     len: usize,
 }
 
-impl<'a> Ecdsa384CertBuilder<'a> {
-    // DER Encoded Sequence with ecdsa-with-SHA384 OID
-    const OID_DER: [u8; 12] = [
-        0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03,
-    ];
-
-    /// Create an instance of `Ecdsa384CertBuilder`
+impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, S, MAX_DER_SIZE> {
+    /// Create an instance of `CertBuilder`
     ///
     /// # Arguments
     ///
     /// * `tbs` - DER encoded To be signed portion
     /// * `sig` - Signature of the To be signed portion
-    pub fn new(tbs: &'a [u8], sig: &Ecdsa384Signature) -> Option<Self> {
-        let (sig, sig_len) = sig.to_der()?;
-        let len = Self::compute_len(tbs.len(), sig_len)?;
-        Some(Self {
-            tbs,
-            sig,
-            sig_len,
-            len,
-        })
+    pub fn new(tbs: &'a [u8], sig: &'a S) -> Option<Self> {
+        let mut sig_buf = [0u8; MAX_DER_SIZE];
+        let sig_len = sig.to_der(&mut sig_buf)?;
+        let len = Self::compute_len(tbs.len(), sig_len, S::oid_der().len())?;
+        Some(Self { tbs, sig, len })
     }
 
     /// Build the Certificate or Certificate Signing Request
@@ -202,7 +186,7 @@ impl<'a> Ecdsa384CertBuilder<'a> {
     /// * `buf` - Buffer to construct the certificate in
     pub fn build(&self, buf: &mut [u8]) -> Option<usize> {
         if buf.len() < self.len {
-            None?;
+            return None;
         }
 
         let mut pos = 0;
@@ -212,30 +196,15 @@ impl<'a> Ecdsa384CertBuilder<'a> {
         pos += 1;
 
         // Copy Length
-        let len = self.tbs.len() + Self::OID_DER.len() + self.sig_len;
+        let mut sig_buf = [0u8; MAX_DER_SIZE];
+        let sig_len = self.sig.to_der(&mut sig_buf)?;
+        let len = self.tbs.len() + S::oid_der().len() + sig_len;
 
         if buf.len() < len + 4 {
-            None?;
+            return None;
         }
 
-        match len {
-            0..=127 => {
-                *buf.get_mut(pos)? = len as u8;
-                pos += 1;
-            }
-            128..=255 => {
-                *buf.get_mut(pos)? = 0x81;
-                *buf.get_mut(pos + 1)? = len as u8;
-                pos += 2;
-            }
-            256..=4096 => {
-                *buf.get_mut(pos)? = 0x82;
-                *buf.get_mut(pos + 1)? = (len >> u8::BITS) as u8;
-                *buf.get_mut(pos + 2)? = (len as u8) & u8::MAX;
-                pos += 3;
-            }
-            _ => None?,
-        }
+        pos += der_encode_len(len, buf.get_mut(pos..)?)?;
 
         // Copy Value
 
@@ -245,14 +214,14 @@ impl<'a> Ecdsa384CertBuilder<'a> {
         pos += self.tbs.len();
 
         // Copy OID DER
-        buf.get_mut(pos..pos + Self::OID_DER.len())?
-            .copy_from_slice(&Self::OID_DER);
-        pos += Self::OID_DER.len();
+        buf.get_mut(pos..pos + S::oid_der().len())?
+            .copy_from_slice(S::oid_der());
+        pos += S::oid_der().len();
 
         // Copy Signature DER
-        let sig = &self.sig.get(..self.sig_len)?;
-        buf.get_mut(pos..pos + sig.len())?.copy_from_slice(sig);
-        pos += sig.len();
+        buf.get_mut(pos..pos + sig_len)?
+            .copy_from_slice(sig_buf.get(..sig_len)?);
+        pos += sig_len;
 
         Some(pos)
     }
@@ -264,14 +233,14 @@ impl<'a> Ecdsa384CertBuilder<'a> {
     }
 
     // Compute length of the X509 certificate or cert signing request
-    fn compute_len(tbs_len: usize, sig_der_len: usize) -> Option<usize> {
-        let len = tbs_len + Self::OID_DER.len() + sig_der_len;
+    fn compute_len(tbs_len: usize, sig_der_len: usize, oid_len: usize) -> Option<usize> {
+        let len = tbs_len + oid_len + sig_der_len;
 
         // Max Cert or CSR size is 4096 bytes
         let len_bytes = match len {
-            0..=127 => 1_usize,
-            128..=255 => 2,
-            256..=4096 => 3,
+            0..=0x7f => 1_usize,
+            0x80..=0xff => 2,
+            0x100..=0xffff => 3,
             _ => None?,
         };
 
@@ -283,3 +252,11 @@ impl<'a> Ecdsa384CertBuilder<'a> {
         Some(1 + len_bytes + len)
     }
 }
+
+// Type alias for ECDSA-384 Certificate Builder
+pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, 108>;
+pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
+
+// Type alias for Ml-Dsa87 Certificate Builder
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, MlDsa87Signature, 4627>;
+pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;

@@ -29,7 +29,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::{
     pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
     CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
-    PersistentData, RomVerifyConfig, Sha256, Sha384, SocIfc,
+    PersistentData, RomPqcVerifyConfig, Sha256, Sha384, SocIfc,
     AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
 };
 use caliptra_image_types::{
@@ -84,10 +84,6 @@ impl SetAuthManifestCmd {
         ecc384.verify_r(&pub_key, &digest, &sig)
     }
 
-    fn lms_verify_enabled(soc_ifc: &SocIfc) -> bool {
-        soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
-    }
-
     fn lms_verify(
         sha256: &mut Sha256,
         digest: &ImageDigest,
@@ -139,22 +135,20 @@ impl SetAuthManifestCmd {
         }
 
         // Verify vendor LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let vendor_fw_lms_key = &fw_preamble.vendor_lms_active_pub_key;
+        let vendor_fw_lms_key = &fw_preamble.vendor_lms_active_pub_key;
 
-            let candidate_key = Self::lms_verify(
-                sha256,
-                &digest_vendor,
-                vendor_fw_lms_key,
-                &auth_manifest_preamble.vendor_pub_keys_signatures.lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
+        let candidate_key = Self::lms_verify(
+            sha256,
+            &digest_vendor,
+            vendor_fw_lms_key,
+            &auth_manifest_preamble.vendor_pub_keys_signatures.lms_sig,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+        let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
+        if candidate_key != pub_key_digest {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
         }
 
         Ok(())
@@ -199,22 +193,20 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let owner_fw_lms_key = &fw_preamble.owner_pub_keys.lms_pub_key;
+        let owner_fw_lms_key = &fw_preamble.owner_pub_keys.lms_pub_key;
 
-            let candidate_key = Self::lms_verify(
-                sha256,
-                &digest_owner,
-                owner_fw_lms_key,
-                &auth_manifest_preamble.owner_pub_keys_signatures.lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
+        let candidate_key = Self::lms_verify(
+            sha256,
+            &digest_owner,
+            owner_fw_lms_key,
+            &auth_manifest_preamble.owner_pub_keys_signatures.lms_sig,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+        let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
+        if candidate_key != pub_key_digest {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
         }
 
         Ok(())
@@ -262,23 +254,21 @@ impl SetAuthManifestCmd {
         }
 
         // Verify vendor LMS signature over the image metadata collection.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let candidate_key = Self::lms_verify(
-                sha256,
-                image_metadata_col_digest,
-                &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
-                &auth_manifest_preamble
-                    .vendor_image_metdata_signatures
-                    .lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
+        let candidate_key = Self::lms_verify(
+            sha256,
+            image_metadata_col_digest,
+            &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
+            &auth_manifest_preamble
+                .vendor_image_metdata_signatures
+                .lms_sig,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+        let pub_key_digest =
+            HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
+        if candidate_key != pub_key_digest {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
         }
         Ok(())
     }
@@ -321,23 +311,21 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let candidate_key = Self::lms_verify(
-                sha256,
-                image_metadata_col_digest,
-                &auth_manifest_preamble.owner_pub_keys.lms_pub_key,
-                &auth_manifest_preamble
-                    .owner_image_metdata_signatures
-                    .lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
+        let candidate_key = Self::lms_verify(
+            sha256,
+            image_metadata_col_digest,
+            &auth_manifest_preamble.owner_pub_keys.lms_pub_key,
+            &auth_manifest_preamble
+                .owner_image_metdata_signatures
+                .lms_sig,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+        let pub_key_digest =
+            HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
+        if candidate_key != pub_key_digest {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+        } else {
+            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
         }
 
         Ok(())

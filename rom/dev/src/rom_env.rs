@@ -17,8 +17,8 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    DataVault, DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, MlDsa87, MlDsa87Reg,
+    PcrBank, PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
@@ -45,7 +45,7 @@ pub struct RomEnv {
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
     /// Hmac384 Engine
-    pub hmac384: Hmac384,
+    pub hmac384: Hmac,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
@@ -74,8 +74,11 @@ pub struct RomEnv {
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
 
-    // Mechanism to access the persistent data safely
+    /// Mechanism to access the persistent data safely
     pub persistent_data: PersistentDataAccessor,
+
+    /// MlDsa87 Engine
+    pub mldsa: MlDsa87,
 }
 
 impl RomEnv {
@@ -93,7 +96,7 @@ impl RomEnv {
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac384::new(HmacReg::new()),
+            hmac384: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
@@ -104,6 +107,7 @@ impl RomEnv {
             fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
+            mldsa: MlDsa87::new(MlDsa87Reg::new()),
         })
     }
 }

@@ -295,53 +295,6 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
         self.soc_ifc.fuse_bank().vendor_pub_key_info_hash().into()
     }
 
-    /// Retrieve Vendor Public Key Info Digest
-    fn vendor_pub_key_info_digest_from_image(
-        &mut self,
-        ecc_key_desc: (u32, u32),
-        ecc_pub_key_hashes: (u32, u32),
-        lms_key_desc: (u32, u32),
-        lms_pub_key_hashes: (u32, u32),
-    ) -> CaliptraResult<ImageDigest> {
-        let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        let ecc_key_desc = self
-            .image
-            .get(ecc_key_desc.0 as usize..)
-            .ok_or(err)?
-            .get(..ecc_key_desc.1 as usize)
-            .ok_or(err)?;
-
-        let ecc_pub_key_hashes = self
-            .image
-            .get(ecc_pub_key_hashes.0 as usize..)
-            .ok_or(err)?
-            .get(..ecc_pub_key_hashes.1 as usize)
-            .ok_or(err)?;
-
-        let lms_key_desc = self
-            .image
-            .get(lms_key_desc.0 as usize..)
-            .ok_or(err)?
-            .get(..lms_key_desc.1 as usize)
-            .ok_or(err)?;
-
-        let lms_pub_key_hashes = self
-            .image
-            .get(lms_pub_key_hashes.0 as usize..)
-            .ok_or(err)?
-            .get(..lms_pub_key_hashes.1 as usize)
-            .ok_or(err)?;
-
-        let mut digest = Array4x12::default();
-        let mut op = self.sha384.digest_init()?;
-        op.update(ecc_key_desc)?;
-        op.update(ecc_pub_key_hashes)?;
-        op.update(lms_key_desc)?;
-        op.update(lms_pub_key_hashes)?;
-        op.finalize(&mut digest)?;
-        Ok(digest.0)
-    }
-
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
     fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
         self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
@@ -399,10 +352,6 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     fn iccm_range(&self) -> Range<u32> {
         caliptra_common::memory_layout::ICCM_RANGE
-    }
-
-    fn lms_verify_enabled(&self) -> bool {
-        self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
     }
 
     fn set_fw_extended_error(&mut self, err: u32) {
