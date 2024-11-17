@@ -56,7 +56,7 @@ pub struct MlDsaKeyPair {
     pub key_pair_seed: KeyId,
 
     /// Public Key
-    pub pub_key: MlDsa87PubKey,
+    pub pub_key: Mldsa87PubKey,
 }
 
 #[derive(Debug)]
@@ -257,7 +257,7 @@ impl Crypto {
     ///
     /// # Returns
     ///
-    /// * `MlDsa87PubKey` - Public key
+    /// * `Mldsa87PubKey` - Public key
     #[inline(always)]
     pub fn mldsa_key_gen(
         env: &mut RomEnv,

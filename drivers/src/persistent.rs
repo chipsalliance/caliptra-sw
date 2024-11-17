@@ -16,7 +16,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    FirmwareHandoffTable, MlDsa87PubKey,
+    FirmwareHandoffTable, Mldsa87PubKey,
 };
 
 #[cfg(feature = "runtime")]
@@ -56,9 +56,9 @@ pub struct PersistentData {
     pub fht: FirmwareHandoffTable,
     reserved2: [u8; memory_layout::FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
 
-    pub idevid_mldsa_pub_key: MlDsa87PubKey,
+    pub idevid_mldsa_pub_key: Mldsa87PubKey,
     reserved2_1:
-        [u8; memory_layout::IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize - size_of::<MlDsa87PubKey>()],
+        [u8; memory_layout::IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize - size_of::<Mldsa87PubKey>()],
 
     // TODO: Do we want to hide these fields from the FMC/runtime and force them
     // to go through the FHT addresses?
