@@ -18,8 +18,8 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, MlDsa87, MlDsa87MsgScalar, MlDsa87PubKey, MlDsa87Result, MlDsa87SignRndScalar,
-    MlDsa87Signature, Trng,
+    KeyWriteArgs, Mldsa87, Mldsa87MsgScalar, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRndScalar,
+    Mldsa87Signature, Trng,
 };
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -403,7 +403,7 @@ fn test_gen_key_pair() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
-    let mut ml_dsa87 = unsafe { MlDsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
@@ -423,11 +423,11 @@ fn test_gen_key_pair() {
     let seed = KeyReadArgs::new(KeyId::KeyId0);
     let public_key = ml_dsa87.key_pair(&seed, &mut trng).unwrap();
 
-    assert_eq!(public_key, MlDsa87PubKey::from(PUBKEY));
+    assert_eq!(public_key, Mldsa87PubKey::from(PUBKEY));
 }
 
 fn test_sign() {
-    let mut ml_dsa87 = unsafe { MlDsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -439,54 +439,54 @@ fn test_sign() {
         .unwrap()
     };
 
-    let msg = MlDsa87MsgScalar::default();
-    let sign_rnd = MlDsa87SignRndScalar::default(); // Deterministic signing
+    let msg = Mldsa87MsgScalar::default();
+    let sign_rnd = Mldsa87SignRndScalar::default(); // Deterministic signing
     let seed = KeyReadArgs::new(KeyId::KeyId0); // Reuse SEED
 
     let signature = ml_dsa87
         .sign(
             &seed,
-            &MlDsa87PubKey::from(PUBKEY),
+            &Mldsa87PubKey::from(PUBKEY),
             &msg,
             &sign_rnd,
             &mut trng,
         )
         .unwrap();
 
-    assert_eq!(signature, MlDsa87Signature::from(SIGNATURE));
+    assert_eq!(signature, Mldsa87Signature::from(SIGNATURE));
 }
 
 fn test_verify() {
-    let mut ml_dsa87 = unsafe { MlDsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
-    let msg = MlDsa87MsgScalar::default();
+    let msg = Mldsa87MsgScalar::default();
 
     assert_eq!(
         ml_dsa87
             .verify(
-                &MlDsa87PubKey::from(PUBKEY),
+                &Mldsa87PubKey::from(PUBKEY),
                 &msg,
-                &MlDsa87Signature::from(SIGNATURE)
+                &Mldsa87Signature::from(SIGNATURE)
             )
             .unwrap(),
-        MlDsa87Result::Success
+        Mldsa87Result::Success
     );
 }
 
 fn test_verify_failure() {
-    let mut ml_dsa87 = unsafe { MlDsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
-    let msg = MlDsa87MsgScalar::from([0xff; 64]);
+    let msg = Mldsa87MsgScalar::from([0xff; 64]);
 
     assert_eq!(
         ml_dsa87
             .verify(
-                &MlDsa87PubKey::from(PUBKEY),
+                &Mldsa87PubKey::from(PUBKEY),
                 &msg,
-                &MlDsa87Signature::from(SIGNATURE)
+                &Mldsa87Signature::from(SIGNATURE)
             )
             .unwrap(),
-        MlDsa87Result::SigVerifyFailed
+        Mldsa87Result::SigVerifyFailed
     );
 }
 

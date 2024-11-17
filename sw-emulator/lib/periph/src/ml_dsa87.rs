@@ -98,7 +98,7 @@ register_bitfields! [
 #[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
-pub struct MlDsa87 {
+pub struct Mldsa87 {
     /// Name registers
     #[register_array(offset = 0x0000_0000)]
     name: [u32; 2],
@@ -175,7 +175,7 @@ pub struct MlDsa87 {
     op_seed_read_complete_action: Option<ActionHandle>,
 }
 
-impl MlDsa87 {
+impl Mldsa87 {
     /// NAME0 Register Value TODO update when known
     const NAME0_VAL: RvData = 0x73656370; //0x63737065; // secp
 
@@ -471,7 +471,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let name0 = ml_dsa87.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
@@ -487,7 +487,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let version0 = ml_dsa87.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -503,7 +503,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
         assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
@@ -512,7 +512,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
         assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
@@ -521,7 +521,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let mut seed = [0u8; 32];
         seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
@@ -558,7 +558,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let mut seed = [0u8; 32];
         seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
@@ -621,7 +621,7 @@ mod tests {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
 
-        let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let msg = [0u8; 64];
         for i in (0..msg.len()).step_by(4) {
@@ -738,7 +738,7 @@ mod tests {
                 .write_key(key_id, &seed, u32::from(key_usage))
                 .unwrap();
 
-            let mut ml_dsa87 = MlDsa87::new(&clock, key_vault);
+            let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
             // We expect the output to match seed 0. Write a different seed first to make sure the Kv seed is used
             let mut seed = [0xABu8; 32];

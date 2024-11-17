@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    mldsa87.rs
+    Mldsa87.rs
 
 Abstract:
 
@@ -25,31 +25,31 @@ use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 #[must_use]
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MlDsa87Result {
+pub enum Mldsa87Result {
     Success = 0xAAAAAAAA,
     SigVerifyFailed = 0x55555555,
 }
 
 /// MLDSA-87 Public Key
-pub type MlDsa87PubKey = Array4x648;
+pub type Mldsa87PubKey = Array4x648;
 
 /// MLDSA-87 Signature
-pub type MlDsa87Signature = Array4x1157;
+pub type Mldsa87Signature = Array4x1157;
 
 /// MLDSA-87 Message (64 Bytes)
-pub type MlDsa87MsgScalar = Array4x16;
+pub type Mldsa87MsgScalar = Array4x16;
 
 /// MLDSA-87 Signature RND
-pub type MlDsa87SignRndScalar = Array4x8;
+pub type Mldsa87SignRndScalar = Array4x8;
 
-type MlDsa87VerifyRes = Array4x16;
+type Mldsa87VerifyRes = Array4x16;
 
 /// MLDSA-87  API
-pub struct MlDsa87 {
+pub struct Mldsa87 {
     mldsa87: MldsaReg,
 }
 
-impl MlDsa87 {
+impl Mldsa87 {
     pub fn new(mldsa87: MldsaReg) -> Self {
         Self { mldsa87 }
     }
@@ -102,16 +102,16 @@ impl MlDsa87 {
     ///
     /// # Returns
     ///
-    /// * `MlDsa87PubKey` - Generated MLDSA-87 Public Key
+    /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
     pub fn key_pair(
         &mut self,
         seed: &KeyReadArgs,
         trng: &mut Trng,
-    ) -> CaliptraResult<MlDsa87PubKey> {
+    ) -> CaliptraResult<Mldsa87PubKey> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -128,10 +128,10 @@ impl MlDsa87 {
         mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen()));
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy pubkey
-        let pubkey = MlDsa87PubKey::read_from_reg(mldsa.pubkey());
+        let pubkey = Mldsa87PubKey::read_from_reg(mldsa.pubkey());
 
         // Clear the hardware when done
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -154,19 +154,19 @@ impl MlDsa87 {
     ///
     /// # Returns
     ///
-    /// * `MlDsa87Signature` - Generated signature
+    /// * `Mldsa87Signature` - Generated signature
     pub fn sign(
         &mut self,
         seed: &KeyReadArgs,
-        pub_key: &MlDsa87PubKey,
-        msg: &MlDsa87MsgScalar,
-        sign_rnd: &MlDsa87SignRndScalar,
+        pub_key: &Mldsa87PubKey,
+        msg: &Mldsa87MsgScalar,
+        sign_rnd: &Mldsa87SignRndScalar,
         trng: &mut Trng,
-    ) -> CaliptraResult<MlDsa87Signature> {
+    ) -> CaliptraResult<Mldsa87Signature> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -189,10 +189,10 @@ impl MlDsa87 {
         mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen_sign()));
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy signature
-        let signature = MlDsa87Signature::read_from_reg(mldsa.signature());
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
         // Clear the hardware when done
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -227,17 +227,17 @@ impl MlDsa87 {
     ///
     /// # Result
     ///
-    /// *  `MlDsa87Result` - MlDsa87Result::Success if the signature verification passed else an error code.
+    /// *  `Mldsa87Result` - Mldsa87Result::Success if the signature verification passed else an error code.
     fn verify_res(
         &mut self,
-        pub_key: &MlDsa87PubKey,
-        msg: &MlDsa87MsgScalar,
-        signature: &MlDsa87Signature,
-    ) -> CaliptraResult<MlDsa87VerifyRes> {
+        pub_key: &Mldsa87PubKey,
+        msg: &Mldsa87MsgScalar,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87VerifyRes> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -255,7 +255,7 @@ impl MlDsa87 {
         mldsa.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
         // Wait for hardware ready
-        MlDsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy the random value
         let verify_res = Array4x16::read_from_reg(mldsa.verify_res());
@@ -269,10 +269,10 @@ impl MlDsa87 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn verify(
         &mut self,
-        pub_key: &MlDsa87PubKey,
-        msg: &MlDsa87MsgScalar,
-        signature: &MlDsa87Signature,
-    ) -> CaliptraResult<MlDsa87Result> {
+        pub_key: &Mldsa87PubKey,
+        msg: &Mldsa87MsgScalar,
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
         let truncated_signature = &signature.0[..16];
@@ -287,16 +287,16 @@ impl MlDsa87 {
                 &verify_res.0[8..].try_into().unwrap(),
                 &truncated_signature[8..].try_into().unwrap(),
             );
-            MlDsa87Result::Success
+            Mldsa87Result::Success
         } else {
-            MlDsa87Result::SigVerifyFailed
+            Mldsa87Result::SigVerifyFailed
         };
 
         Ok(result)
     }
 }
 
-/// MlDsa87 key access error trait
+/// Mldsa87 key access error trait
 trait MlDsaKeyAccessErr {
     /// Convert to read seed operation error
     fn into_read_seed_err(self) -> CaliptraError;

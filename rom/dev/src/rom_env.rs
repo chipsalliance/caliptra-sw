@@ -17,7 +17,7 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, MlDsa87, PcrBank,
+    DataVault, DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -77,8 +77,8 @@ pub struct RomEnv {
     /// Mechanism to access the persistent data safely
     pub persistent_data: PersistentDataAccessor,
 
-    /// MlDsa87 Engine
-    pub mldsa: MlDsa87,
+    /// Mldsa87 Engine
+    pub mldsa: Mldsa87,
 }
 
 impl RomEnv {
@@ -107,7 +107,7 @@ impl RomEnv {
             fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa: MlDsa87::new(MldsaReg::new()),
+            mldsa: Mldsa87::new(MldsaReg::new()),
         })
     }
 }

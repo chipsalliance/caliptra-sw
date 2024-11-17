@@ -19,7 +19,7 @@ use crate::FirmwareHandoffTable;
 use caliptra_image_types::ImageManifest;
 
 #[cfg(test)]
-use crate::MlDsa87PubKey;
+use crate::Mldsa87PubKey;
 
 //
 // Memory Addresses
@@ -110,7 +110,7 @@ fn mem_layout_test_fht() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_idevid_mldsa_pub_key() {
-    assert!(IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize >= core::mem::size_of::<MlDsa87PubKey>());
+    assert!(IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize >= core::mem::size_of::<Mldsa87PubKey>());
     assert_eq!(
         (LDEVID_TBS_ORG - IDEVID_MLDSA_PUB_KEY_ORG),
         IDEVID_MLDSA_PUB_KEY_MAX_SIZE
