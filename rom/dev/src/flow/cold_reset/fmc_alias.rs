@@ -48,10 +48,15 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
         cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_ECDSA_PRIV_KEY as u8);
         cprintln!(
-            "[afmc] ECC AUTHORITY.KEYID = {}",
-            input.ecc_auth_key_pair.priv_key as u8
+            "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
+            KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u8
+        );
+        cprintln!(
+            "[afmc] ECC AUTHORITY.KEYID = {}, MLDSA AUTHORITY.KEYID = {}",
+            input.ecc_auth_key_pair.priv_key as u8,
+            input.mldsa_auth_key_pair.key_pair_seed as u8
         );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
@@ -62,18 +67,24 @@ impl FmcAliasLayer {
         measurement.0.zeroize();
         result?;
 
-        // Derive DICE Key Pair from CDI
-        let ecc_key_pair =
-            Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_ECDSA_PRIV_KEY)?;
+        // Derive DICE ECC and MLDSA Key Pairs from CDI
+        let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
+            env,
+            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_FMC_ECDSA_PRIV_KEY,
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
+        )?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
         // certificates
         let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
         let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id = X509::subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -81,12 +92,9 @@ impl FmcAliasLayer {
             ecc_subj_key_pair: ecc_key_pair,
             ecc_subj_sn,
             ecc_subj_key_id,
-            mldsa_subj_key_id: [0; 20],
-            mldsa_subj_key_pair: MlDsaKeyPair {
-                key_pair_seed: KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
-                pub_key: Default::default(),
-            },
-            mldsa_subj_sn: [0; 64],
+            mldsa_subj_key_pair: mldsa_key_pair,
+            mldsa_subj_sn,
+            mldsa_subj_key_id,
         };
 
         // Generate FMC Alias Certificate
@@ -111,7 +119,7 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        let result = Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi);
+        let result = Crypto::hmac384_kdf(env, cdi, b"alias_fmc_cdi", Some(&measurements), cdi);
         measurements.zeroize();
         result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
@@ -124,7 +132,8 @@ impl FmcAliasLayer {
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `priv_key` - Key slot to store the private key into
+    /// * `ecc_priv_key` - Key slot to store the ECC private key into
+    /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
     ///
@@ -133,16 +142,23 @@ impl FmcAliasLayer {
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key);
+        ecc_priv_key: KeyId,
+        mldsa_keypair_seed: KeyId,
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        let result = Crypto::ecc384_key_gen(env, cdi, b"alias_fmc_ecc_key", ecc_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
-            report_boot_status(FmcAliasKeyPairDerivationComplete.into());
         } else {
             cfi_assert!(result.is_err());
         }
-        result
+        let ecc_keypair = result?;
+
+        // Derive the MLDSA Key Pair.
+        let mldsa_key_pair =
+            Crypto::mldsa_key_gen(env, cdi, b"alias_fmc_mldsa_key", mldsa_keypair_seed)?;
+
+        report_boot_status(FmcAliasKeyPairDerivationComplete.into());
+        Ok((ecc_keypair, mldsa_key_pair))
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -239,6 +255,8 @@ impl FmcAliasLayer {
 
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
+
+        // [CAP2][TODO] Generate MLDSA certificate signature, TBS.
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())
