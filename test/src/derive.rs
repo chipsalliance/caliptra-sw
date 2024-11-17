@@ -420,14 +420,14 @@ impl FmcAliasKey {
     pub fn derive(pcr0: &Pcr0, ldevid: &LDevId) -> Self {
         let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
             swap_word_bytes(&ldevid.cdi).as_bytes(),
-            b"fmc_alias_cdi",
+            b"alias_fmc_cdi",
             Some(swap_word_bytes(&pcr0.0).as_bytes()),
         ));
         swap_word_bytes_inplace(&mut cdi);
 
         let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
             swap_word_bytes(&cdi).as_bytes(),
-            b"fmc_alias_keygen",
+            b"alias_fmc_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
@@ -519,13 +519,13 @@ fn test_derive_fmc_alias_key() {
     assert_eq!(
         fmc_alias_key,
         FmcAliasKey {
-            cdi: [
-                0xf4fb8b09, 0xc9233adb, 0x3dfade39, 0xb656f0ef, 0x151404dc, 0xf4fe787a, 0x0664baea,
-                0xe9d2de59, 0x22401c7c, 0x59087111, 0xd3aeb5b1, 0x368742da
-            ],
             priv_key: [
-                0x81a4f53c, 0xeb0749ca, 0x77b0fe32, 0x33fd9798, 0x7412f652, 0xded8f8a5, 0x39a9ebbd,
-                0x75ce2870, 0xb5f62bb3, 0x25376504, 0xa34f286c, 0x849ea86c,
+                0xB0490161, 0xA1D2393A, 0x752E2F60, 0x4BB9A01E, 0x293B9E47, 0x61698007, 0x2CED9BAF,
+                0x1F828679, 0xCB5054CD, 0xFD0EB072, 0x8D6BE59F, 0x75C55332
+            ],
+            cdi: [
+                0xCEAA7956, 0x4E5A8809, 0x7F1BF1B8, 0xA3A9C903, 0x37B4335F, 0xEA8A93D2, 0x5D02F1BF,
+                0x16B1A537, 0xFE5DB006, 0xD8427583, 0x72C836F1, 0x9BE74AF5,
             ],
         }
     );
