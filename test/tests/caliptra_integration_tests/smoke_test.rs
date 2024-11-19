@@ -25,6 +25,50 @@ use regex::Regex;
 use std::mem;
 use zerocopy::AsBytes;
 
+// Support testing against older versions of ROM in CI
+// More constants may need to be added here as the ROMs further diverge
+#[cfg(feature = "ci-rom-1.0")]
+mod rom_specific_test_params {
+    #[allow(dead_code)]
+    pub const TESTDATA_PATH: &str = "tests/caliptra_integration_tests/smoke_testdata/rom-1.0";
+    pub const FMC_ALIAS_CERT_REDACTED_TXT: &str =
+        include_str!("smoke_testdata/rom-1.0/fmc_alias_cert_redacted.txt");
+    pub const FMC_ALIAS_CERT_REDACTED_DER: &[u8] =
+        include_bytes!("smoke_testdata/rom-1.0/fmc_alias_cert_redacted.der");
+    pub const TCB_INFO_VENDOR: Option<&str> = Some("Caliptra");
+    pub const TCB_DEVICE_INFO_MODEL: Option<&str> = Some("Device");
+    pub const TCB_FMC_INFO_MODEL: Option<&str> = Some("FMC");
+    pub const TCB_INFO_FLAGS: Option<u32> = Some(0x80000000);
+}
+#[cfg(feature = "ci-rom-1.1")]
+mod rom_specific_test_params {
+    #[allow(dead_code)]
+    pub const TESTDATA_PATH: &str = "tests/caliptra_integration_tests/smoke_testdata/rom-1.1";
+    pub const FMC_ALIAS_CERT_REDACTED_TXT: &str =
+        include_str!("smoke_testdata/rom-1.1/fmc_alias_cert_redacted.txt");
+    pub const FMC_ALIAS_CERT_REDACTED_DER: &[u8] =
+        include_bytes!("smoke_testdata/rom-1.1/fmc_alias_cert_redacted.der");
+    pub const TCB_INFO_VENDOR: Option<&str> = Some("Caliptra");
+    pub const TCB_DEVICE_INFO_MODEL: Option<&str> = Some("Device");
+    pub const TCB_FMC_INFO_MODEL: Option<&str> = Some("FMC");
+    pub const TCB_INFO_FLAGS: Option<u32> = Some(0x80000000);
+}
+#[cfg(all(not(feature = "ci-rom-1.0"), not(feature = "ci-rom-1.1")))]
+mod rom_specific_test_params {
+    #[allow(dead_code)]
+    pub const TESTDATA_PATH: &str = "tests/caliptra_integration_tests/smoke_testdata/rom-latest";
+    pub const FMC_ALIAS_CERT_REDACTED_TXT: &str =
+        include_str!("smoke_testdata/rom-latest/fmc_alias_cert_redacted.txt");
+    pub const FMC_ALIAS_CERT_REDACTED_DER: &[u8] =
+        include_bytes!("smoke_testdata/rom-latest/fmc_alias_cert_redacted.der");
+    pub const TCB_INFO_VENDOR: Option<&str> = None;
+    pub const TCB_DEVICE_INFO_MODEL: Option<&str> = None;
+    pub const TCB_FMC_INFO_MODEL: Option<&str> = None;
+    pub const TCB_INFO_FLAGS: Option<u32> = Some(0x00000001);
+}
+
+use rom_specific_test_params::*;
+
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
     assert!(
@@ -278,8 +322,8 @@ fn smoke_test() {
         dice_tcb_info,
         [
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: TCB_INFO_VENDOR.map(String::from),
+                model: TCB_DEVICE_INFO_MODEL.map(String::from),
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
                 fwids: vec![DiceFwid {
@@ -287,13 +331,13 @@ fn smoke_test() {
                     digest: device_info_hash.to_vec(),
                 },],
 
-                flags: Some(0x00000001),
+                flags: TCB_INFO_FLAGS,
                 ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: TCB_INFO_VENDOR.map(String::from),
+                model: TCB_FMC_INFO_MODEL.map(String::from),
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
                 fwids: vec![DiceFwid {
@@ -404,17 +448,14 @@ fn smoke_test() {
             String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
 
         // To update the alias-cert golden-data:
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.txt", &fmc_alias_cert_redacted_txt).unwrap();
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.der", &fmc_alias_cert_redacted_der).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.txt", TESTDATA_PATH), &fmc_alias_cert_redacted_txt).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.der", TESTDATA_PATH), &fmc_alias_cert_redacted_der).unwrap();
 
         assert_eq!(
             fmc_alias_cert_redacted_txt.as_str(),
-            include_str!("smoke_testdata/fmc_alias_cert_redacted.txt")
+            FMC_ALIAS_CERT_REDACTED_TXT
         );
-        assert_eq!(
-            fmc_alias_cert_redacted_der,
-            include_bytes!("smoke_testdata/fmc_alias_cert_redacted.der")
-        );
+        assert_eq!(fmc_alias_cert_redacted_der, FMC_ALIAS_CERT_REDACTED_DER);
     }
 
     let rt_alias_cert_resp = hw

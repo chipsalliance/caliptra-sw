@@ -366,19 +366,38 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
-    if cfg!(feature = "hw-1.0") {
+    if cfg!(all(feature = "hw-1.0", not(feature = "ci-rom-1.0"))) {
+        panic!("ci-rom-1.0 is required for hw-1.0");
+    }
+    if cfg!(feature = "ci-rom-1.0") {
         if rom_from_env == &firmware::ROM {
             Ok(
-                include_bytes!("../../hw/1.0/caliptra-rom-1.0.1-9342687.bin")
+                include_bytes!("../../rom/ci_frozen_rom/1.0/caliptra-rom-1.0.3-e8e23d9.bin")
                     .as_slice()
                     .into(),
             )
         } else if rom_from_env == &firmware::ROM_WITH_UART {
+            Ok(include_bytes!(
+                "../../rom/ci_frozen_rom/1.0/caliptra-rom-with-log-1.0.3-e8e23d9.bin"
+            )
+            .as_slice()
+            .into())
+        } else {
+            Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+        }
+    } else if cfg!(feature = "ci-rom-1.1") {
+        if rom_from_env == &firmware::ROM {
             Ok(
-                include_bytes!("../../hw/1.0/caliptra-rom-with-log-1.0.1-9342687.bin")
+                include_bytes!("../../rom/ci_frozen_rom/1.1/caliptra-rom-1.1.0-51ff0a8.bin")
                     .as_slice()
                     .into(),
             )
+        } else if rom_from_env == &firmware::ROM_WITH_UART {
+            Ok(include_bytes!(
+                "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.0-51ff0a8.bin"
+            )
+            .as_slice()
+            .into())
         } else {
             Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
         }

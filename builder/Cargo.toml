@@ -25,6 +25,8 @@ zerocopy.workspace = true
 default = ["openssl"]
 slow_tests = []
 "hw-1.0" = []
+"ci-rom-1.0" = []
+"ci-rom-1.1" = []
 openssl = ["caliptra-image-crypto/openssl"]
 rustcrypto = ["caliptra-image-crypto/rustcrypto"]
 
