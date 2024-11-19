@@ -37,10 +37,10 @@ pub type Mldsa87PubKey = Array4x648;
 pub type Mldsa87Signature = Array4x1157;
 
 /// MLDSA-87 Message (64 Bytes)
-pub type Mldsa87MsgScalar = Array4x16;
+pub type Mldsa87Msg = Array4x16;
 
 /// MLDSA-87 Signature RND
-pub type Mldsa87SignRndScalar = Array4x8;
+pub type Mldsa87SignRnd = Array4x8;
 
 type Mldsa87VerifyRes = Array4x16;
 
@@ -159,8 +159,8 @@ impl Mldsa87 {
         &mut self,
         seed: &KeyReadArgs,
         pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87MsgScalar,
-        sign_rnd: &Mldsa87SignRndScalar,
+        msg: &Mldsa87Msg,
+        sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
     ) -> CaliptraResult<Mldsa87Signature> {
         let mldsa = self.mldsa87.regs_mut();
@@ -231,7 +231,7 @@ impl Mldsa87 {
     fn verify_res(
         &mut self,
         pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87MsgScalar,
+        msg: &Mldsa87Msg,
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87VerifyRes> {
         let mldsa = self.mldsa87.regs_mut();
@@ -251,7 +251,7 @@ impl Mldsa87 {
         // Copy signature
         signature.write_to_reg(mldsa.signature());
 
-        // Program the command register for key generation
+        // Program the command register for signature verification
         mldsa.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
         // Wait for hardware ready
@@ -270,7 +270,7 @@ impl Mldsa87 {
     pub fn verify(
         &mut self,
         pub_key: &Mldsa87PubKey,
-        msg: &Mldsa87MsgScalar,
+        msg: &Mldsa87Msg,
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
         let verify_res = self.verify_res(pub_key, msg, signature)?;

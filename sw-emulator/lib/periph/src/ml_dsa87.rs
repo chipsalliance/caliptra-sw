@@ -355,8 +355,7 @@ impl Mldsa87 {
             self.verify_res
                 .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
         } else {
-            self.verify_res
-                .copy_from_slice(&[0; ML_DSA87_VERIFICATION_SIZE / 4]);
+            self.verify_res.fill(0);
         }
     }
 

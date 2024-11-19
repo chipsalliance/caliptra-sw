@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, Mldsa87, Mldsa87MsgScalar, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRndScalar,
+    KeyWriteArgs, Mldsa87, Mldsa87Msg, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRnd,
     Mldsa87Signature, Trng,
 };
 use caliptra_registers::csrng::CsrngReg;
@@ -439,8 +439,8 @@ fn test_sign() {
         .unwrap()
     };
 
-    let msg = Mldsa87MsgScalar::default();
-    let sign_rnd = Mldsa87SignRndScalar::default(); // Deterministic signing
+    let msg = Mldsa87Msg::default();
+    let sign_rnd = Mldsa87SignRnd::default(); // Deterministic signing
     let seed = KeyReadArgs::new(KeyId::KeyId0); // Reuse SEED
 
     let signature = ml_dsa87
@@ -459,7 +459,7 @@ fn test_sign() {
 fn test_verify() {
     let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
-    let msg = Mldsa87MsgScalar::default();
+    let msg = Mldsa87Msg::default();
 
     assert_eq!(
         ml_dsa87
@@ -476,7 +476,7 @@ fn test_verify() {
 fn test_verify_failure() {
     let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
-    let msg = Mldsa87MsgScalar::from([0xff; 64]);
+    let msg = Mldsa87Msg::from([0xff; 64]);
 
     assert_eq!(
         ml_dsa87

@@ -86,7 +86,7 @@ pub use lms::{
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use mldsa87::{
-    Mldsa87, Mldsa87MsgScalar, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRndScalar, Mldsa87Signature,
+    Mldsa87, Mldsa87Msg, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRnd, Mldsa87Signature,
 };
 pub use okref::okmutref;
 pub use okref::okref;
