@@ -59,6 +59,7 @@ fn fake_boot_test() {
         &APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )
@@ -81,6 +82,7 @@ fn fake_boot_test() {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
                 fmc_key_manifest_svn: 0b1111111,
+                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),

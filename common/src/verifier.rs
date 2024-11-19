@@ -128,11 +128,6 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         self.data_vault.fmc_tci().into()
     }
 
-    // Get Fuse FMC Key Manifest SVN
-    fn fmc_fuse_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().fmc_fuse_svn()
-    }
-
     // Get Runtime fuse SVN
     fn runtime_fuse_svn(&self) -> u32 {
         self.soc_ifc.fuse_bank().runtime_fuse_svn()

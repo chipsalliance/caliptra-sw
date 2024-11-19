@@ -107,7 +107,7 @@ fn test_fw_info() {
     let info = get_fwinfo(&mut model);
     // Verify FW info
     assert_eq!(info.pl0_pauser, 0x1);
-    assert_eq!(info.fmc_manifest_svn, 5);
+    assert_eq!(info.fmc_manifest_svn, 10);
     assert_eq!(info.runtime_svn, 10);
     assert_eq!(info.min_runtime_svn, 10);
     // Verify revision (Commit ID) and digest of each component
@@ -134,6 +134,7 @@ fn test_fw_info() {
     let info = get_fwinfo(&mut model);
     assert_eq!(info.runtime_svn, 20);
     assert_eq!(info.min_runtime_svn, 10);
+    assert_eq!(info.fmc_manifest_svn, 10);
 
     // Make image with older SVN.
     let mut image_opts5 = image_opts;
@@ -149,12 +150,14 @@ fn test_fw_info() {
     let info = get_fwinfo(&mut model);
     assert_eq!(info.runtime_svn, 5);
     assert_eq!(info.min_runtime_svn, 5);
+    assert_eq!(info.fmc_manifest_svn, 10);
 
     // Go back to SVN 20
     update_to(&mut model, &image20);
     let info = get_fwinfo(&mut model);
     assert_eq!(info.runtime_svn, 20);
     assert_eq!(info.min_runtime_svn, 5);
+    assert_eq!(info.fmc_manifest_svn, 10);
 }
 
 #[test]

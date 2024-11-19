@@ -479,6 +479,7 @@ pub struct ImageTocEntry {
     pub version: u32,
 
     /// Security Version Number
+    /// Only read for Runtime entries. Not read for FMC.
     pub svn: u32,
 
     /// Reserved field

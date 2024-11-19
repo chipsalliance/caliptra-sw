@@ -186,7 +186,7 @@ impl FmcAliasLayer {
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = env.data_vault.fmc_svn() as u8;
-        let fuse_svn = fw_proc_info.fmc_effective_fuse_svn as u8;
+        let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
         let mut hasher = env.sha384.digest_init()?;
