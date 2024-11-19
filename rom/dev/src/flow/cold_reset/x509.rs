@@ -64,6 +64,7 @@ impl X509 {
     }
 
     fn pub_key_digest(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<Array4x8> {
+        // Define an array large enough to hold the largest public key.
         let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
         Crypto::sha256_digest(env, &pub_key_bytes[..pub_key_size])

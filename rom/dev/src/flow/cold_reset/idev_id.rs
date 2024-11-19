@@ -216,11 +216,16 @@ impl InitDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let mldsa_key_pair =
-            Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed)?;
+        let result = Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        let mldsa_keypair = result?;
 
         report_boot_status(IDevIdKeyPairDerivationComplete.into());
-        Ok((ecc_keypair, mldsa_key_pair))
+        Ok((ecc_keypair, mldsa_keypair))
     }
 
     /// Generate Local Device ID CSR
