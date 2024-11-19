@@ -91,6 +91,9 @@ register_bitfields! [
 /// HMAC384 Key Size.
 const HMAC_KEY_SIZE_384: usize = 48;
 
+/// TODO MAX KV KEY SIZE (needs KV supporting 64 bytes?)
+const MAX_KV_KEY_SIZE: usize = 48;
+
 /// HMAC512 Key Size.
 const HMAC_KEY_SIZE_512: usize = 64;
 
@@ -562,10 +565,10 @@ impl HmacSha {
 
         if let Some(key) = &key {
             self.key_from_kv = true;
-            let key_len = self.key_len();
+            let key_len = self.key_len().min(MAX_KV_KEY_SIZE);
             self.key[..key_len]
                 .as_bytes_mut()
-                .copy_from_slice(&key[..key_len * 4]);
+                .copy_from_slice(&key[..key_len]);
         }
 
         self.key_read_status.reg.modify(
@@ -641,7 +644,7 @@ impl HmacSha {
             .key_vault
             .write_key(
                 key_id,
-                &self.tag.as_bytes()[..self.key_len() * 4],
+                &self.tag.as_bytes()[..MAX_KV_KEY_SIZE],
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()

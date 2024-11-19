@@ -166,7 +166,7 @@ impl Hmac {
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
-        if matches!(&mut tag, HmacTag::Array4x12(_)) {
+        if matches!(&mut tag, HmacTag::Array4x12(_) | HmacTag::Array4x16(_)) {
             KvAccess::begin_copy_to_arr(hmac.hmac512_kv_wr_status(), hmac.hmac512_kv_wr_ctrl())?;
         }
 
