@@ -90,6 +90,7 @@ fn gdb_test() {
         &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )

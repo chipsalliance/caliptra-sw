@@ -62,7 +62,6 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
 | FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
-| FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11,12**: Unique Endpoint ID <br> **Words 13,14,15,16**: Manufacturer Serial Number |
@@ -159,7 +158,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
 | Image Version | 4 | Firmware release number |
-| Image SVN | 4 | Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN) |
+| Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
 | Reserved | 4 | Reserved field |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
@@ -683,7 +682,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 - Firmware Image Bundle is successfully loaded and verified from the Mailbox
 - ROM has following information from Firmware Image Bundle
 - FMC_DIGEST - Digest of the FMC
-- FMC_SVN - SVN for FMC
+- FW_SVN - SVN for the firmware
 - MANUFACTURER_PK - Manufacturer Public Key(s) used to verify the firmware image bundle
 - MANUFACTURER_PK_INDEX - Index of the MANUFACTURER_PK in the firmware image bundle
 
@@ -698,8 +697,8 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         CPTRA_SECURITY_STATE.DEBUG_ENABLED,
         FUSE_ANTI_ROLLBACK_DISABLE,
         ECC_VENDOR_PK_INDEX,
-        FMC_SVN,
-        FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
+        FW_SVN,
+        FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
         PQC_VENDOR_PK_INDEX,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
@@ -774,7 +773,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `dccm_dv_store(FMC_DIGEST, lock_for_wr)`
 
-    `dccm_dv_store(FMC_SVN, lock_for_wr)`
+    `dccm_dv_store(FW_SVN, lock_for_wr)`
 
     `dccm_dv_store(FUSE_OWNER_PK_HASH, lock_for_wr)`
 
@@ -811,7 +810,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  | 🔒Alias FMC Cert ECDSA Signature R    |
  | 🔒Alias FMC Cert ECDSA Signature S    |
  | 🔒Alias FMC Cert MLDSA Signature      |
- | 🔒FMC SVN                             |
+ | 🔒FW SVN                              |
  | 🔒ROM Cold Boot Status                |
  | 🔒FMC Entry Point                     |
  | 🔒Manufacturer ECDSA Public Key Index |
@@ -828,7 +827,6 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  - **Cold Reset Unlockable values:**
  These values are unlocked on a Cold Reset:
     - FMC TCI
-    - FMC SVN
     - FMC Entry Point
     - Owner Pub Key Hash
     - Ecc Vendor Pub Key Index
@@ -943,7 +941,6 @@ The following are the pre-conditions that should be satisfied:
   - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
   - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
   - fuse_owner_pk_hash : The hash of the owner public keys in preamble.
-  - fuse_key_manifest_svn : Used in FMC validation to make sure that the version number is good.
   - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
 - The SOC has written the data to the mailbox.
 - The SOC has written the data length in the DLEN mailbox register.
@@ -1053,7 +1050,7 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Alias FMC Public MLDSA Key.
     - Digest of the FMC part of the image.
     - Digest of the ECC and LMS or MLDSA owner public keys portion of preamble.
-    - FMC SVN.
+    - FW SVN.
     - ROM Cold Boot Status.
     - FMC Entry Point.
     - ECC Vendor public key index.

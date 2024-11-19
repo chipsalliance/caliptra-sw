@@ -151,6 +151,7 @@ fn smoke_test() {
         &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )
@@ -164,6 +165,7 @@ fn smoke_test() {
         key_manifest_pk_hash: vendor_pk_desc_hash_words,
         owner_pk_hash: owner_pk_desc_hash_words,
         fmc_key_manifest_svn: 0b1111111,
+        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         lms_verify: true,
         ..Default::default()
     };
@@ -461,7 +463,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (9)
+            svn: Some(0x109),
             fwids: vec![DiceFwid {
                 // RT
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -559,6 +562,7 @@ fn smoke_test() {
         ImageOptions {
             fmc_version: 1,
             fmc_svn: 10,
+            app_svn: 10,
             app_version: 2,
             ..Default::default()
         },
@@ -611,7 +615,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (10)
+            svn: Some(0x10A),
             fwids: vec![DiceFwid {
                 // FMC
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),

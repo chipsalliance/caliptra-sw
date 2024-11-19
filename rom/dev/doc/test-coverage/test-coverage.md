@@ -37,8 +37,6 @@ Test Scenario| Test Name | ROM Error Code
  Check if FMC entry point is within ICCM range  	| **test_fmc_invalid_entry_point_before_iccm** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
  Check if FMC entry point is within ICCM range  	| **test_fmc_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
  Check if FMC entry point is DWORD aligned 	| **test_fmc_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED
- Check if FMC SVN is greater than max (32) 	| **test_fmc_svn_greater_than_32** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if FMC SVN is less than fuse svn 	| **test_fmc_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
  Check if RT size if 0 	| **test_toc_rt_size_zero** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
  Check if manifest.rt_toc.digest matches Runtime image digest 	| **test_runtime_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
  Check if RT load address is within ICCM range 	| **test_runtime_invalid_load_addr_before_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID

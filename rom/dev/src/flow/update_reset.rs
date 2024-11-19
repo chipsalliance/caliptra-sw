@@ -215,7 +215,7 @@ impl UpdateResetFlow {
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.fw_svn);
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 

@@ -121,14 +121,6 @@ impl ImageVerificationEnv for TestEnv {
         self.fmc_digest
     }
 
-    fn fmc_fuse_svn(&self) -> u32 {
-        0
-    }
-
-    fn runtime_fuse_svn(&self) -> u32 {
-        0
-    }
-
     fn iccm_range(&self) -> Range<u32> {
         Range {
             start: ICCM_ORG,

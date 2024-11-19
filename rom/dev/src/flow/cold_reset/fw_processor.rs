@@ -47,7 +47,7 @@ pub struct FwProcInfo {
 
     pub fmc_cert_valid_not_after: NotAfter,
 
-    pub fmc_effective_fuse_svn: u32,
+    pub effective_fuse_svn: u32,
 
     pub owner_pub_keys_digest_in_fuses: bool,
 
@@ -148,7 +148,7 @@ impl FirmwareProcessor {
         Ok(FwProcInfo {
             fmc_cert_valid_not_before: nb,
             fmc_cert_valid_not_after: nf,
-            fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
+            effective_fuse_svn: info.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
             pqc_verify_config: info.pqc_verify_config as u8,
         })
@@ -390,8 +390,10 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
+            info.fw_svn,
+            info.effective_fuse_svn,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
         Ok(info)
@@ -430,42 +432,43 @@ impl FirmwareProcessor {
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestFmcSvn,
-            log_info.fmc_log_info.manifest_svn.as_bytes(),
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved0
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved0,
-            log_info.fmc_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseFmcSvn
+        // Log DeprecatedFuseFmcSvn (which is now the same as FuseRtSvn)
+        #[allow(deprecated)]
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseFmcSvn,
-            log_info.fmc_log_info.fuse_svn.as_bytes(),
+            FuseLogEntryId::_DeprecatedFuseFmcSvn,
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
         // Log ManifestRtSvn
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestRtSvn,
-            log_info.rt_log_info.manifest_svn.as_bytes(),
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved1
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved1,
-            log_info.rt_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseRtSvn
         log_fuse_data(
             log,
             FuseLogEntryId::FuseRtSvn,
-            log_info.rt_log_info.fuse_svn.as_bytes(),
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
         // Log VendorLmsPubKeyIndex
@@ -540,7 +543,7 @@ impl FirmwareProcessor {
     ) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
+        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fw_svn);
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
 
@@ -563,7 +566,7 @@ impl FirmwareProcessor {
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.fw_svn);
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 

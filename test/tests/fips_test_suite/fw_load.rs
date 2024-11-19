@@ -793,65 +793,6 @@ fn fw_load_error_fmc_entry_point_unaligned() {
 }
 
 #[test]
-fn fw_load_error_fmc_svn_greater_than_max_supported() {
-    // Generate image
-    let image_options = ImageOptions {
-        fmc_svn: 33,
-        ..Default::default()
-    };
-    let fw_image = build_fw_image(image_options);
-
-    // Set fuses
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&fw_image.manifest.preamble)
-        .unwrap();
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-
-    fw_load_error_flow(
-        Some(fw_image),
-        Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED.into(),
-    );
-}
-
-// IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED is defined but never used in the code (svn is a u32)
-
-#[test]
-fn fw_load_error_fmc_svn_less_than_fuse() {
-    // Generate image
-    let image_options = ImageOptions {
-        fmc_svn: 1,
-        ..Default::default()
-    };
-    let fw_image = build_fw_image(image_options);
-
-    // Set fuses
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&fw_image.manifest.preamble)
-        .unwrap();
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        fmc_key_manifest_svn: 0b11, // fuse svn = 2
-        ..Default::default()
-    };
-
-    fw_load_error_flow(
-        Some(fw_image),
-        Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE.into(),
-    );
-}
-
-#[test]
 fn fw_load_error_runtime_load_addr_invalid() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());

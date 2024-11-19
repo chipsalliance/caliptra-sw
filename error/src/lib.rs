@@ -218,12 +218,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0023);
     pub const IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED: CaliptraError =
         CaliptraError::new_const(0x000b0024);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b0025);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b0026);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE: CaliptraError =
-        CaliptraError::new_const(0x000b0027);
+    // 0x000b0025 was IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
+    // 0x000b0026 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
+    // 0x000b0027 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0028);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED: CaliptraError =
@@ -234,8 +231,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b002b);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
         CaliptraError::new_const(0x000b002c);
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b002d);
+    // 0x000b002d was IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE: CaliptraError =
         CaliptraError::new_const(0x000b002e);
     pub const IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE: CaliptraError =

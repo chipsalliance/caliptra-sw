@@ -112,10 +112,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let image_info = okref(&image_info)?;
 
         // Verify FMC
-        let (fmc_info, fmc_log_info) = self.verify_fmc(image_info.fmc, reason)?;
+        let fmc_info = self.verify_fmc(image_info.fmc, reason)?;
 
         // Verify Runtime
-        let (runtime_info, rt_log_info) = self.verify_runtime(image_info.runtime)?;
+        let runtime_info = self.verify_runtime(image_info.runtime)?;
+
+        // The FMC and RT FW images within the bundle each include an SVN, for
+        // backwards compatibility with 1.x. ROM only inspects the RT FW SVN.
+        let fw_svn = image_info.runtime.svn;
+
+        self.verify_svn(fw_svn)?;
+
+        let effective_fuse_svn = self.effective_fuse_svn();
 
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
@@ -124,18 +132,54 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
+            fw_svn,
+            effective_fuse_svn,
             log_info: ImageVerificationLogInfo {
                 vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
                 fuse_vendor_ecc_pub_key_revocation: header_info.vendor_ecc_pub_key_revocation,
-                fmc_log_info,
-                rt_log_info,
                 fuse_vendor_lms_pub_key_revocation: header_info.vendor_lms_pub_key_revocation,
                 vendor_lms_pub_key_idx: header_info.vendor_lms_pub_key_idx,
+                fw_log_info: FirmwareSvnLogInfo {
+                    manifest_svn: fw_svn,
+                    reserved: 0,
+                    fuse_svn: self.env.runtime_fuse_svn(),
+                },
             },
             pqc_verify_config: manifest.fw_image_type.into(),
         };
 
         Ok(info)
+    }
+
+    /// If an SVN check is required, verifies that the given SVN is greater than
+    /// or equal to the fuse SVN.
+    fn verify_svn(&mut self, fw_svn: u32) -> CaliptraResult<()> {
+        if self.svn_check_required() {
+            if fw_svn > MAX_RUNTIME_SVN {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
+            }
+
+            if cfi_launder(fw_svn) < self.env.runtime_fuse_svn() {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
+            } else {
+                cfi_assert_ge(fw_svn, self.env.runtime_fuse_svn());
+            }
+        }
+        Ok(())
+    }
+
+    /// Calculates the effective fuse SVN.
+    ///
+    /// If anti-rollback is disabled, the effective fuse-SVN is zero.
+    /// Otherwise, it is the value in fuses.
+    fn effective_fuse_svn(&mut self) -> u32 {
+        if cfi_launder(self.env.anti_rollback_disable()) {
+            cfi_assert!(self.env.anti_rollback_disable());
+            0_u32
+        } else {
+            cfi_assert!(!self.env.anti_rollback_disable());
+            self.env.runtime_fuse_svn()
+        }
     }
 
     /// Verify Preamble
@@ -761,7 +805,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
         reason: ResetReason,
-    ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
+    ) -> CaliptraResult<ImageVerificationExeInfo> {
         let range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
@@ -806,21 +850,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
 
-        if self.svn_check_required() {
-            if verify_info.svn > 32 {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED)?;
-            }
-
-            if cfi_launder(verify_info.svn) < self.env.fmc_fuse_svn() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE)?;
-            } else {
-                cfi_assert_ge(verify_info.svn, self.env.fmc_fuse_svn());
-            }
-        }
-
-        let effective_fuse_svn =
-            Self::effective_fuse_svn(self.env.fmc_fuse_svn(), self.env.anti_rollback_disable());
-
         if cfi_launder(reason) == ResetReason::UpdateReset {
             if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
@@ -834,19 +863,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
             entry_point: verify_info.entry_point,
-            svn: verify_info.svn,
-            effective_fuse_svn,
             digest: verify_info.digest,
             size: verify_info.size,
         };
 
-        let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
-            manifest_svn: verify_info.svn,
-            reserved: verify_info.reserved,
-            fuse_svn: self.env.fmc_fuse_svn(),
-        };
-
-        Ok((info, log_info))
+        Ok(info)
     }
 
     /// Verify Runtime
@@ -854,7 +875,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_runtime(
         &mut self,
         verify_info: &ImageTocEntry,
-    ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
+    ) -> CaliptraResult<ImageVerificationExeInfo> {
         let range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
@@ -898,53 +919,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED)?;
         }
 
-        if self.svn_check_required() {
-            if verify_info.svn > MAX_RUNTIME_SVN {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
-            }
-
-            if cfi_launder(verify_info.svn) < self.env.runtime_fuse_svn() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
-            } else {
-                cfi_assert_ge(verify_info.svn, self.env.runtime_fuse_svn());
-            }
-        }
-
-        let effective_fuse_svn = Self::effective_fuse_svn(
-            self.env.runtime_fuse_svn(),
-            self.env.anti_rollback_disable(),
-        );
-
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
             entry_point: verify_info.entry_point,
-            svn: verify_info.svn,
-            effective_fuse_svn,
             digest: verify_info.digest,
             size: verify_info.size,
         };
 
-        let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
-            manifest_svn: verify_info.svn,
-            reserved: verify_info.reserved,
-            fuse_svn: self.env.runtime_fuse_svn(),
-        };
-
-        Ok((info, log_info))
-    }
-
-    /// Calculates the effective fuse SVN.
-    ///
-    /// If anti-rollback is disabled, the effective fuse-SVN is zero.
-    /// Otherwise, it is SVN-fuses.
-    fn effective_fuse_svn(fuse_svn: u32, anti_rollback_disable: bool) -> u32 {
-        if cfi_launder(anti_rollback_disable) {
-            cfi_assert!(anti_rollback_disable);
-            0_u32
-        } else {
-            cfi_assert!(!anti_rollback_disable);
-            fuse_svn
-        }
+        Ok(info)
     }
 }
 
@@ -1953,10 +1935,9 @@ mod tests {
 
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
         assert!(result.is_ok());
-        let (info, _log_info) = result.unwrap();
+        let info = result.unwrap();
         assert_eq!(info.load_addr, ICCM_ORG);
         assert_eq!(info.entry_point, ICCM_ORG);
-        assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
 
@@ -2016,10 +1997,9 @@ mod tests {
         };
         let result = verifier.verify_runtime(&verify_info);
         assert!(result.is_ok());
-        let (info, _log_info) = result.unwrap();
+        let info = result.unwrap();
         assert_eq!(info.load_addr, ICCM_ORG);
         assert_eq!(info.entry_point, ICCM_ORG);
-        assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
 
@@ -2120,10 +2100,6 @@ mod tests {
 
         fn get_fmc_digest_dv(&self) -> ImageDigest {
             self.fmc_digest
-        }
-
-        fn fmc_fuse_svn(&self) -> u32 {
-            0
         }
 
         fn runtime_fuse_svn(&self) -> u32 {

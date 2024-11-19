@@ -30,6 +30,7 @@ fn warm_reset_basic() {
         &APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )
@@ -52,6 +53,7 @@ fn warm_reset_basic() {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
                 fmc_key_manifest_svn: 0b1111111,
+                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -70,6 +72,7 @@ fn warm_reset_basic() {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
         fmc_key_manifest_svn: 0b1111111,
+        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 
@@ -91,6 +94,7 @@ fn warm_reset_during_fw_load() {
         &APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )
@@ -113,6 +117,7 @@ fn warm_reset_during_fw_load() {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash: owner_pk_desc_hash,
                 fmc_key_manifest_svn: 0b1111111,
+                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: None,
@@ -142,6 +147,7 @@ fn warm_reset_during_fw_load() {
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash: owner_pk_desc_hash,
         fmc_key_manifest_svn: 0b1111111,
+        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     });
 

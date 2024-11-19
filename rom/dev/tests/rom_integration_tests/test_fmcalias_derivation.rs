@@ -163,6 +163,7 @@ fn test_pcr_log() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -339,6 +340,7 @@ fn test_pcr_log_fmc_fuse_svn() {
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
+        runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -358,6 +360,7 @@ fn test_pcr_log_fmc_fuse_svn() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -478,6 +481,7 @@ fn test_pcr_log_across_update_reset() {
     let fuses = Fuses {
         anti_rollback_disable: false,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
+        runtime_svn: [1, 0, 0, 0],
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
@@ -499,6 +503,7 @@ fn test_pcr_log_across_update_reset() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -572,6 +577,7 @@ fn test_pcr_log_across_update_reset() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_fuse_log() {
     const FMC_SVN: u32 = 4;
 
@@ -660,11 +666,14 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0);
 
-    // Validate the FuseFmcSvn
+    // Validate the _DeprecatedFuseFmcSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFmcSvn as u32);
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::_DeprecatedFuseFmcSvn as u32
+    );
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
     // Validate the ManifestRtSvn
