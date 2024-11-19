@@ -1,7 +1,8 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, TEST_DIGEST, TEST_LABEL,
+    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
+    TEST_LABEL,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
@@ -33,7 +34,7 @@ use sha2::{Digest, Sha384};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -65,7 +66,7 @@ fn test_invoke_dpe_size_too_big() {
 
 #[test]
 fn test_invoke_dpe_get_certificate_chain_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -90,7 +91,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
 
 #[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let sign_cmd = SignCmd {
         handle: ContextHandle::default(),
@@ -135,7 +136,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 
 #[test]
 fn test_invoke_dpe_symmetric_sign() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -160,7 +161,7 @@ fn test_invoke_dpe_symmetric_sign() {
 
 #[test]
 fn test_dpe_header_error_code() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -184,7 +185,7 @@ fn test_dpe_header_error_code() {
 
 #[test]
 fn test_invoke_dpe_certify_key_csr() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -252,7 +253,7 @@ fn test_invoke_dpe_certify_key_csr() {
 
 #[test]
 fn test_invoke_dpe_rotate_context() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

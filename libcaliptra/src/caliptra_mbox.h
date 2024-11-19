@@ -51,6 +51,7 @@ enum mailbox_command {
     OP_SELF_TEST_GET_RESULTS       = 0x46504C67, // "FPGR"
     OP_SHUTDOWN                    = 0x46505344, // "FPSD"
     OP_CAPABILITIES                = 0x43415053, // "CAPS"
+    OP_GET_IDEV_CSR                = 0x49444352, // "IDCR"
 };
 
 struct parcel {

@@ -38,7 +38,7 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ImageMetadata {
+pub struct ImageMetadataConfigFromFile {
     digest: String,
     source: u32,
 }
@@ -54,7 +54,7 @@ pub(crate) struct AuthManifestConfigFromFile {
 
     pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
 
-    pub image_metadata_list: Vec<ImageMetadata>,
+    pub image_metadata_list: Vec<ImageMetadataConfigFromFile>,
 }
 
 /// Load Authorization Manifest Key Configuration from file
@@ -116,7 +116,7 @@ pub(crate) fn owner_config_from_file(
 }
 
 pub(crate) fn image_metadata_config_from_file(
-    config: &Vec<ImageMetadata>,
+    config: &Vec<ImageMetadataConfigFromFile>,
 ) -> anyhow::Result<Vec<AuthManifestImageMetadata>> {
     let mut image_metadata_list = Vec::new();
 

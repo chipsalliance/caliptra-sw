@@ -25,7 +25,7 @@ pub struct Packet {
     pub len: usize, // Length in bytes
 }
 
-const MAX_PAYLOAD_SIZE: usize = 2050; // in dwords
+const MAX_PAYLOAD_SIZE: usize = 3586; // in dwords
 
 impl Default for Packet {
     fn default() -> Self {

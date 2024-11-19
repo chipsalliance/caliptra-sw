@@ -10,6 +10,7 @@ impl FipsVersionCmd {
     pub const NAME: [u8; 12] = *b"Caliptra RTM";
     pub const MODE: u32 = 0x46495053;
 
+    #[cfg_attr(feature = "runtime", inline(never))]
     pub fn execute(soc_ifc: &SocIfc) -> CaliptraResult<FipsVersionResp> {
         cprintln!("[rt] FIPS Version");
 

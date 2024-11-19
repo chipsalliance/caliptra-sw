@@ -174,7 +174,7 @@ fn smoke_test() {
             ..Default::default()
         },
         BootParams {
-            fuses,
+            fuses: fuses.clone(),
             fw_image: Some(&image.to_bytes().unwrap()),
             ..Default::default()
         },
@@ -278,8 +278,8 @@ fn smoke_test() {
         dice_tcb_info,
         [
             DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("Device".into()),
+                vendor: None,
+                model: None,
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
                 fwids: vec![DiceFwid {
@@ -287,13 +287,13 @@ fn smoke_test() {
                     digest: device_info_hash.to_vec(),
                 },],
 
-                flags: Some(0x80000000),
+                flags: Some(0x00000001),
                 ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("FMC".into()),
+                vendor: None,
+                model: None,
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
                 fwids: vec![DiceFwid {
@@ -459,8 +459,8 @@ fn smoke_test() {
     assert_eq!(
         rt_dice_tcb_info,
         Some(DiceTcbInfo {
-            vendor: Some("Caliptra".into()),
-            model: Some("RT".into()),
+            vendor: None,
+            model: None,
             svn: Some(0x100),
             fwids: vec![DiceFwid {
                 // RT
@@ -609,8 +609,8 @@ fn smoke_test() {
     assert_eq!(
         rt_dice_tcb_info2,
         Some(DiceTcbInfo {
-            vendor: Some("Caliptra".into()),
-            model: Some("RT".into()),
+            vendor: None,
+            model: None,
             svn: Some(0x100),
             fwids: vec![DiceFwid {
                 // FMC

@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
@@ -19,7 +19,7 @@ fn ecdsa_cmd_run_wycheproof() {
     // This test is too slow to run as part of the verilator nightly.
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
 
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read()
@@ -149,7 +149,7 @@ fn ecdsa_cmd_run_wycheproof() {
 
 #[test]
 fn test_ecdsa_verify_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -227,7 +227,7 @@ fn test_ecdsa_verify_cmd() {
 
 #[test]
 fn test_ecdsa_verify_bad_chksum() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -254,7 +254,7 @@ fn test_ecdsa_verify_bad_chksum() {
 #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 #[test]
 fn test_ecdsa_hw_failure() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
         hdr: MailboxReqHeader { chksum: 0 },

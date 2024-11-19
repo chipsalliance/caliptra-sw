@@ -21,6 +21,7 @@ use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
 
 pub struct PopulateIDevIdCertCmd;
 impl PopulateIDevIdCertCmd {
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<PopulateIdevCertReq>() {
             let mut cmd = PopulateIdevCertReq::default();

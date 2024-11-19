@@ -31,9 +31,11 @@ pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        let cmd = StashMeasurementReq::read_from(cmd_args)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    pub(crate) fn stash_measurement(
+        drivers: &mut Drivers,
+        metadata: &[u8; 4],
+        measurement: &[u8; 48],
+    ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
             match drivers.caller_privilege_level() {
                 // Only PL0 can call STASH_MEASUREMENT
@@ -78,12 +80,12 @@ impl StashMeasurementCmd {
 
             let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
-                data: cmd.measurement,
+                data: *measurement,
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
                     | DeriveContextFlags::INPUT_ALLOW_CA
                     | DeriveContextFlags::INPUT_ALLOW_X509,
-                tci_type: u32::from_ne_bytes(cmd.metadata),
+                tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
             }
             .execute(&mut pdata.dpe, &mut env, locality);
@@ -105,9 +107,18 @@ impl StashMeasurementCmd {
             drivers.pcr_bank.extend_pcr(
                 PCR_ID_STASH_MEASUREMENT,
                 &mut drivers.sha384,
-                cmd.measurement.as_bytes(),
+                measurement.as_bytes(),
             )?;
         }
+
+        Ok(dpe_result)
+    }
+
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        let cmd = StashMeasurementReq::read_from(cmd_args)
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
 
         Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
             hdr: MailboxRespHeader::default(),

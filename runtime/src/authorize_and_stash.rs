@@ -15,10 +15,9 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
+use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadataCollection, AuthManifestImageMetadataCollectionHeader,
-    AuthManifestPreamble, AUTH_MANIFEST_MARKER,
+    AuthManifestImageMetadataCollection, AuthManifestPreamble, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -30,7 +29,6 @@ use caliptra_drivers::{
     pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
     CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
     PersistentData, RomPqcVerifyConfig, Sha256, Sha384, SocIfc,
-    AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT,
 };
 use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
@@ -76,10 +74,22 @@ impl AuthorizeAndStashCmd {
                 }
             }
 
-            let flags: AuthAndStashFlags = cmd.flags.into();
-            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                // TODO: Stash the image hash
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)?;
+            // Stash the measurement if the image is authorized.
+            if auth_result == AUTHORIZE_IMAGE {
+                let flags: AuthAndStashFlags = cmd.flags.into();
+                if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
+                    let dpe_result = StashMeasurementCmd::stash_measurement(
+                        drivers,
+                        &cmd.metadata,
+                        &cmd.measurement,
+                    )?;
+                    if dpe_result != DpeErrorCode::NoError {
+                        drivers
+                            .soc_ifc
+                            .set_fw_extended_error(dpe_result.get_error_code());
+                        Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+                    }
+                }
             }
 
             Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {

@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
@@ -813,7 +813,7 @@ fn execute_lms_cmd<T: HwModel>(
 
 #[test]
 fn test_lms_verify_cmd() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -838,7 +838,7 @@ fn test_lms_verify_cmd() {
 
 #[test]
 fn test_lms_verify_failure() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -856,7 +856,7 @@ fn test_lms_verify_failure() {
 
 #[test]
 fn test_lms_verify_invalid_sig_lms_type() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -879,7 +879,7 @@ fn test_lms_verify_invalid_sig_lms_type() {
 
 #[test]
 fn test_lms_verify_invalid_key_lms_type() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -901,7 +901,7 @@ fn test_lms_verify_invalid_key_lms_type() {
 
 #[test]
 fn test_lms_verify_invalid_lmots_type() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

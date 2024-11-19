@@ -152,10 +152,7 @@ impl FhtDataStore {
 pub fn initialize_fht(env: &mut RomEnv) {
     let pdata = &env.persistent_data.get();
 
-    cprintln!(
-        "[fht] Storing FHT @ 0x{:08X}",
-        &pdata.fht as *const _ as usize
-    );
+    cprintln!("[fht] FHT @ 0x{:08X}", &pdata.fht as *const _ as usize);
 
     env.persistent_data.get_mut().fht = FirmwareHandoffTable {
         fht_marker: FHT_MARKER,

@@ -93,10 +93,11 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 #[cfg(feature = "runtime")]
-pub use persistent::{AuthManifestImageMetadataList, AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT};
+pub use persistent::AuthManifestImageMetadataList;
 pub use persistent::{
-    FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
-    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
+    FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
+    StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_CSR_SIZE, MEASUREMENT_MAX_COUNT,
+    PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
