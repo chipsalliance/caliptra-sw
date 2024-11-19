@@ -108,6 +108,16 @@ impl CaliptraError {
     pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
     pub const DRIVER_ECC384_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00050011);
 
+    pub const DRIVER_MLDSA87_READ_SEED_KV_READ: CaliptraError =
+        CaliptraError::new_const(0x00058000);
+    pub const DRIVER_MLDSA87_READ_SEED_KV_WRITE: CaliptraError =
+        CaliptraError::new_const(0x00058001);
+    pub const DRIVER_MLDSA87_READ_SEED_KV_UNKNOWN: CaliptraError =
+        CaliptraError::new_const(0x00058002);
+    pub const DRIVER_MLDSA87_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00058003);
+    pub const DRIVER_MLDSA87_SIGN_VALIDATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x00058004);
+
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
     pub const DRIVER_KV_ERASE_WRITE_LOCK_SET_FAILURE: CaliptraError =
