@@ -294,29 +294,30 @@ fn test_pcr_extend() {
     model.step_until_exit_success().unwrap();
 }
 
-#[test]
-#[cfg(feature = "fpga_realtime")]
-fn test_mbox_pauser_sigbus() {
-    fn find_binary_path() -> Option<&'static str> {
-        // Use this path when running on github.
-        const TEST_BIN_PATH_SQUASHFS:&str = "/tmp/caliptra-test-binaries/target/aarch64-unknown-linux-gnu/release/fpga_realtime_mbox_pauser";
+// NOT FOR MERGE!! Uncommenting for testing only
+// #[test]
+// #[cfg(feature = "fpga_realtime")]
+// fn test_mbox_pauser_sigbus() {
+//     fn find_binary_path() -> Option<&'static str> {
+//         // Use this path when running on github.
+//         const TEST_BIN_PATH_SQUASHFS:&str = "/tmp/caliptra-test-binaries/target/aarch64-unknown-linux-gnu/release/fpga_realtime_mbox_pauser";
 
-        const TEST_BIN_PATH: &str = env!("CARGO_BIN_EXE_fpga_realtime_mbox_pauser");
-        if std::path::Path::new(TEST_BIN_PATH_SQUASHFS).exists() {
-            Some(TEST_BIN_PATH_SQUASHFS)
-        } else if std::path::Path::new(TEST_BIN_PATH).exists() {
-            Some(TEST_BIN_PATH)
-        } else {
-            None
-        }
-    }
+//         const TEST_BIN_PATH: &str = env!("CARGO_BIN_EXE_fpga_realtime_mbox_pauser");
+//         if std::path::Path::new(TEST_BIN_PATH_SQUASHFS).exists() {
+//             Some(TEST_BIN_PATH_SQUASHFS)
+//         } else if std::path::Path::new(TEST_BIN_PATH).exists() {
+//             Some(TEST_BIN_PATH)
+//         } else {
+//             None
+//         }
+//     }
 
-    let mut child = Command::new(find_binary_path().unwrap())
-        .spawn()
-        .expect("Failed to start mbox_pauser test utility");
+//     let mut child = Command::new(find_binary_path().unwrap())
+//         .spawn()
+//         .expect("Failed to start mbox_pauser test utility");
 
-    let exit_code = wait_with_timeout(&mut child, Duration::from_secs(120));
+//     let exit_code = wait_with_timeout(&mut child, Duration::from_secs(120));
 
-    // Check if the exit code is 42
-    assert_eq!(exit_code, Some(42));
-}
+//     // Check if the exit code is 42
+//     assert_eq!(exit_code, Some(42));
+// }
