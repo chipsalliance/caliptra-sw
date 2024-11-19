@@ -23,7 +23,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader, Response,
+    CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
     StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::{
@@ -182,7 +182,7 @@ impl FirmwareProcessor {
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         let mut self_test_in_progress = false;
 
-        cprintln!("[fwproc] Waiting for Commands...");
+        cprintln!("[fwproc] Wait for Commands...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
@@ -195,7 +195,7 @@ impl FirmwareProcessor {
                     return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
                 }
 
-                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
+                cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
@@ -209,11 +209,11 @@ impl FirmwareProcessor {
                     // failure) or by a manual complete call upon success.
                     let txn = ManuallyDrop::new(txn.start_txn());
                     if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                        cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                        cprintln!("Invalid Img size: {} bytes" txn.dlen());
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
 
-                    cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
+                    cprintln!("[fwproc] Recv'd Img size: {} bytes" txn.dlen());
                     report_boot_status(FwProcessorDownloadImageComplete.into());
                     return Ok(txn);
                 }
@@ -287,9 +287,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
-                            cprintln!(
-                                "[fwproc] Maximum supported number of measurements already received."
-                            );
+                            cprintln!("[fwproc] Max # of measurements received.");
                             txn.complete(false)?;
 
                             // Raise a fatal error on hitting the max. limit.
@@ -305,6 +303,31 @@ impl FirmwareProcessor {
                             hdr: MailboxRespHeader::default(),
                             dpe_result: 0, // DPE_STATUS_SUCCESS
                         };
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::GET_IDEV_CSR => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
+                        let csr_persistent_mem = &persistent_data.idevid_csr;
+                        let mut resp = GetIdevCsrResp::default();
+
+                        if csr_persistent_mem.is_unprovisioned() {
+                            // CSR was never written to DCCM. This means the gen_idev_id_csr
+                            // manufacturing flag was not set before booting into ROM.
+                            return Err(
+                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
+                            );
+                        }
+
+                        let csr = csr_persistent_mem
+                            .get()
+                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+
+                        resp.data_size = csr_persistent_mem.get_csr_len();
+                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
+
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
@@ -367,7 +390,7 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Image verified using Vendor ECC Key Index {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
             info.vendor_ecc_pub_key_idx,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
@@ -474,7 +497,7 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[fwproc] Loading FMC at address 0x{:08x} len {}",
+            "[fwproc] Load FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
@@ -487,7 +510,7 @@ impl FirmwareProcessor {
         txn.copy_request(fmc_dest.as_bytes_mut())?;
 
         cprintln!(
-            "[fwproc] Loading Runtime at address 0x{:08x} len {}",
+            "[fwproc] Load Runtime at address 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );

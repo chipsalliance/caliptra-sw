@@ -85,16 +85,19 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
-pub use mldsa87::{MlDsa87, MlDsa87PubKey, MlDsa87Reg, MlDsa87Signature};
+pub use mldsa87::{
+    Mldsa87, Mldsa87Msg, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRnd, Mldsa87Signature,
+};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 #[cfg(feature = "runtime")]
-pub use persistent::{AuthManifestImageMetadataList, AUTH_MANIFEST_IMAGE_METADATA_LIST_MAX_COUNT};
+pub use persistent::AuthManifestImageMetadataList;
 pub use persistent::{
-    FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
-    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
+    FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
+    StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_CSR_SIZE, MEASUREMENT_MAX_COUNT,
+    PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

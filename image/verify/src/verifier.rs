@@ -17,12 +17,14 @@ use core::num::NonZeroU32;
 use crate::*;
 #[cfg(all(not(test), not(feature = "no-cfi")))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder};
+use caliptra_cfi_lib::{
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder,
+};
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::offset_of;
 
-const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
+const ZERO_DIGEST: &ImageDigest = &[0u32; SHA384_DIGEST_WORD_SIZE];
 
 /// Header Info
 struct HeaderInfo<'a> {
@@ -294,15 +296,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         pub_key_info: &ImageVendorPubKeyInfo,
     ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
-        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
-            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+        if cfi_launder(self.env.dev_lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
+            cfi_assert_eq(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
             return Ok(());
         } else {
-            cfi_assert_ne(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+            cfi_assert_ne(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
         }
 
         // Read expected value from the fuses
-        let expected = self.env.vendor_pub_key_info_digest_fuses();
+        let expected = &self.env.vendor_pub_key_info_digest_fuses();
 
         // Vendor public key digest from the fuses must never be zero
         if cfi_launder(expected) == ZERO_DIGEST {
@@ -352,7 +360,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
+        let actual = &self
             .env
             .sha384_digest(range.start, range.len() as u32)
             .map_err(|err| {
@@ -363,7 +371,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&expected, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
         }
 
         // [TODO] Verify active public key's digest from the descriptor hash list.
@@ -387,7 +395,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
+        let actual = &self
             .env
             .sha384_digest(range.start, range.len() as u32)
             .map_err(|err| {
@@ -395,28 +403,28 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE
             })?;
 
-        let fuses_digest = self.env.owner_pub_key_digest_fuses();
+        let fuses_digest = &self.env.owner_pub_key_digest_fuses();
 
         if fuses_digest == ZERO_DIGEST {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &ZERO_DIGEST);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, ZERO_DIGEST);
         } else if fuses_digest != actual {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, actual);
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
-            let cold_boot_digest = self.env.owner_pub_key_digest_dv();
+            let cold_boot_digest = &self.env.owner_pub_key_digest_dv();
             if cfi_launder(cold_boot_digest) != actual {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
             } else {
-                caliptra_cfi_lib::cfi_assert_eq_12_words(&cold_boot_digest, &actual);
+                caliptra_cfi_lib::cfi_assert_eq_12_words(cold_boot_digest, actual);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
         }
 
-        Ok((actual, fuses_digest != ZERO_DIGEST))
+        Ok((*actual, fuses_digest != ZERO_DIGEST))
     }
 
     /// Verify Header
@@ -480,7 +488,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify owner LMS signature
         let (owner_lms_pub_key, owner_lms_sig) = info.owner_lms_info;
-        self.verify_owner_lms_sig(&digest_owner, owner_lms_pub_key, owner_lms_sig)?;
+        self.verify_owner_lms_sig(
+            &digest_owner,
+            cfi_launder(owner_lms_pub_key),
+            cfi_launder(owner_lms_sig),
+        )?;
 
         let verif_info = TocInfo {
             len: header.toc_len,
@@ -499,10 +511,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<()> {
-        if pub_key.x == ZERO_DIGEST || pub_key.y == ZERO_DIGEST {
+        if &pub_key.x == ZERO_DIGEST || &pub_key.y == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG)?;
         }
-        if sig.r == ZERO_DIGEST || sig.s == ZERO_DIGEST {
+        if &sig.r == ZERO_DIGEST || &sig.s == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
@@ -539,10 +551,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         lms_info: (&ImageLmsPublicKey, &ImageLmsSignature),
     ) -> CaliptraResult<()> {
         let (ecc_pub_key, ecc_sig) = ecc_info;
-        if ecc_pub_key.x == ZERO_DIGEST || ecc_pub_key.y == ZERO_DIGEST {
+        if &ecc_pub_key.x == ZERO_DIGEST || &ecc_pub_key.y == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG)?;
         }
-        if ecc_sig.r == ZERO_DIGEST || ecc_sig.s == ZERO_DIGEST {
+        if &ecc_sig.r == ZERO_DIGEST || &ecc_sig.s == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
@@ -729,8 +741,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     #[inline(always)]
     fn svn_check_required(&mut self) -> bool {
         // If device is unprovisioned or if rollback is enabled (anti_rollback_disable == true), don't check the SVN.
-        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
-            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+        if cfi_launder(self.env.dev_lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
+            cfi_assert_eq(
+                self.env.dev_lifecycle() as u32,
+                Lifecycle::Unprovisioned as u32,
+            );
             false // SVN check not required
         } else if cfi_launder(self.env.anti_rollback_disable()) {
             cfi_assert!(self.env.anti_rollback_disable());

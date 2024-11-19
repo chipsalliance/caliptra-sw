@@ -321,6 +321,41 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 );
             });
         }
+        if block.block().name == "mldsa" {
+            block.transform(|t| {
+                // [TODO]: Put this enumeration into the RDL and remove this hack
+                t.set_register_enum(
+                    "CTRL",
+                    "CTRL",
+                    Rc::new(Enum {
+                        name: Some("Ctrl".into()),
+                        variants: vec![
+                            EnumVariant {
+                                name: "NONE".into(),
+                                value: 0,
+                            },
+                            EnumVariant {
+                                name: "KEYGEN".into(),
+                                value: 1,
+                            },
+                            EnumVariant {
+                                name: "SIGNING".into(),
+                                value: 2,
+                            },
+                            EnumVariant {
+                                name: "VERIFYING".into(),
+                                value: 3,
+                            },
+                            EnumVariant {
+                                name: "KEYGEN_SIGN".into(),
+                                value: 4,
+                            },
+                        ],
+                        bit_width: 3,
+                    }),
+                );
+            });
+        }
 
         let module_ident = format_ident!("{}", block.block().name);
         ureg_codegen::build_extern_types(

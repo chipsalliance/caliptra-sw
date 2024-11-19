@@ -23,12 +23,12 @@ use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
-pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 16;
+pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 128;
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
     pub struct AuthManifestFlags : u32 {
-        const VENDOR_SIGNATURE_REQURIED = 0b1;
+        const VENDOR_SIGNATURE_REQUIRED = 0b1;
     }
 }
 
@@ -139,18 +139,6 @@ pub struct AuthManifestImageMetadata {
     pub image_source: u32,
 }
 
-/// Caliptra Authorization Manifest Image Metadata Collection Header
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct AuthManifestImageMetadataCollectionHeader {
-    pub revision: u32,
-
-    pub reserved: [u8; 12],
-
-    pub entry_count: u32,
-}
-
 impl Default for AuthManifestImageMetadata {
     fn default() -> Self {
         AuthManifestImageMetadata {
@@ -162,12 +150,22 @@ impl Default for AuthManifestImageMetadata {
 
 /// Caliptra Authorization Manifest Image Metadata Collection
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize, Default)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadataCollection {
-    pub header: AuthManifestImageMetadataCollectionHeader,
+    pub entry_count: u32,
 
     pub image_metadata_list: [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+}
+
+impl Default for AuthManifestImageMetadataCollection {
+    fn default() -> Self {
+        AuthManifestImageMetadataCollection {
+            entry_count: 0,
+            image_metadata_list: [AuthManifestImageMetadata::default();
+                AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+        }
+    }
 }
 
 /// Caliptra Image Authorization Manifest

@@ -51,6 +51,9 @@ impl CommandId {
 
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
+
+    // The get IDevID CSR command.
+    pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
 }
 
 impl From<u32> for CommandId {
@@ -151,6 +154,7 @@ pub enum MailboxResp {
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
+    GetIdevCsr(GetIdevCsrResp),
 }
 
 impl MailboxResp {
@@ -171,6 +175,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -191,6 +196,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -458,6 +464,7 @@ pub struct GetIdevInfoResp {
 pub struct GetLdevCertReq {
     header: MailboxReqHeader,
 }
+
 impl Request for GetLdevCertReq {
     const ID: CommandId = CommandId::GET_LDEV_CERT;
     type Resp = GetLdevCertResp;
@@ -948,7 +955,7 @@ pub struct SetAuthManifestReq {
     pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
 }
 impl SetAuthManifestReq {
-    pub const MAX_MAN_SIZE: usize = 8192;
+    pub const MAX_MAN_SIZE: usize = 14 * 1024;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
         if self.manifest_size as usize > Self::MAX_MAN_SIZE {
@@ -972,6 +979,40 @@ impl Default for SetAuthManifestReq {
             hdr: MailboxReqHeader::default(),
             manifest_size: 0,
             manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+
+// GET_IDEVID_CSR
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIdevCsrReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetIdevCsrReq {
+    const ID: CommandId = CommandId::GET_IDEV_CSR;
+    type Resp = GetIdevCsrResp;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIdevCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; Self::DATA_MAX_SIZE],
+}
+impl GetIdevCsrResp {
+    pub const DATA_MAX_SIZE: usize = 512;
+}
+impl ResponseVarSize for GetIdevCsrResp {}
+
+impl Default for GetIdevCsrResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
         }
     }
 }
@@ -1051,9 +1092,26 @@ pub struct AuthorizeAndStashResp {
 }
 impl Response for AuthorizeAndStashResp {}
 
+/// Retrieves dlen bytes  from the mailbox.
+pub fn mbox_read_response(
+    mbox: mbox::RegisterBlock<impl MmioMut>,
+    buf: &mut [u8],
+) -> Result<&[u8], CaliptraApiError> {
+    let dlen_bytes = mbox.dlen().read() as usize;
+
+    // Buffer must be big enough to store dlen bytes.
+    let buf = buf
+        .get_mut(..dlen_bytes)
+        .ok_or(CaliptraApiError::ReadBuffTooSmall)?;
+
+    mbox_read_fifo(mbox, buf)?;
+
+    Ok(buf)
+}
+
 pub fn mbox_read_fifo(
     mbox: mbox::RegisterBlock<impl MmioMut>,
-    mut buf: &mut [u8],
+    buf: &mut [u8],
 ) -> core::result::Result<(), CaliptraApiError> {
     use zerocopy::Unalign;
 
@@ -1065,9 +1123,9 @@ pub fn mbox_read_fifo(
 
     let dlen_bytes = mbox.dlen().read() as usize;
 
-    if dlen_bytes < buf.len() {
-        buf = &mut buf[..dlen_bytes];
-    }
+    let buf = buf
+        .get_mut(..dlen_bytes)
+        .ok_or(CaliptraApiError::UnableToReadMailbox)?;
 
     let len_words = buf.len() / size_of::<u32>();
     let (mut buf_words, suffix) = LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words)
