@@ -15,3 +15,6 @@ caliptra-emu-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-api-types.workspace = true
 ureg.workspace = true
+
+[features]
+"hw-1.0" = ["caliptra-registers/hw-1.0"]
