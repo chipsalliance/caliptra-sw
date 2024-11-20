@@ -18,7 +18,7 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use super::x509::X509;
 use crate::cprintln;
-use crate::flow::cold_reset::crypto::MlDsaKeyPair;
+use crate::flow::cold_reset::crypto::{MlDsaKeyPair, PubKey};
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -50,8 +50,8 @@ impl FmcAliasLayer {
         cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_ECDSA_PRIV_KEY as u8);
         cprintln!(
-            "[afmc] AUTHORITY.KEYID = {}",
-            input.auth_key_pair.priv_key as u8
+            "[afmc] ECC AUTHORITY.KEYID = {}",
+            input.ecc_auth_key_pair.priv_key as u8
         );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
@@ -70,10 +70,10 @@ impl FmcAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::subj_key_id(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -158,8 +158,8 @@ impl FmcAliasLayer {
         output: &DiceOutput,
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
-        let auth_priv_key = input.auth_key_pair.priv_key;
-        let auth_pub_key = &input.auth_key_pair.pub_key;
+        let auth_priv_key = input.ecc_auth_key_pair.priv_key;
+        let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
 
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
@@ -189,9 +189,9 @@ impl FmcAliasLayer {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
-            issuer_sn: input.auth_sn,
-            authority_key_id: input.auth_key_id,
-            serial_number: &X509::cert_sn(env, pub_key)?,
+            issuer_sn: input.ecc_auth_sn,
+            authority_key_id: input.ecc_auth_key_id,
+            serial_number: &X509::ecc_cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),

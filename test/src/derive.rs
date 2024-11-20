@@ -242,7 +242,7 @@ impl LDevId {
 
         let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
             swap_word_bytes(&cdi).as_bytes(),
-            b"ldevid_keygen",
+            b"ldevid_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
@@ -285,9 +285,9 @@ fn test_ldevid() {
                 0x6f1271bc, 0xf35c0619, 0x0856f1e3, 0x7d560cf2, 0xaa227256,
             ],
             priv_key: [
-                0xd6cb583, 0x3a6de03c, 0x2cbf7476, 0x5cfd3cf0, 0x36871eae, 0xd4144aea, 0xce3cec09,
-                0x8168274, 0xb97d7cfe, 0x5b106642, 0x6c8d2cc2, 0xf2edcb8b,
-            ],
+                0xce7579e1, 0x37fe98bd, 0x54dd77e6, 0xc20331d, 0xe0ae1006, 0x64577cf9, 0xd04306f5,
+                0x434d4dde, 0x43974611, 0x1ceb42a1, 0x2b6d1959, 0xbebeb390,
+            ]
         }
     );
 }
