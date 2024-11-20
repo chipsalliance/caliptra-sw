@@ -13,6 +13,8 @@ use core::mem;
 use ureg::MmioMut;
 use zerocopy::{AsBytes, FromBytes};
 
+pub const NUM_PAUSERS: usize = 5;
+
 /// Implementation of the `SocManager` trait for a `RealSocManager`.
 ///
 /// # Example
@@ -77,6 +79,10 @@ pub trait SocManager {
 
     /// Set up valid PAUSERs for mailbox access.
     fn setup_mailbox_users(&mut self, apb_pausers: &[u32]) -> Result<(), CaliptraApiError> {
+        if apb_pausers.len() > NUM_PAUSERS {
+            return Err(CaliptraApiError::UnableToSetPauser);
+        }
+
         for (idx, apb_pauser) in apb_pausers.iter().enumerate() {
             if self
                 .soc_ifc()
