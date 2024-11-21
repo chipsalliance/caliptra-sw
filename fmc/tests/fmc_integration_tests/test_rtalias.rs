@@ -5,7 +5,7 @@ use caliptra_builder::{
 };
 use caliptra_common::{
     memory_layout::{
-        FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, MEASUREMENT_LOG_ORG, PCR_LOG_ORG,
+        ECC_FMCALIAS_TBS_ORG, ECC_LDEVID_TBS_ORG, FUSE_LOG_ORG, MEASUREMENT_LOG_ORG, PCR_LOG_ORG,
     },
     RomBootStatus::*,
 };
@@ -95,10 +95,11 @@ fn test_fht_info() {
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 552);
-    assert_eq!(fht.fmcalias_tbs_size, 753);
-    assert_eq!(fht.ldevid_tbs_addr, LDEVID_TBS_ORG);
-    assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
+    // [TODO][CAP2] Add mldsa layout
+    assert_eq!(fht.ecc_ldevid_tbs_size, 552);
+    assert_eq!(fht.ecc_fmcalias_tbs_size, 753);
+    assert_eq!(fht.ecc_ldevid_tbs_addr, ECC_LDEVID_TBS_ORG);
+    assert_eq!(fht.ecc_fmcalias_tbs_addr, ECC_FMCALIAS_TBS_ORG);
     assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
     assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);

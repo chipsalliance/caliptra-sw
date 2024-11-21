@@ -115,7 +115,7 @@ impl From<DataStore> for HandOffDataHandle {
     }
 }
 
-const FHT_RESERVED_SIZE: usize = 1680;
+const FHT_RESERVED_SIZE: usize = 1668;
 
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
@@ -155,17 +155,29 @@ pub struct FirmwareHandoffTable {
     /// Index of RT Private Alias Key in the Key Vault.
     pub rt_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// LdevId TBS Address
-    pub ldevid_tbs_addr: u32,
+    /// ECC LdevId TBS Address
+    pub ecc_ldevid_tbs_addr: u32,
 
-    /// FmcAlias TBS Address
-    pub fmcalias_tbs_addr: u32,
+    /// ECC FmcAlias TBS Address
+    pub ecc_fmcalias_tbs_addr: u32,
 
-    /// LdevId TBS Size.
-    pub ldevid_tbs_size: u16,
+    /// ECC LdevId TBS Size
+    pub ecc_ldevid_tbs_size: u16,
 
-    /// FmcAlias TBS Size.
-    pub fmcalias_tbs_size: u16,
+    /// ECC FmcAlias TBS Size
+    pub ecc_fmcalias_tbs_size: u16,
+
+    /// MLDSA LdevId TBS Address
+    pub mldsa_ldevid_tbs_addr: u32,
+
+    /// MLDSA FmcAlias TBS Address
+    pub mldsa_fmcalias_tbs_addr: u32,
+
+    /// MLDSA LdevId TBS Size
+    pub mldsa_ldevid_tbs_size: u16,
+
+    /// MLDSA FmcAlias TBS Size
+    pub mldsa_fmcalias_tbs_size: u16,
 
     /// PCR log Address
     pub pcr_log_addr: u32,
@@ -197,7 +209,7 @@ pub struct FirmwareHandoffTable {
     /// Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
 
-    /// RtAlias TBS Size.
+    /// ECC RtAlias TBS Size
     pub rtalias_tbs_size: u16,
 
     /// Maximum value RT FW SVN can take.
@@ -222,10 +234,14 @@ impl Default for FirmwareHandoffTable {
             fmc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            ldevid_tbs_addr: 0,
-            fmcalias_tbs_addr: 0,
-            ldevid_tbs_size: 0,
-            fmcalias_tbs_size: 0,
+            ecc_ldevid_tbs_addr: 0,
+            ecc_fmcalias_tbs_addr: 0,
+            ecc_ldevid_tbs_size: 0,
+            ecc_fmcalias_tbs_size: 0,
+            mldsa_ldevid_tbs_addr: 0,
+            mldsa_fmcalias_tbs_addr: 0,
+            mldsa_ldevid_tbs_size: 0,
+            mldsa_fmcalias_tbs_size: 0,
             pcr_log_addr: 0,
             pcr_log_index: 0,
             meas_log_addr: 0,
@@ -271,10 +287,10 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         "IdevId MLDSA Public Key Address: 0x{:08x}",
         fht.idev_dice_mldsa_pub_key_load_addr
     );
-    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
-    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
-    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
-    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ecc_ldevid_tbs_addr);
+    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ecc_ldevid_tbs_size);
+    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.ecc_fmcalias_tbs_addr);
+    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.ecc_fmcalias_tbs_size);
     crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
     crate::cprintln!("PCR log Index: {}", fht.pcr_log_index);
@@ -297,8 +313,8 @@ impl FirmwareHandoffTable {
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
-            && self.ldevid_tbs_addr != 0
-            && self.fmcalias_tbs_addr != 0
+            && self.ecc_ldevid_tbs_addr != 0
+            && self.ecc_fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
             && self.meas_log_addr != 0
             && self.fuse_log_addr != 0
@@ -306,7 +322,7 @@ impl FirmwareHandoffTable {
 
         if valid
             && reset_reason == ResetReason::ColdReset
-            && (self.ldevid_tbs_size == 0 || self.fmcalias_tbs_size == 0)
+            && (self.ecc_ldevid_tbs_size == 0 || self.ecc_fmcalias_tbs_size == 0)
         {
             valid = false;
         }
@@ -344,11 +360,11 @@ mod tests {
             && fht.manifest_load_addr != FHT_INVALID_ADDRESS
             // This is for Gen1 POR.
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
-            && fht.ldevid_tbs_size == 0
-            && fht.fmcalias_tbs_size == 0
+            && fht.ecc_ldevid_tbs_size == 0
+            && fht.ecc_fmcalias_tbs_size == 0
             && fht.rtalias_tbs_size == 0
-            && fht.ldevid_tbs_addr != 0
-            && fht.fmcalias_tbs_addr != 0
+            && fht.ecc_ldevid_tbs_addr != 0
+            && fht.ecc_fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0
             && fht.meas_log_addr != 0
             && fht.fuse_log_addr != 0;
