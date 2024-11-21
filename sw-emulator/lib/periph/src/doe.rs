@@ -298,8 +298,14 @@ mod tests {
         let mut ku_hmac_key = KeyUsage::default();
         ku_hmac_key.set_hmac_key(true);
 
-        assert_eq!(key_vault.read_key(2, ku_hmac_data).unwrap(), PLAIN_TEXT_UDS);
-        assert_eq!(key_vault.read_key(2, ku_hmac_key).unwrap(), PLAIN_TEXT_UDS);
+        assert_eq!(
+            key_vault.read_key(2, ku_hmac_data).unwrap()[..48],
+            PLAIN_TEXT_UDS
+        );
+        assert_eq!(
+            key_vault.read_key(2, ku_hmac_key).unwrap()[..48],
+            PLAIN_TEXT_UDS
+        );
     }
 
     #[test]
@@ -364,8 +370,14 @@ mod tests {
         let mut ku_hmac_key = KeyUsage::default();
         ku_hmac_key.set_hmac_key(true);
 
-        assert_eq!(key_vault.read_key(3, ku_hmac_data).unwrap(), PLAIN_TEXT_FE);
-        assert_eq!(key_vault.read_key(3, ku_hmac_key).unwrap(), PLAIN_TEXT_FE);
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_data).unwrap()[..48],
+            PLAIN_TEXT_FE
+        );
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_key).unwrap()[..48],
+            PLAIN_TEXT_FE
+        );
     }
 
     #[test]

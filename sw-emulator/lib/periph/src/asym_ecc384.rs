@@ -638,7 +638,7 @@ impl AsymEcc384 {
 
         let pcr_digest = self.hash_sha512.pcr_hash_digest();
 
-        let signature = Ecc384::sign(&pcr_key, &pcr_digest);
+        let signature = Ecc384::sign(&pcr_key[..48].try_into().unwrap(), &pcr_digest);
         self.sig_r = words_from_bytes_le(&signature.r);
         self.sig_s = words_from_bytes_le(&signature.s);
     }
@@ -1037,7 +1037,7 @@ mod tests {
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
-        let mut hash = [0u8; KeyVault::KEY_SIZE];
+        let mut hash = [0u8; 48];
         hash.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..hash.len()).step_by(4) {
@@ -1238,7 +1238,7 @@ mod tests {
 
         let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
-        let hash = [0u8; KeyVault::KEY_SIZE];
+        let hash = [0u8; 48];
         for i in (0..hash.len()).step_by(4) {
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
