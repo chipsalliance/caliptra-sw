@@ -322,4 +322,40 @@ impl Crypto {
             pub_key,
         })
     }
+
+    /// Sign the data using MLDSA Private Key.
+    /// Verify the signature using the MLDSA Public Key.
+    ///
+    /// This routine calculates the digest of the `data`, signs the hash and returns the signature.
+    /// This routine also verifies the signature using the public key.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `priv_key` - Key slot to retrieve the private key
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa384Signature` - Signature
+    #[inline(always)]
+    pub fn mldsa87_sign_and_verify(
+        env: &mut RomEnv,
+        priv_key: KeyId,
+        pub_key: &Mldsa87PubKey,
+        data: &[u8],
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut digest = Self::sha512_digest(env, data);
+        let digest = okmutref(&mut digest)?;
+        let priv_key_args = KeyReadArgs::new(priv_key);
+        let result = env.mldsa87.sign(
+            &priv_key_args,
+            pub_key,
+            digest,
+            &Mldsa87SignRnd::default(),
+            &mut env.trng,
+        );
+        digest.0.zeroize();
+        result
+    }
 }

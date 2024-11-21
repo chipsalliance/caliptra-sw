@@ -44,8 +44,10 @@ pub const FUSE_LOG_ORG: u32 = MEASUREMENT_LOG_ORG + MEASUREMENT_LOG_SIZE;
 pub const DPE_ORG: u32 = FUSE_LOG_ORG + FUSE_LOG_SIZE;
 pub const PCR_RESET_COUNTER_ORG: u32 = DPE_ORG + DPE_SIZE;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = PCR_RESET_COUNTER_ORG + PCR_RESET_COUNTER_SIZE;
-pub const IDEVID_CSR_ORG: u32 = AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
-pub const DATA_ORG: u32 = IDEVID_CSR_ORG + IDEVID_CSR_SIZE;
+pub const ECC384_IDEVID_CSR_ORG: u32 =
+    AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
+pub const MLDSA87_IDEVID_CSR_ORG: u32 = ECC384_IDEVID_CSR_ORG + ECC384_IDEVID_CSR_SIZE;
+pub const DATA_ORG: u32 = MLDSA87_IDEVID_CSR_ORG + MLDSA87_IDEVID_CSR_SIZE;
 
 pub const STACK_ORG: u32 = DATA_ORG + DATA_SIZE;
 pub const ROM_STACK_ORG: u32 = STACK_ORG + (STACK_SIZE - ROM_STACK_SIZE);
@@ -55,6 +57,8 @@ pub const ROM_ESTACK_ORG: u32 = ESTACK_ORG;
 
 pub const NSTACK_ORG: u32 = ROM_ESTACK_ORG + ROM_ESTACK_SIZE;
 pub const ROM_NSTACK_ORG: u32 = NSTACK_ORG;
+
+pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 
 //
 // Memory Sizes In Bytes
@@ -78,8 +82,9 @@ pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
-pub const IDEVID_CSR_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 130 * 1024;
+pub const ECC384_IDEVID_CSR_SIZE: u32 = 1024;
+pub const MLDSA87_IDEVID_CSR_SIZE: u32 = 8 * 1024;
+pub const DATA_SIZE: u32 = 122 * 1024;
 pub const STACK_SIZE: u32 = 64 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -173,7 +178,16 @@ fn mem_layout_test_pcr_reset_counter() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_idevid_csr() {
-    assert_eq!((DATA_ORG - IDEVID_CSR_ORG), IDEVID_CSR_SIZE);
+    assert_eq!(
+        (MLDSA87_IDEVID_CSR_ORG - ECC384_IDEVID_CSR_ORG),
+        ECC384_IDEVID_CSR_SIZE
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_mldsa87_idevid_csr() {
+    assert_eq!((DATA_ORG - MLDSA87_IDEVID_CSR_ORG), MLDSA87_IDEVID_CSR_SIZE);
 }
 
 #[test]
@@ -192,4 +206,10 @@ fn mem_layout_test_stack() {
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_estack() {
     assert_eq!((NSTACK_ORG - ESTACK_ORG), ESTACK_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn dccm_overflow() {
+    assert!(DCCM_ORG + DCCM_SIZE >= LAST_REGION_END);
 }

@@ -7,7 +7,11 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct LocalDevIdCertTbsParams<'a> {
+
+// TODO generate when x509 libraries support MLDSA
+
+#[allow(dead_code)]
+pub struct LocalDevIdCertTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
@@ -18,7 +22,8 @@ pub struct LocalDevIdCertTbsParams<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
 }
-impl<'a> LocalDevIdCertTbsParams<'a> {
+#[allow(dead_code)]
+impl<'a> LocalDevIdCertTbsMlDsa87Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
@@ -29,17 +34,18 @@ impl<'a> LocalDevIdCertTbsParams<'a> {
     pub const NOT_BEFORE_LEN: usize = 15usize;
     pub const NOT_AFTER_LEN: usize = 15usize;
 }
-pub struct LocalDevIdCertTbs {
+pub struct LocalDevIdCertTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl LocalDevIdCertTbs {
-    const PUBLIC_KEY_OFFSET: usize = 316usize;
+#[allow(dead_code)]
+impl LocalDevIdCertTbsMlDsa87 {
+    const PUBLIC_KEY_OFFSET: usize = 317usize;
     const SUBJECT_SN_OFFSET: usize = 229usize;
     const ISSUER_SN_OFFSET: usize = 86usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 499usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 532usize;
-    const UEID_OFFSET: usize = 471usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 2995usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3028usize;
+    const UEID_OFFSET: usize = 2967usize;
     const NOT_BEFORE_OFFSET: usize = 154usize;
     const NOT_AFTER_OFFSET: usize = 171usize;
     const PUBLIC_KEY_LEN: usize = 97usize;
@@ -51,8 +57,8 @@ impl LocalDevIdCertTbs {
     const UEID_LEN: usize = 17usize;
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
-    pub const TBS_TEMPLATE_LEN: usize = 552usize;
-    const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
+    pub const TBS_TEMPLATE_LEN: usize = 3048usize;
+    const TBS_TEMPLATE_PART_1: [u8; 317] = [
         48u8, 130u8, 2u8, 36u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         48u8, 10u8, 6u8, 8u8, 42u8, 134u8, 72u8, 206u8, 61u8, 4u8, 3u8, 3u8, 48u8, 105u8, 49u8,
@@ -73,14 +79,10 @@ impl LocalDevIdCertTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 118u8, 48u8, 16u8, 6u8, 7u8, 42u8,
-        134u8, 72u8, 206u8, 61u8, 2u8, 1u8, 6u8, 5u8, 43u8, 129u8, 4u8, 0u8, 34u8, 3u8, 98u8, 0u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 163u8, 129u8, 136u8, 48u8, 129u8, 133u8, 48u8,
+        134u8, 72u8, 206u8, 61u8, 2u8, 1u8, 6u8, 5u8, 43u8, 129u8, 4u8, 0u8, 34u8, 4u8, 130u8, 10u8, 32u8];
+
+    const TBS_TEMPLATE_PART_2: [u8; 139] = [
+    163u8, 129u8, 136u8, 48u8, 129u8, 133u8, 48u8,
         18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8,
         2u8, 1u8, 4u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8,
         2u8, 4u8, 48u8, 31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8,
@@ -91,10 +93,12 @@ impl LocalDevIdCertTbs {
         128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
-    pub fn new(params: &LocalDevIdCertTbsParams) -> Self {
+    pub fn new(params: &LocalDevIdCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
-            tbs: Self::TBS_TEMPLATE,
+            tbs: [0; Self::TBS_TEMPLATE_LEN],
         };
+        template.tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_PART_1);
+        template.tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&Self::TBS_TEMPLATE_PART_2);
         template.apply(params);
         template
     }
@@ -107,10 +111,10 @@ impl LocalDevIdCertTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &LocalDevIdCertTbsParams) {
+    fn apply(&mut self, params: &LocalDevIdCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 552usize],
+            buf: &mut [u8; 3048usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);

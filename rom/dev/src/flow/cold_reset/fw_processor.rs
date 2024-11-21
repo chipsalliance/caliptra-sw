@@ -316,7 +316,7 @@ impl FirmwareProcessor {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
-                        let csr_persistent_mem = &persistent_data.idevid_csr;
+                        let csr_persistent_mem = &persistent_data.ecc384_idevid_csr;
                         let mut resp = GetIdevCsrResp::default();
 
                         if csr_persistent_mem.is_unprovisioned() {

@@ -30,7 +30,7 @@ use caliptra_drivers::{
     okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
     ResetReason,
 };
-use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
+use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 
 const SHA384_HASH_SIZE: usize = 48;
 
@@ -271,8 +271,8 @@ impl RtAliasLayer {
         env: &mut FmcEnv,
         input: &DiceInput,
         output: &DiceOutput,
-        not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
-        not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
+        not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
+        not_after: &[u8; RtAliasCertTbsEcc384Params::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.auth_key_pair.priv_key;
         let auth_pub_key = &input.auth_key_pair.pub_key;
@@ -284,7 +284,7 @@ impl RtAliasLayer {
         let rt_svn = HandOff::rt_svn(env) as u8;
 
         // Certificate `To Be Signed` Parameters
-        let params = RtAliasCertTbsParams {
+        let params = RtAliasCertTbsEcc384Params {
             // Do we need the UEID here?
             ueid: &X509::ueid(env)?,
             subject_sn: &output.subj_sn,
@@ -301,7 +301,7 @@ impl RtAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = RtAliasCertTbs::new(&params);
+        let tbs = RtAliasCertTbsEcc384::new(&params);
 
         // Sign the `To Be Signed` portion
         cprintln!(
