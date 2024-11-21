@@ -196,50 +196,6 @@ impl HandOff {
         }
     }
 
-    /// Retrieve runtime minimum SVN.
-    pub fn rt_min_svn(env: &FmcEnv) -> u32 {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_min_svn_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store must be a warm reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_and_lock_rt_min_svn(env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_min_svn_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store must be a warm reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => {
-                env.data_vault.write_warm_reset_entry4(dv_entry, min_svn);
-                env.data_vault.lock_warm_reset_entry4(dv_entry);
-                Ok(())
-            }
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
     /// Store runtime Dice Signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rt_dice_signature(env: &mut FmcEnv, sig: &Ecc384Signature) {
@@ -268,18 +224,6 @@ impl HandOff {
                 handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
-    }
-
-    #[allow(dead_code)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_hash_chain_max_svn(env: &mut FmcEnv, max_svn: u16) {
-        Self::fht_mut(env).rt_hash_chain_max_svn = max_svn;
-    }
-
-    #[allow(dead_code)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_hash_chain_kv_hdl(env: &mut FmcEnv, kv_slot: KeyId) {
-        Self::fht_mut(env).rt_hash_chain_kv_hdl = Self::key_id_to_handle(kv_slot)
     }
 
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
