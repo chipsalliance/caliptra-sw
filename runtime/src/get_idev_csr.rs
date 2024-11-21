@@ -11,7 +11,7 @@ use caliptra_common::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
-use caliptra_drivers::IdevIdCsr;
+use caliptra_drivers::Ecc384IdevIdCsr;
 
 use zerocopy::{AsBytes, FromBytes};
 
@@ -21,10 +21,10 @@ impl GetIdevCsrCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetIdevCsrReq::read_from(cmd_args) {
-            let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr;
+            let csr_persistent_mem = &drivers.persistent_data.get().ecc384_idevid_csr;
 
             match csr_persistent_mem.get_csr_len() {
-                IdevIdCsr::UNPROVISIONED_CSR => {
+                Ecc384IdevIdCsr::UNPROVISIONED_CSR => {
                     Err(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)
                 }
                 0 => Err(CaliptraError::RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM),

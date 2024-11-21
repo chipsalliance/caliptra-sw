@@ -24,7 +24,8 @@ use crate::{
 #[cfg(feature = "runtime")]
 use crate::pcr_reset::PcrResetCounter;
 
-pub const MAX_CSR_SIZE: usize = 512;
+pub const ECC384_MAX_CSR_SIZE: usize = 512;
+pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
@@ -47,21 +48,29 @@ pub type AuthManifestImageMetadataList =
 
 #[derive(Clone, FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
-pub struct IdevIdCsr {
+pub struct Ecc384IdevIdCsr {
     csr_len: u32,
-    csr: [u8; MAX_CSR_SIZE],
+    csr: [u8; ECC384_MAX_CSR_SIZE],
 }
 
-impl Default for IdevIdCsr {
+#[derive(Clone, FromBytes, AsBytes, Zeroize)]
+#[repr(C)]
+// We need access to the field so the compiler does not create a copy on the stack
+pub struct Mldsa87IdevIdCsr {
+    pub csr_len: u32,
+    pub csr: [u8; MLDSA87_MAX_CSR_SIZE],
+}
+
+impl Default for Ecc384IdevIdCsr {
     fn default() -> Self {
         Self {
             csr_len: Self::UNPROVISIONED_CSR,
-            csr: [0; MAX_CSR_SIZE],
+            csr: [0; ECC384_MAX_CSR_SIZE],
         }
     }
 }
 
-impl IdevIdCsr {
+impl Ecc384IdevIdCsr {
     /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
     /// the CSR generation flag was not enabled.
     ///
@@ -78,13 +87,13 @@ impl IdevIdCsr {
 
     /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
     pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
-        if csr_len >= MAX_CSR_SIZE {
+        if csr_len >= ECC384_MAX_CSR_SIZE {
             return Err(CaliptraError::ROM_IDEVID_INVALID_CSR);
         }
 
         let mut _self = Self {
             csr_len: csr_len as u32,
-            csr: [0; MAX_CSR_SIZE],
+            csr: [0; ECC384_MAX_CSR_SIZE],
         };
         _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
 
@@ -102,7 +111,7 @@ impl IdevIdCsr {
     }
 }
 
-const _: () = assert!(size_of::<IdevIdCsr>() < memory_layout::IDEVID_CSR_SIZE as usize);
+const _: () = assert!(size_of::<Ecc384IdevIdCsr>() < memory_layout::ECC_IDEVID_CSR_SIZE as usize);
 
 #[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
@@ -125,9 +134,12 @@ pub struct PersistentData {
 
     // TODO: Do we want to hide these fields from the FMC/runtime and force them
     // to go through the FHT addresses?
-    pub ldevid_tbs: [u8; memory_layout::LDEVID_TBS_SIZE as usize],
-    pub fmcalias_tbs: [u8; memory_layout::FMCALIAS_TBS_SIZE as usize],
-    pub rtalias_tbs: [u8; memory_layout::RTALIAS_TBS_SIZE as usize],
+    pub ecc_ldevid_tbs: [u8; memory_layout::ECC_LDEVID_TBS_SIZE as usize],
+    pub ecc_fmcalias_tbs: [u8; memory_layout::ECC_FMCALIAS_TBS_SIZE as usize],
+    pub ecc_rtalias_tbs: [u8; memory_layout::ECC_RTALIAS_TBS_SIZE as usize],
+    pub mldsa_ldevid_tbs: [u8; memory_layout::MLDSA_LDEVID_TBS_SIZE as usize],
+    pub mldsa_fmcalias_tbs: [u8; memory_layout::MLDSA_FMCALIAS_TBS_SIZE as usize],
+    pub mldsa_rtalias_tbs: [u8; memory_layout::MLDSA_RTALIAS_TBS_SIZE as usize],
 
     pub pcr_log: PcrLogArray,
     reserved3: [u8; memory_layout::PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
@@ -169,8 +181,12 @@ pub struct PersistentData {
     pub auth_manifest_image_metadata_col:
         [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
-    pub idevid_csr: IdevIdCsr,
-    reserved10: [u8; memory_layout::IDEVID_CSR_SIZE as usize - size_of::<IdevIdCsr>()],
+    pub ecc384_idevid_csr: Ecc384IdevIdCsr,
+    reserved10: [u8; memory_layout::ECC_IDEVID_CSR_SIZE as usize - size_of::<Ecc384IdevIdCsr>()],
+
+    // New field addition
+    pub mldsa87_idevid_csr: Mldsa87IdevIdCsr,
+    reserved11: [u8; memory_layout::MLDSA_IDEVID_CSR_SIZE as usize - size_of::<Mldsa87IdevIdCsr>()],
 }
 
 impl PersistentData {
@@ -186,9 +202,30 @@ impl PersistentData {
                 addr_of!((*P).idevid_mldsa_pub_key) as u32,
                 layout::IDEVID_MLDSA_PUB_KEY_ORG
             );
-            assert_eq!(addr_of!((*P).ldevid_tbs) as u32, layout::LDEVID_TBS_ORG);
-            assert_eq!(addr_of!((*P).fmcalias_tbs) as u32, layout::FMCALIAS_TBS_ORG);
-            assert_eq!(addr_of!((*P).rtalias_tbs) as u32, layout::RTALIAS_TBS_ORG);
+            assert_eq!(
+                addr_of!((*P).ecc_ldevid_tbs) as u32,
+                layout::ECC_LDEVID_TBS_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).ecc_fmcalias_tbs) as u32,
+                layout::ECC_FMCALIAS_TBS_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).ecc_rtalias_tbs) as u32,
+                layout::ECC_RTALIAS_TBS_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).mldsa_ldevid_tbs) as u32,
+                layout::MLDSA_LDEVID_TBS_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).mldsa_fmcalias_tbs) as u32,
+                layout::MLDSA_FMCALIAS_TBS_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).mldsa_rtalias_tbs) as u32,
+                layout::MLDSA_RTALIAS_TBS_ORG
+            );
             assert_eq!(addr_of!((*P).pcr_log) as u32, memory_layout::PCR_LOG_ORG);
             assert_eq!(
                 addr_of!((*P).measurement_log) as u32,
@@ -205,12 +242,16 @@ impl PersistentData {
                 memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
             );
             assert_eq!(
-                addr_of!((*P).idevid_csr) as u32,
-                memory_layout::IDEVID_CSR_ORG
+                addr_of!((*P).ecc384_idevid_csr) as u32,
+                memory_layout::ECC_IDEVID_CSR_ORG
+            );
+            assert_eq!(
+                addr_of!((*P).mldsa87_idevid_csr) as u32,
+                memory_layout::MLDSA_IDEVID_CSR_ORG
             );
             assert_eq!(
                 P.add(1) as u32,
-                memory_layout::IDEVID_CSR_ORG + memory_layout::IDEVID_CSR_SIZE
+                memory_layout::MLDSA_IDEVID_CSR_ORG + memory_layout::MLDSA_IDEVID_CSR_SIZE
             );
         }
     }

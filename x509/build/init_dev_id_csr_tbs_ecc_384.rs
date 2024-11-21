@@ -7,20 +7,20 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct InitDevIdCsrTbsParams<'a> {
+pub struct InitDevIdCsrTbsEcc384Params<'a> {
     pub ueid: &'a [u8; 17usize],
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
 }
-impl<'a> InitDevIdCsrTbsParams<'a> {
+impl<'a> InitDevIdCsrTbsEcc384Params<'a> {
     pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
 }
-pub struct InitDevIdCsrTbs {
+pub struct InitDevIdCsrTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl InitDevIdCsrTbs {
+impl InitDevIdCsrTbsEcc384 {
     const UEID_OFFSET: usize = 305usize;
     const PUBLIC_KEY_OFFSET: usize = 137usize;
     const SUBJECT_SN_OFFSET: usize = 50usize;
@@ -52,7 +52,7 @@ impl InitDevIdCsrTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8,
     ];
-    pub fn new(params: &InitDevIdCsrTbsParams) -> Self {
+    pub fn new(params: &InitDevIdCsrTbsEcc384Params) -> Self {
         let mut template = Self {
             tbs: Self::TBS_TEMPLATE,
         };
@@ -68,7 +68,7 @@ impl InitDevIdCsrTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &InitDevIdCsrTbsParams) {
+    fn apply(&mut self, params: &InitDevIdCsrTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
             buf: &mut [u8; 322usize],

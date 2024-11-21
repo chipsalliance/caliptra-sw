@@ -3,7 +3,7 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{get_ci_rom_version, CiRomVersion};
 use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
-use caliptra_drivers::{IdevIdCsr, MfgFlags};
+use caliptra_drivers::{Ecc384IdevIdCsr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
@@ -33,8 +33,10 @@ fn test_get_csr() {
             let response = result.unwrap().unwrap();
 
             let get_idv_csr_resp = GetIdevCsrResp::read_from(response.as_bytes()).unwrap();
-
-            assert_ne!(IdevIdCsr::UNPROVISIONED_CSR, get_idv_csr_resp.data_size);
+            assert_ne!(
+                Ecc384IdevIdCsr::UNPROVISIONED_CSR,
+                get_idv_csr_resp.data_size
+            );
             assert_ne!(0, get_idv_csr_resp.data_size);
 
             let csr_bytes = &get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize];

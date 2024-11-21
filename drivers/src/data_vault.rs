@@ -130,6 +130,78 @@ impl DataVault {
         self.cold_reset_entries.fmc_ecc_pk
     }
 
+    /// Set the ldev dice MLDSA signature.
+    ///
+    /// # Arguments
+    /// * `sig` - ldev dice MLDSA signature
+    ///
+    pub fn set_ldev_dice_mldsa_signature(&mut self, sig: &Mldsa87Signature) {
+        self.cold_reset_entries.ldev_dice_mldsa_sig = *sig;
+    }
+
+    /// Get the ldev dice MLDSA signature.
+    ///
+    /// # Returns
+    /// * ldev dice MLDSA signature
+    ///
+    pub fn ldev_dice_mldsa_signature(&self) -> Mldsa87Signature {
+        self.cold_reset_entries.ldev_dice_mldsa_sig
+    }
+
+    /// Set the ldev dice MLDSA public key.
+    ///
+    /// # Arguments
+    /// * `pub_key` - ldev dice MLDSA public key
+    ///
+    pub fn set_ldev_dice_mldsa_pub_key(&mut self, pub_key: &Mldsa87PubKey) {
+        self.cold_reset_entries.ldev_dice_mldsa_pk = *pub_key;
+    }
+
+    /// Get the ldev dice MLDSA public key.
+    ///
+    /// # Returns
+    /// * ldev dice MLDSA public key
+    ///
+    pub fn ldev_dice_mldsa_pub_key(&self) -> Mldsa87PubKey {
+        self.cold_reset_entries.ldev_dice_mldsa_pk
+    }
+
+    /// Set the fmc dice MLDSA signature.
+    ///
+    /// # Arguments
+    /// * `sig` - fmc dice MLDSA signature
+    ///
+    pub fn set_fmc_dice_mldsa_signature(&mut self, sig: &Mldsa87Signature) {
+        self.cold_reset_entries.fmc_dice_mldsa_sig = *sig;
+    }
+
+    /// Get the fmc dice MLDSA signature.
+    ///
+    /// # Returns
+    /// * fmc dice MLDSA signature
+    ///
+    pub fn fmc_dice_mldsa_signature(&self) -> Mldsa87Signature {
+        self.cold_reset_entries.fmc_dice_mldsa_sig
+    }
+
+    /// Set the fmc MLDSA public key.
+    ///
+    /// # Arguments
+    /// * `pub_key` - fmc MLDSA public key
+    ///
+    pub fn set_fmc_mldsa_pub_key(&mut self, pub_key: &Mldsa87PubKey) {
+        self.cold_reset_entries.fmc_mldsa_pk = *pub_key;
+    }
+
+    /// Get the fmc MLDSA public key.
+    ///
+    /// # Returns
+    /// * fmc MLDSA public key
+    ///
+    pub fn fmc_mldsa_pub_key(&self) -> Mldsa87PubKey {
+        self.cold_reset_entries.fmc_mldsa_pk
+    }
+
     /// Set the fmc tcb component identifier.
     ///
     /// # Arguments

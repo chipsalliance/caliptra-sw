@@ -8,15 +8,18 @@ File Name:
 
 Abstract:
 
-    Local Device ID Certificate related code.
+    ECC384 Local Device ID Certificate related code.
 
 --*/
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/local_dev_id_cert_tbs.rs"));
+include!(concat!(
+    env!("OUT_DIR"),
+    "/local_dev_id_cert_tbs_ecc_384.rs"
+));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/local_dev_id_cert_tbs.rs"}
+include! {"../build/local_dev_id_cert_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -34,14 +37,14 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{NotAfter, NotBefore};
 
-    const TEST_UEID: &[u8] = &[0xAB; LocalDevIdCertTbsParams::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; LocalDevIdCertTbsEcc384Params::UEID_LEN];
 
     fn make_test_cert(
         subject_key: &Ecc384AsymKey,
         issuer_key: &Ecc384AsymKey,
-    ) -> LocalDevIdCertTbs {
-        let params = LocalDevIdCertTbsParams {
-            serial_number: &[0xABu8; LocalDevIdCertTbsParams::SERIAL_NUMBER_LEN],
+    ) -> LocalDevIdCertTbsEcc384 {
+        let params = LocalDevIdCertTbsEcc384Params {
+            serial_number: &[0xABu8; LocalDevIdCertTbsEcc384Params::SERIAL_NUMBER_LEN],
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key
                 .hex_str()
@@ -57,7 +60,7 @@ mod tests {
             not_after: &NotAfter::default().value,
         };
 
-        LocalDevIdCertTbs::new(&params)
+        LocalDevIdCertTbsEcc384::new(&params)
     }
 
     #[test]
@@ -75,36 +78,40 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(cert.tbs(), LocalDevIdCertTbs::TBS_TEMPLATE);
+        assert_ne!(cert.tbs(), LocalDevIdCertTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::PUBLIC_KEY_OFFSET
-                ..LocalDevIdCertTbs::PUBLIC_KEY_OFFSET + LocalDevIdCertTbs::PUBLIC_KEY_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::PUBLIC_KEY_OFFSET
+                ..LocalDevIdCertTbsEcc384::PUBLIC_KEY_OFFSET
+                    + LocalDevIdCertTbsEcc384::PUBLIC_KEY_LEN],
             subject_key.pub_key(),
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::SUBJECT_SN_OFFSET
-                ..LocalDevIdCertTbs::SUBJECT_SN_OFFSET + LocalDevIdCertTbs::SUBJECT_SN_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::SUBJECT_SN_OFFSET
+                ..LocalDevIdCertTbsEcc384::SUBJECT_SN_OFFSET
+                    + LocalDevIdCertTbsEcc384::SUBJECT_SN_LEN],
             subject_key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::ISSUER_SN_OFFSET
-                ..LocalDevIdCertTbs::ISSUER_SN_OFFSET + LocalDevIdCertTbs::ISSUER_SN_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::ISSUER_SN_OFFSET
+                ..LocalDevIdCertTbsEcc384::ISSUER_SN_OFFSET
+                    + LocalDevIdCertTbsEcc384::ISSUER_SN_LEN],
             issuer_key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::UEID_OFFSET
-                ..LocalDevIdCertTbs::UEID_OFFSET + LocalDevIdCertTbs::UEID_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::UEID_OFFSET
+                ..LocalDevIdCertTbsEcc384::UEID_OFFSET + LocalDevIdCertTbsEcc384::UEID_LEN],
             TEST_UEID,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::SUBJECT_KEY_ID_OFFSET
-                ..LocalDevIdCertTbs::SUBJECT_KEY_ID_OFFSET + LocalDevIdCertTbs::SUBJECT_KEY_ID_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                ..LocalDevIdCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                    + LocalDevIdCertTbsEcc384::SUBJECT_KEY_ID_LEN],
             subject_key.sha1(),
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCertTbs::AUTHORITY_KEY_ID_OFFSET
-                ..LocalDevIdCertTbs::AUTHORITY_KEY_ID_OFFSET
-                    + LocalDevIdCertTbs::AUTHORITY_KEY_ID_LEN],
+            &cert.tbs()[LocalDevIdCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                ..LocalDevIdCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                    + LocalDevIdCertTbsEcc384::AUTHORITY_KEY_ID_LEN],
             issuer_key.sha1(),
         );
         let ecdsa_sig = crate::Ecdsa384Signature {
@@ -170,11 +177,13 @@ mod tests {
     #[test]
     #[cfg(feature = "generate_templates")]
     fn test_ldevid_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/local_dev_id_cert_tbs.rs")).unwrap();
+        let manual_template = std::fs::read(std::path::Path::new(
+            "./build/local_dev_id_cert_tbs_ecc_384.rs",
+        ))
+        .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/local_dev_id_cert_tbs.rs"
+            "/local_dev_id_cert_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {
