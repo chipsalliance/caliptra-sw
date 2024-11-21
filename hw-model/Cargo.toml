@@ -46,4 +46,4 @@ nix.workspace = true
 [[bin]]
 name = "fpga_realtime_mbox_pauser"
 path = "src/bin/fpga_realtime_mbox_pauser.rs"
-required-features = ["fpga_realtime", "itrng"]
+required-features = ["fpga_realtime"]
