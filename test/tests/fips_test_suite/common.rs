@@ -2,7 +2,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::{version, ImageOptions};
+use caliptra_builder::{get_ci_rom_version, version, CiRomVersion, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
@@ -115,12 +115,12 @@ impl RomExpVals {
                     version
                 ),
             }
-        } else if cfg!(feature = "ci-rom-1.0") {
-            ROM_EXP_1_0_3
-        } else if cfg!(feature = "ci-rom-1.1") {
-            ROM_EXP_1_1_0
         } else {
-            ROM_EXP_CURRENT
+            match get_ci_rom_version() {
+                CiRomVersion::Rom1_0 => ROM_EXP_1_0_3,
+                CiRomVersion::Rom1_1 => ROM_EXP_1_1_0,
+                _ => ROM_EXP_CURRENT,
+            }
         }
     }
 }

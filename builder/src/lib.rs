@@ -35,6 +35,13 @@ use once_cell::sync::Lazy;
 
 pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
+#[derive(Debug, PartialEq)]
+pub enum CiRomVersion {
+    Rom1_0,
+    Rom1_1,
+    Latest,
+}
+
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
 }
@@ -362,47 +369,60 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     Ok(result)
 }
 
+// Returns the ROM version to be used for CI testing specified in the environment variable "CPTRA_CI_ROM_VERSION"
+// Default is Latest
+pub fn get_ci_rom_version() -> CiRomVersion {
+    match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
+        Ok("1.0") => CiRomVersion::Rom1_0,
+        Ok("1.1") => CiRomVersion::Rom1_1,
+        Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
+        Err(_) => CiRomVersion::Latest,
+    }
+}
+
 /// Returns the most appropriate ROM for use when testing non-ROM code against
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
-    if cfg!(all(feature = "hw-1.0", not(feature = "ci-rom-1.0"))) {
-        panic!("ci-rom-1.0 is required for hw-1.0");
+    if cfg!(feature = "hw-1.0") && get_ci_rom_version() != CiRomVersion::Rom1_0 {
+        panic!("CPTRA_CI_ROM_VERSION of \'1.0\' is expected for hw-1.0");
     }
-    if cfg!(feature = "ci-rom-1.0") {
-        if rom_from_env == &firmware::ROM {
-            Ok(
-                include_bytes!("../../rom/ci_frozen_rom/1.0/caliptra-rom-1.0.3-e8e23d9.bin")
-                    .as_slice()
-                    .into(),
-            )
-        } else if rom_from_env == &firmware::ROM_WITH_UART {
-            Ok(include_bytes!(
-                "../../rom/ci_frozen_rom/1.0/caliptra-rom-with-log-1.0.3-e8e23d9.bin"
-            )
-            .as_slice()
-            .into())
-        } else {
-            Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+    match get_ci_rom_version() {
+        CiRomVersion::Rom1_0 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/1.0/caliptra-rom-1.0.3-e8e23d9.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/1.0/caliptra-rom-with-log-1.0.3-e8e23d9.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
         }
-    } else if cfg!(feature = "ci-rom-1.1") {
-        if rom_from_env == &firmware::ROM {
-            Ok(
-                include_bytes!("../../rom/ci_frozen_rom/1.1/caliptra-rom-1.1.0-51ff0a8.bin")
-                    .as_slice()
-                    .into(),
-            )
-        } else if rom_from_env == &firmware::ROM_WITH_UART {
-            Ok(include_bytes!(
-                "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.0-51ff0a8.bin"
-            )
-            .as_slice()
-            .into())
-        } else {
-            Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+        CiRomVersion::Rom1_1 => {
+            if rom_from_env == &firmware::ROM {
+                Ok(
+                    include_bytes!("../../rom/ci_frozen_rom/1.1/caliptra-rom-1.1.0-51ff0a8.bin")
+                        .as_slice()
+                        .into(),
+                )
+            } else if rom_from_env == &firmware::ROM_WITH_UART {
+                Ok(include_bytes!(
+                    "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.0-51ff0a8.bin"
+                )
+                .as_slice()
+                .into())
+            } else {
+                Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+            }
         }
-    } else {
-        Ok(build_firmware_rom(rom_from_env)?.into())
+        CiRomVersion::Latest => Ok(build_firmware_rom(rom_from_env)?.into()),
     }
 }
 
