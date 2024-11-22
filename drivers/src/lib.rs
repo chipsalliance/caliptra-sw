@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 mod array;
 mod array_concat;
@@ -108,12 +108,14 @@ pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
 #[allow(unused_imports)]
+#[allow(clippy::single_component_path_imports)]
 #[cfg(not(feature = "runtime"))]
 use caliptra_cfi_derive;
 #[allow(unused_imports)]
 #[cfg(feature = "runtime")]
 use caliptra_cfi_derive_git as caliptra_cfi_derive;
 #[allow(unused_imports)]
+#[allow(clippy::single_component_path_imports)]
 #[cfg(not(feature = "runtime"))]
 use caliptra_cfi_lib;
 #[allow(unused_imports)]

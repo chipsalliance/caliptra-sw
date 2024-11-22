@@ -17,6 +17,10 @@ emu = [
     "caliptra-runtime/emu",
     "caliptra-test-harness/emu",
 ]
+std = [
+    "caliptra-drivers/std",
+    "caliptra-runtime/std",
+]
 fpga_realtime = ["caliptra-runtime/fpga_realtime"]
 
 [[bin]]

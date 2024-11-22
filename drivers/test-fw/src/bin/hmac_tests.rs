@@ -436,7 +436,7 @@ fn test_kdf_hmac384(
     hmac384
         .hmac(
             &(&key_0).into(),
-            &(&msg_0.into()),
+            &msg_0.into(),
             &mut trng,
             kdf_key_out.into(),
             HmacMode::Hmac384,

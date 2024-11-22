@@ -68,7 +68,7 @@ pub struct ReadyForFwCbArgs<'a> {
     pub mailbox: &'a mut MailboxInternal,
     pub(crate) sched_fn: Box<ReadyForFwCbSchedFn<'a>>,
 }
-impl<'a> ReadyForFwCbArgs<'a> {
+impl ReadyForFwCbArgs<'_> {
     pub fn schedule_later(
         self,
         ticks_from_now: u64,

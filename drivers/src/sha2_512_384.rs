@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, wait, Array4x12, Array4x16, Array4x8};
@@ -404,7 +402,7 @@ pub struct Sha2DigestOp<'a, const HASH_SIZE: u16> {
     data_size: usize,
 }
 
-impl<'a, const HASH_SIZE: u16> Sha2DigestOp<'a, HASH_SIZE> {
+impl<const HASH_SIZE: u16> Sha2DigestOp<'_, HASH_SIZE> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha2DigestState::Init
@@ -418,7 +416,7 @@ impl<'a, const HASH_SIZE: u16> Sha2DigestOp<'a, HASH_SIZE> {
     }
 }
 
-impl<'a> Sha2DigestOp<'a, 384> {
+impl Sha2DigestOp<'_, 384> {
     /// Update the digest with data
     ///
     /// # Arguments

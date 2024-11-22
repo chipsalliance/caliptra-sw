@@ -18,9 +18,9 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
-    cprintln, hmac_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault,
-    KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
+    hmac_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac,
+    HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
+    Sha2DigestOp, Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
 use zerocopy::AsBytes;
@@ -80,7 +80,7 @@ impl<'a> DpeHasher<'a> {
     }
 }
 
-impl<'a> Hasher for DpeHasher<'a> {
+impl Hasher for DpeHasher<'_> {
     fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
         self.op
             .update(bytes)
@@ -96,9 +96,12 @@ impl<'a> Hasher for DpeHasher<'a> {
     }
 }
 
-impl<'a> Crypto for DpeCrypto<'a> {
+impl Crypto for DpeCrypto<'_> {
     type Cdi = KeyId;
-    type Hasher<'b> = DpeHasher<'b> where Self: 'b;
+    type Hasher<'b>
+        = DpeHasher<'b>
+    where
+        Self: 'b;
     type PrivKey = KeyId;
 
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {

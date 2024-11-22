@@ -7,6 +7,7 @@
 
 // Needed to bring in startup code
 #[allow(unused)]
+#[allow(clippy::single_component_path_imports)]
 use caliptra_test_harness;
 
 use caliptra_drivers::cprint;
@@ -46,13 +47,13 @@ extern "C" fn main() {
                 let dlen = mbox.dlen().read();
                 let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
                 let mut buf = [0u32; 8];
-                for i in 0..dlen_words {
-                    buf[i] = mbox.dataout().read();
+                for e in buf.iter_mut().take(dlen_words) {
+                    *e = mbox.dataout().read();
                 }
                 mbox.dlen().write(|_| dlen + 4);
                 mbox.datain().write(|_| cmd);
-                for i in 0..dlen_words {
-                    mbox.datain().write(|_| buf[i]);
+                for e in buf.iter().take(dlen_words) {
+                    mbox.datain().write(|_| *e);
                 }
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
@@ -77,8 +78,8 @@ extern "C" fn main() {
             0x3000_0000 => {
                 let dlen = mbox.dlen().read();
                 let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
-                for i in 0..usize::min(dlen_words, replay_buf.len()) {
-                    replay_buf[i] = mbox.dataout().read();
+                for e in replay_buf.iter_mut().take(dlen_words) {
+                    *e = mbox.dataout().read();
                 }
                 replay_buf_len = u32::min(dlen, u32::try_from(replay_buf.len()).unwrap());
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
@@ -100,8 +101,8 @@ extern "C" fn main() {
                 cprint!("|");
                 mbox.dlen().write(|_| replay_buf_len);
                 let dlen_words = usize::try_from((replay_buf_len + 3) / 4).unwrap();
-                for i in 0..dlen_words {
-                    mbox.datain().write(|_| replay_buf[i]);
+                for e in replay_buf.iter().take(dlen_words) {
+                    mbox.datain().write(|_| *e);
                 }
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }

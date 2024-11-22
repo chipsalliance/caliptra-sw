@@ -19,10 +19,7 @@ use caliptra_common::mailbox_api::{
 
 use crate::Drivers;
 
-use caliptra_drivers::{
-    hand_off::DataStore, CaliptraError, CaliptraResult, DataVault, Ecc384Scalar, Ecc384Signature,
-    PersistentData,
-};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Ecc384Signature, PersistentData};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
 use zerocopy::AsBytes;
 
@@ -44,7 +41,8 @@ impl IDevIdCertCmd {
                 s: cmd.signature_s,
             };
 
-            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig) else {
+            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
+            else {
                 return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
             };
 

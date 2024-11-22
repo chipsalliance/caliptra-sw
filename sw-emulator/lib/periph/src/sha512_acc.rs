@@ -409,7 +409,7 @@ impl Sha512AcceleratorRegs {
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     fn compute_mbox_hash(&mut self) {
         let data_len = self.dlen.reg.get() as usize;
-        let totaldwords = (data_len + (RvSize::Word as usize - 1)) / (RvSize::Word as usize);
+        let totaldwords = data_len.div_ceil(RvSize::Word as usize);
         let totalblocks = ((data_len + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
         let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
         let mut block_arr: Vec<u8> = vec![0; totalbytes];

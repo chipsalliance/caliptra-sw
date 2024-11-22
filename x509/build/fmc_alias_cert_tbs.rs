@@ -23,7 +23,7 @@ pub struct FmcAliasCertTbsParams<'a> {
     pub tcb_info_fmc_svn: &'a [u8; 1usize],
     pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
 }
-impl<'a> FmcAliasCertTbsParams<'a> {
+impl FmcAliasCertTbsParams<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

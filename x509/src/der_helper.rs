@@ -39,17 +39,16 @@ fn encode_length(val: &[u8]) -> usize {
 
 /// Compute len of DER encoding of an unsinged integer
 #[inline(never)]
-pub fn der_uint_len(val: &[u8]) -> Option<usize> {
+pub fn der_uint_len(val: &[u8]) -> usize {
     let encode_length = encode_length(val);
 
     let len_field_size = match encode_length {
         0..=127 => 1,
         128.. => trim_leading_zeros(&encode_length.to_be_bytes()).len(),
-        _ => None?,
     };
 
     // Tag + len + int
-    Some(1 + len_field_size + encode_length)
+    1 + len_field_size + encode_length
 }
 
 /// Encode a DER length

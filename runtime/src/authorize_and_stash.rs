@@ -12,38 +12,19 @@ Abstract:
 
 --*/
 
-use core::cmp::{self, min};
-use core::mem::size_of;
-
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, StashMeasurementCmd};
+use crate::{Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthManifestImageMetadataCollection, AuthManifestPreamble,
-    ImageMetadataFlags, AUTH_MANIFEST_MARKER,
+    AuthManifestImageMetadata, AuthManifestImageMetadataCollection, ImageMetadataFlags,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource, MailboxResp,
-    MailboxRespHeader, SetAuthManifestReq,
+    MailboxRespHeader,
 };
-use caliptra_drivers::{
-    pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
-    CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
-    PersistentData, RomPqcVerifyConfig, Sha256, Sha2_512_384, SocIfc,
-};
-use caliptra_image_types::{
-    ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
-    ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
-};
-use crypto::{AlgLen, Crypto};
-use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
-    context::ContextHandle,
-    dpe_instance::DpeEnv,
-    response::DpeErrorCode,
-};
-use memoffset::offset_of;
-use zerocopy::{AsBytes, FromBytes};
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult};
+use dpe::response::DpeErrorCode;
+use zerocopy::FromBytes;
 
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
 pub const IMAGE_NOT_AUTHORIZED: u32 = 0x21523F21; // FW ID not found in the image metadata entry collection.

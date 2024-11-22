@@ -11,7 +11,7 @@ Abstract:
     File contains exports for the Runtime library and mailbox command handling logic.
 
 --*/
-#![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
+#![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 #![no_std]
 mod authorize_and_stash;
 mod capabilities;
@@ -39,7 +39,6 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
-use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -74,15 +73,12 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 use caliptra_common::cprintln;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
-use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
-use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+use caliptra_registers::mbox::enums::MboxStatusE;
+pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
-    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
-    DPE_PROFILE,
 };
-pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
 use crate::{
     dice::GetRtAliasCertCmd,
@@ -130,7 +126,7 @@ fn enter_idle(drivers: &mut Drivers) {
     #[cfg(feature = "fips_self_test")]
     if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
         let lock = drivers.mbox.lock();
-        if lock == false {
+        if !lock {
             let result = execute(drivers);
             drivers.mbox.unlock();
             match result {
@@ -263,7 +259,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
-            let mut result = DisableAttestationCmd::execute(drivers);
+            let result = DisableAttestationCmd::execute(drivers);
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
             } else {
@@ -342,5 +338,4 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             cfi_assert!(!cmd_ready);
         }
     }
-    Ok(())
 }

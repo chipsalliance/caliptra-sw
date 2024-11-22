@@ -16,7 +16,6 @@ use crate::crypto::{Crypto, PubKey};
 use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
 use core::mem::size_of;
-use core::usize;
 use zerocopy::AsBytes;
 
 /// X509 API

@@ -65,7 +65,7 @@ pub fn dump_emu_coverage_to_file(
     bitmap: &BitVec,
 ) -> std::io::Result<()> {
     let mut filename = format!("CovData{}", hex::encode(rand::random::<[u8; 16]>()));
-    filename.push_str(&'-'.to_string());
+    filename.push('-');
     filename.push_str(&tag.to_string());
     filename.push_str(".bitvec");
 
@@ -164,7 +164,7 @@ pub fn collect_instr_pcs(id: &FwId<'static>) -> anyhow::Result<Vec<u32>> {
         let instruction = u16::from_le_bytes([instruction[0], instruction[1]]);
 
         match instruction & 0b11 {
-            0 | 1 | 2 => {
+            0..=2 => {
                 index += 2;
             }
             _ => {
@@ -263,7 +263,7 @@ pub mod calculator {
 fn test_parse_trace_file() {
     // Create a temporary trace file for testing
     let temp_trace_file = "temp_trace.txt";
-    let trace_data = vec![
+    let trace_data = [
         "SoC write4 *0x300300bc <- 0x0",
         "SoC write4 *0x30030110 <- 0x2625a00",
         "SoC write4 *0x30030114 <- 0x0",
@@ -312,5 +312,5 @@ fn test_coverage_map_creation_data_files() {
     let paths = get_bitvec_paths("/tmp").unwrap();
 
     let cv = CoverageMap::new(paths);
-    assert!(cv.map.get(&tag).is_some());
+    assert!(cv.map.contains_key(&tag));
 }

@@ -319,8 +319,9 @@ pub trait SocManager {
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
         header_bytes.copy_from_slice(header.as_bytes());
 
-        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)? else {
-                return Err(CaliptraApiError::MailboxNoResponseData);
+        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)?
+        else {
+            return Err(CaliptraApiError::MailboxNoResponseData);
         };
 
         if data.len() < R::Resp::MIN_SIZE || data.len() > mem::size_of::<R::Resp>() {

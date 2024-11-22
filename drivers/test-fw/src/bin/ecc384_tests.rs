@@ -86,7 +86,7 @@ fn test_gen_key_pair() {
 
     let mut der = [0u8; 97];
     der[0] = 0x04;
-    der[01..49].copy_from_slice(&PUB_KEY_X);
+    der[1..49].copy_from_slice(&PUB_KEY_X);
     der[49..97].copy_from_slice(&PUB_KEY_Y);
     assert_eq!(pub_key.to_der(), der);
 }
@@ -495,10 +495,7 @@ fn test_kat() {
     let mut entropy_gen = || trng.generate().map(|a| a.0);
     CfiCounter::reset(&mut entropy_gen);
 
-    assert_eq!(
-        Ecc384Kat::default().execute(&mut ecc, &mut trng).is_ok(),
-        true
-    );
+    assert!(Ecc384Kat::default().execute(&mut ecc, &mut trng).is_ok());
 }
 
 test_suite! {

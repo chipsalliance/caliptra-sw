@@ -16,8 +16,8 @@ use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
-    hmac_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyReadArgs,
-    KeyUsage, KeyWriteArgs,
+    hmac_kdf, Array4x12, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyReadArgs, KeyUsage,
+    KeyWriteArgs,
 };
 use dpe::U8Bool;
 

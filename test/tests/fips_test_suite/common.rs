@@ -145,7 +145,7 @@ impl RtExpVals {
 
 pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // Create params if not provided
-    let mut init_params = init_params.unwrap_or(InitParams::default());
+    let mut init_params = init_params.unwrap_or_default();
 
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]
@@ -176,7 +176,7 @@ pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
 
 fn fips_test_boot<T: HwModel>(hw: &mut T, boot_params: Option<BootParams>) {
     // Create params if not provided
-    let boot_params = boot_params.unwrap_or(BootParams::default());
+    let boot_params = boot_params.unwrap_or_default();
 
     // Boot
     hw.boot(boot_params).unwrap();
@@ -238,7 +238,7 @@ pub fn fips_test_init_to_rt(
     boot_params: Option<BootParams>,
 ) -> DefaultHwModel {
     // Create params if not provided
-    let mut boot_params = boot_params.unwrap_or(BootParams::default());
+    let mut boot_params = boot_params.unwrap_or_default();
 
     if boot_params.fw_image.is_some() {
         fips_test_init_base(init_params, Some(boot_params))

@@ -1,3 +1,5 @@
+# Licensed under the Apache-2.0 license
+
 [target.riscv32imc-unknown-none-elf]
 rustflags = [
   "-C", "target-feature=+relax",

@@ -34,7 +34,6 @@ extern "C" fn main() {
         while !txn.is_response_ready() && !mbox_fsm_error() {}
         txn.complete().unwrap();
         drop(txn);
-        drop(mbox);
 
         // Clear any error states
         // TODO: This should probably be done in the driver

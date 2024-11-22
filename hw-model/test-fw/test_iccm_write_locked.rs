@@ -12,6 +12,7 @@ use caliptra_test_harness::println;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
@@ -28,5 +29,6 @@ extern "C" fn main() {
         let iccm_ptr = iccm_start as *mut u32;
         *iccm_ptr = 0xdeadbeef;
     }
+    #[allow(clippy::empty_loop)]
     loop {}
 }

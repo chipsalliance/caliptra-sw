@@ -18,12 +18,14 @@ use zerocopy::AsBytes;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
 #[no_mangle]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     println!("[TRNG] CFI Panic code=0x{:08X}", code);
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 

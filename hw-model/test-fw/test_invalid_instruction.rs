@@ -7,6 +7,7 @@ use ::core::arch::global_asm;
 
 // Needed to bring in startup code
 #[allow(unused)]
+#[allow(clippy::single_component_path_imports)]
 use caliptra_test_harness;
 
 #[panic_handler]

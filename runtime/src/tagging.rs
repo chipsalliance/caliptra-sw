@@ -12,21 +12,15 @@ Abstract:
 
 --*/
 
-use crate::CfiCounter;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
-use caliptra_drivers::cprintln;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::{
-    context::{ContextHandle, ContextState},
-    dpe_instance::DpeEnv,
-    U8Bool, MAX_HANDLES,
-};
+use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use zerocopy::FromBytes;
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
+use crate::Drivers;
 
 pub struct TagTciCmd;
 impl TagTciCmd {
@@ -36,9 +30,9 @@ impl TagTciCmd {
         let cmd =
             TagTciReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let pdata_mut = drivers.persistent_data.get_mut();
-        let mut dpe = &mut pdata_mut.dpe;
-        let mut context_has_tag = &mut pdata_mut.context_has_tag;
-        let mut context_tags = &mut pdata_mut.context_tags;
+        let dpe = &mut pdata_mut.dpe;
+        let context_has_tag = &mut pdata_mut.context_has_tag;
+        let context_tags = &mut pdata_mut.context_tags;
 
         // Make sure the tag isn't used by any other contexts.
         if (0..MAX_HANDLES).any(|i| {

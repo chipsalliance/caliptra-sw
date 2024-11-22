@@ -21,7 +21,6 @@ use crate::{
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
-use core::usize;
 
 const HMAC_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC_BLOCK_LEN_OFFSET: usize = 112;
@@ -86,7 +85,7 @@ impl<'a> From<&'a mut Array4x16> for HmacTag<'a> {
     }
 }
 
-impl<'a> From<KeyWriteArgs> for HmacTag<'a> {
+impl From<KeyWriteArgs> for HmacTag<'_> {
     /// Converts to this type from the input type.
     fn from(value: KeyWriteArgs) -> Self {
         Self::Key(value)
@@ -161,7 +160,7 @@ impl Hmac {
         trng: &mut Trng,
         mut tag: HmacTag<'a>,
         mode: HmacMode,
-    ) -> CaliptraResult<HmacOp> {
+    ) -> CaliptraResult<HmacOp<'a>> {
         let hmac = self.hmac.regs_mut();
 
         // Configure the hardware so that the output tag is stored at a location specified by the
@@ -551,7 +550,7 @@ pub struct HmacOp<'a> {
     mode: HmacMode,
 }
 
-impl<'a> HmacOp<'a> {
+impl HmacOp<'_> {
     ///
     /// Update the digest with data
     ///

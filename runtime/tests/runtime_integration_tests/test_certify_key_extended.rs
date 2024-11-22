@@ -110,7 +110,7 @@ fn test_dmtf_other_name_extension_present() {
     assert!(!ext.critical);
     let san = ext.value;
     assert_eq!(san.general_names.len(), 1);
-    let general_name = san.general_names.get(0).unwrap();
+    let general_name = san.general_names.first().unwrap();
     match general_name {
         GeneralName::OtherName(oid, other_name_value) => {
             assert_eq!(oid.as_bytes(), AddSubjectAltNameCmd::DMTF_OID);

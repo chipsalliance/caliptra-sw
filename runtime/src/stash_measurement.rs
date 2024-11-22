@@ -18,7 +18,6 @@ use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -53,7 +52,7 @@ impl StashMeasurementCmd {
             let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
             let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
             let pdata = drivers.persistent_data.get_mut();
-            let mut crypto = DpeCrypto::new(
+            let crypto = DpeCrypto::new(
                 &mut drivers.sha2_512_384,
                 &mut drivers.trng,
                 &mut drivers.ecc384,

@@ -362,23 +362,6 @@ fn next_multiple_of(x: u64, mult: u64) -> u64 {
     }
 }
 
-#[cfg(test)]
-mod next_multiple_of_tests {
-    use super::*;
-    #[test]
-    fn test_next_multiple_of() {
-        assert_eq!(0, next_multiple_of(0, 3));
-        assert_eq!(3, next_multiple_of(1, 3));
-        assert_eq!(3, next_multiple_of(2, 3));
-        assert_eq!(3, next_multiple_of(3, 3));
-        assert_eq!(6, next_multiple_of(4, 3));
-        for i in 1..128 {
-            assert_eq!(128, next_multiple_of(i, 128));
-            assert_eq!(256, next_multiple_of(128 + i, 128));
-        }
-    }
-}
-
 fn translate_block(iref: InstanceRef, top: bool) -> Result<RegisterBlock, Error> {
     let wrap_err = |err: Error| Error::BlockError {
         block_name: iref.instance.name.clone(),
@@ -472,4 +455,21 @@ pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<Register
         blocks.push(translate_block(iref, true)?);
     }
     Ok(blocks)
+}
+
+#[cfg(test)]
+mod next_multiple_of_tests {
+    use super::*;
+    #[test]
+    fn test_next_multiple_of() {
+        assert_eq!(0, next_multiple_of(0, 3));
+        assert_eq!(3, next_multiple_of(1, 3));
+        assert_eq!(3, next_multiple_of(2, 3));
+        assert_eq!(3, next_multiple_of(3, 3));
+        assert_eq!(6, next_multiple_of(4, 3));
+        for i in 1..128 {
+            assert_eq!(128, next_multiple_of(i, 128));
+            assert_eq!(256, next_multiple_of(128 + i, 128));
+        }
+    }
 }

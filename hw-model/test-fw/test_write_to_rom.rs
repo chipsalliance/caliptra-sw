@@ -11,6 +11,7 @@ use caliptra_test_harness::println;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
@@ -21,5 +22,6 @@ extern "C" fn main() {
         let rom_address_ptr = rom_address as *mut u32;
         *rom_address_ptr = 0xdeadbeef;
     }
+    #[allow(clippy::empty_loop)]
     loop {}
 }

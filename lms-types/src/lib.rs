@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg_attr(all(not(test), not(fuzzing)), no_std)]
+// TODO not(fuzzing), attribute not found
+#![cfg_attr(not(test), no_std)]
 
 use core::mem::size_of;
 

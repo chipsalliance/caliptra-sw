@@ -18,7 +18,7 @@ pub struct LocalDevIdCertTbsParams<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
 }
-impl<'a> LocalDevIdCertTbsParams<'a> {
+impl LocalDevIdCertTbsParams<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

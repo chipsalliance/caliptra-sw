@@ -45,9 +45,8 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 #[inline(never)]
 #[cfg(not(feature = "std"))]
 fn handle_panic(pi: &core::panic::PanicInfo) -> ! {
-    match pi.location() {
-        Some(loc) => cprintln!("Panic at file {} line {}", loc.file(), loc.line()),
-        _ => {}
+    if let Some(loc) = pi.location() {
+        cprintln!("Panic at file {} line {}", loc.file(), loc.line())
     }
     ExitCtrl::exit(1);
 }

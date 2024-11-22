@@ -77,7 +77,7 @@ impl Default for Log {
 struct LogWriter<'a> {
     log: &'a RefCell<String>,
 }
-impl<'a> Write for LogWriter<'a> {
+impl Write for LogWriter<'_> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         Write::write_str(&mut *self.log.borrow_mut(), s)
     }

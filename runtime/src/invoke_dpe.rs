@@ -12,22 +12,17 @@ Abstract:
 
 --*/
 
-use crate::{
-    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, PL0_PAUSER_FLAG,
-};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
 use dpe::{
-    commands::{
-        CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
-    },
-    context::{Context, ContextState},
+    commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
+    context::ContextState,
     response::{Response, ResponseHdr},
     DpeInstance, U8Bool, MAX_HANDLES,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -78,11 +73,10 @@ impl InvokeDpeCmd {
             let locality = drivers.mbox.id();
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
-            let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut pdata.dpe;
-            let mut context_has_tag = &mut pdata.context_has_tag;
-            let mut context_tags = &mut pdata.context_tags;
+            let dpe = &mut pdata.dpe;
+            let context_has_tag = &mut pdata.context_has_tag;
+            let context_tags = &mut pdata.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)

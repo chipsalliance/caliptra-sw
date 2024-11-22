@@ -57,10 +57,10 @@ impl Ecdsa384Signature {
 impl Signature<108> for Ecdsa384Signature {
     fn to_der(&self, buf: &mut [u8; 108]) -> Option<usize> {
         // Encode Signature R Coordinate
-        let r_uint_len = der_uint_len(&self.r)?;
+        let r_uint_len = der_uint_len(&self.r);
 
         // Encode Signature S Coordinate
-        let s_uint_len = der_uint_len(&self.s)?;
+        let s_uint_len = der_uint_len(&self.s);
 
         //
         // Signature DER Sequence encoding
@@ -115,7 +115,7 @@ impl Default for Mldsa87Signature {
 
 impl Signature<4635> for Mldsa87Signature {
     fn to_der(&self, buf: &mut [u8; 4635]) -> Option<usize> {
-        let ml_dsa_signature_len = der_uint_len(&self.sig)?;
+        let ml_dsa_signature_len = der_uint_len(&self.sig);
 
         //
         // Signature DER Sequence encoding

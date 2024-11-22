@@ -64,7 +64,8 @@ impl Default for CfiInt {
 }
 
 fn prng() -> &'static Xoshiro128 {
-    unsafe { &CFI_STATE.prng }
+    let cfi_state = &raw const CFI_STATE;
+    unsafe { &(*cfi_state).prng }
 }
 
 /// CFI counter
@@ -177,8 +178,8 @@ impl CfiCounter {
     pub fn read() -> CfiInt {
         unsafe {
             CfiInt::from_raw(
-                core::ptr::read_volatile(&CFI_STATE.val as *const u32),
-                core::ptr::read_volatile(&CFI_STATE.mask as *const u32),
+                core::ptr::read_volatile(&raw const CFI_STATE.val),
+                core::ptr::read_volatile(&raw const CFI_STATE.mask),
             )
         }
     }
@@ -186,8 +187,8 @@ impl CfiCounter {
     /// Write counter value
     fn write(val: CfiInt) {
         unsafe {
-            core::ptr::write_volatile(&mut CFI_STATE.val as *mut u32, val.val);
-            core::ptr::write_volatile(&mut CFI_STATE.mask as *mut u32, val.masked_val);
+            core::ptr::write_volatile(&raw mut CFI_STATE.val, val.val);
+            core::ptr::write_volatile(&raw mut CFI_STATE.mask, val.masked_val);
         }
     }
 }
