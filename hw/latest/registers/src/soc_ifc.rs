@@ -2440,7 +2440,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraBootfsmGoReadVal(u32);
     impl CptraBootfsmGoReadVal {
-        ///
         #[inline(always)]
         pub fn go(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -2466,7 +2465,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraBootfsmGoWriteVal(u32);
     impl CptraBootfsmGoWriteVal {
-        ///
         #[inline(always)]
         pub fn go(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -2534,7 +2532,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraFlowStatusReadVal(u32);
     impl CptraFlowStatusReadVal {
-        ///
         #[inline(always)]
         pub fn status(&self) -> u32 {
             (self.0 >> 0) & 0xffffff
@@ -2591,7 +2588,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraFlowStatusWriteVal(u32);
     impl CptraFlowStatusWriteVal {
-        ///
         #[inline(always)]
         pub fn status(self, val: u32) -> Self {
             Self((self.0 & !(0xffffff << 0)) | ((val & 0xffffff) << 0))
@@ -2632,7 +2628,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraFuseWrDoneReadVal(u32);
     impl CptraFuseWrDoneReadVal {
-        ///
         #[inline(always)]
         pub fn done(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -2658,7 +2653,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraFuseWrDoneWriteVal(u32);
     impl CptraFuseWrDoneWriteVal {
-        ///
         #[inline(always)]
         pub fn done(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -2679,22 +2673,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraHwConfigReadVal(u32);
     impl CptraHwConfigReadVal {
-        ///
         #[inline(always)]
         pub fn i_trng_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn rsvd_en(&self) -> u32 {
             (self.0 >> 1) & 7
         }
-        ///
         #[inline(always)]
         pub fn lms_acc_en(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn active_mode_en(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
@@ -2715,27 +2705,22 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraHwErrorFatalReadVal(u32);
     impl CptraHwErrorFatalReadVal {
-        ///
         #[inline(always)]
         pub fn iccm_ecc_unc(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn dccm_ecc_unc(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn nmi_pin(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn crypto_err(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn rsvd(&self) -> u32 {
             (self.0 >> 4) & 0xfffffff
@@ -2761,22 +2746,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraHwErrorFatalWriteVal(u32);
     impl CptraHwErrorFatalWriteVal {
-        ///
         #[inline(always)]
         pub fn iccm_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
-        ///
         #[inline(always)]
         pub fn dccm_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
-        ///
         #[inline(always)]
         pub fn nmi_pin(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
         }
-        ///
         #[inline(always)]
         pub fn crypto_err(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
@@ -2797,22 +2778,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraHwErrorNonFatalReadVal(u32);
     impl CptraHwErrorNonFatalReadVal {
-        ///
         #[inline(always)]
         pub fn mbox_prot_no_lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mbox_prot_ooo(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mbox_ecc_unc(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn rsvd(&self) -> u32 {
             (self.0 >> 3) & 0x1fffffff
@@ -2838,17 +2815,14 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraHwErrorNonFatalWriteVal(u32);
     impl CptraHwErrorNonFatalWriteVal {
-        ///
         #[inline(always)]
         pub fn mbox_prot_no_lock(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
-        ///
         #[inline(always)]
         pub fn mbox_prot_ooo(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
-        ///
         #[inline(always)]
         pub fn mbox_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
@@ -2877,7 +2851,6 @@ pub mod regs {
         pub fn cptra_generation(&self) -> u32 {
             (self.0 >> 0) & 0xffff
         }
-        ///
         #[inline(always)]
         pub fn soc_stepping_id(&self) -> u32 {
             (self.0 >> 16) & 0xffff
@@ -3257,7 +3230,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraXxxxxxxkReadVal(u32);
     impl CptraXxxxxxxkReadVal {
-        ///
         #[inline(always)]
         pub fn lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -3283,7 +3255,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraXxxxxxxkWriteVal(u32);
     impl CptraXxxxxxxkWriteVal {
-        ///
         #[inline(always)]
         pub fn lock(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -3304,7 +3275,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraXxxxAxiUserLockReadVal(u32);
     impl CptraXxxxAxiUserLockReadVal {
-        ///
         #[inline(always)]
         pub fn lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -3330,7 +3300,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraXxxxAxiUserLockWriteVal(u32);
     impl CptraXxxxAxiUserLockWriteVal {
-        ///
         #[inline(always)]
         pub fn lock(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -3351,12 +3320,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraItrngEntropyConfig0ReadVal(u32);
     impl CptraItrngEntropyConfig0ReadVal {
-        ///
         #[inline(always)]
         pub fn low_threshold(&self) -> u32 {
             (self.0 >> 0) & 0xffff
         }
-        ///
         #[inline(always)]
         pub fn high_threshold(&self) -> u32 {
             (self.0 >> 16) & 0xffff
@@ -3382,12 +3349,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraItrngEntropyConfig0WriteVal(u32);
     impl CptraItrngEntropyConfig0WriteVal {
-        ///
         #[inline(always)]
         pub fn low_threshold(self, val: u32) -> Self {
             Self((self.0 & !(0xffff << 0)) | ((val & 0xffff) << 0))
         }
-        ///
         #[inline(always)]
         pub fn high_threshold(self, val: u32) -> Self {
             Self((self.0 & !(0xffff << 16)) | ((val & 0xffff) << 16))
@@ -3408,12 +3373,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraItrngEntropyConfig1ReadVal(u32);
     impl CptraItrngEntropyConfig1ReadVal {
-        ///
         #[inline(always)]
         pub fn repetition_count(&self) -> u32 {
             (self.0 >> 0) & 0xffff
         }
-        ///
         #[inline(always)]
         pub fn rsvd(&self) -> u32 {
             (self.0 >> 16) & 0xffff
@@ -3439,12 +3402,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct CptraItrngEntropyConfig1WriteVal(u32);
     impl CptraItrngEntropyConfig1WriteVal {
-        ///
         #[inline(always)]
         pub fn repetition_count(self, val: u32) -> Self {
             Self((self.0 & !(0xffff << 0)) | ((val & 0xffff) << 0))
         }
-        ///
         #[inline(always)]
         pub fn rsvd(self, val: u32) -> Self {
             Self((self.0 & !(0xffff << 16)) | ((val & 0xffff) << 16))
@@ -3669,7 +3630,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct SsDebugIntentReadVal(u32);
     impl SsDebugIntentReadVal {
-        ///
         #[inline(always)]
         pub fn debug_intent(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -4041,7 +4001,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseAntiRollbackDisableReadVal(u32);
     impl FuseAntiRollbackDisableReadVal {
-        ///
         #[inline(always)]
         pub fn dis(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -4067,7 +4026,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseAntiRollbackDisableWriteVal(u32);
     impl FuseAntiRollbackDisableWriteVal {
-        ///
         #[inline(always)]
         pub fn dis(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -4135,7 +4093,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseMldsaRevocationReadVal(u32);
     impl FuseMldsaRevocationReadVal {
-        ///
         #[inline(always)]
         pub fn mldsa_revocation(&self) -> u32 {
             (self.0 >> 0) & 0xf
@@ -4161,7 +4118,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseMldsaRevocationWriteVal(u32);
     impl FuseMldsaRevocationWriteVal {
-        ///
         #[inline(always)]
         pub fn mldsa_revocation(self, val: u32) -> Self {
             Self((self.0 & !(0xf << 0)) | ((val & 0xf) << 0))
@@ -4276,7 +4232,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseSocSteppingIdReadVal(u32);
     impl FuseSocSteppingIdReadVal {
-        ///
         #[inline(always)]
         pub fn soc_stepping_id(&self) -> u32 {
             (self.0 >> 0) & 0xffff
@@ -4302,7 +4257,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseSocSteppingIdWriteVal(u32);
     impl FuseSocSteppingIdWriteVal {
-        ///
         #[inline(always)]
         pub fn soc_stepping_id(self, val: u32) -> Self {
             Self((self.0 & !(0xffff << 0)) | ((val & 0xffff) << 0))
@@ -4417,22 +4371,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InternalHwErrorFatalMaskReadVal(u32);
     impl InternalHwErrorFatalMaskReadVal {
-        ///
         #[inline(always)]
         pub fn mask_iccm_ecc_unc(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mask_dccm_ecc_unc(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mask_nmi_pin(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mask_crypto_err(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
@@ -4458,17 +4408,14 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InternalHwErrorFatalMaskWriteVal(u32);
     impl InternalHwErrorFatalMaskWriteVal {
-        ///
         #[inline(always)]
         pub fn mask_iccm_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
-        ///
         #[inline(always)]
         pub fn mask_dccm_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
-        ///
         #[inline(always)]
         pub fn mask_nmi_pin(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
@@ -4489,17 +4436,14 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InternalHwErrorNonFatalMaskReadVal(u32);
     impl InternalHwErrorNonFatalMaskReadVal {
-        ///
         #[inline(always)]
         pub fn mask_mbox_prot_no_lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mask_mbox_prot_ooo(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn mask_mbox_ecc_unc(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
@@ -4525,17 +4469,14 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct InternalHwErrorNonFatalMaskWriteVal(u32);
     impl InternalHwErrorNonFatalMaskWriteVal {
-        ///
         #[inline(always)]
         pub fn mask_mbox_prot_no_lock(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
-        ///
         #[inline(always)]
         pub fn mask_mbox_prot_ooo(self, val: bool) -> Self {
             Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
-        ///
         #[inline(always)]
         pub fn mask_mbox_ecc_unc(self, val: bool) -> Self {
             Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
