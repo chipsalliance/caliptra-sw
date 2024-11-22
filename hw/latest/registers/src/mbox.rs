@@ -220,7 +220,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ExecuteReadVal(u32);
     impl ExecuteReadVal {
-        ///
         #[inline(always)]
         pub fn execute(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -246,7 +245,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ExecuteWriteVal(u32);
     impl ExecuteWriteVal {
-        ///
         #[inline(always)]
         pub fn execute(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -267,7 +265,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct LockReadVal(u32);
     impl LockReadVal {
-        ///
         #[inline(always)]
         pub fn lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -393,7 +390,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct TapModeReadVal(u32);
     impl TapModeReadVal {
-        ///
         #[inline(always)]
         pub fn enabled(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -419,7 +415,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct TapModeWriteVal(u32);
     impl TapModeWriteVal {
-        ///
         #[inline(always)]
         pub fn enabled(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -440,7 +435,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct UnlockReadVal(u32);
     impl UnlockReadVal {
-        ///
         #[inline(always)]
         pub fn unlock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -466,7 +460,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct UnlockWriteVal(u32);
     impl UnlockWriteVal {
-        ///
         #[inline(always)]
         pub fn unlock(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
