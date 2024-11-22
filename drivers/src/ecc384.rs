@@ -76,7 +76,7 @@ impl<'a> From<&'a mut Array4x12> for Ecc384PrivKeyOut<'a> {
     }
 }
 
-impl<'a> From<KeyWriteArgs> for Ecc384PrivKeyOut<'a> {
+impl From<KeyWriteArgs> for Ecc384PrivKeyOut<'_> {
     /// Converts to this type from the input type.
     fn from(value: KeyWriteArgs) -> Self {
         Self::Key(value)
@@ -630,9 +630,6 @@ trait Ecc384KeyAccessErr {
     /// Convert to read seed operation error
     fn into_read_seed_err(self) -> CaliptraError;
 
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError;
-
     /// Convert to read private key operation error
     fn into_read_priv_key_err(self) -> CaliptraError;
 
@@ -647,15 +644,6 @@ impl Ecc384KeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
-        }
-    }
-
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError {
-        match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_DATA_KV_UNKNOWN,
         }
     }
 

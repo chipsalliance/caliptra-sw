@@ -45,7 +45,7 @@ fn test_digest1() {
         0xC8, 0x25, 0xA7,
     ];
     let data = "abc".as_bytes();
-    let digest = sha384.sha384_digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -58,7 +58,7 @@ fn test_digest2() {
         0xC8, 0x45, 0x2B,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let digest = sha384.sha384_digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -71,7 +71,7 @@ fn test_digest3() {
         0x74, 0x60, 0x39,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let digest = sha384.sha384_digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -388,7 +388,7 @@ fn test_kat() {
 
     let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
-    assert_eq!(Sha384Kat::default().execute(&mut sha384).is_ok(), true);
+    assert!(Sha384Kat::default().execute(&mut sha384).is_ok());
 }
 
 test_suite! {

@@ -8,6 +8,7 @@
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    #[allow(clippy::empty_loop)]
     loop {}
 }
 
@@ -25,5 +26,6 @@ extern "C" fn main() {
         .cptra_generic_output_wires()
         .at(0)
         .write(|_| 0xff);
+    #[allow(clippy::empty_loop)]
     loop {}
 }

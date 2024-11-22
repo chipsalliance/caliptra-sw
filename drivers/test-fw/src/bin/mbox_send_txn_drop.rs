@@ -39,24 +39,24 @@ extern "C" fn main() {
     txn.write_dlen(1).unwrap();
     txn.execute_request().unwrap();
     drop(txn);
-    assert_eq!(mbox_fsm_error(), false);
+    assert!(!mbox_fsm_error());
 
     // Transition from rdy_for_data to idle
     let mut txn = mbox.try_start_send_txn().unwrap();
     txn.write_cmd(0).unwrap();
     txn.write_dlen(1).unwrap();
     drop(txn);
-    assert_eq!(mbox_fsm_error(), false);
+    assert!(!mbox_fsm_error());
 
     // Transition from rdy_for_dlen to idle
     let mut txn = mbox.try_start_send_txn().unwrap();
     txn.write_cmd(0).unwrap();
     drop(txn);
-    assert_eq!(mbox_fsm_error(), false);
+    assert!(!mbox_fsm_error());
 
     // Transition from rdy_for_cmd to idle
     let txn = mbox.try_start_send_txn().unwrap();
     drop(txn);
-    assert_eq!(mbox_fsm_error(), false);
+    assert!(!mbox_fsm_error());
     let _ = mbox.try_start_send_txn().unwrap();
 }

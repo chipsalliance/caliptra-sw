@@ -19,7 +19,7 @@ use caliptra_common::mailbox_api::{AddSubjectAltNameReq, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::AsBytes;
 
-use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
+use crate::Drivers;
 
 pub struct AddSubjectAltNameCmd;
 impl AddSubjectAltNameCmd {

@@ -8,10 +8,12 @@
 use caliptra_drivers::{ExitCtrl, Uart};
 // Needed to bring in startup code
 #[allow(unused)]
+#[allow(clippy::single_component_path_imports)]
 use caliptra_test_harness;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
+    #![allow(clippy::empty_loop)]
     loop {}
 }
 
