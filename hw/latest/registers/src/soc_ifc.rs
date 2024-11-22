@@ -4046,7 +4046,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseEccRevocationReadVal(u32);
     impl FuseEccRevocationReadVal {
-        ///
         #[inline(always)]
         pub fn ecc_revocation(&self) -> u32 {
             (self.0 >> 0) & 0xf
@@ -4072,7 +4071,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseEccRevocationWriteVal(u32);
     impl FuseEccRevocationWriteVal {
-        ///
         #[inline(always)]
         pub fn ecc_revocation(self, val: u32) -> Self {
             Self((self.0 & !(0xf << 0)) | ((val & 0xf) << 0))
@@ -4138,7 +4136,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FusePqcKeyTypeReadVal(u32);
     impl FusePqcKeyTypeReadVal {
-        ///
         #[inline(always)]
         pub fn key_type(&self) -> u32 {
             (self.0 >> 0) & 3
@@ -4164,7 +4161,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FusePqcKeyTypeWriteVal(u32);
     impl FusePqcKeyTypeWriteVal {
-        ///
         #[inline(always)]
         pub fn key_type(self, val: u32) -> Self {
             Self((self.0 & !(3 << 0)) | ((val & 3) << 0))
@@ -4185,7 +4181,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseSocManifestMaxSvnReadVal(u32);
     impl FuseSocManifestMaxSvnReadVal {
-        ///
         #[inline(always)]
         pub fn svn(&self) -> u32 {
             (self.0 >> 0) & 0xff
@@ -4211,7 +4206,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct FuseSocManifestMaxSvnWriteVal(u32);
     impl FuseSocManifestMaxSvnWriteVal {
-        ///
         #[inline(always)]
         pub fn svn(self, val: u32) -> Self {
             Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
