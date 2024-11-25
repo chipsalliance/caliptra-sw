@@ -91,8 +91,11 @@ register_bitfields! [
 /// HMAC384 Key Size.
 const HMAC_KEY_SIZE_384: usize = 48;
 
-/// HMAC512 Key Size.
-const HMAC_KEY_SIZE_512: usize = 64;
+/// HMAC512 Key Size in Bytes.
+const HMAC_KEY_SIZE_BYTES_512: usize = 64;
+
+/// HMAC512 Key Size in DWORDs.
+const HMAC_KEY_SIZE_DWORD_512: usize = 16;
 
 /// HMAC Block Size
 const HMAC_BLOCK_SIZE: usize = 128; // SHA-384/512 block size is 128 bytes
@@ -144,7 +147,7 @@ pub struct HmacSha {
 
     /// HMAC Key Register
     #[register_array(offset = 0x0000_0040, item_size = 4, len = 16, read_fn = read_access_fault, write_fn = on_write_key)]
-    key: [u32; HMAC_KEY_SIZE_512 / 4],
+    key: [u32; HMAC_KEY_SIZE_DWORD_512],
 
     /// HMAC Block Register
     #[register_array(offset = 0x0000_0080, item_size = 4, len = 32, read_fn = read_access_fault, write_fn = on_write_block)]
@@ -238,7 +241,7 @@ impl HmacSha {
     /// * `Self` - Instance of HMAC-SHA-384 Engine
     pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
         Self {
-            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_512>::new(Hmac512Mode::Sha512)),
+            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_BYTES_512>::new(Hmac512Mode::Sha512)),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
             name1: ReadOnlyRegister::new(Self::NAME1_VAL),
             version0: ReadOnlyRegister::new(Self::VERSION0_VAL),
@@ -341,7 +344,8 @@ impl HmacSha {
 
             if self.control.reg.is_set(Control::INIT) {
                 if mode512 {
-                    self.hmac = Box::new(Hmac512::<HMAC_KEY_SIZE_512>::new(Hmac512Mode::Sha512))
+                    self.hmac =
+                        Box::new(Hmac512::<HMAC_KEY_SIZE_BYTES_512>::new(Hmac512Mode::Sha512))
                 } else {
                     self.hmac = Box::new(Hmac512::<HMAC_KEY_SIZE_384>::new(Hmac512Mode::Sha384))
                 }
@@ -562,10 +566,12 @@ impl HmacSha {
 
         if let Some(key) = &key {
             self.key_from_kv = true;
-            let key_len = self.key_len();
-            self.key[..key_len]
+            // HMAC mode is not known at this point. Thus, copying the entire
+            // key from the KV slot even though the actual key might be shorter.
+            // Peripherals using the key material will size it appropriately.
+            self.key[..HMAC_KEY_SIZE_DWORD_512]
                 .as_bytes_mut()
-                .copy_from_slice(&key[..key_len * 4]);
+                .copy_from_slice(key.as_bytes());
         }
 
         self.key_read_status.reg.modify(
@@ -635,6 +641,12 @@ impl HmacSha {
     fn tag_write_complete(&mut self) {
         let key_id = self.tag_write_ctrl.reg.read(TagWriteControl::KEY_ID);
 
+        // let temp = &self.tag.as_bytes()[..self.key_len() * 4];
+        // println!("EMU: HMAC Tag: ");
+        // for i in 0..temp.len() {
+        //     print!("{:x}, ", temp[i]);
+        // }
+        // println!();
         // Store the tag in the key-vault.
         // Tag is in big-endian format and is stored in the same format.
         let tag_write_result = match self

@@ -16,7 +16,7 @@ use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, HmacKey, KeyReadArgs,
+    hmac_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyReadArgs,
     KeyUsage, KeyWriteArgs,
 };
 use dpe::U8Bool;
@@ -54,7 +54,7 @@ impl DisableAttestationCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn zero_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        hmac384_kdf(
+        hmac_kdf(
             &mut drivers.hmac384,
             HmacKey::Array4x12(&Array4x12::default()),
             b"zero_rt_cdi",
@@ -67,6 +67,7 @@ impl DisableAttestationCmd {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
+            HmacMode::Hmac384,
         )?;
 
         Ok(())

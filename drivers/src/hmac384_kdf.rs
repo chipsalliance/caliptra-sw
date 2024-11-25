@@ -17,36 +17,38 @@ use crate::{Hmac, HmacKey, HmacMode, HmacTag, Trng};
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::CaliptraResult;
 
-/// Calculate HMAC-384-KDF
+/// Calculate HMAC-KDF
 ///
 /// If the output is a KV slot, the slot is marked as a valid HMAC key /
-/// ECC keygen seed.
+/// ECC or MLDSA keygen seed.
 ///
 /// # Arguments
 ///
-/// * `hmac` - HMAC384 context
-/// * `key` - HMAC384 key
+/// * `hmac` - HMAC context
+/// * `key` - HMAC key
 /// * `label` - Label for the KDF. If `context` is omitted, this is considered
 ///             the fixed input data.
 /// * `context` - Context for KDF. If present, a NULL byte is included between
 ///               the label and context.
 /// * `trng` - TRNG driver instance
 /// * `output` - Location to store the output
+/// * `mode` - HMAC Mode
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn hmac384_kdf(
+pub fn hmac_kdf(
     hmac: &mut Hmac,
     key: HmacKey,
     label: &[u8],
     context: Option<&[u8]>,
     trng: &mut Trng,
     output: HmacTag,
+    mode: HmacMode,
 ) -> CaliptraResult<()> {
     #[cfg(feature = "fips-test-hooks")]
     unsafe {
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
 
-    let mut hmac_op = hmac.hmac_init(&key, trng, output, HmacMode::Hmac384)?;
+    let mut hmac_op = hmac.hmac_init(&key, trng, output, mode)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;
