@@ -52,7 +52,8 @@ pub enum RomBootStatus {
     FwProcessorExtendPcrComplete = FWPROCESSOR_BOOT_STATUS_BASE + 4,
     FwProcessorLoadImageComplete = FWPROCESSOR_BOOT_STATUS_BASE + 5,
     FwProcessorFirmwareDownloadTxComplete = FWPROCESSOR_BOOT_STATUS_BASE + 6,
-    FwProcessorComplete = FWPROCESSOR_BOOT_STATUS_BASE + 7,
+    FwProcessorCalculateKeyLadderComplete = FWPROCESSOR_BOOT_STATUS_BASE + 7,
+    FwProcessorComplete = FWPROCESSOR_BOOT_STATUS_BASE + 8,
 
     // FmcAlias Statuses
     FmcAliasDeriveCdiComplete = FMCALIAS_BOOT_STATUS_BASE,
@@ -71,10 +72,11 @@ pub enum RomBootStatus {
     UpdateResetLoadManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 1,
     UpdateResetImageVerificationComplete = UPDATE_RESET_BOOT_STATUS_BASE + 2,
     UpdateResetPopulateDataVaultComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
-    UpdateResetExtendPcrComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
-    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
-    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 6,
-    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 7,
+    UpdateResetExtendKeyLadderComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
+    UpdateResetExtendPcrComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 6,
+    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 7,
+    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 8,
 
     // ROM Global Boot Statues
     CfiInitialized = ROM_GLOBAL_BOOT_STATUS_BASE,

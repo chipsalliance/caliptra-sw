@@ -101,6 +101,7 @@ fn test_cold_reset_status_reporting() {
             hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), false);
         }
 
+        hw.step_until_boot_status(FwProcessorCalculateKeyLadderComplete.into(), false);
         hw.step_until_boot_status(FwProcessorComplete.into(), false);
         hw.step_until_boot_status(FmcAliasDeriveCdiComplete.into(), false);
         hw.step_until_boot_status(FmcAliasKeyPairDerivationComplete.into(), false);
