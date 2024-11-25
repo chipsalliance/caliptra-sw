@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
     firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
-    ImageOptions,
+    get_ci_rom_version, CiRomVersion, ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
 
@@ -91,7 +91,10 @@ fn test_fht_info() {
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 552);
-    assert_eq!(fht.fmcalias_tbs_size, 753);
+    match get_ci_rom_version() {
+        CiRomVersion::Rom1_0 | CiRomVersion::Rom1_1 => assert_eq!(fht.fmcalias_tbs_size, 786),
+        _ => assert_eq!(fht.fmcalias_tbs_size, 753),
+    };
     assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);
     assert_eq!(fht.fmcalias_tbs_addr, 0x50004000);
     assert_eq!(fht.pcr_log_addr, 0x50004800);

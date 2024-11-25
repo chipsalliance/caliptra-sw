@@ -2,7 +2,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::{version, ImageOptions};
+use caliptra_builder::{get_ci_rom_version, version, CiRomVersion, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
@@ -51,9 +51,14 @@ const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
     ],
 };
 
+const ROM_EXP_1_0_3: RomExpVals = RomExpVals {
+    rom_version: 0x803, // 1.0.3
+    ..ROM_EXP_1_0_1
+};
+
 const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
     rom_version: 0x840, // 1.1.0
-    ..ROM_EXP_1_0_1
+    ..ROM_EXP_1_0_3
 };
 
 const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_0 };
@@ -91,6 +96,8 @@ impl HwExpVals {
                     version
                 ),
             }
+        } else if cfg!(feature = "hw-1.0") {
+            HW_EXP_1_0_0
         } else {
             HW_EXP_CURRENT
         }
@@ -102,13 +109,18 @@ impl RomExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_1" => ROM_EXP_1_0_1,
+                "1_0_3" => ROM_EXP_1_0_3,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
                 ),
             }
         } else {
-            ROM_EXP_CURRENT
+            match get_ci_rom_version() {
+                CiRomVersion::Rom1_0 => ROM_EXP_1_0_3,
+                CiRomVersion::Rom1_1 => ROM_EXP_1_1_0,
+                _ => ROM_EXP_CURRENT,
+            }
         }
     }
 }
