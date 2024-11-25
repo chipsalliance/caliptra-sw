@@ -4,7 +4,10 @@ use std::mem::size_of;
 
 pub use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{
+        runtime_tests::{MBOX, MBOX_WITHOUT_UART},
+        APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
+    },
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -12,8 +15,12 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState,
+};
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use caliptra_test::image_pk_desc_hash;
 use dpe::{
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
@@ -339,4 +346,298 @@ fn test_pcr_reset_counter_persistence() {
     assert_eq!(pcr_reset_counter_1, pcr_reset_counter_2);
     // check that the pcr reset counters are not default
     assert_ne!(pcr_reset_counter_1, [0u8; size_of::<PcrResetCounter>()]);
+}
+
+fn get_image_opts(epoch: &[u8; 2], svn: u32) -> ImageOptions {
+    let mut options = ImageOptions {
+        app_svn: svn,
+        ..Default::default()
+    };
+
+    options.owner_config.as_mut().unwrap().epoch = *epoch;
+    options
+}
+
+fn cold_update_to_svn(model: DefaultHwModel, epoch: &[u8; 2], svn: u32) -> DefaultHwModel {
+    drop(model);
+    run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(get_image_opts(epoch, svn)),
+        ..Default::default()
+    })
+}
+
+fn runtime_update_to_svn(model: &mut DefaultHwModel, epoch: &[u8; 2], svn: u32) {
+    update_fw(model, &MBOX, get_image_opts(epoch, svn));
+}
+
+fn get_ladder_digest(model: &mut DefaultHwModel, target_svn: u32) -> Vec<u8> {
+    let digest = model
+        .mailbox_execute(0xF000_0000, target_svn.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert!(!digest.is_empty());
+    digest
+}
+
+fn assert_target_svn_too_large(model: &mut DefaultHwModel, target_svn: u32) {
+    assert_eq!(
+        model.mailbox_execute(0xF000_0000, target_svn.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::RUNTIME_KEY_LADDER_TARGET_SVN_TOO_LARGE,
+        )))
+    );
+}
+
+const MAX_SVN: u32 = 128;
+
+#[test]
+fn test_key_ladder_cold_boot() {
+    let epoch = [0x00, 0x01];
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(get_image_opts(&epoch, 0)),
+        ..Default::default()
+    });
+
+    let ladder_0 = get_ladder_digest(&mut model, 0);
+
+    model = cold_update_to_svn(model, &epoch, 1);
+
+    // FW should now have a different key ladder.
+    let ladder_1 = get_ladder_digest(&mut model, 1);
+
+    // Ask FW to extend the ladder once before returning a digest.
+    let ladder_0_from_1 = get_ladder_digest(&mut model, 0);
+
+    assert_ne!(ladder_0_from_1, ladder_1);
+    assert_eq!(ladder_0_from_1, ladder_0);
+
+    // Update to the max SVN supported by ROM.
+    model = cold_update_to_svn(model, &epoch, MAX_SVN);
+
+    let ladder_max = get_ladder_digest(&mut model, MAX_SVN);
+
+    // Ask FW for a secret available to SVN 1.
+    let ladder_1_from_max = get_ladder_digest(&mut model, 1);
+
+    assert_ne!(ladder_1_from_max, ladder_max);
+    assert_eq!(ladder_1_from_max, ladder_1);
+}
+
+#[test]
+fn test_key_ladder_runtime_update() {
+    let epoch = [0x00, 0x01];
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(get_image_opts(&epoch, 5)),
+        ..Default::default()
+    });
+
+    // Start at SVN 5. (Min-SVN = 5)
+    let ladder_5 = get_ladder_digest(&mut model, 5);
+
+    // Update to SVN 6. (Min-SVN = 5)
+    runtime_update_to_svn(&mut model, &epoch, 6);
+    let ladder_6 = get_ladder_digest(&mut model, 5);
+    assert_eq!(ladder_5, ladder_6);
+
+    // Try to get a secret for SVN 6 while the min-SVN is still 5.
+    assert_target_svn_too_large(&mut model, 6);
+
+    // Downgrade to SVN 4. (Min-SVN = 4)
+    runtime_update_to_svn(&mut model, &epoch, 4);
+    let ladder_4 = get_ladder_digest(&mut model, 4);
+    assert_ne!(ladder_4, ladder_5);
+
+    assert_target_svn_too_large(&mut model, 5);
+
+    // Upgrade to SVN 5. (Min-SVN = 4)
+    runtime_update_to_svn(&mut model, &epoch, 5);
+    let ladder_5_after_4 = get_ladder_digest(&mut model, 4);
+    assert_eq!(ladder_5_after_4, ladder_4);
+
+    assert_target_svn_too_large(&mut model, 5);
+
+    // Upgrade to SVN 6. (Min-SVN = 4)
+    runtime_update_to_svn(&mut model, &epoch, 6);
+    let ladder_6_after_4 = get_ladder_digest(&mut model, 4);
+    assert_eq!(ladder_6_after_4, ladder_4);
+
+    assert_target_svn_too_large(&mut model, 5);
+    assert_target_svn_too_large(&mut model, 6);
+
+    // Cold-boot to SVN 6 (Min-SVN = 6)
+    model = cold_update_to_svn(model, &epoch, 6);
+    let ladder_6_after_boot = get_ladder_digest(&mut model, 6);
+    assert_ne!(ladder_6_after_boot, ladder_6_after_4);
+
+    let ladder_5_from_6 = get_ladder_digest(&mut model, 5);
+    let ladder_4_from_6 = get_ladder_digest(&mut model, 4);
+    assert_eq!(ladder_5_from_6, ladder_5);
+    assert_eq!(ladder_4_from_6, ladder_4);
+
+    // Can still get its own secret after deriving older ones.
+    let ladder_6_from_self = get_ladder_digest(&mut model, 6);
+    assert_eq!(ladder_6_from_self, ladder_6_after_boot);
+
+    assert_target_svn_too_large(&mut model, 7);
+
+    // Downgrade to SVN 5 (Min-SVN = 5)
+    runtime_update_to_svn(&mut model, &epoch, 5);
+    let ladder_5_after_boot = get_ladder_digest(&mut model, 5);
+    assert_eq!(ladder_5_after_boot, ladder_5);
+
+    let ladder_4_from_5 = get_ladder_digest(&mut model, 4);
+    assert_eq!(ladder_4_from_5, ladder_4);
+
+    assert_target_svn_too_large(&mut model, 6);
+}
+
+#[test]
+fn test_key_ladder_across_warm_boot_epoch_changes() {
+    let epoch_a = [0x00, 0x01];
+    let epoch_b = [0x00, 0x02];
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(get_image_opts(&epoch_a, 1)),
+        ..Default::default()
+    });
+
+    let ladder_a = get_ladder_digest(&mut model, 1);
+
+    runtime_update_to_svn(&mut model, &epoch_b, 1);
+    let ladder_b = get_ladder_digest(&mut model, 1);
+
+    // A runtime update of the epoch does not affect the key ladder.
+    assert_eq!(ladder_a, ladder_b);
+}
+
+#[test]
+fn test_key_ladder_across_cold_boot_epoch_changes() {
+    let epoch_a = [0x00, 0x01];
+    let epoch_b = [0x00, 0x02];
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(get_image_opts(&epoch_a, 1)),
+        ..Default::default()
+    });
+
+    let ladder_a = get_ladder_digest(&mut model, 1);
+
+    // Same SVN, different epoch.
+    model = cold_update_to_svn(model, &epoch_b, 1);
+
+    let ladder_b = get_ladder_digest(&mut model, 1);
+
+    assert_ne!(ladder_a, ladder_b);
+}
+
+#[test]
+fn test_key_ladder_max_svn() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        ..Default::default()
+    });
+
+    let resp = model.mailbox_execute(0xE000_0000, &[]).unwrap().unwrap();
+
+    let max = u16::from_le_bytes(resp.try_into().unwrap());
+    assert_eq!(max as u32, MAX_SVN);
+}
+
+fn make_model_with_security_state(
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
+    debug_locked: bool,
+    lifecycle: DeviceLifecycle,
+) -> DefaultHwModel {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(debug_locked)
+        .set_device_lifecycle(lifecycle);
+
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let image = caliptra_builder::build_and_sign_image(fmc, app, ImageOptions::default()).unwrap();
+    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        BootParams {
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
+    model
+}
+
+#[test]
+fn test_key_ladder_changes_with_lifecycle() {
+    // Test with several combinations of security state.
+
+    let mut model =
+        make_model_with_security_state(&FMC_WITH_UART, &MBOX, false, DeviceLifecycle::Production);
+    let ladder_a = get_ladder_digest(&mut model, 0);
+
+    model = make_model_with_security_state(
+        &FMC_WITH_UART,
+        &MBOX,
+        false,
+        DeviceLifecycle::Manufacturing,
+    );
+    let ladder_b = get_ladder_digest(&mut model, 0);
+
+    model =
+        make_model_with_security_state(&FMC_WITH_UART, &MBOX, true, DeviceLifecycle::Production);
+    let ladder_c = get_ladder_digest(&mut model, 0);
+
+    model =
+        make_model_with_security_state(&FMC_WITH_UART, &MBOX, true, DeviceLifecycle::Manufacturing);
+    let ladder_d = get_ladder_digest(&mut model, 0);
+
+    assert_ne!(ladder_a, ladder_b);
+    assert_ne!(ladder_a, ladder_c);
+    assert_ne!(ladder_a, ladder_d);
+
+    assert_ne!(ladder_b, ladder_c);
+    assert_ne!(ladder_b, ladder_d);
+
+    assert_ne!(ladder_c, ladder_d);
+}
+
+#[test]
+fn test_key_ladder_stable_across_fw_updates() {
+    // Update both FMC and app FW, and ensure the key ladder is still identical.
+
+    let (fmc_a, app_a) = (&FMC_WITH_UART, &MBOX);
+    let (fmc_b, app_b) = (&FMC_FAKE_WITH_UART, &MBOX_WITHOUT_UART);
+
+    let mut model = make_model_with_security_state(fmc_a, app_a, true, DeviceLifecycle::Production);
+    let ladder_a = get_ladder_digest(&mut model, 0);
+
+    model = make_model_with_security_state(fmc_b, app_b, true, DeviceLifecycle::Production);
+    let ladder_b = get_ladder_digest(&mut model, 0);
+
+    assert_eq!(ladder_a, ladder_b);
 }

@@ -193,7 +193,7 @@ impl FakeRomFlow {
     }
 }
 
-// Used to derive the firmware's hash chain.
+// Used to derive the firmware's key ladder.
 fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
     env.hmac.hmac(
         &HmacKey::Array4x12(&Array4x12::default()),

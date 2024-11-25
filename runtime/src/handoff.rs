@@ -44,9 +44,9 @@ impl RtHandoff<'_> {
         self.data_vault.fmc_svn()
     }
 
-    /// Retrieve the RT FW hash chain.
-    pub fn rt_hash_chain(&self) -> CaliptraResult<KeyId> {
-        self.read_as_kv(self.fht.rt_hash_chain_kv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_HASH_CHAIN_HANDOFF_FAILED)
+    /// Retrieve the RT FW key ladder.
+    pub fn rt_key_ladder(&self) -> CaliptraResult<KeyId> {
+        self.read_as_kv(self.fht.rt_key_ladder_kv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_KEY_LADDER_HANDOFF_FAILED)
     }
 }

@@ -459,7 +459,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0039);
     pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003A);
-    pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
+    pub const RUNTIME_KEY_LADDER_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003B);
     /// PCR Runtime Errors
     pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003C);
@@ -510,6 +510,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0054);
     pub const RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000E0055);
+    pub const RUNTIME_KEY_LADDER_TARGET_SVN_TOO_LARGE: CaliptraError =
+        CaliptraError::new_const(0x000E0056);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -568,6 +570,7 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
     pub const FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR: CaliptraError =
         CaliptraError::new_const(0x0102000A);
+    pub const FW_PROC_SVN_TOO_LARGE: CaliptraError = CaliptraError::new_const(0x0102000B);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);

@@ -11,9 +11,11 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
+
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
+use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
@@ -30,8 +32,10 @@ use caliptra_common::{
     pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
     PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
 };
+use caliptra_drivers::printer::HexBytes;
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_verify::MAX_RUNTIME_SVN;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
@@ -150,6 +154,8 @@ impl FirmwareProcessor {
 
         // Get the certificate validity info
         let (nb, nf) = Self::get_cert_validity_info(manifest);
+
+        Self::populate_fw_key_ladder(env)?;
 
         report_boot_status(FwProcessorComplete.into());
         Ok(FwProcInfo {
@@ -571,6 +577,34 @@ impl FirmwareProcessor {
         data_vault.set_manifest_addr(manifest_address);
 
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
+        let epoch = env.persistent_data.get().manifest1.header.owner_data.epoch;
+        let svn = env.persistent_data.get().data_vault.rt_svn();
+
+        if svn > MAX_RUNTIME_SVN {
+            // If this occurs it is an internal programming error.
+            Err(CaliptraError::FW_PROC_SVN_TOO_LARGE)?;
+        }
+
+        let chain_len = MAX_RUNTIME_SVN - svn;
+
+        cprintln!(
+            "[fwproc] Initializing chain with epoch {}, length {} (max {})",
+            HexBytes(&epoch),
+            chain_len,
+            MAX_RUNTIME_SVN
+        );
+
+        key_ladder::initialize_key_ladder(env, epoch, chain_len)?;
+
+        cprintln!("[fwproc] Chain initialized");
+
+        report_boot_status(FwProcessorCalculateKeyLadderComplete.into());
+
+        Ok(())
     }
 
     /// Process the certificate validity info
