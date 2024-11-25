@@ -567,6 +567,7 @@ impl FirmwareProcessor {
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.fw_svn);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtMinSvn, info.fw_svn); // At cold-boot, min_svn == curr_svn
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
