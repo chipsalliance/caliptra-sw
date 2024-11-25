@@ -20,6 +20,7 @@ use caliptra_hw_model::{
     StackInfo, StackRange,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -57,6 +58,7 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 #[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
+    pub test_fmc_fwid: Option<&'static FwId<'static>>,
     pub test_image_options: Option<ImageOptions>,
     pub init_params: Option<InitParams<'a>>,
     pub test_mfg_flags: Option<MfgFlags>,
@@ -69,6 +71,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         &APP_WITH_UART
     };
     let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
+    let fmc_fwid = args.test_fmc_fwid.unwrap_or(&FMC_WITH_UART);
 
     let image_options = args.test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
@@ -103,8 +106,10 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         },
     };
 
-    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
-        .unwrap();
+    let image =
+        caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
+
+    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let boot_flags = if let Some(flags) = args.test_mfg_flags {
         flags.bits()
@@ -118,6 +123,8 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
             fw_image: Some(&image.to_bytes().unwrap()),
             fuses: Fuses {
                 fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+                vendor_pk_hash,
+                owner_pk_hash,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,

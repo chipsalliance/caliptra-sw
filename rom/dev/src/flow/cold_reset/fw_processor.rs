@@ -11,9 +11,11 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
+
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
+use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
@@ -32,6 +34,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_verify::MAX_FIRMWARE_SVN;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
@@ -158,6 +161,8 @@ impl FirmwareProcessor {
 
         // Get the certificate validity info
         let (nb, nf) = Self::get_cert_validity_info(manifest);
+
+        Self::populate_fw_key_ladder(env)?;
 
         report_boot_status(FwProcessorComplete.into());
         Ok(FwProcInfo {
@@ -649,6 +654,32 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn populate_fw_key_ladder(env: &mut RomEnv) -> CaliptraResult<()> {
+        let svn = env.persistent_data.get().data_vault.fw_svn();
+
+        if svn > MAX_FIRMWARE_SVN {
+            // If this occurs it is an internal programming error.
+            Err(CaliptraError::FW_PROC_SVN_TOO_LARGE)?;
+        }
+
+        let chain_len = MAX_FIRMWARE_SVN - svn;
+
+        cprintln!(
+            "[fwproc] Initializing chain, length {} (max {})",
+            chain_len,
+            MAX_FIRMWARE_SVN
+        );
+
+        key_ladder::initialize_key_ladder(env, chain_len)?;
+
+        cprintln!("[fwproc] Chain initialized");
+
+        report_boot_status(FwProcessorCalculateKeyLadderComplete.into());
+
+        Ok(())
+    }
+
     /// Process the certificate validity info
     ///
     /// # Arguments
@@ -790,7 +821,10 @@ impl FirmwareProcessor {
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+        let Some(dst) = persistent_data
+            .measurement_log
+            .get_mut(fht.meas_log_index as usize)
+        else {
             return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 

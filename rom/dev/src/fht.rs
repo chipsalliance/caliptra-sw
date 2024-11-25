@@ -16,10 +16,14 @@ use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
-    keyids::{KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI},
+    keyids::{
+        KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_FW_KEY_LADDER,
+        KEY_ID_ROM_FMC_CDI,
+    },
     FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
 use caliptra_drivers::{cprintln, RomAddr};
+use caliptra_image_verify::MAX_FIRMWARE_SVN;
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
@@ -39,6 +43,10 @@ impl FhtDataStore {
     /// The FMC MLDSA key pair seed is stored in a Key Vault slot.
     pub const fn fmc_mldsa_keypair_seed_store() -> HandOffDataHandle {
         HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u32)
+    }
+    /// The firmware key ladder is stored in a KeyVault slot.
+    pub const fn fw_key_ladder_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FW_KEY_LADDER as u32)
     }
 }
 
@@ -67,6 +75,8 @@ pub fn initialize_fht(env: &mut RomEnv) {
         pcr_log_addr: &pdata.pcr_log as *const _ as u32,
         meas_log_addr: &pdata.measurement_log as *const _ as u32,
         fuse_log_addr: &pdata.fuse_log as *const _ as u32,
+        fw_key_ladder_max_svn: MAX_FIRMWARE_SVN as u16,
+        fw_key_ladder_kv_hdl: FhtDataStore::fw_key_ladder_store(),
         ..Default::default()
     };
 }
