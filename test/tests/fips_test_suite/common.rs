@@ -50,9 +50,14 @@ const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
     ],
 };
 
+const ROM_EXP_1_0_3: RomExpVals = RomExpVals {
+    rom_version: 0x803, // 1.0.3
+    ..ROM_EXP_1_0_1
+};
+
 const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
     rom_version: 0x840, // 1.1.0
-    ..ROM_EXP_1_0_1
+    ..ROM_EXP_1_0_3
 };
 
 const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_0 };
@@ -101,6 +106,7 @@ impl RomExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_1" => ROM_EXP_1_0_1,
+                "1_0_3" => ROM_EXP_1_0_3,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version

@@ -35,6 +35,11 @@ use once_cell::sync::Lazy;
 
 pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 
+#[derive(Debug, PartialEq)]
+pub enum CiRomVersion {
+    Latest,
+}
+
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
 }
@@ -355,11 +360,22 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     Ok(result)
 }
 
+// Returns the ROM version to be used for CI testing specified in the environment variable "CPTRA_CI_ROM_VERSION"
+// Default is Latest
+pub fn get_ci_rom_version() -> CiRomVersion {
+    match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
+        Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
+        Err(_) => CiRomVersion::Latest,
+    }
+}
+
 /// Returns the most appropriate ROM for use when testing non-ROM code against
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
-    Ok(build_firmware_rom(rom_from_env)?.into())
+    match get_ci_rom_version() {
+        CiRomVersion::Latest => Ok(build_firmware_rom(rom_from_env)?.into()),
+    }
 }
 
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
