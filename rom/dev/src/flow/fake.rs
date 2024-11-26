@@ -26,6 +26,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
+    keyids::KEY_ID_ROM_FMC_CDI,
     memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
     FirmwareHandoffTable,
 };
@@ -154,6 +155,8 @@ impl FakeRomFlow {
                 // SKIP Execute IDEVID layer
                 // LDEVID cert
                 copy_canned_ldev_cert(env)?;
+                // LDEVID cdi
+                initialize_fake_ldevid_cdi(env)?;
 
                 // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
@@ -185,6 +188,17 @@ impl FakeRomFlow {
             ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
         }
     }
+}
+
+// Used to derive the firmware's hash chain.
+fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
+    env.hmac.hmac(
+        &HmacKey::Array4x12(&Array4x12::default()),
+        &HmacData::Slice(b""),
+        &mut env.trng,
+        KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
+        HmacMode::Hmac384,
+    )
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
