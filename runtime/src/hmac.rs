@@ -82,20 +82,29 @@ fn ecc384_key_gen(
 pub enum Hmac {}
 
 impl Hmac {
-    /// "Hash" the data in the provided KV slot by HMACing it with an empty slice.
-    /// This mechanism is necessary because the hardware does not directly support
-    /// hashing data in KV slots.
+    /// Calculate HMAC-384 KDF
     ///
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    /// * `input` - KeyId containing the input data
-    /// * `output` - KeyId which the output hash should be written to
+    /// * `key` - HMAC384 key slot
+    /// * `label` - Input label
+    /// * `context` - Input context
+    /// * `output` - Key slot to store the output
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn hmac384_hash(drivers: &mut Drivers, input: KeyId, output: KeyId) -> CaliptraResult<()> {
-        drivers.hmac.hmac(
-            &KeyReadArgs::new(input).into(),
-            &HmacData::Slice(&[]),
+    pub fn hmac_kdf(
+        drivers: &mut Drivers,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        mode: HmacMode,
+        output: KeyId,
+    ) -> CaliptraResult<()> {
+        hmac_kdf(
+            &mut drivers.hmac,
+            KeyReadArgs::new(key).into(),
+            label,
+            context,
             &mut drivers.trng,
             KeyWriteArgs::new(
                 output,
@@ -104,7 +113,7 @@ impl Hmac {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
-            HmacMode::Hmac384,
+            mode,
         )
     }
 
