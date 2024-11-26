@@ -6,6 +6,7 @@ use caliptra_builder::{
     FwId, ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use zerocopy::AsBytes;
 
 pub mod crypto;
 pub mod derive;
@@ -13,6 +14,8 @@ mod redact;
 mod unwrap_single;
 pub mod x509;
 
+use caliptra_image_types::ImageManifest;
+use openssl::sha::sha384;
 pub use redact::{redact_cert, RedactOpts};
 pub use unwrap_single::UnwrapSingle;
 
@@ -26,6 +29,23 @@ pub fn swap_word_bytes_inplace(words: &mut [u32]) {
     for word in words.iter_mut() {
         *word = word.swap_bytes()
     }
+}
+
+pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
+    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
+    swap_word_bytes_inplace(&mut result);
+    result
+}
+
+// Returns the vendor and owner public key descriptor hashes from the image.
+pub fn image_pk_desc_hash(manifest: &ImageManifest) -> ([u32; 12], [u32; 12]) {
+    let vendor_pk_desc_hash =
+        bytes_to_be_words_48(&sha384(manifest.preamble.vendor_pub_key_info.as_bytes()));
+
+    let owner_pk_desc_hash =
+        bytes_to_be_words_48(&sha384(manifest.preamble.owner_pub_key_info.as_bytes()));
+
+    (vendor_pk_desc_hash, owner_pk_desc_hash)
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,

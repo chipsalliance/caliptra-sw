@@ -11,12 +11,13 @@ use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
+    bytes_to_be_words_48,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
-    swap_word_bytes, swap_word_bytes_inplace,
+    swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
@@ -132,12 +133,6 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert!(generated_ldevid
         .derive_public_key()
         .public_eq(&ldevid_pubkey));
-}
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
 }
 
 #[test]
