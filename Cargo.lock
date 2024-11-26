@@ -819,6 +819,7 @@ dependencies = [
  "caliptra-kat",
  "caliptra-lms-types",
  "caliptra-registers",
+ "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",

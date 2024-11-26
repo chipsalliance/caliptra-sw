@@ -8,21 +8,8 @@ use caliptra_builder::{
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_registers::mbox::enums::MboxStatusE;
+use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
-use openssl::sha::sha384;
-use zerocopy::AsBytes;
-
-fn swap_word_bytes_inplace(words: &mut [u32]) {
-    for word in words.iter_mut() {
-        *word = word.swap_bytes()
-    }
-}
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
 
 #[test]
 fn test_rt_journey_pcr_validation() {
@@ -40,12 +27,8 @@ fn test_rt_journey_pcr_validation() {
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
-    ));
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -107,12 +90,8 @@ fn test_mbox_busy_during_warm_reset() {
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
-    ));
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut model = caliptra_hw_model::new(
         InitParams {
