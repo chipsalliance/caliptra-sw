@@ -2,5 +2,8 @@
 rustflags = [
   "-C", "target-feature=+relax",
   "-C", "target-feature=+unaligned-scalar-mem",
+  "-C", "target-feature=+zba",
   "-C", "target-feature=+zbb",
+  "-C", "target-feature=+zbc",
+  "-C", "target-feature=+zbs",
 ]

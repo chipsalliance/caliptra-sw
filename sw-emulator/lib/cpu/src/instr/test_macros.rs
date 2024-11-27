@@ -62,6 +62,167 @@ mod test {
     }
 
     #[macro_export]
+    macro_rules! test_imm_dest_bypass {
+        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                             // 0x0000
+                        tests::li0(XReg::X1, $val1);                                    // 0x0004
+                        tests::li1(XReg::X1, $val1);                                    // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2)); // 0x000C
+                        tests::addi(XReg::X6, XReg::X14, 0);                            // 0x0010
+                        tests::addi(XReg::X4, XReg::X4, 1);                             // 0x0014
+                        tests::addi(XReg::X5, XReg::X0, 2);                             // 0x0018
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE8);                         // 0x001C
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                             // 0x0000
+                        tests::li0(XReg::X1, $val1);                                    // 0x0004
+                        tests::li1(XReg::X1, $val1);                                    // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2));  // 0x000C
+                        tests::nop();                                                   // 0x0010
+                        tests::addi(XReg::X6, XReg::X14, 0);                            // 0x0014
+                        tests::addi(XReg::X4, XReg::X4, 1);                             // 0x0018
+                        tests::addi(XReg::X5, XReg::X0, 2);                             // 0x001C
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE4);                         // 0x0020
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                             // 0x0000
+                        tests::li0(XReg::X1, $val1);                                    // 0x0004
+                        tests::li1(XReg::X1, $val1);                                    // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2));  // 0x000C
+                        tests::nop();                                                   // 0x0010
+                        tests::nop();                                                   // 0x0014
+                        tests::addi(XReg::X6, XReg::X14, 0);                            // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);                             // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);                             // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);                         // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_imm_src1_bypass {
+        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                            // 0x0000
+                        tests::li0(XReg::X1, $val1);                                   // 0x0004
+                        tests::li1(XReg::X1, $val1);                                   // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2)); // 0x000C
+                        tests::addi(XReg::X4, XReg::X4, 1);                            // 0x0010
+                        tests::addi(XReg::X5, XReg::X0, 2);                            // 0x0014
+                        tests::bne(XReg::X4, XReg::X5, 0xFFEC);                        // 0x0018
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                            // 0x0000
+                        tests::li0(XReg::X1, $val1);                                   // 0x0004
+                        tests::li1(XReg::X1, $val1);                                   // 0x0008
+                        tests::nop();                                                  // 0x000C
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2)); // 0x0010
+                        tests::addi(XReg::X4, XReg::X4, 1);                            // 0x0014
+                        tests::addi(XReg::X5, XReg::X0, 2);                            // 0x0018
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE8);                        // 0x001C
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);                            // 0x0000
+                        tests::li0(XReg::X1, $val1);                                   // 0x0004
+                        tests::li1(XReg::X1, $val1);                                   // 0x0008
+                        tests::nop();                                                  // 0x000C
+                        tests::nop();                                                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, tests::sign_extend($val2)); // 0x0014
+                        tests::addi(XReg::X4, XReg::X4, 1);                            // 0x0018
+                        tests::addi(XReg::X5, XReg::X0, 2);                            // 0x001C
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE4);                        // 0x0020
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
     macro_rules! test_imm_src1_eq_dest {
         ($test:ident, $instr:ident, $result:expr, $data:expr, $imm:expr) => {
             #[test]
@@ -158,6 +319,30 @@ mod test {
     }
 
     #[macro_export]
+    macro_rules! test_r_op {
+        ($test:ident, $instr:ident, $result:expr, $val1:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::$instr(XReg::X14, XReg::X1);
+                    ],
+                    0x1000 => vec![0],
+                    {
+                        XReg::X1 = $val1;
+                    },
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
     macro_rules! test_rr_op {
         ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
             #[test]
@@ -176,6 +361,30 @@ mod test {
                     },
                     {
                         XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_r_src1_eq_dest{
+        ($test:ident, $instr:ident, $result:expr, $val1:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::$instr(XReg::X1, XReg::X1);
+                    ],
+                    0x1000 => vec![0],
+                    {
+                        XReg::X1 = $val1;
+                    },
+                    {
+                        XReg::X1 = $result;
                     }
                 );
             }
@@ -250,6 +459,512 @@ mod test {
                     },
                     {
                         XReg::X1 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_r_dest_bypass {
+        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);     // 0x0000
+                        tests::li0(XReg::X1, $val1);            // 0x0004
+                        tests::li1(XReg::X1, $val1);            // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1);     // 0x000C
+                        tests::addi(XReg::X6, XReg::X14, 0);    // 0x0010
+                        tests::addi(XReg::X4, XReg::X4, 1);     // 0x0014
+                        tests::addi(XReg::X5, XReg::X0, 2);     // 0x0018
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE8); // 0x001C
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);     // 0x0000
+                        tests::li0(XReg::X1, $val1);            // 0x0004
+                        tests::li1(XReg::X1, $val1);            // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1);     // 0x000C
+                        tests::nop();                           // 0x0010
+                        tests::addi(XReg::X6, XReg::X14, 0);    // 0x0014
+                        tests::addi(XReg::X4, XReg::X4, 1);     // 0x0018
+                        tests::addi(XReg::X5, XReg::X0, 2);     // 0x001C
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE4); // 0x0020
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);     // 0x0000
+                        tests::li0(XReg::X1, $val1);            // 0x0004
+                        tests::li1(XReg::X1, $val1);            // 0x0008
+                        tests::$instr(XReg::X14, XReg::X1);     // 0x000C
+                        tests::nop();                           // 0x0010
+                        tests::nop();                           // 0x0014
+                        tests::addi(XReg::X6, XReg::X14, 0);    // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);     // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);     // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0); // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_rr_dest_bypass {
+        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0014
+                        tests::addi(XReg::X6, XReg::X14, 0);          // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);       // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0014
+                        tests::nop();                                 // 0x0018
+                        tests::addi(XReg::X6, XReg::X14, 0);          // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0014
+                        tests::nop();                                 // 0x0018
+                        tests::nop();                                 // 0x001C
+                        tests::addi(XReg::X6, XReg::X14, 0);          // 0x0020
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0024
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0028
+                        tests::bne(XReg::X4, XReg::X5, 0xFFD8);       // 0x002C
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X6 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_rr_src12_bypass {
+        ($test:ident, 0, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0014
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0018
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x001C
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE4);       // 0x0020
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 0, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::nop();                                 // 0x0014
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);       // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 0, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::li0(XReg::X2, $val2);                  // 0x000C
+                        tests::li1(XReg::X2, $val2);                  // 0x0010
+                        tests::nop();                                 // 0x0014
+                        tests::nop();                                 // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::nop();                                 // 0x000C
+                        tests::li0(XReg::X2, $val2);                  // 0x0010
+                        tests::li1(XReg::X2, $val2);                  // 0x0014
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);       // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::nop();                                 // 0x000C
+                        tests::li0(XReg::X2, $val2);                  // 0x0010
+                        tests::li1(XReg::X2, $val2);                  // 0x0014
+                        tests::nop();                                 // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X1, $val1);                  // 0x0004
+                        tests::li1(XReg::X1, $val1);                  // 0x0008
+                        tests::nop();                                 // 0x000C
+                        tests::nop();                                 // 0x0010
+                        tests::li0(XReg::X2, $val2);                  // 0x0014
+                        tests::li1(XReg::X2, $val2);                  // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! test_rr_src21_bypass {
+        ($test:ident, 0, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X2, $val2);                  // 0x0004
+                        tests::li1(XReg::X2, $val2);                  // 0x0008
+                        tests::li0(XReg::X1, $val1);                  // 0x000C
+                        tests::li1(XReg::X1, $val1);                  // 0x0010
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0014
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0018
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x001C
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE4);       // 0x0020
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 0, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X2, $val2);                  // 0x0004
+                        tests::li1(XReg::X2, $val2);                  // 0x0008
+                        tests::li0(XReg::X1, $val1);                  // 0x000C
+                        tests::li1(XReg::X1, $val1);                  // 0x0010
+                        tests::nop();                                 // 0x0014
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);       // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 0, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X2, $val2);                  // 0x0004
+                        tests::li1(XReg::X2, $val2);                  // 0x0008
+                        tests::li0(XReg::X1, $val1);                  // 0x000C
+                        tests::li1(XReg::X1, $val1);                  // 0x0010
+                        tests::nop();                                 // 0x0014
+                        tests::nop();                                 // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);            // 0x0000
+                        tests::li0(XReg::X2, $val2);                   // 0x0004
+                        tests::li1(XReg::X2, $val2);                   // 0x0008
+                        tests::nop();                                  // 0x000C
+                        tests::li0(XReg::X1, $val1);                   // 0x0010
+                        tests::li1(XReg::X1, $val1);                   // 0x0014
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2);  // 0x0018
+                        tests::addi(XReg::X4, XReg::X4, 1);            // 0x001C
+                        tests::addi(XReg::X5, XReg::X0, 2);            // 0x0020
+                        tests::bne(XReg::X4, XReg::X5, 0xFFE0);        // 0x0024
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 1, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);            // 0x0000
+                        tests::li0(XReg::X2, $val2);                   // 0x0004
+                        tests::li1(XReg::X2, $val2);                   // 0x000C
+                        tests::nop();                                  // 0x0008
+                        tests::li0(XReg::X1, $val1);                   // 0x0010
+                        tests::li1(XReg::X1, $val1);                   // 0x0014
+                        tests::nop();                                  // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2);  // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);            // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);            // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);        // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
+                    }
+                );
+            }
+        };
+        ($test:ident, 2, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+            #[test]
+            fn $test() {
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
+
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
+                        tests::addi(XReg::X4, XReg::X0, 0);           // 0x0000
+                        tests::li0(XReg::X2, $val2);                  // 0x0004
+                        tests::li1(XReg::X2, $val2);                  // 0x0008
+                        tests::nop();                                 // 0x000C
+                        tests::nop();                                 // 0x0010
+                        tests::li0(XReg::X1, $val1);                  // 0x0014
+                        tests::li1(XReg::X1, $val1);                  // 0x0018
+                        tests::$instr(XReg::X14, XReg::X1, XReg::X2); // 0x001C
+                        tests::addi(XReg::X4, XReg::X4, 1);           // 0x0020
+                        tests::addi(XReg::X5, XReg::X0, 2);           // 0x0024
+                        tests::bne(XReg::X4, XReg::X5, 0xFFDC);       // 0x0028
+                    ],
+                    0x1000 => vec![0],
+                    {},
+                    {
+                        XReg::X14 = $result;
                     }
                 );
             }
