@@ -222,6 +222,21 @@ impl<'a> InitParams<'a> {
             security_state: self.security_state,
         }
     }
+    /// Useful for testing lightweight tests that are built as a ROM and use
+    /// caliptra-test-harness, which doesn't initialize SRAM. DO NOT call this
+    /// function if you are using a regular ROM, as the random SRAM state is how
+    /// we test that it clears SRAM correctly.
+    pub fn default_for_test_harness() -> InitParams<'a> {
+        InitParams {
+            // To improve verilator times, caliptra-test-harness does not initialize
+            // SRAM contents, so we must run our tests without random SRAM
+            // contents to avoid ECC double-bit errors in case the compiler
+            // generates a speculative read to uninitialized memory (this is
+            // rare, but tricky to debug when it happens).
+            random_sram_puf: false,
+            ..InitParams::default()
+        }
+    }
 }
 
 pub struct InitParamsSummary {
@@ -1315,7 +1330,7 @@ mod tests {
         let mut model = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                ..Default::default()
+                ..InitParams::default_for_test_harness()
             },
             BootParams::default(),
         )
@@ -1462,7 +1477,7 @@ mod tests {
         let mut model = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                ..Default::default()
+                ..InitParams::default_for_test_harness()
             },
             BootParams::default(),
         )
@@ -1513,7 +1528,7 @@ mod tests {
         let mut model = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                ..Default::default()
+                ..InitParams::default_for_test_harness()
             },
             BootParams::default(),
         )
@@ -1792,7 +1807,7 @@ mod tests {
         let mut model = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                ..Default::default()
+                ..InitParams::default_for_test_harness()
             },
             BootParams::default(),
         )
