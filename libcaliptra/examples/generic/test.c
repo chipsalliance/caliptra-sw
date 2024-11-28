@@ -438,7 +438,6 @@ int rt_test_all_commands(const test_info* info)
         printf("DPE Command: OK\n");
     }
 
-
     // FW_INFO
     struct caliptra_fw_info_resp fw_info_resp;
 
@@ -550,6 +549,40 @@ int rt_test_all_commands(const test_info* info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // SHA Engine Tests
+    uint32_t hash[12]; // Adjust size as needed for SHA-384 or SHA-512
+    uint32_t data[16] = {0}; // Example data, adjust size as needed
+    uint32_t update_data[8] = {1}; // Example update data, adjust size as needed
+
+    // Start SHA Stream
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, data, 16);
+    if (status) {
+        printf("Start SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Start SHA Stream: OK\n");
+    }
+
+    // Update SHA Stream
+    status = caliptra_update_sha_stream(update_data, 8);
+    if (status) {
+        printf("Update SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Update SHA Stream: OK\n");
+    }
+
+    // Finish SHA Stream
+    status = caliptra_finish_sha_stream(hash);
+    if (status) {
+        printf("Finish SHA Stream failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Finish SHA Stream: OK\n");
+    }
 
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
