@@ -383,8 +383,12 @@ fn generate_register(reg: &RegisterType) -> TokenStream {
         };
         let comment = &field.comment.replace("<br>", "\n");
         if field.ty.can_read() {
+            if !comment.is_empty() {
+                read_val_tokens.extend(quote! {
+                    #[doc = #comment]
+                })
+            }
             read_val_tokens.extend(quote! {
-                #[doc = #comment]
                 #[inline(always)]
             });
             if let Some(ref enum_type) = field.enum_type {

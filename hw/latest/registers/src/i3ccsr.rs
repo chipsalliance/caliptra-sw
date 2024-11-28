@@ -1783,7 +1783,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ControllerConfigReadVal(u32);
     impl ControllerConfigReadVal {
-        ///
         #[inline(always)]
         pub fn operation_mode(&self) -> u32 {
             (self.0 >> 4) & 3
@@ -2045,7 +2044,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct DevCtxBaseHiReadVal(u32);
     impl DevCtxBaseHiReadVal {
-        ///
         #[inline(always)]
         pub fn base_hi(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -2092,7 +2090,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct DevCtxBaseLoReadVal(u32);
     impl DevCtxBaseLoReadVal {
-        ///
         #[inline(always)]
         pub fn base_lo(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -2715,7 +2712,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct IbiPortReadVal(u32);
     impl IbiPortReadVal {
-        ///
         #[inline(always)]
         pub fn ibi_data(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -4406,7 +4402,6 @@ pub mod regs {
         pub fn target_xact_support(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn simple_crr_support(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
@@ -4489,12 +4484,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrCccConfigGetcapsReadVal(u32);
     impl StbyCrCccConfigGetcapsReadVal {
-        ///
         #[inline(always)]
         pub fn f2_crcap2_dev_interact(&self) -> u32 {
             (self.0 >> 8) & 0xf
         }
-        ///
         #[inline(always)]
         pub fn f2_crcap1_bus_config(&self) -> u32 {
             (self.0 >> 0) & 7
@@ -4546,22 +4539,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrCccConfigRstactParamsReadVal(u32);
     impl StbyCrCccConfigRstactParamsReadVal {
-        ///
         #[inline(always)]
         pub fn reset_dynamic_addr(&self) -> bool {
             ((self.0 >> 31) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn reset_time_target(&self) -> u32 {
             (self.0 >> 16) & 0xff
         }
-        ///
         #[inline(always)]
         pub fn reset_time_peripheral(&self) -> u32 {
             (self.0 >> 8) & 0xff
         }
-        ///
         #[inline(always)]
         pub fn rst_action(&self) -> u32 {
             (self.0 >> 0) & 0xff
@@ -4707,22 +4696,18 @@ pub mod regs {
         pub fn handoff_deep_sleep(&self) -> bool {
             ((self.0 >> 4) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn prime_accept_getacccr(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_fsm_op_select(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn handoff_delay_nack(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn pending_rx_nack(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -4957,22 +4942,18 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrDeviceCharReadVal(u32);
     impl StbyCrDeviceCharReadVal {
-        ///
         #[inline(always)]
         pub fn bcr_fixed(&self) -> u32 {
             (self.0 >> 29) & 7
         }
-        ///
         #[inline(always)]
         pub fn bcr_var(&self) -> u32 {
             (self.0 >> 24) & 0x1f
         }
-        ///
         #[inline(always)]
         pub fn dcr(&self) -> u32 {
             (self.0 >> 16) & 0xff
         }
-        ///
         #[inline(always)]
         pub fn pid_hi(&self) -> u32 {
             (self.0 >> 1) & 0x7fff
@@ -5034,47 +5015,38 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrIntrForceReadVal(u32);
     impl StbyCrIntrForceReadVal {
-        ///
         #[inline(always)]
         pub fn ccc_fatal_rstdaa_err_force(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_unhandled_nack_force(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_param_modified_force(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_op_rstact_force(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_err_force(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_ok_force(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_nacked_force(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_dyn_addr_force(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn crr_response_force(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
@@ -5161,67 +5133,54 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrIntrSignalEnableReadVal(u32);
     impl StbyCrIntrSignalEnableReadVal {
-        ///
         #[inline(always)]
         pub fn ccc_fatal_rstdaa_err_signal_en(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_unhandled_nack_signal_en(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_param_modified_signal_en(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_op_rstact_signal_en(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_err_signal_en(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_ok_signal_en(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_nacked_signal_en(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_dyn_addr_signal_en(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn crr_response_signal_en(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_err_m3_signal_en(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_err_fail_signal_en(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_ok_primed_signal_en(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_ok_remain_signal_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -5328,67 +5287,54 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrIntrStatusReadVal(u32);
     impl StbyCrIntrStatusReadVal {
-        ///
         #[inline(always)]
         pub fn ccc_fatal_rstdaa_err_stat(&self) -> bool {
             ((self.0 >> 19) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_unhandled_nack_stat(&self) -> bool {
             ((self.0 >> 18) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn ccc_param_modified_stat(&self) -> bool {
             ((self.0 >> 17) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_op_rstact_stat(&self) -> bool {
             ((self.0 >> 16) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_err_stat(&self) -> bool {
             ((self.0 >> 14) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_ok_stat(&self) -> bool {
             ((self.0 >> 13) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_accept_nacked_stat(&self) -> bool {
             ((self.0 >> 12) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn stby_cr_dyn_addr_stat(&self) -> bool {
             ((self.0 >> 11) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn crr_response_stat(&self) -> bool {
             ((self.0 >> 10) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_err_m3_stat(&self) -> bool {
             ((self.0 >> 3) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_err_fail_stat(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_ok_primed_stat(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn acr_handoff_ok_remain_stat(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -5495,17 +5441,14 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct StbyCrStatusReadVal(u32);
     impl StbyCrStatusReadVal {
-        ///
         #[inline(always)]
         pub fn hj_req_status(&self) -> bool {
             ((self.0 >> 8) & 1) != 0
         }
-        ///
         #[inline(always)]
         pub fn simple_crr_status(&self) -> u32 {
             (self.0 >> 5) & 7
         }
-        ///
         #[inline(always)]
         pub fn ac_current_own(&self) -> bool {
             ((self.0 >> 2) & 1) != 0
@@ -5980,7 +5923,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct THighRegReadVal(u32);
     impl THighRegReadVal {
-        ///
         #[inline(always)]
         pub fn t_high(&self) -> u32 {
             (self.0 >> 0) & 0xfffff

@@ -665,7 +665,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ExecuteReadVal(u32);
     impl ExecuteReadVal {
-        ///
         #[inline(always)]
         pub fn execute(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -712,7 +711,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct LockReadVal(u32);
     impl LockReadVal {
-        ///
         #[inline(always)]
         pub fn lock(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -759,7 +757,6 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ModeReadVal(u32);
     impl ModeReadVal {
-        ///
         #[inline(always)]
         pub fn mode(&self) -> super::enums::ShaCmdE {
             super::enums::ShaCmdE::try_from((self.0 >> 0) & 3).unwrap()
