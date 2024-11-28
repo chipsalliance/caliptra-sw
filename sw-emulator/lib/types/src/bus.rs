@@ -75,3 +75,26 @@ pub trait Bus {
         // By default, do nothing
     }
 }
+
+#[cfg(feature = "std")]
+impl<T: Bus> Bus for Box<T> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        T::read(self, size, addr)
+    }
+
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        T::write(self, size, addr, val)
+    }
+
+    fn poll(&mut self) {
+        T::poll(self)
+    }
+
+    fn warm_reset(&mut self) {
+        T::warm_reset(self)
+    }
+
+    fn update_reset(&mut self) {
+        T::update_reset(self)
+    }
+}

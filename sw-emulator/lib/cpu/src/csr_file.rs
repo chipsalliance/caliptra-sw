@@ -102,7 +102,7 @@ impl Csr {
 /// Configuration and status register file
 pub struct CsrFile {
     /// CSRS
-    csrs: [Csr; CsrFile::CSR_COUNT],
+    csrs: Box<[Csr; CsrFile::CSR_COUNT]>,
     /// Timer
     timer: Timer,
 }
@@ -114,7 +114,10 @@ impl CsrFile {
     /// Create a new Configuration and status register file
     pub fn new(clock: &Clock) -> Self {
         let mut csrs = Self {
-            csrs: [Csr::new(0, 0); CsrFile::CSR_COUNT],
+            csrs: vec![Csr::new(0, 0); CsrFile::CSR_COUNT]
+                .try_into()
+                .map_err(|_| ())
+                .unwrap(),
             timer: Timer::new(clock),
         };
 

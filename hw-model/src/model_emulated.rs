@@ -54,7 +54,7 @@ impl<'a> Bus for EmulatedApbBus<'a> {
 
 /// Emulated model
 pub struct ModelEmulated {
-    cpu: Cpu<BusLogger<CaliptraRootBus>>,
+    cpu: Box<Cpu<BusLogger<CaliptraRootBus>>>,
     soc_to_caliptra_bus: SocToCaliptraBus,
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
@@ -187,7 +187,7 @@ impl HwModel for ModelEmulated {
             dccm_dest.copy_from_slice(params.dccm);
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
-        let cpu = Cpu::new(BusLogger::new(root_bus), clock);
+        let cpu = Box::new(Cpu::new(BusLogger::new(root_bus), clock));
 
         let mut hasher = DefaultHasher::new();
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
