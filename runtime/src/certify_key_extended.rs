@@ -52,7 +52,7 @@ impl CertifyKeyExtendedCmd {
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
         let crypto = DpeCrypto::new(
-            &mut drivers.sha384,
+            &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac,

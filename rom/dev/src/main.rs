@@ -26,8 +26,8 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
-    Ecc384, Hmac, KeyVault, Mailbox, ResetReason, Sha256, Sha2_512_384Acc, Sha384, ShaAccLockState,
-    SocIfc, Trng,
+    Ecc384, Hmac, KeyVault, Mailbox, ResetReason, Sha256, Sha2_512_384, Sha2_512_384Acc,
+    ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -133,8 +133,8 @@ pub extern "C" fn rom_entry() -> ! {
             // sha256
             sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+            // SHA2-512/384 Engine
+            sha2_512_384: &mut env.sha2_512_384,
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
@@ -365,7 +365,7 @@ fn handle_fatal_error(code: u32) -> ! {
         Ecc384::zeroize();
         Hmac::zeroize();
         Sha256::zeroize();
-        Sha384::zeroize();
+        Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();
 
         // Zeroize the key vault.

@@ -110,7 +110,23 @@ impl Crypto {
     /// * `Array4x12` - Digest
     #[inline(always)]
     pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha384.digest(data)
+        env.sha2_512_384.sha384_digest(data)
+    }
+
+    /// Calculate SHA2-512 Digest
+    ///
+    /// # Arguments
+    ///
+    /// * `env`   - ROM Environment
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x16` - Digest
+    #[inline(always)]
+    #[allow(dead_code)]
+    pub fn sha512_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x16> {
+        env.sha2_512_384.sha512_digest(data)
     }
 
     /// Calculate HMAC

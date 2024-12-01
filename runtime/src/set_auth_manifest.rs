@@ -29,7 +29,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::{
     pcr_log::PCR_ID_STASH_MEASUREMENT, Array4x12, Array4xN, AuthManifestImageMetadataList,
     CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature, HashValue, Lms,
-    PersistentData, RomPqcVerifyConfig, Sha256, Sha384, SocIfc,
+    PersistentData, RomPqcVerifyConfig, Sha256, Sha2_512_384, SocIfc,
 };
 use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
@@ -48,7 +48,7 @@ use zerocopy::{AsBytes, FromBytes};
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
     fn sha384_digest(
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         manifest: &[u8],
         offset: u32,
         len: u32,
@@ -59,7 +59,7 @@ impl SetAuthManifestCmd {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(sha384.digest(data)?.0)
+        Ok(sha2.sha384_digest(data)?.0)
     }
 
     fn ecc384_verify(
@@ -99,14 +99,14 @@ impl SetAuthManifestCmd {
     fn verify_vendor_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::vendor_signed_data_range();
         let digest_vendor = Self::sha384_digest(
-            sha384,
+            sha2,
             auth_manifest_preamble.as_bytes(),
             range.start,
             range.len() as u32,
@@ -156,14 +156,14 @@ impl SetAuthManifestCmd {
     fn verify_owner_pub_keys(
         auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::owner_pub_keys_range();
         let digest_owner = Self::sha384_digest(
-            sha384,
+            sha2,
             auth_manifest_preamble.as_bytes(),
             range.start,
             range.len() as u32,
@@ -214,7 +214,7 @@ impl SetAuthManifestCmd {
     fn verify_vendor_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
@@ -275,7 +275,7 @@ impl SetAuthManifestCmd {
     fn verify_owner_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
@@ -334,7 +334,7 @@ impl SetAuthManifestCmd {
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col: &mut AuthManifestImageMetadataCollection,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
@@ -359,12 +359,12 @@ impl SetAuthManifestCmd {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
         }
 
-        let digest_metadata_col = Self::sha384_digest(sha384, buf, 0, col_size as u32)?;
+        let digest_metadata_col = Self::sha384_digest(sha2, buf, 0, col_size as u32)?;
 
         Self::verify_vendor_image_metadata_col(
             auth_manifest_preamble,
             &digest_metadata_col,
-            sha384,
+            sha2,
             ecc384,
             sha256,
             soc_ifc,
@@ -373,7 +373,7 @@ impl SetAuthManifestCmd {
         Self::verify_owner_image_metadata_col(
             auth_manifest_preamble,
             &digest_metadata_col,
-            sha384,
+            sha2,
             ecc384,
             sha256,
             soc_ifc,
@@ -433,7 +433,7 @@ impl SetAuthManifestCmd {
         Self::verify_vendor_signed_data(
             &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
-            &mut drivers.sha384,
+            &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
             &drivers.soc_ifc,
@@ -443,7 +443,7 @@ impl SetAuthManifestCmd {
         Self::verify_owner_pub_keys(
             &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
-            &mut drivers.sha384,
+            &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
             &drivers.soc_ifc,
@@ -455,7 +455,7 @@ impl SetAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
             &auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
-            &mut drivers.sha384,
+            &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
             &drivers.soc_ifc,
