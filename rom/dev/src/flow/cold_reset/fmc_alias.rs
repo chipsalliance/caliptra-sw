@@ -189,7 +189,7 @@ impl FmcAliasLayer {
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
-        let mut hasher = env.sha384.digest_init()?;
+        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
         hasher.update(&[
             env.soc_ifc.lifecycle() as u8,
             env.soc_ifc.debug_locked() as u8,

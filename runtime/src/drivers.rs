@@ -33,8 +33,8 @@ use caliptra_drivers::{
     DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, Ecc384PubKey, Hmac, PcrBank, PcrId, Sha256, Sha256Alg, Sha2_512_384Acc,
-    Sha384, Trng,
+    hand_off::DataStore, Ecc384PubKey, Hmac, PcrBank, PcrId, Sha256, Sha256Alg, Sha2_512_384,
+    Sha2_512_384Acc, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -75,8 +75,8 @@ pub struct Drivers {
     pub soc_ifc: SocIfc,
     pub sha256: Sha256,
 
-    // SHA2-384 Engine
-    pub sha384: Sha384,
+    // SHA2-512/384 Engine
+    pub sha2_512_384: Sha2_512_384,
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
@@ -131,7 +131,7 @@ impl Drivers {
             key_vault: KeyVault::new(KvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
@@ -368,7 +368,7 @@ impl Drivers {
         const PAUSER_COUNT: usize = 5;
         let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
         let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
-        let mut digest_op = drivers.sha384.digest_init()?;
+        let mut digest_op = drivers.sha2_512_384.sha384_digest_init()?;
         for i in 0..PAUSER_COUNT {
             if mbox_pauser_lock[i] {
                 digest_op.update(mbox_valid_pauser[i].as_bytes())?;
@@ -381,7 +381,7 @@ impl Drivers {
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
         let mut crypto = DpeCrypto::new(
-            &mut drivers.sha384,
+            &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac384,

@@ -29,7 +29,7 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId,
 };
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, PcrBank, PersistentData, PersistentDataAccessor, Sha384,
+    CaliptraError, CaliptraResult, PcrBank, PersistentData, PersistentDataAccessor, Sha2_512_384,
 };
 use caliptra_image_verify::ImageVerificationInfo;
 
@@ -38,16 +38,16 @@ use zerocopy::AsBytes;
 struct PcrExtender<'a> {
     persistent_data: &'a mut PersistentData,
     pcr_bank: &'a mut PcrBank,
-    sha384: &'a mut Sha384,
+    sha2_512_384: &'a mut Sha2_512_384,
 }
 impl PcrExtender<'_> {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
-            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
+            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha2_512_384, data)?;
         self.pcr_bank
-            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
+            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha2_512_384, data)?;
 
         let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
         log_pcr(self.persistent_data, pcr_entry_id, pcr_ids, data)
@@ -75,7 +75,7 @@ pub(crate) fn extend_pcrs(
     let mut pcr = PcrExtender {
         persistent_data: persistent_data.get_mut(),
         pcr_bank: env.pcr_bank,
-        sha384: env.sha384,
+        sha2_512_384: env.sha2_512_384,
     };
 
     let device_status: [u8; 9] = [

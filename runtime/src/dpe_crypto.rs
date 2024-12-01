@@ -20,14 +20,14 @@ use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
     Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault,
-    KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
+    KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
 use zerocopy::AsBytes;
 use zeroize::Zeroize;
 
 pub struct DpeCrypto<'a> {
-    sha384: &'a mut Sha384,
+    sha2_512_384: &'a mut Sha2_512_384,
     trng: &'a mut Trng,
     ecc384: &'a mut Ecc384,
     hmac384: &'a mut Hmac,
@@ -40,7 +40,7 @@ pub struct DpeCrypto<'a> {
 impl<'a> DpeCrypto<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        sha384: &'a mut Sha384,
+        sha2_512_384: &'a mut Sha2_512_384,
         trng: &'a mut Trng,
         ecc384: &'a mut Ecc384,
         hmac384: &'a mut Hmac,
@@ -50,7 +50,7 @@ impl<'a> DpeCrypto<'a> {
         key_id_rt_priv_key: KeyId,
     ) -> Self {
         Self {
-            sha384,
+            sha2_512_384,
             trng,
             ecc384,
             hmac384,
@@ -71,11 +71,11 @@ impl Drop for DpeCrypto<'_> {
 }
 
 pub struct DpeHasher<'a> {
-    op: Sha384DigestOp<'a>,
+    op: Sha2DigestOp<'a, 384>,
 }
 
 impl<'a> DpeHasher<'a> {
-    pub fn new(op: Sha384DigestOp<'a>) -> Self {
+    pub fn new(op: Sha2DigestOp<'a, 384>) -> Self {
         Self { op }
     }
 }
@@ -121,8 +121,8 @@ impl<'a> Crypto for DpeCrypto<'a> {
             AlgLen::Bit256 => Err(CryptoError::Size),
             AlgLen::Bit384 => {
                 let op = self
-                    .sha384
-                    .digest_init()
+                    .sha2_512_384
+                    .sha384_digest_init()
                     .map_err(|e| CryptoError::HashError(u32::from(e)))?;
                 Ok(DpeHasher::new(op))
             }
