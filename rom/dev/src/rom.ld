@@ -32,7 +32,7 @@ CFI_STATE_ORG      = 0x500003E4;
  * ensure that the sections fit within the true 48k ROM size.
  */
 ROM_RELAXATION_PADDING = 8k;
-ROM_SIZE          = 48K;
+ROM_SIZE          = 96K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
 DATA_SIZE         = 996;
