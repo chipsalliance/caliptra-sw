@@ -12,12 +12,13 @@ Abstract:
 
 --*/
 
-use core::cmp::min;
+use core::cmp::{self, min};
 use core::mem::size_of;
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadataCollection, AuthManifestPreamble, AUTH_MANIFEST_MARKER,
+    AuthManifestImageMetadata, AuthManifestImageMetadataCollection, AuthManifestPreamble,
+    ImageMetadataFlags, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -44,8 +45,9 @@ use dpe::{
 use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
 
-pub const AUTHORIZE_IMAGE: u32 = 0xDEADC0DE;
-pub const DENY_IMAGE_AUTHORIZATION: u32 = 0x21523F21;
+pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
+pub const IMAGE_NOT_AUTHORIZED: u32 = 0x21523F21; // FW ID not found in the image metadata entry collection.
+pub const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image digest mismatched.
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -57,25 +59,35 @@ impl AuthorizeAndStashCmd {
                 Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
             }
 
-            // Check if image hash is present in the image metadata entry collection.
+            // Check if firmware id is present in the image metadata entry collection.
             let persistent_data = drivers.persistent_data.get();
             let auth_manifest_image_metadata_col =
                 &persistent_data.auth_manifest_image_metadata_col;
 
-            let mut auth_result = DENY_IMAGE_AUTHORIZATION;
-            for metadata_entry in auth_manifest_image_metadata_col.image_metadata_list.iter() {
-                if cfi_launder(metadata_entry.digest) == cmd.measurement {
+            let auth_result = if let Some(metadata_entry) =
+                Self::find_metadata_entry(auth_manifest_image_metadata_col, &cmd.metadata)
+            {
+                // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
+                let flags = ImageMetadataFlags(metadata_entry.flags);
+                let ignore_auth_check = flags.ignore_auth_check();
+
+                if flags.ignore_auth_check() == cfi_launder(ignore_auth_check) {
+                    IMAGE_AUTHORIZED
+                } else if cfi_launder(metadata_entry.digest) == cmd.measurement {
                     caliptra_cfi_lib_git::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(cmd.measurement).0,
                     );
-                    auth_result = AUTHORIZE_IMAGE;
-                    break;
+                    IMAGE_AUTHORIZED
+                } else {
+                    IMAGE_HASH_MISMATCH
                 }
-            }
+            } else {
+                IMAGE_NOT_AUTHORIZED
+            };
 
             // Stash the measurement if the image is authorized.
-            if auth_result == AUTHORIZE_IMAGE {
+            if auth_result == IMAGE_AUTHORIZED {
                 let flags: AuthAndStashFlags = cmd.flags.into();
                 if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
                     let dpe_result = StashMeasurementCmd::stash_measurement(
@@ -99,5 +111,47 @@ impl AuthorizeAndStashCmd {
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
+    }
+
+    /// Search for a metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.
+    ///
+    /// This function performs a binary search on the `image_metadata_list` of the provided `AuthManifestImageMetadataCollection`.
+    /// It compares the firmware ID (`fw_id`) of each metadata entry with the provided `cmd_fw_id_bytes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `auth_manifest_image_metadata_col` - A reference to the `AuthManifestImageMetadataCollection` containing the metadata entries.
+    /// * `cmd_fw_id_bytes` - A reference to a `[u8; 4]` array representing the firmware ID from the command to search for.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<&'a AuthManifestImageMetadata>` - Returns `Some(&AuthManifestImageMetadata)` if a matching entry is found,
+    ///   otherwise returns `None`.
+    ///
+    #[inline(never)]
+    fn find_metadata_entry<'a>(
+        auth_manifest_image_metadata_col: &'a AuthManifestImageMetadataCollection,
+        cmd_fw_id_bytes: &[u8; 4],
+    ) -> Option<&'a AuthManifestImageMetadata> {
+        let mut left = 0;
+        let mut right = auth_manifest_image_metadata_col.entry_count as usize;
+
+        while left < right {
+            let mid = (left + right) / 2;
+            // This check is needed to avoid out of bounds panic.
+            if mid >= auth_manifest_image_metadata_col.image_metadata_list.len() {
+                break;
+            }
+            let metadata_entry = &auth_manifest_image_metadata_col.image_metadata_list[mid];
+            let entry_fw_id_bytes = metadata_entry.fw_id.to_le_bytes();
+
+            match cmd_fw_id_bytes.cmp(&entry_fw_id_bytes) {
+                cmp::Ordering::Less => right = mid,
+                cmp::Ordering::Greater => left = mid + 1,
+                cmp::Ordering::Equal => return Some(metadata_entry),
+            }
+        }
+
+        None
     }
 }

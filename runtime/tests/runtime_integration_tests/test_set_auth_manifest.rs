@@ -4,13 +4,13 @@ use crate::{
     common::{assert_error, run_rt_test_lms, RuntimeTestArgs},
     test_authorize_and_stash::IMAGE_DIGEST1,
 };
-use caliptra_api::SocManager;
+use caliptra_api::{mailbox::ImageHashSource, SocManager};
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
-    AuthorizationManifest,
+    AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
@@ -20,7 +20,7 @@ use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::AsBytes;
 
-pub fn test_auth_manifest() -> AuthorizationManifest {
+pub fn create_auth_manifest() -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeys {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
@@ -74,14 +74,24 @@ pub fn test_auth_manifest() -> AuthorizationManifest {
         0xC8, 0x25, 0xA7,
     ];
 
+    let mut flags1 = ImageMetadataFlags(0);
+    flags1.set_ignore_auth_check(false);
+    flags1.set_image_source(ImageHashSource::InRequest as u32);
+
+    let mut flags2 = ImageMetadataFlags(0);
+    flags2.set_ignore_auth_check(true);
+    flags2.set_image_source(ImageHashSource::ShaAcc as u32);
+
     // Generate authorization manifest.
     let image_metadata_list: Vec<AuthManifestImageMetadata> = vec![
         AuthManifestImageMetadata {
-            image_source: 0,
+            fw_id: 1,
+            flags: flags1.0,
             digest: IMAGE_DIGEST1,
         },
         AuthManifestImageMetadata {
-            image_source: 1,
+            fw_id: 2,
+            flags: flags2.0,
             digest: image_digest2,
         },
     ];
@@ -108,7 +118,7 @@ fn test_set_auth_manifest_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let auth_manifest = test_auth_manifest();
+    let auth_manifest = create_auth_manifest();
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
@@ -208,7 +218,7 @@ fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: Calip
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_marker() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.marker = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -218,7 +228,7 @@ fn test_set_auth_manifest_invalid_preamble_marker() {
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_size() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.size -= 1;
     test_manifest_expect_err(
         auth_manifest,
@@ -228,7 +238,7 @@ fn test_set_auth_manifest_invalid_preamble_size() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -238,7 +248,7 @@ fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_lms_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -248,7 +258,7 @@ fn test_set_auth_manifest_invalid_vendor_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_ecc_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -258,7 +268,7 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -268,7 +278,7 @@ fn test_set_auth_manifest_invalid_owner_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_metadata_list_count() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest.image_metadata_col.entry_count = 0;
     test_manifest_expect_err(
         auth_manifest,
@@ -278,7 +288,7 @@ fn test_set_auth_manifest_invalid_metadata_list_count() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
@@ -291,7 +301,7 @@ fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
@@ -304,7 +314,7 @@ fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
@@ -317,7 +327,7 @@ fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
-    let mut auth_manifest = test_auth_manifest();
+    let mut auth_manifest = create_auth_manifest();
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
