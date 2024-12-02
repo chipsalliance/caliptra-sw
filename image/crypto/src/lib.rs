@@ -29,7 +29,7 @@ pub use crate::openssl::*;
 #[cfg(feature = "rustcrypto")]
 pub use crate::rustcrypto::*;
 
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const LMS_TREE_GEN_SUPPORTED_FULL_HEIGHT: u8 = 10u8;
 const SUPPORTED_LMS_Q_VALUE: u32 = 5u32;
@@ -67,7 +67,8 @@ pub fn lms_pub_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPublicKey>
     let key_bytes = std::fs::read(path)
         .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
 
-    ImageLmsPublicKey::read_from(&key_bytes[..]).ok_or(anyhow!("Error parsing LMS public key"))
+    ImageLmsPublicKey::read_from_bytes(&key_bytes[..])
+        .map_err(|_| anyhow!("Error parsing LMS public key"))
 }
 
 /// Read LMS SHA192 private Key from PEM file
@@ -75,7 +76,8 @@ pub fn lms_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPrivKey> 
     let key_bytes = std::fs::read(path)
         .with_context(|| format!("Failed to read private key PEM file {}", path.display()))?;
 
-    ImageLmsPrivKey::read_from(&key_bytes[..]).ok_or(anyhow!("Error parsing LMS priv key"))
+    ImageLmsPrivKey::read_from_bytes(&key_bytes[..])
+        .map_err(|_| anyhow!("Error parsing LMS priv key"))
 }
 
 /// Convert the slice to hardware format
@@ -250,7 +252,7 @@ fn generate_lms_pubkey_helper<T: Sha256Hasher>(
             if cur_node == target_node + 1 {
                 if let Some(sig_val) = sig.as_mut() {
                     sig_val.tree_path[level]
-                        .as_bytes_mut()
+                        .as_mut_bytes()
                         .copy_from_slice(stack_top(&pub_key_stack, stack_idx));
                     level += 1;
                 }
@@ -262,7 +264,7 @@ fn generate_lms_pubkey_helper<T: Sha256Hasher>(
             if cur_node == target_node {
                 if let Some(sig_val) = sig.as_mut() {
                     sig_val.tree_path[level]
-                        .as_bytes_mut()
+                        .as_mut_bytes()
                         .copy_from_slice(&k[..]);
                     level += 1;
                 }
@@ -291,7 +293,7 @@ fn generate_lms_pubkey_helper<T: Sha256Hasher>(
         stack_idx -= 1;
         pub_key_val
             .digest
-            .as_bytes_mut()
+            .as_mut_bytes()
             .clone_from_slice(stack_top(&pub_key_stack, stack_idx));
     }
 }
@@ -313,7 +315,7 @@ fn generate_ots_signature_helper<T: Sha256Hasher>(
         ots_type: ots_alg,
         ..Default::default()
     };
-    sig.nonce.as_bytes_mut().clone_from_slice(rand);
+    sig.nonce.as_mut_bytes().clone_from_slice(rand);
 
     let mut q_arr = [0u8; SHA192_DIGEST_BYTE_SIZE];
     let mut hasher = T::new();
@@ -358,7 +360,7 @@ fn generate_ots_signature_helper<T: Sha256Hasher>(
             tmp.copy_from_slice(&hasher.finish()[..SHA192_DIGEST_BYTE_SIZE]);
         }
         let sig_val = &mut sig.y[i];
-        sig_val.as_bytes_mut().clone_from_slice(tmp);
+        sig_val.as_mut_bytes().clone_from_slice(tmp);
     }
 
     sig
@@ -474,11 +476,11 @@ mod tests {
             #[cfg(feature = "openssl")]
             rand_bytes(&mut priv_key.id).unwrap();
             #[cfg(feature = "openssl")]
-            rand_bytes(priv_key.seed.as_bytes_mut()).unwrap();
+            rand_bytes(priv_key.seed.as_mut_bytes()).unwrap();
             #[cfg(feature = "rustcrypto")]
             OsRng.fill_bytes(&mut priv_key.id);
             #[cfg(feature = "rustcrypto")]
-            OsRng.fill_bytes(priv_key.seed.as_bytes_mut());
+            OsRng.fill_bytes(priv_key.seed.as_mut_bytes());
             #[cfg(feature = "openssl")]
             let pub_key = generate_lms_pubkey::<OpensslHasher>(&priv_key).unwrap();
             #[cfg(feature = "rustcrypto")]
@@ -490,11 +492,11 @@ mod tests {
             #[cfg(feature = "openssl")]
             rand_bytes(&mut priv_key.id).unwrap();
             #[cfg(feature = "openssl")]
-            rand_bytes(priv_key.seed.as_bytes_mut()).unwrap();
+            rand_bytes(priv_key.seed.as_mut_bytes()).unwrap();
             #[cfg(feature = "rustcrypto")]
             OsRng.fill_bytes(&mut priv_key.id);
             #[cfg(feature = "rustcrypto")]
-            OsRng.fill_bytes(priv_key.seed.as_bytes_mut());
+            OsRng.fill_bytes(priv_key.seed.as_mut_bytes());
             #[cfg(feature = "openssl")]
             let pub_key = generate_lms_pubkey::<OpensslHasher>(&priv_key).unwrap();
             #[cfg(feature = "rustcrypto")]

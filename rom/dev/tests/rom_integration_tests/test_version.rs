@@ -6,7 +6,7 @@ use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{Fuses, HwModel};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
 
@@ -28,7 +28,7 @@ fn test_version() {
         .unwrap()
         .unwrap();
 
-    let version_resp = FipsVersionResp::read_from(response.as_bytes()).unwrap();
+    let version_resp = FipsVersionResp::ref_from_bytes(response.as_bytes()).unwrap();
 
     // Verify response checksum
     assert!(caliptra_common::checksum::verify_checksum(

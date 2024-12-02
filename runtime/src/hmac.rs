@@ -20,7 +20,7 @@ use caliptra_drivers::{
     KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_error::CaliptraResult;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 use crate::Drivers;

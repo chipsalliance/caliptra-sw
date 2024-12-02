@@ -8,7 +8,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::FipsVersionCmd;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 const HW_REV_ID: u32 = if cfg!(feature = "hw-1.0") { 0x1 } else { 0x11 };
 
@@ -40,7 +40,7 @@ fn test_fips_version() {
     let fips_version_bytes: &[u8] = fips_version_resp.as_bytes();
 
     // Check values against expected.
-    let fips_version = FipsVersionResp::read_from(fips_version_bytes).unwrap();
+    let fips_version = FipsVersionResp::read_from_bytes(fips_version_bytes).unwrap();
     assert!(caliptra_common::checksum::verify_checksum(
         fips_version.hdr.chksum,
         0x0,
@@ -86,7 +86,7 @@ fn test_fips_shutdown() {
         .unwrap()
         .unwrap();
 
-    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+    let resp = MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
     // Verify checksum and FIPS status
     assert!(caliptra_common::checksum::verify_checksum(
         resp.chksum,

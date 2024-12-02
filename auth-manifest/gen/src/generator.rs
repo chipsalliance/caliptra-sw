@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_image_gen::ImageGeneratorCrypto;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::*;
 use core::mem::size_of;

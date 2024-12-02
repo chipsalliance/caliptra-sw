@@ -8,7 +8,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
 use openssl::x509::X509Req;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
@@ -37,7 +37,7 @@ fn test_get_csr() {
         _ => {
             let response = result.unwrap().unwrap();
 
-            let get_idv_csr_resp = GetIdevCsrResp::read_from(response.as_bytes()).unwrap();
+            let get_idv_csr_resp = GetIdevCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
 
             assert_ne!(IdevIdCsr::UNPROVISIONED_CSR, get_idv_csr_resp.data_size);
             assert_ne!(0, get_idv_csr_resp.data_size);

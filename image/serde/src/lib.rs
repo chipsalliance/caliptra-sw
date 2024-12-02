@@ -13,7 +13,7 @@ Abstract:
 --*/
 use caliptra_image_types::*;
 use std::io::Write;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Image Bundle Writer
 pub struct ImageBundleWriter<W: Write> {

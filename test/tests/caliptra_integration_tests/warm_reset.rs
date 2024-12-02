@@ -10,7 +10,7 @@ use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
 use caliptra_test::swap_word_bytes_inplace;
 use openssl::sha::sha384;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
     let mut result: [u32; 12] = zerocopy::transmute!(*buf);

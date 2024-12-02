@@ -27,7 +27,7 @@ use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use ureg::RealMmioMut;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));

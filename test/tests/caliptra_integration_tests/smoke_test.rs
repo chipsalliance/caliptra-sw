@@ -23,7 +23,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 // Support testing against older versions of ROM in CI
 // More constants may need to be added here as the ROMs further diverge

@@ -15,7 +15,7 @@ use dpe::{
 use x509_parser::{
     certificate::X509Certificate, extensions::GeneralName, oid_registry::asn1_rs::FromDer,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
@@ -99,9 +99,10 @@ fn test_dmtf_other_name_extension_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp = CertifyKeyExtendedResp::read_from(resp.as_slice()).unwrap();
+    let certify_key_extended_resp =
+        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::read_from(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
 
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
@@ -151,9 +152,10 @@ fn test_dmtf_other_name_extension_not_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp = CertifyKeyExtendedResp::read_from(resp.as_slice()).unwrap();
+    let certify_key_extended_resp =
+        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::read_from(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
             .unwrap();
@@ -194,9 +196,10 @@ fn test_dmtf_other_name_extension_not_present() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let certify_key_extended_resp = CertifyKeyExtendedResp::read_from(resp.as_slice()).unwrap();
+    let certify_key_extended_resp =
+        CertifyKeyExtendedResp::read_from_bytes(resp.as_slice()).unwrap();
     let certify_key_resp =
-        CertifyKeyResp::read_from(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
+        CertifyKeyResp::read_from_bytes(&certify_key_extended_resp.certify_key_resp[..]).unwrap();
     let (_, cert) =
         X509Certificate::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize])
             .unwrap();

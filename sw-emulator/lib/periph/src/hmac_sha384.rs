@@ -22,7 +22,7 @@ use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 register_bitfields! [
     u32,
@@ -484,7 +484,7 @@ impl HmacSha384 {
 
     fn op_complete(&mut self) {
         // Retrieve the tag
-        self.hmac.tag(self.tag.as_bytes_mut());
+        self.hmac.tag(self.tag.as_mut_bytes());
         // Don't reveal the tag to the CPU if the inputs came from the
         // key-vault.
         self.hide_tag_from_cpu = self.block_from_kv || self.key_from_kv;
@@ -533,7 +533,7 @@ impl HmacSha384 {
         if let Some(key) = &key {
             self.key_from_kv = true;
             self.key
-                .as_bytes_mut()
+                .as_mut_bytes()
                 .copy_from_slice(&key[..HMAC_KEY_SIZE]);
         }
 
@@ -598,7 +598,7 @@ impl HmacSha384 {
         block_arr[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
 
         block_arr.to_big_endian();
-        self.block.as_bytes_mut().copy_from_slice(&block_arr);
+        self.block.as_mut_bytes().copy_from_slice(&block_arr);
     }
 
     fn tag_write_complete(&mut self) {

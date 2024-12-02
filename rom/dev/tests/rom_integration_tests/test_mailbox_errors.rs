@@ -4,7 +4,7 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 

@@ -15,8 +15,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{AUTHORIZE_IMAGE, DENY_IMAGE_AUTHORIZATION};
 use sha2::{Digest, Sha384};
-use zerocopy::AsBytes;
-use zerocopy::FromBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub const IMAGE_DIGEST1: [u8; 48] = [
     0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3, 0x6A,
@@ -49,7 +48,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         authorize_and_stash_resp.auth_req_result,
         DENY_IMAGE_AUTHORIZATION
@@ -131,7 +130,7 @@ fn test_authorize_and_stash_cmd_succes() {
         .unwrap()
         .expect("We should have received a response");
 
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+    let authorize_and_stash_resp = AuthorizeAndStashResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, AUTHORIZE_IMAGE);
 
     // create a new fw image with the runtime replaced by the mbox responder

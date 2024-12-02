@@ -43,7 +43,7 @@ use dpe::{
     response::DpeErrorCode,
 };
 use memoffset::offset_of;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
@@ -373,7 +373,7 @@ impl SetAuthManifestCmd {
             .get(..col_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
+        image_metadata_col.as_mut_bytes()[..col_size].copy_from_slice(buf);
 
         if image_metadata_col.entry_count == 0
             || image_metadata_col.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
@@ -436,8 +436,8 @@ impl SetAuthManifestCmd {
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {
             let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
-            AuthManifestPreamble::read_from(manifest_buf.get(..preamble_size).ok_or(err)?)
-                .ok_or(err)?
+            let bytes = manifest_buf.get(..preamble_size).ok_or(err)?;
+            AuthManifestPreamble::ref_from_bytes(bytes).map_err(|_| err)?
         };
 
         // Check if the preamble has the required marker.
@@ -453,7 +453,7 @@ impl SetAuthManifestCmd {
         let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
@@ -463,7 +463,7 @@ impl SetAuthManifestCmd {
 
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha384,
             &mut drivers.ecc384,
@@ -475,7 +475,7 @@ impl SetAuthManifestCmd {
             manifest_buf
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha384,
             &mut drivers.ecc384,

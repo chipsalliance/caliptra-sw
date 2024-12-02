@@ -13,7 +13,7 @@ Abstract:
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::{CaliptraError, CaliptraResult, FuseLogArray};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Log Fuse data
 ///
@@ -42,7 +42,7 @@ pub fn log_fuse_data(
         entry_id: entry_id as u32,
         ..Default::default()
     };
-    let Some(data_dest) = log_entry.log_data.as_bytes_mut().get_mut(..data.len()) else {
+    let Some(data_dest) = log_entry.log_data.as_mut_bytes().get_mut(..data.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH);
     };
     data_dest.copy_from_slice(data);

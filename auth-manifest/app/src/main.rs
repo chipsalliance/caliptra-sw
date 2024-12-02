@@ -23,7 +23,7 @@ use clap::ArgMatches;
 use clap::{arg, value_parser, Command};
 use std::io::Write;
 use std::path::PathBuf;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 mod config;
 
