@@ -18,8 +18,8 @@ use core::mem::size_of;
 use crate::verify;
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadataCollection, AuthManifestPreamble,
-    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
+    AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
@@ -44,17 +44,18 @@ use dpe::{
 };
 use memoffset::offset_of;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
     fn sha384_digest(
         sha384: &mut Sha384,
-        manifest: &[u8],
+        buf: &[u8],
         offset: u32,
         len: u32,
     ) -> CaliptraResult<ImageDigest> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        let data = manifest
+        let data = buf
             .get(offset as usize..)
             .ok_or(err)?
             .get(..len as usize)
@@ -355,7 +356,7 @@ impl SetAuthManifestCmd {
     fn process_image_metadata_col(
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
-        image_metadata_col: &mut AuthManifestImageMetadataCollection,
+        metadata_persistent: &mut AuthManifestImageMetadataCollection,
         sha384: &mut Sha384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -365,23 +366,36 @@ impl SetAuthManifestCmd {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
         }
 
-        let col_size = min(
+        let metadata_size = min(
             cmd_buf.len(),
             size_of::<AuthManifestImageMetadataCollection>(),
         );
+
+        // Resize the buffer to the metadata size.
         let buf = cmd_buf
-            .get(..col_size)
+            .get(..metadata_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        image_metadata_col.as_bytes_mut()[..col_size].copy_from_slice(buf);
+        // Typecast the mailbox buffer to the image metadata collection.
+        let metadata_mailbox =
+            unsafe { &mut *(buf.as_ptr() as *mut AuthManifestImageMetadataCollection) };
 
-        if image_metadata_col.entry_count == 0
-            || image_metadata_col.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
+        if metadata_mailbox.entry_count == 0
+            || metadata_mailbox.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
         }
 
-        let digest_metadata_col = Self::sha384_digest(sha384, buf, 0, col_size as u32)?;
+        // Check if the buffer contains the entry count and all the image metadata entries specified by the entry count.
+        if buf.len()
+            < (size_of::<u32>()
+                + metadata_mailbox.entry_count as usize * size_of::<AuthManifestImageMetadata>())
+        {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
+        }
+
+        // Calculate the digest of the image metadata collection.
+        let digest_metadata_col = Self::sha384_digest(sha384, buf, 0, metadata_size as u32)?;
 
         Self::verify_vendor_image_metadata_col(
             auth_manifest_preamble,
@@ -401,6 +415,45 @@ impl SetAuthManifestCmd {
             soc_ifc,
         )?;
 
+        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
+        let slice =
+            &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
+
+        Self::sort_and_check_duplicate_fwid(slice)?;
+
+        // Clear the previous image metadata collection.
+        metadata_persistent.zeroize();
+
+        // Copy the image metadata collection to the persistent data.
+        metadata_persistent.as_bytes_mut()[..buf.len()].copy_from_slice(buf);
+
+        Ok(())
+    }
+
+    fn sort_and_check_duplicate_fwid(
+        slice: &mut [AuthManifestImageMetadata],
+    ) -> CaliptraResult<()> {
+        for i in 1..slice.len() {
+            let mut j = i;
+            while j > 0 {
+                if j >= slice.len() {
+                    break;
+                }
+
+                match slice[j - 1].fw_id.cmp(&slice[j].fw_id) {
+                    core::cmp::Ordering::Greater => {
+                        slice.swap(j - 1, j);
+                        j -= 1;
+                    }
+                    core::cmp::Ordering::Equal => {
+                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID)?;
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
