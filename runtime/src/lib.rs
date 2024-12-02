@@ -47,7 +47,7 @@ use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
-pub use authorize_and_stash::{AUTHORIZE_IMAGE, DENY_IMAGE_AUTHORIZATION};
+pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
