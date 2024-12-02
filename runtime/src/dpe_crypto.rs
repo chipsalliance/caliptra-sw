@@ -18,8 +18,8 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
-    cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
-    Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault,
+    cprintln, hmac_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
+    Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault,
     KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
@@ -30,7 +30,7 @@ pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
     trng: &'a mut Trng,
     ecc384: &'a mut Ecc384,
-    hmac384: &'a mut Hmac,
+    hmac: &'a mut Hmac,
     key_vault: &'a mut KeyVault,
     rt_pub_key: &'a mut Ecc384PubKey,
     key_id_rt_cdi: KeyId,
@@ -43,7 +43,7 @@ impl<'a> DpeCrypto<'a> {
         sha384: &'a mut Sha384,
         trng: &'a mut Trng,
         ecc384: &'a mut Ecc384,
-        hmac384: &'a mut Hmac,
+        hmac: &'a mut Hmac,
         key_vault: &'a mut KeyVault,
         rt_pub_key: &'a mut Ecc384PubKey,
         key_id_rt_cdi: KeyId,
@@ -53,7 +53,7 @@ impl<'a> DpeCrypto<'a> {
             sha384,
             trng,
             ecc384,
-            hmac384,
+            hmac,
             key_vault,
             rt_pub_key,
             key_id_rt_cdi,
@@ -144,8 +144,8 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 hasher.update(info)?;
                 let context = hasher.finish()?;
 
-                hmac384_kdf(
-                    self.hmac384,
+                hmac_kdf(
+                    self.hmac,
                     KeyReadArgs::new(self.key_id_rt_cdi).into(),
                     b"derive_cdi",
                     Some(context.bytes()),
@@ -157,6 +157,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
                             .set_ecc_key_gen_seed_en(),
                     )
                     .into(),
+                    HmacMode::Hmac384,
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 Ok(KEY_ID_DPE_CDI)
@@ -175,14 +176,15 @@ impl<'a> Crypto for DpeCrypto<'a> {
         match algs {
             AlgLen::Bit256 => Err(CryptoError::Size),
             AlgLen::Bit384 => {
-                hmac384_kdf(
-                    self.hmac384,
+                hmac_kdf(
+                    self.hmac,
                     KeyReadArgs::new(*cdi).into(),
                     label,
                     Some(info),
                     self.trng,
                     KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_key_gen_seed_en())
                         .into(),
+                    HmacMode::Hmac384,
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
@@ -329,20 +331,21 @@ impl<'a> Crypto for DpeCrypto<'a> {
 
                 // derive an hmac key
                 let mut hmac_key = Array4x12::default();
-                hmac384_kdf(
-                    self.hmac384,
+                hmac_kdf(
+                    self.hmac,
                     HmacKey::Array4x12(&Array4x12::from(hmac_ikm)),
                     &[],
                     None,
                     self.trng,
                     HmacTag::Array4x12(&mut hmac_key),
+                    HmacMode::Hmac384,
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 hmac_ikm.zeroize();
 
                 // sign digest with HMAC key
                 let mut tag = Array4x12::default();
-                self.hmac384
+                self.hmac
                     .hmac(
                         &HmacKey::Array4x12(&hmac_key),
                         &HmacData::Slice(digest.bytes()),

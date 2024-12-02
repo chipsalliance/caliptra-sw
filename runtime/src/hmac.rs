@@ -16,7 +16,7 @@ use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384PrivKeyOut, Ecc384PubKey, HmacData, HmacKey, HmacMode, HmacTag,
+    hmac_kdf, Array4x12, Ecc384PrivKeyOut, Ecc384PubKey, HmacData, HmacKey, HmacMode, HmacTag,
     KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_error::CaliptraResult;
@@ -44,8 +44,8 @@ fn ecc384_key_gen(
     label: &[u8],
     priv_key: KeyId,
 ) -> CaliptraResult<Ecc384KeyPair> {
-    hmac384_kdf(
-        &mut drivers.hmac384,
+    hmac_kdf(
+        &mut drivers.hmac,
         KeyReadArgs::new(input).into(),
         label,
         None,
@@ -57,6 +57,7 @@ fn ecc384_key_gen(
                 .set_ecc_key_gen_seed_en(),
         )
         .into(),
+        HmacMode::Hmac384,
     )?;
 
     let pub_key = drivers.ecc384.key_pair(
@@ -92,7 +93,7 @@ impl Hmac {
     /// * `output` - KeyId which the output hash should be written to
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac384_hash(drivers: &mut Drivers, input: KeyId, output: KeyId) -> CaliptraResult<()> {
-        drivers.hmac384.hmac(
+        drivers.hmac.hmac(
             &KeyReadArgs::new(input).into(),
             &HmacData::Slice(&[]),
             &mut drivers.trng,
@@ -149,7 +150,7 @@ impl Hmac {
             hasher.finalize(&mut pubkey_digest)?;
 
             let mut hmac_output = Array4x12::default();
-            drivers.hmac384.hmac(
+            drivers.hmac.hmac(
                 &HmacKey::Array4x12(&pubkey_digest),
                 &HmacData::Slice(data),
                 &mut drivers.trng,

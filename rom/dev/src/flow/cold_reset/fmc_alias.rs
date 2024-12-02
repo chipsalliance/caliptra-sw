@@ -31,7 +31,9 @@ use caliptra_common::keyids::{
 };
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
+use caliptra_drivers::{
+    okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle,
+};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zeroize::Zeroize;
 
@@ -48,6 +50,11 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
         cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
+        cprintln!(
+            "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
+            KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u8
+        );
         cprintln!(
             "[afmc] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
             KEY_ID_FMC_ECDSA_PRIV_KEY as u8,
@@ -119,7 +126,14 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        let result = Crypto::hmac384_kdf(env, cdi, b"alias_fmc_cdi", Some(&measurements), cdi);
+        let result = Crypto::hmac_kdf(
+            env,
+            cdi,
+            b"alias_fmc_cdi",
+            Some(&measurements),
+            KEY_ID_ROM_FMC_CDI,
+            HmacMode::Hmac512,
+        );
         measurements.zeroize();
         result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());

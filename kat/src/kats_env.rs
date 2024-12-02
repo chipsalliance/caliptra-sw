@@ -17,8 +17,8 @@ pub struct KatsEnv<'a> {
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
 
-    /// Hmac384 Engine
-    pub hmac384: &'a mut Hmac,
+    /// Hmac-512/384 Engine
+    pub hmac: &'a mut Hmac,
 
     /// Cryptographically Secure Random Number Generator
     pub trng: &'a mut Trng,

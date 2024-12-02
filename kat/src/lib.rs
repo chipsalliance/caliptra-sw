@@ -59,7 +59,7 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;
 
     cprintln!("[kat] HMAC-384Kdf");
-    Hmac384KdfKat::default().execute(env.hmac384, env.trng)?;
+    Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
 
     cprintln!("[kat] LMS");
     LmsKat::default().execute(env.sha256, env.lms)?;

@@ -44,8 +44,8 @@ pub struct RomEnv {
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
-    /// Hmac384 Engine
-    pub hmac384: Hmac,
+    /// Hmac Engine
+    pub hmac: Hmac,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
@@ -96,7 +96,7 @@ impl RomEnv {
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac::new(HmacReg::new()),
+            hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
