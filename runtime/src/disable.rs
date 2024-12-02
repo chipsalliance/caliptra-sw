@@ -55,7 +55,7 @@ impl DisableAttestationCmd {
     fn zero_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         hmac_kdf(
-            &mut drivers.hmac384,
+            &mut drivers.hmac,
             HmacKey::Array4x12(&Array4x12::default()),
             b"zero_rt_cdi",
             None,

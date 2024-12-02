@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    hmac384_kdf.rs
+    hmac_kdf.rs
 
 Abstract:
 

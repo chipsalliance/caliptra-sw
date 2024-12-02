@@ -641,12 +641,6 @@ impl HmacSha {
     fn tag_write_complete(&mut self) {
         let key_id = self.tag_write_ctrl.reg.read(TagWriteControl::KEY_ID);
 
-        // let temp = &self.tag.as_bytes()[..self.key_len() * 4];
-        // println!("EMU: HMAC Tag: ");
-        // for i in 0..temp.len() {
-        //     print!("{:x}, ", temp[i]);
-        // }
-        // println!();
         // Store the tag in the key-vault.
         // Tag is in big-endian format and is stored in the same format.
         let tag_write_result = match self

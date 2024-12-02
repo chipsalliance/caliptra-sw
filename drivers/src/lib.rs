@@ -32,7 +32,7 @@ mod fuse_bank;
 pub mod fuse_log;
 pub mod hand_off;
 mod hmac;
-mod hmac384_kdf;
+mod hmac_kdf;
 mod key_vault;
 mod kv_access;
 mod lms;
@@ -77,7 +77,7 @@ pub use fuse_bank::{
 };
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
-pub use hmac384_kdf::hmac_kdf;
+pub use hmac_kdf::hmac_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{

@@ -81,8 +81,8 @@ pub struct Drivers {
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
-    /// Hmac384 Engine
-    pub hmac384: Hmac,
+    /// Hmac-512/384 Engine
+    pub hmac: Hmac,
 
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
@@ -133,7 +133,7 @@ impl Drivers {
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac::new(HmacReg::new()),
+            hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             sha1: Sha1::default(),
             lms: Lms::default(),
@@ -384,7 +384,7 @@ impl Drivers {
             &mut drivers.sha384,
             &mut drivers.trng,
             &mut drivers.ecc384,
-            &mut drivers.hmac384,
+            &mut drivers.hmac,
             &mut drivers.key_vault,
             &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
