@@ -1059,8 +1059,8 @@ impl AuthAndStashFlags {
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct AuthorizeAndStashReq {
     pub hdr: MailboxReqHeader,
-    pub metadata: [u8; 4],
-    pub measurement: [u8; 48],
+    pub metadata: [u8; 4],     // Firmware Id.
+    pub measurement: [u8; 48], // Image digest.
     pub context: [u8; 48],
     pub svn: u32,
     pub flags: u32,
