@@ -44,7 +44,7 @@ pub struct ImageVerificationExeInfo {
     pub entry_point: u32,
 
     /// Digest of the image
-    pub digest: ImageDigest,
+    pub digest: ImageDigest384,
 }
 
 /// Information To Be Logged For The Verified Image
@@ -56,11 +56,11 @@ pub struct ImageVerificationLogInfo {
     /// Vendor ECC Public Key Revocation Fuse
     pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
 
-    // LMS Vendor Public Key Index
-    pub vendor_lms_pub_key_idx: u32,
+    // PQC (LMS or MLDSA) Vendor Public Key Index
+    pub vendor_pqc_pub_key_idx: u32,
 
-    /// Vendor LMS Public Key Revocation Fuse
-    pub fuse_vendor_lms_pub_key_revocation: u32,
+    /// Vendor PQC (LMS or MLDSA) Public Key Revocation Fuse
+    pub fuse_vendor_pqc_pub_key_revocation: u32,
 
     /// Firmware's SVN logging information
     pub fw_log_info: FirmwareSvnLogInfo,
@@ -72,14 +72,14 @@ pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Vendor LMS public key index
-    pub vendor_lms_pub_key_idx: u32,
+    /// Vendor PQC (LMS or MLDSA) public key index
+    pub vendor_pqc_pub_key_idx: u32,
 
     /// PQC Verification Configuration
     pub pqc_verify_config: RomPqcVerifyConfig,
 
     /// Digest of owner public keys that verified the image
-    pub owner_pub_keys_digest: ImageDigest,
+    pub owner_pub_keys_digest: ImageDigest384,
 
     /// Whether `owner_pub_keys_digest` was in fuses
     pub owner_pub_keys_digest_in_fuses: bool,
@@ -103,12 +103,15 @@ pub struct ImageVerificationInfo {
 /// Image Verification Environment
 pub trait ImageVerificationEnv {
     /// Calculate SHA-384 Digest
-    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
+    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384>;
+
+    /// Calculate SHA-512 Digest
+    fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512>;
 
     /// Perform ECC-384 Verification
     fn ecc384_verify(
         &mut self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>>;
@@ -116,13 +119,20 @@ pub trait ImageVerificationEnv {
     /// Perform LMS Verification
     fn lms_verify(
         &mut self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>>;
 
+    fn mldsa87_verify(
+        &mut self,
+        digest: &ImageDigest512,
+        pub_key: &ImageMldsaPubKey,
+        sig: &ImageMldsaSignature,
+    ) -> CaliptraResult<Mldsa87Result>;
+
     /// Get Vendor Public Key Digest from fuses
-    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest;
+    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest384;
 
     /// Get Vendor ECC Public Key Revocation list
     fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
@@ -131,7 +141,7 @@ pub trait ImageVerificationEnv {
     fn vendor_lms_pub_key_revocation(&self) -> u32;
 
     /// Get Owner Public Key Digest from fuses
-    fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest384;
 
     /// Get Anti-Rollback disable setting
     fn anti_rollback_disable(&self) -> bool;
@@ -142,14 +152,14 @@ pub trait ImageVerificationEnv {
     // Get the vendor ECC key index saved on cold boot in data vault
     fn vendor_ecc_pub_key_idx_dv(&self) -> u32;
 
-    // Get the vendor LMS key index saved on cold boot in data vault
-    fn vendor_lms_pub_key_idx_dv(&self) -> u32;
+    // Get the vendor PQC (LMS or MLDSA) key index saved on cold boot in data vault
+    fn vendor_pqc_pub_key_idx_dv(&self) -> u32;
 
     // Get the owner key digest saved on cold boot in data vault
-    fn owner_pub_key_digest_dv(&self) -> ImageDigest;
+    fn owner_pub_key_digest_dv(&self) -> ImageDigest384;
 
     // Save the fmc digest in the data vault on cold boot
-    fn get_fmc_digest_dv(&self) -> ImageDigest;
+    fn get_fmc_digest_dv(&self) -> ImageDigest384;
 
     // Get Runtime fuse SVN
     fn runtime_fuse_svn(&self) -> u32;

@@ -111,6 +111,7 @@ impl FirmwareProcessor {
             sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
+            mldsa87: &mut env.mldsa87,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
@@ -382,6 +383,7 @@ impl FirmwareProcessor {
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
+            mldsa87: venv.mldsa87,
             image: venv.image,
         };
 
@@ -395,8 +397,10 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, with SVN {} and effective fuse SVN {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
+            manifest.pqc_key_type,
+            info.vendor_pqc_pub_key_idx,
             info.fw_svn,
             info.effective_fuse_svn,
         );
@@ -476,18 +480,18 @@ impl FirmwareProcessor {
             log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyIndex
+        // Log VendorPqcPubKeyIndex
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyIndex,
-            log_info.vendor_lms_pub_key_idx.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyIndex,
+            log_info.vendor_pqc_pub_key_idx.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyRevocation
+        // Log VendorPqcPubKeyRevocation
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyRevocation,
-            log_info.fuse_vendor_lms_pub_key_revocation.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyRevocation,
+            log_info.fuse_vendor_pqc_pub_key_revocation.as_bytes(),
         )?;
 
         Ok(())
@@ -565,8 +569,8 @@ impl FirmwareProcessor {
         // If LMS is not enabled, write the max value to the data vault
         // to indicate the index is invalid.
         data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::LmsVendorPubKeyIndex,
-            info.vendor_lms_pub_key_idx,
+            ColdResetEntry4::PqcVendorPubKeyIndex,
+            info.vendor_pqc_pub_key_idx,
         );
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());

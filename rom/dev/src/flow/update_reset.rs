@@ -70,6 +70,7 @@ impl UpdateResetFlow {
                 sha2_512_384: &mut env.sha2_512_384,
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
+                mldsa87: &mut env.mldsa87,
                 data_vault: &mut env.data_vault,
                 pcr_bank: &mut env.pcr_bank,
                 image: recv_txn.raw_mailbox_contents(),
@@ -151,6 +152,7 @@ impl UpdateResetFlow {
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
+            mldsa87: env.mldsa87,
             image: env.image,
         };
 
