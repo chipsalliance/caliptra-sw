@@ -322,8 +322,8 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, (EccVendorPubKeyIndex as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.ecc_vendor_pk_index().as_bytes(), false);
 
-    send_to_mailbox(mbox, (LmsVendorPubKeyIndex as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.lms_vendor_pk_index().as_bytes(), false);
+    send_to_mailbox(mbox, (PqcVendorPubKeyIndex as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.pqc_vendor_pk_index().as_bytes(), false);
 
     mbox.dlen()
         .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
