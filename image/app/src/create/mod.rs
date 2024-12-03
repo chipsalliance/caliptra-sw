@@ -74,9 +74,9 @@ fn check_date(from_date: &str, to_date: &str) -> anyhow::Result<bool> {
 
 /// Run the command
 pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
-    let image_type: &u32 = args
-        .get_one::<u32>("image-type")
-        .with_context(|| "image-type arg not specified")?;
+    let pqc_key_type: &u32 = args
+        .get_one::<u32>("pqc-key-type")
+        .with_context(|| "pqc-key-type arg not specified")?;
 
     let config_path: &PathBuf = args
         .get_one::<PathBuf>("key-config")
@@ -118,9 +118,9 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("ecc-pk-idx")
         .with_context(|| "ecc-pk-idx arg not specified")?;
 
-    let lms_key_idx: &u32 = args
-        .get_one::<u32>("lms-pk-idx")
-        .with_context(|| "lms-pk-idx arg not specified")?;
+    let pqc_key_idx: &u32 = args
+        .get_one::<u32>("pqc-pk-idx")
+        .with_context(|| "pqc-pk-idx arg not specified")?;
 
     let out_path: &PathBuf = args
         .get_one::<PathBuf>("out")
@@ -174,23 +174,32 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .parent()
         .with_context(|| "Invalid parent path")?;
 
+    let pqc_key_type = if *pqc_key_type == 1 {
+        FwVerificationPqcKeyType::Lms
+    } else {
+        FwVerificationPqcKeyType::Mldsa
+    };
+
     let gen_config = ImageGeneratorConfig::<ElfExecutable> {
+        fw_image_type: pqc_key_type,
         vendor_config: vendor_config(
+            pqc_key_type,
             config_dir,
             &config.vendor,
             *ecc_key_idx,
-            *lms_key_idx,
+            *pqc_key_idx,
             mfg_from_date,
             mfg_to_date,
         )?,
-        owner_config: owner_config(config_dir, &config.owner, own_from_date, own_to_date)?,
+        owner_config: owner_config(
+            pqc_key_type,
+            config_dir,
+            &config.owner,
+            own_from_date,
+            own_to_date,
+        )?,
         fmc,
         runtime,
-        fw_image_type: if *image_type == 1 {
-            FwImageType::EccLms
-        } else {
-            FwImageType::EccMldsa
-        },
     };
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -211,10 +220,11 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
 
 /// Generate Vendor Config
 fn vendor_config(
+    pqc_key_type: FwVerificationPqcKeyType,
     path: &Path,
     config: &VendorKeyConfig,
     ecc_key_idx: u32,
-    lms_key_idx: u32,
+    pqc_key_idx: u32,
     from_date: [u8; 15],
     to_date: [u8; 15],
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
@@ -222,30 +232,20 @@ fn vendor_config(
 
     let ecc_key_count = config.ecc_pub_keys.len() as u32;
     let lms_key_count = config.lms_pub_keys.len() as u32;
+    let mldsa_key_count = config.mldsa_pub_keys.len() as u32;
 
     if ecc_key_count > VENDOR_ECC_MAX_KEY_COUNT {
         return Err(anyhow!("Invalid ECC Public Key Count"));
     }
-    if lms_key_count > VENDOR_LMS_MAX_KEY_COUNT {
-        return Err(anyhow!("Invalid LMS Public Key Count"));
-    }
 
     if ecc_key_idx >= ecc_key_count {
         return Err(anyhow!("Invalid ECC Public Key Index"));
-    }
-    if lms_key_idx >= lms_key_count {
-        return Err(anyhow!("Invalid LMS Public Key Index"));
     }
 
     let ecc_pub_keys = &config.ecc_pub_keys;
     for (i, pem_file) in ecc_pub_keys.iter().enumerate().take(ecc_key_count as usize) {
         let pub_key_path = path.join(pem_file);
         gen_config.pub_keys.ecc_pub_keys[i] = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
-    }
-    let lms_pub_keys = &config.lms_pub_keys;
-    for (i, pem_file) in lms_pub_keys.iter().enumerate().take(lms_key_count as usize) {
-        let pub_key_path = path.join(pem_file);
-        gen_config.pub_keys.lms_pub_keys[i] = lms_pub_key_from_pem(&pub_key_path)?;
     }
 
     let mut priv_keys = ImageVendorPrivKeys::default();
@@ -261,30 +261,77 @@ fn vendor_config(
         gen_config.priv_keys = Some(priv_keys);
     }
 
-    if let Some(lms_priv_keys) = &config.lms_priv_keys {
-        for (i, pem_file) in lms_priv_keys
+    if pqc_key_type == FwVerificationPqcKeyType::Lms {
+        if lms_key_count > VENDOR_LMS_MAX_KEY_COUNT {
+            return Err(anyhow!("Invalid LMS Public Key Count"));
+        }
+
+        if pqc_key_idx >= lms_key_count {
+            return Err(anyhow!("Invalid LMS Public Key Index"));
+        }
+
+        let lms_pub_keys = &config.lms_pub_keys;
+        for (i, pem_file) in lms_pub_keys.iter().enumerate().take(lms_key_count as usize) {
+            let pub_key_path = path.join(pem_file);
+            gen_config.pub_keys.lms_pub_keys[i] = lms_pub_key_from_pem(&pub_key_path)?;
+        }
+
+        if let Some(lms_priv_keys) = &config.lms_priv_keys {
+            for (i, pem_file) in lms_priv_keys
+                .iter()
+                .enumerate()
+                .take(lms_key_count as usize)
+            {
+                let priv_key_path = path.join(pem_file);
+                priv_keys.lms_priv_keys[i] = lms_priv_key_from_pem(&priv_key_path)?;
+            }
+            gen_config.priv_keys = Some(priv_keys);
+        }
+    } else {
+        if mldsa_key_count > VENDOR_MLDSA_MAX_KEY_COUNT {
+            return Err(anyhow!("Invalid MLDSA Public Key Count"));
+        }
+        if pqc_key_idx >= mldsa_key_count {
+            return Err(anyhow!("Invalid MLDSA Public Key Index"));
+        }
+
+        let mldsa_pub_keys = &config.mldsa_pub_keys;
+        for (i, file) in mldsa_pub_keys
             .iter()
             .enumerate()
-            .take(lms_key_count as usize)
+            .take(mldsa_key_count as usize)
         {
-            let priv_key_path = path.join(pem_file);
-            priv_keys.lms_priv_keys[i] = lms_priv_key_from_pem(&priv_key_path)?;
+            let pub_key_path = path.join(file);
+            gen_config.pub_keys.mldsa_pub_keys[i] = Crypto::mldsa_pub_key_from_file(&pub_key_path)?;
         }
-        gen_config.priv_keys = Some(priv_keys);
+
+        if let Some(mldsa_priv_keys) = &config.mldsa_priv_keys {
+            for (i, file) in mldsa_priv_keys
+                .iter()
+                .enumerate()
+                .take(mldsa_key_count as usize)
+            {
+                let priv_key_path = path.join(file);
+                priv_keys.mldsa_priv_keys[i] = Crypto::mldsa_priv_key_from_file(&priv_key_path)?;
+            }
+            gen_config.priv_keys = Some(priv_keys);
+        }
     }
 
     gen_config.ecc_key_idx = ecc_key_idx;
-    gen_config.lms_key_idx = lms_key_idx;
+    gen_config.pqc_key_idx = pqc_key_idx;
     gen_config.not_before = from_date;
     gen_config.not_after = to_date;
     gen_config.ecc_key_count = ecc_key_count;
     gen_config.lms_key_count = lms_key_count;
+    gen_config.mldsa_key_count = mldsa_key_count;
 
     Ok(gen_config)
 }
 
 /// Generate owner config
 fn owner_config(
+    pqc_key_type: FwVerificationPqcKeyType,
     path: &Path,
     config: &Option<OwnerKeyConfig>,
     from_date: [u8; 15],
@@ -292,15 +339,10 @@ fn owner_config(
 ) -> anyhow::Result<Option<ImageGeneratorOwnerConfig>> {
     if let Some(config) = config {
         let mut gen_config = ImageGeneratorOwnerConfig::default();
-        let pem_file = &config.ecc_pub_key;
 
+        let pem_file = &config.ecc_pub_key;
         let pub_key_path = path.join(pem_file);
         gen_config.pub_keys.ecc_pub_key = Crypto::ecc_pub_key_from_pem(&pub_key_path)?;
-
-        let pem_file = &config.lms_pub_key;
-
-        let pub_key_path = path.join(pem_file);
-        gen_config.pub_keys.lms_pub_key = lms_pub_key_from_pem(&pub_key_path)?;
 
         let mut priv_keys = ImageOwnerPrivKeys::default();
         if let Some(pem_file) = &config.ecc_priv_key {
@@ -309,10 +351,26 @@ fn owner_config(
             gen_config.priv_keys = Some(priv_keys);
         }
 
-        if let Some(pem_file) = &config.lms_priv_key {
-            let priv_key_path = path.join(pem_file);
-            priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
-            gen_config.priv_keys = Some(priv_keys);
+        if pqc_key_type == FwVerificationPqcKeyType::Lms {
+            let pem_file = &config.lms_pub_key;
+            let pub_key_path = path.join(pem_file);
+            gen_config.pub_keys.lms_pub_key = lms_pub_key_from_pem(&pub_key_path)?;
+
+            if let Some(pem_file) = &config.lms_priv_key {
+                let priv_key_path = path.join(pem_file);
+                priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
+                gen_config.priv_keys = Some(priv_keys);
+            }
+        } else {
+            let file = &config.mldsa_pub_key;
+            let pub_key_path = path.join(file);
+            gen_config.pub_keys.mldsa_pub_key = Crypto::mldsa_pub_key_from_file(&pub_key_path)?;
+
+            if let Some(file) = &config.mldsa_priv_key {
+                let priv_key_path = path.join(file);
+                priv_keys.mldsa_priv_key = Crypto::mldsa_priv_key_from_file(&priv_key_path)?;
+                gen_config.priv_keys = Some(priv_keys);
+            }
         }
         gen_config.not_before = from_date;
         gen_config.not_after = to_date;

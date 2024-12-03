@@ -29,6 +29,8 @@ pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const KEY_DESCRIPTOR_VERSION: u8 = 1;
 pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
 pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;
+pub const VENDOR_MLDSA_MAX_KEY_COUNT: u32 = 4;
+pub const VENDOR_PQC_MAX_KEY_COUNT: u32 = VENDOR_LMS_MAX_KEY_COUNT;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -38,6 +40,7 @@ pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
 pub const SHA256_DIGEST_WORD_SIZE: usize = 8;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
+pub const SHA512_DIGEST_WORD_SIZE: usize = 16;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
@@ -46,9 +49,20 @@ pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24
 // LMOTS-SHA192-W4
 pub const IMAGE_LMS_OTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
+pub const MLDSA87_PUB_KEY_BYTE_SIZE: usize = 2592;
+pub const MLDSA87_PUB_KEY_WORD_SIZE: usize = 648;
+pub const MLDSA87_PRIV_KEY_BYTE_SIZE: usize = 4896;
+pub const MLDSA87_PRIV_KEY_WORD_SIZE: usize = 1224;
+pub const MLDSA87_SIGNATURE_BYTE_SIZE: usize = 4628;
+pub const MLDSA87_SIGNATURE_WORD_SIZE: usize = 1157;
+pub const MLDSA87_MSG_BYTE_SIZE: usize = 64;
+
+pub const PQC_PUB_KEY_BYTE_SIZE: usize = MLDSA87_PUB_KEY_BYTE_SIZE;
+pub const PQC_SIGNATURE_BYTE_SIZE: usize = MLDSA87_SIGNATURE_BYTE_SIZE;
 
 pub type ImageScalar = [u32; ECC384_SCALAR_WORD_SIZE];
-pub type ImageDigest = [u32; SHA384_DIGEST_WORD_SIZE];
+pub type ImageDigest384 = [u32; SHA384_DIGEST_WORD_SIZE];
+pub type ImageDigest512 = [u32; SHA512_DIGEST_WORD_SIZE];
 pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
@@ -67,6 +81,49 @@ pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
 pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageMldsaPubKey(pub [u32; MLDSA87_PUB_KEY_WORD_SIZE]);
+
+impl Default for ImageMldsaPubKey {
+    fn default() -> Self {
+        ImageMldsaPubKey([0; MLDSA87_PUB_KEY_WORD_SIZE])
+    }
+}
+
+impl ImageMldsaPubKey {
+    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+        } else {
+            None
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageMldsaPrivKey(pub [u32; MLDSA87_PRIV_KEY_WORD_SIZE]);
+
+impl Default for ImageMldsaPrivKey {
+    fn default() -> Self {
+        ImageMldsaPrivKey([0; MLDSA87_PRIV_KEY_WORD_SIZE])
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImagePqcPubKey(pub [u8; PQC_PUB_KEY_BYTE_SIZE]);
+
+impl Default for ImagePqcPubKey {
+    fn default() -> Self {
+        ImagePqcPubKey([0; PQC_PUB_KEY_BYTE_SIZE])
+    }
+}
+
+#[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
@@ -80,6 +137,38 @@ pub struct ImageEccSignature {
 pub type ImageLmsSignature =
     LmsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM, IMAGE_LMS_KEY_HEIGHT>;
 pub type ImageLmOTSSignature = LmotsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM>;
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImageMldsaSignature(pub [u32; MLDSA87_SIGNATURE_WORD_SIZE]);
+
+impl Default for ImageMldsaSignature {
+    fn default() -> Self {
+        ImageMldsaSignature([0; MLDSA87_SIGNATURE_WORD_SIZE])
+    }
+}
+
+impl ImageMldsaSignature {
+    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+        } else {
+            None
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct ImagePqcSignature(pub [u8; PQC_SIGNATURE_BYTE_SIZE]);
+
+impl Default for ImagePqcSignature {
+    fn default() -> Self {
+        ImagePqcSignature([0; PQC_SIGNATURE_BYTE_SIZE])
+    }
+}
 
 pub enum Intent {
     Vendor = 1,
@@ -104,22 +193,38 @@ impl From<KeyType> for u8 {
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum FwImageType {
-    EccLms = 1,
-    EccMldsa = 2,
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum FwVerificationPqcKeyType {
+    Lms = 1,
+    Mldsa = 2,
 }
 
-impl From<FwImageType> for u8 {
-    fn from(val: FwImageType) -> Self {
+impl From<FwVerificationPqcKeyType> for u8 {
+    fn from(val: FwVerificationPqcKeyType) -> Self {
         val as u8
     }
 }
 
-impl Default for FwImageType {
+impl Default for FwVerificationPqcKeyType {
     fn default() -> Self {
-        Self::EccLms
+        Self::Lms
     }
+}
+
+impl FwVerificationPqcKeyType {
+    pub fn from_u8(value: u8) -> Option<FwVerificationPqcKeyType> {
+        match value {
+            1 => Some(FwVerificationPqcKeyType::Lms),
+            2 => Some(FwVerificationPqcKeyType::Mldsa),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ImageDigestHolder<'a> {
+    pub digest_384: &'a ImageDigest384,
+    pub digest_512: Option<&'a ImageDigest512>,
 }
 
 /// Caliptra Image Bundle
@@ -183,8 +288,8 @@ pub struct ImageManifest {
     /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Firmware image type (ECC + LMS keys or ECC + MLDSA keys)
-    pub fw_image_type: u8,
+    /// PQC key type for image verification (LMS or MLDSA keys)
+    pub pqc_key_type: u8,
 
     pub reserved: [u8; 3],
 
@@ -206,7 +311,7 @@ impl Default for ImageManifest {
         Self {
             marker: Default::default(),
             size: size_of::<ImageManifest>() as u32,
-            fw_image_type: 0,
+            pqc_key_type: 0,
             reserved: [0u8; 3],
             preamble: ImagePreamble::default(),
             header: ImageHeader::default(),
@@ -223,10 +328,10 @@ impl ImageManifest {
         span.start as u32 + offset..span.end as u32 + offset
     }
 
-    /// Returns the `Range<u32>` containing the owner public key descriptors
-    pub fn owner_pub_key_descriptors_range() -> Range<u32> {
+    /// Returns the `Range<u32>` containing the owner public key
+    pub fn owner_pub_key_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
-        let span = span_of!(ImagePreamble, owner_pub_key_info);
+        let span = span_of!(ImagePreamble, owner_pub_keys);
         span.start as u32 + offset..span.end as u32 + offset
     }
 
@@ -250,6 +355,7 @@ pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
     pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
+    pub mldsa_pub_keys: [ImageMldsaPubKey; VENDOR_MLDSA_MAX_KEY_COUNT as usize],
 }
 
 #[repr(C)]
@@ -263,19 +369,20 @@ pub struct ImageVendorPubKeyInfo {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct ImageOwnerPubKeyInfo {
-    pub ecc_key_descriptor: ImageEccKeyDescriptor,
-
-    pub pqc_key_descriptor: ImagePqcKeyDescriptor,
-}
-
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
     pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_MAX_KEY_COUNT as usize],
+    pub mldsa_priv_keys: [ImageMldsaPrivKey; VENDOR_MLDSA_MAX_KEY_COUNT as usize],
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+pub struct OwnerPubKeyConfig {
+    pub ecc_pub_key: ImageEccPubKey,
+    #[zeroize(skip)]
+    pub lms_pub_key: ImageLmsPublicKey,
+    pub mldsa_pub_key: ImageMldsaPubKey,
 }
 
 #[repr(C)]
@@ -283,8 +390,7 @@ pub struct ImageVendorPrivKeys {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
-    #[zeroize(skip)]
-    pub lms_pub_key: ImageLmsPublicKey,
+    pub pqc_pub_key: ImagePqcPubKey,
 }
 
 #[repr(C)]
@@ -293,6 +399,7 @@ pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
     #[zeroize(skip)]
     pub lms_priv_key: ImageLmsPrivKey,
+    pub mldsa_priv_key: ImageMldsaPrivKey,
 }
 
 #[repr(C)]
@@ -300,8 +407,7 @@ pub struct ImageOwnerPrivKeys {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
-    #[zeroize(skip)]
-    pub lms_sig: ImageLmsSignature,
+    pub pqc_sig: ImagePqcSignature,
 }
 
 /// Caliptra Image ECC Key Descriptor
@@ -328,9 +434,8 @@ pub struct ImagePqcKeyDescriptor {
     pub key_hash: ImagePqcKeyHashes,
 }
 
-pub type ImageEccKeyHashes = [ImageDigest; VENDOR_ECC_MAX_KEY_COUNT as usize];
-pub type ImageLmsKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
-pub type ImagePqcKeyHashes = [ImageDigest; VENDOR_LMS_MAX_KEY_COUNT as usize];
+pub type ImageEccKeyHashes = [ImageDigest384; VENDOR_ECC_MAX_KEY_COUNT as usize];
+pub type ImagePqcKeyHashes = [ImageDigest384; VENDOR_PQC_MAX_KEY_COUNT as usize];
 
 /// Caliptra Image Bundle Preamble
 #[repr(C)]
@@ -346,20 +451,16 @@ pub struct ImagePreamble {
     /// Vendor Active Public Key
     pub vendor_ecc_active_pub_key: ImageEccPubKey,
 
-    /// Vendor LMS Public Key Index
-    pub vendor_lms_pub_key_idx: u32,
+    /// Vendor PQC Public Key Index
+    pub vendor_pqc_pub_key_idx: u32,
 
-    /// Vendor Active LMS Public Key
-    #[zeroize(skip)]
-    pub vendor_lms_active_pub_key: ImageLmsPublicKey,
+    /// Vendor Active PQC (LMS or MLDSA) Public Key
+    pub vendor_pqc_active_pub_key: ImagePqcPubKey,
 
     /// Vendor Signatures
     pub vendor_sigs: ImageSignatures,
 
-    /// Owner Public Key Descriptor (no Key Hashes)
-    pub owner_pub_key_info: ImageOwnerPubKeyInfo,
-
-    /// Owner Public Key
+    /// Owner Public Keys
     pub owner_pub_keys: ImageOwnerPubKeys,
 
     /// Owner Signatures
@@ -408,8 +509,8 @@ pub struct ImageHeader {
     /// Vendor ECC Public Key Index
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Vendor LMS Public Key Index
-    pub vendor_lms_pub_key_idx: u32,
+    /// Vendor PQC Public Key Index
+    pub vendor_pqc_pub_key_idx: u32,
 
     /// Flags
     /// Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
@@ -423,7 +524,7 @@ pub struct ImageHeader {
     pub pl0_pauser: u32,
 
     /// TOC Digest
-    pub toc_digest: ImageDigest,
+    pub toc_digest: ImageDigest384,
 
     /// Vendor Data
     pub vendor_data: VendorSignedData,
@@ -498,7 +599,7 @@ pub struct ImageTocEntry {
     pub size: u32,
 
     /// Digest
-    pub digest: ImageDigest,
+    pub digest: ImageDigest384,
 }
 
 impl ImageTocEntry {

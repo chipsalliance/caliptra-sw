@@ -20,7 +20,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
-use caliptra_image_types::{FwImageType, ImageBundle, ImageRevision, RomInfo};
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;
 use zerocopy::AsBytes;
@@ -444,7 +444,7 @@ pub struct ImageOptions {
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
-    pub fw_image_type: FwImageType,
+    pub fw_image_type: FwVerificationPqcKeyType,
 }
 impl Default for ImageOptions {
     fn default() -> Self {
@@ -455,7 +455,7 @@ impl Default for ImageOptions {
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
-            fw_image_type: FwImageType::EccLms,
+            fw_image_type: FwVerificationPqcKeyType::Lms,
         }
     }
 }

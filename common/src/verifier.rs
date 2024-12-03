@@ -16,6 +16,7 @@ use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
+use zerocopy::AsBytes;
 
 use caliptra_drivers::memory_layout::ICCM_RANGE;
 
@@ -25,14 +26,15 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub sha2_512_384: &'a mut Sha2_512_384,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
+    pub mldsa87: &'a mut Mldsa87,
     pub data_vault: &'a mut DataVault,
     pub pcr_bank: &'a mut PcrBank,
     pub image: &'b [u8],
 }
 
 impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
-    /// Calculate Digest using SHA-384 Accelerator
-    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
+    /// Calculate 384 digest using SHA2 Engine
+    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         let data = self
             .image
@@ -43,10 +45,22 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         Ok(self.sha2_512_384.sha384_digest(data)?.0)
     }
 
+    /// Calculate 512 digest using SHA2 Engine
+    fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512> {
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
+        let data = self
+            .image
+            .get(offset as usize..)
+            .ok_or(err)?
+            .get(..len as usize)
+            .ok_or(err)?;
+        Ok(self.sha2_512_384.sha512_digest(data)?.0)
+    }
+
     /// ECC-384 Verification routine
     fn ecc384_verify(
         &mut self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
@@ -67,7 +81,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
 
     fn lms_verify(
         &mut self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
@@ -78,8 +92,54 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
     }
 
+    fn mldsa87_verify(
+        &mut self,
+        digest: &ImageDigest512,
+        pub_key: &ImageMldsaPubKey,
+        sig: &ImageMldsaSignature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        // Public Key is received in hw format from the image. No conversion needed.
+        let pub_key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] = pub_key
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        // let pub_key = Mldsa87PubKey::read_from(pub_key_bytes.as_bytes())
+        //     .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+
+        // [TEMP] Account for Endianess bug in Emulator. Convert to non-HW format.
+        // Remove this line when bug is fixed.
+        let pub_key = Mldsa87PubKey::from(pub_key_bytes);
+
+        // Signature is received in hw format from the image. No conversion needed.
+        let sig_bytes: [u8; MLDSA87_SIGNATURE_BYTE_SIZE] = sig
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        // let sig = Mldsa87Signature::read_from(sig_bytes.as_bytes())
+        //     .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+
+        // [TEMP] Account for Endianess bug in Emulator. Convert to non-HW format.
+        // Remove this line when bug is fixed.
+        let sig = Mldsa87Signature::from(sig_bytes);
+
+        // digest is received in hw format. No conversion needed.
+        //let msg = digest.into();
+
+        // [TEMP] Account for Endianess bug in Emulator. Convert to non-HW format.
+        // Remove this line when bug is fixed.
+        let msg_bytes: [u8; MLDSA87_MSG_BYTE_SIZE] = digest
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        let msg = Mldsa87Msg::from(msg_bytes);
+
+        self.mldsa87.verify(&pub_key, &msg, &sig)
+    }
+
     /// Retrieve Vendor Public Key Info Digest
-    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest {
+    fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest384 {
         self.soc_ifc.fuse_bank().vendor_pub_key_info_hash().into()
     }
 
@@ -94,7 +154,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
     }
 
     /// Retrieve Owner Public Key Digest from fuses
-    fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest384 {
         self.soc_ifc.fuse_bank().owner_pub_key_hash().into()
     }
 
@@ -114,17 +174,17 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
     }
 
     /// Get the vendor LMS key index saved in data vault on cold boot
-    fn vendor_lms_pub_key_idx_dv(&self) -> u32 {
-        self.data_vault.lms_vendor_pk_index()
+    fn vendor_pqc_pub_key_idx_dv(&self) -> u32 {
+        self.data_vault.pqc_vendor_pk_index()
     }
 
     /// Get the owner public key digest saved in the dv on cold boot
-    fn owner_pub_key_digest_dv(&self) -> ImageDigest {
+    fn owner_pub_key_digest_dv(&self) -> ImageDigest384 {
         self.data_vault.owner_pk_hash().into()
     }
 
     // Get the fmc digest from the data vault on cold boot
-    fn get_fmc_digest_dv(&self) -> ImageDigest {
+    fn get_fmc_digest_dv(&self) -> ImageDigest384 {
         self.data_vault.fmc_tci().into()
     }
 

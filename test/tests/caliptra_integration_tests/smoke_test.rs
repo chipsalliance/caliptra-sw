@@ -157,13 +157,13 @@ fn smoke_test() {
     )
     .unwrap();
     let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
-    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
     let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
     let fuses = Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         lms_verify: true,
@@ -268,11 +268,11 @@ fn smoke_test() {
     hasher.update(&[security_state.debug_locked() as u8]);
     hasher.update(&[fuses.anti_rollback_disable as u8]);
     hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
-    hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
-    hasher.update(&[image.manifest.fw_image_type]);
+    hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+    hasher.update(&[image.manifest.pqc_key_type]);
     hasher.update(&[true as u8]);
     hasher.update(vendor_pk_desc_hash.as_bytes());
-    hasher.update(&owner_pk_desc_hash);
+    hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
@@ -316,14 +316,14 @@ fn smoke_test() {
             security_state,
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_desc_hash_words,
-            owner_pub_key_hash: owner_pk_desc_hash_words,
+            owner_pub_key_hash: owner_pk_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
-            lms_vendor_pub_key_index: image.manifest.header.vendor_lms_pub_key_idx,
+            lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
             rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
         }),
         &expected_ldevid_key,

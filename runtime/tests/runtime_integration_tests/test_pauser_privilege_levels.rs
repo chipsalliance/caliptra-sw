@@ -15,7 +15,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
-use caliptra_image_types::FwImageType;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageDigestHolder};
 use caliptra_runtime::{
     RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
@@ -541,14 +541,24 @@ fn test_pl0_unset_in_header() {
 
     let opts = ImageOptions::default();
     let ecc_index = opts.vendor_config.ecc_key_idx;
-    let lms_index = opts.vendor_config.lms_key_idx;
+    let lms_index = opts.vendor_config.pqc_key_idx;
     let gen = ImageGenerator::new(Crypto::default());
-    let header_digest_vendor = gen
-        .header_digest_vendor(&image_bundle.manifest.header)
+    let vendor_header_digest_384 = gen
+        .vendor_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
-    let header_digest_owner = gen
-        .header_digest_owner(&image_bundle.manifest.header)
+    let vendor_header_digest_holder = ImageDigestHolder {
+        digest_384: &vendor_header_digest_384,
+        digest_512: None,
+    };
+
+    let owner_header_digest_384 = gen
+        .owner_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
+    let owner_header_digest_holder = ImageDigestHolder {
+        digest_384: &owner_header_digest_384,
+        digest_512: None,
+    };
+
     let fmc_elf = build_firmware_elf(&FMC_WITH_UART).unwrap();
     let app_elf = build_firmware_elf(&APP_WITH_UART).unwrap();
     let preamble = gen
@@ -570,12 +580,12 @@ fn test_pl0_unset_in_header() {
                 .unwrap(),
                 vendor_config: opts.vendor_config,
                 owner_config: opts.owner_config,
-                fw_image_type: FwImageType::EccLms,
+                fw_image_type: FwVerificationPqcKeyType::Lms,
             },
             ecc_index,
             lms_index,
-            &header_digest_vendor,
-            &header_digest_owner,
+            &vendor_header_digest_holder,
+            &owner_header_digest_holder,
         )
         .unwrap();
     image_bundle.manifest.preamble = preamble;

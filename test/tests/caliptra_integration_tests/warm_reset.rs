@@ -38,9 +38,8 @@ fn warm_reset_basic() {
     let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
         image.manifest.preamble.vendor_pub_key_info.as_bytes(),
     ));
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -51,7 +50,7 @@ fn warm_reset_basic() {
         BootParams {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash: owner_pk_desc_hash,
+                owner_pk_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
@@ -70,7 +69,7 @@ fn warm_reset_basic() {
     // Perform warm reset
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash: owner_pk_desc_hash,
+        owner_pk_hash,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
@@ -102,9 +101,8 @@ fn warm_reset_during_fw_load() {
     let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
         image.manifest.preamble.vendor_pub_key_info.as_bytes(),
     ));
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -115,7 +113,7 @@ fn warm_reset_during_fw_load() {
         BootParams {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash: owner_pk_desc_hash,
+                owner_pk_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
@@ -145,7 +143,7 @@ fn warm_reset_during_fw_load() {
     // Perform warm reset while ROM is executing the firmware load
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash: owner_pk_desc_hash,
+        owner_pk_hash,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()

@@ -22,7 +22,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, Secu
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::{FwImageType, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_BYTE_SIZE};
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
@@ -202,7 +202,7 @@ fn test_pcr_log() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
@@ -304,7 +304,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             0_u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             false as u8,
         ],
@@ -399,7 +399,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             FMC_FUSE_SVN as u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
@@ -610,7 +610,7 @@ fn test_fuse_log() {
         fmc_version: 0,
         app_svn: FMC_SVN,
         app_version: 0,
-        fw_image_type: FwImageType::EccLms,
+        fw_image_type: FwVerificationPqcKeyType::Lms,
     };
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
@@ -703,15 +703,15 @@ fn test_fuse_log() {
     assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
-    // Validate the VendorLmsPubKeyIndex
+    // Validate the VendorPqcPubKeyIndex
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::VendorLmsPubKeyIndex as u32
+        FuseLogEntryId::VendorPqcPubKeyIndex as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.lms_key_idx);
+    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.pqc_key_idx);
 
     // Validate that the ID is VendorPubKeyRevocation
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -719,7 +719,7 @@ fn test_fuse_log() {
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::VendorLmsPubKeyRevocation as u32
+        FuseLogEntryId::VendorPqcPubKeyRevocation as u32
     );
     assert_eq!(fuse_log_entry.log_data[0], 0,);
 }

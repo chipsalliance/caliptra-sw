@@ -116,6 +116,7 @@ pub mod fips_self_test_cmd {
             sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
+            mldsa87: &mut env.mldsa87,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: env.mbox.raw_mailbox_contents(),
