@@ -78,7 +78,7 @@ pub struct RomEnv {
     pub persistent_data: PersistentDataAccessor,
 
     /// Mldsa87 Engine
-    pub mldsa: Mldsa87,
+    pub mldsa87: Mldsa87,
 }
 
 impl RomEnv {
@@ -107,7 +107,7 @@ impl RomEnv {
             fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa: Mldsa87::new(MldsaReg::new()),
+            mldsa87: Mldsa87::new(MldsaReg::new()),
         })
     }
 }

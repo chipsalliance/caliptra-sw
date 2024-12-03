@@ -20,6 +20,7 @@ use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
 use rand::rngs::StdRng;
+use rand::Rng;
 use rand::SeedableRng;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
@@ -355,7 +356,7 @@ impl Mldsa87 {
             self.verify_res
                 .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
         } else {
-            self.verify_res.fill(0);
+            self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
         }
     }
 
@@ -713,7 +714,11 @@ mod tests {
         assert_eq!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
 
         // Bad signature
-        let mut signature = [0; SIG_LEN + 1];
+        let mut rng = rand::thread_rng();
+        let mut signature = [0u8; SIG_LEN + 1];
+
+        rng.fill(&mut signature[..64]);
+
         signature.to_big_endian();
 
         for i in (0..signature.len()).step_by(4) {
@@ -747,7 +752,7 @@ mod tests {
         }
 
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_eq!(&result, &[0; 64]);
+        assert_ne!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
     }
 
     #[test]
