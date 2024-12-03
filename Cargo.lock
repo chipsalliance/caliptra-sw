@@ -803,6 +803,7 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrayvec",
  "bitflags 2.4.0",
  "caliptra-api",

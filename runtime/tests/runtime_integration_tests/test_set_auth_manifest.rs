@@ -10,7 +10,7 @@ use caliptra_auth_man_gen::{
 };
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
-    AuthorizationManifest, ImageMetadataFlags,
+    AuthorizationManifest, ImageMetadataFlags, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
@@ -108,6 +108,88 @@ pub fn create_auth_manifest() -> AuthorizationManifest {
 
     let gen = AuthManifestGenerator::new(Crypto::default());
     gen.generate(&gen_config).unwrap()
+}
+
+fn create_auth_manifest_of_size(metadata_size: usize) -> anyhow::Result<AuthorizationManifest> {
+    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+        }),
+    };
+
+    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeys {
+            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeys {
+            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+        }),
+    };
+
+    let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
+            }),
+        });
+
+    let owner_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+                lms_pub_key: OWNER_LMS_KEY_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+                lms_priv_key: OWNER_LMS_KEY_PRIVATE,
+            }),
+        });
+
+    // let image_digest2: [u8; 48] = [
+    //     0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50,
+    //     0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF,
+    //     0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA, 0xEC, 0xA1, 0x34,
+    //     0xC8, 0x25, 0xA7,
+    // ];
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(true);
+    flags.set_image_source(ImageHashSource::ShaAcc as u32);
+
+    // Generate authorization manifest with a specific amount of elements.
+    let mut image_metadata_list = Vec::new();
+    for id in 0..metadata_size {
+        image_metadata_list.push(AuthManifestImageMetadata {
+            fw_id: id as u32,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+        })
+    }
+
+    let gen_config: AuthManifestGeneratorConfig = AuthManifestGeneratorConfig {
+        vendor_fw_key_info,
+        vendor_man_key_info,
+        owner_fw_key_info,
+        owner_man_key_info,
+        image_metadata_list,
+        version: 1,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+    };
+
+    let gen = AuthManifestGenerator::new(Crypto::default());
+    gen.generate(&gen_config)
 }
 
 #[test]
@@ -214,6 +296,51 @@ fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: Calip
         .unwrap_err();
 
     assert_error(&mut model, expected_err, resp);
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_zero_metadata_entry() {
+    let auth_manifest = create_auth_manifest_of_size(0).unwrap();
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+    );
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
+    let auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT).unwrap();
+
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
+    let auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT+1);
+    assert!(auth_manifest.is_err());
 }
 
 #[test]
