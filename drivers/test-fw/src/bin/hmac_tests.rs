@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac,
+    hmac_kdf, Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac,
     HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
 use caliptra_kat::Hmac384KdfKat;
@@ -406,7 +406,7 @@ fn test_hmac5() {
     assert_eq!(hmac_step_1, hmac_step_2);
 }
 
-fn test_kdf(
+fn test_kdf_hmac384(
     key_0: &[u8; 48],
     msg_0: &[u8],
     label: &[u8],
@@ -445,13 +445,14 @@ fn test_kdf(
 
     let kdf_out = KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en());
 
-    hmac384_kdf(
+    hmac_kdf(
         &mut hmac384,
         kdf_key_in.into(),
         label,
         context,
         &mut trng,
         kdf_out.into(),
+        HmacMode::Hmac384,
     )
     .unwrap();
 
@@ -471,7 +472,7 @@ fn test_kdf(
 }
 
 // context_len = 48
-fn test_kdf0() {
+fn test_kdf0_hmac384() {
     let key_0 = [
         0x9e, 0x2c, 0xce, 0xc7, 0x00, 0x16, 0x1e, 0x42, 0xff, 0x0e, 0x13, 0x8c, 0x48, 0x89, 0xe4,
         0xd6, 0xa0, 0x88, 0x8d, 0x13, 0x1d, 0x58, 0xcb, 0x44, 0xf5, 0xe2, 0x92, 0x47, 0x59, 0x64,
@@ -504,7 +505,7 @@ fn test_kdf0() {
         0xcb, 0x13, 0x18,
     ];
 
-    test_kdf(
+    test_kdf_hmac384(
         &key_0,
         &msg_0,
         &label,
@@ -515,7 +516,7 @@ fn test_kdf0() {
 }
 
 // context_len = 0
-fn test_kdf1() {
+fn test_kdf1_hmac384() {
     let key_0 = [
         0xd3, 0x45, 0xe5, 0x14, 0x19, 0xda, 0xc6, 0x9c, 0x70, 0xc8, 0x22, 0x71, 0xe9, 0x12, 0x28,
         0x58, 0x65, 0x64, 0x16, 0xc9, 0x92, 0xf3, 0xda, 0x58, 0x5a, 0xca, 0x96, 0xe5, 0x99, 0x29,
@@ -542,11 +543,11 @@ fn test_kdf1() {
         0x9a, 0xa4, 0x19,
     ];
 
-    test_kdf(&key_0, &msg_0, &label, None, &out_pub_x, &out_pub_y);
+    test_kdf_hmac384(&key_0, &msg_0, &label, None, &out_pub_x, &out_pub_y);
 }
 
 // Test using a NIST vector.
-fn test_kdf2() {
+fn test_kdf2_hmac384() {
     let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -578,13 +579,14 @@ fn test_kdf2() {
 
     let mut out_buf = Array4x12::default();
 
-    hmac384_kdf(
+    hmac_kdf(
         &mut hmac384,
         (&Array4x12::from(&key)).into(),
         &label,
         None,
         &mut trng,
         (&mut out_buf).into(),
+        HmacMode::Hmac384,
     )
     .unwrap();
 
@@ -1015,9 +1017,9 @@ test_suite! {
     test_hmac4,
     test_hmac_kv_multiblock,
     test_hmac5,
-    test_kdf0,
-    test_kdf1,
-    test_kdf2,
+    test_kdf0_hmac384,
+    test_kdf1_hmac384,
+    test_kdf2_hmac384,
     test_hmac_multi_block,
     test_hmac_exact_single_block,
     test_hmac_multi_block_two_step,

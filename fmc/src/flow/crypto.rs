@@ -9,9 +9,9 @@ use crate::fmc_env::FmcEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
-    hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, Sha256Alg,
+    hmac_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
+    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs,
+    KeyUsage, KeyWriteArgs, Sha256Alg,
 };
 
 pub enum Crypto {}
@@ -79,7 +79,7 @@ impl Crypto {
         context: Option<&[u8]>,
         output: KeyId,
     ) -> CaliptraResult<()> {
-        hmac384_kdf(
+        hmac_kdf(
             &mut env.hmac384,
             KeyReadArgs::new(key).into(),
             label,
@@ -92,6 +92,7 @@ impl Crypto {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
+            HmacMode::Hmac384,
         )
     }
 

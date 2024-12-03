@@ -16,7 +16,7 @@ use zerocopy::{transmute, AsBytes};
 use caliptra_api_types::DeviceLifecycle;
 
 use crate::{
-    crypto::{self, derive_ecdsa_key, hmac384, hmac384_drbg_keygen, hmac384_kdf},
+    crypto::{self, derive_ecdsa_key, hmac384_drbg_keygen, hmac384_kdf, hmac512, hmac512_kdf},
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
@@ -154,37 +154,37 @@ fn test_doe_output() {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IDevId {
-    pub cdi: [u32; 12],
+    pub cdi: [u32; 16],
 
-    pub priv_key: [u32; 12],
+    pub ecc_priv_key: [u32; 12],
 }
 impl IDevId {
     pub fn derive(doe_output: &DoeOutput) -> Self {
-        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
+        let mut cdi: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&doe_output.uds).as_bytes(),
             b"idevid_cdi",
             None
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
+        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&cdi).as_bytes(),
             b"idevid_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
 
-        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            swap_word_bytes(&priv_key_seed).as_bytes(),
+        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
-        swap_word_bytes_inplace(&mut priv_key);
-        Self { cdi, priv_key }
+        swap_word_bytes_inplace(&mut ecc_priv_key);
+        Self { cdi, ecc_priv_key }
     }
 
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
-            swap_word_bytes(&self.priv_key)
+            swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),
@@ -208,12 +208,13 @@ fn test_idevid() {
         idevid,
         IDevId {
             cdi: [
-                0x4C4F422C, 0x8EDA4E83, 0x1F669172, 0xA4315915, 0x9BE4B317, 0x449FF543, 0x81FFEF29,
-                0xF7BE0784, 0x0586992C, 0x170E7C92, 0x8D4F72B2, 0xAA4051AD,
+                0x0ae8ec4b, 0x25da6d36, 0x6469502c, 0x94c7b654, 0xf78a5b9e, 0x1cef338f, 0xee5b5ecb,
+                0x9b533c4e, 0xc11af69e, 0xe23d2612, 0x6b37a1fb, 0xd36e0914, 0x1f5d9fdc, 0x2927753a,
+                0x4523e552, 0x5216eaf3,
             ],
-            priv_key: [
-                0x9437E80E, 0x5C402F62, 0xA9CF3A1C, 0x5EA40A12, 0xE6E3FAC3, 0x96F31B72, 0xA4C3AB28,
-                0x3455C2C7, 0x824571EE, 0x27609F5C, 0x46907450, 0x12F7AA8D,
+            ecc_priv_key: [
+                0xaf16a87e, 0x14729bb6, 0xa9912ded, 0xe8331772, 0x288451ff, 0x4a304f24, 0xe02438c3,
+                0xf3413e68, 0x4862cca1, 0xfe65126b, 0x1f3d8677, 0x36424b27,
             ],
         }
     );
@@ -221,43 +222,43 @@ fn test_idevid() {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LDevId {
-    pub cdi: [u32; 12],
+    pub cdi: [u32; 16],
 
-    pub priv_key: [u32; 12],
+    pub ecc_priv_key: [u32; 12],
 }
 impl LDevId {
     pub fn derive(doe_output: &DoeOutput) -> Self {
         let idevid = IDevId::derive(doe_output);
-        let mut cdi_seed: [u32; 12] = transmute!(hmac384(
+        let mut cdi_seed: [u32; 16] = transmute!(hmac512(
             swap_word_bytes(&idevid.cdi).as_bytes(),
             b"ldevid_cdi",
         ));
         swap_word_bytes_inplace(&mut cdi_seed);
 
-        let mut cdi: [u32; 12] = transmute!(hmac384(
+        let mut cdi: [u32; 16] = transmute!(hmac512(
             swap_word_bytes(&cdi_seed).as_bytes(),
             swap_word_bytes(&doe_output.field_entropy[0..8]).as_bytes(),
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
+        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&cdi).as_bytes(),
             b"ldevid_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
 
-        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            swap_word_bytes(&priv_key_seed).as_bytes(),
+        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
-        swap_word_bytes_inplace(&mut priv_key);
-        Self { cdi, priv_key }
+        swap_word_bytes_inplace(&mut ecc_priv_key);
+        Self { cdi, ecc_priv_key }
     }
 
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
-            swap_word_bytes(&self.priv_key)
+            swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),
@@ -281,13 +282,14 @@ fn test_ldevid() {
         ldevid,
         LDevId {
             cdi: [
-                0x2f711e48, 0xef2be87e, 0xfa3394af, 0x04a0df89, 0xb236860c, 0x745f6d6c, 0xa464de75,
-                0x6f1271bc, 0xf35c0619, 0x0856f1e3, 0x7d560cf2, 0xaa227256,
+                0x179d3c40, 0xddca767f, 0x47cd8c43, 0x4dfe5832, 0x9e8f8119, 0xec29ffeb, 0x21fb3af5,
+                0xd50a5ab4, 0x2d7b7d1d, 0x61e96220, 0xbc161735, 0xc66dce6f, 0x6dd8e4ec, 0xa28b66d7,
+                0x28788a5f, 0x6f845a7c,
             ],
-            priv_key: [
-                0xce7579e1, 0x37fe98bd, 0x54dd77e6, 0xc20331d, 0xe0ae1006, 0x64577cf9, 0xd04306f5,
-                0x434d4dde, 0x43974611, 0x1ceb42a1, 0x2b6d1959, 0xbebeb390,
-            ]
+            ecc_priv_key: [
+                0xec4cfba4, 0x28d8344c, 0xbb443f0d, 0xcca57231, 0x1b28d1df, 0x202aaff3, 0xc2f37cd3,
+                0x7e1de81d, 0xfc624db2, 0x835f1a4, 0x37b02dbc, 0xd39e5a09,
+            ],
         }
     );
 }
@@ -412,36 +414,36 @@ impl PcrRtCurrent {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FmcAliasKey {
     // The FMC alias private key as stored in the key-vault
-    pub priv_key: [u32; 12],
+    pub ecc_priv_key: [u32; 12],
 
-    pub cdi: [u32; 12],
+    pub cdi: [u32; 16],
 }
 impl FmcAliasKey {
     pub fn derive(pcr0: &Pcr0, ldevid: &LDevId) -> Self {
-        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
+        let mut cdi: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&ldevid.cdi).as_bytes(),
             b"alias_fmc_cdi",
             Some(swap_word_bytes(&pcr0.0).as_bytes()),
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
+        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
             swap_word_bytes(&cdi).as_bytes(),
             b"alias_fmc_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
 
-        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            swap_word_bytes(&priv_key_seed).as_bytes(),
+        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
-        swap_word_bytes_inplace(&mut priv_key);
-        Self { priv_key, cdi }
+        swap_word_bytes_inplace(&mut ecc_priv_key);
+        Self { ecc_priv_key, cdi }
     }
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
-            swap_word_bytes(&self.priv_key)
+            swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),
@@ -468,21 +470,21 @@ impl RtAliasKey {
             .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
 
         let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
-            swap_word_bytes(&fmc_key.cdi).as_bytes(),
+            &swap_word_bytes(&fmc_key.cdi).as_bytes()[..48],
             b"rt_alias_cdi",
             Some(&tci),
         ));
         swap_word_bytes_inplace(&mut cdi);
 
         let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
-            swap_word_bytes(&cdi).as_bytes(),
+            &swap_word_bytes(&cdi).as_bytes()[..48],
             b"rt_alias_keygen",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
 
         let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            swap_word_bytes(&priv_key_seed).as_bytes(),
+            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
         swap_word_bytes_inplace(&mut priv_key);
@@ -508,9 +510,10 @@ fn test_derive_fmc_alias_key() {
         &LDevId {
             cdi: [
                 0x0e7b8a15, 0x0cc1476b, 0x28d395d9, 0x233f9f05, 0x670bd435, 0x96758224, 0xd3dd5081,
-                0x3da916e5, 0x94f2b09e, 0x257f151d, 0x261ade90, 0x73a9b3fb,
+                0x3da916e5, 0x94f2b09e, 0x257f151d, 0x261ade90, 0x73a9b3fb, 0xf35c0619, 0x0856f1e3,
+                0x7d560cf2, 0xaa227256,
             ],
-            priv_key: [
+            ecc_priv_key: [
                 0xd3ef1bff, 0x0b52919d, 0xe084ee81, 0x47544a50, 0xf7ff4c2d, 0x18038a26, 0x0695a0b1,
                 0x8103e7f4, 0x30651311, 0xc5658261, 0xe30ae241, 0xa8d9ad51,
             ],
@@ -519,13 +522,14 @@ fn test_derive_fmc_alias_key() {
     assert_eq!(
         fmc_alias_key,
         FmcAliasKey {
-            priv_key: [
-                0xB0490161, 0xA1D2393A, 0x752E2F60, 0x4BB9A01E, 0x293B9E47, 0x61698007, 0x2CED9BAF,
-                0x1F828679, 0xCB5054CD, 0xFD0EB072, 0x8D6BE59F, 0x75C55332
+            ecc_priv_key: [
+                0xfcd8c50e, 0x45ddf47b, 0xe272c12c, 0x2a49576f, 0xb57f994d, 0x723de453, 0x14229ac9,
+                0x714b2a8a, 0x6f1ce75f, 0x788cf75c, 0xdbe9da02, 0x51a22e82,
             ],
             cdi: [
-                0xCEAA7956, 0x4E5A8809, 0x7F1BF1B8, 0xA3A9C903, 0x37B4335F, 0xEA8A93D2, 0x5D02F1BF,
-                0x16B1A537, 0xFE5DB006, 0xD8427583, 0x72C836F1, 0x9BE74AF5,
+                0x41529a09, 0xe976d227, 0x456a211c, 0x86187b33, 0x15c88587, 0x60c51cb8, 0xfbcbb695,
+                0xf67988dc, 0x14f6ae96, 0xc3dbdaa2, 0xad287006, 0x33a7f284, 0x81d964ce, 0x45af6c6b,
+                0xdd8b95fd, 0x5cbcbc4b,
             ],
         }
     );

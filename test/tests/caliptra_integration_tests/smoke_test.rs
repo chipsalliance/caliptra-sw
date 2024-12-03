@@ -105,8 +105,9 @@ fn test_golden_idevid_pubkey_matches_generated() {
     assert_eq!(
         generated_idevid.cdi,
         [
-            0x4443b819, 0x8ca0984a, 0x2d566eed, 0x40f94074, 0x0c7cc63b, 0x85f939ac, 0xa2df92bf,
-            0xb00f2f3e, 0x1e70ec47, 0x6736c596, 0x58a8a450, 0xeeac2f20,
+            3736836117, 951734631, 1062246775, 1343680552, 3737486010, 473346827, 2246415195,
+            914173071, 357859522, 506223632, 1064260590, 4040292325, 1807964448, 3683558581,
+            3839832324, 1615123947,
         ]
     );
     assert!(generated_idevid
@@ -123,8 +124,9 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert_eq!(
         generated_ldevid.cdi,
         [
-            0xf226cb0f, 0x1b527a8d, 0x9abeb5eb, 0xf407069a, 0xeda6909b, 0xad434d1d, 0x5f3586ff,
-            0xa4729b8c, 0xd9e34ef9, 0xcb4317aa, 0x596674e5, 0x7f3c0f5b,
+            0x34caaef4, 0x5b1cf2cc, 0x80034cc7, 0xda97ab04, 0xfcf1df75, 0x48896447, 0x81e51dd4,
+            0x80638cbe, 0xe349cfad, 0x4d70b120, 0xcbf5cc76, 0x8c00bb5c, 0x10179e15, 0xfdd9244b,
+            0x6226db25, 0xd4f08f3d,
         ]
     );
     assert!(generated_ldevid
@@ -429,7 +431,7 @@ fn smoke_test() {
     let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
     println!(
-        "Manifest digest is {:02x?}",
+        "Manifest Runtime digest is {:02x?}",
         image.manifest.runtime.digest.as_bytes()
     );
     let expected_rt_alias_key = RtAliasKey::derive(
