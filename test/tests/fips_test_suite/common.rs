@@ -6,7 +6,6 @@ use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
-use caliptra_test::swap_word_bytes_inplace;
 use dpe::{
     commands::*,
     response::{
@@ -421,12 +420,6 @@ pub fn verify_sha_engine_output_inhibited<T: HwModel>(hw: &mut T) {
 pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
     verify_mbox_output_inhibited(hw);
     verify_sha_engine_output_inhibited(hw);
-}
-
-pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
 }
 
 pub fn hook_code_read<T: HwModel>(hw: &mut T) -> u8 {
