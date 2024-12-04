@@ -11,8 +11,8 @@ Abstract:
     File contains X509 Certificate & CSR related utility functions
 
 --*/
-use super::crypto::{Crypto, PubKey};
 use crate::cprintln;
+use crate::crypto::{Crypto, PubKey};
 use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
 use core::mem::size_of;

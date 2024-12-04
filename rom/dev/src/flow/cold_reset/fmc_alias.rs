@@ -13,12 +13,11 @@ Abstract:
 
 --*/
 
-use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use super::x509::X509;
 use crate::cprintln;
-use crate::flow::cold_reset::crypto::{MlDsaKeyPair, PubKey};
+use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -126,7 +125,7 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        let result = Crypto::hmac_kdf(
+        let result = Crypto::env_hmac_kdf(
             env,
             cdi,
             b"alias_fmc_cdi",

@@ -173,7 +173,8 @@ impl Crypto {
     /// * `mode` - HMAC Mode
     #[inline(always)]
     pub fn hmac_kdf(
-        env: &mut RomEnv,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
         key: KeyId,
         label: &[u8],
         context: Option<&[u8]>,
@@ -181,11 +182,11 @@ impl Crypto {
         mode: HmacMode,
     ) -> CaliptraResult<()> {
         hmac_kdf(
-            &mut env.hmac,
+            hmac,
             KeyReadArgs::new(key).into(),
             label,
             context,
-            &mut env.trng,
+            trng,
             KeyWriteArgs::new(
                 output,
                 KeyUsage::default()
@@ -193,6 +194,27 @@ impl Crypto {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
+            mode,
+        )
+    }
+
+    /// Version of hmac_kdf() that takes a RomEnv.
+    #[inline(always)]
+    pub fn env_hmac_kdf(
+        env: &mut RomEnv,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        output: KeyId,
+        mode: HmacMode,
+    ) -> CaliptraResult<()> {
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            key,
+            label,
+            context,
+            output,
             mode,
         )
     }
@@ -215,7 +237,7 @@ impl Crypto {
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::hmac_kdf(env, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
+        Crypto::env_hmac_kdf(env, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
@@ -287,7 +309,7 @@ impl Crypto {
         key_pair_seed: KeyId,
     ) -> CaliptraResult<MlDsaKeyPair> {
         // Generate the seed for key pair generation.
-        Crypto::hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
+        Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
 
         // Generate the public key.
         let pub_key = env

@@ -41,6 +41,7 @@ core::arch::global_asm!(include_str!(concat!(
     "/start_preprocessed.S"
 )));
 
+mod crypto;
 mod exception;
 mod fht;
 mod flow;

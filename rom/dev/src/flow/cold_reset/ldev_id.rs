@@ -13,10 +13,10 @@ Abstract:
 
 --*/
 
-use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
+use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
