@@ -59,7 +59,7 @@ impl Crypto {
     /// * `Array4x12` - Digest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha384_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha384.digest(data)
+        env.sha2_512_384.sha384_digest(data)
     }
 
     /// Calculate HMAC-384 KDF

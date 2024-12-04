@@ -236,10 +236,10 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     Ok(())
 }
 
-// ROM Verification Environemnt
+// ROM Verification Environment
 pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
-    pub(crate) sha384: &'a mut Sha384,
+    pub(crate) sha2_512_384: &'a mut Sha2_512_384,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a mut DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
@@ -256,7 +256,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(self.sha384.digest(data)?.0)
+        Ok(self.sha2_512_384.sha384_digest(data)?.0)
     }
 
     /// ECC-384 Verification routine

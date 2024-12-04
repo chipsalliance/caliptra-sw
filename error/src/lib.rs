@@ -48,7 +48,7 @@ impl CaliptraError {
     pub const DRIVER_SHA384_INVALID_STATE_ERR: CaliptraError = CaliptraError::new_const(0x00030007);
     pub const DRIVER_SHA384_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00030008);
     pub const DRIVER_SHA384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00030009);
-    pub const DRIVER_SHA384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
+    pub const DRIVER_SHA2_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
     pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
