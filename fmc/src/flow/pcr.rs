@@ -61,9 +61,9 @@ pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> CaliptraResult<()> {
     env.pcr_bank
-        .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha384, data)?;
+        .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha2_512_384, data)?;
     env.pcr_bank
-        .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha384, data)?;
+        .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha2_512_384, data)?;
 
     log_pcr(
         env.persistent_data.get_mut(),

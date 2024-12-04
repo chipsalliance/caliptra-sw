@@ -152,7 +152,7 @@ impl Hmac {
 
         // Done in a closure to ensure state is always cleaned up.
         let hmac_result = || -> CaliptraResult<Array4x12> {
-            let mut hasher = drivers.sha384.digest_init()?;
+            let mut hasher = drivers.sha2_512_384.sha384_digest_init()?;
 
             hasher.update(keypair.pub_key.x.as_bytes())?;
             hasher.update(keypair.pub_key.y.as_bytes())?;
@@ -171,7 +171,7 @@ impl Hmac {
         }();
 
         // Clean up state.
-        unsafe { caliptra_drivers::Sha384::zeroize() }
+        unsafe { caliptra_drivers::Sha2_512_384::zeroize() }
         pubkey_digest.zeroize();
         keypair.pub_key.zeroize();
         drivers.key_vault.erase_key(keypair.priv_key)?;
