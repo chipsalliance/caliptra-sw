@@ -22,7 +22,7 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 /// ROM Verification Environemnt
 pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub sha256: &'a mut Sha256,
-    pub sha384: &'a mut Sha384,
+    pub sha2_512_384: &'a mut Sha2_512_384,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub data_vault: &'a mut DataVault,
@@ -40,7 +40,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(self.sha384.digest(data)?.0)
+        Ok(self.sha2_512_384.sha384_digest(data)?.0)
     }
 
     /// ECC-384 Verification routine

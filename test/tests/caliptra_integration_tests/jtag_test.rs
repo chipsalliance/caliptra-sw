@@ -4,17 +4,9 @@ use caliptra_builder::{firmware, get_elf_path, ImageOptions};
 
 use caliptra_api_types::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
-use caliptra_test::swap_word_bytes_inplace;
-use openssl::sha::sha384;
+use caliptra_test::image_pk_desc_hash;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{ChildStdin, Command, Stdio};
-use zerocopy::AsBytes;
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
 
 #[derive(PartialEq, Debug)]
 enum RegAccess {
@@ -95,14 +87,12 @@ fn gdb_test() {
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
-    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
-    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
+        key_manifest_pk_hash: vendor_pk_desc_hash,
+        owner_pk_hash: owner_pk_desc_hash,
         fmc_key_manifest_svn: 0b1111111,
         lms_verify: true,
         ..Default::default()

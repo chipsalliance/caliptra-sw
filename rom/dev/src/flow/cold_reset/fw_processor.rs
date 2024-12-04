@@ -65,14 +65,14 @@ impl FirmwareProcessor {
             // sha256
             sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+            // SHA2-512/384 Engine
+            sha2_512_384: &mut env.sha2_512_384,
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac384 Engine
-            hmac384: &mut env.hmac384,
+            // Hmac-512/384 Engine
+            hmac: &mut env.hmac,
 
             /// Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
@@ -108,7 +108,7 @@ impl FirmwareProcessor {
 
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
-            sha384: &mut env.sha384,
+            sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
@@ -296,7 +296,12 @@ impl FirmwareProcessor {
                             return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
                         }
 
-                        Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
+                        Self::stash_measurement(
+                            pcr_bank,
+                            env.sha2_512_384,
+                            persistent_data,
+                            &mut txn,
+                        )?;
 
                         // Generate and send response (with FIPS approved status)
                         let mut resp = StashMeasurementResp {
@@ -373,7 +378,7 @@ impl FirmwareProcessor {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
-            sha384: venv.sha384,
+            sha2_512_384: venv.sha2_512_384,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
@@ -663,7 +668,7 @@ impl FirmwareProcessor {
     ///     Err - StashMeasurementReadFailure
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
@@ -671,7 +676,7 @@ impl FirmwareProcessor {
         Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;
+        Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;
 
         Ok(())
     }
@@ -689,14 +694,14 @@ impl FirmwareProcessor {
     ///    Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         // Extend measurement into PCR31.
         pcr_bank.extend_pcr(
             PCR_ID_STASH_MEASUREMENT,
-            sha384,
+            sha2,
             stash_measurement.measurement.as_bytes(),
         )?;
 

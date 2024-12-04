@@ -26,6 +26,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
+    keyids::KEY_ID_ROM_FMC_CDI,
     memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
     FirmwareHandoffTable,
 };
@@ -154,6 +155,8 @@ impl FakeRomFlow {
                 // SKIP Execute IDEVID layer
                 // LDEVID cert
                 copy_canned_ldev_cert(env)?;
+                // LDEVID cdi
+                initialize_fake_ldevid_cdi(env)?;
 
                 // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
@@ -185,6 +188,17 @@ impl FakeRomFlow {
             ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
         }
     }
+}
+
+// Used to derive the firmware's hash chain.
+fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
+    env.hmac.hmac(
+        &HmacKey::Array4x12(&Array4x12::default()),
+        &HmacData::Slice(b""),
+        &mut env.trng,
+        KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
+        HmacMode::Hmac384,
+    )
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
@@ -222,10 +236,10 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     Ok(())
 }
 
-// ROM Verification Environemnt
+// ROM Verification Environment
 pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
-    pub(crate) sha384: &'a mut Sha384,
+    pub(crate) sha2_512_384: &'a mut Sha2_512_384,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a mut DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
@@ -242,7 +256,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-        Ok(self.sha384.digest(data)?.0)
+        Ok(self.sha2_512_384.sha384_digest(data)?.0)
     }
 
     /// ECC-384 Verification routine

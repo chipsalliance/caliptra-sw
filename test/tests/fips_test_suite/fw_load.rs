@@ -19,7 +19,7 @@ use caliptra_image_types::SHA384_DIGEST_WORD_SIZE;
 use caliptra_image_types::{
     FwImageType, ImageBundle, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
 };
-use openssl::sha::sha384;
+use caliptra_test::image_pk_desc_hash;
 
 use common::*;
 use zerocopy::AsBytes;
@@ -1195,27 +1195,12 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
     // Generate pub key hashes and set fuses
     // Use a fresh image (will NOT be loaded)
     let pk_hash_src_image = build_fw_image(ImageOptions::default());
-    let vendor_pk_desc_hash = sha384(
-        pk_hash_src_image
-            .manifest
-            .preamble
-            .vendor_pub_key_info
-            .as_bytes(),
-    );
-    let owner_pk_desc_hash = sha384(
-        pk_hash_src_image
-            .manifest
-            .preamble
-            .owner_pub_key_info
-            .as_bytes(),
-    );
-    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&pk_hash_src_image.manifest);
 
     let fuses = Fuses {
         life_cycle: DeviceLifecycle::Production,
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
+        key_manifest_pk_hash: vendor_pk_desc_hash,
+        owner_pk_hash: owner_pk_desc_hash,
         lms_verify: true,
         ..Default::default()
     };

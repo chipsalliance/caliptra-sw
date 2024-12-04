@@ -13,10 +13,10 @@ Abstract:
 
 --*/
 
-use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
+use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -115,8 +115,14 @@ impl LocalDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
-        Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
+        Crypto::hmac_mac(env, cdi, &b"ldevid_cdi".into(), cdi, HmacMode::Hmac512)?;
+        Crypto::hmac_mac(
+            env,
+            cdi,
+            &KeyReadArgs::new(fe).into(),
+            cdi,
+            HmacMode::Hmac512,
+        )?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
         env.key_vault.erase_key(fe)?;

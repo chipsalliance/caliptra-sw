@@ -9,17 +9,9 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
-use caliptra_test::swap_word_bytes_inplace;
-use openssl::sha::sha384;
-use zerocopy::AsBytes;
+use caliptra_test::image_pk_desc_hash;
 
 use crate::helpers;
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
 
 #[test]
 fn test_warm_reset_success() {
@@ -38,13 +30,8 @@ fn test_warm_reset_success() {
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
-    ));
 
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {

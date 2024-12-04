@@ -13,7 +13,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, LDevId},
-    swap_word_bytes, swap_word_bytes_inplace,
+    image_pk_desc_hash, swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::sha384;
@@ -42,12 +42,6 @@ fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
     csr.public_key().unwrap()
 }
 
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
-
 // [CAP2][TODO] This test is disabled because it needs to be updated.
 //#[test]
 fn fake_boot_test() {
@@ -64,13 +58,8 @@ fn fake_boot_test() {
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
-    ));
 
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {

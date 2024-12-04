@@ -32,7 +32,7 @@ mod fuse_bank;
 pub mod fuse_log;
 pub mod hand_off;
 mod hmac;
-mod hmac384_kdf;
+mod hmac_kdf;
 mod key_vault;
 mod kv_access;
 mod lms;
@@ -48,8 +48,8 @@ pub mod pic;
 pub mod printer;
 mod sha1;
 mod sha256;
+mod sha2_512_384;
 mod sha2_512_384acc;
-mod sha384;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
@@ -77,7 +77,7 @@ pub use fuse_bank::{
 };
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
-pub use hmac384_kdf::hmac384_kdf;
+pub use hmac_kdf::hmac_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
@@ -102,8 +102,8 @@ pub use persistent::{
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
+pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
-pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 

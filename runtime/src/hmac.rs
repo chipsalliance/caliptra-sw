@@ -16,7 +16,7 @@ use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384PrivKeyOut, Ecc384PubKey, HmacData, HmacKey, HmacMode, HmacTag,
+    hmac_kdf, Array4x12, Ecc384PrivKeyOut, Ecc384PubKey, HmacData, HmacKey, HmacMode, HmacTag,
     KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_error::CaliptraResult;
@@ -44,8 +44,8 @@ fn ecc384_key_gen(
     label: &[u8],
     priv_key: KeyId,
 ) -> CaliptraResult<Ecc384KeyPair> {
-    hmac384_kdf(
-        &mut drivers.hmac384,
+    hmac_kdf(
+        &mut drivers.hmac,
         KeyReadArgs::new(input).into(),
         label,
         None,
@@ -57,6 +57,7 @@ fn ecc384_key_gen(
                 .set_ecc_key_gen_seed_en(),
         )
         .into(),
+        HmacMode::Hmac384,
     )?;
 
     let pub_key = drivers.ecc384.key_pair(
@@ -81,20 +82,29 @@ fn ecc384_key_gen(
 pub enum Hmac {}
 
 impl Hmac {
-    /// "Hash" the data in the provided KV slot by HMACing it with an empty slice.
-    /// This mechanism is necessary because the hardware does not directly support
-    /// hashing data in KV slots.
+    /// Calculate HMAC-384 KDF
     ///
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    /// * `input` - KeyId containing the input data
-    /// * `output` - KeyId which the output hash should be written to
+    /// * `key` - HMAC384 key slot
+    /// * `label` - Input label
+    /// * `context` - Input context
+    /// * `output` - Key slot to store the output
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn hmac384_hash(drivers: &mut Drivers, input: KeyId, output: KeyId) -> CaliptraResult<()> {
-        drivers.hmac384.hmac(
-            &KeyReadArgs::new(input).into(),
-            &HmacData::Slice(&[]),
+    pub fn hmac_kdf(
+        drivers: &mut Drivers,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        mode: HmacMode,
+        output: KeyId,
+    ) -> CaliptraResult<()> {
+        hmac_kdf(
+            &mut drivers.hmac,
+            KeyReadArgs::new(key).into(),
+            label,
+            context,
             &mut drivers.trng,
             KeyWriteArgs::new(
                 output,
@@ -103,7 +113,7 @@ impl Hmac {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
-            HmacMode::Hmac384,
+            mode,
         )
     }
 
@@ -142,14 +152,14 @@ impl Hmac {
 
         // Done in a closure to ensure state is always cleaned up.
         let hmac_result = || -> CaliptraResult<Array4x12> {
-            let mut hasher = drivers.sha384.digest_init()?;
+            let mut hasher = drivers.sha2_512_384.sha384_digest_init()?;
 
             hasher.update(keypair.pub_key.x.as_bytes())?;
             hasher.update(keypair.pub_key.y.as_bytes())?;
             hasher.finalize(&mut pubkey_digest)?;
 
             let mut hmac_output = Array4x12::default();
-            drivers.hmac384.hmac(
+            drivers.hmac.hmac(
                 &HmacKey::Array4x12(&pubkey_digest),
                 &HmacData::Slice(data),
                 &mut drivers.trng,
@@ -161,7 +171,7 @@ impl Hmac {
         }();
 
         // Clean up state.
-        unsafe { caliptra_drivers::Sha384::zeroize() }
+        unsafe { caliptra_drivers::Sha2_512_384::zeroize() }
         pubkey_digest.zeroize();
         keypair.pub_key.zeroize();
         drivers.key_vault.erase_key(keypair.priv_key)?;
