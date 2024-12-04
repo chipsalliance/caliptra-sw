@@ -26,7 +26,12 @@ fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> 
     let downloaded = helpers::get_csr(hw).unwrap();
 
     // Wait for uploading firmware.
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -64,10 +69,10 @@ fn test_idev_subj_key_id_algo() {
 }
 
 fn fuses_with_random_uds() -> Fuses {
-    const UDS_LEN: usize = core::mem::size_of::<u32>() * 12;
+    const UDS_LEN: usize = core::mem::size_of::<u32>() * 16;
     let mut uds_bytes = [0; UDS_LEN];
     rand_bytes(&mut uds_bytes).unwrap();
-    let mut uds_seed = [0u32; 12];
+    let mut uds_seed = [0u32; 16];
 
     for (word, bytes) in uds_seed.iter_mut().zip(uds_bytes.chunks_exact(4)) {
         *word = u32::from_be_bytes(bytes.try_into().unwrap());
@@ -132,7 +137,7 @@ fn verify_key(
     hw: &mut DefaultHwModel,
     cmd_id: u32,
     pubkey: &PKey<Public>,
-    test_uds: &[u32; 12],
+    test_uds: &[u32; 16],
 ) -> X509 {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(cmd_id, &[]),

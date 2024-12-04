@@ -77,12 +77,12 @@ impl SocIfc {
 
     pub fn mbox_valid_pauser(&self) -> [u32; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        soc_ifc_regs.cptra_mbox_valid_axi_id().read()
+        soc_ifc_regs.cptra_mbox_valid_axi_user().read()
     }
 
     pub fn mbox_pauser_lock(&self) -> [bool; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let pauser_lock = soc_ifc_regs.cptra_mbox_axi_id_lock();
+        let pauser_lock = soc_ifc_regs.cptra_mbox_axi_user_lock();
         [
             pauser_lock.at(0).read().lock(),
             pauser_lock.at(1).read().lock(),
@@ -119,14 +119,16 @@ impl SocIfc {
             .write(|w| w.idevid_csr_ready(true));
     }
 
-    /// Set ready for firmware
+    /// Set ready for Mailbox operations
     ///
     /// # Arguments
     ///
     /// * None
-    pub fn flow_status_set_ready_for_firmware(&mut self) {
+    pub fn flow_status_set_ready_for_mb_processing(&mut self) {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+        soc_ifc
+            .cptra_flow_status()
+            .write(|w| w.ready_for_mb_processing(true));
     }
 
     /// Get 'ready for firmware' status
@@ -134,9 +136,9 @@ impl SocIfc {
     /// # Arguments
     ///
     /// * None
-    pub fn flow_status_ready_for_firmware(&mut self) -> bool {
+    pub fn flow_status_ready_for_mb_processing(&mut self) -> bool {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().read().ready_for_fw()
+        soc_ifc.cptra_flow_status().read().ready_for_mb_processing()
     }
 
     pub fn fuse_bank(&self) -> FuseBank {

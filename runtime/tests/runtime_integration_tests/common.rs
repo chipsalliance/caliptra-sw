@@ -97,7 +97,12 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
     )
     .unwrap();
 
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     model
 }

@@ -320,7 +320,7 @@ fn main() -> io::Result<()> {
                 .try_into()
                 .expect("owner_pk_hash must be 48 bytes"),
         );
-        soc_ifc.fuse_owner_pk_hash().write(&owner_pk_hash);
+        soc_ifc.cptra_owner_pk_hash().write(&owner_pk_hash);
     }
 
     // Populate DBG_MANUF_SERVICE_REG

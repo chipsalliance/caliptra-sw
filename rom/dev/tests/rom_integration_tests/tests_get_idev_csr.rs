@@ -23,7 +23,12 @@ fn test_get_csr() {
 
         let downloaded = helpers::get_csr(&mut hw).unwrap();
 
-        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
         downloaded
     };
 
@@ -55,7 +60,12 @@ fn test_get_csr() {
 fn test_get_csr_generate_csr_flag_not_set() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),

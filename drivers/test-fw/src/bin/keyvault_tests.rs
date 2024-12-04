@@ -20,7 +20,7 @@ use caliptra_registers::kv::KvReg;
 use caliptra_test_harness::test_suite;
 
 #[cfg(not(feature = "fpga_realtime"))]
-const KEY_IDS: [KeyId; 32] = [
+const KEY_IDS: [KeyId; 24] = [
     KeyId::KeyId0,
     KeyId::KeyId1,
     KeyId::KeyId2,
@@ -45,14 +45,6 @@ const KEY_IDS: [KeyId; 32] = [
     KeyId::KeyId21,
     KeyId::KeyId22,
     KeyId::KeyId23,
-    KeyId::KeyId24,
-    KeyId::KeyId25,
-    KeyId::KeyId26,
-    KeyId::KeyId27,
-    KeyId::KeyId28,
-    KeyId::KeyId29,
-    KeyId::KeyId30,
-    KeyId::KeyId31,
 ];
 
 #[cfg(feature = "fpga_realtime")]

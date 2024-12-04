@@ -93,7 +93,12 @@ fn test_fake_rom_production_enabled() {
     .unwrap();
 
     // Wait for ready for FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 }
 
 #[test]
@@ -122,7 +127,12 @@ fn test_fake_rom_fw_load() {
     .unwrap();
 
     // Upload the FW once ROM is at the right point
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -160,7 +170,12 @@ fn test_fake_rom_update_reset() {
     .unwrap();
 
     // Upload FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -256,7 +271,12 @@ fn test_fake_rom_version() {
     .unwrap();
 
     // Wait for ready for FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_rev_id().at(0).read() as u16,

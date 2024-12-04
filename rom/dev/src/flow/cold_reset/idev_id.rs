@@ -62,7 +62,7 @@ impl InitDevIdLayer {
         // If CSR is not requested, indicate to the SOC that it can start
         // uploading the firmware image to the mailbox.
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Decrypt the UDS
@@ -111,8 +111,8 @@ impl InitDevIdLayer {
         Self::generate_csr(env, &output)?;
 
         // Indicate (if not already done) to SOC that it can start uploading the firmware image to the mailbox.
-        if !env.soc_ifc.flow_status_ready_for_firmware() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+        if !env.soc_ifc.flow_status_ready_for_mb_processing() {
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Write IDevID public key to FHT
