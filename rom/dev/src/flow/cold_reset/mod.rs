@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 
-mod crypto;
 mod dice;
 mod fmc_alias;
 mod fw_processor;
