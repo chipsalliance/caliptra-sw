@@ -45,6 +45,7 @@ caliptra-image-gen.workspace = true
 caliptra-image-crypto.workspace = true
 caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
+caliptra-test.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
