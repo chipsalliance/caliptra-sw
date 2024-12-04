@@ -12,7 +12,7 @@ File contains Ml_Dsa87 peripheral implementation.
 
 --*/
 
-use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
+use crate::helpers::{bytes_from_words_be, words_from_bytes_be};
 use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_derive::Bus;
@@ -311,21 +311,21 @@ impl Mldsa87 {
     }
 
     fn gen_key(&mut self) {
-        let seed_bytes = &bytes_from_words_le(&self.seed);
+        let seed_bytes = &bytes_from_words_be(&self.seed);
         let mut rng = StdRng::from_seed(*seed_bytes);
         let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
 
-        self.pubkey = words_from_bytes_le(&pk.into_bytes());
+        self.pubkey = words_from_bytes_be(&pk.into_bytes());
         self.private_key = sk.into_bytes();
     }
 
     fn sign(&mut self) {
-        let sign_seed = &bytes_from_words_le(&self.sign_rnd);
+        let sign_seed = &bytes_from_words_be(&self.sign_rnd);
         let mut rng = StdRng::from_seed(*sign_seed);
 
         let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
 
-        let message = &bytes_from_words_le(&self.msg);
+        let message = &bytes_from_words_be(&self.msg);
 
         // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
         let signature = secret_key
@@ -336,18 +336,18 @@ impl Mldsa87 {
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-        self.signature = words_from_bytes_le(&signature_extended);
+        self.signature = words_from_bytes_be(&signature_extended);
     }
 
     fn verify(&mut self) {
-        let message = &bytes_from_words_le(&self.msg);
+        let message = &bytes_from_words_be(&self.msg);
 
         let public_key = {
-            let key_bytes = &bytes_from_words_le(&self.pubkey);
-            PublicKey::try_from_bytes(*key_bytes).unwrap()
+            let key_bytes = bytes_from_words_be(&self.pubkey);
+            PublicKey::try_from_bytes(key_bytes).unwrap()
         };
 
-        let signature = &bytes_from_words_le(&self.signature);
+        let signature = &bytes_from_words_be(&self.signature);
 
         let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
 
@@ -399,7 +399,7 @@ impl Mldsa87 {
 
         // TODO read the first 32 bytes from KV?
         if let Some(seed) = seed {
-            self.seed = words_from_bytes_le(
+            self.seed = words_from_bytes_be(
                 &<[u8; ML_DSA87_SEED_SIZE]>::try_from(&seed[..ML_DSA87_SEED_SIZE]).unwrap(),
             );
         }
@@ -546,9 +546,7 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let mut public_key = bytes_from_words_le(&ml_dsa87.pubkey);
-        public_key.to_little_endian(); // Change DWORDs to little-endian. TODO is this needed?
-
+        let public_key = bytes_from_words_be(&ml_dsa87.pubkey);
         assert_eq!(&public_key, &PUB_KEY);
     }
 
@@ -609,9 +607,7 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let mut signature = bytes_from_words_le(&ml_dsa87.signature);
-        signature.to_little_endian(); // Change DWORDs to little-endian.
-
+        let signature = bytes_from_words_be(&ml_dsa87.signature);
         assert_eq!(&signature, &SIGNATURE);
     }
 
@@ -676,9 +672,7 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let mut result = bytes_from_words_le(&ml_dsa87.verify_res);
-        result.to_little_endian();
-
+        let result = bytes_from_words_be(&ml_dsa87.verify_res);
         assert_eq!(result, &SIGNATURE[..ML_DSA87_VERIFICATION_SIZE]);
 
         // Bad signature
@@ -715,9 +709,7 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let mut result = bytes_from_words_le(&ml_dsa87.verify_res);
-        result.to_little_endian();
-
+        let result = bytes_from_words_be(&ml_dsa87.verify_res);
         assert_eq!(&result, &[0; 64]);
     }
 
@@ -788,9 +780,7 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
             }
 
-            let mut public_key = bytes_from_words_le(&ml_dsa87.pubkey);
-            public_key.to_little_endian(); // Change DWORDs to little-endian. TODO is this needed?
-
+            let public_key = bytes_from_words_be(&ml_dsa87.pubkey);
             assert_eq!(&public_key, &PUB_KEY);
         }
     }
