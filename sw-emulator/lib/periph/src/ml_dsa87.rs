@@ -563,7 +563,7 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let mut seed = rand::thread_rng().gen::<[u8; 32]>();
-        seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
+        seed.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..seed.len()).step_by(4) {
             ml_dsa87
                 .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
@@ -576,7 +576,7 @@ mod tests {
             let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
             concat.as_slice().try_into().unwrap()
         };
-        msg.to_big_endian(); // Change DWORDs to big-endian. TODO is this necessary
+        msg.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..msg.len()).step_by(4) {
             ml_dsa87
@@ -619,7 +619,7 @@ mod tests {
 
         let signature = bytes_from_words_be(&ml_dsa87.signature);
 
-        // Swap endianness again
+        // Swap endianness again to restore original endianness.
         seed.to_big_endian();
         msg.to_big_endian();
         sign_rnd.to_big_endian();
@@ -652,7 +652,7 @@ mod tests {
         let mut sign_rng = StdRng::from_seed(sign_rnd);
         let test_signature = sk.try_sign_with_rng(&mut sign_rng, &msg, &[]).unwrap();
 
-        msg.to_big_endian(); // Change DWORDs to big-endian. TODO is this necessary
+        msg.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..msg.len()).step_by(4) {
             ml_dsa87
                 .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
@@ -773,7 +773,7 @@ mod tests {
             // We expect the output to match the generated random seed.
             // Write a different seed first to make sure the Kv seed is used
             let mut seed = [0xABu8; 32];
-            seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
+            seed.to_big_endian(); // Change DWORDs to big-endian.
             for i in (0..seed.len()).step_by(4) {
                 ml_dsa87
                     .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
