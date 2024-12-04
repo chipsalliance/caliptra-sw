@@ -20,8 +20,8 @@ pub struct FmcAliasCertTbsParams<'a> {
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
     pub tcb_info_flags: &'a [u8; 4usize],
-    pub tcb_info_fmc_svn: &'a [u8; 1usize],
-    pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
+    pub tcb_info_fw_svn: &'a [u8; 1usize],
+    pub tcb_info_fw_svn_fuses: &'a [u8; 1usize],
 }
 impl<'a> FmcAliasCertTbsParams<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
@@ -36,8 +36,8 @@ impl<'a> FmcAliasCertTbsParams<'a> {
     pub const NOT_BEFORE_LEN: usize = 15usize;
     pub const NOT_AFTER_LEN: usize = 15usize;
     pub const TCB_INFO_FLAGS_LEN: usize = 4usize;
-    pub const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
-    pub const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
+    pub const TCB_INFO_FW_SVN_LEN: usize = 1usize;
+    pub const TCB_INFO_FW_SVN_FUSES_LEN: usize = 1usize;
 }
 pub struct FmcAliasCertTbs {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
@@ -55,8 +55,8 @@ impl FmcAliasCertTbs {
     const NOT_BEFORE_OFFSET: usize = 154usize;
     const NOT_AFTER_OFFSET: usize = 171usize;
     const TCB_INFO_FLAGS_OFFSET: usize = 584usize;
-    const TCB_INFO_FMC_SVN_OFFSET: usize = 613usize;
-    const TCB_INFO_FMC_SVN_FUSES_OFFSET: usize = 515usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 613usize;
+    const TCB_INFO_FW_SVN_FUSES_OFFSET: usize = 515usize;
     const PUBLIC_KEY_LEN: usize = 97usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
@@ -69,8 +69,8 @@ impl FmcAliasCertTbs {
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
     const TCB_INFO_FLAGS_LEN: usize = 4usize;
-    const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
-    const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
+    const TCB_INFO_FW_SVN_LEN: usize = 1usize;
+    const TCB_INFO_FW_SVN_FUSES_LEN: usize = 1usize;
     pub const TBS_TEMPLATE_LEN: usize = 753usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
         48u8, 130u8, 2u8, 237u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
@@ -193,13 +193,13 @@ impl FmcAliasCertTbs {
             &mut self.tbs,
             params.tcb_info_flags,
         );
-        apply_slice::<{ Self::TCB_INFO_FMC_SVN_OFFSET }, { Self::TCB_INFO_FMC_SVN_LEN }>(
+        apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
-            params.tcb_info_fmc_svn,
+            params.tcb_info_fw_svn,
         );
-        apply_slice::<{ Self::TCB_INFO_FMC_SVN_FUSES_OFFSET }, { Self::TCB_INFO_FMC_SVN_FUSES_LEN }>(
+        apply_slice::<{ Self::TCB_INFO_FW_SVN_FUSES_OFFSET }, { Self::TCB_INFO_FW_SVN_FUSES_LEN }>(
             &mut self.tbs,
-            params.tcb_info_fmc_svn_fuses,
+            params.tcb_info_fw_svn_fuses,
         );
     }
 }

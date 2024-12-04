@@ -32,8 +32,7 @@ struct caliptra_fuses {
     uint32_t key_manifest_pk_hash_mask : 4;
     uint32_t rsvd : 28;
     uint32_t owner_pk_hash[12];
-    uint32_t fmc_key_manifest_svn;
-    uint32_t runtime_svn[4];
+    uint32_t fw_svn[4];
     bool anti_rollback_disable;
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];
@@ -134,9 +133,9 @@ struct caliptra_stash_measurement_resp {
 struct caliptra_fw_info_resp {
     struct caliptra_resp_header hdr;
     uint32_t pl0_pauser;
-    uint32_t runtime_svn;
-    uint32_t min_runtime_svn;
-    uint32_t fmc_manifest_svn;
+    uint32_t firmware_svn;
+    uint32_t min_firmware_svn;
+    uint32_t cold_boot_fw_svn;
     uint32_t attestation_disabled;
     uint8_t rom_revision[20];
     uint8_t fmc_revision[20];

@@ -21,7 +21,7 @@ use core::ops::Range;
 
 pub use verifier::ImageVerifier;
 
-pub const MAX_RUNTIME_SVN: u32 = 128;
+pub const MAX_FIRMWARE_SVN: u32 = 128;
 
 /// Image Verifification Executable Info
 #[derive(Default, Debug)]
@@ -151,8 +151,8 @@ pub trait ImageVerificationEnv {
     // Save the fmc digest in the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest;
 
-    // Get Runtime fuse SVN
-    fn runtime_fuse_svn(&self) -> u32;
+    // Get FW SVN fuse value
+    fn fw_fuse_svn(&self) -> u32;
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;

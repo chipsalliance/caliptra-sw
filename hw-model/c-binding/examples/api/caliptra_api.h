@@ -19,8 +19,7 @@ struct caliptra_fuses {
     uint32_t key_manifest_pk_hash_mask : 4;
     uint32_t rsvd : 28;
     uint32_t owner_pk_hash[12];
-    uint32_t fmc_key_manifest_svn;
-    uint32_t runtime_svn[4];
+    uint32_t firmware_svn[4];
     bool anti_rollback_disable;
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];

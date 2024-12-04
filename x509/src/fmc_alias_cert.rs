@@ -39,8 +39,8 @@ mod tests {
     const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN];
     const TEST_UEID: &[u8] = &[0xABu8; FmcAliasCertTbsParams::UEID_LEN];
     const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
-    const TEST_TCB_INFO_FMC_SVN: &[u8] = &[0xB7];
-    const TEST_TCB_INFO_FMC_SVN_FUSES: &[u8] = &[0xB8];
+    const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
+    const TEST_TCB_INFO_FW_SVN_FUSES: &[u8] = &[0xB8];
 
     fn make_test_cert(subject_key: &Ecc384AsymKey, issuer_key: &Ecc384AsymKey) -> FmcAliasCertTbs {
         let params = FmcAliasCertTbsParams {
@@ -64,8 +64,8 @@ mod tests {
             tcb_info_flags: TEST_TCB_INFO_FLAGS.try_into().unwrap(),
             tcb_info_device_info_hash: &TEST_DEVICE_INFO_HASH.try_into().unwrap(),
             tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
-            tcb_info_fmc_svn: &TEST_TCB_INFO_FMC_SVN.try_into().unwrap(),
-            tcb_info_fmc_svn_fuses: &TEST_TCB_INFO_FMC_SVN_FUSES.try_into().unwrap(),
+            tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
+            tcb_info_fw_svn_fuses: &TEST_TCB_INFO_FW_SVN_FUSES.try_into().unwrap(),
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
         };
@@ -136,15 +136,15 @@ mod tests {
             TEST_FMC_HASH,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_SVN_LEN],
-            TEST_TCB_INFO_FMC_SVN,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FW_SVN_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FW_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_FW_SVN_LEN],
+            TEST_TCB_INFO_FW_SVN,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                    + FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_LEN],
-            TEST_TCB_INFO_FMC_SVN_FUSES,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FW_SVN_FUSES_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FW_SVN_FUSES_OFFSET
+                    + FmcAliasCertTbs::TCB_INFO_FW_SVN_FUSES_LEN],
+            TEST_TCB_INFO_FW_SVN_FUSES,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
