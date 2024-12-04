@@ -670,6 +670,42 @@ Following is the sequence of steps that are performed to download the firmware i
 
 See Firmware [Image Validation Process](#firmware-image-validation-process).
 
+### Derivation of the hash chain for Stable Identity
+
+Stable Identity calls for a secret that remains stable across firmware updates, but which can ratchet forward when major firmware vulnerabilities are fixed. Caliptra ROM implements this feature in terms of a "hash chain".
+
+The hash chain is initialized from the LDevID CDI during cold-boot. The hash chain length is inversely related to the firmware's SVN. Each step in the chain is an SVN-unique key. The key for SVN X can be obtained by applying a one-way cryptographic operation to the key for SVN X+1. In this manner, firmware with a given SVN can wield keys bound to its SVN or older, but cannot wield keys bound to newer SVNs.
+
+To comply with FIPS, the one-way cryptographic operation used to compute keys is an SP 800-108 KDF.
+
+When the hash chain is initialized at cold-boot, it is bound to the lifecycle state, debug-locked state, and the firmware's "epoch" from the image header. This ensures that across lifecycle or debug state transtions, or across intentional epoch changes, the keys in the hash chain will change.
+
+Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. It ensures that the chain's length always corresponds to that minimum SVN. The hash chain can only be shortened (and thereby give access to newer SVNs' keys) by cold-booting into firmware with a newer SVN and re-initializing the chain.
+
+#### Cold-boot
+
+ROM initializes a hash chain for the firmware. LDevID CDI in Key Vault Slot6 is used as an HMAC Key, and the data is a fixed string. The resultant MAC is stored in Slot 2.
+
+    `HashChainContext = lifecycle state || debug_locked state || firmware epoch`
+
+    `hmac512_kdf(KvSlot6, label: b"hash_chain", context: HashChainContext, KvSlot2)`
+
+    Loop (MAX_FIRMWARE_SVN - (current firmware SVN)) times:
+
+        `hmac512_kdf(KvSlot2, label: b"", context: None, KvSlot2)`
+
+#### Update-reset
+
+During update-reset, the chain initialized at cold boot is lengthened if necessary, such that its length always corresponds with the minimum SVN since cold boot.
+
+    `old_min_svn = [retrieved from data vault]`
+    `new_min_svn = min(old_min_svn, new_fw_svn)`
+    `[store new_min_svn in data vault]`
+
+    Loop (`old_min_svn` - `new_min_svn`) times:
+
+        `hmac512_kdf(KvSlot2, label: b"", context: None, KvSlot2)`
+
 ### Alias FMC DICE layer & PCR extension
 
 Alias FMC Layer includes the measurement of the FMC and other security states. This layer is used to assert a composite identity which includes the security state, FMC measurement along with the previous layer identities.
@@ -1069,6 +1105,8 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Validate the toc exactly like in cold boot.
     - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
       still matches the FMC image section.
+    - Store the minimum firmware SVN that has run since cold-boot in the data vault.
+    - Ratchet the hash chain if necessary.
   - If validation fails during ROM boot, the new RT image will not be copied from
     the mailbox. ROM will boot the existing FMC/Runtime images. Validation
     errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
