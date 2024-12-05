@@ -21,7 +21,7 @@ use caliptra_auth_man_types::{
     ImageMetadataFlags, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::cfi_launder;
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource, MailboxResp,
     MailboxRespHeader, SetAuthManifestReq,
@@ -69,9 +69,8 @@ impl AuthorizeAndStashCmd {
             {
                 // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
                 let flags = ImageMetadataFlags(metadata_entry.flags);
-                let ignore_auth_check = flags.ignore_auth_check();
-
-                if flags.ignore_auth_check() == cfi_launder(ignore_auth_check) {
+                if flags.ignore_auth_check() {
+                    cfi_assert!(cfi_launder(flags.ignore_auth_check()));
                     IMAGE_AUTHORIZED
                 } else if cfi_launder(metadata_entry.digest) == cmd.measurement {
                     caliptra_cfi_lib_git::cfi_assert_eq_12_words(
