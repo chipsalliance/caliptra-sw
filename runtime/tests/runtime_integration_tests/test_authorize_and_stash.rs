@@ -379,3 +379,69 @@ fn test_authorize_and_stash_fwid_127() {
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }
+
+#[test]
+fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
+    {
+        let mut model = set_auth_manifest(None);
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            metadata: FW_ID_1,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+        assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    }
+
+    {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(false);
+        flags.set_image_source(ImageHashSource::InRequest as u32);
+
+        let image_metadata = vec![AuthManifestImageMetadata {
+            fw_id: 1,
+            flags: flags.0,
+            digest: IMAGE_DIGEST_BAD,
+        }];
+        let auth_manifest = create_auth_manifest_with(image_metadata);
+        let mut model = set_auth_manifest(Some(auth_manifest));
+
+        let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            metadata: FW_ID_1,
+            measurement: IMAGE_DIGEST1,
+            source: ImageHashSource::InRequest as u32,
+            flags: 0, // Don't skip stash
+            ..Default::default()
+        });
+        authorize_and_stash_cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let authorize_and_stash_resp = AuthorizeAndStashResp::read_from(resp.as_slice()).unwrap();
+        assert_eq!(
+            authorize_and_stash_resp.auth_req_result,
+            IMAGE_HASH_MISMATCH
+        );
+    }
+}
