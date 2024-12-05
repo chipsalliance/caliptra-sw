@@ -16,10 +16,14 @@ Abstract:
 
 mod cert_bldr;
 mod der_helper;
-mod fmc_alias_cert;
-mod idevid_csr;
-mod ldevid_cert;
-mod rt_alias_cert;
+mod fmc_alias_cert_ecc_384;
+mod fmc_alias_cert_mldsa_87;
+mod idevid_csr_ecc_384;
+mod idevid_csr_mldsa_87;
+mod ldevid_cert_ecc_384;
+mod ldevid_cert_mldsa_87;
+mod rt_alias_cert_ecc_384;
+mod rt_alias_cert_mldsa_87;
 mod test_util;
 
 pub use cert_bldr::{
@@ -27,10 +31,11 @@ pub use cert_bldr::{
     MlDsa87CsrBuilder, Mldsa87Signature,
 };
 pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
-pub use fmc_alias_cert::{FmcAliasCertTbs, FmcAliasCertTbsParams};
-pub use idevid_csr::{InitDevIdCsrTbs, InitDevIdCsrTbsParams};
-pub use ldevid_cert::{LocalDevIdCertTbs, LocalDevIdCertTbsParams};
-pub use rt_alias_cert::{RtAliasCertTbs, RtAliasCertTbsParams};
+pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
+pub use idevid_csr_ecc_384::{InitDevIdCsrTbsEcc384, InitDevIdCsrTbsEcc384Params};
+pub use idevid_csr_mldsa_87::{InitDevIdCsrTbsMlDsa87, InitDevIdCsrTbsMlDsa87Params};
+pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
+pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
 use zeroize::Zeroize;
 
 pub const NOT_BEFORE: &str = "20230101000000Z";

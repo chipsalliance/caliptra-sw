@@ -113,8 +113,8 @@ impl Default for Mldsa87Signature {
     }
 }
 
-impl Signature<4635> for Mldsa87Signature {
-    fn to_der(&self, buf: &mut [u8; 4635]) -> Option<usize> {
+impl Signature<4641> for Mldsa87Signature {
+    fn to_der(&self, buf: &mut [u8; 4641]) -> Option<usize> {
         let ml_dsa_signature_len = der_uint_len(&self.sig)?;
 
         //
@@ -145,10 +145,7 @@ impl Signature<4635> for Mldsa87Signature {
     }
 
     fn oid_der() -> &'static [u8] {
-        // TODO this is wrong and just copied from ECC
-        &[
-            0x30, 0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03,
-        ]
+        &[0x06, 0x08, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03]
     }
 }
 
@@ -236,7 +233,7 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
     fn compute_len(tbs_len: usize, sig_der_len: usize, oid_len: usize) -> Option<usize> {
         let len = tbs_len + oid_len + sig_der_len;
 
-        // Max Cert or CSR size is 4096 bytes
+        // Max Cert or CSR size is 0xffff bytes
         let len_bytes = match len {
             0..=0x7f => 1_usize,
             0x80..=0xff => 2,
@@ -258,5 +255,5 @@ pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, 108>;
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
 
 // Type alias for Ml-Dsa87 Certificate Builder
-pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, Mldsa87Signature, 4627>;
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, Mldsa87Signature, 4641>;
 pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;

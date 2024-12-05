@@ -4,11 +4,12 @@ Licensed under the Apache-2.0 license.
 
 Abstract:
 
-    Regenerate the template by building caliptra-x509-build with the generate-templates flag.
-
 --"]
-pub struct FmcAliasCertTbsParams<'a> {
-    pub public_key: &'a [u8; 97usize],
+
+// TODO generate when x509 libraries support MLDSA
+
+pub struct FmcAliasCertTbsMlDsa87Params<'a> {
+    pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
     pub tcb_info_device_info_hash: &'a [u8; 48usize],
@@ -23,8 +24,10 @@ pub struct FmcAliasCertTbsParams<'a> {
     pub tcb_info_fmc_svn: &'a [u8; 1usize],
     pub tcb_info_fmc_svn_fuses: &'a [u8; 1usize],
 }
-impl<'a> FmcAliasCertTbsParams<'a> {
-    pub const PUBLIC_KEY_LEN: usize = 97usize;
+
+#[allow(dead_code)]
+impl<'a> FmcAliasCertTbsMlDsa87Params<'a> {
+    pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
     pub const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
@@ -39,25 +42,28 @@ impl<'a> FmcAliasCertTbsParams<'a> {
     pub const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
     pub const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
 }
-pub struct FmcAliasCertTbs {
+#[allow(dead_code)]
+pub struct FmcAliasCertTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl FmcAliasCertTbs {
-    const PUBLIC_KEY_OFFSET: usize = 319usize;
+
+#[allow(dead_code)]
+impl FmcAliasCertTbsMlDsa87 {
+    const PUBLIC_KEY_OFFSET: usize = 318usize;
     const SUBJECT_SN_OFFSET: usize = 232usize;
     const ISSUER_SN_OFFSET: usize = 86usize;
-    const TCB_INFO_DEVICE_INFO_HASH_OFFSET: usize = 533usize;
-    const TCB_INFO_FMC_TCI_OFFSET: usize = 631usize;
+    const TCB_INFO_DEVICE_INFO_HASH_OFFSET: usize = 3027usize;
+    const TCB_INFO_FMC_TCI_OFFSET: usize = 3125usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 700usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 733usize;
-    const UEID_OFFSET: usize = 476usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 3194usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3227usize;
+    const UEID_OFFSET: usize = 2972usize;
     const NOT_BEFORE_OFFSET: usize = 154usize;
     const NOT_AFTER_OFFSET: usize = 171usize;
-    const TCB_INFO_FLAGS_OFFSET: usize = 584usize;
-    const TCB_INFO_FMC_SVN_OFFSET: usize = 613usize;
-    const TCB_INFO_FMC_SVN_FUSES_OFFSET: usize = 515usize;
-    const PUBLIC_KEY_LEN: usize = 97usize;
+    const TCB_INFO_FLAGS_OFFSET: usize = 3078usize;
+    const TCB_INFO_FMC_SVN_OFFSET: usize = 3107usize;
+    const TCB_INFO_FMC_SVN_FUSES_OFFSET: usize = 3009usize;
+    const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
     const TCB_INFO_DEVICE_INFO_HASH_LEN: usize = 48usize;
@@ -71,11 +77,11 @@ impl FmcAliasCertTbs {
     const TCB_INFO_FLAGS_LEN: usize = 4usize;
     const TCB_INFO_FMC_SVN_LEN: usize = 1usize;
     const TCB_INFO_FMC_SVN_FUSES_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 753usize;
-    const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
+    pub const TBS_TEMPLATE_LEN: usize = 3247usize;
+    const TBS_TEMPLATE_PART_1: [u8; Self::PUBLIC_KEY_OFFSET] = [
         48u8, 130u8, 2u8, 237u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 48u8, 10u8, 6u8, 8u8, 42u8, 134u8, 72u8, 206u8, 61u8, 4u8, 3u8, 3u8, 48u8, 105u8,
+        95u8, 0x06, 0x08, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 48u8, 105u8,
         49u8, 28u8, 48u8, 26u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 19u8, 67u8, 97u8, 108u8, 105u8,
         112u8, 116u8, 114u8, 97u8, 32u8, 49u8, 46u8, 48u8, 32u8, 76u8, 68u8, 101u8, 118u8, 73u8,
         68u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8,
@@ -94,13 +100,10 @@ impl FmcAliasCertTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 118u8, 48u8,
         16u8, 6u8, 7u8, 42u8, 134u8, 72u8, 206u8, 61u8, 2u8, 1u8, 6u8, 5u8, 43u8, 129u8, 4u8, 0u8,
-        34u8, 3u8, 98u8, 0u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 163u8, 130u8, 1u8, 77u8,
+        34u8, 4u8, 130u8, 10u8, 32u8];
+
+
+        const TBS_TEMPLATE_PART_2: [u8; 337] = [163u8, 130u8, 1u8, 77u8,
         48u8, 130u8, 1u8, 73u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8,
         48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 3u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8,
         1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8,
@@ -124,10 +127,12 @@ impl FmcAliasCertTbs {
         4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
-    pub fn new(params: &FmcAliasCertTbsParams) -> Self {
+    pub fn new(params: &FmcAliasCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
-            tbs: Self::TBS_TEMPLATE,
+            tbs: [0; Self::TBS_TEMPLATE_LEN],
         };
+        template.tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_PART_1);
+        template.tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&Self::TBS_TEMPLATE_PART_2);
         template.apply(params);
         template
     }
@@ -140,10 +145,10 @@ impl FmcAliasCertTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &FmcAliasCertTbsParams) {
+    fn apply(&mut self, params: &FmcAliasCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 753usize],
+            buf: &mut [u8; FmcAliasCertTbsMlDsa87::TBS_TEMPLATE_LEN],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
