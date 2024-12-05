@@ -64,8 +64,9 @@ impl AuthorizeAndStashCmd {
             let auth_manifest_image_metadata_col =
                 &persistent_data.auth_manifest_image_metadata_col;
 
+            let cmd_fw_id = u32::from_le_bytes(cmd.metadata);
             let auth_result = if let Some(metadata_entry) =
-                Self::find_metadata_entry(auth_manifest_image_metadata_col, &cmd.metadata)
+                Self::find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
             {
                 // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
                 let flags = ImageMetadataFlags(metadata_entry.flags);
@@ -115,42 +116,27 @@ impl AuthorizeAndStashCmd {
     /// Search for a metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.
     ///
     /// This function performs a binary search on the `image_metadata_list` of the provided `AuthManifestImageMetadataCollection`.
-    /// It compares the firmware ID (`fw_id`) of each metadata entry with the provided `cmd_fw_id_bytes`.
+    /// It compares the firmware ID (`fw_id`) of each metadata entry with the provided `cmd_fw_id`.
     ///
     /// # Arguments
     ///
     /// * `auth_manifest_image_metadata_col` - A reference to the `AuthManifestImageMetadataCollection` containing the metadata entries.
-    /// * `cmd_fw_id_bytes` - A reference to a `[u8; 4]` array representing the firmware ID from the command to search for.
+    /// * `cmd_fw_id` - The firmware ID from the command to search for.
     ///
     /// # Returns
     ///
-    /// * `Option<&'a AuthManifestImageMetadata>` - Returns `Some(&AuthManifestImageMetadata)` if a matching entry is found,
+    /// * `Option<&AuthManifestImageMetadata>` - Returns `Some(&AuthManifestImageMetadata)` if a matching entry is found,
     ///   otherwise returns `None`.
     ///
     #[inline(never)]
-    fn find_metadata_entry<'a>(
-        auth_manifest_image_metadata_col: &'a AuthManifestImageMetadataCollection,
-        cmd_fw_id_bytes: &[u8; 4],
-    ) -> Option<&'a AuthManifestImageMetadata> {
-        let mut left = 0;
-        let mut right = auth_manifest_image_metadata_col.entry_count as usize;
-
-        while left < right {
-            let mid = (left + right) / 2;
-            // This check is needed to avoid out of bounds panic.
-            if mid >= auth_manifest_image_metadata_col.image_metadata_list.len() {
-                break;
-            }
-            let metadata_entry = &auth_manifest_image_metadata_col.image_metadata_list[mid];
-            let entry_fw_id_bytes = metadata_entry.fw_id.to_le_bytes();
-
-            match cmd_fw_id_bytes.cmp(&entry_fw_id_bytes) {
-                cmp::Ordering::Less => right = mid,
-                cmp::Ordering::Greater => left = mid + 1,
-                cmp::Ordering::Equal => return Some(metadata_entry),
-            }
-        }
-
-        None
+    fn find_metadata_entry(
+        auth_manifest_image_metadata_col: &AuthManifestImageMetadataCollection,
+        cmd_fw_id: u32,
+    ) -> Option<&AuthManifestImageMetadata> {
+        auth_manifest_image_metadata_col
+            .image_metadata_list
+            .binary_search_by(|metadata| metadata.fw_id.cmp(&cmd_fw_id))
+            .ok()
+            .map(|index| &auth_manifest_image_metadata_col.image_metadata_list[index])
     }
 }
