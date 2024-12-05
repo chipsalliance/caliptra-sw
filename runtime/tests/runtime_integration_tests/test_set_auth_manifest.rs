@@ -18,7 +18,21 @@ use caliptra_hw_model::HwModel;
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
+use rand::distributions::Uniform;
+use rand::Rng;
 use zerocopy::AsBytes;
+
+fn random_digest() -> [u8; 48] {
+    let mut rng = rand::thread_rng();
+    let range = Uniform::new_inclusive(u8::MIN, u8::MAX);
+    let mut digest = [0u8; 48];
+
+    for e in &mut digest {
+        *e = rng.sample(&range);
+    }
+
+    digest
+}
 
 pub fn create_auth_manifest() -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
@@ -110,7 +124,7 @@ pub fn create_auth_manifest() -> AuthorizationManifest {
     gen.generate(&gen_config).unwrap()
 }
 
-fn create_auth_manifest_of_size(metadata_size: usize) -> anyhow::Result<AuthorizationManifest> {
+fn create_auth_manifest_of_size(metadata_size: usize) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeys {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
@@ -157,13 +171,6 @@ fn create_auth_manifest_of_size(metadata_size: usize) -> anyhow::Result<Authoriz
             }),
         });
 
-    // let image_digest2: [u8; 48] = [
-    //     0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50,
-    //     0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF,
-    //     0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA, 0xEC, 0xA1, 0x34,
-    //     0xC8, 0x25, 0xA7,
-    // ];
-
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(true);
     flags.set_image_source(ImageHashSource::ShaAcc as u32);
@@ -174,7 +181,7 @@ fn create_auth_manifest_of_size(metadata_size: usize) -> anyhow::Result<Authoriz
         image_metadata_list.push(AuthManifestImageMetadata {
             fw_id: id as u32,
             flags: flags.0,
-            digest: IMAGE_DIGEST1,
+            digest: random_digest(),
         })
     }
 
@@ -189,7 +196,7 @@ fn create_auth_manifest_of_size(metadata_size: usize) -> anyhow::Result<Authoriz
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config)
+    gen.generate(&gen_config).unwrap()
 }
 
 #[test]
@@ -300,7 +307,7 @@ fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: Calip
 
 #[test]
 fn test_set_auth_manifest_cmd_zero_metadata_entry() {
-    let auth_manifest = create_auth_manifest_of_size(0).unwrap();
+    let auth_manifest = create_auth_manifest_of_size(0);
     test_manifest_expect_err(
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
@@ -309,7 +316,7 @@ fn test_set_auth_manifest_cmd_zero_metadata_entry() {
 
 #[test]
 fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
-    let auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT).unwrap();
+    let auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
 
     let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
 
@@ -339,8 +346,30 @@ fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
 
 #[test]
 fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
-    let auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT+1);
-    assert!(auth_manifest.is_err());
+    let mut auth_manifest = create_auth_manifest_of_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
+    auth_manifest.image_metadata_col.entry_count += 1;
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(true);
+    flags.set_image_source(ImageHashSource::ShaAcc as u32);
+
+    let ptr = auth_manifest
+        .image_metadata_col
+        .image_metadata_list
+        .as_mut_ptr();
+
+    unsafe {
+        *ptr.add(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT) = AuthManifestImageMetadata {
+            fw_id: 127,
+            flags: flags.0,
+            digest: IMAGE_DIGEST1,
+        };
+    }
+
+    test_manifest_expect_err(
+        auth_manifest,
+        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+    );
 }
 
 #[test]

@@ -803,7 +803,6 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arrayvec",
  "bitflags 2.4.0",
  "caliptra-api",
@@ -836,6 +835,7 @@ dependencies = [
  "memoffset 0.8.0",
  "openssl",
  "platform",
+ "rand",
  "sha2",
  "ufmt",
  "wycheproof",
