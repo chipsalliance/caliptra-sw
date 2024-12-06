@@ -34,7 +34,7 @@ fn random_digest() -> [u8; 48] {
     digest
 }
 
-pub fn create_auth_manifest() -> AuthorizationManifest {
+pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeys {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
@@ -117,7 +117,7 @@ pub fn create_auth_manifest() -> AuthorizationManifest {
         owner_man_key_info,
         image_metadata_list,
         version: 1,
-        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        flags: manifest_flags,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
@@ -270,7 +270,7 @@ fn test_set_auth_manifest_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let auth_manifest = create_auth_manifest();
+    let auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
@@ -437,7 +437,7 @@ fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_marker() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.marker = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -447,7 +447,7 @@ fn test_set_auth_manifest_invalid_preamble_marker() {
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_size() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.size -= 1;
     test_manifest_expect_err(
         auth_manifest,
@@ -457,7 +457,7 @@ fn test_set_auth_manifest_invalid_preamble_size() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -467,7 +467,7 @@ fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_lms_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -477,7 +477,7 @@ fn test_set_auth_manifest_invalid_vendor_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -487,7 +487,7 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
     test_manifest_expect_err(
         auth_manifest,
@@ -497,7 +497,7 @@ fn test_set_auth_manifest_invalid_owner_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_metadata_list_count() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.image_metadata_col.entry_count = 0;
     test_manifest_expect_err(
         auth_manifest,
@@ -507,7 +507,7 @@ fn test_set_auth_manifest_invalid_metadata_list_count() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
@@ -520,7 +520,7 @@ fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
@@ -533,7 +533,7 @@ fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
@@ -546,7 +546,7 @@ fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
-    let mut auth_manifest = create_auth_manifest();
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
@@ -555,4 +555,76 @@ fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
         auth_manifest,
         CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
     );
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_ignore_vendor_ecc_sig() {
+    let mut auth_manifest = create_auth_manifest(0.into());
+
+    // Erase the vendor manifest ECC signature.
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .ecc_sig = Default::default();
+
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_ignore_vendor_lms_sig() {
+    let mut auth_manifest = create_auth_manifest(0.into());
+
+    // Erase the vendor manifest LMS signature.
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .lms_sig = Default::default();
+
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
 }

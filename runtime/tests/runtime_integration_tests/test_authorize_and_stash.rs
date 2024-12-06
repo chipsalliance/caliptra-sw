@@ -4,7 +4,7 @@ use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with};
 use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{self, FMC_WITH_UART},
@@ -49,7 +49,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> ModelEmula
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest()
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
     };
 
     let buf = auth_manifest.as_bytes();

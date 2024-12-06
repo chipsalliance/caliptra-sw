@@ -415,27 +415,11 @@ impl SetAuthManifestCmd {
             soc_ifc,
         )?;
 
-        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.
+        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
         let slice =
             &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
-        for i in 0..slice.len() {
-            for j in 0..(slice.len() - 1 - i) {
-                // This check is needed to avoid out of bounds access panic.
-                if (j + 1) >= slice.len() {
-                    break;
-                }
 
-                match slice[j].fw_id.cmp(&slice[j + 1].fw_id) {
-                    core::cmp::Ordering::Greater => {
-                        slice.swap(j, j + 1);
-                    }
-                    core::cmp::Ordering::Equal => {
-                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID)?;
-                    }
-                    _ => {}
-                }
-            }
-        }
+        Self::sort_and_check_duplicate_fwid(slice)?;
 
         // Clear the previous image metadata collection.
         metadata_persistent.zeroize();
@@ -443,6 +427,33 @@ impl SetAuthManifestCmd {
         // Copy the image metadata collection to the persistent data.
         metadata_persistent.as_bytes_mut()[..buf.len()].copy_from_slice(buf);
 
+        Ok(())
+    }
+
+    fn sort_and_check_duplicate_fwid(
+        slice: &mut [AuthManifestImageMetadata],
+    ) -> CaliptraResult<()> {
+        for i in 1..slice.len() {
+            let mut j = i;
+            while j > 0 {
+                if j >= slice.len() {
+                    break;
+                }
+
+                match slice[j - 1].fw_id.cmp(&slice[j].fw_id) {
+                    core::cmp::Ordering::Greater => {
+                        slice.swap(j - 1, j);
+                        j -= 1;
+                    }
+                    core::cmp::Ordering::Equal => {
+                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID)?;
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
