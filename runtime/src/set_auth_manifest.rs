@@ -539,3 +539,74 @@ impl SetAuthManifestCmd {
         Ok(MailboxResp::default())
     }
 }
+
+#[cfg(all(test))]
+mod tests {
+    use super::*;
+
+    fn is_sorted(slice: &[AuthManifestImageMetadata]) -> bool {
+        for i in 0..slice.len() - 1 {
+            if slice[i].fw_id > slice[i + 1].fw_id {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    #[test]
+    fn test_sort_and_duplicate_empty() {
+        let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut []);
+        assert!(resp.is_ok());
+    }
+
+    #[test]
+    fn test_sort_and_duplicate_sort() {
+        let mut list = [
+            AuthManifestImageMetadata {
+                fw_id: 5,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+            AuthManifestImageMetadata {
+                fw_id: 127,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+            AuthManifestImageMetadata {
+                fw_id: 48,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+        ];
+        let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);
+        assert!(resp.is_ok());
+        assert!(is_sorted(&list));
+    }
+
+    #[test]
+    fn test_sort_and_duplicate_dupe() {
+        let mut list = [
+            AuthManifestImageMetadata {
+                fw_id: 5,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+            AuthManifestImageMetadata {
+                fw_id: 127,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+            AuthManifestImageMetadata {
+                fw_id: 127,
+                flags: 0,
+                digest: [0u8; 48],
+            },
+        ];
+        let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);
+        assert_eq!(
+            resp.unwrap_err(),
+            CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID
+        );
+    }
+}
