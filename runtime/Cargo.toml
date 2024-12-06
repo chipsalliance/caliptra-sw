@@ -47,6 +47,7 @@ caliptra-auth-man-gen.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
+rand = "0.8"
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 cms.workspace = true
 wycheproof.workspace = true
