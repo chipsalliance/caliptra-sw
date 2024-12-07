@@ -17,6 +17,7 @@ caliptra-error = { workspace = true, default-features = false }
 zeroize.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 bitflags.workspace = true
+bitfield.workspace = true
 
 [features]
 default = ["std"]

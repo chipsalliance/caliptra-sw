@@ -1059,8 +1059,8 @@ impl AuthAndStashFlags {
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct AuthorizeAndStashReq {
     pub hdr: MailboxReqHeader,
-    pub metadata: [u8; 4],
-    pub measurement: [u8; 48],
+    pub fw_id: [u8; 4],
+    pub measurement: [u8; 48], // Image digest.
     pub context: [u8; 48],
     pub svn: u32,
     pub flags: u32,
@@ -1070,7 +1070,7 @@ impl Default for AuthorizeAndStashReq {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            metadata: Default::default(),
+            fw_id: Default::default(),
             measurement: [0u8; 48],
             context: [0u8; 48],
             svn: Default::default(),

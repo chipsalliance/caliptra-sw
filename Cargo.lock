@@ -244,6 +244,7 @@ name = "caliptra-auth-man-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "bitfield",
  "bitflags 2.4.0",
  "caliptra-error",
  "caliptra-image-types",

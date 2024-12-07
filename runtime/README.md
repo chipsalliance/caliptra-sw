@@ -725,7 +725,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
 | preamble\_size                | u32          | Size of the preamble                                                        |
 | preamble\_version             | u32          | Version of the preamble                                                     |
-| preamble\_flags               | u32          | Preamble flags                                                              |
+| preamble\_flags               | u32          | Manifest flags. See AUTH_MANIFEST_FLAGS below |
 | preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
 | preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
 | preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
@@ -739,7 +739,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
 | metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | MetaData[128] | The max number of metadata entries is 128 but less can be used             |
+| metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
@@ -750,10 +750,19 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 
-| **Name**      | **Type** | **Description**        |
-|---------------|----------|------------------------|
-| digest        | u32[48]  | Digest of the metadata |
-| image\_source | u32      | Image source           |
+| **Name**      | **Type** | **Description**                |
+|---------------|----------|--------------------------------|
+| fw\_id        | u32      | Id of the image                |
+| flags         | u32      | See METADATA_ENTRY_FLAGS below |
+| digest        | u32[48]  | Digest of the image            |
+
+
+*Table: `METADATA_ENTRY_FLAGS` input flags*
+
+| **Name**            | **Size (Bits)** | **Description** |
+|---------------------|-----------------|-----------------|
+| image\_source       | 2               | 1: InRequest    |
+| ignore\_auth\_check | 1               | If set, the image digest is not compared for the firmware id |
 
 *Table: `SET_AUTH_MANIFEST` output arguments*
 
@@ -769,14 +778,14 @@ Command Code: `0x4154_5348` ("ATSH")
 
 *Table: `AUTHORIZE_AND_STASH` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
-| metadata    | u8[4]    | 4-byte measurement identifier.                                                      |
-| measurement | u8[48]   | Digest of measured                                                                  |
+| **Name**    | **Type** | **Description**
+| ------------| -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
+| fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
+| measurement | u8[48]   | Digest of the image requested for authorization |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | SVN                                                                                 |
-| flags       | u32      | Flags                                                                               |
+| flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
 | source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
@@ -790,7 +799,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------      | -------- | ---------------
 | chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      | AUTHORIZE_IMAGE: 0xDEADC0DE and DENY_IMAGE_AUTHORIZATION: 0x21523F21    |
+| auth_req_result | u32      | AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) |
 
 ### GET\_IDEVID\_CSR
 
