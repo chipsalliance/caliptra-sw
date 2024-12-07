@@ -118,7 +118,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 const PAUSER_COUNT: usize = 5;
                 let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
                 let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
-                let mut digest_op = drivers.sha384.digest_init().unwrap();
+                let mut digest_op = drivers.sha2_512_384.sha384_digest_init().unwrap();
                 for i in 0..PAUSER_COUNT {
                     if mbox_pauser_lock[i] {
                         digest_op.update(mbox_valid_pauser[i].as_bytes()).unwrap();
@@ -130,7 +130,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 write_response(&mut drivers.mbox, valid_pauser_hash.as_bytes());
             }
             CommandId(OPCODE_HASH_DPE_TCI_DATA) => {
-                let mut hasher = drivers.sha384.digest_init().unwrap();
+                let mut hasher = drivers.sha2_512_384.sha384_digest_init().unwrap();
                 for context in drivers.persistent_data.get().dpe.contexts {
                     if context.state != ContextState::Inactive {
                         hasher.update(context.tci.tci_current.as_bytes()).unwrap();

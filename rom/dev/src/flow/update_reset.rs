@@ -67,7 +67,7 @@ impl UpdateResetFlow {
 
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
-                sha384: &mut env.sha384,
+                sha2_512_384: &mut env.sha2_512_384,
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
                 data_vault: &mut env.data_vault,
@@ -147,7 +147,7 @@ impl UpdateResetFlow {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
             sha256: env.sha256,
-            sha384: env.sha384,
+            sha2_512_384: env.sha2_512_384,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,

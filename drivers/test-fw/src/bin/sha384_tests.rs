@@ -16,14 +16,14 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha2_512_384};
 use caliptra_kat::Sha384Kat;
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 
 use caliptra_test_harness::test_suite;
 
 fn test_digest0() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
         0x6A, 0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6,
@@ -32,12 +32,12 @@ fn test_digest0() {
     ];
 
     let data = &[];
-    let digest = sha384.digest(data).unwrap();
+    let digest = sha2.sha384_digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest1() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50,
         0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF,
@@ -45,12 +45,12 @@ fn test_digest1() {
         0xC8, 0x25, 0xA7,
     ];
     let data = "abc".as_bytes();
-    let digest = sha384.digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest2() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x33, 0x91, 0xFD, 0xDD, 0xFC, 0x8D, 0xC7, 0x39, 0x37, 0x07, 0xA6, 0x5B, 0x1B, 0x47, 0x09,
         0x39, 0x7C, 0xF8, 0xB1, 0xD1, 0x62, 0xAF, 0x05, 0xAB, 0xFE, 0x8F, 0x45, 0x0D, 0xE5, 0xF3,
@@ -58,12 +58,12 @@ fn test_digest2() {
         0xC8, 0x45, 0x2B,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let digest = sha384.digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest3() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x09, 0x33, 0x0C, 0x33, 0xF7, 0x11, 0x47, 0xE8, 0x3D, 0x19, 0x2F, 0xC7, 0x82, 0xCD, 0x1B,
         0x47, 0x53, 0x11, 0x1B, 0x17, 0x3B, 0x3B, 0x05, 0xD2, 0x2F, 0xA0, 0x80, 0x86, 0xE3, 0xB0,
@@ -71,12 +71,12 @@ fn test_digest3() {
         0x74, 0x60, 0x39,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let digest = sha384.digest(data.into()).unwrap();
+    let digest = sha384.sha384_digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op0() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
         0x6A, 0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6,
@@ -84,14 +84,14 @@ fn test_op0() {
         0x98, 0xB9, 0x5B,
     ];
     let mut digest = Array4x12::default();
-    let digest_op = sha384.digest_init().unwrap();
+    let digest_op = sha384.sha384_digest_init().unwrap();
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op1() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
         0x6A, 0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6,
@@ -99,14 +99,14 @@ fn test_op1() {
         0x98, 0xB9, 0x5B,
     ];
     let mut digest = Array4x12::default();
-    let digest_op = sha384.digest_init().unwrap();
+    let digest_op = sha384.sha384_digest_init().unwrap();
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op2() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50,
         0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF,
@@ -116,7 +116,7 @@ fn test_op2() {
 
     let data = "abc".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
@@ -124,7 +124,7 @@ fn test_op2() {
 }
 
 fn test_op3() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x33, 0x91, 0xFD, 0xDD, 0xFC, 0x8D, 0xC7, 0x39, 0x37, 0x07, 0xA6, 0x5B, 0x1B, 0x47, 0x09,
         0x39, 0x7C, 0xF8, 0xB1, 0xD1, 0x62, 0xAF, 0x05, 0xAB, 0xFE, 0x8F, 0x45, 0x0D, 0xE5, 0xF3,
@@ -133,7 +133,7 @@ fn test_op3() {
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
@@ -141,7 +141,7 @@ fn test_op3() {
 }
 
 fn test_op4() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x09, 0x33, 0x0C, 0x33, 0xF7, 0x11, 0x47, 0xE8, 0x3D, 0x19, 0x2F, 0xC7, 0x82, 0xCD, 0x1B,
         0x47, 0x53, 0x11, 0x1B, 0x17, 0x3B, 0x3B, 0x05, 0xD2, 0x2F, 0xA0, 0x80, 0x86, 0xE3, 0xB0,
@@ -150,7 +150,7 @@ fn test_op4() {
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
@@ -158,7 +158,7 @@ fn test_op4() {
 }
 
 fn test_op5() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x9D, 0x0E, 0x18, 0x09, 0x71, 0x64, 0x74, 0xCB, 0x08, 0x6E, 0x83, 0x4E, 0x31, 0x0A, 0x4A,
         0x1C, 0xED, 0x14, 0x9E, 0x9C, 0x00, 0xF2, 0x48, 0x52, 0x79, 0x72, 0xCE, 0xC5, 0x70, 0x4C,
@@ -167,7 +167,7 @@ fn test_op5() {
     ];
     const DATA: [u8; 1000] = [0x61; 1000];
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     for _ in 0..1_000 {
         assert!(digest_op.update(&DATA).is_ok());
     }
@@ -177,7 +177,7 @@ fn test_op5() {
 }
 
 fn test_op6() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb, 0xaa,
         0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29, 0xbd, 0xb6,
@@ -186,7 +186,7 @@ fn test_op6() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
@@ -196,7 +196,7 @@ fn test_op6() {
 }
 
 fn test_op7() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x67, 0x4b, 0x2e, 0x80, 0xff, 0x8d, 0x94, 0x00, 0x8d, 0xe7, 0x40, 0x9c, 0x7b, 0x1f, 0x87,
         0x8f, 0x9f, 0xae, 0x3a, 0x0a, 0x6d, 0xae, 0x2f, 0x98, 0x2c, 0xca, 0x7e, 0x3a, 0xae, 0xf9,
@@ -205,7 +205,7 @@ fn test_op7() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
@@ -215,7 +215,7 @@ fn test_op7() {
 }
 
 fn test_op8() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
         0x55, 0x23, 0xcf, 0xb7, 0x7f, 0x9c, 0x55, 0xe0, 0xcc, 0xaf, 0xec, 0x5b, 0x87, 0xd7, 0x9c,
         0xde, 0x64, 0x30, 0x12, 0x28, 0x3b, 0x71, 0x18, 0x8e, 0x40, 0x8c, 0x5a, 0xea, 0xe9, 0x19,
@@ -224,7 +224,7 @@ fn test_op8() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh".as_bytes();
     let mut digest = Array4x12::default();
-    let mut digest_op = sha384.digest_init().unwrap();
+    let mut digest_op = sha384.sha384_digest_init().unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
@@ -234,7 +234,7 @@ fn test_op8() {
 }
 
 fn test_pcr_hash_extend_single_block() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     // fn change_endianess(arr: mut &[u8]) {
@@ -287,7 +287,7 @@ fn test_pcr_hash_extend_single_block() {
 }
 
 fn test_pcr_hash_extend_single_block_2() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     let expected_round_1: [u8; 48] = [
@@ -328,7 +328,7 @@ fn test_pcr_hash_extend_single_block_2() {
 }
 
 fn test_pcr_hash_extend_single_block_3() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     let expected_round_1: [u8; 48] = [
@@ -371,7 +371,7 @@ fn test_pcr_hash_extend_single_block_3() {
 }
 
 fn test_pcr_hash_extend_limit() {
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
     let data_allowed: [u8; 79] = [0u8; 79];
     let data_not_allowed: [u8; 80] = [0u8; 80];
@@ -386,7 +386,7 @@ fn test_kat() {
     // Init CFI
     CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
 
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha384 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
 
     assert_eq!(Sha384Kat::default().execute(&mut sha384).is_ok(), true);
 }
