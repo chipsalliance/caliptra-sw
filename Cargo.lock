@@ -654,7 +654,9 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-image-types",
  "caliptra-lms-types",
+ "fips204",
  "memoffset 0.8.0",
+ "rand",
  "zerocopy",
 ]
 

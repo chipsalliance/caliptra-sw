@@ -22,7 +22,7 @@ fn main() {
     let sub_cmds = vec![Command::new("create")
         .about("Create a new firmware image bundle")
         .arg(
-            arg!(--"image-type" <U32> "Type of image keys: 1: ECC + LMS; 2: ECC + MLDSA")
+            arg!(--"pqc-key-type" <U32> "Type of image keys: 1: ECC + LMS; 2: ECC + MLDSA")
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )
@@ -37,7 +37,7 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"lms-pk-idx" <U32> "Vendor LMS Public Key Index")
+            arg!(--"pqc-pk-idx" <U32> "Vendor PQC (LMS or MLDSA) Public Key Index")
                 .required(false)
                 .value_parser(value_parser!(u32)),
         )

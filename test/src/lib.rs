@@ -37,15 +37,14 @@ pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
     result
 }
 
-// Returns the vendor and owner public key descriptor hashes from the image.
+// Returns the vendor public key descriptor and owner public key hashes from the image.
 pub fn image_pk_desc_hash(manifest: &ImageManifest) -> ([u32; 12], [u32; 12]) {
     let vendor_pk_desc_hash =
         bytes_to_be_words_48(&sha384(manifest.preamble.vendor_pub_key_info.as_bytes()));
 
-    let owner_pk_desc_hash =
-        bytes_to_be_words_48(&sha384(manifest.preamble.owner_pub_key_info.as_bytes()));
+    let owner_pk_hash = bytes_to_be_words_48(&sha384(manifest.preamble.owner_pub_keys.as_bytes()));
 
-    (vendor_pk_desc_hash, owner_pk_desc_hash)
+    (vendor_pk_desc_hash, owner_pk_hash)
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,

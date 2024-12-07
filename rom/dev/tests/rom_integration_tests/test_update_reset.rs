@@ -345,7 +345,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
-        lms_key_idx: 3,
+        pqc_key_idx: 3,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -361,7 +361,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     // Generate firmware with a different vendor LMS key index.
     let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        lms_key_idx: 2,
+        pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -396,7 +396,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     assert_eq!(
         hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
         Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH.into()
         ))
     );
 
@@ -407,7 +407,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH)
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH)
     );
 }
 

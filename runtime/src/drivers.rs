@@ -27,22 +27,29 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
-use caliptra_drivers::KeyId;
 use caliptra_drivers::{
-    cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
-    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
-};
-use caliptra_drivers::{
-    hand_off::DataStore, Ecc384PubKey, Hmac, PcrBank, PcrId, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, Trng,
+    cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
+    CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
+    PcrId, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
+    Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
-use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
-use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
-    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg,
+    dv::DvReg,
+    ecc::EccReg,
+    el2_pic_ctrl::El2PicCtrl,
+    entropy_src::EntropySrcReg,
+    hmac::HmacReg,
+    kv::KvReg,
+    mbox::{enums::MboxStatusE, MboxCsr},
+    mldsa::MldsaReg,
+    pv::PvReg,
+    sha256::Sha256Reg,
+    sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
@@ -90,6 +97,9 @@ pub struct Drivers {
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
+    /// Mldsa87 Engine
+    pub mldsa87: Mldsa87,
+
     pub persistent_data: PersistentDataAccessor,
 
     pub lms: Lms,
@@ -135,6 +145,7 @@ impl Drivers {
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
+            mldsa87: Mldsa87::new(MldsaReg::new()),
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,

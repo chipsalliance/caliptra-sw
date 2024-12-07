@@ -28,3 +28,5 @@ hw/fpga/vivado*.log
 
 # libcaliptra build artifacts
 libcaliptra/libcaliptra.a
+
+hw-latest/verilated/out/*

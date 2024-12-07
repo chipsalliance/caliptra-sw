@@ -313,7 +313,7 @@ impl Crypto {
 
         // Generate the public key.
         let pub_key = env
-            .mldsa
+            .mldsa87
             .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
 
         Ok(MlDsaKeyPair {

@@ -32,7 +32,7 @@ use caliptra_drivers::{
     PersistentData, RomPqcVerifyConfig, Sha256, Sha2_512_384, SocIfc,
 };
 use caliptra_image_types::{
-    ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
+    ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
     ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
 use crypto::{AlgLen, Crypto};
@@ -52,7 +52,7 @@ impl SetAuthManifestCmd {
         manifest: &[u8],
         offset: u32,
         len: u32,
-    ) -> CaliptraResult<ImageDigest> {
+    ) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         let data = manifest
             .get(offset as usize..)
@@ -64,7 +64,7 @@ impl SetAuthManifestCmd {
 
     fn ecc384_verify(
         ecc384: &mut Ecc384,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
@@ -85,7 +85,7 @@ impl SetAuthManifestCmd {
 
     fn lms_verify(
         sha256: &mut Sha256,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
@@ -134,7 +134,9 @@ impl SetAuthManifestCmd {
         }
 
         // Verify vendor LMS signature.
-        let vendor_fw_lms_key = &fw_preamble.vendor_lms_active_pub_key;
+        let vendor_fw_lms_key =
+            ImageLmsPublicKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID)?;
 
         let candidate_key = Self::lms_verify(
             sha256,
@@ -192,7 +194,9 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        let owner_fw_lms_key = &fw_preamble.owner_pub_keys.lms_pub_key;
+        let owner_fw_lms_key =
+            ImageLmsPublicKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID)?;
 
         let candidate_key = Self::lms_verify(
             sha256,
@@ -213,7 +217,7 @@ impl SetAuthManifestCmd {
 
     fn verify_vendor_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
-        image_metadata_col_digest: &ImageDigest,
+        image_metadata_col_digest: &ImageDigest384,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -274,7 +278,7 @@ impl SetAuthManifestCmd {
 
     fn verify_owner_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
-        image_metadata_col_digest: &ImageDigest,
+        image_metadata_col_digest: &ImageDigest384,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,

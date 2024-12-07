@@ -31,7 +31,7 @@ use caliptra_drivers::{
     PersistentData, RomPqcVerifyConfig, Sha256, Sha2_512_384, SocIfc,
 };
 use caliptra_image_types::{
-    ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
+    ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
     ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
 use crypto::{AlgLen, Crypto};

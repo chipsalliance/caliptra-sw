@@ -70,7 +70,7 @@ build-fw-image: gen-certs build-emu build-test-rt
 		create \
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
-		--lms-pk-idx 3 \
+		--pqc-pk-idx 3 \
 		--fmc $(TARGET_DIR)/caliptra-fmc \
 		--fmc-version 0 \
 		--fmc-svn 0 \
