@@ -210,7 +210,7 @@ fn test_uninitialized_dccm_read() {
     );
 
     const DCCM_ADDR: u32 = 0x5000_0000;
-    const DCCM_SIZE: u32 = 128 * 1024;
+    const DCCM_SIZE: u32 = 256 * 1024;
 
     model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| DCCM_ADDR);
     model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| DCCM_SIZE);

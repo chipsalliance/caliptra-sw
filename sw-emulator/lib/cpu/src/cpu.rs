@@ -576,7 +576,7 @@ impl<TBus: Bus> Cpu<TBus> {
         const REDIRECT_ENTRY_SIZE: u32 = 4;
         const MAX_IRQ: u32 = 32;
         const DCCM_ORG: u32 = 0x5000_0000;
-        const DCCM_SIZE: u32 = 128 * 1024;
+        const DCCM_SIZE: u32 = 256 * 1024;
 
         let vec_table = self.ext_int_vec;
         if vec_table < DCCM_ORG || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE > DCCM_ORG + DCCM_SIZE
