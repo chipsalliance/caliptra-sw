@@ -28,12 +28,56 @@ use caliptra_common::keyids::{
 };
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
-use caliptra_drivers::{ECC384_MAX_CSR_SIZE, MLDSA87_MAX_CSR_SIZE};
+use caliptra_image_types::SHA384_DIGEST_WORD_SIZE;
 use caliptra_x509::*;
+use core::mem::size_of;
+use zerocopy::AsBytes;
 use zeroize::Zeroize;
 
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
 const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+
+pub const SHA512_DIGEST_WORD_SIZE: usize = 16;
+pub type Hmac384Tag = [u32; SHA384_DIGEST_WORD_SIZE];
+pub type Hmac512Tag = [u32; SHA512_DIGEST_WORD_SIZE];
+
+pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
+
+/// Calipatra IDEVID CSR Envelop
+#[repr(C)]
+#[derive(AsBytes, Clone, Zeroize)]
+pub struct InitDevIdCsrEnvelop {
+    /// Marker
+    pub marker: u32,
+
+    /// Size of the CSR Envelop
+    pub size: u32,
+
+    /// ECC CSR
+    pub ecc_csr: Ecc384IdevIdCsr,
+
+    /// ECC CSR MAC
+    pub ecc_csr_mac: Hmac384Tag,
+
+    /// MLDSA CSR
+    pub mldsa_csr: Mldsa87IdevIdCsr,
+
+    /// MLDSA CSR MAC
+    pub mldsa_csr_mac: Hmac512Tag,
+}
+
+impl Default for InitDevIdCsrEnvelop {
+    fn default() -> Self {
+        InitDevIdCsrEnvelop {
+            marker: IDEVID_CSR_ENVELOP_MARKER,
+            size: size_of::<InitDevIdCsrEnvelop>() as u32,
+            ecc_csr: Ecc384IdevIdCsr::default(),
+            ecc_csr_mac: Hmac384Tag::default(),
+            mldsa_csr: Mldsa87IdevIdCsr::default(),
+            mldsa_csr_mac: Hmac512Tag::default(),
+        }
+    }
+}
 
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
@@ -260,6 +304,32 @@ impl InitDevIdLayer {
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
     fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+        let mut csr_envelop = InitDevIdCsrEnvelop::default();
+
+        // Generate ECC CSR.
+        Self::make_ecc_csr(env, output, &mut csr_envelop)?;
+
+        // Generate MLDSA CSR.
+        Self::make_mldsa_csr(env, output, &mut csr_envelop)?;
+
+        // Execute Send CSR Flow
+        // [TODO][CAP2] Send the CSR envelop.
+        let mut result = Self::send_ecc384_csr(env, &csr_envelop.ecc_csr);
+        if result.is_ok() {
+            result = Self::write_ecc384_csr_to_peristent_storage(env, &csr_envelop.ecc_csr);
+            // [TODO][CAP2] Write the MLDSA CSR to persistent storage.
+        }
+        csr_envelop.zeroize();
+        result?;
+        report_boot_status(IDevIdMakeCsrComplete.into());
+        Ok(())
+    }
+
+    fn make_ecc_csr(
+        env: &mut RomEnv,
+        output: &DiceOutput,
+        csr_envelop: &mut InitDevIdCsrEnvelop,
+    ) -> CaliptraResult<()> {
         let key_pair = &output.ecc_subj_key_pair;
 
         // CSR `To Be Signed` Parameters
@@ -298,7 +368,6 @@ impl InitDevIdLayer {
         cprintln!("[idev] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mut ecc384_csr_buf = [0; ECC384_MAX_CSR_SIZE];
         let ecdsa384_sig = sig.to_ecdsa();
         let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
@@ -306,27 +375,28 @@ impl InitDevIdLayer {
 
         let csr_bldr = result?;
         let csr_len = csr_bldr
-            .build(&mut ecc384_csr_buf)
+            .build(&mut csr_envelop.ecc_csr.csr)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
 
-        if csr_len > ecc384_csr_buf.len() {
+        if csr_len > csr_envelop.ecc_csr.csr.len() {
             return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
+        csr_envelop.ecc_csr.csr_len = csr_len as u32;
 
-        cprintln!("[idev] CSR = {}", HexBytes(&ecc384_csr_buf[..csr_len]));
+        cprintln!(
+            "[idev] CSR = {}",
+            HexBytes(&csr_envelop.ecc_csr.csr[..csr_len])
+        );
 
-        let dev_id_csr = Ecc384IdevIdCsr::new(&ecc384_csr_buf, csr_len)?;
+        // [TODO][CAP2] Generate the CSR MAC.
+        Ok(())
+    }
 
-        // Execute Send CSR Flow
-        let mut result = Self::send_ecc384_csr(env, &dev_id_csr);
-        if result.is_ok() {
-            result = Self::write_ecc384_csr_to_peristent_storage(env, &dev_id_csr);
-        }
-        ecc384_csr_buf.zeroize();
-
-        result?;
-
-        // Generate MLDSA CSR.
+    fn make_mldsa_csr(
+        env: &mut RomEnv,
+        output: &DiceOutput,
+        csr_envelop: &mut InitDevIdCsrEnvelop,
+    ) -> CaliptraResult<()> {
         let key_pair = &output.mldsa_subj_key_pair;
 
         let params = InitDevIdCsrTbsMlDsa87Params {
@@ -359,7 +429,6 @@ impl InitDevIdLayer {
         let mut sig: [u8; 4627] = sig[..4627].try_into().unwrap();
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mut mldsa87_csr_buf = [0; MLDSA87_MAX_CSR_SIZE];
         let mldsa87_signature = caliptra_x509::Mldsa87Signature { sig };
         let result = MlDsa87CsrBuilder::new(tbs.tbs(), &mldsa87_signature)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
@@ -367,21 +436,19 @@ impl InitDevIdLayer {
 
         let csr_bldr = result?;
         let csr_len = csr_bldr
-            .build(&mut mldsa87_csr_buf)
+            .build(&mut csr_envelop.mldsa_csr.csr)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
 
-        if csr_len > mldsa87_csr_buf.len() {
+        if csr_len > csr_envelop.mldsa_csr.csr.len() {
             return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
+        csr_envelop.mldsa_csr.csr_len = csr_len as u32;
 
-        let dev_id_csr = Mldsa87IdevIdCsr::new(&mldsa87_csr_buf, csr_len)?;
+        // [TODO][CAP2] Remove this when writing MLDSDA CSR in make_csr is enabled.
+        Self::write_mldsa87_csr_to_peristent_storage(env, &csr_envelop.mldsa_csr)?;
 
-        let result = Self::write_mldsa87_csr_to_peristent_storage(env, &dev_id_csr);
-        mldsa87_csr_buf.zeroize();
-
-        report_boot_status(IDevIdMakeCsrComplete.into());
-
-        result
+        // [TODO][CAP2] Generate the CSR MAC.
+        Ok(())
     }
 
     fn write_ecc384_csr_to_peristent_storage(
