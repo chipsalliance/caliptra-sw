@@ -215,6 +215,9 @@ pub struct HmacSha {
 
     /// Tag write complete action
     op_tag_write_complete_action: Option<ActionHandle>,
+
+    /// CSR Key
+    csr_key: [u32; HMAC_KEY_SIZE_DWORD_512],
 }
 
 impl HmacSha {
@@ -268,6 +271,7 @@ impl HmacSha {
             op_key_read_complete_action: None,
             op_block_read_complete_action: None,
             op_tag_write_complete_action: None,
+            csr_key: Default::default(),
         }
     }
 
@@ -343,6 +347,11 @@ impl HmacSha {
 
             let mode512 = self.control.reg.is_set(Control::MODE);
 
+            // If CSR mode is set, use the pre-defined key.
+            if self.control.reg.is_set(Control::CSR_MODE) {
+                self.key = self.csr_key;
+            }
+
             if self.control.reg.is_set(Control::INIT) {
                 if mode512 {
                     self.hmac =
@@ -379,8 +388,6 @@ impl HmacSha {
             // Zeroize the HMAC engine
             self.zeroize();
         }
-
-        // [TODO][CAP2] if CSR Mode is set, use a pre-defined key.
 
         Ok(())
     }

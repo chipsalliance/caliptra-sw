@@ -41,6 +41,7 @@ pub const SHA256_DIGEST_WORD_SIZE: usize = 8;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
 pub const SHA512_DIGEST_WORD_SIZE: usize = 16;
+pub const SHA512_DIGEST_BYTE_SIZE: usize = 64;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
