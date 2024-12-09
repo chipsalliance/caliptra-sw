@@ -118,29 +118,30 @@ Internally, the unecrypted CMKs have the following structure:
 
 | **Name**      | **Bits** | **Description**                             |
 | ------------- | -------- | ------------------------------------------- |
-| version       | 32       | CMK version. Currently always 1.            |
-| key usage     | 32       | represents which kind of key this is        |
-| id            | 32       | ID number                                   |
+| version       | 16       | CMK version. Currently always 1.            |
+| length        | 16       | how many bits of key material are used      |
+| key usage     | 8        | represents which kind of key this is        |
+| id            | 24       | ID number                                   |
 | usage counter | 64       | how many times this key has been used       |
-| length        | 32       | how many bits of key material are used      |
-| padding       | 64       | reserved for now                            |
+|               |          | This MAY only be tracked for AES keys       |
 | key material  | 512      | bits used for the key material              |
 
 The encrypted CMKs have the structure:
 
-| **Name**      | **Bits** | **Description**                |
-| ------------- | -------- | ------------------------------ |
-| padding       | 32       | reserved                       |
-| iv            | 96       |                                |
-| ciphertext    | 768      | encrypted CMK data (see above) |
-| GCM tag       | 128      |                                |
+| **Name**        | **Bits** | **Description**                |
+| --------------- | -------- | ------------------------------ |
+| domain          | 32       | reserved                       |
+| domain metadata | 128      | reserved
+| iv              | 96       |                                |
+| ciphertext      | 640      | encrypted CMK data (see above) |
+| GCM tag         | 128      |                                |
 
 The total size of the CMK is therefore 128 bytes.
 
 Only the encrypted CMKs will appear in mailbox messages.
 
-The key used to encrypt the CMKs is randomized on reset, which means that CMKS cannot be used between resets.
-The iv is a randomized 1-up counter that is incremented for every key created.
+The key used to encrypt the CMKs is randomized on reset, which means that CMKs cannot be used between resets.
+The IV is a randomized 1-up counter that is incremented for every key created.
 
 #### Key Usage
 
@@ -159,9 +160,9 @@ To prevent replay attacks, Caliptra will have a small table that maps a CMK's in
 Whenever a CMK is used, this table is checked and updated.
 
 This is necessary for AES-256-GCM in particular to ensure that keys are only used a certain number of times, as per [NIST SP 800-38D, Section 8.3](https://doi.org/10.6028/NIST.SP.800-38D).
-Only AES-256-GCM keys need to be tracked in this table.
+Only AES-256-GCM keys need to be tracked in this table, but other keys MAY be tracked as well.
 
-This requires 96 bits of storage per AES-256-GCM key. These can stored as a sorted list to the DCCM requirements.
+This requires 96 bits of storage per AES-256-GCM key. These can stored as a sorted list in the DCCM.
 
 ## Manifest-Based Image Authorization (new in 1.2)
 
@@ -1135,7 +1136,7 @@ Command Code: `0x434D_4849` ("CMHI")
 | **Name**       | **Type** | **Description**                        |
 | -------------- | -------- | -------------------------------------- |
 | chksum         | u32      |                                        |
-| CMK            | CMK      | CMK use as key                         |
+| CMK            | CMK      | CMK to use as key                      |
 | hash algorithm | u32      | Enum.                                  |
 |                |          | 0 = reserved                           |
 |                |          | 1 = SHA2-256                           |
@@ -1149,7 +1150,7 @@ Command Code: `0x434D_4849` ("CMHI")
 | ------------ | -------- | --------------------------------------- |
 | chksum       | u32      |                                         |
 | fips_status  | u32      | FIPS approved or an error               |
-| context size | u32      | SHALL be 0 if this is the final message |
+| context size | u32      |                                         |
 | context      | u8[...]  |                                         |
 
 *Table: `CM_HMAC_INIT` internal context*
@@ -1291,15 +1292,15 @@ Command Code: `0x434D_4749` ("CMGI")
 | plaintext      | u8[...]  | Data to encrypt                          |
 
 *Table: `CM_AES_GCM_ENCRYPT_INIT` output arguments*
-| **Name**       | **Type** | **Description**           |
-| -------------- | -------- | ------------------------- |
-| chksum         | u32      |                           |
-| fips_status    | u32      | FIPS approved or an error |
-| context size   | u32      |                           |
-| context        | u8[...]  |                           |
-| iv             | u8[12]   |                           |
-| cipertext size | u32      | MAY be 0                  |
-| ciphertext     | u8[...]  |                           |
+| **Name**       | **Type** | **Description**                  |
+| -------------- | -------- | -------------------------------- |
+| chksum         | u32      |                                  |
+| fips_status    | u32      | FIPS approved or an error        |
+| context size   | u32      |                                  |
+| context        | u8[...]  |                                  |
+| iv             | u8[12]   |                                  |
+| cipertext size | u32      | MUST be equal to ciphertext size |
+| ciphertext     | u8[...]  |                                  |
 
 The encrypted and authenticated context's internal structure will be:
 
@@ -1330,14 +1331,14 @@ Command Code: `0x434D_4755` ("CMGU")
 | plaintext      | u8[...]  | Data to encrypt     |
 
 *Table: `CM_AES_GCM_ENCRYPT_UPDATE` output arguments*
-| **Name**       | **Type** | **Description**           |
-| -------------- | -------- | ------------------------- |
-| chksum         | u32      |                           |
-| fips_status    | u32      | FIPS approved or an error |
-| context size   | u32      |                           |
-| context        | u8[...]  |                           |
-| cipertext size | u32      | MAY be 0                  |
-| ciphertext     | u8[...]  |                           |
+| **Name**       | **Type** | **Description**                  |
+| -------------- | -------- | -------------------------------- |
+| chksum         | u32      |                                  |
+| fips_status    | u32      | FIPS approved or an error        |
+| context size   | u32      |                                  |
+| context        | u8[...]  |                                  |
+| cipertext size | u32      | MUST be equal to ciphertext size |
+| ciphertext     | u8[...]  |                                  |
 
 ### CM_AES_GCM_ENCRYPT_FINAL
 
@@ -1357,13 +1358,13 @@ Command Code: `0x434D_4746` ("CMGF")
 | plaintext      | u8[...]  | Data to encrypt     |
 
 *Table: `CM_AES_GCM_ENCRYPT_FINAL` output arguments*
-| **Name**       | **Type** | **Description**                           |
-| -------------- | -------- | ----------------------------------------- |
-| chksum         | u32      |                                           |
-| fips_status    | u32      | FIPS approved or an error                 |
-| cipertext size | u32      | MAY be 0 if this is not the final message |
-| ciphertext     | u8[...]  |                                           |
-| tag            | u8[16]   |                                           |
+| **Name**       | **Type** | **Description**                   |
+| -------------- | -------- | --------------------------------- |
+| chksum         | u32      |                                   |
+| fips_status    | u32      | FIPS approved or an error         |
+| cipertext size | u32      | MUST be equal to ciphertext size  |
+| ciphertext     | u8[...]  |                                   |
+| tag            | u8[16]   |                                   |
 
 The tag returned will always be 16 bytes. Shorter tags can be constructed by truncating.
 
@@ -1524,6 +1525,8 @@ Command Code: `0x434D_4546` ("CMEF")
 | context size                | u32      | size of context                                          |
 | context                     | u8[...]  | This MUST come from the output of the `CM_ECDH_GENERATE` |
 | key usage                   | u32      | usage tag of the kind of key that will be output         |
+|                             |          | Note that this must be compatible with the 384-bit key,  |
+|                             |          | i.e., it should be HMAC or HKDF, and not AES             |
 | incoming exchange data      | u8[96]   | the other side's public point                            |
 
 *Table: `CM_ECDH_FINISH` output arguments*
@@ -1590,7 +1593,7 @@ Command Code: `0x434D_494D` ("CMIM")
 | ---------- | -------- | --------------------------------------- |
 | chksum     | u32      |                                         |
 | key usage  | u32      | Tag to specify how the data can be used |
-| input size | u32      |                                         |
+| input size | u32      | This MUST agree with the key usage      |
 | input      | u8[...]  |                                         |
 
 *Table: `CM_IMPORT` output arguments*
@@ -1667,9 +1670,9 @@ Command Code: `0x4944_4352` ("IDCR")
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
 
-The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR. 
+The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR.
 
-When called from ROM, if the CSR was not previously provisioned this command will return `FW_PROC_MAILBOX_UNPROVISIONED_CSR(0x0102000A)`. 
+When called from ROM, if the CSR was not previously provisioned this command will return `FW_PROC_MAILBOX_UNPROVISIONED_CSR(0x0102000A)`.
 
 When called from runtime, if the CSR was not previously provisioned this command will return `RUNTIME_GET_IDEV_ID_UNPROVISIONED(0x000E0051)`. If the ROM did not support CSR generation, this command will return `RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM(0x000E0052)`.
 
