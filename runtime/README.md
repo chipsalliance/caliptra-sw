@@ -84,9 +84,11 @@ the Runtime Firmware binary.
 ## Cryptographic Mailbox Commands (new in 2.0)
 
 Cryptographic mailbox (CM) commands are a flexible set of mailbox commands that provide access to Caliptra's cryptographic cabilities.
-This is meant for key storage and use, supporting protocols like SPDM and OCP LOCK.
+This is meant for offloaded key storage and use, supporting protocols like SPDM and OCP LOCK.
 
 These commands are not meant to be high-performance as they are accessed via mailbox commands.
+
+CM itself does not provide any storage for the keys: when generated, they are returned to the caller in encrypted form, and must be passed back to be used.
 
 These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
 Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
@@ -106,56 +108,61 @@ The contexts contain the internal structures necessary to resume operations to s
 
 These contexts are intended to be opaque to the user, and SHALL be encrypted and authenticated if they contain sensitive internal data.
 
-### Data Storage
+### Keys
 
-The CM system has its own dedicated storage in DCCM.
+Cryptographic Mailbox Key (CMKs) are used to store keys. Certain commands generate and return a new CMK. Most commands that use CMKs will also return a new CMK, as it is necessary to track CMKs so that they are not used beyond any relevant limits for their key type.
 
-This storage is protected with authenticated encryption using internal keys that are randomly generated at power on and stored in the key vault.
+They are returned from commands that generate keys and must be passed back to Caliptra to be used. These keys are encrypted and opaque to the mailbox caller.
 
-This storage is exposed to users through opaque 256-bit handles, called cryptographic mailbox IDs (CMIDs). These are mapped internally into DCCM storage blocks.
+Internally, the unecrypted CMKs have the following structure:
 
-Keys can be imported using `CM_IMPORT` and deleted via `CM_DELETE`.
+| **Name**      | **Bits** | **Description**                             |
+| ------------- | -------- | ------------------------------------------- |
+| version       | 16       | CMK version. Currently always 1.            |
+| length        | 16       | how many bits of key material are used      |
+| key usage     | 8        | represents which kind of key this is        |
+| id            | 24       | ID number                                   |
+| usage counter | 64       | how many times this key has been used       |
+|               |          | This MAY only be tracked for AES keys       |
+| key material  | 512      | bits used for the key material              |
 
-The entire contents can be cleared with `CM_CLEAR`.
+The encrypted CMKs have the structure:
 
-The status of the data storage can be queried with `CM_STATUS`.
+| **Name**        | **Bits** | **Description**                |
+| --------------- | -------- | ------------------------------ |
+| domain          | 32       | reserved                       |
+| domain metadata | 128      | reserved
+| iv              | 96       |                                |
+| ciphertext      | 640      | encrypted CMK data (see above) |
+| GCM tag         | 128      |                                |
 
-### Storage Design
+The total size of the CMK is therefore 128 bytes.
 
-Data is stored in 16-byte blocks.
+Only the encrypted CMKs will appear in mailbox messages.
 
-Each block's status is tracked in a bitfield, 1 bit per block, with a value of 1 indicating that block is in use.
+The key used to encrypt the CMKs is randomized on reset, which means that CMKs cannot be used between resets.
+The IV is a randomized 1-up counter that is incremented for every key created.
 
-For example, if we have 32 KB of storage for CM, this requires 256 bytes of additional storage.
+#### Key Usage
 
-### CMIDs
+The internal CMK structure and several commands use a key usage tag to specify how a key can be used:
 
-CMIDs offload storage of key metadata to mailbox callers. They therefore impose no additional storage within Caliptra Core.
+| **Value**  | **Usage**   |
+| ---------- | ----------- |
+| 0          | Reserved    |
+| 1          | HMAC        |
+| 2          | HKDF        |
+| 3          | AES-256-GCM |
 
-Unecrypted CMIDs have the following structure:
+#### Replay Prevention and Deletion
 
-| **Name**     | **Bits** | **Description**                             |
-| ------------ | -------- | ------------------------------------------- |
-| padding      | 80       | 0                                           |
-| block offset | 24       | Starting block number                       |
-| size         | 24       | Size (in bytes) of the data stored.         |
-|              |          | Does not have to be a multiple of 16 bytes. |
+To prevent replay attacks, Caliptra will have a small table that maps a CMK's internal ID to its last known usage counters.
+Whenever a CMK is used, this table is checked and updated.
 
-Hence, data for a single CMID must be stored contiguously.
+This is necessary for AES-256-GCM in particular to ensure that keys are only used a certain number of times, as per [NIST SP 800-38D, Section 8.3](https://doi.org/10.6028/NIST.SP.800-38D).
+Only AES-256-GCM keys need to be tracked in this table, but other keys MAY be tracked as well.
 
-Padding is kept for additional future features.
-
-The CMIDs are AES-256-GCM encrypted, with a 128-bit ciphertext concatenated with the 128-bit AES-GCM tag.
-
-### Storage Keys
-
-The key for the data referenced by a CMID is unique and derived via HKDF from the CDI<sub>RT</sub> with the info being the concatenation of `"CMID" || block offset || size`.
-
-The IV is the concatenation of `block offset || size`.
-
-This scheme avoids having to store the IV while avoiding IV reuse problems.
-
-GCM prevents an adversary from changing internal CMID parameters, such as changing an AES key to an ECDSA key, which has sensitive internal structure (although ECDSA is not currently supported).
+This requires 96 bits of storage per AES-256-GCM key. These can stored as a sorted list in the DCCM.
 
 ## Manifest-Based Image Authorization (new in 1.2)
 
@@ -268,7 +275,8 @@ All mailbox command codes are little endian.
 | `BAD_SIG`        | `0x4253_4947` ("BSIG") | Generic signature check failure (for crypto offload)
 | `BAD_IMAGE`      | `0x4249_4D47` ("BIMG") | Malformed input image
 | `BAD_CHKSUM`     | `0x4243_484B` ("BCHK") | Checksum check failed on input arguments
-| `CME_BAD_CMID`   | `0x434D_4249` ("CMBI") | Invalid CMID
+| `CME_BAD_CMK`    | `0x434D_424B` ("CMBK") | Invalid CMK
+| `CME_CMK_OFLW`   | `0x434D_424F` ("CMBO") | CMK has been used too many times
 | `CME_BAD_CTXT`   | `0x434D_4243` ("CMBC") | Bad context
 | `CME_FULL`       | `0x434D_4546` ("CMEF") | Cryptographic Mailbox Full
 
@@ -1120,13 +1128,15 @@ The sequence to use these are:
 
 For each command, the context from the previous command's output must be passed as an input.
 
+The CMK must have been created for HMAC / HKDF usage.
+
 Command Code: `0x434D_4849` ("CMHI")
 
 *Table: `CM_HMAC_INIT` input arguments*
 | **Name**       | **Type** | **Description**                        |
 | -------------- | -------- | -------------------------------------- |
 | chksum         | u32      |                                        |
-| Key CMID       | u8[32]   | CMID of key to use                     |
+| CMK            | CMK      | CMK to use as key                      |
 | hash algorithm | u32      | Enum.                                  |
 |                |          | 0 = reserved                           |
 |                |          | 1 = SHA2-256                           |
@@ -1140,7 +1150,7 @@ Command Code: `0x434D_4849` ("CMHI")
 | ------------ | -------- | --------------------------------------- |
 | chksum       | u32      |                                         |
 | fips_status  | u32      | FIPS approved or an error               |
-| context size | u32      | SHALL be 0 if this is the final message |
+| context size | u32      |                                         |
 | context      | u8[...]  |                                         |
 
 *Table: `CM_HMAC_INIT` internal context*
@@ -1206,6 +1216,8 @@ Command Code: `0x434D_4846` ("CMHF")
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
+The CMK must have been created for HMAC / HKDF usage.
+
 Command Code: `0x434D_4B54` ("CMKT")
 
 *Table: `CM_HKDF_EXTRACT` input arguments*
@@ -1217,7 +1229,7 @@ Command Code: `0x434D_4B54` ("CMKT")
 |                |          | Value 1 = SHA2-256      |
 |                |          | Value 2 = SHA2-384      |
 |                |          | Value 3 = SHA2-512      |
-| IKM CMID       | u8[32]   | Input key material CMID |
+| IKM CMK        | u8[32]   | Input key material CMK  |
 | salt length    | u32      | May be 0                |
 | salt           | u8[...]  |                         |
 
@@ -1226,129 +1238,239 @@ Command Code: `0x434D_4B54` ("CMKT")
 | ----------- | -------- | ------------------------------------------- |
 | chksum      | u32      |                                             |
 | fips_status | u32      | FIPS approved or an error                   |
-| PRK CMID    | u8[32]   | CMID that refers to the output (PRK) to use |
+| PRK CMK     | u8[32]   | CMK that stores the output (PRK) to use     |
 |             |          | with HKDF-Expand                            |
 
 ### CM_HKDF_EXPAND
 
 Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
+The CMK must have been created for HMAC / HKDF usage.
+
+The output length will be automatically chosen to match the key usage.
+
 Command Code: `0x434D_4B50` ("CMKP")
 
 *Table: `CM_HKDF_EXPAND` input arguments*
-| **Name**       | **Type** | **Description**           |
-| -------------- | -------- | ------------------------- |
-| chksum         | u32      |                           |
-| hash algorithm | u32      | Enum.                     |
-|                |          | Value 0 = reserved        |
-|                |          | Value 1 = SHA2-256        |
-|                |          | Value 2 = SHA2-384        |
-|                |          | Value 3 = SHA2-512        |
-| PRK CMID       | u8[32]   |                           |
-| Info length    | u32      |                           |
-| Info           | u8[...]  |                           |
-| Output length  | u32      | Number of bytes to output |
+| **Name**       | **Type** | **Description**                                  |
+| -------------- | -------- | ------------------------------------------------ |
+| chksum         | u32      |                                                  |
+| hash algorithm | u32      | Enum.                                            |
+|                |          | Value 0 = reserved                               |
+|                |          | Value 1 = SHA2-256                               |
+|                |          | Value 2 = SHA2-384                               |
+|                |          | Value 3 = SHA2-512                               |
+| PRK CMK        | CMK      |                                                  |
+| key usage      | u32      | usage tag of the kind of key that will be output |
+| Info length    | u32      |                                                  |
+| Info           | u8[...]  |                                                  |
 
 *Table: `CM_HKDF_EXPAND` output arguments*
-| **Name**    | **Type** | **Description**                                    |
-| ----------- | -------- | -------------------------------------------------- |
-| chksum      | u32      |                                                    |
-| fips_status | u32      | FIPS approved or an error                          |
-| OKM CMID    | u8[32]   | CMID that stores refers to the output key material |
+| **Name**    | **Type** | **Description**                         |
+| ----------- | -------- | ----------------------------------------|
+| chksum      | u32      |                                         |
+| fips_status | u32      | FIPS approved or an error               |
+| OKM CMK     | CMK      | CMK that stores the output key material |
 
 
-### CM_AES_GCM_ENCRYPT
+### CM_AES_GCM_ENCRYPT_INIT
 
 Currently only supports AES-256-GCM with a random 96-bit IV.
 
-If the key material is larger than 256 bits, then it will be truncated before use.
+The CMK must have been created for AES usage.
 
-Command Code: `0x434D_4745` ("CMGE")
+Command Code: `0x434D_4749` ("CMGI")
 
-*Table: `CM_AES_GCM_ENCRYPT` input arguments*
+*Table: `CM_AES_GCM_ENCRYPT_INIT` input arguments*
 | **Name**       | **Type** | **Description**                          |
 | -------------- | -------- | ---------------------------------------- |
 | chksum         | u32      |                                          |
-| flags          | u32      | Bit 0 = this is the final message        |
-| key CMID       | u8[32]   | CMID of the key to use                   |
-| tag size       | u32      | Number of bytes to return for tag.       |
-|                |          | Can be 0, 1, ..., 16                     |
-| context size   | u32      | Size of the context                      |
-| context        | u8[...]  |                                          |
+| CMK            | CMK  | CMK of the key to use to encrypt         |
 | aad size       | u32      | Additional authenticated data size       |
-|                |          | Must be 0 if this is not the first block |
 | aad            | u8[...]  | Additional authenticated data            |
 | plaintext size | u32      |                                          |
 | plaintext      | u8[...]  | Data to encrypt                          |
 
-*Table: `CM_AES_GCM_ENCRYPT` output arguments*
-| **Name**       | **Type** | **Description**                           |
-| -------------- | -------- | ----------------------------------------- |
-| chksum         | u32      |                                           |
-| fips_status    | u32      | FIPS approved or an error                 |
-| context size   | u32      | SHALL be 0 if this is the final message   |
-| context        | u8[...]  |                                           |
-| cipertext size | u32      | MAY be 0 if this is not the final message |
-| ciphertext     | u8[...]  |                                           |
+*Table: `CM_AES_GCM_ENCRYPT_INIT` output arguments*
+| **Name**       | **Type** | **Description**                  |
+| -------------- | -------- | -------------------------------- |
+| chksum         | u32      |                                  |
+| fips_status    | u32      | FIPS approved or an error        |
+| context size   | u32      |                                  |
+| context        | u8[...]  |                                  |
+| iv             | u8[12]   |                                  |
+| cipertext size | u32      | MUST be equal to ciphertext size |
+| ciphertext     | u8[...]  |                                  |
 
 The encrypted and authenticated context's internal structure will be:
 
-*Table: `CM_AES_GCM_ENCRYPT` internal context*
+*Table: internal context for CM_AES_GCM_ENCRYPT_* operations*
 | **Name**        | **Type** | **Description** |
 | --------------- | -------- | --------------- |
-| tag size        | u32      |                 |
+| key             | u8[32]   |                 |
 | last length     | u32      |                 |
 | last counter    | u8[16]   |                 |
 | last GHASH      | u8[16]   |                 |
 | last ciphertext | u8[16]   |                 |
 
-### CM_AES_GCM_DECRYPT
+### CM_AES_GCM_ENCRYPT_UPDATE
+
+This continues an AES computation started by `CM_AES_GCM_ENCRYPT_INIT` or from another `CM_AES_GCM_ENCRYPT_UPDATE`.
+
+The context MUST be passed in from `CM_AES_GCM_ENCRYPT_INIT` or `CM_AES_GCM_ENCRYPT_UPDATE`.
+
+Command Code: `0x434D_4755` ("CMGU")
+
+*Table: `CM_AES_GCM_ENCRYPT_UPDATE` input arguments*
+| **Name**       | **Type** | **Description**     |
+| -------------- | -------- | ------------------- |
+| chksum         | u32      |                     |
+| context size   | u32      | Size of the context |
+| context        | u8[...]  |                     |
+| plaintext size | u32      | MUST be non-zero    |
+| plaintext      | u8[...]  | Data to encrypt     |
+
+*Table: `CM_AES_GCM_ENCRYPT_UPDATE` output arguments*
+| **Name**       | **Type** | **Description**                  |
+| -------------- | -------- | -------------------------------- |
+| chksum         | u32      |                                  |
+| fips_status    | u32      | FIPS approved or an error        |
+| context size   | u32      |                                  |
+| context        | u8[...]  |                                  |
+| cipertext size | u32      | MUST be equal to ciphertext size |
+| ciphertext     | u8[...]  |                                  |
+
+### CM_AES_GCM_ENCRYPT_FINAL
+
+This finalizes the computation of the AES GCM encryption and produces the final ciphertext and tag.
+
+The context MUST be passed in from `CM_AES_GCM_ENCRYPT_INIT` or `CM_AES_GCM_ENCRYPT_UPDATE`.
+
+Command Code: `0x434D_4746` ("CMGF")
+
+*Table: `CM_AES_GCM_ENCRYPT_FINAL` input arguments*
+| **Name**       | **Type** | **Description**     |
+| -------------- | -------- | --------------------|
+| chksum         | u32      |                     |
+| context size   | u32      | Size of the context |
+| context        | u8[...]  |                     |
+| plaintext size | u32      | MAY be 0            |
+| plaintext      | u8[...]  | Data to encrypt     |
+
+*Table: `CM_AES_GCM_ENCRYPT_FINAL` output arguments*
+| **Name**       | **Type** | **Description**                   |
+| -------------- | -------- | --------------------------------- |
+| chksum         | u32      |                                   |
+| fips_status    | u32      | FIPS approved or an error         |
+| cipertext size | u32      | MUST be equal to ciphertext size  |
+| ciphertext     | u8[...]  |                                   |
+| tag            | u8[16]   |                                   |
+
+The tag returned will always be 16 bytes. Shorter tags can be constructed by truncating.
+
+### CM_AES_GCM_DECRYPT_INIT
+
+Starts an AES-256-GCM computation.
 
 Currently only supports AES-256-GCM with a 96-bit IV.
 
-Command Code: `0x434D_4744` ("CMGD")
+The CMK must have been created for AES usage.
 
-*Table: `CM_AES_GCM_DECRYPT` input arguments*
-| **Name**        | **Type** | **Description**                          |
-| --------------- | -------- | ---------------------------------------- |
-| chksum          | u32      |                                          |
-| flags           | u32      | Bit 0 = this is the final message        |
-| key CMID        | u8[32]   | CMID of the key to use                   |
-| tag size        | u32      | Number of bytes in the tag.              |
-|                 |          | Can be 0, 1, ..., 16                     |
-|                 |          | Must be 0 if this is not the first block |
-| tag             | u8[...]  |                                          |
-| context size    | u32      | Size of the context                      |
-| context         | u8[...]  |                                          |
-| iv size         | u32      | 12 (first message) or 0 (subsequent)     |
-| iv              | u8[...]  |                                          |
-| aad size        | u32      | Additional authenticated data size       |
-|                 |          | Must be 0 if this is not the first block |
-| aad             | u8[...]  | Additional authenticated data            |
-| ciphertext size | u32      |                                          |
-| ciphertext      | u8[...]  | Data to decrypt                          |
+Tags between 0 and 16 bytes are supported.
 
-*Table: `CM_AES_GCM_DECRYPT` output arguments*
-| **Name**       | **Type** | **Description**                           |
-| -------------- | -------- | ----------------------------------------- |
-| chksum         | u32      |                                           |
-| fips_status    | u32      | FIPS approved or an error                 |
-| context size   | u32      | Can be 0 if this is the final message     |
-| context        | u8[...]  |                                           |
-| plaintext size | u32      | Can be 0 if this is not the final message |
-| plaintext      | u8[...]  |                                           |
+Command Code: `0x434D_4449` ("CMDI")
+
+*Table: `CM_AES_GCM_DECRYPT_INIT` input arguments*
+| **Name**        | **Type** | **Description**                    |
+| --------------- | -------- | ---------------------------------- |
+| chksum          | u32      |                                    |
+| CMK             | CMK      | CMK to use for decryption          |
+| tag size        | u32      | Number of bytes in the tag.        |
+|                 |          | Can be 0, 1, ..., 16               |
+| tag             | u8[...]  |                                    |
+| iv              | u8[12]   |                                    |
+| aad size        | u32      | Additional authenticated data size |
+|                 |          |                                    |
+| aad             | u8[...]  | Additional authenticated data      |
+| ciphertext size | u32      |                                    |
+| ciphertext      | u8[...]  | Data to decrypt                    |
+
+*Table: `CM_AES_GCM_DECRYPT_INIT` output arguments*
+| **Name**       | **Type** | **Description**           |
+| -------------- | -------- | ------------------------- |
+| chksum         | u32      |                           |
+| fips_status    | u32      | FIPS approved or an error |
+| context size   | u32      |                           |
+| context        | u8[...]  |                           |
+| plaintext size | u32      | MAY be 0                  |
+| plaintext      | u8[...]  |                           |
 
 The encrypted and authenticated context's internal structure will be:
 
-*Table: `CM_AES_GCM_DECRYPT` internal context*
+*Table: internal context for `CM_AES_GCM_DECRYPT_*` operations*
 | **Name**        | **Type** | **Description** |
 | --------------- | -------- | --------------- |
 | tag size        | u32      |                 |
+| tag             | u8[16]   | padded with 0s  |
 | last length     | u32      |                 |
 | last iv         | u8[16]   |                 |
 | last GHASH      | u8[16]   |                 |
 | last ciphertext | u8[16]   |                 |
 
+### CM_AES_GCM_DECRYPT_UPDATE
+
+This continues an AES computation started by `CM_AES_GCM_DECRYPT_INIT` or from another `CM_AES_GCM_DECRYPT_UPDATE`.
+
+The context MUST be passed in from `CM_AES_GCM_DECRYPT_INIT` or `CM_AES_GCM_DECRYPT_UPDATE`.
+
+Command Code: `0x434D_4455` ("CMDU")
+
+*Table: `CM_AES_GCM_DECRYPT_UPDATE` input arguments*
+| **Name**        | **Type** | **Description**     |
+| --------------- | -------- | ------------------- |
+| chksum          | u32      |                     |
+| context size    | u32      | Size of the context |
+| context         | u8[...]  |                     |
+| ciphertext size | u32      | MUST be non-zero    |
+| ciphertext      | u8[...]  | Data to decrypt     |
+
+*Table: `CM_AES_GCM_DECRYPT_UPDATE` output arguments*
+| **Name**       | **Type** | **Description**           |
+| -------------- | -------- | ------------------------- |
+| chksum         | u32      |                           |
+| fips_status    | u32      | FIPS approved or an error |
+| context size   | u32      |                           |
+| context        | u8[...]  |                           |
+| plaintext size | u32      | MAY be 0                  |
+| plaintext      | u8[...]  |                           |
+
+### CM_AES_GCM_DECRYPT_FINAL
+
+This finalizes the computation of the AES GCM decryption and produces the final ciphertext.
+
+The context MUST be passed in from `CM_AES_GCM_DECRYPT_INIT` or `CM_AES_GCM_DECRYPT_UPDATE`.
+
+Command Code: `0x434D_4446` ("CMDF")
+
+*Table: `CM_AES_GCM_DECRYPT_FINAL` input arguments*
+| **Name**        | **Type** | **Description**                   |
+| --------------- | -------- | --------------------------------- |
+| chksum          | u32      |                                   |
+| flags           | u32      | Bit 0 = this is the final message |
+| context size    | u32      | Size of the context               |
+| context         | u8[...]  |                                   |
+| ciphertext size | u32      | MAY be 0                          |
+| ciphertext      | u8[...]  | Data to decrypt                   |
+
+*Table: `CM_AES_GCM_DECRYPT_FINAL` output arguments*
+| **Name**       | **Type** | **Description**                      |
+| -------------- | -------- | ------------------------------------ |
+| chksum         | u32      |                                      |
+| fips_status    | u32      | FIPS approved or an error            |
+| tag verified   | u32      | 1 if tags matched, 0 if they did not |
+| tag            | u8[16]   | Computed tag                         |
+| plaintext size | u32      | MAY be 0                             |
+| plaintext      | u8[...]  |                                      |
 
 ### CM_ECDH_GENERATE
 
@@ -1358,7 +1480,7 @@ Currently only supports the NIST P-384 curve.
 
 The returned context must be passed to the `CM_ECDH_FINISH` command. The context contains the (encrypted) secret coefficient.
 
-The returned exchange data format is the concatenation of the x- and y-coordinates of the public point.
+The returned exchange data format is the concatenation of the x- and y-coordinates of the public point encoded as big-endian integers, padded to 48 bytes each.
 
 Command Code: `0x434D_4547` ("CMEG")
 
@@ -1390,7 +1512,7 @@ Currently only supports the NIST P-384 curve.
 
 The context must be passed from the `CM_ECDH_GENERATE` command.
 
-The incoming exchange data MUST be the concatenation of the x- and y- coordinates of the other side's public point.
+The incoming exchange data MUST be the concatenation of the x- and y- coordinates of the other side's public point, encoded as big-endian integers, padded to 48 bytes each.
 
 The produced shared secret is 384 bits.
 
@@ -1402,14 +1524,17 @@ Command Code: `0x434D_4546` ("CMEF")
 | chksum                      | u32      |                                                          |
 | context size                | u32      | size of context                                          |
 | context                     | u8[...]  | This MUST come from the output of the `CM_ECDH_GENERATE` |
+| key usage                   | u32      | usage tag of the kind of key that will be output         |
+|                             |          | Note that this must be compatible with the 384-bit key,  |
+|                             |          | i.e., it should be HMAC or HKDF, and not AES             |
 | incoming exchange data      | u8[96]   | the other side's public point                            |
 
 *Table: `CM_ECDH_FINISH` output arguments*
-| **Name**    | **Type** | **Description**                  |
-| ----------- | -------- | -------------------------------- |
-| chksum      | u32      |                                  |
-| fips_status | u32      | FIPS approved or an error        |
-| output CMID | u8[32]   | Output CMID of the shared secret |
+| **Name**    | **Type** | **Description**                 |
+| ----------- | -------- | ------------------------------- |
+| chksum      | u32      |                                 |
+| fips_status | u32      | FIPS approved or an error       |
+| output CMK  | CMK      | Output CMK of the shared secret |
 
 
 ### CM_RANDOM_STIR
@@ -1427,10 +1552,10 @@ Command Code: `0x434D_5253` ("CMRS")
 | input      | u8[...]  |                 |
 
 *Table: `CM_RANDOM_STIR` output arguments*
-| **Name**    | **Type** | **Description**              |
-| ----------- | -------- | ---------------------------- |
-| chksum      | u32      |                              |
-| fips_status | u32      | FIPS approved or an error    |
+| **Name**    | **Type** | **Description**           |
+| ----------- | -------- | ------------------------- |
+| chksum      | u32      |                           |
+| fips_status | u32      | FIPS approved or an error |
 
 ### CM_RANDOM_GENERATE
 
@@ -1456,29 +1581,27 @@ Command Code: `0x434D_5247` ("CMRG")
 
 ### CM_IMPORT
 
-Imports the specified data and returns a CMID for it.
+Imports the specified key and returns a CMK for it.
 
-Usage information is required so that the data can be verified and used appropriately.
+Usage information is required so that the key can be verified and used appropriately.
 
 Command Code: `0x434D_494D` ("CMIM")
 
 *Table: `CM_IMPORT` input arguments*
 
-| **Name**   | **Type** | **Description**                            |
-| ---------- | -------- | ------------------------------------------ |
-| chksum     | u32      |                                            |
-| usage      | u32      | Tag to specify how the data can be used    |
-|            |          | 0 - Can be used for HMAC, HKDF, AES        |
-|            |          | MUST be 0.                                 |
-| input size | u32      |                                            |
-| input      | u8[...]  |                                            |
+| **Name**   | **Type** | **Description**                         |
+| ---------- | -------- | --------------------------------------- |
+| chksum     | u32      |                                         |
+| key usage  | u32      | Tag to specify how the data can be used |
+| input size | u32      | This MUST agree with the key usage      |
+| input      | u8[...]  |                                         |
 
 *Table: `CM_IMPORT` output arguments*
 | **Name**    | **Type** | **Description**              |
 | ----------- | -------- | ---------------------------- |
 | chksum      | u32      |                              |
 | fips_status | u32      | FIPS approved or an error    |
-| CMID        | u8[32]   | CMID containing imported key |
+| CMK         | CMK      | CMK containing imported key  |
 
 ### CM_DELETE
 
@@ -1488,20 +1611,20 @@ Command Code: `0x434D_444C` ("CMDL")
 
 *Table: `CM_DELETE` input arguments*
 
-| **Name** | **Type** | **Description**            |
-| -------- | -------- | -------------------------- |
-| chksum   | u32      |                            |
-| CMID     | u8[32]   | CMID of the data to delete |
+| **Name** | **Type** | **Description** |
+| -------- | -------- | --------------- |
+| chksum   | u32      |                 |
+| CMK      | CMK      | CMK to delete   |
 
 *Table: `CM_DELETE` output arguments*
-| **Name**    | **Type** | **Description**              |
-| ----------- | -------- | ---------------------------- |
-| chksum      | u32      |                              |
-| fips_status | u32      | FIPS approved or an error    |
+| **Name**    | **Type** | **Description**           |
+| ----------- | -------- | ------------------------- |
+| chksum      | u32      |                           |
+| fips_status | u32      | FIPS approved or an error |
 
 ### CM_CLEAR
 
-The entire contents of the CM storage is wiped.
+The entire contents of the CMK storage is wiped. All known keys will be invalidated.
 
 Command Code: `0x434D_434C` ("CMCL")
 
@@ -1515,9 +1638,7 @@ Command Code: `0x434D_434C` ("CMCL")
 
 ### CM_STATUS
 
-Queries the status of the data storage used by the cryptographic mailbox system.
-
-Note that the free blocks returned may not all be usable as they may not be contiguous, and the count may not reflect the storage overhead, e.g., a 16-byte GCM tag is used per block.
+Queries the status cryptographic mailbox system.
 
 Command Code: `0x434D_5354` ("CMST")
 
@@ -1528,8 +1649,8 @@ Command Code: `0x434D_5354` ("CMST")
 | ------------ | -------- | ------------------------- |
 | chksum       | u32      |                           |
 | fips_status  | u32      | FIPS approved or an error |
-| free blocks  | u32      | Available 16-byte blocks  |
-| total blocks | u32      | Total 16-byte blocks      |
+| free CMKs    | u32      | Available CMKs            |
+| total CMKs   | u32      | Total CMKs                |
 
 
 ### GET\_IDEVID\_CSR
@@ -1549,9 +1670,9 @@ Command Code: `0x4944_4352` ("IDCR")
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
 
-The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR. 
+The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR.
 
-When called from ROM, if the CSR was not previously provisioned this command will return `FW_PROC_MAILBOX_UNPROVISIONED_CSR(0x0102000A)`. 
+When called from ROM, if the CSR was not previously provisioned this command will return `FW_PROC_MAILBOX_UNPROVISIONED_CSR(0x0102000A)`.
 
 When called from runtime, if the CSR was not previously provisioned this command will return `RUNTIME_GET_IDEV_ID_UNPROVISIONED(0x000E0051)`. If the ROM did not support CSR generation, this command will return `RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM(0x000E0052)`.
 
