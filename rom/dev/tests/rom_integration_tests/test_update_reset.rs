@@ -14,7 +14,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::WarmResetEntry4;
+use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
@@ -451,20 +451,12 @@ fn test_check_rom_update_reset_status_reg() {
 
     hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
-    let warmresetentry4_array = hw.mailbox_execute(0x1000_000D, &[]).unwrap().unwrap();
-    let mut warmresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first four entries
-
-    // Check RomUpdateResetStatus datavault value.
-    let warmresetentry4_id =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
+    let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
     assert_eq!(
-        warmresetentry4_id,
-        WarmResetEntry4::RomUpdateResetStatus as u32
+        data_vault.rom_update_reset_status(),
+        u32::from(UpdateResetComplete)
     );
-    warmresetentry4_offset += core::mem::size_of::<u32>();
-    let warmresetentry4_value =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(warmresetentry4_value, u32::from(UpdateResetComplete));
 }
 
 #[test]

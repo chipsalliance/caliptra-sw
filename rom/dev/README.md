@@ -694,10 +694,10 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         CPTRA_SECURITY_STATE.LIFECYCLE_STATE,
         CPTRA_SECURITY_STATE.DEBUG_ENABLED,
         FUSE_ANTI_ROLLBACK_DISABLE,
-        ECC_VENDOR_PK_INDEX,
+        VENDOR_ECC_PK_INDEX,
         FW_SVN,
         FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        PQC_VENDOR_PK_INDEX,
+        vendor_pqc_pk_index,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])

@@ -195,39 +195,41 @@ impl FmcAliasLayer {
         let auth_priv_key = input.ecc_auth_key_pair.priv_key;
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
+        let data_vault = &env.persistent_data.get().data_vault;
+        let soc_ifc = &env.soc_ifc;
 
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
-        let svn = env.data_vault.fmc_svn() as u8;
+        let svn = data_vault.fmc_svn() as u8;
         let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
 
         let mut fuse_info_digest = Array4x12::default();
         let mut hasher = env.sha2_512_384.sha384_digest_init()?;
         hasher.update(&[
-            env.soc_ifc.lifecycle() as u8,
-            env.soc_ifc.debug_locked() as u8,
-            env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-            env.data_vault.ecc_vendor_pk_index() as u8,
-            env.data_vault.pqc_vendor_pk_index() as u8,
+            soc_ifc.lifecycle() as u8,
+            soc_ifc.debug_locked() as u8,
+            soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+            data_vault.vendor_ecc_pk_index() as u8,
+            data_vault.vendor_pqc_pk_index() as u8,
             fw_proc_info.pqc_verify_config,
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
-            env.soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
+            soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
         ))?;
-        hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
+        hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
         hasher.finalize(&mut fuse_info_digest)?;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
             authority_key_id: input.ecc_auth_key_id,
-            serial_number: &X509::ecc_cert_sn(env, pub_key)?,
+            serial_number: &X509::ecc_cert_sn(&mut env.sha256, pub_key)?,
             public_key: &pub_key.to_der(),
-            tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
+            tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),
             tcb_info_flags: &flags,
             tcb_info_fmc_svn: &svn.to_be_bytes(),
@@ -264,12 +266,13 @@ impl FmcAliasLayer {
         cprintln!("[afmc] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 
-        // Lock the FMC Certificate Signature in data vault until next boot
-        env.data_vault.set_fmc_dice_signature(sig);
+        // Set the FMC Certificate Signature in data vault.
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        data_vault.set_fmc_dice_ecc_signature(sig);
         sig.zeroize();
 
-        // Lock the FMC Public key in the data vault until next boot
-        env.data_vault.set_fmc_pub_key(pub_key);
+        // Set the FMC Public key in the data vault.
+        data_vault.set_fmc_ecc_pub_key(pub_key);
 
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;

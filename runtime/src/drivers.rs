@@ -77,7 +77,6 @@ pub enum PauserPrivileges {
 pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
-    pub data_vault: DataVault,
     pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
     pub sha256: Sha256,
@@ -137,7 +136,6 @@ impl Drivers {
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            data_vault: DataVault::new(DvReg::new()),
             key_vault: KeyVault::new(KvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -496,23 +494,18 @@ impl Drivers {
     /// Create certificate chain and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let data_vault = &drivers.data_vault;
         let persistent_data = &drivers.persistent_data;
         let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size =
-            dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)?;
+        let ldevid_cert_size = dice::copy_ldevid_cert(persistent_data.get(), &mut cert)?;
         if ldevid_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
 
         // Write fmc alias cert to cert chain.
-        let fmcalias_cert_size = dice::copy_fmc_alias_cert(
-            data_vault,
-            persistent_data.get(),
-            &mut cert[ldevid_cert_size..],
-        )?;
+        let fmcalias_cert_size =
+            dice::copy_fmc_alias_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }

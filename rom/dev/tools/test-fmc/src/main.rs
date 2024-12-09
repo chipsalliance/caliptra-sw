@@ -18,11 +18,7 @@ use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::PcrLogEntry;
 use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{
-    ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
-    WarmResetEntry4::*,
-};
-use caliptra_registers::dv::DvReg;
+use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
@@ -104,13 +100,15 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     // Create LDEVID cert.
     //
 
-    // Retrieve the public key and signature from the data vault.
-    let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    let ldevid_pub_key = data_vault.ldev_dice_pub_key();
+    // Retrieve the ECC public key and signature from the data vault.
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let data_vault = &persistent_data.get().data_vault;
+
+    let ldevid_pub_key = data_vault.ldev_dice_ecc_pub_key();
     let mut _pub_der: [u8; 97] = ldevid_pub_key.to_der();
     cprint_slice!("[fmc] LDEVID PUBLIC KEY DER", _pub_der);
 
-    let sig = data_vault.ldev_dice_signature();
+    let sig = data_vault.ldev_dice_ecc_signature();
 
     let ecdsa_sig = Ecdsa384Signature {
         r: sig.r.into(),
@@ -134,11 +132,11 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     //
 
     // Retrieve the public key and signature from the data vault.
-    let fmcalias_pub_key = data_vault.fmc_pub_key();
+    let fmcalias_pub_key = data_vault.fmc_ecc_pub_key();
     let _pub_der: [u8; 97] = fmcalias_pub_key.to_der();
     cprint_slice!("[fmc] FMCALIAS PUBLIC KEY DER", _pub_der);
 
-    let sig = data_vault.fmc_dice_signature();
+    let sig = data_vault.fmc_dice_ecc_signature();
     let ecdsa_sig = Ecdsa384Signature {
         r: sig.r.into(),
         s: sig.s.into(),
@@ -195,7 +193,7 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         }
 
         0x1000_0005 => {
-            read_datavault_coldresetentry4(mbox);
+            read_datavault(mbox);
         }
         0x1000_0006 => {
             read_pcrs(mbox);
@@ -225,9 +223,6 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             mbox.status().write(|w| w.status(|w| w.cmd_complete()));
             caliptra_drivers::ExitCtrl::exit(0);
         }
-        0x1000_000D => {
-            read_datavault_warmresetentry4(mbox);
-        }
         0x1000_000E => {
             validate_fmc_rt_load_in_iccm(mbox);
         }
@@ -251,7 +246,9 @@ fn process_mailbox_commands() {
 }
 
 fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let data_vault = unsafe { DataVault::new(DvReg::new()) };
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let data_vault = &persistent_data.get().data_vault;
+
     let fmc_load_addr = data_vault.fmc_entry_point();
     let rt_load_addr = data_vault.rt_entry_point();
     let fmc_size = mbox.dataout().read() as usize;
@@ -308,47 +305,14 @@ fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     send_to_mailbox(mbox, &pcr31, true);
 }
 
-fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    send_to_mailbox(mbox, (FmcSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.fmc_svn().as_bytes(), false);
+fn read_datavault(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let data_vault = &persistent_data.get().data_vault;
 
-    send_to_mailbox(mbox, (RomColdBootStatus as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rom_cold_boot_status().as_bytes(), false);
-
-    send_to_mailbox(mbox, (FmcEntryPoint as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.fmc_entry_point().as_bytes(), false);
-
-    send_to_mailbox(mbox, (EccVendorPubKeyIndex as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.ecc_vendor_pk_index().as_bytes(), false);
-
-    send_to_mailbox(mbox, (PqcVendorPubKeyIndex as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.pqc_vendor_pk_index().as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.as_bytes(), false);
 
     mbox.dlen()
-        .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
-    mbox.status().write(|w| w.status(|w| w.data_ready()));
-}
-
-fn read_datavault_warmresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    send_to_mailbox(mbox, (RtSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rt_svn().as_bytes(), false);
-
-    send_to_mailbox(mbox, (RtEntryPoint as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rt_entry_point().as_bytes(), false);
-
-    send_to_mailbox(mbox, (ManifestAddr as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.manifest_addr().as_bytes(), false);
-
-    send_to_mailbox(mbox, (RtMinSvn as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rt_min_svn().as_bytes(), false);
-
-    send_to_mailbox(mbox, (RomUpdateResetStatus as u32).as_bytes(), false);
-    send_to_mailbox(mbox, data_vault.rom_update_reset_status().as_bytes(), false);
-
-    mbox.dlen()
-        .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
+        .write(|_| (core::mem::size_of::<DataVault>()).try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 

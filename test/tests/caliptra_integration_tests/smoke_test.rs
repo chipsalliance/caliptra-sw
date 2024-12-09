@@ -263,7 +263,7 @@ fn smoke_test() {
     hasher.update(&[security_state.device_lifecycle() as u8]);
     hasher.update(&[security_state.debug_locked() as u8]);
     hasher.update(&[fuses.anti_rollback_disable as u8]);
-    hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
+    hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
     hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
     hasher.update(&[image.manifest.pqc_key_type]);
     hasher.update(&[true as u8]);

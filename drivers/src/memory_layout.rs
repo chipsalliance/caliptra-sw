@@ -33,7 +33,8 @@ pub const CFI_STATE_ORG: u32 = 0x500003E4; // size = 6 words
 pub const BOOT_STATUS_ORG: u32 = 0x500003FC;
 pub const MAN1_ORG: u32 = 0x50000400;
 pub const MAN2_ORG: u32 = MAN1_ORG + MAN1_SIZE;
-pub const FHT_ORG: u32 = MAN2_ORG + MAN2_SIZE;
+pub const DATAVAULT_ORG: u32 = MAN2_ORG + MAN2_SIZE;
+pub const FHT_ORG: u32 = DATAVAULT_ORG + DATAVAULT_MAX_SIZE;
 pub const IDEVID_MLDSA_PUB_KEY_ORG: u32 = FHT_ORG + FHT_SIZE;
 pub const LDEVID_TBS_ORG: u32 = IDEVID_MLDSA_PUB_KEY_ORG + IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
 pub const FMCALIAS_TBS_ORG: u32 = LDEVID_TBS_ORG + LDEVID_TBS_SIZE;
@@ -67,6 +68,7 @@ pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
 pub const MAN1_SIZE: u32 = 17 * 1024;
 pub const MAN2_SIZE: u32 = 17 * 1024;
+pub const DATAVAULT_MAX_SIZE: u32 = 15 * 1024;
 pub const FHT_SIZE: u32 = 2 * 1024;
 pub const IDEVID_MLDSA_PUB_KEY_MAX_SIZE: u32 = 3 * 1024;
 pub const LDEVID_TBS_SIZE: u32 = 1024;
@@ -79,7 +81,7 @@ pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 130 * 1024;
+pub const DATA_SIZE: u32 = 115 * 1024;
 pub const STACK_SIZE: u32 = 64 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -99,7 +101,13 @@ fn mem_layout_test_manifest() {
     assert!(MAN2_SIZE as usize >= core::mem::size_of::<ImageManifest>());
     assert_eq!(MAN1_SIZE, MAN2_SIZE);
     assert_eq!((MAN2_ORG - MAN1_ORG), MAN1_SIZE);
-    assert_eq!((FHT_ORG - MAN2_ORG), MAN2_SIZE);
+    assert_eq!((DATAVAULT_ORG - MAN2_ORG), MAN2_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_datavault() {
+    assert_eq!((FHT_ORG - DATAVAULT_ORG), DATAVAULT_MAX_SIZE);
 }
 
 #[test]
