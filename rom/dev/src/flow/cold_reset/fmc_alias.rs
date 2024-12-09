@@ -33,7 +33,7 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{
     okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle,
 };
-use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use caliptra_x509::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
 use zeroize::Zeroize;
 
 #[derive(Default)]
@@ -219,7 +219,7 @@ impl FmcAliasLayer {
         hasher.finalize(&mut fuse_info_digest)?;
 
         // Certificate `To Be Signed` Parameters
-        let params = FmcAliasCertTbsParams {
+        let params = FmcAliasCertTbsEcc384Params {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
@@ -237,7 +237,7 @@ impl FmcAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = FmcAliasCertTbs::new(&params);
+        let tbs = FmcAliasCertTbsEcc384::new(&params);
 
         // Sign the `To Be Signed` portion
         cprintln!(
