@@ -15,13 +15,13 @@ fn test_get_csr() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let csr_bytes = {
+    let ecc_csr_bytes = {
         let flags = MfgFlags::GENERATE_IDEVID_CSR;
         hw.soc_ifc()
             .cptra_dbg_manuf_service_reg()
             .write(|_| flags.bits());
 
-        let downloaded = helpers::get_csr(&mut hw).unwrap();
+        let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
         hw.step_until(|m| {
             m.soc_ifc()
@@ -29,7 +29,7 @@ fn test_get_csr() {
                 .read()
                 .ready_for_mb_processing()
         });
-        downloaded
+        csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize].to_vec()
     };
 
     let payload = MailboxReqHeader {
@@ -49,9 +49,9 @@ fn test_get_csr() {
         &get_idv_csr_resp.as_bytes()[core::mem::size_of_val(&get_idv_csr_resp.hdr.chksum)..],
     ));
 
-    assert_eq!(csr_bytes.len() as u32, get_idv_csr_resp.data_size);
+    assert_eq!(ecc_csr_bytes.len() as u32, get_idv_csr_resp.data_size);
     assert_eq!(
-        csr_bytes,
+        ecc_csr_bytes,
         get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize]
     );
 }

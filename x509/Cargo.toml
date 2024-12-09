@@ -11,6 +11,9 @@ doctest = false
 
 [dependencies]
 zeroize.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
+caliptra-drivers.workspace = true
+zerocopy.workspace = true
 
 [build-dependencies]
 asn1 = { workspace = true, optional = true }

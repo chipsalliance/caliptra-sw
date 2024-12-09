@@ -1675,7 +1675,7 @@ fn cert_test_with_custom_dates() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let idevid_cert_bytes = helpers::get_csr(&mut hw).unwrap();
+    let idevid_csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {
         m.soc_ifc()
@@ -1692,8 +1692,9 @@ fn cert_test_with_custom_dates() {
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
 
-    // Get the idevid cert.
-    let idevid_cert = idevid_cert(&idevid_cert_bytes);
+    // Get the idevid ECC cert.
+    let idevid_cert =
+        idevid_cert(&idevid_csr_envelop.ecc_csr.csr[..idevid_csr_envelop.ecc_csr.csr_len as usize]);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -1739,8 +1740,8 @@ fn cert_test() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR from the mailbox.
-    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
+    // Download the CSR Envelop from the mailbox.
+    let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {
         m.soc_ifc()
@@ -1757,8 +1758,8 @@ fn cert_test() {
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
 
-    // Get the idevid cert.
-    let idevid_cert = idevid_cert(&csr_bytes);
+    // Get the ECC idevid cert.
+    let idevid_cert = idevid_cert(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize]);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -1805,7 +1806,7 @@ fn cert_test_with_ueid() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
+    let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {
         m.soc_ifc()
@@ -1822,7 +1823,10 @@ fn cert_test_with_ueid() {
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
 
-    assert!(hex::encode_upper(csr_bytes).contains("010102030405060708090A0B0C0D0E0F10"));
+    assert!(
+        hex::encode_upper(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize])
+            .contains("010102030405060708090A0B0C0D0E0F10")
+    );
 
     let ldevid_cert = helpers::get_data("[fmc] LDEVID cert = ", &output);
     assert!(ldevid_cert.contains("010102030405060708090A0B0C0D0E0F10"));

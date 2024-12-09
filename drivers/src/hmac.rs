@@ -106,6 +106,9 @@ pub enum HmacKey<'a> {
 
     // Key
     Key(KeyReadArgs),
+
+    // CSR mode key
+    CsrMode(),
 }
 
 impl<'a> From<&'a Array4x12> for HmacKey<'a> {
@@ -139,6 +142,16 @@ pub enum HmacMode {
     Hmac512 = 1,
 }
 
+struct HmacParams<'a> {
+    slice: &'a [u8],
+    first: bool,
+    buf_size: usize,
+    key: Option<KeyReadArgs>,
+    dest_key: Option<KeyWriteArgs>,
+    hmac_mode: HmacMode,
+    csr_mode: bool,
+}
+
 pub struct Hmac {
     hmac: HmacReg,
 }
@@ -153,16 +166,20 @@ impl Hmac {
     ///
     /// * `key`  - HMAC Key
     /// * `trng` - TRNG driver instance
-    ///
     /// * `tag`  -  The calculated tag
+    /// * `hmac_mode` - Hmac mode to use
+    ///
+    /// # Returns
+    /// * `HmacOp` - Hmac operation
     pub fn hmac_init<'a>(
         &'a mut self,
         key: &HmacKey,
         trng: &mut Trng,
         mut tag: HmacTag<'a>,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
     ) -> CaliptraResult<HmacOp> {
         let hmac = self.hmac.regs_mut();
+        let mut csr_mode = false;
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
@@ -181,6 +198,10 @@ impl Hmac {
                 None
             }
             HmacKey::Key(key) => Some(*key),
+            HmacKey::CsrMode() => {
+                csr_mode = true;
+                None
+            }
         };
 
         // Generate an LFSR seed and copy to key vault.
@@ -194,7 +215,8 @@ impl Hmac {
             buf_idx: 0,
             data_size: 0,
             tag,
-            mode,
+            hmac_mode,
+            csr_mode,
         };
 
         Ok(op)
@@ -221,8 +243,11 @@ impl Hmac {
     /// * `key`  - HMAC Key
     /// * `data` - Data to calculate the HMAC over
     /// * `trng` - TRNG driver instance
-    ///
     /// * `tag`  -  The calculated tag
+    /// * `hmac_mode` - Hmac mode to use
+    ///
+    /// # Returns
+    /// * `CaliptraResult<()>` - Result of the operation
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac(
         &mut self,
@@ -230,10 +255,11 @@ impl Hmac {
         data: &HmacData,
         trng: &mut Trng,
         tag: HmacTag,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
         let mut tag = tag;
+        let mut csr_mode: bool = false;
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
@@ -259,14 +285,18 @@ impl Hmac {
                 None
             }
             HmacKey::Key(key) => Some(key),
+            HmacKey::CsrMode() => {
+                csr_mode = true;
+                None
+            }
         };
         // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
         // Calculate the hmac
         match data {
-            HmacData::Slice(buf) => self.hmac_buf(buf, key, dest_key, mode)?,
-            HmacData::Key(data_key) => self.hmac_key(*data_key, key, dest_key, mode)?,
+            HmacData::Slice(buf) => self.hmac_buf(buf, key, dest_key, hmac_mode, csr_mode)?,
+            HmacData::Key(data_key) => self.hmac_key(*data_key, key, dest_key, hmac_mode)?,
         }
         let hmac = self.hmac.regs();
 
@@ -289,7 +319,7 @@ impl Hmac {
         self.hmac
             .regs_mut()
             .hmac512_ctrl()
-            .write(|w| w.zeroize(true).mode(false));
+            .write(|w| w.zeroize(true).mode(false).csr_mode(false));
     }
 
     /// Zeroize the hardware registers.
@@ -306,7 +336,7 @@ impl Hmac {
         let mut hmac = HmacReg::new();
         hmac.regs_mut()
             .hmac512_ctrl()
-            .write(|w| w.zeroize(true).mode(false));
+            .write(|w| w.zeroize(true).mode(false).csr_mode(false));
     }
 
     ///
@@ -315,13 +345,20 @@ impl Hmac {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the hmac over
+    /// * `key` - Key to use for the hmac operation
+    /// * `dest_key` - Destination key to store the hmac tag
+    /// * `hmac_mode` - Hmac mode to use
+    /// * `csr_mode` - Flag indicating if the hmac operation is in CSR mode
     ///
+    /// # Returns
+    /// * `CaliptraResult<()>` - Result of the operation
     fn hmac_buf(
         &mut self,
         buf: &[u8],
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
+        csr_mode: bool,
     ) -> CaliptraResult<()> {
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC_MAX_DATA_SIZE {
@@ -340,7 +377,16 @@ impl Hmac {
                     // the panic.
 
                     if let Some(slice) = buf.get(offset..) {
-                        self.hmac_partial_block(slice, first, buf.len(), key, dest_key, mode)?;
+                        let params = HmacParams {
+                            slice,
+                            first,
+                            buf_size: buf.len(),
+                            key,
+                            dest_key,
+                            hmac_mode,
+                            csr_mode,
+                        };
+                        self.hmac_partial_block(params)?;
                         break;
                     } else {
                         return Err(CaliptraError::DRIVER_HMAC_INVALID_SLICE);
@@ -353,7 +399,7 @@ impl Hmac {
                     // the panic.
                     if let Some(slice) = buf.get(offset..offset + HMAC_BLOCK_SIZE_BYTES) {
                         let block = <&[u8; HMAC_BLOCK_SIZE_BYTES]>::try_from(slice).unwrap();
-                        self.hmac_block(block, first, key, dest_key, mode)?;
+                        self.hmac_block(block, first, key, dest_key, hmac_mode, csr_mode)?;
                         bytes_remaining -= HMAC_BLOCK_SIZE_BYTES;
                         first = false;
                     } else {
@@ -378,7 +424,7 @@ impl Hmac {
         data_key: KeyReadArgs,
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
 
@@ -389,18 +435,10 @@ impl Hmac {
         )
         .map_err(|err| err.into_read_data_err())?;
 
-        self.hmac_op(true, key, dest_key, mode)
+        self.hmac_op(true, key, dest_key, hmac_mode, false)
     }
 
-    fn hmac_partial_block(
-        &mut self,
-        slice: &[u8],
-        first: bool,
-        buf_size: usize,
-        key: Option<KeyReadArgs>,
-        dest_key: Option<KeyWriteArgs>,
-        mode: HmacMode,
-    ) -> CaliptraResult<()> {
+    fn hmac_partial_block(&mut self, params: HmacParams) -> CaliptraResult<()> {
         /// Set block length
         fn set_block_len(buf_size: usize, block: &mut [u8; HMAC_BLOCK_SIZE_BYTES]) {
             let bit_len = ((buf_size + HMAC_BLOCK_SIZE_BYTES) as u128) << 3;
@@ -412,23 +450,37 @@ impl Hmac {
 
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
-        if slice.len() > block.len() - 1 {
+        if params.slice.len() > block.len() - 1 {
             return Err(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS);
         }
-        block[..slice.len()].copy_from_slice(slice);
-        block[slice.len()] = 0b1000_0000;
-        if slice.len() < HMAC_BLOCK_LEN_OFFSET {
-            set_block_len(buf_size, &mut block);
+        block[..params.slice.len()].copy_from_slice(params.slice);
+        block[params.slice.len()] = 0b1000_0000;
+        if params.slice.len() < HMAC_BLOCK_LEN_OFFSET {
+            set_block_len(params.buf_size, &mut block);
         }
 
         // Calculate the digest of the op
-        self.hmac_block(&block, first, key, dest_key, mode)?;
+        self.hmac_block(
+            &block,
+            params.first,
+            params.key,
+            params.dest_key,
+            params.hmac_mode,
+            params.csr_mode,
+        )?;
 
         // Add a padding block if one is needed
-        if slice.len() >= HMAC_BLOCK_LEN_OFFSET {
+        if params.slice.len() >= HMAC_BLOCK_LEN_OFFSET {
             block.fill(0);
-            set_block_len(buf_size, &mut block);
-            self.hmac_block(&block, false, key, dest_key, mode)?;
+            set_block_len(params.buf_size, &mut block);
+            self.hmac_block(
+                &block,
+                false,
+                params.key,
+                params.dest_key,
+                params.hmac_mode,
+                params.csr_mode,
+            )?;
         }
 
         Ok(())
@@ -441,18 +493,25 @@ impl Hmac {
     ///
     /// * `block`: Block to calculate the digest
     /// * `first` - Flag indicating if this is the first block
+    /// * `key` - Key vault slot to use for the hmac key
+    /// * `dest_key` - Destination key vault slot to store the hmac tag
+    /// * `hmac_mode` - Hmac mode to use
+    /// * `csr_mode` - Flag indicating if the hmac operation is in CSR mode
     ///
+    /// # Returns
+    /// * `CaliptraResult<()>` - Result of the operation
     fn hmac_block(
         &mut self,
         block: &[u8; HMAC_BLOCK_SIZE_BYTES],
         first: bool,
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
+        csr_mode: bool,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
         Array4x32::from(block).write_to_reg(hmac.hmac512_block());
-        self.hmac_op(first, key, dest_key, mode)
+        self.hmac_op(first, key, dest_key, hmac_mode, csr_mode)
     }
 
     ///
@@ -461,13 +520,20 @@ impl Hmac {
     /// # Arguments
     ///
     /// * `first` - Flag indicating if this is the first block
+    /// * `key` - Key vault slot to use for the hmac key
+    /// * `dest_key` - Destination key vault slot to store the hmac tag
+    /// * `hmac_mode` - Hmac mode to use
+    /// * `csr_mode` - Flag indicating if the hmac operation is in CSR mode
     ///
+    /// # Returns
+    /// * `CaliptraResult<()>` - Result of the operation
     fn hmac_op(
         &mut self,
         first: bool,
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
-        mode: HmacMode,
+        hmac_mode: HmacMode,
+        csr_mode: bool,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
 
@@ -492,12 +558,20 @@ impl Hmac {
 
         if first {
             // Submit the first block
-            hmac.hmac512_ctrl()
-                .write(|w| w.init(true).next(false).mode(mode == HmacMode::Hmac512));
+            hmac.hmac512_ctrl().write(|w| {
+                w.init(true)
+                    .next(false)
+                    .mode(hmac_mode == HmacMode::Hmac512)
+                    .csr_mode(csr_mode)
+            });
         } else {
             // Submit next block in existing hashing chain
-            hmac.hmac512_ctrl()
-                .write(|w| w.init(false).next(true).mode(mode == HmacMode::Hmac512));
+            hmac.hmac512_ctrl().write(|w| {
+                w.init(false)
+                    .next(true)
+                    .mode(hmac_mode == HmacMode::Hmac512)
+                    .csr_mode(csr_mode)
+            });
         }
 
         // Wait for the hmac operation to finish
@@ -547,8 +621,11 @@ pub struct HmacOp<'a> {
     /// Tag
     tag: HmacTag<'a>,
 
-    /// Mode
-    mode: HmacMode,
+    /// Hmac Mode
+    hmac_mode: HmacMode,
+
+    /// CSR mode
+    csr_mode: bool,
 }
 
 impl<'a> HmacOp<'a> {
@@ -588,7 +665,8 @@ impl<'a> HmacOp<'a> {
                     self.is_first(),
                     self.key,
                     self.dest_key(),
-                    self.mode,
+                    self.hmac_mode,
+                    self.csr_mode,
                 )?;
                 self.reset_buf_state();
             }
@@ -618,14 +696,17 @@ impl<'a> HmacOp<'a> {
             )
         };
 
-        self.hmac_engine.hmac_partial_block(
-            buf,
-            self.is_first(),
-            self.data_size,
-            self.key,
-            self.dest_key(),
-            self.mode,
-        )?;
+        let params = HmacParams {
+            slice: buf,
+            first: self.is_first(),
+            buf_size: self.data_size,
+            key: self.key,
+            dest_key: self.dest_key(),
+            hmac_mode: self.hmac_mode,
+            csr_mode: self.csr_mode,
+        };
+
+        self.hmac_engine.hmac_partial_block(params)?;
 
         // Set the state of the operation to final
         self.state = HmacOpState::Final;

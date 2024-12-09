@@ -49,15 +49,15 @@ pub type AuthManifestImageMetadataList =
 #[derive(Clone, FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
-    csr_len: u32,
-    csr: [u8; ECC384_MAX_CSR_SIZE],
+    pub csr_len: u32,
+    pub csr: [u8; ECC384_MAX_CSR_SIZE],
 }
 
 #[derive(Clone, FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
 pub struct Mldsa87IdevIdCsr {
-    csr_len: u32,
-    csr: [u8; MLDSA87_MAX_CSR_SIZE],
+    pub csr_len: u32,
+    pub csr: [u8; MLDSA87_MAX_CSR_SIZE],
 }
 
 impl Default for Ecc384IdevIdCsr {

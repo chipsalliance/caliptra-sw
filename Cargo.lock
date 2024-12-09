@@ -890,6 +890,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-runtime",
+ "caliptra-x509",
  "caliptra_common",
  "dpe",
  "elf",
@@ -925,6 +926,8 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
+ "caliptra-drivers",
+ "caliptra-image-types",
  "caliptra_common",
  "convert_case",
  "hex",
@@ -932,6 +935,7 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "x509-parser",
+ "zerocopy",
  "zeroize",
 ]
 

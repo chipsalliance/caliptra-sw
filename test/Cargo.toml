@@ -32,6 +32,7 @@ zerocopy.workspace = true
 caliptra-hw-model.workspace = true
 dpe.workspace = true
 ureg.workspace = true
+caliptra-x509 = { workspace = true, default-features = false }
 
 [dev-dependencies]
 caliptra-builder.workspace = true
