@@ -265,7 +265,7 @@ impl InitDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsParams {
             // Unique Endpoint Identifier
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.ecc_subj_sn,

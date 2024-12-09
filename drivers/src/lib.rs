@@ -59,9 +59,7 @@ pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
-pub use data_vault::{
-    ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
-};
+pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{

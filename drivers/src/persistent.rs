@@ -18,7 +18,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    FirmwareHandoffTable, Mldsa87PubKey,
+    DataVault, FirmwareHandoffTable, Mldsa87PubKey,
 };
 
 #[cfg(feature = "runtime")]
@@ -113,6 +113,9 @@ pub struct PersistentData {
     pub manifest2: ImageManifest,
     reserved1: [u8; memory_layout::MAN2_SIZE as usize - size_of::<ImageManifest>()],
 
+    pub data_vault: DataVault,
+    reserved1_1: [u8; memory_layout::DATAVAULT_MAX_SIZE as usize - size_of::<DataVault>()],
+
     pub fht: FirmwareHandoffTable,
     reserved2: [u8; memory_layout::FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
 
@@ -177,6 +180,7 @@ impl PersistentData {
         unsafe {
             assert_eq!(addr_of!((*P).manifest1) as u32, layout::MAN1_ORG);
             assert_eq!(addr_of!((*P).manifest2) as u32, layout::MAN2_ORG);
+            assert_eq!(addr_of!((*P).data_vault) as u32, layout::DATAVAULT_ORG);
             assert_eq!(addr_of!((*P).fht) as u32, layout::FHT_ORG);
             assert_eq!(
                 addr_of!((*P).idevid_mldsa_pub_key) as u32,

@@ -2,10 +2,7 @@
 
 use crate::bounded_address::RomAddr;
 use crate::soc_ifc;
-use crate::{
-    memory_layout, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature, KeyId,
-    ResetReason, WarmResetEntry4, WarmResetEntry48,
-};
+use crate::{memory_layout, Ecc384PubKey, Ecc384Signature, KeyId, ResetReason};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
 use caliptra_image_types::RomInfo;
@@ -67,10 +64,6 @@ impl TryFrom<u32> for Vault {
 pub enum DataStore {
     KeyVaultSlot(KeyId),
     //PlatformConfigRegister(PcrId),
-    DataVaultSticky4(ColdResetEntry4),
-    DataVaultSticky48(ColdResetEntry48),
-    DataVaultNonSticky4(WarmResetEntry4),
-    DataVaultNonSticky48(WarmResetEntry48),
     Invalid,
 }
 
@@ -97,29 +90,6 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 KeyId::try_from(self.reg_num() as u8)
                     .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_KEY_ID)?,
             )),
-            Vault::DataVault => match self.reg_type() {
-                1 => Ok(DataStore::DataVaultSticky4(
-                    ColdResetEntry4::try_from(self.reg_num() as u8)
-                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4)?,
-                )),
-
-                2 => Ok(DataStore::DataVaultSticky48(
-                    ColdResetEntry48::try_from(self.reg_num() as u8)
-                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48)?,
-                )),
-
-                3 => Ok(DataStore::DataVaultNonSticky4(
-                    WarmResetEntry4::try_from(self.reg_num() as u8)
-                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4)?,
-                )),
-
-                4 => Ok(DataStore::DataVaultNonSticky48(
-                    WarmResetEntry48::try_from(self.reg_num() as u8)
-                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48)?,
-                )),
-
-                _ => Err(CaliptraError::DRIVER_BAD_DATASTORE_REG_TYPE),
-            },
             _ => Err(CaliptraError::DRIVER_BAD_DATASTORE_VAULT_TYPE),
         }
     }
@@ -134,34 +104,6 @@ impl From<DataStore> for HandOffDataHandle {
                 me.set_reg_num(key_id.into());
                 me
             }
-            DataStore::DataVaultSticky4(entry_id) => {
-                let mut me = Self(0);
-                me.set_vault(u32::from(Vault::DataVault));
-                me.set_reg_type(DataVaultRegister::Sticky32BitReg as u32);
-                me.set_reg_num(entry_id.into());
-                me
-            }
-            DataStore::DataVaultSticky48(entry_id) => {
-                let mut me = Self(0);
-                me.set_vault(Vault::DataVault as u32);
-                me.set_reg_type(DataVaultRegister::Sticky384BitReg as u32);
-                me.set_reg_num(entry_id.into());
-                me
-            }
-            DataStore::DataVaultNonSticky4(entry_id) => {
-                let mut me = Self(0);
-                me.set_vault(Vault::DataVault as u32);
-                me.set_reg_type(DataVaultRegister::NonSticky32BitReg as u32);
-                me.set_reg_num(entry_id.into());
-                me
-            }
-            DataStore::DataVaultNonSticky48(entry_id) => {
-                let mut me = Self(0);
-                me.set_vault(u32::from(Vault::DataVault));
-                me.set_reg_type(DataVaultRegister::NonSticky384BitReg as u32);
-                me.set_reg_num(entry_id.into());
-                me
-            }
             _ => {
                 let mut me = Self(0);
                 me.set_vault(0);
@@ -172,6 +114,8 @@ impl From<DataStore> for HandOffDataHandle {
         }
     }
 }
+
+const FHT_RESERVED_SIZE: usize = 1680;
 
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
@@ -199,47 +143,17 @@ pub struct FirmwareHandoffTable {
     /// May be NULL if there is no discrete module.
     pub fips_fw_load_addr_hdl: HandOffDataHandle,
 
-    /// Entry point of Runtime FW Module in ICCM SRAM.
-    pub rt_fw_entry_point_hdl: HandOffDataHandle,
-
-    /// Index of FMC TCI value in the Data Vault.
-    pub fmc_tci_dv_hdl: HandOffDataHandle,
-
     /// Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.
     pub fmc_cdi_kv_hdl: HandOffDataHandle,
 
     /// Index of FMC Private Alias Key in the Key Vault.
     pub fmc_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// Index of FMC Public Alias Key X Coordinate in the Data Vault.
-    pub fmc_pub_key_x_dv_hdl: HandOffDataHandle,
-
-    /// Index of FMC Public Alias Key Y Coordinate in the Data Vault.
-    pub fmc_pub_key_y_dv_hdl: HandOffDataHandle,
-
-    /// Index of FMC Certificate Signature R Component in the Data Vault.
-    pub fmc_cert_sig_r_dv_hdl: HandOffDataHandle,
-
-    /// Index of FMC Certificate Signature S Component in the Data Vault.
-    pub fmc_cert_sig_s_dv_hdl: HandOffDataHandle,
-
-    /// Index of FMC SVN value in the Data Vault
-    pub fmc_svn_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT TCI value in the Data Vault.
-    pub rt_tci_dv_hdl: HandOffDataHandle,
-
     /// Index of RT CDI value in the Key Vault.
     pub rt_cdi_kv_hdl: HandOffDataHandle,
 
     /// Index of RT Private Alias Key in the Key Vault.
     pub rt_priv_key_kv_hdl: HandOffDataHandle,
-
-    /// Index of RT SVN value in the Data Vault
-    pub rt_svn_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Min SVN value in the Data Vault
-    pub rt_min_svn_dv_hdl: HandOffDataHandle,
 
     /// LdevId TBS Address
     pub ldevid_tbs_addr: u32,
@@ -274,12 +188,6 @@ pub struct FirmwareHandoffTable {
     /// RtAlias certificate signature.
     pub rt_dice_sign: Ecc384Signature,
 
-    /// Index of LdevId Certificate Signature R Component in the Data Vault.
-    pub ldevid_cert_sig_r_dv_hdl: HandOffDataHandle,
-
-    /// Index of LdevId Certificate Signature S Component in the Data Vault.
-    pub ldevid_cert_sig_s_dv_hdl: HandOffDataHandle,
-
     /// IDevID ECDSA public key
     pub idev_dice_ecdsa_pub_key: Ecc384PubKey,
 
@@ -299,7 +207,7 @@ pub struct FirmwareHandoffTable {
     pub rt_hash_chain_kv_hdl: HandOffDataHandle,
 
     /// Reserved for future use.
-    pub reserved: [u8; 1632],
+    pub reserved: [u8; FHT_RESERVED_SIZE],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -310,20 +218,10 @@ impl Default for FirmwareHandoffTable {
             fht_minor_ver: 0,
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
-            rt_fw_entry_point_hdl: FHT_INVALID_HANDLE,
-            fmc_tci_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
             fmc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            fmc_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
-            fmc_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
-            fmc_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-            fmc_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
-            fmc_svn_dv_hdl: FHT_INVALID_HANDLE,
-            rt_tci_dv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            rt_svn_dv_hdl: FHT_INVALID_HANDLE,
-            rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             ldevid_tbs_size: 0,
@@ -335,15 +233,13 @@ impl Default for FirmwareHandoffTable {
             fuse_log_addr: 0,
             rt_dice_pub_key: Ecc384PubKey::default(),
             rt_dice_sign: Ecc384Signature::default(),
-            ldevid_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-            ldevid_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             idev_dice_ecdsa_pub_key: Ecc384PubKey::default(),
             idev_dice_mldsa_pub_key_load_addr: 0,
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
             rt_hash_chain_max_svn: 0,
             rt_hash_chain_kv_hdl: HandOffDataHandle(0),
-            reserved: [0u8; 1632],
+            reserved: [0u8; FHT_RESERVED_SIZE],
         }
     }
 }
@@ -360,41 +256,16 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         "FIPS FW Load Address: 0x{:08x}",
         fht.fips_fw_load_addr_hdl.0
     );
-    crate::cprintln!(
-        "Runtime FW Entry Point: 0x{:08x}",
-        fht.rt_fw_entry_point_hdl.0
-    );
-    crate::cprintln!("FMC TCI DV Handle: 0x{:08x}", fht.fmc_tci_dv_hdl.0);
     crate::cprintln!("FMC CDI KV Handle: 0x{:08x}", fht.fmc_cdi_kv_hdl.0);
     crate::cprintln!(
         "FMC Private Key KV Handle: 0x{:08x}",
         fht.fmc_priv_key_kv_hdl.0
     );
-    crate::cprintln!(
-        "FMC Public Key X DV Handle: 0x{:08x}",
-        fht.fmc_pub_key_x_dv_hdl.0
-    );
-    crate::cprintln!(
-        "FMC Public Key Y DV Handle: 0x{:08x}",
-        fht.fmc_pub_key_y_dv_hdl.0
-    );
-    crate::cprintln!(
-        "FMC Certificate Signature R DV Handle: 0x{:08x}",
-        fht.fmc_cert_sig_r_dv_hdl.0
-    );
-    crate::cprintln!(
-        "FMC Certificate Signature S DV Handle: 0x{:08x}",
-        fht.fmc_cert_sig_s_dv_hdl.0
-    );
-    crate::cprintln!("FMC SVN DV Handle: 0x{:08x}", fht.fmc_svn_dv_hdl.0);
-    crate::cprintln!("RT TCI DV Handle: 0x{:08x}", fht.rt_tci_dv_hdl.0);
     crate::cprintln!("RT CDI KV Handle: 0x{:08x}", fht.rt_cdi_kv_hdl.0);
     crate::cprintln!(
         "RT Private Key KV Handle: 0x{:08x}",
         fht.rt_priv_key_kv_hdl.0
     );
-    crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
-    crate::cprintln!("RT Min SVN DV Handle: 0x{:08x}", fht.rt_min_svn_dv_hdl.0);
 
     crate::cprintln!(
         "IdevId MLDSA Public Key Address: 0x{:08x}",
@@ -402,14 +273,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     );
     crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
-    crate::cprintln!(
-        "LDevId Certificate Signature R DV Handle: 0x{:08x}",
-        fht.ldevid_cert_sig_r_dv_hdl.0
-    );
-    crate::cprintln!(
-        "LDevId Certificate Signature S DV Handle: 0x{:08x}",
-        fht.ldevid_cert_sig_s_dv_hdl.0
-    );
     crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
     crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
@@ -432,12 +295,6 @@ impl FirmwareHandoffTable {
         let mut valid = self.fht_marker == FHT_MARKER
             && self.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
-            && self.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
-            && self.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
-            && self.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
-            && self.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
-            && self.rt_tci_dv_hdl != FHT_INVALID_HANDLE
-            && self.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
             && self.ldevid_tbs_addr != 0
@@ -445,9 +302,7 @@ impl FirmwareHandoffTable {
             && self.pcr_log_addr != 0
             && self.meas_log_addr != 0
             && self.fuse_log_addr != 0
-            && self.rom_info_addr.is_valid()
-            && self.ldevid_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
-            && self.ldevid_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE;
+            && self.rom_info_addr.is_valid();
 
         if valid
             && reset_reason == ResetReason::ColdReset
@@ -466,10 +321,6 @@ mod tests {
     use core::mem;
     const FHT_SIZE: usize = 2048;
     const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
-
-    fn rt_tci_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
-    }
 
     fn fmc_priv_key_store() -> HandOffDataHandle {
         HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_ECDSA_PRIV_KEY as u32)
@@ -491,12 +342,6 @@ mod tests {
         let valid = fht.fht_marker == FHT_MARKER
             && fht.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && fht.manifest_load_addr != FHT_INVALID_ADDRESS
-            && fht.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
-            && fht.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
-            && fht.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
-            && fht.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
-            && fht.rt_tci_dv_hdl != FHT_INVALID_HANDLE
-            && fht.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
             && fht.ldevid_tbs_size == 0
@@ -510,19 +355,6 @@ mod tests {
 
         assert!(!valid);
         assert_eq!(FHT_SIZE, mem::size_of::<FirmwareHandoffTable>());
-    }
-
-    #[test]
-    fn test_dv_nonsticky_384bit_set() {
-        let fht = crate::hand_off::FirmwareHandoffTable {
-            rt_tci_dv_hdl: rt_tci_store(),
-            ..Default::default()
-        };
-        assert_eq!(fht.rt_tci_dv_hdl.vault(), Vault::DataVault as u32);
-        assert_eq!(
-            fht.rt_tci_dv_hdl.reg_type(),
-            DataVaultRegister::NonSticky384BitReg as u32
-        );
     }
 
     #[test]

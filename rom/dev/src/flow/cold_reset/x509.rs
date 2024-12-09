@@ -27,13 +27,13 @@ impl X509 {
     ///
     /// # Arguments
     ///
-    /// * `env` - ROM Environment
+    /// * `soc_ifc` - SOC Interface object
     ///
     /// # Returns
     ///
     /// `[u8; 17]` - Byte 0 - Ueid Type, Bytes 1-16 Unique Endpoint Identifier
-    pub fn ueid(env: &RomEnv) -> CaliptraResult<[u8; 17]> {
-        let ueid = env.soc_ifc.fuse_bank().ueid();
+    pub fn ueid(soc_ifc: &SocIfc) -> CaliptraResult<[u8; 17]> {
+        let ueid = soc_ifc.fuse_bank().ueid();
         Ok(ueid)
     }
 
@@ -67,7 +67,7 @@ impl X509 {
         // Define an array large enough to hold the largest public key.
         let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
-        Crypto::sha256_digest(env, &pub_key_bytes[..pub_key_size])
+        Crypto::sha256_digest(&mut env.sha256, &pub_key_bytes[..pub_key_size])
     }
 
     /// Get X509 Subject Serial Number from public key
@@ -111,7 +111,7 @@ impl X509 {
             }
             X509KeyIdAlgo::Sha256 => {
                 cprintln!("[idev] Sha256 KeyId Algorithm");
-                let digest = Crypto::sha256_digest(env, data);
+                let digest = Crypto::sha256_digest(&mut env.sha256, data);
                 let digest: [u8; 32] = okref(&digest)?.into();
                 digest[..20].try_into().unwrap()
             }
@@ -150,15 +150,15 @@ impl X509 {
     ///
     /// # Arguments
     ///
-    /// * `env`     - ROM Environment
+    /// * `sha256`  - SHA256 Driver
     /// * `pub_key` - ECC Public Key
     ///
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Serial Number
-    pub fn ecc_cert_sn(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
+    pub fn ecc_cert_sn(sha256: &mut Sha256, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
-        let digest = Crypto::sha256_digest(env, &data);
+        let digest = Crypto::sha256_digest(sha256, &data);
         let mut digest: [u8; 32] = okref(&digest)?.into();
 
         // Ensure the encoded integer is positive, and that the first octet
