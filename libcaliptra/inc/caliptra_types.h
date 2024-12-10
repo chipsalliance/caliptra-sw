@@ -224,6 +224,11 @@ struct caliptra_get_idev_csr_resp {
     uint8_t data[512];
 };
 
+struct caliptra_get_owner_pub_key_hash_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t key_hash[48];
+};
+
 // DPE commands
 
 #define DPE_MAGIC    0x44504543 // "DPEC"

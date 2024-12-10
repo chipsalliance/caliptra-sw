@@ -23,6 +23,7 @@ mod dpe_platform;
 mod drivers;
 pub mod fips;
 mod get_idev_csr;
+mod get_owner_pub_key_hash;
 pub mod handoff;
 mod hmac;
 pub mod info;
@@ -41,6 +42,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::{Drivers, PauserPrivileges};
+use get_owner_pub_key_hash::GetOwnerPubKeyHashCmd;
 use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
@@ -229,6 +231,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_OWNER_PUB_KEY_HASH => GetOwnerPubKeyHashCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

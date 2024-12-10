@@ -550,6 +550,18 @@ int rt_test_all_commands(const test_info* info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // GET OWNER PUB KEY HASH
+    struct caliptra_get_owner_pub_key_hash_resp pub_key_hash_resp;
+
+    status = caliptra_get_owner_pub_key_hash(&pub_key_hash_resp, false);
+
+    if (status) {
+        printf("Get Owner Pub Key Hash failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get Owner Pub Key Hash: OK\n");
+    }
 
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;

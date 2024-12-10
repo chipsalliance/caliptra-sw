@@ -1185,6 +1185,21 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Get owner public keys hash
+int caliptra_get_owner_pub_key_hash(struct caliptra_get_owner_pub_key_hash_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_OWNER_PUB_KEY_HASH, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Self test start
 int caliptra_self_test_start(bool async)
 {
