@@ -138,7 +138,7 @@ impl KvAccess {
                 .write_entry(key.id.into())
                 .hmac_key_dest_valid(key.usage.hmac_key())
                 .hmac_block_dest_valid(key.usage.hmac_data())
-                .sha_block_dest_valid(key.usage.sha_data())
+                .mldsa_seed_dest_valid(key.usage.mldsa_seed())
                 .ecc_pkey_dest_valid(key.usage.ecc_private_key())
                 .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
         });

@@ -1652,7 +1652,12 @@ fn cert_test_with_custom_dates() {
     // Download the CSR from the mailbox.
     let idevid_cert_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -1712,7 +1717,12 @@ fn cert_test() {
     // Download the CSR from the mailbox.
     let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -1772,7 +1782,12 @@ fn cert_test_with_ueid() {
     // Download the CSR from the mailbox.
     let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 

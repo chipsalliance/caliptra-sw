@@ -66,7 +66,7 @@ fn test_reserved_pauser() {
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
     // Set pauser to the reserved value
-    model.set_axi_id(0xffffffff);
+    model.set_axi_user(0xffffffff);
 
     // Send anything
     let payload = MailboxReqHeader {

@@ -50,7 +50,9 @@ extern "C" fn main() {
     let mut mbox = unsafe { MboxCsr::new() };
     let mbox = mbox.regs_mut();
 
-    soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+    soc_ifc
+        .cptra_flow_status()
+        .write(|w| w.ready_for_mb_processing(true));
 
     let mut response_iter = RESPONSES.iter().cycle();
     loop {

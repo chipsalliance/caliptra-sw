@@ -210,7 +210,12 @@ pub fn fips_test_init_to_rom(
     let mut model = fips_test_init_base(init_params, boot_params);
 
     // Step to ready for FW in ROM
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     model
 }

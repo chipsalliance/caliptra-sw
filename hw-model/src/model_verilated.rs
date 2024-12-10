@@ -321,8 +321,8 @@ impl HwModel for ModelVerilated {
         }
     }
 
-    fn ready_for_fw(&self) -> bool {
-        self.v.output.ready_for_fw_push
+    fn ready_for_mb_processing(&self) -> bool {
+        self.v.output.ready_for_mb_processing_push
     }
 
     fn tracing_hint(&mut self, enable: bool) {
@@ -364,7 +364,7 @@ impl HwModel for ModelVerilated {
         }
     }
 
-    fn set_axi_id(&mut self, pauser: u32) {
+    fn set_axi_user(&mut self, pauser: u32) {
         self.soc_axi_pauser = pauser;
     }
 }

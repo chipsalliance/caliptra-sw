@@ -218,7 +218,12 @@ fn fw_load_error_flow_base(
             })
             .unwrap();
 
-            hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+            hw.step_until(|m| {
+                m.soc_ifc()
+                    .cptra_flow_status()
+                    .read()
+                    .ready_for_mb_processing()
+            });
 
             // Verify we can load FW (use clean FW)
             hw.upload_firmware(&clean_fw_image.to_bytes().unwrap())

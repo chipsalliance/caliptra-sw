@@ -191,7 +191,8 @@ impl Crypto {
                 output,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_key_gen_seed_en()
+                    .set_mldsa_seed_en(),
             )
             .into(),
             mode,
@@ -241,7 +242,9 @@ impl Crypto {
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
-            KeyUsage::default().set_ecc_private_key_en(),
+            KeyUsage::default()
+                .set_ecc_private_key_en()
+                .set_mldsa_seed_en(),
         ));
 
         let pub_key = env.ecc384.key_pair(

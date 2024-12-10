@@ -562,7 +562,7 @@ impl HashSha512Regs {
 
         let result: Result<[u8; KeyVault::PCR_SIZE], BusError> = if pcr_hash_extend == 0 {
             let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            key_usage.set_mldsa_seed(true);
             match self.key_vault.read_key(key_id, key_usage) {
                 Err(x) => Err(x),
                 Ok(x) => Ok(x[..KeyVault::PCR_SIZE].try_into().unwrap()),
@@ -893,7 +893,7 @@ mod tests {
             block[..data.len()].copy_from_slice(data);
             block.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            key_usage.set_mldsa_seed(true);
 
             key_vault
                 .write_key(block_id, &block, u32::from(key_usage))
@@ -953,7 +953,7 @@ mod tests {
         if hash_to_kv {
             // Instruct hash to be written to the key-vault.
             let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            key_usage.set_mldsa_seed(true);
             let hash_ctrl = InMemoryRegister::<u32, HashWriteControl::Register>::new(0);
             hash_ctrl.modify(
                 HashWriteControl::KEY_ID.val(hash_id)
@@ -1081,7 +1081,7 @@ mod tests {
         let mut hash_le: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
         if hash_to_kv {
             let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            key_usage.set_mldsa_seed(true);
             hash_le[..KeyVault::KEY_SIZE]
                 .copy_from_slice(&sha512.key_vault.read_key(hash_id, key_usage).unwrap()[..]);
         } else {
