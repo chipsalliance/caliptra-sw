@@ -87,15 +87,15 @@ impl Crypto {
     ///
     /// # Arguments
     ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
+    /// * `sha256` - SHA256 driver
+    /// * `data`   - Input data to hash
     ///
     /// # Returns
     ///
     /// * `Array4x8` - Digest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        env.sha256.digest(data)
+    pub fn sha256_digest(sha256: &mut Sha256, data: &[u8]) -> CaliptraResult<Array4x8> {
+        sha256.digest(data)
     }
 
     /// Calculate SHA2-384 Digest

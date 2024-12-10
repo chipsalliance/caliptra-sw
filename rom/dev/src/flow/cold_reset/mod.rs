@@ -50,12 +50,14 @@ impl ColdResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
+        {
+            let data_vault = &mut env.persistent_data.get_mut().data_vault;
 
-        // Indicate that Cold-Reset flow has started.
-        // This is used by the next Warm-Reset flow to confirm that the Cold-Reset was successful.
-        // Success status is set at the end of the flow.
-        env.data_vault
-            .write_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, ColdResetStarted.into());
+            // Indicate that Cold-Reset flow has started.
+            // This is used by the next Warm-Reset flow to confirm that the Cold-Reset was successful.
+            // Success status is set at the end of the flow.
+            data_vault.set_rom_cold_boot_status(ColdResetStarted.into());
+        }
 
         // Initialize FHT
         fht::initialize_fht(env);
@@ -81,10 +83,8 @@ impl ColdResetFlow {
 
         // Indicate Cold-Reset successful completion.
         // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.
-        env.data_vault.write_lock_cold_reset_entry4(
-            ColdResetEntry4::RomColdBootStatus,
-            ColdResetComplete.into(),
-        );
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        data_vault.set_rom_cold_boot_status(ColdResetComplete.into());
 
         report_boot_status(ColdResetComplete.into());
 
