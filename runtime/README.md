@@ -806,6 +806,7 @@ Command Code: `0x4944_4352` ("IDCR")
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
 
@@ -818,6 +819,25 @@ When called from runtime, if the CSR was not previously provisioned this command
 
 
 When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
+
+### GET\_OWNER\_PUB\_KEY\_HASH
+
+Retreives the sha384 hash of the owner public keys provided in the image bundle manifest.
+
+Command Code: `0x4F50_5542` ("OPUB")
+
+*Table: `GET_OWNER_PUB_KEY_HASH` input arguments*
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_OWNER_PUB_KEY_HASH` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error. |
+| key\_hash     | u8[48]   | Hash of the owner public keys provided in the image bundle manifest |
 
 ## Checksum
 
