@@ -54,6 +54,9 @@ impl CommandId {
 
     // The get IDevID CSR command.
     pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
+
+    // The get Owner Pub Key Hash command.
+    pub const GET_OWNER_PUB_KEY_HASH: Self = Self(0x4F50_5542); // "OPUB"
 }
 
 impl From<u32> for CommandId {
@@ -155,6 +158,7 @@ pub enum MailboxResp {
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
+    GetOwnerPubKeyHash(GetOwnerPubKeyHashResp),
 }
 
 impl MailboxResp {
@@ -176,6 +180,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetOwnerPubKeyHash(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -197,6 +202,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetOwnerPubKeyHash(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -257,6 +263,7 @@ pub enum MailboxReq {
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
+    GetOwnerPubKeyHash(GetOwnerPubKeyHashReq),
 }
 
 impl MailboxReq {
@@ -282,6 +289,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
+            MailboxReq::GetOwnerPubKeyHash(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -307,6 +315,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes_mut()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetOwnerPubKeyHash(req) => Ok(req.as_bytes_mut()),
         }
     }
 
@@ -332,6 +341,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
+            MailboxReq::GetOwnerPubKeyHash(_) => CommandId::GET_OWNER_PUB_KEY_HASH,
         }
     }
 
@@ -1091,6 +1101,36 @@ pub struct AuthorizeAndStashResp {
     pub auth_req_result: u32,
 }
 impl Response for AuthorizeAndStashResp {}
+
+// GET_OWNER_PUB_KEY_HASH
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetOwnerPubKeyHashReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetOwnerPubKeyHashReq {
+    const ID: CommandId = CommandId::GET_OWNER_PUB_KEY_HASH;
+    type Resp = GetOwnerPubKeyHashResp;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetOwnerPubKeyHashResp {
+    pub hdr: MailboxRespHeader,
+    pub key_hash: [u8; 48],
+}
+
+impl ResponseVarSize for GetOwnerPubKeyHashResp {}
+
+impl Default for GetOwnerPubKeyHashResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            key_hash: [0u8; 48],
+        }
+    }
+}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
