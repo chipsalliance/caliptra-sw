@@ -99,6 +99,14 @@ impl ImageMldsaPubKey {
             None
         }
     }
+
+    pub fn mut_ref_from_prefix(bytes: &mut [u8]) -> Option<&mut Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) })
+        } else {
+            None
+        }
+    }
 }
 
 #[repr(C)]
@@ -153,6 +161,14 @@ impl ImageMldsaSignature {
     pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
         if bytes.len() >= size_of::<Self>() {
             Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+        } else {
+            None
+        }
+    }
+
+    pub fn mut_ref_from_prefix(bytes: &mut [u8]) -> Option<&mut Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) })
         } else {
             None
         }

@@ -274,6 +274,11 @@ impl Mldsa87 {
         msg: &Mldsa87Msg,
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
+        // Fail if signature is all zeros.
+        if signature.0.iter().all(|&x| x == 0) {
+            return Ok(Mldsa87Result::SigVerifyFailed);
+        }
+
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
         let truncated_signature = &signature.0[..16];
