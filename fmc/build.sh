@@ -9,4 +9,5 @@ cargo build \
   --target riscv32imc-unknown-none-elf \
   --profile=firmware \
   --no-default-features \
+  --features=fmc_alias_csr \
   --bin=caliptra-fmc

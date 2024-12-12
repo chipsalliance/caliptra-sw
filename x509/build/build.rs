@@ -39,6 +39,7 @@ fn main() {
         let out_dir = out_dir_os_str.to_str().unwrap();
 
         gen_init_devid_csr(out_dir);
+        gen_fmc_alias_csr(out_dir);
         gen_local_devid_cert(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
@@ -56,6 +57,18 @@ fn gen_init_devid_csr(out_dir: &str) {
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 1.0 IDevID");
     CodeGen::gen_code("InitDevIdCsrTbs", template, out_dir);
+}
+
+#[cfg(feature = "generate_templates")]
+fn gen_fmc_alias_csr(out_dir: &str) {
+    let mut usage = KeyUsage::default();
+    usage.set_key_cert_sign(true);
+    let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(true, 5)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 17]);
+    let template = bldr.tbs_template("Caliptra 1.0 FMC Alias");
+    CodeGen::gen_code("FmcAliasCsrTbs", template, out_dir);
 }
 
 /// Generate Local DeviceId Certificate Template

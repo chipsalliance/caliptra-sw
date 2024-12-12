@@ -21,6 +21,9 @@ use crate::{
     FirmwareHandoffTable,
 };
 
+#[cfg(feature = "fmc")]
+use crate::FmcAliasCsr;
+
 #[cfg(feature = "runtime")]
 use crate::pcr_reset::PcrResetCounter;
 
@@ -38,7 +41,8 @@ pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
-pub const RESERVED_MEMORY_SIZE: u32 = 4 * 1024;
+pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
+pub const RESERVED_MEMORY_SIZE: u32 = 18 * 1024;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
@@ -61,12 +65,77 @@ pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
 const _: () = assert!(MAX_CSR_SIZE < IDEVID_CSR_SIZE as usize);
+const _: () = assert!(MAX_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
 
 #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
 #[repr(C)]
 pub struct IdevIdCsr {
     csr_len: u32,
     csr: [u8; MAX_CSR_SIZE],
+}
+
+#[cfg(feature = "fmc")]
+pub mod fmc_alias_csr {
+    use super::*;
+
+    const _: () = assert!(size_of::<FmcAliasCsr>() < FMC_ALIAS_CSR_SIZE as usize);
+
+    #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+    #[repr(C)]
+    pub struct FmcAliasCsr {
+        csr_len: u32,
+        csr: [u8; MAX_CSR_SIZE],
+    }
+
+    impl Default for FmcAliasCsr {
+        fn default() -> Self {
+            Self {
+                csr_len: Self::UNPROVISIONED_CSR,
+                csr: [0; MAX_CSR_SIZE],
+            }
+        }
+    }
+
+    impl FmcAliasCsr {
+        /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
+        /// the CSR generation flag was not enabled.
+        ///
+        /// This is used by the runtime to distinguish ROM images that support CSR generation from
+        /// ones that do not.
+        ///
+        /// u32::MAX is too large to be a valid CSR, so we use it to encode this state.
+        pub const UNPROVISIONED_CSR: u32 = u32::MAX;
+
+        /// Get the CSR buffer
+        pub fn get(&self) -> Option<&[u8]> {
+            self.csr.get(..self.csr_len as usize)
+        }
+
+        /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
+        pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
+            if csr_len >= MAX_CSR_SIZE {
+                return Err(CaliptraError::FMC_ALIAS_INVALID_CSR);
+            }
+
+            let mut _self = Self {
+                csr_len: csr_len as u32,
+                csr: [0; MAX_CSR_SIZE],
+            };
+            _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
+
+            Ok(_self)
+        }
+
+        /// Get the length of the CSR in bytes.
+        pub fn get_csr_len(&self) -> u32 {
+            self.csr_len
+        }
+
+        /// Check if the CSR was unprovisioned
+        pub fn is_unprovisioned(&self) -> bool {
+            self.csr_len == Self::UNPROVISIONED_CSR
+        }
+    }
 }
 
 impl Default for IdevIdCsr {
@@ -193,6 +262,15 @@ pub struct PersistentData {
     pub idevid_csr: IdevIdCsr,
     reserved10: [u8; IDEVID_CSR_SIZE as usize - size_of::<IdevIdCsr>()],
 
+    #[cfg(feature = "fmc")]
+    pub fmc_alias_csr: FmcAliasCsr,
+
+    #[cfg(feature = "fmc")]
+    reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsr>()],
+
+    #[cfg(not(feature = "fmc"))]
+    pub fmc_alias_csr: [u8; FMC_ALIAS_CSR_SIZE as usize],
+
     // Reserved memory for future objects.
     // New objects should always source memory from this range.
     // Taking memory from this reserve does NOT break hitless updates.
@@ -283,7 +361,7 @@ impl PersistentData {
 
             persistent_data_offset += IDEVID_CSR_SIZE;
             assert_eq!(
-                addr_of!((*P).reserved_memory) as u32,
+                addr_of!((*P).fmc_alias_csr) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

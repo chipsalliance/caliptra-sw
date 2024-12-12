@@ -518,6 +518,7 @@ dependencies = [
  "openssl",
  "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]

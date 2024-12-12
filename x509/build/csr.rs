@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains generation of X509 Certificate Signing Request (CSR) To Be Singed (TBS)
+    File contains generation of X509 Certificate Signing Request (CSR) To Be Signed (TBS)
     template that can be substituted at firmware runtime.
 
 --*/

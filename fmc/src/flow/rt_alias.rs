@@ -55,7 +55,6 @@ impl RtAliasLayer {
         // Derive CDI
         Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
-        cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
             "[alias rt] Store priv key in slot 0x{:x}",
             KEY_ID_RT_PRIV_KEY as u8
@@ -100,18 +99,15 @@ impl RtAliasLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
-        cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
 
-        cprintln!("[alias rt] Lock RT PCRs");
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_CURRENT_PCR);
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_JOURNEY_PCR);
         cprintln!("[alias rt] Lock RT PCRs Done");
 
-        cprintln!("[alias rt] Populate DV");
         Self::populate_dv(env)?;
         cprintln!("[alias rt] Populate DV Done");
         report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);

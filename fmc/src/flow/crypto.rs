@@ -5,7 +5,12 @@ File Name:
 Abstract:
     Crypto helper routines
 --*/
+use caliptra_x509::Ecdsa384Signature;
+
 use crate::fmc_env::FmcEnv;
+use caliptra_drivers::okmutref;
+use zeroize::Zeroize;
+
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
@@ -13,6 +18,21 @@ use caliptra_drivers::{
     Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, Sha256Alg,
 };
+
+pub trait Ecdsa384SignatureAdapter {
+    /// Convert to ECDSA Signature
+    fn to_ecdsa(&self) -> Ecdsa384Signature;
+}
+
+impl Ecdsa384SignatureAdapter for Ecc384Signature {
+    /// Convert to ECDSA Signatuure
+    fn to_ecdsa(&self) -> Ecdsa384Signature {
+        Ecdsa384Signature {
+            r: (&self.r).into(),
+            s: (&self.s).into(),
+        }
+    }
+}
 
 pub enum Crypto {}
 
@@ -186,5 +206,36 @@ impl Crypto {
         let digest = Self::sha384_digest(env, data);
         let digest = okref(&digest)?;
         env.ecc384.verify(pub_key, digest, sig)
+    }
+
+    /// Sign the data using ECC Private Key.
+    /// Verify the signature using the ECC Public Key.
+    ///
+    /// This routine calculates the digest of the `data`, signs the hash and returns the signature.
+    /// This routine also verifies the signature using the public key.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    /// * `priv_key` - Key slot to retrieve the private key
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Signature
+    #[inline(always)]
+    pub fn ecdsa384_sign_and_verify(
+        env: &mut FmcEnv,
+        priv_key: KeyId,
+        pub_key: &Ecc384PubKey,
+        data: &[u8],
+    ) -> CaliptraResult<Ecc384Signature> {
+        let mut digest = Self::sha384_digest(env, data);
+        let digest = okmutref(&mut digest)?;
+        let priv_key_args = KeyReadArgs::new(priv_key);
+        let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
+        let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
+        digest.0.zeroize();
+        result
     }
 }
