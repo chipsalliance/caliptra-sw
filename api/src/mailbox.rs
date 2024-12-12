@@ -54,6 +54,9 @@ impl CommandId {
 
     // The get IDevID CSR command.
     pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
+
+    // The get FMC Alias CSR command.
+    pub const GET_FMC_ALIAS_CSR: Self = Self(0x464D_4352); // "FMCR"
 }
 
 impl From<u32> for CommandId {
@@ -153,6 +156,7 @@ pub enum MailboxResp {
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
+    GetFmcAliasCsr(GetFmcAliasCsrResp),
 }
 
 impl MailboxResp {
@@ -174,6 +178,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -195,6 +200,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -1009,6 +1015,41 @@ impl Default for GetIdevCsrResp {
         }
     }
 }
+
+// GET_FMC_ALIAS_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetFmcAliasCsrReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetFmcAliasCsrReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_CSR;
+    type Resp = GetFmcAliasCsrResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetFmcAliasCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; Self::DATA_MAX_SIZE],
+}
+
+impl Default for GetFmcAliasCsrResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+impl GetFmcAliasCsrResp {
+    pub const DATA_MAX_SIZE: usize = 512;
+}
+impl ResponseVarSize for GetFmcAliasCsrResp {}
 
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq)]

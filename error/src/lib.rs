@@ -450,6 +450,9 @@ impl CaliptraError {
     pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID: CaliptraError =
         CaliptraError::new_const(0x000E0053);
 
+    pub const RUNTIME_GET_FMC_CSR_UNPROVISIONED: CaliptraError =
+        CaliptraError::new_const(0x000E0054);
+
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0002);
@@ -465,6 +468,16 @@ impl CaliptraError {
     pub const FMC_HANDOFF_NOT_READY_FOR_RT: CaliptraError = CaliptraError::new_const(0x000F000C);
     pub const FMC_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000F000D);
     pub const FMC_UNKNOWN_RESET: CaliptraError = CaliptraError::new_const(0x000F000E);
+
+    /// FMC Alias CSR Errors
+    pub const FMC_ALIAS_CSR_BUILDER_INIT_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000F000F);
+    pub const FMC_ALIAS_CSR_BUILDER_BUILD_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000F0010);
+    pub const FMC_ALIAS_INVALID_CSR: CaliptraError = CaliptraError::new_const(0x000F0011);
+    pub const FMC_ALIAS_CSR_VERIFICATION_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000F0012);
+    pub const FMC_ALIAS_CSR_OVERFLOW: CaliptraError = CaliptraError::new_const(0x000F0013);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
