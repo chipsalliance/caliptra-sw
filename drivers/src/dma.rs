@@ -230,20 +230,34 @@ impl Dma {
     /// * `CaliptraResult<u32>` - Read value or error code
     pub fn read_dword(&mut self, read_addr: AxiAddr) -> CaliptraResult<u32> {
         let mut read_val: u32 = 0;
+        self.read_buffer(read_addr, read_val.as_bytes_mut())?;
+        Ok(read_val)
+    }
 
+    /// Read an arbitrary length buffer to fifo and read back the fifo into the provided buffer
+    ///
+    /// # Arguments
+    ///
+    /// * `read_addr` - Address to read from
+    /// * `buffer`  - Target location to read to
+    ///
+    /// # Returns
+    ///
+    /// * CaliptraResult<()> - Success or failure
+    pub fn read_buffer(&mut self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
         self.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr: false,
-            length: core::mem::size_of::<u32>() as u32,
+            length: buffer.len() as u32,
             target: DmaReadTarget::AhbFifo,
         };
 
         self.setup_dma_read(read_transaction);
         self.do_transaction()?;
-        self.dma_read_fifo(read_val.as_bytes_mut())?;
-        Ok(read_val)
+        self.dma_read_fifo(buffer)?;
+        Ok(())
     }
 
     /// Write a 32-bit word to the specified address
