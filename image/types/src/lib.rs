@@ -91,15 +91,15 @@ impl Default for ImageMldsaPubKey {
     }
 }
 
-impl ImageMldsaPubKey {
-    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
-        if bytes.len() >= size_of::<Self>() {
-            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
-        } else {
-            None
-        }
-    }
-}
+// impl ImageMldsaPubKey {
+//     pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
+//         if bytes.len() >= size_of::<Self>() {
+//             Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+//         } else {
+//             None
+//         }
+//     }
+// }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
