@@ -247,7 +247,7 @@ bitfield! {
     pub hmac_data, set_hmac_data: 1;
 
     /// Flag indicating if the key can be used as MLDSA seed
-    pub mldsa_seed, set_mldsa_seed: 2;
+    pub mldsa_seed, set_mldsa_key_gen_seed: 2;
 
     /// Flag indicating if the key can be used aas ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;

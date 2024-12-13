@@ -38,6 +38,7 @@ pub use idevid_csr_mldsa_87::{InitDevIdCsrTbsMlDsa87, InitDevIdCsrTbsMlDsa87Para
 pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
 pub use ldevid_cert_mldsa_87::{LocalDevIdCertTbsMlDsa87, LocalDevIdCertTbsMlDsa87Params};
 pub use rt_alias_cert_ecc_384::{RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params};
+pub use rt_alias_cert_mldsa_87::{RtAliasCertTbsMlDsa87, RtAliasCertTbsMlDsa87Params};
 use zeroize::Zeroize;
 
 pub const NOT_BEFORE: &str = "20230101000000Z";

@@ -7,92 +7,36 @@ Abstract:
 --*/
 use crate::fmc_env::FmcEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
+use caliptra_common::{
+    crypto::{self, Ecc384KeyPair, MlDsaKeyPair},
+    keyids::KEY_ID_TMP,
+};
 use caliptra_drivers::{
-    hmac_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, Sha256Alg,
+    okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
+    Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 
 pub enum Crypto {}
 
 impl Crypto {
-    /// Calculate SHA1 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - FMC Environment
-    /// * `data`  - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x5` - Digest
-    pub fn _sha1_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
-        env.sha1.digest(data)
-    }
-
-    /// Calculate SHA2-256 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - Fmc Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x8` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    /// Version of hmac_kdf() that takes a FmcEnv.
     #[inline(always)]
-    pub fn sha256_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        env.sha256.digest(data)
-    }
-
-    /// Calculate SHA2-384 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - FMC Environment
-    /// * `data`  - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x12` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn sha384_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha2_512_384.sha384_digest(data)
-    }
-
-    /// Calculate HMAC-384 KDF
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - FMC Environment
-    /// * `key` - HMAC384 key slot
-    /// * `label` - Input label
-    /// * `context` - Input context
-    /// * `output` - Key slot to store the output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn hmac384_kdf(
+    pub fn env_hmac_kdf(
         env: &mut FmcEnv,
         key: KeyId,
         label: &[u8],
         context: Option<&[u8]>,
         output: KeyId,
+        mode: HmacMode,
     ) -> CaliptraResult<()> {
-        hmac_kdf(
-            &mut env.hmac384,
-            KeyReadArgs::new(key).into(),
+        crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            key,
             label,
             context,
-            &mut env.trng,
-            KeyWriteArgs::new(
-                output,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
-            )
-            .into(),
-            HmacMode::Hmac384,
+            output,
+            mode,
         )
     }
 
@@ -115,7 +59,7 @@ impl Crypto {
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::hmac384_kdf(env, cdi, label, None, KEY_ID_TMP)?;
+        Crypto::env_hmac_kdf(env, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
@@ -156,7 +100,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = Self::sha384_digest(env, data);
+        let digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
         let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
@@ -184,8 +128,42 @@ impl Crypto {
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<Ecc384Result> {
-        let digest = Self::sha384_digest(env, data);
+        let digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
         let digest = okref(&digest)?;
         env.ecc384.verify(pub_key, digest, sig)
+    }
+
+    /// Generate MLDSA Key Pair
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    /// * `cdi` - Key slot to retrieve the CDI from
+    /// * `label` - Diversification label
+    /// * `key_pair_seed` - Key slot to store the keypair generation seed.
+    ///
+    /// # Returns
+    ///
+    /// * `MlDsaKeyPair` - Public Key and keypair generation seed
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
+    pub fn mldsa_key_gen(
+        env: &mut FmcEnv,
+        cdi: KeyId,
+        label: &[u8],
+        key_pair_seed: KeyId,
+    ) -> CaliptraResult<MlDsaKeyPair> {
+        // Generate the seed for key pair generation.
+        Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
+
+        // Generate the public key.
+        let pub_key = env
+            .mldsa
+            .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
+
+        Ok(MlDsaKeyPair {
+            key_pair_seed,
+            pub_key,
+        })
     }
 }
