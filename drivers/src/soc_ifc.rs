@@ -166,8 +166,8 @@ impl SocIfc {
     pub fn ss_mci_axi_base(&self) -> AxiAddr {
         let soc_ifc_regs = self.soc_ifc.regs();
         AxiAddr {
-            lo: soc_ifc_regs.ss_caliptra_base_addr_l().read(),
-            hi: soc_ifc_regs.ss_caliptra_base_addr_h().read(),
+            lo: soc_ifc_regs.ss_mci_base_addr_l().read(),
+            hi: soc_ifc_regs.ss_mci_base_addr_h().read(),
         }
     }
 

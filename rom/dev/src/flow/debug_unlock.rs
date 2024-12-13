@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use core::mem::size_of;
+use core::mem::{size_of, ManuallyDrop};
 
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::CaliptraResult;
@@ -73,7 +73,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?
     }
 
-    let mut txn = txn.start_txn();
+    let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ManufDebugUnlockTokenReq::default();
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
@@ -154,7 +154,7 @@ fn handle_production_request(
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
     }
 
-    let mut txn = txn.start_txn();
+    let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ProductionAuthDebugUnlockReq::default();
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
@@ -220,7 +220,7 @@ fn handle_production_token(
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
-    let mut txn = txn.start_txn();
+    let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut token = ProductionAuthDebugUnlockToken::default();
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_bytes_mut())?;
 
@@ -230,6 +230,7 @@ fn handle_production_token(
     {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
     }
+
     // Debug level
     if payload_length(token.unlock_category) != payload_length(request.unlock_category) {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
@@ -251,8 +252,8 @@ fn handle_production_token(
     let debug_auth_pk_hash_base = mci_base + AxiAddr::from(debug_auth_pk_offset);
 
     let dma = &mut env.dma;
-    let mut fuse_digest = Array4x16::default();
-    dma.read_buffer(debug_auth_pk_hash_base, fuse_digest.as_bytes_mut())?;
+    let mut fuse_digest: [u8; 64] = [0; 64];
+    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest)?;
 
     let mut digest_op = env.sha2_512_384.sha512_digest_init()?;
     digest_op.update(&token.ecc_public_key)?;
@@ -261,10 +262,11 @@ fn handle_production_token(
     digest_op.finalize(&mut request_digest)?;
 
     // Verify that digest of keys match
+    let fuse_digest = Array4x16::from(fuse_digest);
     if cfi_launder(request_digest) != fuse_digest {
         env.soc_ifc.finish_ss_dbg_unlock(false);
         txn.set_uc_tap_unlock(false);
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
+        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
     } else {
         caliptra_cfi_lib::cfi_assert_eq_12_words(
             &request_digest.0[..12].try_into().unwrap(),
@@ -291,7 +293,7 @@ fn handle_production_token(
     if result == Ecc384Result::SigVerifyFailed {
         env.soc_ifc.finish_ss_dbg_unlock(false);
         txn.set_uc_tap_unlock(false);
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
+        return Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE);
     }
 
     let mut digest_op = env.sha2_512_384.sha512_digest_init()?;
@@ -308,7 +310,7 @@ fn handle_production_token(
     )?;
 
     if result == Mldsa87Result::SigVerifyFailed {
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
+        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
     }
     Ok(())
 }
@@ -329,7 +331,8 @@ fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
             None => continue,
         }
     };
-    let mut txn = txn.start_txn();
+
+    let mut txn = ManuallyDrop::new(txn.start_txn());
 
     match result {
         Ok(()) => {

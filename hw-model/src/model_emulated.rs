@@ -162,6 +162,8 @@ impl HwModel for ModelEmulated {
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
             active_mode: params.active_mode,
+            prod_dbg_unlock_keypairs: params.prod_dbg_unlock_keypairs,
+            debug_intent: params.debug_intent,
             cptra_obf_key: params.cptra_obf_key,
 
             itrng_nibbles: Some(params.itrng_nibbles),

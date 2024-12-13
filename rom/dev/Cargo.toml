@@ -39,6 +39,7 @@ caliptra-builder.workspace = true
 caliptra-emu-cpu.workspace = true
 
 caliptra-hw-model.workspace = true
+caliptra-hw-model-types.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
@@ -46,9 +47,14 @@ caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
 caliptra-test.workspace = true
 elf.workspace = true
+fips204.workspace = true
 hex.workspace = true
 memoffset.workspace = true
+rand.workspace = true
 openssl.workspace = true
+p384.workspace = true
+sha2.workspace = true
+zerocopy.workspace = true
 
 [features]
 riscv = []

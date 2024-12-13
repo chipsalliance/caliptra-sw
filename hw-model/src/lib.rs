@@ -159,6 +159,12 @@ pub struct InitParams<'a> {
 
     pub active_mode: bool,
 
+    // Keypairs for production debug unlock levels, from low to high
+    // ECC384 and MLDSA87 keypairs
+    pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
+
+    pub debug_intent: bool,
+
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
@@ -211,6 +217,8 @@ impl<'a> Default for InitParams<'a> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             active_mode: false,
+            prod_dbg_unlock_keypairs: Default::default(),
+            debug_intent: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,
