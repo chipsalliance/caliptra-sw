@@ -419,7 +419,7 @@ impl Mldsa87 {
         let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
 
         let mut key_usage = KeyUsage::default();
-        key_usage.set_mldsa_seed(true);
+        key_usage.set_mldsa_key_gen_seed(true);
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
@@ -798,7 +798,7 @@ mod tests {
 
             let mut key_vault = KeyVault::new();
             let mut key_usage = KeyUsage::default();
-            key_usage.set_mldsa_seed(true);
+            key_usage.set_mldsa_key_gen_seed(true);
 
             key_vault
                 .write_key(key_id, &seed, u32::from(key_usage))
