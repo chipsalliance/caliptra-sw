@@ -48,7 +48,7 @@ pub mod pic;
 pub mod printer;
 mod sha1;
 mod sha256;
-mod sha2_512_384;
+pub mod sha2_512_384;
 mod sha2_512_384acc;
 mod soc_ifc;
 mod trng;

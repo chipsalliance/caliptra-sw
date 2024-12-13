@@ -39,17 +39,22 @@ impl CaliptraError {
     pub const DRIVER_SHA256_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00020004);
 
-    /// Driver Error: SHA384
-    pub const DRIVER_SHA384_READ_DATA_KV_READ: CaliptraError = CaliptraError::new_const(0x00030001);
-    pub const DRIVER_SHA384_READ_DATA_KV_WRITE: CaliptraError =
+    /// Driver Error: SHA2_512_384
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_READ: CaliptraError =
+        CaliptraError::new_const(0x00030001);
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_WRITE: CaliptraError =
         CaliptraError::new_const(0x00030002);
-    pub const DRIVER_SHA384_READ_DATA_KV_UNKNOWN: CaliptraError =
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x00030003);
-    pub const DRIVER_SHA384_INVALID_STATE_ERR: CaliptraError = CaliptraError::new_const(0x00030007);
-    pub const DRIVER_SHA384_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00030008);
-    pub const DRIVER_SHA384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00030009);
-    pub const DRIVER_SHA2_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
-    pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const DRIVER_SHA2_512_384_INVALID_STATE_ERR: CaliptraError =
+        CaliptraError::new_const(0x00030007);
+    pub const DRIVER_SHA2_512_384_MAX_DATA_ERR: CaliptraError =
+        CaliptraError::new_const(0x00030008);
+    pub const DRIVER_SHA2_512_384_INVALID_KEY_SIZE: CaliptraError =
+        CaliptraError::new_const(0x00030009);
+    pub const DRIVER_SHA2_512_384_INVALID_SLICE: CaliptraError =
+        CaliptraError::new_const(0x0003000A);
+    pub const DRIVER_SHA2_512_384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
     /// Driver Error: SHA2_512_384ACC
