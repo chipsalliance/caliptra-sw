@@ -55,7 +55,12 @@ const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
     ..ROM_EXP_1_0_1
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_0 };
+const ROM_EXP_1_1_1: RomExpVals = RomExpVals {
+    rom_version: 0x841, // 1.1.1
+    ..ROM_EXP_1_1_0
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_1 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
