@@ -227,7 +227,12 @@ fn fw_load_error_flow_base(
             })
             .unwrap();
 
-            hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+            hw.step_until(|m| {
+                m.soc_ifc()
+                    .cptra_flow_status()
+                    .read()
+                    .ready_for_mb_processing()
+            });
 
             // Verify we can load FW (use clean FW)
             hw.upload_firmware(&clean_fw_image.to_bytes().unwrap())
@@ -946,7 +951,6 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
 
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -960,9 +964,7 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_vendor_lms_verify_failure() {
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -981,9 +983,7 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     // Set LMS pub key index to MAX + 1
     fw_image.manifest.preamble.vendor_pqc_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
 
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1013,9 +1013,7 @@ fn fw_load_error_vendor_lms_signature_invalid() {
     // Modify the vendor public key.
     lms_pub_key.digest = [Default::default(); 6];
 
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1044,9 +1042,7 @@ fn fw_load_error_fmc_runtime_load_addr_overlap() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_owner_lms_verify_failure() {
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1080,7 +1076,6 @@ fn fw_load_error_owner_lms_signature_invalid() {
 
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1104,7 +1099,6 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
 
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
         ..Default::default()
     };
@@ -1162,9 +1156,7 @@ fn fw_load_error_update_reset_vendor_pqc_pub_key_idx_mismatch() {
     // Generate image
     let update_image = build_fw_image(image_options_update_reset);
 
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1235,7 +1227,6 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
         life_cycle: DeviceLifecycle::Production,
         key_manifest_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
-        lms_verify: true,
         ..Default::default()
     };
 

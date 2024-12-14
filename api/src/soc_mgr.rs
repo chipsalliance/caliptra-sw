@@ -33,13 +33,13 @@ pub const NUM_PAUSERS: usize = 5;
 /// impl SocManager for RealSocManager {
 ///     /// Address of the mailbox, remapped for the SoC.
 ///     const SOC_MBOX_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_MBOX_ADDR);
-///     
+///
 ///     /// Address of the SoC interface, remapped for the SoC.
 ///     const SOC_IFC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_ADDR);
-///     
+///
 ///     /// Address of the SoC TRNG interface, remapped for the SoC.
 ///     const SOC_IFC_TRNG_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_TRNG_ADDR);
-///     
+///
 ///     /// Address of the SHA-512 accelerator, remapped for the SoC.
 ///     const SOC_SHA512_ACC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_SHA512_ACC_ADDR);
 ///
@@ -86,7 +86,7 @@ pub trait SocManager {
         for (idx, apb_pauser) in apb_pausers.iter().enumerate() {
             if self
                 .soc_ifc()
-                .cptra_mbox_axi_id_lock()
+                .cptra_mbox_axi_user_lock()
                 .at(idx)
                 .read()
                 .lock()
@@ -95,11 +95,11 @@ pub trait SocManager {
             }
 
             self.soc_ifc()
-                .cptra_mbox_valid_axi_id()
+                .cptra_mbox_valid_axi_user()
                 .at(idx)
                 .write(|_| *apb_pauser);
             self.soc_ifc()
-                .cptra_mbox_axi_id_lock()
+                .cptra_mbox_axi_user_lock()
                 .at(idx)
                 .write(|w| w.lock(true));
         }
@@ -126,11 +126,18 @@ pub trait SocManager {
         self.soc_ifc()
             .fuse_key_manifest_pk_hash()
             .write(&fuses.key_manifest_pk_hash);
+        self.soc_ifc().fuse_key_manifest_pk_hash_mask().write(&[
+            fuses.key_manifest_pk_hash_mask.into(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ]);
         self.soc_ifc()
-            .fuse_key_manifest_pk_hash_mask()
-            .write(|w| w.mask(fuses.key_manifest_pk_hash_mask.into()));
-        self.soc_ifc()
-            .fuse_owner_pk_hash()
+            .cptra_owner_pk_hash()
             .write(&fuses.owner_pk_hash);
         self.soc_ifc()
             .fuse_fmc_key_manifest_svn()
@@ -145,12 +152,6 @@ pub trait SocManager {
         self.soc_ifc()
             .fuse_idevid_manuf_hsm_id()
             .write(&fuses.idevid_manuf_hsm_id);
-        self.soc_ifc()
-            .fuse_life_cycle()
-            .write(|w| w.life_cycle(fuses.life_cycle.into()));
-        self.soc_ifc()
-            .fuse_lms_verify()
-            .write(|w| w.lms_verify(fuses.lms_verify));
         self.soc_ifc()
             .fuse_lms_revocation()
             .write(|_| fuses.fuse_lms_revocation);

@@ -140,7 +140,6 @@ fn test_pcr_log() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        lms_verify: true,
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
@@ -244,7 +243,6 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        lms_verify: true,
         key_manifest_pk_hash: gen
             .vendor_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap(),
@@ -585,7 +583,6 @@ fn test_fuse_log() {
         anti_rollback_disable: true,
         fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
         runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -764,7 +761,6 @@ fn test_fht_info() {
 #[test]
 fn test_check_rom_cold_boot_status_reg() {
     let fuses = Fuses {
-        lms_verify: false,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();

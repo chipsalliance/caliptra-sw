@@ -89,34 +89,34 @@ static inline void caliptra_write_itrng_entropy_repetition_count(uint16_t data)
 // NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_AXI_ID_SLOTS
 static inline bool caliptra_read_mbox_pauser_lock(uint8_t idx)
 {
-    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_MBOX_AXI_ID_LOCK_0 + (sizeof(uint32_t) * idx)) != 0;
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_MBOX_AXI_USER_LOCK_0 + (sizeof(uint32_t) * idx)) != 0;
 }
 
-// NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_AXI_ID_SLOTS
+// NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_AXI_USER_SLOTS
 static inline void caliptra_set_mbox_pauser_lock(uint8_t idx)
 {
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_MBOX_AXI_ID_LOCK_0 + (sizeof(uint32_t) * idx), 0x1);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_MBOX_AXI_USER_LOCK_0 + (sizeof(uint32_t) * idx), 0x1);
 }
 
-// NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_AXI_ID_SLOTS
+// NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_AXI_USER_SLOTS
 static inline void caliptra_write_mbox_valid_pauser(uint8_t idx, uint32_t data)
 {
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_MBOX_VALID_AXI_ID_0 + (sizeof(uint32_t) * idx), data);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_MBOX_VALID_AXI_USER_0 + (sizeof(uint32_t) * idx), data);
 }
 
 static inline bool caliptra_read_fuse_pauser_lock()
 {
-    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FUSE_AXI_ID_LOCK) != 0;
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FUSE_AXI_USER_LOCK) != 0;
 }
 
 static inline void caliptra_set_fuse_pauser_lock()
 {
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_AXI_ID_LOCK, 0x1);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_AXI_USER_LOCK, 0x1);
 }
 
 static inline void caliptra_write_fuse_valid_pauser(uint32_t data)
 {
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_VALID_AXI_ID, data);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_VALID_AXI_USER, data);
 }
 
 static inline void caliptra_write_dbg_manuf_serv(uint32_t data) 

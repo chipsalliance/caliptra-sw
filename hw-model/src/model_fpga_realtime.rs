@@ -421,7 +421,7 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(params.security_state);
 
         // Set initial PAUSER
-        m.set_axi_id(DEFAULT_AXI_PAUSER);
+        m.set_axi_user(DEFAULT_AXI_PAUSER);
 
         // Set divisor for ITRNG throttling
         m.set_itrng_divider(ITRNG_DIVISOR);
@@ -522,7 +522,7 @@ impl HwModel for ModelFpgaRealtime {
         // Do nothing; we don't support tracing yet
     }
 
-    fn set_axi_id(&mut self, pauser: u32) {
+    fn set_axi_user(&mut self, pauser: u32) {
         unsafe {
             self.wrapper
                 .offset(FPGA_WRAPPER_PAUSER_OFFSET)

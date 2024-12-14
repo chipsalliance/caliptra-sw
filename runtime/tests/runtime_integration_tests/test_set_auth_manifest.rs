@@ -102,7 +102,7 @@ pub fn test_auth_manifest() -> AuthorizationManifest {
 
 #[test]
 fn test_set_auth_manifest_cmd() {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -131,7 +131,7 @@ fn test_set_auth_manifest_cmd() {
 
 #[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -179,7 +179,7 @@ fn test_set_auth_manifest_cmd_invalid_len() {
 }
 
 fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: CaliptraError) {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)

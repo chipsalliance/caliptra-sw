@@ -382,7 +382,6 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         },
         BootParams {
             fuses: caliptra_hw_model::Fuses {
-                lms_verify: true,
                 ..Default::default()
             },
             fw_image: Some(&image_bundle.to_bytes().unwrap()),

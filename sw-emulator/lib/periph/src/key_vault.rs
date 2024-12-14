@@ -146,7 +146,7 @@ pub struct KeyVault {
 
 impl KeyVault {
     pub const PCR_SIZE: usize = 48;
-    pub const KEY_COUNT: u32 = 32;
+    pub const KEY_COUNT: u32 = 24;
     pub const KEY_SIZE: usize = 64;
     pub const KEY_CONTROL_REG_OFFSET: u32 = 0;
     pub const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
@@ -246,8 +246,8 @@ bitfield! {
     /// Flag indicating if the key can be used as HMAC data
     pub hmac_data, set_hmac_data: 1;
 
-    /// Flag indicating if the key can be used as SHA data
-    pub sha_data, set_sha_data: 2;
+    /// Flag indicating if the key can be used as MLDSA seed
+    pub mldsa_seed, set_mldsa_seed: 2;
 
     /// Flag indicating if the key can be used aas ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;

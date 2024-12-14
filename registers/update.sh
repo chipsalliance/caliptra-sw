@@ -9,4 +9,4 @@ if [[ ! -f "../hw/latest/rtl/.git" ]]; then
     exit 1
 fi
 
-cargo run --manifest-path bin/generator/Cargo.toml -- ../hw/latest/rtl bin/extra-rdl/ ../hw/latest/i3c-core-rtl ../hw/latest/adams-bridge ../hw/latest/registers/src/
+cargo run --manifest-path bin/generator/Cargo.toml -- ../hw/latest/rtl bin/extra-rdl/ ../hw/latest/i3c-core-rtl ../hw/latest/registers/src/

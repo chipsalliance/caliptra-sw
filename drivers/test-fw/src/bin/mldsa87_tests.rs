@@ -392,6 +392,8 @@ const MESSAGE: [u8; 64] = [
     186,
 ];
 
+const KEY_ID: KeyId = KeyId::KeyId1;
+
 fn test_gen_key_pair() {
     let mut trng = unsafe {
         Trng::new(
@@ -411,8 +413,8 @@ fn test_gen_key_pair() {
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
-        id: KeyId::KeyId0,
-        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+        id: KEY_ID,
+        usage: KeyUsage::default().set_mldsa_seed_en(),
     };
 
     hmac.hmac(
@@ -424,7 +426,7 @@ fn test_gen_key_pair() {
     )
     .unwrap();
 
-    let seed = KeyReadArgs::new(KeyId::KeyId0);
+    let seed = KeyReadArgs::new(KEY_ID);
     let public_key = ml_dsa87.key_pair(&seed, &mut trng).unwrap();
     assert_eq!(public_key, Mldsa87PubKey::from(PUBKEY));
 }
@@ -443,7 +445,7 @@ fn test_sign() {
     };
 
     let sign_rnd = Mldsa87SignRnd::default(); // Deterministic signing
-    let seed = KeyReadArgs::new(KeyId::KeyId0); // Reuse SEED
+    let seed = KeyReadArgs::new(KEY_ID); // Reuse SEED
 
     let signature = ml_dsa87
         .sign(

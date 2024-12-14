@@ -253,7 +253,7 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
-    pub valid_axi_id: Vec<u32>,
+    pub valid_axi_user: Vec<u32>,
     pub wdt_timeout_cycles: u64,
 }
 
@@ -266,7 +266,7 @@ impl<'a> Default for BootParams<'a> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
-            valid_axi_id: vec![0, 1, 2, 3, 4],
+            valid_axi_user: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
@@ -575,7 +575,7 @@ pub trait HwModel: SocManager {
         }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)
-        self.setup_mailbox_users(boot_params.valid_axi_id.as_slice())
+        self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
             .map_err(ModelError::from)?;
 
         writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
@@ -826,7 +826,7 @@ pub trait HwModel: SocManager {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
-    fn set_axi_id(&mut self, axi_id: u32);
+    fn set_axi_user(&mut self, axi_user: u32);
 
     /// Executes a typed request and (if success), returns the typed response.
     /// The checksum field of the request is calculated, and the checksum of the
@@ -867,7 +867,7 @@ pub trait HwModel: SocManager {
         }
 
         // Mailbox lock value should read 1 now
-        // If not, the reads are likely being blocked by the AXI_ID check or some other issue
+        // If not, the reads are likely being blocked by the AXI_USER check or some other issue
         if !(self.soc_mbox().lock().read().lock()) {
             return Err(ModelError::UnableToReadMailbox);
         }
@@ -1134,15 +1134,15 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the AXI_ID as valid for the mailbox (using index 0)
+        // Set up the AXI_USER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_axi_id()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_axi_id_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -1178,15 +1178,15 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the AXI_ID as valid for the mailbox (using index 0)
+        // Set up the AXI_USER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_axi_id()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_axi_id_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -1209,15 +1209,15 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the AXI_ID as valid for the mailbox (using index 0)
+        // Set up the AXI_USER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_axi_id()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_axi_id_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
@@ -1237,10 +1237,10 @@ mod tests {
 
     #[test]
     // Currently only possible on verilator
-    // SW emulator does not support axi_id
+    // SW emulator does not support axi_user
     // For FPGA, test case needs to be reworked to capture SIGBUS from linux environment
     #[cfg(feature = "verilator")]
-    fn test_mbox_axi_id() {
+    fn test_mbox_axi_user() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
             rom: &gen_image_hi(),
             ..Default::default()
@@ -1250,27 +1250,27 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        // Set up the AXI_ID as valid for the mailbox (using index 0)
+        // Set up the AXI_USER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_axi_id()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_axi_id_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
-        // Set the AXI_ID to something invalid
-        model.set_axi_id(0x2);
+        // Set the AXI_USER to something invalid
+        model.set_axi_user(0x2);
 
         assert!(!model.soc_mbox().lock().read().lock());
-        // Should continue to read 0 because the reads are being blocked by valid AXI_ID
+        // Should continue to read 0 because the reads are being blocked by valid AXI_USER
         assert!(!model.soc_mbox().lock().read().lock());
 
-        // Set the AXI_ID back to valid
-        model.set_axi_id(0x1);
+        // Set the AXI_USER back to valid
+        model.set_axi_user(0x1);
 
         // Should read 0 the first time still for lock available
         assert!(!model.soc_mbox().lock().read().lock());
@@ -1393,12 +1393,12 @@ mod tests {
         // Set up the PAUSER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_axi_id()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_axi_id_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
