@@ -73,7 +73,7 @@ pub enum ColdResetEntry4 {
     RomColdBootStatus = 1,
     FmcEntryPoint = 2,
     EccVendorPubKeyIndex = 3,
-    LmsVendorPubKeyIndex = 4,
+    PqcVendorPubKeyIndex = 4,
 }
 
 impl TryFrom<u8> for ColdResetEntry4 {
@@ -83,7 +83,7 @@ impl TryFrom<u8> for ColdResetEntry4 {
             0 => Ok(Self::FmcSvn),
             2 => Ok(Self::FmcEntryPoint),
             3 => Ok(Self::EccVendorPubKeyIndex),
-            4 => Ok(Self::LmsVendorPubKeyIndex),
+            4 => Ok(Self::PqcVendorPubKeyIndex),
             _ => Err(()),
         }
     }
@@ -325,13 +325,13 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex)
     }
 
-    /// Get the Lms vendor public key index used for image verification.
+    /// Get the PQC (LMS or MLDSA) vendor public key index used for image verification.
     ///
     /// # Returns
     ///
     /// * `u32` - Vendor public key index
-    pub fn lms_vendor_pk_index(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
+    pub fn pqc_vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::PqcVendorPubKeyIndex)
     }
 
     /// Get the rom cold boot status.

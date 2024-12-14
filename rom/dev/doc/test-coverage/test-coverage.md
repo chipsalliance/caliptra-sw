@@ -100,7 +100,7 @@ Tests update reset flow by providing a non-fw load Mailbox command  | **test_upd
 Tests update reset flow by providing non-compliant fw image   | **test_update_reset_verify_image_failure** | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
 Check if boot statuses are correctly reported | **test_update_reset_boot_status** | N/A
 Tests update reset flow by providing a different vendor ECC public key index in the image  | **test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** |IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
-Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
+Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | **test_update_reset_max_fw_image** | N/A
 <br><br>

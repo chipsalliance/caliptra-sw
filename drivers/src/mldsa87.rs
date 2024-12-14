@@ -20,11 +20,12 @@ use crate::{
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_derive::Launder;
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 
 #[must_use]
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Launder)]
 pub enum Mldsa87Result {
     Success = 0xAAAAAAAA,
     SigVerifyFailed = 0x55555555,
