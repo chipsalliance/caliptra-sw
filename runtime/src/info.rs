@@ -46,6 +46,7 @@ impl FwInfoCmd {
             rom_sha256_digest: rom_info.sha256_digest,
             fmc_sha384_digest: pdata.manifest1.fmc.digest,
             runtime_sha384_digest: pdata.manifest1.runtime.digest,
+            owner_pub_key_hash: drivers.data_vault.owner_pk_hash().into(),
         }))
     }
 }

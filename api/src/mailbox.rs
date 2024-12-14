@@ -786,8 +786,7 @@ pub struct FwInfoResp {
     pub rom_sha256_digest: [u32; 8],
     pub fmc_sha384_digest: [u32; 12],
     pub runtime_sha384_digest: [u32; 12],
-    // TODO: Decide what other information to report for general firmware
-    // status.
+    pub owner_pub_key_hash: [u32; 12],
 }
 
 // CAPABILITIES

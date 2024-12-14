@@ -144,6 +144,7 @@ struct caliptra_fw_info_resp {
     uint32_t rom_sha256_digest[8];
     uint32_t fmc_sha384_digest[12];
     uint32_t runtime_sha384_digest[12];
+    uint32_t owner_pub_key_hash[12];
 };
 
 struct caliptra_dpe_tag_tci_req {
