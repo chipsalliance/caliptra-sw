@@ -91,13 +91,13 @@ impl DoeTestVectors {
         };
 
         result.expected_test_results.hmac_uds_as_key_out_pub = ecdsa_keygen(&hmac384(
-            swap_word_bytes(&result.doe_output.uds).as_bytes(),
+            swap_word_bytes(&result.doe_output.uds[..12]).as_bytes(),
             "Hello world!".as_bytes(),
         ));
 
         result.expected_test_results.hmac_uds_as_data_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.doe_output.uds).as_bytes(),
+            swap_word_bytes(&result.doe_output.uds[..12]).as_bytes(),
         ));
 
         result
@@ -122,7 +122,8 @@ const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
         // The decrypted UDS as stored in the key vault
         uds: [
             0x34aa667c, 0x0a52c71f, 0x977a1de2, 0x701ef611, 0x0de19e21, 0x24b49b9d, 0xdf205ff6,
-            0xa9c04303, 0x0de19e21, 0x24b49b9d, 0xdf205ff6, 0xa9c04303,
+            0xa9c04303, 0x0de19e21, 0x24b49b9d, 0xdf205ff6, 0xa9c04303, 0xde19e21, 0x24b49b9d,
+            0xdf205ff6, 0xa9c04303,
         ],
 
         // The decrypted field entropy as stored in the key vault (with padding)
@@ -196,7 +197,7 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
 
         doe_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
 
-        uds_seed: [0xffff_ffff_u32; 12],
+        uds_seed: [0xffff_ffff_u32; 16],
         field_entropy_seed: [0xffff_ffff_u32; 8],
 
         // In debug mode, this defaults to 0xaaaa_aaaa
@@ -232,7 +233,8 @@ const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
     doe_output: DoeOutput {
         uds: [
             0x0b21f10f, 0x6963005e, 0x4884d93f, 0x1f91037a, 0x2d37ffe0, 0x3727b5e8, 0xb78b9608,
-            0x7e0e58d2, 0x420ce5ae, 0x4b1f04f8, 0x33b7af81, 0x72156bd8,
+            0x7e0e58d2, 0x420ce5ae, 0x4b1f04f8, 0x33b7af81, 0x72156bd8, 0xf55d652c, 0xfbdb1831,
+            0x58517e56, 0xfe1eab2f,
         ],
         field_entropy: [
             0x3d75d35e, 0xbc44a31e, 0xad27aee5, 0x75cdd170, 0xe51dcaf4, 0x09c096ae, 0xa70ff448,

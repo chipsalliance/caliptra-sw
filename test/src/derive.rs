@@ -35,7 +35,7 @@ pub struct DoeInput {
     pub doe_iv: [u32; 4],
 
     // The UDS seed, as stored in the fuses
-    pub uds_seed: [u32; 12],
+    pub uds_seed: [u32; 16],
 
     // The field entropy, as stored in the fuses
     pub field_entropy_seed: [u32; 8],
@@ -62,7 +62,7 @@ impl Default for DoeInput {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DoeOutput {
     // The decrypted UDS as stored in the key vault
-    pub uds: [u32; 12],
+    pub uds: [u32; 16],
 
     // The decrypted field entropy as stored in the key vault (with padding)
     pub field_entropy: [u32; 12],
@@ -85,7 +85,7 @@ impl DoeOutput {
         }
 
         let mut result = Self {
-            uds: [0_u32; 12],
+            uds: [0_u32; 16],
 
             // After reset, the key-vault registers are filled with a particular
             // word, depending on the debug-locked mode.  The field entropy only
@@ -129,7 +129,8 @@ fn test_doe_output() {
         doe_iv: [0x455ba825, 0x45e16ca6, 0xf97d1f86, 0xb3718021],
         uds_seed: [
             0x86c65f40, 0x04d45413, 0x5041da9a, 0x8580ec9a, 0xc7007ee6, 0xceb4a4b8, 0xce485f47,
-            0xbf6976b8, 0xc906de7b, 0xb0cd2dce, 0x8d2b8eed, 0xa537255f,
+            0xbf6976b8, 0xc906de7b, 0xb0cd2dce, 0x8d2b8eed, 0xa537255f, 0x2fd70f7c, 0xda37caeb,
+            0xa748021, 0x34d2fd94,
         ],
         field_entropy_seed: [
             0x8531a3db, 0xc1725f07, 0x05f5a301, 0x047c1e27, 0xd0f18efa, 0x6a33e9d2, 0x3827ead4,
@@ -142,7 +143,8 @@ fn test_doe_output() {
         DoeOutput {
             uds: [
                 2450659586, 3204072599, 1027011035, 1213873878, 763047603, 1402117172, 2275304687,
-                1797647086, 2750999, 2465724634, 992659675, 557913425
+                1797647086, 2750999, 2465724634, 992659675, 557913425, 1982584393, 56096072,
+                3122931436, 3177452069
             ],
             field_entropy: [
                 437386532, 405572964, 972652519, 2702758929, 92052297, 1822317414, 295423989,
@@ -197,7 +199,8 @@ fn test_idevid() {
     let idevid = IDevId::derive(&DoeOutput {
         uds: [
             0x92121902, 0xbefa4497, 0x3d36f1db, 0x485a3ed6, 0x2d7b2eb3, 0x53929c34, 0x879e64ef,
-            0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551,
+            0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551, 0xed0e3d62, 0x5e51aed,
+            0x14199450, 0x45b540a1,
         ],
         field_entropy: [
             0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
@@ -208,13 +211,13 @@ fn test_idevid() {
         idevid,
         IDevId {
             cdi: [
-                0x0ae8ec4b, 0x25da6d36, 0x6469502c, 0x94c7b654, 0xf78a5b9e, 0x1cef338f, 0xee5b5ecb,
-                0x9b533c4e, 0xc11af69e, 0xe23d2612, 0x6b37a1fb, 0xd36e0914, 0x1f5d9fdc, 0x2927753a,
-                0x4523e552, 0x5216eaf3,
+                0xe047693d, 0x5038cf58, 0xbafff529, 0x4308aced, 0xd356fd37, 0x620386b3, 0xb2cfdd97,
+                0x602e5b26, 0x29ff1601, 0xe3196949, 0xe04109ab, 0x9b6bcab1, 0xef5dc70d, 0xbd2d0875,
+                0xf17a7559, 0x2328baa2,
             ],
             ecc_priv_key: [
-                0xaf16a87e, 0x14729bb6, 0xa9912ded, 0xe8331772, 0x288451ff, 0x4a304f24, 0xe02438c3,
-                0xf3413e68, 0x4862cca1, 0xfe65126b, 0x1f3d8677, 0x36424b27,
+                0x34d9279, 0x2e58660b, 0xcfa3e026, 0x90ac31dc, 0xb97a6b6c, 0xf259f7d4, 0xaa3b7a0d,
+                0x565232ff, 0x38560790, 0x73ff1c04, 0x34501150, 0x48641108,
             ],
         }
     );
@@ -271,7 +274,8 @@ fn test_ldevid() {
     let ldevid = LDevId::derive(&DoeOutput {
         uds: [
             0x92121902, 0xbefa4497, 0x3d36f1db, 0x485a3ed6, 0x2d7b2eb3, 0x53929c34, 0x879e64ef,
-            0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551,
+            0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551, 0x57d115c, 0xfade7a,
+            0xb8cca563, 0xe1f504a2,
         ],
         field_entropy: [
             0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
@@ -282,13 +286,13 @@ fn test_ldevid() {
         ldevid,
         LDevId {
             cdi: [
-                0x179d3c40, 0xddca767f, 0x47cd8c43, 0x4dfe5832, 0x9e8f8119, 0xec29ffeb, 0x21fb3af5,
-                0xd50a5ab4, 0x2d7b7d1d, 0x61e96220, 0xbc161735, 0xc66dce6f, 0x6dd8e4ec, 0xa28b66d7,
-                0x28788a5f, 0x6f845a7c,
+                0x5c705f09, 0x63f7edfb, 0x9cf0cb89, 0x7306da3f, 0xff1acde2, 0xf1f0b333, 0xafb85fa3,
+                0x8783a424, 0x6c6aa9db, 0x43ce3297, 0x2568332, 0x53670f99, 0x9e4fff07, 0xdc1911f7,
+                0xd7af58ed, 0xab20aff0,
             ],
             ecc_priv_key: [
-                0xec4cfba4, 0x28d8344c, 0xbb443f0d, 0xcca57231, 0x1b28d1df, 0x202aaff3, 0xc2f37cd3,
-                0x7e1de81d, 0xfc624db2, 0x835f1a4, 0x37b02dbc, 0xd39e5a09,
+                0x15e65daa, 0x3e7dedbb, 0x60eb7ea6, 0xd7e9e441, 0xf2adaa7a, 0x35ca904c, 0x9076d1a1,
+                0x69972589, 0x274a2869, 0x48eb0fb4, 0xee749db1, 0x15cbe26e,
             ],
         }
     );

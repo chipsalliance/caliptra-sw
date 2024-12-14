@@ -29,7 +29,7 @@ extern "C" fn main() {
     soc_ifc
         .regs_mut()
         .cptra_flow_status()
-        .write(|w| w.ready_for_fw(true));
+        .write(|w| w.ready_for_mb_processing(true));
 
     let mut replay_buf_len = 0;
     let mut replay_buf = [0u32; 2048];

@@ -282,7 +282,7 @@ impl HwModel for ModelEmulated {
         }
     }
 
-    fn set_axi_id(&mut self, _axi_id: u32) {
+    fn set_axi_user(&mut self, _axi_user: u32) {
         unimplemented!();
     }
 

@@ -263,7 +263,6 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         image_options.vendor_config = vendor_config;
 
         let fuses = caliptra_hw_model::Fuses {
-            lms_verify: true,
             fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
             ..Default::default()
         };
@@ -324,7 +323,6 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
 #[test]
 fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -510,7 +508,6 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
 #[test]
 fn test_header_verify_vendor_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -539,7 +536,6 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -575,7 +571,6 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
 #[test]
 fn test_header_verify_owner_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -605,7 +600,6 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -663,7 +657,6 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
 #[test]
 fn test_header_verify_vendor_lms_pub_key_in_preamble_and_header() {
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
     let (mut hw, mut image_bundle) =
@@ -1684,7 +1677,12 @@ fn cert_test_with_custom_dates() {
     // Download the CSR from the mailbox.
     let idevid_cert_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -1744,7 +1742,12 @@ fn cert_test() {
     // Download the CSR from the mailbox.
     let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -1804,7 +1807,12 @@ fn cert_test_with_ueid() {
     // Download the CSR from the mailbox.
     let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 

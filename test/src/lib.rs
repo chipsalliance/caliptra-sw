@@ -92,7 +92,12 @@ pub fn run_test(
 
     let mut model = caliptra_hw_model::new(init_params, boot_params).unwrap();
 
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     model
 }

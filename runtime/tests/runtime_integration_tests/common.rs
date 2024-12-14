@@ -49,7 +49,7 @@ pub struct RuntimeTestArgs<'a> {
     pub test_mfg_flags: Option<MfgFlags>,
 }
 
-pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
+pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
     } else {
@@ -88,7 +88,6 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
         BootParams {
             fw_image: Some(&image.to_bytes().unwrap()),
             fuses: Fuses {
-                lms_verify,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
@@ -97,7 +96,12 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
     )
     .unwrap();
 
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     model
 }
@@ -105,7 +109,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwMode
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
-    run_rt_test_lms(args, false)
+    run_rt_test_lms(args)
 }
 
 pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {

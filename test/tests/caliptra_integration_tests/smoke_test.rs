@@ -106,9 +106,9 @@ fn test_golden_idevid_pubkey_matches_generated() {
     assert_eq!(
         generated_idevid.cdi,
         [
-            3736836117, 951734631, 1062246775, 1343680552, 3737486010, 473346827, 2246415195,
-            914173071, 357859522, 506223632, 1064260590, 4040292325, 1807964448, 3683558581,
-            3839832324, 1615123947,
+            1595302429, 2693222204, 2700750034, 2341068947, 1086336218, 1015077934, 3439704633,
+            2756110496, 670106478, 1965056064, 3175014961, 1018544412, 1086626027, 1869434586,
+            2638089882, 3209973098
         ]
     );
     assert!(generated_idevid
@@ -125,9 +125,9 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert_eq!(
         generated_ldevid.cdi,
         [
-            0x34caaef4, 0x5b1cf2cc, 0x80034cc7, 0xda97ab04, 0xfcf1df75, 0x48896447, 0x81e51dd4,
-            0x80638cbe, 0xe349cfad, 0x4d70b120, 0xcbf5cc76, 0x8c00bb5c, 0x10179e15, 0xfdd9244b,
-            0x6226db25, 0xd4f08f3d,
+            2646856615, 2999180291, 4071428836, 3246385254, 3302857457, 919578714, 2458268004,
+            291060689, 3979116117, 4017638804, 3557014009, 2639554114, 2914235687, 3521247795,
+            1993163061, 3092908117
         ]
     );
     assert!(generated_ldevid
@@ -163,7 +163,6 @@ fn smoke_test() {
         owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
-        lms_verify: true,
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
