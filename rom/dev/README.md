@@ -235,13 +235,15 @@ The following flows are conducted exclusively when the ROM is operating in ACTIV
 The following flows are conducted when the ROM is operating in the manufacturing mode, indicated by a value of `DEVICE_MANUFACTURING` (0x1) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### UDS Provisioning
-1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set. If the bit is set, the ROM initiates the UDS seed programming flow.
+1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register is set. If the bit is set, ROM initiates the UDS seed programming flow by setting the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
 
-2. In this procedure, the ROM retrieves a 512-bit value from the iTRNG and writes it to the address specified by the `UDS_SEED_OFFSET` register, utilizing DMA hardware assistance.
+2. ROM then retrieves a 512-bit value from the iTRNG and writes it to the address specified by the `SS_UDS_SEED_BASE_ADDR_L` register, utilizing DMA hardware assistance.
 
-3. Following the DMA operation, the ROM updates the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to either `UDS_PROGRAM_SUCCESS` or `UDS_PROGRAM_FAIL`, indicating the outcome of the operation.
+3. Following the DMA operation, ROM updates the `UDS_PROGRAM_SUCCESS` or the `UDS_PROGRAM_FAIL` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate the outcome of the operation.
 
-4. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
+4. ROM then resets the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate completion of the programming.
+
+5. The manufacturing process polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
 1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set

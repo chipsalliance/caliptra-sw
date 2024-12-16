@@ -263,6 +263,31 @@ impl Dma {
         Ok(())
     }
 
+    /// Write an arbitrary length buffer to the target address.
+    ///
+    /// # Arguments
+    ///
+    /// * `write_addr` - Target address to write to
+    /// * `buffer` - Buffer to write
+    ///
+    /// # Returns
+    ///
+    /// * CaliptraResult<()> - Success or failure
+    pub fn write_buffer(&mut self, write_addr: usize, buffer: &[u8]) -> CaliptraResult<()> {
+        self.flush();
+
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: buffer.len() as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+        };
+        self.dma_write_fifo(buffer)?;
+        self.setup_dma_write(write_transaction);
+        self.do_transaction()?;
+        Ok(())
+    }
+
     /// Transfer payload to mailbox
     ///
     /// The mailbox lock needs to be acquired before this can be called
