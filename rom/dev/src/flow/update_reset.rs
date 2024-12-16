@@ -52,17 +52,17 @@ impl UpdateResetFlow {
         );
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
-            cprintln!("Failed To Get Mailbox Transaction");
+            cprintln!("Failed To Get Mailbox Txn");
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
         let mut process_txn = || -> CaliptraResult<()> {
             if recv_txn.cmd() != CommandId::FIRMWARE_LOAD.into() {
-                cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
+                cprintln!("Invalid command 0x{:08x} recv", recv_txn.cmd());
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
-            let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
+            Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
             let mut venv = FirmwareImageVerificationEnv {
@@ -75,7 +75,10 @@ impl UpdateResetFlow {
                 image: recv_txn.raw_mailbox_contents(),
             };
 
-            let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
+            let info = {
+                let manifest = &env.persistent_data.get().manifest2;
+                Self::verify_image(&mut venv, manifest, recv_txn.dlen())
+            };
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
@@ -87,11 +90,12 @@ impl UpdateResetFlow {
             report_boot_status(UpdateResetExtendPcrComplete.into());
 
             cprintln!(
-                "[update-reset] Image verified using Vendor ECC Key Index {}",
+                "[update-reset] Img verified w/ Vendor ECC Key Index {}",
                 info.vendor_ecc_pub_key_idx
             );
 
-            Self::load_image(&manifest, &mut recv_txn)?;
+            let manifest = &env.persistent_data.get().manifest2;
+            Self::load_image(manifest, &mut recv_txn)?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -167,7 +171,7 @@ impl UpdateResetFlow {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[update-reset] Loading Runtime at address 0x{:08x} len {}",
+            "[update-reset] Loading Runtime at addr 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
@@ -197,9 +201,9 @@ impl UpdateResetFlow {
     fn load_manifest(
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
-    ) -> CaliptraResult<ImageManifest> {
+    ) -> CaliptraResult<()> {
         txn.copy_request(persistent_data.manifest2.as_bytes_mut())?;
-        Ok(persistent_data.manifest2)
+        Ok(())
     }
 
     /// Populate data vault

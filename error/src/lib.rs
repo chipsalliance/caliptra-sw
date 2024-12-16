@@ -420,6 +420,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0043);
     pub const RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM: CaliptraError =
         CaliptraError::new_const(0x000E0044);
+    pub const RUNTIME_CMD_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x000E004F);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -475,6 +476,7 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_PROCESS_FAILURE: CaliptraError = CaliptraError::new_const(0x01020007);
     pub const FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT: CaliptraError =
         CaliptraError::new_const(0x01020008);
+    pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -557,11 +559,13 @@ impl CaliptraError {
     pub const KAT_HMAC384_FAILURE: CaliptraError = CaliptraError::new_const(0x90030001);
     pub const KAT_HMAC384_TAG_MISMATCH: CaliptraError = CaliptraError::new_const(0x90030002);
 
-    pub const KAT_ECC384_SIGNATURE_GENERATE_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x90040001);
-    pub const KAT_ECC384_SIGNATURE_VERIFY_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x90040002);
+    // 0x90040001 was KAT_ECC384_SIGNATURE_GENERATE_FAILURE
+    // 0x90040002 was KAT_ECC384_SIGNATURE_VERIFY_FAILURE
     pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
+    pub const KAT_ECC384_KEY_PAIR_GENERATE_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040004);
+    pub const KAT_ECC384_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040005);
 
     pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);

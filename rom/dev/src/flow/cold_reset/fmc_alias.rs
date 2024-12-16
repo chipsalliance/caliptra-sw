@@ -196,14 +196,14 @@ impl FmcAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
+            "[afmc] Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
+        cprintln!("[afmc] Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key).map_err(|err| {
             sig.zeroize();
             err
@@ -252,6 +252,6 @@ impl FmcAliasLayer {
             flags |= dice::FLAG_BIT_DEBUG;
         }
 
-        flags.to_be_bytes()
+        flags.reverse_bits().to_be_bytes()
     }
 }

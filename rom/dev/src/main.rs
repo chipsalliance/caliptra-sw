@@ -99,7 +99,7 @@ pub extern "C" fn rom_entry() -> ! {
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Production lifecycle not enabled");
+        cprintln!("Fake ROM in Prod lifecycle disabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 

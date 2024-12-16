@@ -11,6 +11,7 @@ impl FipsTestHook {
     pub const COMPLETE: u8 = 0x1;
     // Set by external test
     pub const CONTINUE: u8 = 0x10;
+
     pub const HALT_SELF_TESTS: u8 = 0x21;
     pub const SHA1_CORRUPT_DIGEST: u8 = 0x22;
     pub const SHA256_CORRUPT_DIGEST: u8 = 0x23;
@@ -22,6 +23,7 @@ impl FipsTestHook {
     pub const ECC384_PAIRWISE_CONSISTENCY_ERROR: u8 = 0x29;
     pub const HALT_FW_LOAD: u8 = 0x2A;
     pub const HALT_SHUTDOWN_RT: u8 = 0x2B;
+    pub const ECC384_CORRUPT_KEY_PAIR: u8 = 0x2C;
 
     pub const SHA1_DIGEST_FAILURE: u8 = 0x40;
     pub const SHA256_DIGEST_FAILURE: u8 = 0x41;
@@ -32,6 +34,7 @@ impl FipsTestHook {
     pub const ECC384_VERIFY_FAILURE: u8 = 0x46;
     pub const HMAC384_FAILURE: u8 = 0x47;
     pub const LMS_VERIFY_FAILURE: u8 = 0x48;
+    pub const ECC384_KEY_PAIR_GENERATE_FAILURE: u8 = 0x49;
 
     // FW Load Errors
     pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;
