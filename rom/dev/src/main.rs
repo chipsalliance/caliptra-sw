@@ -96,6 +96,11 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
+    // UDS programming.
+    if let Err(err) = crate::flow::UdsProgrammingFlow::program_uds(&mut env) {
+        handle_fatal_error(err.into());
+    }
+
     if cfg!(feature = "fake-rom")
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())

@@ -610,6 +610,13 @@ impl CaliptraError {
     pub const ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
         CaliptraError::new_const(0x104005D);
 
+    /// ROM UDS Programming Errors
+    pub const ROM_UDS_PROG_ILLEGAL_LIFECYCLE_STATE: CaliptraError =
+        CaliptraError::new_const(0x01045000);
+    pub const ROM_UDS_PROG_IN_PASSIVE_MODE: CaliptraError = CaliptraError::new_const(0x01045001);
+    pub const ROM_UDS_PROG_INVALID_SEED_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x01045002);
+
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
     pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01050002);
