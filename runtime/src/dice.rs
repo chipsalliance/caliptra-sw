@@ -100,7 +100,7 @@ impl GetRtAliasCertCmd {
     }
 }
 
-/// Piece together the r and s portions of the LDevId cert signature
+/// Return the LDevId ECC cert signature
 ///
 /// # Arguments
 ///

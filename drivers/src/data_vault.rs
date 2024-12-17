@@ -17,7 +17,7 @@ use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize)]
+#[derive(FromBytes, AsBytes, Zeroize, Default)]
 pub struct ColdResetEntries {
     ldev_dice_ecc_sig: Ecc384Signature,
     ldev_dice_ecc_pk: Ecc384PubKey,
@@ -37,7 +37,7 @@ pub struct ColdResetEntries {
 }
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize)]
+#[derive(FromBytes, AsBytes, Zeroize, Default)]
 pub struct WarmResetEntries {
     rt_tci: Array4x12,
     rt_svn: u32,
@@ -48,42 +48,10 @@ pub struct WarmResetEntries {
 }
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize)]
+#[derive(FromBytes, AsBytes, Zeroize, Default)]
 pub struct DataVault {
     cold_reset_entries: ColdResetEntries,
     warm_reset_entries: WarmResetEntries,
-}
-
-impl Default for DataVault {
-    fn default() -> Self {
-        Self {
-            cold_reset_entries: ColdResetEntries {
-                ldev_dice_ecc_sig: Ecc384Signature::default(),
-                ldev_dice_ecc_pk: Ecc384PubKey::default(),
-                ldev_dice_mldsa_sig: Mldsa87Signature::default(),
-                ldev_dice_mldsa_pk: Mldsa87PubKey::default(),
-                fmc_dice_ecc_sig: Ecc384Signature::default(),
-                fmc_ecc_pk: Ecc384PubKey::default(),
-                fmc_dice_mldsa_sig: Mldsa87Signature::default(),
-                fmc_mldsa_pk: Mldsa87PubKey::default(),
-                fmc_tci: Array4x12::default(),
-                owner_pk_hash: Array4x12::default(),
-                fmc_svn: 0,
-                rom_cold_boot_status: 0,
-                fmc_entry_point: 0,
-                vendor_ecc_pk_index: 0,
-                vendor_pqc_pk_index: 0,
-            },
-            warm_reset_entries: WarmResetEntries {
-                rt_tci: Array4x12::default(),
-                rt_svn: 0,
-                rt_entry_point: 0,
-                manifest_addr: 0,
-                rt_min_svn: 0,
-                rom_update_reset_status: 0,
-            },
-        }
-    }
 }
 
 impl DataVault {

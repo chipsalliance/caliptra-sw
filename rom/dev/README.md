@@ -697,7 +697,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         VENDOR_ECC_PK_INDEX,
         FW_SVN,
         FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        vendor_pqc_pk_index,
+        VENDOR_PQC_PK_INDEX,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
