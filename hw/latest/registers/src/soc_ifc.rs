@@ -4652,7 +4652,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<DeviceLifecycleE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, DeviceLifecycleE>(val) })
             } else {
                 Err(())
             }

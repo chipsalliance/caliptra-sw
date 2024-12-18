@@ -1111,7 +1111,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<DoeCmdE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, DoeCmdE>(val) })
             } else {
                 Err(())
             }
