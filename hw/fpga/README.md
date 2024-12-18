@@ -25,6 +25,7 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
    - Version v2022.2
  - FPGA
    - [ZCU104 Development Board](https://www.xilinx.com/products/boards-and-kits/zcu104.html)
+   - TODO: VCK190 or VMK180
 
 ### ZCU104 ###
 #### Processing system one time setup: ####
@@ -34,6 +35,14 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
    - Mode SW6[4:1]: OFF, OFF, OFF, ON
      ![](./images/zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
+
+### Versal ###
+#### Processing system one time setup: ####
+1. Configure SW6 to boot from SD1.
+   - Mode SW1[4:1]: OFF, OFF, OFF, ON
+     TODO: NEW IMAGE
+TODO: Instructions...
+Replace BOOT.BIN with new one
 
 #### Serial port configuration: ####
 Serial port settings for connection over USB.

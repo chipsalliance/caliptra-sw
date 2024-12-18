@@ -74,9 +74,9 @@ if {$GUI} {
 if {$BOARD eq "ZCU104"} {
   set PART xczu7ev-ffvc1156-2-e
 } elseif {$BOARD eq "VCK190"} {
-  #set PART xcvc1902-vsva2197-2MP-e-S
+  set PART xcvc1902-vsva2197-2MP-e-S
   # vmk180
-  set PART xcvm1802-vsva2197-2MP-e-S
+  #set PART xcvm1802-vsva2197-2MP-e-S
 } else {
   puts "Board $BOARD not supported"
   exit
@@ -496,8 +496,8 @@ if {$BOARD eq "ZCU104"} {
   set managers {ps_0/M_AXI_FPD caliptra_package_top_0/M_AXI_CALIPTRA}
 
   foreach manager $managers {
-    assign_bd_address -offset 0xB0000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
-    #assign_bd_address -offset 0xB0010000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs ss_imem_bram_ctrl_1/S_AXI/Mem0] -force
+    assign_bd_address -offset 0xB0000000 -range 0x00018000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+    #assign_bd_address -offset 0xB0020000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs ss_imem_bram_ctrl_1/S_AXI/Mem0] -force
     assign_bd_address -offset 0xA4010000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_WRAPPER/reg0] -force
     #assign_bd_address -offset 0xA4020000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_WRAPPER/reg0] -force
     #assign_bd_address -offset 0xA4030000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_I3C/reg0] -force

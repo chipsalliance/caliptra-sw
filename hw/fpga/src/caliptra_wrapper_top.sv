@@ -119,7 +119,7 @@ module caliptra_wrapper_top (
     input  logic axi_bram_clk,
     input  logic axi_bram_en,
     input  logic [3:0] axi_bram_we,
-    input  logic [13:0] axi_bram_addr,
+    input  logic [14:0] axi_bram_addr,
     input  logic [31:0] axi_bram_wrdata,
     output logic [31:0] axi_bram_rddata,
     input  logic axi_bram_rst,
@@ -181,8 +181,8 @@ module caliptra_wrapper_top (
     assign s_axi.awburst  = S_AXI_CALIPTRA_AWBURST;
     assign s_axi.awsize   = S_AXI_CALIPTRA_AWSIZE;
     assign s_axi.awlen    = S_AXI_CALIPTRA_AWLEN;
-    assign s_axi.awuser   = S_AXI_CALIPTRA_AWUSER;
-    assign s_axi.awid     = hwif_out.interface_regs.pauser.pauser.value; // S_AXI_CALIPTRA_AWID;
+    assign s_axi.awuser   = hwif_out.interface_regs.pauser.pauser.value; //S_AXI_CALIPTRA_AWUSER;
+    assign s_axi.awid     = S_AXI_CALIPTRA_AWID;
     assign s_axi.awlock   = S_AXI_CALIPTRA_AWLOCK;
     assign s_axi.awvalid  = S_AXI_CALIPTRA_AWVALID;
     assign S_AXI_CALIPTRA_AWREADY = s_axi.awready;
@@ -194,7 +194,7 @@ module caliptra_wrapper_top (
     assign s_axi.wlast    = S_AXI_CALIPTRA_WLAST;
     // B
     assign S_AXI_CALIPTRA_BRESP  = s_axi.bresp;
-    //assign S_AXI_CALIPTRA_BID    = s_axi.bid;
+    assign S_AXI_CALIPTRA_BID    = s_axi.bid;
     assign S_AXI_CALIPTRA_BVALID = s_axi.bvalid;
     assign s_axi.bready  = S_AXI_CALIPTRA_BREADY;
     // AR
@@ -202,15 +202,15 @@ module caliptra_wrapper_top (
     assign s_axi.arburst = S_AXI_CALIPTRA_ARBURST;
     assign s_axi.arsize  = S_AXI_CALIPTRA_ARSIZE;
     assign s_axi.arlen   = S_AXI_CALIPTRA_ARLEN;
-    assign s_axi.aruser  = S_AXI_CALIPTRA_ARUSER;
-    assign s_axi.arid    = hwif_out.interface_regs.pauser.pauser.value; // S_AXI_CALIPTRA_ARID;
+    assign s_axi.aruser  = hwif_out.interface_regs.pauser.pauser.value; // S_AXI_CALIPTRA_ARUSER;
+    assign s_axi.arid    = S_AXI_CALIPTRA_ARID;
     assign s_axi.arlock  = S_AXI_CALIPTRA_ARLOCK;
     assign s_axi.arvalid = S_AXI_CALIPTRA_ARVALID;
     assign S_AXI_CALIPTRA_ARREADY = s_axi.arready;
     // R
     assign S_AXI_CALIPTRA_RDATA  = s_axi.rdata;
     assign S_AXI_CALIPTRA_RRESP  = s_axi.rresp;
-    //assign S_AXI_CALIPTRA_RID    = s_axi.rid;
+    assign S_AXI_CALIPTRA_RID    = s_axi.rid;
     assign S_AXI_CALIPTRA_RLAST  = s_axi.rlast;
     assign S_AXI_CALIPTRA_RVALID = s_axi.rvalid;
     assign s_axi.rready = S_AXI_CALIPTRA_RREADY;
@@ -218,16 +218,16 @@ module caliptra_wrapper_top (
     // TODO: FPGA AXI manager changes ID values from transaction to transaction. Caliptra
     // does not expect that. Replace the input ID values with the PAUSER register and
     // return the RID values that the manager expects.
-    always@(posedge core_clk or negedge hwif_out.interface_regs.control.cptra_rst_b.value) begin
-        if (~hwif_out.interface_regs.control.cptra_rst_b.value) begin
-            S_AXI_CALIPTRA_RID <= 0;
-            S_AXI_CALIPTRA_BID <= 0;
-        end
-        else begin
-            S_AXI_CALIPTRA_RID <= S_AXI_CALIPTRA_ARID;
-            S_AXI_CALIPTRA_BID <= S_AXI_CALIPTRA_AWID;
-        end
-    end
+    //always@(posedge core_clk or negedge hwif_out.interface_regs.control.cptra_rst_b.value) begin
+    //    if (~hwif_out.interface_regs.control.cptra_rst_b.value) begin
+    //        S_AXI_CALIPTRA_RID <= 0;
+    //        S_AXI_CALIPTRA_BID <= 0;
+    //    end
+    //    else begin
+    //        S_AXI_CALIPTRA_RID <= S_AXI_CALIPTRA_ARID;
+    //        S_AXI_CALIPTRA_BID <= S_AXI_CALIPTRA_AWID;
+    //    end
+    //end
 
     // Unused master interface
     axi_if #(
@@ -426,7 +426,7 @@ caliptra_veer_sram_export veer_sram_export_inst (
 // SRAM for imem/ROM
    xpm_memory_tdpram #(
       .ADDR_WIDTH_A(`CALIPTRA_IMEM_ADDR_WIDTH), // DECIMAL
-      .ADDR_WIDTH_B(14),              // DECIMAL
+      .ADDR_WIDTH_B(15),              // DECIMAL
       .AUTO_SLEEP_TIME(0),            // DECIMAL
       .BYTE_WRITE_WIDTH_A(64),        // DECIMAL
       .BYTE_WRITE_WIDTH_B(8),         // DECIMAL
@@ -437,7 +437,7 @@ caliptra_veer_sram_export veer_sram_export_inst (
       .MEMORY_INIT_PARAM("0"),        // String
       .MEMORY_OPTIMIZATION("false"),  // String
       .MEMORY_PRIMITIVE("auto"),      // String
-      .MEMORY_SIZE(48*1024*8),        // DECIMAL
+      .MEMORY_SIZE(96*1024*8),        // DECIMAL
       .MESSAGE_CONTROL(0),            // DECIMAL
       .READ_DATA_WIDTH_A(64),         // DECIMAL
       .READ_DATA_WIDTH_B(32),         // DECIMAL
