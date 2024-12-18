@@ -22,11 +22,26 @@ use zerocopy::AsBytes;
 pub enum DmaReadTarget {
     Mbox,
     AhbFifo,
-    AxiWr(usize),
+    AxiWr(AxiAddr),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AxiAddr {
+    pub lo: u32,
+    pub hi: u32,
+}
+
+impl From<u64> for AxiAddr {
+    fn from(addr: u64) -> Self {
+        Self {
+            lo: addr as u32,
+            hi: (addr >> 32) as u32,
+        }
+    }
 }
 
 pub struct DmaReadTransaction {
-    pub read_addr: usize,
+    pub read_addr: AxiAddr,
     pub fixed_addr: bool,
     pub length: u32,
     pub target: DmaReadTarget,
@@ -35,11 +50,11 @@ pub struct DmaReadTransaction {
 pub enum DmaWriteOrigin {
     Mbox,
     AhbFifo,
-    AxiRd(usize),
+    AxiRd(AxiAddr),
 }
 
 pub struct DmaWriteTransaction {
-    pub write_addr: usize,
+    pub write_addr: AxiAddr,
     pub fixed_addr: bool,
     pub length: u32,
     pub origin: DmaWriteOrigin,
@@ -78,16 +93,13 @@ impl Dma {
     fn setup_dma_read(&mut self, read_transaction: DmaReadTransaction) {
         let dma = self.dma.regs_mut();
 
-        let read_addr: usize = read_transaction.read_addr;
-        #[cfg(target_pointer_width = "64")]
-        dma.src_addr_h().write(|_| (read_addr >> 32) as u32);
-        dma.src_addr_l().write(|_| (read_addr & 0xffff_ffff) as u32);
+        let read_addr = read_transaction.read_addr;
+        dma.src_addr_l().write(|_| read_addr.lo);
+        dma.src_addr_h().write(|_| read_addr.hi);
 
         if let DmaReadTarget::AxiWr(target_addr) = read_transaction.target {
-            #[cfg(target_pointer_width = "64")]
-            dma.dst_addr_h().write(|_| (target_addr >> 32) as u32);
-            dma.dst_addr_l()
-                .write(|_| (target_addr & 0xffff_ffff) as u32);
+            dma.dst_addr_l().write(|_| target_addr.lo);
+            dma.dst_addr_h().write(|_| target_addr.hi);
         }
 
         dma.ctrl().modify(|c| {
@@ -110,16 +122,12 @@ impl Dma {
         let dma = self.dma.regs_mut();
 
         let write_addr = write_transaction.write_addr;
-        #[cfg(target_pointer_width = "64")]
-        dma.dst_addr_h().write(|_| (write_addr >> 32) as u32);
-        dma.dst_addr_l()
-            .write(|_| (write_addr & 0xffff_ffff) as u32);
+        dma.dst_addr_l().write(|_| write_addr.lo);
+        dma.dst_addr_h().write(|_| write_addr.hi);
 
         if let DmaWriteOrigin::AxiRd(origin_addr) = write_transaction.origin {
-            #[cfg(target_pointer_width = "64")]
-            dma.dst_addr_h().write(|_| (origin_addr >> 32) as u32);
-            dma.dst_addr_l()
-                .write(|_| (origin_addr & 0xffff_ffff) as u32);
+            dma.dst_addr_l().write(|_| origin_addr.lo);
+            dma.dst_addr_h().write(|_| origin_addr.hi);
         }
 
         dma.ctrl().modify(|c| {
@@ -193,18 +201,18 @@ impl Dma {
 
         let status0 = dma.status0().read();
         if status0.busy() {
-            return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ALREADY_BUSY);
+            Err(CaliptraError::DRIVER_DMA_TRANSACTION_ALREADY_BUSY)?;
         }
 
         if status0.error() {
-            return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+            Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR)?;
         }
 
         dma.ctrl().modify(|c| c.go(true));
 
         while dma.status0().read().busy() {
             if dma.status0().read().error() {
-                return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+                Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR)?;
             }
         }
 
@@ -220,7 +228,7 @@ impl Dma {
     /// # Returns
     ///
     /// * `CaliptraResult<u32>` - Read value or error code
-    pub fn read_dword(&mut self, read_addr: usize) -> CaliptraResult<u32> {
+    pub fn read_dword(&mut self, read_addr: AxiAddr) -> CaliptraResult<u32> {
         let mut read_val: u32 = 0;
 
         self.flush();
@@ -248,7 +256,7 @@ impl Dma {
     /// # Returns
     ///
     /// * `CaliptraResult<()>` - Success or error code
-    pub fn write_dword(&mut self, write_addr: usize, write_val: u32) -> CaliptraResult<()> {
+    pub fn write_dword(&mut self, write_addr: AxiAddr, write_val: u32) -> CaliptraResult<()> {
         self.flush();
 
         let write_transaction = DmaWriteTransaction {
@@ -279,7 +287,7 @@ impl Dma {
     /// * `CaliptraResult<()>` - Success or error code
     pub fn transfer_payload_to_mbox(
         &mut self,
-        read_addr: usize,
+        read_addr: AxiAddr,
         payload_len_bytes: u32,
         fixed_addr: bool,
         block_size: u32,
