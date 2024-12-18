@@ -112,7 +112,7 @@ impl FirmwareProcessor {
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,
-            data_vault: &mut env.data_vault,
+            data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
         };
@@ -124,10 +124,16 @@ impl FirmwareProcessor {
         Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
+        Self::populate_data_vault(info, &mut env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
+        pcr::extend_pcrs(
+            env.persistent_data.get_mut(),
+            &env.soc_ifc,
+            &mut env.pcr_bank,
+            &mut env.sha2_512_384,
+            info,
+        )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -542,48 +548,28 @@ impl FirmwareProcessor {
     ///
     /// # Arguments
     ///
-    /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
+    /// * `persistent_data` - Persistent data accessor
+    ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_data_vault(
-        data_vault: &mut DataVault,
         info: &ImageVerificationInfo,
-        persistent_data: &PersistentDataAccessor,
+        persistent_data: &mut PersistentDataAccessor,
     ) {
-        data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
+        let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
+        let data_vault = &mut persistent_data.get_mut().data_vault;
+        data_vault.set_fmc_tci(&info.fmc.digest.into());
+        data_vault.set_fmc_svn(info.fw_svn);
+        data_vault.set_fmc_entry_point(info.fmc.entry_point);
+        data_vault.set_owner_pk_hash(&info.owner_pub_keys_digest.into());
+        data_vault.set_vendor_ecc_pk_index(info.vendor_ecc_pub_key_idx);
+        data_vault.set_vendor_pqc_pk_index(info.vendor_pqc_pub_key_idx);
+        data_vault.set_rt_tci(&info.runtime.digest.into());
+        data_vault.set_rt_svn(info.fw_svn);
+        data_vault.set_rt_min_svn(info.fw_svn);
+        data_vault.set_rt_entry_point(info.runtime.entry_point);
+        data_vault.set_manifest_addr(manifest_address);
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fw_svn);
-
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
-
-        data_vault.write_cold_reset_entry48(
-            ColdResetEntry48::OwnerPubKeyHash,
-            &info.owner_pub_keys_digest.into(),
-        );
-
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::EccVendorPubKeyIndex,
-            info.vendor_ecc_pub_key_idx,
-        );
-
-        // If LMS is not enabled, write the max value to the data vault
-        // to indicate the index is invalid.
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::PqcVendorPubKeyIndex,
-            info.vendor_pqc_pub_key_idx,
-        );
-
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.fw_svn);
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtMinSvn, info.fw_svn); // At cold-boot, min_svn == curr_svn
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
-
-        data_vault.write_warm_reset_entry4(
-            WarmResetEntry4::ManifestAddr,
-            &persistent_data.get().manifest1 as *const _ as u32,
-        );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 

@@ -202,11 +202,13 @@ fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
+    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
     // Store signature
-    env.data_vault.set_ldev_dice_signature(&FAKE_LDEV_SIG);
+    data_vault.set_ldev_dice_ecc_signature(&FAKE_LDEV_SIG);
 
     // Store pub key
-    env.data_vault.set_ldev_dice_pub_key(&FAKE_LDEV_PUB_KEY);
+    data_vault.set_ldev_dice_ecc_pub_key(&FAKE_LDEV_PUB_KEY);
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
@@ -220,11 +222,13 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
+    let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
     // Store signature
-    env.data_vault.set_fmc_dice_signature(&FAKE_FMC_ALIAS_SIG);
+    data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_SIG);
 
     // Store pub key
-    env.data_vault.set_fmc_pub_key(&FAKE_FMC_ALIAS_PUB_KEY);
+    data_vault.set_fmc_ecc_pub_key(&FAKE_FMC_ALIAS_PUB_KEY);
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
@@ -241,7 +245,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha2_512_384: &'a mut Sha2_512_384,
     pub(crate) soc_ifc: &'a mut SocIfc,
-    pub(crate) data_vault: &'a mut DataVault,
+    pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
     pub(crate) mldsa87: &'a mut Mldsa87,
     pub image: &'b [u8],
@@ -367,12 +371,12 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     /// Get the vendor ECC key index saved in data vault on cold boot
     fn vendor_ecc_pub_key_idx_dv(&self) -> u32 {
-        self.data_vault.ecc_vendor_pk_index()
+        self.data_vault.vendor_ecc_pk_index()
     }
 
     /// Get the vendor LMS key index saved in data vault on cold boot
     fn vendor_pqc_pub_key_idx_dv(&self) -> u32 {
-        self.data_vault.pqc_vendor_pk_index()
+        self.data_vault.vendor_pqc_pk_index()
     }
 
     /// Get the owner public key digest saved in the dv on cold boot

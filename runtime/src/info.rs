@@ -24,13 +24,13 @@ impl FwInfoCmd {
         let pdata = drivers.persistent_data.get();
 
         let handoff = RtHandoff {
-            data_vault: &drivers.data_vault,
+            data_vault: &pdata.data_vault,
             fht: &pdata.fht,
         };
 
-        let runtime_svn = handoff.rt_svn()?;
-        let min_runtime_svn = handoff.rt_min_svn()?;
-        let fmc_manifest_svn = handoff.fmc_svn()?;
+        let runtime_svn = handoff.rt_svn();
+        let min_runtime_svn = handoff.rt_min_svn();
+        let fmc_manifest_svn = handoff.fmc_svn();
         let rom_info = handoff.fht.rom_info_addr.get()?;
 
         Ok(MailboxResp::FwInfo(FwInfoResp {

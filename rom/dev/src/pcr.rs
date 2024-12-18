@@ -23,16 +23,14 @@ Note:
 
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
 };
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, PcrBank, PersistentData, PersistentDataAccessor, Sha2_512_384,
+    CaliptraError, CaliptraResult, PcrBank, PersistentData, Sha2_512_384, SocIfc,
 };
 use caliptra_image_verify::ImageVerificationInfo;
-
 use zerocopy::AsBytes;
 
 struct PcrExtender<'a> {
@@ -58,52 +56,60 @@ impl PcrExtender<'_> {
 ///
 /// # Arguments
 ///
-/// * `env` - ROM Environment
+/// * `persistent_data` - Persistent data
+/// * `soc_ifc` - SOC Interface
+/// * `pcr_bank` - PCR Bank
+/// * `sha2_512_384` - SHA-512/384 Accelerator
+/// * `info` - Image Verification Info
+///
+/// # Return Value
+/// * `Ok(())` on success, error code on failure
+///
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 #[inline(never)]
 pub(crate) fn extend_pcrs(
-    env: &mut FirmwareImageVerificationEnv,
+    persistent_data: &mut PersistentData,
+    soc_ifc: &SocIfc,
+    pcr_bank: &mut PcrBank,
+    sha2_512_384: &mut Sha2_512_384,
     info: &ImageVerificationInfo,
-    persistent_data: &mut PersistentDataAccessor,
 ) -> CaliptraResult<()> {
+    let data_vault = &persistent_data.data_vault;
+    let owner_pk_hash = <[u8; 48]>::from(&data_vault.owner_pk_hash());
+    let fmc_tci = <[u8; 48]>::from(&data_vault.fmc_tci());
+
     // Reset the PCR log size to zero.
-    persistent_data.get_mut().fht.pcr_log_index = 0;
+    persistent_data.fht.pcr_log_index = 0;
 
     // Clear the Current PCR, but do not clear the Journey PCR
-    env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
-
-    let mut pcr = PcrExtender {
-        persistent_data: persistent_data.get_mut(),
-        pcr_bank: env.pcr_bank,
-        sha2_512_384: env.sha2_512_384,
-    };
+    pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let device_status: [u8; 9] = [
-        env.soc_ifc.lifecycle() as u8,
-        env.soc_ifc.debug_locked() as u8,
-        env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-        env.data_vault.ecc_vendor_pk_index() as u8,
-        env.data_vault.fmc_svn() as u8,
+        soc_ifc.lifecycle() as u8,
+        soc_ifc.debug_locked() as u8,
+        soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+        data_vault.vendor_ecc_pk_index() as u8,
+        data_vault.fmc_svn() as u8,
         info.effective_fuse_svn as u8,
-        env.data_vault.pqc_vendor_pk_index() as u8,
+        data_vault.vendor_pqc_pk_index() as u8,
         info.pqc_verify_config as u8,
         info.owner_pub_keys_digest_in_fuses as u8,
     ];
 
+    let mut pcr = PcrExtender {
+        persistent_data,
+        pcr_bank,
+        sha2_512_384,
+    };
+
     pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
 
     pcr.extend(
-        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_info_hash()),
+        &<[u8; 48]>::from(&soc_ifc.fuse_bank().vendor_pub_key_info_hash()),
         PcrLogEntryId::VendorPubKeyInfoHash,
     )?;
-    pcr.extend(
-        &<[u8; 48]>::from(&env.data_vault.owner_pk_hash()),
-        PcrLogEntryId::OwnerPubKeyHash,
-    )?;
-    pcr.extend(
-        &<[u8; 48]>::from(&env.data_vault.fmc_tci()),
-        PcrLogEntryId::FmcTci,
-    )?;
+    pcr.extend(&owner_pk_hash, PcrLogEntryId::OwnerPubKeyHash)?;
+    pcr.extend(&fmc_tci, PcrLogEntryId::FmcTci)?;
 
     Ok(())
 }

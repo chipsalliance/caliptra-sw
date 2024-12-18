@@ -103,8 +103,6 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM. |
 | fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.   |
-| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in DCCM datavault. SRAM. |
-| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the DCCM datavault. |
 | fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present. |
 | fmc_priv_key_ecdsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias ECDSA Private Key in the Key Vault. |
 | fmc_keypair_seed_mldsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias MLDSA Key Pair Generation Seed in the Key Vault. |
@@ -114,13 +112,9 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fmc_cert_sig_ecdsa_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate ECDSA Signature R Component in the DCCM datavault. |
 | fmc_cert_sig_ecdsa_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate ECDSA Signature S Component in the DCCM datavault.                                       |
 | fmc_cert_sig_mldsa_dv_hdl | 4            | ROM        | Handle of FMC Certificate MLDSA Signature in the DCCM datavault. |
-| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the DCCM datavault. |
-| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the DCCM datavault. |
 | rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault. |
 | rt_priv_key_ecdsa_kv_hdl    | 4            | FMC        | Handle of RT Alias ECDSA Private Key in the Key Vault. |
 | rt_keygen_seed_mldsa_kv_hdl    | 4            | FMC        | Handle of RT Alias MLDSA Key Generation Seed in the Key Vault. |
-| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the DCCM datavault. |
-| rt_min_svn_dv_hdl     | 4            | FMC        | Handle of Min RT SVN value in the DCCM datavault. |
 | ldevid_tbs_ecdsa_addr       | 4            | ROM        | Local Device ID ECDSA TBS Address. |
 | fmcalias_tbs_ecdsa_addr     | 4            | ROM        | FMC Alias TBS ECDSA Address. |
 | ldevid_tbs_mldsa_addr       | 4            | ROM        | Local Device ID MLDSA TBS Address. |
@@ -176,14 +170,6 @@ is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 discrete FIPS module does not exist, then this field shall be 0xFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
-### rt_fw_entry_point_hdl
-
-This field provides the Handle of the DV entry that stores the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
-
-### fmc_tci_dv_hdl
-
-This field provides the Handle into the DCCM datavault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
-
 ### fmc_cdi_kv_hdl
 
 This field provides the Handle into the Key Vault where the CDI<sub>FMC</sub> is stored.
@@ -212,14 +198,6 @@ These fields provide the Handle into the DCCM datavault where the ECDSA Signatur
 
 This field provides the Handle into the DCCM datavault where the MLDSA Signature<sub>FMC</sub> is stored.
 
-### fmc_svn_dv_hdl
-
-This field provides the Handle into the DCCM datavault where the SVN<sub>FMC</sub> is stored.
-
-### rt_tci_dv_hdl
-
-This field provides the Handle into the DCCM datavault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
-
 ### rt_cdi_kv_hdl
 
 This field provides the Handle into the Key Vault where the CDI<sub>RT</sub> is stored.
@@ -231,14 +209,6 @@ This field provides the Handle into the Key Vault where the ECDSA PrivateKey<sub
 ### rt_keygen_seed_mldsa_kv_hdl
 
 This field provides the Handle into the Key Vault where the MLDSA Key Generation Seed<sub>RT</sub> is stored.
-
-### rt_svn_dv_hdl
-
-This field provides the Handle into the DCCM datavault where the SVN<sub>RT</sub> is stored.
-
-### rt_min_svn_dv_hdl
-
-This field provides the Handle into the DCCM datavault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
 
 ### ldevid_tbs_ecdsa_addr
 
@@ -436,7 +406,7 @@ sequenceDiagram
     FMC->>+FIPS: InitFipsFw() (if needed)
     FIPS-->>-FMC: return()
     FMC->>FMC: LocateManifest(fht)
-    FMC->>FMC: GetRtMeasurement(fht.rt_tci_dv_hdl)
+    FMC->>FMC: GetRtMeasurement(data_vault.rt_tci)
 
     rect rgba(0, 100, 200, .2)
 

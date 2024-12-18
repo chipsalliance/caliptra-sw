@@ -15,9 +15,7 @@ Abstract:
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT};
-use caliptra_drivers::{
-    ColdResetEntry4, ColdResetEntry48, ResetReason, WarmResetEntry4, WarmResetEntry48,
-};
+use caliptra_drivers::ResetReason;
 
 use crate::{cprintln, rom_env::RomEnv};
 
@@ -54,34 +52,8 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-fn lock_cold_reset_reg(env: &mut RomEnv) {
-    // Lock the FMC TCI in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry48(ColdResetEntry48::FmcTci);
-
-    // Lock the FMC SVN  in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::FmcSvn);
-
-    // Lock the FMC entry point in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint);
-
-    // Lock the Owner Public Key Hash in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash);
-
-    // Lock the Ecc Vendor Public Key Index in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex);
-
-    // Lock the Lms Vendor Public Key Index in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::PqcVendorPubKeyIndex);
-
-    // Lock Cold Reset Status register in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus);
+fn lock_cold_reset_reg(_env: &mut RomEnv) {
+    // [TODO][CAP2] Lock the cold reset entries via PMP.
 }
 
 /// Lock all common registers across all reset types
@@ -90,28 +62,6 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-fn lock_common_reg_set(env: &mut RomEnv) {
-    // Lock the Runtime TCI in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
-
-    // Lock the Runtime SVN in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
-
-    // Lock the Firmware Min-SVN in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn);
-
-    // Lock the Runtime entry point in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtEntryPoint);
-
-    // Lock the Manifest addr in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr);
-
-    // Lock the Update Reset status in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RomUpdateResetStatus);
+fn lock_common_reg_set(_env: &mut RomEnv) {
+    // [TODO][CAP2] Lock the warm reset entries via PMP.
 }
