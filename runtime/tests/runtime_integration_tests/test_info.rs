@@ -14,6 +14,8 @@ use caliptra_common::{
     },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
@@ -63,8 +65,14 @@ fn test_fw_info() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
                 .unwrap();
 
+        // Set fuses
+        let owner_pub_key_hash = ImageGenerator::new(Crypto::default())
+            .owner_pubkey_digest(&image.manifest.preamble)
+            .unwrap();
+
         let fuses = Fuses {
             fuse_pqc_key_type: *pqc_key_type as u32,
+            owner_pk_hash: owner_pub_key_hash,
             ..Default::default()
         };
 
