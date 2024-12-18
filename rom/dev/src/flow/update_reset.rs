@@ -20,9 +20,7 @@ use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::report_fw_error_non_fatal;
-use caliptra_drivers::{
-    okref, report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
-};
+use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
@@ -43,13 +41,12 @@ impl UpdateResetFlow {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
         // Indicate that Update-Reset flow has started.
         // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
         // Success status is set at the end of the flow.
-        env.data_vault.write_warm_reset_entry4(
-            WarmResetEntry4::RomUpdateResetStatus,
-            UpdateResetStarted.into(),
-        );
+        data_vault.set_rom_update_reset_status(UpdateResetStarted.into());
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Txn");
@@ -67,10 +64,11 @@ impl UpdateResetFlow {
 
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
-                sha384: &mut env.sha384,
+                sha2_512_384: &mut env.sha2_512_384,
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
-                data_vault: &mut env.data_vault,
+                mldsa87: &mut env.mldsa87,
+                data_vault: &env.persistent_data.get().data_vault,
                 pcr_bank: &mut env.pcr_bank,
                 image: recv_txn.raw_mailbox_contents(),
             };
@@ -83,10 +81,17 @@ impl UpdateResetFlow {
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
             // Populate data vault
-            Self::populate_data_vault(venv.data_vault, info);
+            let data_vault = &mut env.persistent_data.get_mut().data_vault;
+            Self::populate_data_vault(data_vault, info);
 
             // Extend PCR0 and PCR1
-            pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
+            pcr::extend_pcrs(
+                env.persistent_data.get_mut(),
+                &env.soc_ifc,
+                &mut env.pcr_bank,
+                &mut env.sha2_512_384,
+                info,
+            )?;
             report_boot_status(UpdateResetExtendPcrComplete.into());
 
             cprintln!(
@@ -120,10 +125,8 @@ impl UpdateResetFlow {
         env.soc_ifc
             .set_rt_fw_rev_id(persistent_data.manifest1.runtime.version);
 
-        env.data_vault.write_lock_warm_reset_entry4(
-            WarmResetEntry4::RomUpdateResetStatus,
-            UpdateResetComplete.into(),
-        );
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        data_vault.set_rom_update_reset_status(UpdateResetComplete.into());
 
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
@@ -147,10 +150,11 @@ impl UpdateResetFlow {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
             sha256: env.sha256,
-            sha384: env.sha384,
+            sha2_512_384: env.sha2_512_384,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
+            mldsa87: env.mldsa87,
             image: env.image,
         };
 
@@ -213,11 +217,14 @@ impl UpdateResetFlow {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
+        data_vault.set_rt_tci(&info.runtime.digest.into());
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
+        let cur_min_svn = data_vault.rt_min_svn();
+        let new_min_svn = core::cmp::min(cur_min_svn, info.fw_svn);
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
+        data_vault.set_rt_svn(info.fw_svn);
+        data_vault.set_rt_min_svn(new_min_svn);
+        data_vault.set_rt_entry_point(info.runtime.entry_point);
 
         report_boot_status(UpdateResetPopulateDataVaultComplete.into());
     }

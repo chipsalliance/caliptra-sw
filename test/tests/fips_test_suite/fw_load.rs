@@ -15,11 +15,11 @@ use caliptra_hw_model::{
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
-use caliptra_image_types::SHA384_DIGEST_WORD_SIZE;
 use caliptra_image_types::{
-    FwImageType, ImageBundle, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
+    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageLmsPublicKey,
+    SHA384_DIGEST_WORD_SIZE, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
 };
-use openssl::sha::sha384;
+use caliptra_test::image_pk_desc_hash;
 
 use common::*;
 use zerocopy::AsBytes;
@@ -48,7 +48,7 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
         runtime: caliptra_image_elf::ElfExecutable::default(),
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
-        fw_image_type: FwImageType::EccLms,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
     };
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -61,21 +61,30 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
     }
 
     if hdr_digest == HdrDigest::Update {
-        let header_digest_vendor = gen
-            .header_digest_vendor(&image_bundle.manifest.header)
+        let vendor_header_digest_384 = gen
+            .vendor_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
-        let header_digest_owner = gen
-            .header_digest_owner(&image_bundle.manifest.header)
+        let vendor_header_digest_holder = ImageDigestHolder {
+            digest_384: &vendor_header_digest_384,
+            digest_512: None,
+        };
+
+        let owner_header_digest_384 = gen
+            .owner_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
+        let owner_header_digest_holder = ImageDigestHolder {
+            digest_384: &owner_header_digest_384,
+            digest_512: None,
+        };
 
         // Update preamble
         image_bundle.manifest.preamble = gen
             .gen_preamble(
                 &config,
                 image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
-                image_bundle.manifest.preamble.vendor_lms_pub_key_idx,
-                &header_digest_vendor,
-                &header_digest_owner,
+                image_bundle.manifest.preamble.vendor_pqc_pub_key_idx,
+                &vendor_header_digest_holder,
+                &owner_header_digest_holder,
             )
             .unwrap();
     }
@@ -218,7 +227,12 @@ fn fw_load_error_flow_base(
             })
             .unwrap();
 
-            hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+            hw.step_until(|m| {
+                m.soc_ifc()
+                    .cptra_flow_status()
+                    .read()
+                    .ready_for_mb_processing()
+            });
 
             // Verify we can load FW (use clean FW)
             hw.upload_firmware(&clean_fw_image.to_bytes().unwrap())
@@ -628,7 +642,7 @@ fn fw_load_error_owner_ecc_signature_invalid_arg() {
 }
 
 #[test]
-fn fw_load_error_vendor_pub_key_digest_invalid_arg() {
+fn fw_load_error_vendor_pub_key_invalid_arg() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Set ecc_pub_key.x to zero.
@@ -642,7 +656,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid_arg() {
     fw_load_error_flow(
         Some(fw_image),
         None,
-        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG.into(),
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INVALID_ARG.into(),
     );
 }
 
@@ -665,13 +679,13 @@ fn fw_load_error_update_reset_owner_digest_failure() {
     // Generate image
     let mut update_image = build_fw_image(ImageOptions::default());
 
-    // Set ecc pub key hash to some corrupted, non-zero value
+    // Set ecc_pub_key.y to some corrupted, non-zero value
     update_image
         .manifest
         .preamble
-        .owner_pub_key_info
-        .ecc_key_descriptor
-        .key_hash[0]
+        .owner_pub_keys
+        .ecc_pub_key
+        .y
         .fill(0x1234abcd);
 
     update_fw_error_flow(
@@ -789,65 +803,6 @@ fn fw_load_error_fmc_entry_point_unaligned() {
         Some(fw_image),
         None,
         CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into(),
-    );
-}
-
-#[test]
-fn fw_load_error_fmc_svn_greater_than_max_supported() {
-    // Generate image
-    let image_options = ImageOptions {
-        fmc_svn: 33,
-        ..Default::default()
-    };
-    let fw_image = build_fw_image(image_options);
-
-    // Set fuses
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&fw_image.manifest.preamble)
-        .unwrap();
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-
-    fw_load_error_flow(
-        Some(fw_image),
-        Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED.into(),
-    );
-}
-
-// IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED is defined but never used in the code (svn is a u32)
-
-#[test]
-fn fw_load_error_fmc_svn_less_than_fuse() {
-    // Generate image
-    let image_options = ImageOptions {
-        fmc_svn: 1,
-        ..Default::default()
-    };
-    let fw_image = build_fw_image(image_options);
-
-    // Set fuses
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&fw_image.manifest.preamble)
-        .unwrap();
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        fmc_key_manifest_svn: 0b11, // fuse svn = 2
-        ..Default::default()
-    };
-
-    fw_load_error_flow(
-        Some(fw_image),
-        Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE.into(),
     );
 }
 
@@ -990,29 +945,26 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Change vendor pubkey index.
-    fw_image.manifest.header.vendor_lms_pub_key_idx =
-        fw_image.manifest.preamble.vendor_lms_pub_key_idx + 1;
+    fw_image.manifest.header.vendor_pqc_pub_key_idx =
+        fw_image.manifest.preamble.vendor_pqc_pub_key_idx + 1;
     update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
     fw_load_error_flow(
         Some(fw_image),
         Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH.into(),
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH.into(),
     );
 }
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_vendor_lms_verify_failure() {
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1029,11 +981,9 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
     // Set LMS pub key index to MAX + 1
-    fw_image.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
+    fw_image.manifest.preamble.vendor_pqc_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
 
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1048,12 +998,22 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
 fn fw_load_error_vendor_lms_signature_invalid() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
-    // Modify the vendor public key.
-    fw_image.manifest.preamble.vendor_lms_active_pub_key.digest = [Default::default(); 6];
 
-    // Turn LMS verify on
+    // Get a mutable reference to the LMS public key.
+    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .vendor_pqc_active_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+
+    // Modify the vendor public key.
+    lms_pub_key.digest = [Default::default(); 6];
+
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1082,9 +1042,7 @@ fn fw_load_error_fmc_runtime_load_addr_overlap() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_owner_lms_verify_failure() {
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1100,12 +1058,24 @@ fn fw_load_error_owner_lms_verify_failure() {
 fn fw_load_error_owner_lms_signature_invalid() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
+
+    // Get a mutable reference to the LMS public key.
+    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .owner_pub_keys
+            .pqc_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+
     // Modify the owner public key
-    fw_image.manifest.preamble.owner_pub_keys.lms_pub_key.digest = [Default::default(); 6];
+    lms_pub_key.digest = [Default::default(); 6];
 
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1119,7 +1089,7 @@ fn fw_load_error_owner_lms_signature_invalid() {
 #[test]
 fn fw_load_error_vendor_lms_pub_key_revoked() {
     let vendor_config = ImageGeneratorVendorConfig {
-        lms_key_idx: 5,
+        pqc_key_idx: 5,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -1129,8 +1099,7 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
 
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
-        fuse_lms_revocation: 1u32 << image_options.vendor_config.lms_key_idx,
+        fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
         ..Default::default()
     };
 
@@ -1175,9 +1144,9 @@ fn fw_load_error_runtime_size_zero() {
 }
 
 #[test]
-fn fw_load_error_update_reset_vendor_lms_pub_key_idx_mismatch() {
+fn fw_load_error_update_reset_vendor_pqc_pub_key_idx_mismatch() {
     let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        lms_key_idx: 2,
+        pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options_update_reset = ImageOptions {
@@ -1187,9 +1156,7 @@ fn fw_load_error_update_reset_vendor_lms_pub_key_idx_mismatch() {
     // Generate image
     let update_image = build_fw_image(image_options_update_reset);
 
-    // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -1197,7 +1164,7 @@ fn fw_load_error_update_reset_vendor_lms_pub_key_idx_mismatch() {
         None,
         Some(fuses),
         Some(update_image),
-        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into(),
+        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH.into(),
     );
 }
 
@@ -1254,28 +1221,12 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
     // Generate pub key hashes and set fuses
     // Use a fresh image (will NOT be loaded)
     let pk_hash_src_image = build_fw_image(ImageOptions::default());
-    let vendor_pk_desc_hash = sha384(
-        pk_hash_src_image
-            .manifest
-            .preamble
-            .vendor_pub_key_info
-            .as_bytes(),
-    );
-    let owner_pk_desc_hash = sha384(
-        pk_hash_src_image
-            .manifest
-            .preamble
-            .owner_pub_key_info
-            .as_bytes(),
-    );
-    let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&pk_hash_src_image.manifest);
 
     let fuses = Fuses {
         life_cycle: DeviceLifecycle::Production,
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
-        lms_verify: true,
+        key_manifest_pk_hash: vendor_pk_desc_hash,
+        owner_pk_hash,
         ..Default::default()
     };
 
@@ -1323,13 +1274,8 @@ fn fw_load_bad_owner_ecc_pub_key() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
 
-    // Modify the pub key hash
-    fw_image
-        .manifest
-        .preamble
-        .owner_pub_key_info
-        .ecc_key_descriptor
-        .key_hash[0][0] ^= 0x1;
+    // Modify the pub key
+    fw_image.manifest.preamble.owner_pub_keys.ecc_pub_key.x[0] ^= 0x1;
 
     fw_load_bad_pub_key_flow(
         fw_image,
@@ -1361,13 +1307,18 @@ fn fw_load_bad_owner_lms_pub_key() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
 
-    // Modify the pub key hash
-    fw_image
-        .manifest
-        .preamble
-        .owner_pub_key_info
-        .pqc_key_descriptor
-        .key_hash[0][0] ^= 0x1;
+    // Modify the pub key
+    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .owner_pub_keys
+            .pqc_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+    lms_pub_key.digest[0] = 0xDEADBEEF.into();
 
     fw_load_bad_pub_key_flow(
         fw_image,

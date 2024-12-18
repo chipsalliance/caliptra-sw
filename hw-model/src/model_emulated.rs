@@ -187,7 +187,13 @@ impl HwModel for ModelEmulated {
             dccm_dest.copy_from_slice(params.dccm);
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
-        let cpu = Cpu::new(BusLogger::new(root_bus), clock);
+        let cpu = {
+            let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
+            if let Some(stack_info) = params.stack_info {
+                cpu.with_stack_info(stack_info);
+            }
+            cpu
+        };
 
         let mut hasher = DefaultHasher::new();
         std::hash::Hash::hash_slice(params.rom, &mut hasher);
@@ -282,7 +288,7 @@ impl HwModel for ModelEmulated {
         }
     }
 
-    fn set_axi_id(&mut self, _axi_id: u32) {
+    fn set_axi_user(&mut self, _axi_user: u32) {
         unimplemented!();
     }
 

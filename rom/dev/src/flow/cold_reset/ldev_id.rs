@@ -13,10 +13,10 @@ Abstract:
 
 --*/
 
-use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
+use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -50,12 +50,14 @@ impl LocalDevIdLayer {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!(
-            "[ldev] SUBJECT.KEYID = {}",
-            KEY_ID_LDEVID_ECDSA_PRIV_KEY as u8
+            "[ldev] ECC SUBJECT.KEYID = {}, MLDSA SUBJECT.KEYID = {}",
+            KEY_ID_LDEVID_ECDSA_PRIV_KEY as u8,
+            KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED as u8,
         );
         cprintln!(
-            "[ldev] AUTHORITY.KEYID = {}",
-            input.auth_key_pair.priv_key as u8
+            "[ldev] ECC AUTHORITY.KEYID = {}, MLDSA AUTHORITY.KEYID = {}",
+            input.ecc_auth_key_pair.priv_key as u8,
+            input.mldsa_auth_key_pair.key_pair_seed as u8,
         );
         cprintln!("[ldev] FE.KEYID = {}", KEY_ID_FE as u8);
 
@@ -65,31 +67,34 @@ impl LocalDevIdLayer {
         // This is the decrypted Field Entropy
         Self::derive_cdi(env, KEY_ID_FE, KEY_ID_ROM_FMC_CDI)?;
 
-        // Derive DICE Key Pair from CDI
-        let key_pair =
-            Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_LDEVID_ECDSA_PRIV_KEY)?;
+        // Derive DICE ECC and MLDSA Key Pairs from CDI
+        let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
+            env,
+            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_LDEVID_ECDSA_PRIV_KEY,
+            KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
+        )?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id = X509::subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
-            ecc_subj_key_pair: key_pair,
+            ecc_subj_key_pair: ecc_key_pair,
             ecc_subj_sn,
             ecc_subj_key_id,
-            mldsa_subj_key_id: [0; 20],
-            mldsa_subj_key_pair: MlDsaKeyPair {
-                key_pair_seed: KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
-                pub_key: Default::default(),
-            },
-            mldsa_subj_sn: [0; 64],
+            mldsa_subj_key_pair: mldsa_key_pair,
+            mldsa_subj_sn,
+            mldsa_subj_key_id,
         };
 
         // Generate Local Device ID Certificate
@@ -110,8 +115,14 @@ impl LocalDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
-        Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
+        Crypto::hmac_mac(env, cdi, &b"ldevid_cdi".into(), cdi, HmacMode::Hmac512)?;
+        Crypto::hmac_mac(
+            env,
+            cdi,
+            &KeyReadArgs::new(fe).into(),
+            cdi,
+            HmacMode::Hmac512,
+        )?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
         env.key_vault.erase_key(fe)?;
@@ -125,25 +136,38 @@ impl LocalDevIdLayer {
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `priv_key` - Key slot to store the private key into
+    /// * `ecc_priv_key` - Key slot to store the ECC private key into
+    /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
     ///
-    /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_keygen", priv_key);
+        ecc_priv_key: KeyId,
+        mldsa_keypair_seed: KeyId,
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_ecc_key", ecc_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
-            report_boot_status(LDevIdKeyPairDerivationComplete.into());
         } else {
             cfi_assert!(result.is_err());
         }
-        result
+        let ecc_keypair = result?;
+
+        // Derive the MLDSA Key Pair.
+        let result = Crypto::mldsa_key_gen(env, cdi, b"ldevid_mldsa_key", mldsa_keypair_seed);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        let mldsa_keypair = result?;
+
+        report_boot_status(LDevIdKeyPairDerivationComplete.into());
+        Ok((ecc_keypair, mldsa_keypair))
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -158,45 +182,50 @@ impl LocalDevIdLayer {
         input: &DiceInput,
         output: &DiceOutput,
     ) -> CaliptraResult<()> {
-        let auth_priv_key = input.auth_key_pair.priv_key;
-        let auth_pub_key = &input.auth_key_pair.pub_key;
-        let pub_key = &output.ecc_subj_key_pair.pub_key;
+        let ecc_auth_priv_key = input.ecc_auth_key_pair.priv_key;
+        let ecc_auth_pub_key = &input.ecc_auth_key_pair.pub_key;
+        let ecc_pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let serial_number = X509::cert_sn(env, pub_key);
-        let serial_number = okref(&serial_number)?;
+        let ecc_serial_number = X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
+        let ecc_serial_number = okref(&ecc_serial_number)?;
 
         // CSR `To Be Signed` Parameters
-        let params = LocalDevIdCertTbsParams {
-            ueid: &X509::ueid(env)?,
+        let ecc_tbs_params = LocalDevIdCertTbsParams {
+            ueid: &X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
-            issuer_sn: input.auth_sn,
-            authority_key_id: input.auth_key_id,
-            serial_number,
-            public_key: &pub_key.to_der(),
+            issuer_sn: input.ecc_auth_sn,
+            authority_key_id: input.ecc_auth_key_id,
+            serial_number: ecc_serial_number,
+            public_key: &ecc_pub_key.to_der(),
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
         };
 
-        // Generate the `To Be Signed` portion of the CSR
-        let tbs = LocalDevIdCertTbs::new(&params);
+        // Generate the ECC `To Be Signed` portion of the CSR
+        let ecc_tbs = LocalDevIdCertTbs::new(&ecc_tbs_params);
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[ldev] Signing Cert w/ AUTHORITY.KEYID = {}",
-            auth_priv_key as u8
+            "[ldev] Signing Cert with ECC AUTHORITY.KEYID = {}",
+            ecc_auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign_and_verify(
+            env,
+            ecc_auth_priv_key,
+            ecc_auth_pub_key,
+            ecc_tbs.tbs(),
+        );
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+        env.key_vault.erase_key(ecc_auth_priv_key).map_err(|err| {
             sig.zeroize();
             err
         })?;
 
-        let _pub_x: [u8; 48] = (&pub_key.x).into();
-        let _pub_y: [u8; 48] = (&pub_key.y).into();
+        let _pub_x: [u8; 48] = (&ecc_pub_key.x).into();
+        let _pub_y: [u8; 48] = (&ecc_pub_key.y).into();
         cprintln!("[ldev] PUB.X = {}", HexBytes(&_pub_x));
         cprintln!("[ldev] PUB.Y = {}", HexBytes(&_pub_y));
 
@@ -205,17 +234,19 @@ impl LocalDevIdLayer {
         cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 
-        // Lock the Local Device ID cert signature in data vault until
-        // cold reset
-        env.data_vault.set_ldev_dice_signature(sig);
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
+        // Save the Local Device ID cert signature in data vault.
+        data_vault.set_ldev_dice_ecc_signature(sig);
         sig.zeroize();
 
-        // Lock the Local Device ID public key in data vault until
-        // cold reset
-        env.data_vault.set_ldev_dice_pub_key(pub_key);
+        // Save the Local Device ID public key in data vault.
+        data_vault.set_ldev_dice_ecc_pub_key(ecc_pub_key);
 
         //  Copy TBS to DCCM.
-        copy_tbs(tbs.tbs(), TbsType::LdevidTbs, env)?;
+        copy_tbs(ecc_tbs.tbs(), TbsType::LdevidTbs, env)?;
+
+        // [CAP2][TODO] Generate the MLDSA TBS
 
         report_boot_status(LDevIdCertSigGenerationComplete.into());
         Ok(())

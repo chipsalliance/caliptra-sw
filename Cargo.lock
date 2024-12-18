@@ -244,6 +244,7 @@ name = "caliptra-auth-man-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "bitfield",
  "bitflags 2.4.0",
  "caliptra-error",
  "caliptra-image-types",
@@ -654,7 +655,9 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-image-types",
  "caliptra-lms-types",
+ "fips204",
  "memoffset 0.8.0",
+ "rand",
  "zerocopy",
 ]
 
@@ -819,6 +822,7 @@ dependencies = [
  "caliptra-kat",
  "caliptra-lms-types",
  "caliptra-registers",
+ "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",

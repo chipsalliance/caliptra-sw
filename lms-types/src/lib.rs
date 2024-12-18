@@ -97,6 +97,26 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
     fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
+impl<const N: usize> LmsPublicKey<N> {
+    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<const N: usize> LmsPublicKey<N> {
+    pub fn mut_ref_from_prefix(bytes: &mut [u8]) -> Option<&mut Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) })
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Zeroize)]
 #[repr(C)]
@@ -170,6 +190,27 @@ unsafe impl<const N: usize, const P: usize, const H: usize> AsBytes for LmsSigna
 }
 unsafe impl<const N: usize, const P: usize, const H: usize> FromBytes for LmsSignature<N, P, H> {
     fn only_derive_is_allowed_to_implement_this_trait() {}
+}
+impl<const N: usize, const P: usize, const H: usize> LmsSignature<N, P, H> {
+    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
+        if bytes.len() >= size_of::<Self>() {
+            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<const N: usize, const P: usize, const H: usize> LmsSignature<N, P, H> {
+    pub fn mut_ref_from_prefix(bytes: &mut [u8]) -> Option<&mut Self> {
+        {
+            if bytes.len() >= size_of::<Self>() {
+                Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) })
+            } else {
+                None
+            }
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

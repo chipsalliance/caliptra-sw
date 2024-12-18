@@ -16,8 +16,8 @@ use crate::fmc_env::FmcEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
+use caliptra_drivers::Ecc384PubKey;
 use caliptra_drivers::{cprintln, memory_layout, Array4x12, Ecc384Signature, KeyId};
-use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 #[cfg(feature = "riscv")]
@@ -66,52 +66,13 @@ impl HandOff {
         }
     }
 
-    fn fmc_pub_key_x(env: &FmcEnv) -> Ecc384Scalar {
-        let ds: DataStore = Self::fht(env)
-            .fmc_pub_key_x_dv_hdl
-            .try_into()
-            .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid FMC ALias Public Key X DV handle");
-                handle_fatal_error(e.into());
-            });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
-            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into()),
-        }
-    }
-
-    fn fmc_pub_key_y(env: &FmcEnv) -> Ecc384Scalar {
-        let ds: DataStore = Self::fht(env)
-            .fmc_pub_key_y_dv_hdl
-            .try_into()
-            .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid FMC ALias Public Key Y DV handle");
-                handle_fatal_error(e.into());
-            });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
-            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
-    /// Get the fmc public key.
+    /// Get the fmc ECC public key.
     ///
     /// # Returns
     /// * fmc public key
     ///
     pub fn fmc_pub_key(env: &FmcEnv) -> Ecc384PubKey {
-        Ecc384PubKey {
-            x: Self::fmc_pub_key_x(env),
-            y: Self::fmc_pub_key_y(env),
-        }
+        env.persistent_data.get().data_vault.fmc_ecc_pub_key()
     }
 
     /// Retrieve FMC Alias Private Key
@@ -156,88 +117,12 @@ impl HandOff {
 
     /// Retrieve runtime TCI (digest)
     pub fn rt_tci(env: &FmcEnv) -> Array4x12 {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_tci_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid TCI DV handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
-            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
+        env.persistent_data.get().data_vault.rt_tci()
     }
 
     /// Retrieve runtime SVN.
     pub fn rt_svn(env: &FmcEnv) -> u32 {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_svn_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT SVN handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
-            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
-    /// Retrieve runtime minimum SVN.
-    pub fn rt_min_svn(env: &FmcEnv) -> u32 {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_min_svn_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store must be a warm reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_and_lock_rt_min_svn(env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
-        let ds: DataStore =
-            Self::fht(env)
-                .rt_min_svn_dv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
-                    handle_fatal_error(e.into())
-                });
-
-        // The data store must be a warm reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => {
-                env.data_vault.write_warm_reset_entry4(dv_entry, min_svn);
-                env.data_vault.lock_warm_reset_entry4(dv_entry);
-                Ok(())
-            }
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
+        env.persistent_data.get().data_vault.rt_svn()
     }
 
     /// Store runtime Dice Signature
@@ -253,33 +138,7 @@ impl HandOff {
 
     /// Retrieve the entry point of the runtime firmware.
     fn rt_entry_point(env: &FmcEnv) -> u32 {
-        let ds: DataStore = Self::fht(env)
-            .rt_fw_entry_point_hdl
-            .try_into()
-            .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid runtime entry point DV handle");
-                handle_fatal_error(e.into());
-            });
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
-            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
-            _ => {
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
-            }
-        }
-    }
-
-    #[allow(dead_code)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_hash_chain_max_svn(env: &mut FmcEnv, max_svn: u16) {
-        Self::fht_mut(env).rt_hash_chain_max_svn = max_svn;
-    }
-
-    #[allow(dead_code)]
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn set_rt_hash_chain_kv_hdl(env: &mut FmcEnv, kv_slot: KeyId) {
-        Self::fht_mut(env).rt_hash_chain_kv_hdl = Self::key_id_to_handle(kv_slot)
+        env.persistent_data.get().data_vault.rt_entry_point()
     }
 
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.

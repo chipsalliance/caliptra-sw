@@ -20,7 +20,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
 
-mod constants {
+pub mod constants {
     #![allow(unused)]
 
     // Key Vault
@@ -109,7 +109,7 @@ mod constants {
     pub const PCR_CONTROL_REG_RESET_VAL: u32 = 0;
 
     /// Key Memory Size
-    pub const KEY_REG_SIZE: usize = 0x600;
+    pub const KEY_REG_SIZE: usize = 0x800;
 
     /// Key control register reset value
     pub const KEY_CONTROL_REG_RESET_VAL: u32 = 0;
@@ -145,8 +145,9 @@ pub struct KeyVault {
 }
 
 impl KeyVault {
-    pub const KEY_COUNT: u32 = 32;
-    pub const KEY_SIZE: usize = 48;
+    pub const PCR_SIZE: usize = 48;
+    pub const KEY_COUNT: u32 = 24;
+    pub const KEY_SIZE: usize = 64;
     pub const KEY_CONTROL_REG_OFFSET: u32 = 0;
     pub const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
 
@@ -245,8 +246,8 @@ bitfield! {
     /// Flag indicating if the key can be used as HMAC data
     pub hmac_data, set_hmac_data: 1;
 
-    /// Flag indicating if the key can be used as SHA data
-    pub sha_data, set_sha_data: 2;
+    /// Flag indicating if the key can be used as MLDSA seed
+    pub mldsa_seed, set_mldsa_seed: 2;
 
     /// Flag indicating if the key can be used aas ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;
@@ -725,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_key_private_read_write() {
-        let expected: [u8; KeyVault::KEY_SIZE] = [
+        let expected: &[u8] = &[
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
@@ -738,10 +739,10 @@ mod tests {
 
         for idx in 0..KeyVault::KEY_COUNT {
             vault
-                .write_key(idx, &expected, u32::from(key_usage))
+                .write_key(idx, expected, u32::from(key_usage))
                 .unwrap();
             let returned = vault.read_key(idx, key_usage).unwrap();
-            assert_eq!(&returned, &expected);
+            assert_eq!(&returned[..expected.len()], expected);
         }
     }
 
@@ -773,7 +774,8 @@ mod tests {
                     0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78,
                     0x54, 0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba,
                     0x20, 0x17, 0x1a, 0x79, 0x05, 0xea, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
                 ]
             );
         }
@@ -903,7 +905,7 @@ mod tests {
 
     #[test]
     fn test_key_private_read_blocked() {
-        let expected: [u8; KeyVault::KEY_SIZE] = [
+        let expected: &[u8] = &[
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
@@ -926,7 +928,7 @@ mod tests {
             );
 
             assert!(vault
-                .write_key(key_id, &expected, u32::from(key_usage))
+                .write_key(key_id, expected, u32::from(key_usage))
                 .is_ok());
 
             // Block read access to the key.
@@ -947,7 +949,7 @@ mod tests {
 
     #[test]
     fn test_key_private_write_blocked() {
-        let expected: [u8; KeyVault::KEY_SIZE] = [
+        let expected: &[u8] = &[
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
@@ -975,7 +977,7 @@ mod tests {
 
             assert_eq!(
                 vault
-                    .write_key(key_id, &expected, u32::from(key_usage))
+                    .write_key(key_id, expected, u32::from(key_usage))
                     .err(),
                 Some(BusError::StoreAccessFault)
             );
@@ -984,7 +986,7 @@ mod tests {
 
     #[test]
     fn test_key_clear() {
-        let expected: [u8; KeyVault::KEY_SIZE] = [
+        let expected: &[u8] = &[
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
@@ -1001,12 +1003,11 @@ mod tests {
 
         for key_id in 0..KeyVault::KEY_COUNT {
             assert_eq!(
-                vault
-                    .write_key(key_id, &expected, u32::from(key_usage))
-                    .ok(),
+                vault.write_key(key_id, expected, u32::from(key_usage)).ok(),
                 Some(())
             );
-            assert_eq!(&vault.read_key(key_id, key_usage).unwrap(), &expected);
+            let key = vault.read_key(key_id, key_usage).unwrap();
+            assert_eq!(&key[..expected.len()], expected);
 
             // Clear the key.
             assert_eq!(

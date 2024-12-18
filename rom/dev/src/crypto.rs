@@ -37,7 +37,7 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
     }
 }
 
-/// DICE  Layer Key Pair
+/// DICE Layer ECC Key Pair
 #[derive(Debug, Zeroize)]
 pub struct Ecc384KeyPair {
     /// Private Key KV Slot Id
@@ -48,7 +48,7 @@ pub struct Ecc384KeyPair {
     pub pub_key: Ecc384PubKey,
 }
 
-/// DICE  Layer Key Pair
+/// DICE Layer MLDSA Key Pair
 #[derive(Debug, Zeroize)]
 pub struct MlDsaKeyPair {
     /// Key Pair Generation KV Slot Id
@@ -57,6 +57,12 @@ pub struct MlDsaKeyPair {
 
     /// Public Key
     pub pub_key: Mldsa87PubKey,
+}
+
+#[derive(Debug)]
+pub enum PubKey<'a> {
+    Ecc(&'a Ecc384PubKey),
+    Mldsa(&'a Mldsa87PubKey),
 }
 
 pub enum Crypto {}
@@ -81,15 +87,15 @@ impl Crypto {
     ///
     /// # Arguments
     ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
+    /// * `sha256` - SHA256 driver
+    /// * `data`   - Input data to hash
     ///
     /// # Returns
     ///
     /// * `Array4x8` - Digest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        env.sha256.digest(data)
+    pub fn sha256_digest(sha256: &mut Sha256, data: &[u8]) -> CaliptraResult<Array4x8> {
+        sha256.digest(data)
     }
 
     /// Calculate SHA2-384 Digest
@@ -104,25 +110,43 @@ impl Crypto {
     /// * `Array4x12` - Digest
     #[inline(always)]
     pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha384.digest(data)
+        env.sha2_512_384.sha384_digest(data)
     }
 
-    /// Calculate HMAC-348
+    /// Calculate SHA2-512 Digest
+    ///
+    /// # Arguments
+    ///
+    /// * `env`   - ROM Environment
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x16` - Digest
+    #[inline(always)]
+    #[allow(dead_code)]
+    pub fn sha512_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x16> {
+        env.sha2_512_384.sha512_digest(data)
+    }
+
+    /// Calculate HMAC
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key slot
+    /// * `key` - HMAC key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
+    /// * `mode` - HMAC Mode
     #[inline(always)]
-    pub fn hmac384_mac(
+    pub fn hmac_mac(
         env: &mut RomEnv,
         key: KeyId,
         data: &HmacData,
         tag: KeyId,
+        mode: HmacMode,
     ) -> CaliptraResult<()> {
-        env.hmac384.hmac(
+        env.hmac.hmac(
             &KeyReadArgs::new(key).into(),
             data,
             &mut env.trng,
@@ -133,40 +157,66 @@ impl Crypto {
                     .set_ecc_key_gen_seed_en(),
             )
             .into(),
-            HmacMode::Hmac384,
+            mode,
         )
     }
 
-    /// Calculate HMAC-348 KDF
+    /// Calculate HMAC KDF
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key slot
+    /// * `key` - HMAC key slot
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
+    /// * `mode` - HMAC Mode
     #[inline(always)]
-    pub fn hmac384_kdf(
+    pub fn hmac_kdf(
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        output: KeyId,
+        mode: HmacMode,
+    ) -> CaliptraResult<()> {
+        hmac_kdf(
+            hmac,
+            KeyReadArgs::new(key).into(),
+            label,
+            context,
+            trng,
+            KeyWriteArgs::new(
+                output,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en()
+                    .set_mldsa_seed_en(),
+            )
+            .into(),
+            mode,
+        )
+    }
+
+    /// Version of hmac_kdf() that takes a RomEnv.
+    #[inline(always)]
+    pub fn env_hmac_kdf(
         env: &mut RomEnv,
         key: KeyId,
         label: &[u8],
         context: Option<&[u8]>,
         output: KeyId,
+        mode: HmacMode,
     ) -> CaliptraResult<()> {
-        hmac384_kdf(
-            &mut env.hmac384,
-            KeyReadArgs::new(key).into(),
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
+            key,
             label,
             context,
-            &mut env.trng,
-            KeyWriteArgs::new(
-                output,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
-            )
-            .into(),
+            output,
+            mode,
         )
     }
 
@@ -188,7 +238,7 @@ impl Crypto {
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::hmac384_kdf(env, cdi, label, None, KEY_ID_TMP)?;
+        Crypto::env_hmac_kdf(env, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
@@ -260,12 +310,11 @@ impl Crypto {
         key_pair_seed: KeyId,
     ) -> CaliptraResult<MlDsaKeyPair> {
         // Generate the seed for key pair generation.
-        // [CAP2][TODO] Change this to hmac512_kdfwhen available.
-        Crypto::hmac384_kdf(env, cdi, label, None, key_pair_seed)?;
+        Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
 
         // Generate the public key.
         let pub_key = env
-            .mldsa
+            .mldsa87
             .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
 
         Ok(MlDsaKeyPair {

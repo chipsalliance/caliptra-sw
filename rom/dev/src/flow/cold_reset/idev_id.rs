@@ -13,10 +13,10 @@ Abstract:
 
 --*/
 
-use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
+use crate::crypto::{Crypto, Ecc384KeyPair, Ecdsa384SignatureAdapter, MlDsaKeyPair, PubKey};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
@@ -62,7 +62,7 @@ impl InitDevIdLayer {
         // If CSR is not requested, indicate to the SOC that it can start
         // uploading the firmware image to the mailbox.
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Decrypt the UDS
@@ -88,30 +88,31 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::idev_subj_key_id(env, &ecc_key_pair.pub_key)?;
+        let ecc_subj_key_id = X509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            X509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
-
-        // [TODO] Generate the Subject Serial Number and Subject Key Identifier for MLDSA.
 
         // Generate the output for next layer
         let output = DiceOutput {
             ecc_subj_key_pair: ecc_key_pair,
             ecc_subj_sn,
             ecc_subj_key_id,
-            mldsa_subj_key_id: [0; 20],
+            mldsa_subj_key_id,
             mldsa_subj_key_pair: mldsa_key_pair,
-            mldsa_subj_sn: [0; 64],
+            mldsa_subj_sn,
         };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
 
         // Indicate (if not already done) to SOC that it can start uploading the firmware image to the mailbox.
-        if !env.soc_ifc.flow_status_ready_for_firmware() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+        if !env.soc_ifc.flow_status_ready_for_mb_processing() {
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Write IDevID public key to FHT
@@ -179,7 +180,7 @@ impl InitDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
+        Crypto::env_hmac_kdf(env, uds, b"idevid_cdi", None, cdi, HmacMode::Hmac512)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
@@ -193,7 +194,7 @@ impl InitDevIdLayer {
     ///
     /// * `env`      - ROM Environment
     /// * `cdi`      - Composite Device Identity
-    /// * `ecdsa_priv_key` - Key slot to store the ECC private key into
+    /// * `ecc_priv_key` - Key slot to store the ECC private key into
     /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
@@ -203,10 +204,10 @@ impl InitDevIdLayer {
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
-        ecdsa_priv_key: KeyId,
+        ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecdsa_priv_key);
+        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_ecc_key", ecc_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -215,11 +216,16 @@ impl InitDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let mldsa_key_pair =
-            Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed)?;
+        let result = Crypto::mldsa_key_gen(env, cdi, b"idevid_mldsa_key", mldsa_keypair_seed);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        let mldsa_keypair = result?;
 
         report_boot_status(IDevIdKeyPairDerivationComplete.into());
-        Ok((ecc_keypair, mldsa_key_pair))
+        Ok((ecc_keypair, mldsa_keypair))
     }
 
     /// Generate Local Device ID CSR
@@ -259,7 +265,7 @@ impl InitDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsParams {
             // Unique Endpoint Identifier
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.ecc_subj_sn,

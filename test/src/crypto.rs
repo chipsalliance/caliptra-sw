@@ -134,6 +134,18 @@ pub(crate) fn hmac384(key: &[u8], data: &[u8]) -> [u8; 48] {
     result
 }
 
+pub(crate) fn hmac512(key: &[u8], data: &[u8]) -> [u8; 64] {
+    use openssl::hash::MessageDigest;
+    use openssl::sign::Signer;
+
+    let pkey = PKey::hmac(key).unwrap();
+    let mut signer = Signer::new(MessageDigest::sha512(), &pkey).unwrap();
+    signer.update(data).unwrap();
+    let mut result = [0u8; 64];
+    signer.sign(&mut result).unwrap();
+    result
+}
+
 #[test]
 fn test_hmac384() {
     // test vector from https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/message-authentication
@@ -181,6 +193,21 @@ pub(crate) fn hmac384_kdf(key: &[u8], label: &[u8], context: Option<&[u8]>) -> [
     }
 
     hmac384(key, &msg)
+}
+
+pub(crate) fn hmac512_kdf(key: &[u8], label: &[u8], context: Option<&[u8]>) -> [u8; 64] {
+    let ctr_be = 1_u32.to_be_bytes();
+
+    let mut msg = Vec::<u8>::default();
+    msg.extend_from_slice(&ctr_be);
+    msg.extend_from_slice(label);
+
+    if let Some(context) = context {
+        msg.push(0x00);
+        msg.extend_from_slice(context);
+    }
+
+    hmac512(key, &msg)
 }
 
 #[test]

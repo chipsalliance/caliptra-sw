@@ -6,7 +6,6 @@ use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
-use caliptra_test::swap_word_bytes_inplace;
 use dpe::{
     commands::*,
     response::{
@@ -51,12 +50,22 @@ const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
     ],
 };
 
-const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
-    rom_version: 0x840, // 1.1.0
+const ROM_EXP_1_0_3: RomExpVals = RomExpVals {
+    rom_version: 0x803, // 1.0.3
     ..ROM_EXP_1_0_1
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_1_0 };
+const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
+    rom_version: 0x840, // 1.1.0
+    ..ROM_EXP_1_0_3
+};
+
+const ROM_EXP_1_2_0: RomExpVals = RomExpVals {
+    rom_version: 0x880, // 1.2.0
+    ..ROM_EXP_1_1_0
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_2_0 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -102,6 +111,7 @@ impl RomExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_1" => ROM_EXP_1_0_1,
+                "1_0_3" => ROM_EXP_1_0_3,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
@@ -211,7 +221,12 @@ pub fn fips_test_init_to_rom(
     let mut model = fips_test_init_base(init_params, boot_params);
 
     // Step to ready for FW in ROM
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     model
 }
@@ -421,12 +436,6 @@ pub fn verify_sha_engine_output_inhibited<T: HwModel>(hw: &mut T) {
 pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
     verify_mbox_output_inhibited(hw);
     verify_sha_engine_output_inhibited(hw);
-}
-
-pub fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
 }
 
 pub fn hook_code_read<T: HwModel>(hw: &mut T) -> u8 {

@@ -20,7 +20,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
-use caliptra_image_types::{FwImageType, ImageBundle, ImageRevision, RomInfo};
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;
 use zerocopy::AsBytes;
@@ -34,6 +34,11 @@ pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibil
 use once_cell::sync::Lazy;
 
 pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+
+#[derive(Debug, PartialEq)]
+pub enum CiRomVersion {
+    Latest,
+}
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
@@ -355,11 +360,22 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     Ok(result)
 }
 
+// Returns the ROM version to be used for CI testing specified in the environment variable "CPTRA_CI_ROM_VERSION"
+// Default is Latest
+pub fn get_ci_rom_version() -> CiRomVersion {
+    match std::env::var("CPTRA_CI_ROM_VERSION").as_deref() {
+        Ok(version) => panic!("Unknown CI ROM version \'{}\'", version),
+        Err(_) => CiRomVersion::Latest,
+    }
+}
+
 /// Returns the most appropriate ROM for use when testing non-ROM code against
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
-    Ok(build_firmware_rom(rom_from_env)?.into())
+    match get_ci_rom_version() {
+        CiRomVersion::Latest => Ok(build_firmware_rom(rom_from_env)?.into()),
+    }
 }
 
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
@@ -368,7 +384,7 @@ pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
 }
 
 pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
-    let mut result = vec![0u8; 0xC000];
+    let mut result = vec![0u8; 0x18000];
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
 
     let Some(segments) = elf.segments() else {
@@ -444,7 +460,7 @@ pub struct ImageOptions {
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
-    pub fw_image_type: FwImageType,
+    pub pqc_key_type: FwVerificationPqcKeyType,
 }
 impl Default for ImageOptions {
     fn default() -> Self {
@@ -455,7 +471,7 @@ impl Default for ImageOptions {
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
-            fw_image_type: FwImageType::EccLms,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
         }
     }
 }
@@ -478,7 +494,7 @@ pub fn build_and_sign_image(
         runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
-        fw_image_type: opts.fw_image_type,
+        pqc_key_type: opts.pqc_key_type,
     })?;
     Ok(image)
 }

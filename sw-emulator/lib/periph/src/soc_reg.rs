@@ -74,7 +74,7 @@ mod constants {
     pub const CPTRA_GENERIC_INPUT_WIRES_SIZE: usize = 8;
     pub const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xcc;
     pub const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
-    pub const FUSE_UDS_SEED_SIZE: usize = 48;
+    pub const FUSE_UDS_SEED_SIZE: usize = 64;
     pub const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
     pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe4;
     pub const CPTRA_WDT_TIMER1_CTRL_START: u32 = 0xe8;
@@ -84,12 +84,13 @@ mod constants {
     pub const CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START: u32 = 0xfc;
     pub const CPTRA_WDT_STATUS_START: u32 = 0x104;
     pub const CPTRA_FUSE_VALID_PAUSER_START: u32 = 0x108;
+    pub const CPTRA_OWNER_PK_HASH_START: u32 = 0x140;
+    pub const CPTRA_OWNER_PK_HASH_SIZE: usize = 48;
     pub const CPTRA_FUSE_PAUSER_LOCK_START: u32 = 0x10c;
-    pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x250;
-    pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
-    pub const FUSE_VENDOR_PK_MASK_START: u32 = 0x280;
-    pub const FUSE_OWNER_PK_HASH_START: u32 = 0x284;
-    pub const FUSE_OWNER_PK_HASH_SIZE: usize = 48;
+    pub const FUSE_KEY_MANIFEST_PK_HASH_START: u32 = 0x260;
+    pub const FUSE_KEY_MANIFEST_PK_HASH_SIZE: usize = 48;
+    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_START: u32 = 0x290;
+    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE: usize = 32;
     pub const FUSE_FMC_SVN_START: u32 = 0x2b4;
     pub const FUSE_RUNTIME_SVN_START: u32 = 0x2b8;
     pub const FUSE_RUNTIME_SVN_SIZE: usize = 16;
@@ -98,7 +99,8 @@ mod constants {
     pub const FUSE_IDEVID_CERT_ATTR_SIZE: usize = 96;
     pub const FUSE_IDEVID_MANUF_HSM_ID_START: u32 = 0x32c;
     pub const FUSE_IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
-    pub const FUSE_LIFE_CYCLE_START: u32 = 0x33c;
+    pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_START: u32 = 0x34c;
+    pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE: usize = 16;
     pub const INTERNAL_OBF_KEY_SIZE: usize = 32;
     pub const INTERNAL_ICCM_LOCK_START: u32 = 0x620;
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
@@ -197,10 +199,9 @@ register_bitfields! [
         RSVD OFFSET(2) NUMBITS(30) [],
     ],
 
-    /// LMS Verify
-    LmsVerify [
-        LMS_VERIFY OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
+    /// Cap Lock
+    CapLock [
+        LOCK OFFSET(0) NUMBITS(1) [],
     ],
 
     /// SoC Stepping ID
@@ -523,16 +524,16 @@ struct SocRegistersImpl {
 
     // TODO: Functionality for mbox pauser regs needs to be implemented
     #[register_array(offset = 0x0048)]
-    cptra_mbox_valid_pauser: [u32; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
+    cptra_mbox_valid_axi_user: [u32; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
 
     #[register_array(offset = 0x005c)]
-    cptra_mbox_pauser_lock: [u32; CPTRA_MBOX_PAUSER_LOCK_SIZE / 4],
+    cptra_mbox_axi_user_lock: [u32; CPTRA_MBOX_PAUSER_LOCK_SIZE / 4],
 
     #[register(offset = 0x0070)]
-    cptra_trng_valid_pauser: ReadWriteRegister<u32>,
+    cptra_trng_valid_axi_user: ReadWriteRegister<u32>,
 
     #[register(offset = 0x0074)]
-    cptra_trng_pauser_lock: ReadWriteRegister<u32>,
+    cptra_trng_axi_user_lock: ReadWriteRegister<u32>,
 
     #[register_array(offset = 0x0078)]
     cptra_trng_data: [u32; CPTRA_TRNG_DATA_SIZE / 4],
@@ -596,10 +597,13 @@ struct SocRegistersImpl {
 
     // TODO: Functionality for fuse pauser regs needs to be implemented
     #[register(offset = 0x0108)]
-    cptra_fuse_valid_pauser: ReadWriteRegister<u32>,
+    cptra_fuse_valid_axi_user: ReadWriteRegister<u32>,
 
     #[register(offset = 0x010c)]
-    cptra_fuse_pauser_lock: ReadWriteRegister<u32>,
+    cptra_fuse_axi_user_lock: ReadWriteRegister<u32>,
+
+    #[register_array(offset = 0x110)]
+    cptra_wdt_cfg: [u32; 2],
 
     #[register(offset = 0x0118)]
     cptra_i_trng_entropy_config_0: u32,
@@ -610,23 +614,33 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x0120)]
     cptra_rsvd_reg: [u32; 2],
 
+    #[register(offset = 0x128)]
+    cptra_hw_capabilities: u32,
+
+    #[register(offset = 0x12c)]
+    cptra_fw_capabilities: u32,
+
+    #[register(offset = 0x130)]
+    cptra_cap_lock: ReadWriteRegister<u32, CapLock::Register>,
+
+    // TODO implement lock
+    #[register_array(offset = 0x140)]
+    cptra_owner_pk_hash: [u32; CPTRA_OWNER_PK_HASH_SIZE / 4],
+
+    #[register(offset = 0x170)]
+    cptra_owner_pk_hash_lock: u32,
+
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
 
-    #[register_array(offset = 0x110)]
-    cptra_wdt_cfg: [u32; 2],
-
-    #[register_array(offset = 0x0230)]
+    #[register_array(offset = 0x0240)]
     fuse_field_entropy: [u32; FUSE_FIELD_ENTROPY_SIZE / 4],
 
-    #[register_array(offset = 0x0250)]
-    fuse_vendor_pk_hash: [u32; FUSE_VENDOR_PK_HASH_SIZE / 4],
+    #[register_array(offset = 0x0260)]
+    fuse_key_manifest_pk_hash: [u32; FUSE_KEY_MANIFEST_PK_HASH_SIZE / 4],
 
-    #[register(offset = 0x0280)]
-    fuse_vendor_pk_hash_mask: ReadWriteRegister<u32, VendorPubKeyMask::Register>,
-
-    #[register_array(offset = 0x0284)]
-    fuse_owner_pk_hash: [u32; FUSE_OWNER_PK_HASH_SIZE / 4],
+    #[register_array(offset = 0x0290)]
+    fuse_key_manifest_pk_hash_mask: [u32; FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE / 4],
 
     #[register(offset = 0x02b4)]
     fuse_fmc_svn: u32,
@@ -643,17 +657,17 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x032c)]
     fuse_idevid_manuf_hsm_id: [u32; FUSE_IDEVID_MANUF_HSM_ID_SIZE / 4],
 
-    #[register(offset = 0x033c)]
-    fuse_life_cycle: u32,
-
     #[register(offset = 0x340)]
-    fuse_lms_verify: ReadWriteRegister<u32, LmsVerify::Register>,
+    fuse_lms_revocation: u32,
 
     #[register(offset = 0x344)]
-    fuse_lms_revocation: u32,
+    fuse_mldsa_revocation: u32,
 
     #[register(offset = 0x348)]
     fuse_soc_stepping_id: ReadWriteRegister<u32, SocSteppingId::Register>,
+
+    #[register_array(offset = 0x34c)]
+    fuse_manuf_dbg_unlock_token: [u32; FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE / 4],
 
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
@@ -767,7 +781,8 @@ impl SocRegistersImpl {
         0xF5, 0x8C, 0x4C, 0x4, 0xD6, 0xE5, 0xF1, 0xBA, 0x77, 0x9E, 0xAB, 0xFB, 0x5F, 0x7B, 0xFB,
         0xD6, 0x9C, 0xFC, 0x4E, 0x96, 0x7E, 0xDB, 0x80, 0x8D, 0x67, 0x9F, 0x77, 0x7B, 0xC6, 0x70,
         0x2C, 0x7D, 0x39, 0xF2, 0x33, 0x69, 0xA9, 0xD9, 0xBA, 0xCF, 0xA5, 0x30, 0xE2, 0x63, 0x4,
-        0x23, 0x14, 0x61,
+        0x23, 0x14, 0x61, 0x3B, 0x4, 0x38, 0x96, 0xCF, 0xE1, 0x95, 0x74, 0xFC, 0xA0, 0xA, 0xCC,
+        0x2A, 0x5C, 0x31, 0xCD,
     ];
 
     /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
@@ -798,10 +813,10 @@ impl SocRegistersImpl {
             cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
-            cptra_mbox_valid_pauser: Default::default(),
-            cptra_mbox_pauser_lock: Default::default(),
-            cptra_trng_valid_pauser: ReadWriteRegister::new(0),
-            cptra_trng_pauser_lock: ReadWriteRegister::new(0),
+            cptra_mbox_valid_axi_user: Default::default(),
+            cptra_mbox_axi_user_lock: Default::default(),
+            cptra_trng_valid_axi_user: ReadWriteRegister::new(0),
+            cptra_trng_axi_user_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
             cptra_trng_ctrl: 0,
             cptra_trng_status: 0,
@@ -815,20 +830,37 @@ impl SocRegistersImpl {
             cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: 0,
+            cptra_wdt_timer1_en: ReadWriteRegister::new(0),
+            cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
+            cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
+            cptra_wdt_timer2_en: ReadWriteRegister::new(0),
+            cptra_wdt_timer2_ctrl: ReadWriteRegister::new(0),
+            cptra_wdt_timer2_timeout_period: [0xffff_ffff; 2],
+            cptra_wdt_status: ReadOnlyRegister::new(0),
+            cptra_fuse_valid_axi_user: ReadWriteRegister::new(0xffff_ffff),
+            cptra_fuse_axi_user_lock: ReadWriteRegister::new(0),
+            cptra_wdt_cfg: [0x0; 2],
+            cptra_i_trng_entropy_config_0: 0,
+            cptra_i_trng_entropy_config_1: 0,
+            cptra_rsvd_reg: Default::default(),
+            cptra_hw_capabilities: 0,
+            cptra_fw_capabilities: 0,
+            cptra_cap_lock: ReadWriteRegister::new(0),
+            cptra_owner_pk_hash: Default::default(),
+            cptra_owner_pk_hash_lock: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
-            fuse_vendor_pk_hash: Default::default(),
-            fuse_vendor_pk_hash_mask: ReadWriteRegister::new(0),
-            fuse_owner_pk_hash: Default::default(),
+            fuse_key_manifest_pk_hash: [0; 12],
+            fuse_key_manifest_pk_hash_mask: [0; 8],
             fuse_fmc_svn: Default::default(),
             fuse_runtime_svn: Default::default(),
             fuse_anti_rollback_disable: Default::default(),
             fuse_idevid_cert_attr: Default::default(),
             fuse_idevid_manuf_hsm_id: Default::default(),
-            fuse_life_cycle: Default::default(),
-            fuse_lms_verify: ReadWriteRegister::new(0),
             fuse_lms_revocation: Default::default(),
+            fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
+            fuse_manuf_dbg_unlock_token: [0; 4],
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -856,35 +888,21 @@ impl SocRegistersImpl {
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
-            fuses_can_be_written: true,
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
+            fuses_can_be_written: true,
             download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
-            cptra_wdt_timer1_en: ReadWriteRegister::new(0),
-            cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
-            cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
-            cptra_wdt_timer2_en: ReadWriteRegister::new(0),
-            cptra_wdt_timer2_ctrl: ReadWriteRegister::new(0),
-            cptra_wdt_timer2_timeout_period: [0xffff_ffff; 2],
-            cptra_wdt_status: ReadOnlyRegister::new(0),
-            cptra_i_trng_entropy_config_0: 0,
-            cptra_i_trng_entropy_config_1: 0,
-            cptra_rsvd_reg: Default::default(),
             op_wdt_timer1_expired_action: None,
             op_wdt_timer2_expired_action: None,
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
-            cptra_wdt_cfg: [0x0; 2],
-            cptra_fuse_valid_pauser: ReadWriteRegister::new(0xffff_ffff),
-            cptra_fuse_pauser_lock: ReadWriteRegister::new(0),
         };
-
         regs
     }
 
     /// Clear secrets
     fn clear_secrets(&mut self) {
-        self.fuse_uds_seed = [0u32; 12];
+        self.fuse_uds_seed = [0u32; 16];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key = [0u32; 8];
     }
@@ -1552,7 +1570,7 @@ mod tests {
             },
         );
         soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
-        assert_eq!(soc.uds(), [0xff_u8; 48]);
+        assert_eq!(soc.uds(), [0xff_u8; 64]);
         assert_eq!(soc.field_entropy(), [0xff_u8; 32]);
         assert_eq!(soc.doe_key(), [0xff_u8; 32]);
     }

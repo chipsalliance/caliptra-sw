@@ -15,14 +15,14 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::memory_layout::*;
-use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{ColdResetEntry4, PcrId, RomPqcVerifyConfig};
+use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault};
+use caliptra_drivers::{PcrId, RomPqcVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_types::{FwImageType, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_BYTE_SIZE};
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
@@ -140,7 +140,6 @@ fn test_pcr_log() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        lms_verify: true,
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
@@ -163,6 +162,7 @@ fn test_pcr_log() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -201,7 +201,7 @@ fn test_pcr_log() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
@@ -243,7 +243,6 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        lms_verify: true,
         key_manifest_pk_hash: gen
             .vendor_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap(),
@@ -303,7 +302,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             0_u8,
             0_u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             false as u8,
         ],
@@ -339,6 +338,7 @@ fn test_pcr_log_fmc_fuse_svn() {
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
+        runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -358,6 +358,7 @@ fn test_pcr_log_fmc_fuse_svn() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -396,7 +397,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
             FMC_SVN as u8,
             FMC_FUSE_SVN as u8,
-            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
             RomPqcVerifyConfig::EcdsaAndLms as u8,
             true as u8,
         ],
@@ -478,6 +479,7 @@ fn test_pcr_log_across_update_reset() {
     let fuses = Fuses {
         anti_rollback_disable: false,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
+        runtime_svn: [1, 0, 0, 0],
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
@@ -499,6 +501,7 @@ fn test_pcr_log_across_update_reset() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
+        app_svn: FMC_SVN,
         ..Default::default()
     };
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -572,6 +575,7 @@ fn test_pcr_log_across_update_reset() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_fuse_log() {
     const FMC_SVN: u32 = 4;
 
@@ -579,7 +583,6 @@ fn test_fuse_log() {
         anti_rollback_disable: true,
         fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
         runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
-        lms_verify: true,
         ..Default::default()
     };
 
@@ -604,7 +607,7 @@ fn test_fuse_log() {
         fmc_version: 0,
         app_svn: FMC_SVN,
         app_version: 0,
-        fw_image_type: FwImageType::EccLms,
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
     };
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
@@ -660,11 +663,14 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0);
 
-    // Validate the FuseFmcSvn
+    // Validate the _DeprecatedFuseFmcSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFmcSvn as u32);
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::_DeprecatedFuseFmcSvn as u32
+    );
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
     // Validate the ManifestRtSvn
@@ -694,15 +700,15 @@ fn test_fuse_log() {
     assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
-    // Validate the VendorLmsPubKeyIndex
+    // Validate the VendorPqcPubKeyIndex
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::VendorLmsPubKeyIndex as u32
+        FuseLogEntryId::VendorPqcPubKeyIndex as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.lms_key_idx);
+    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.pqc_key_idx);
 
     // Validate that the ID is VendorPubKeyRevocation
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -710,7 +716,7 @@ fn test_fuse_log() {
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::VendorLmsPubKeyRevocation as u32
+        FuseLogEntryId::VendorPqcPubKeyRevocation as u32
     );
     assert_eq!(fuse_log_entry.log_data[0], 0,);
 }
@@ -755,7 +761,6 @@ fn test_fht_info() {
 #[test]
 fn test_check_rom_cold_boot_status_reg() {
     let fuses = Fuses {
-        lms_verify: false,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -784,20 +789,13 @@ fn test_check_rom_cold_boot_status_reg() {
 
     hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let coldresetentry4_array = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 2; // Skip first entry
+    let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
+    let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
 
-    // Check RomColdBootStatus datavault value.
-    let coldresetentry4_id =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
     assert_eq!(
-        coldresetentry4_id,
-        ColdResetEntry4::RomColdBootStatus as u32
+        data_vault.rom_cold_boot_status(),
+        u32::from(ColdResetComplete)
     );
-    coldresetentry4_offset += core::mem::size_of::<u32>();
-    let coldresetentry4_value =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(coldresetentry4_value, u32::from(ColdResetComplete));
 }
 
 #[test]

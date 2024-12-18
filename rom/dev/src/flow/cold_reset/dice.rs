@@ -13,20 +13,29 @@ Abstract:
 
 --*/
 
-use super::crypto::{Ecc384KeyPair, MlDsaKeyPair};
+use crate::crypto::{Ecc384KeyPair, MlDsaKeyPair};
 use zeroize::Zeroize;
 
 /// DICE Layer Input
 #[derive(Debug)]
 pub struct DiceInput<'a> {
-    /// Authority Key Pair
-    pub auth_key_pair: &'a Ecc384KeyPair,
+    /// ECC Authority Key Pair
+    pub ecc_auth_key_pair: &'a Ecc384KeyPair,
 
-    /// Authority Serial Number
-    pub auth_sn: &'a [u8; 64],
+    /// ECC Authority Serial Number
+    pub ecc_auth_sn: &'a [u8; 64],
 
-    /// Authority Key Identifier
-    pub auth_key_id: &'a [u8; 20],
+    /// ECC Authority Key Identifier
+    pub ecc_auth_key_id: &'a [u8; 20],
+
+    /// MLDSA Authority Key Pair
+    pub mldsa_auth_key_pair: &'a MlDsaKeyPair,
+
+    /// MLDSA Authority Serial Number
+    pub mldsa_auth_sn: &'a [u8; 64],
+
+    /// MLDSA Authority Key Identifier
+    pub mldsa_auth_key_id: &'a [u8; 20],
 }
 
 /// DICE Layer Output

@@ -19,31 +19,33 @@ use zeroize::Zeroize;
 
 pub enum FuseLogEntryId {
     Invalid = 0,
-    VendorEccPubKeyIndex = 1,       // 4 bytes  (From Manifest)
-    VendorEccPubKeyRevocation = 2,  // 4 bytes  (From Fuse)
-    ManifestFmcSvn = 3,             // 4 bytes
-    ManifestReserved0 = 4,          // 4 bytes
-    FuseFmcSvn = 5,                 // 4 bytes
-    ManifestRtSvn = 6,              // 4 bytes
-    ManifestReserved1 = 7,          // 4 bytes
-    FuseRtSvn = 8,                  // 4 bytes
-    VendorLmsPubKeyIndex = 9,       // 4 bytes  (From Manifest)
-    VendorLmsPubKeyRevocation = 10, // 4 bytes  (From Fuse)
+    VendorEccPubKeyIndex = 1,      // 4 bytes  (From Manifest)
+    VendorEccPubKeyRevocation = 2, // 4 bytes  (From Fuse)
+    ManifestFmcSvn = 3,            // 4 bytes
+    ManifestReserved0 = 4,         // 4 bytes
+    #[deprecated]
+    _DeprecatedFuseFmcSvn = 5, // 4 bytes
+    ManifestRtSvn = 6,             // 4 bytes
+    ManifestReserved1 = 7,         // 4 bytes
+    FuseRtSvn = 8,                 // 4 bytes
+    VendorPqcPubKeyIndex = 9,      // 4 bytes  (From Manifest)
+    VendorPqcPubKeyRevocation = 10, // 4 bytes  (From Fuse)
 }
 
 impl From<u32> for FuseLogEntryId {
+    #[allow(deprecated)]
     fn from(id: u32) -> FuseLogEntryId {
         match id {
             1 => FuseLogEntryId::VendorEccPubKeyIndex,
             2 => FuseLogEntryId::VendorEccPubKeyRevocation,
             3 => FuseLogEntryId::ManifestFmcSvn,
             4 => FuseLogEntryId::ManifestReserved0,
-            5 => FuseLogEntryId::FuseFmcSvn,
+            5 => FuseLogEntryId::_DeprecatedFuseFmcSvn,
             6 => FuseLogEntryId::ManifestRtSvn,
             7 => FuseLogEntryId::ManifestReserved1,
             8 => FuseLogEntryId::FuseRtSvn,
-            9 => FuseLogEntryId::VendorLmsPubKeyIndex,
-            10 => FuseLogEntryId::VendorLmsPubKeyRevocation,
+            9 => FuseLogEntryId::VendorPqcPubKeyIndex,
+            10 => FuseLogEntryId::VendorPqcPubKeyRevocation,
             _ => FuseLogEntryId::Invalid,
         }
     }

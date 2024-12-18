@@ -172,7 +172,7 @@ impl Doe {
     /// * `key_id` - Key index to store the UDS
     fn unscramble_uds(&mut self, key_id: u32) {
         let cipher_uds = self.soc_reg.uds();
-        let mut plain_uds = [0u8; 48];
+        let mut plain_uds = [0u8; 64];
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
@@ -298,8 +298,14 @@ mod tests {
         let mut ku_hmac_key = KeyUsage::default();
         ku_hmac_key.set_hmac_key(true);
 
-        assert_eq!(key_vault.read_key(2, ku_hmac_data).unwrap(), PLAIN_TEXT_UDS);
-        assert_eq!(key_vault.read_key(2, ku_hmac_key).unwrap(), PLAIN_TEXT_UDS);
+        assert_eq!(
+            key_vault.read_key(2, ku_hmac_data).unwrap()[..48],
+            PLAIN_TEXT_UDS
+        );
+        assert_eq!(
+            key_vault.read_key(2, ku_hmac_key).unwrap()[..48],
+            PLAIN_TEXT_UDS
+        );
     }
 
     #[test]
@@ -364,13 +370,19 @@ mod tests {
         let mut ku_hmac_key = KeyUsage::default();
         ku_hmac_key.set_hmac_key(true);
 
-        assert_eq!(key_vault.read_key(3, ku_hmac_data).unwrap(), PLAIN_TEXT_FE);
-        assert_eq!(key_vault.read_key(3, ku_hmac_key).unwrap(), PLAIN_TEXT_FE);
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_data).unwrap()[..48],
+            PLAIN_TEXT_FE
+        );
+        assert_eq!(
+            key_vault.read_key(3, ku_hmac_key).unwrap()[..48],
+            PLAIN_TEXT_FE
+        );
     }
 
     #[test]
     fn test_clear_secrets() {
-        let expected_uds = [0u8; 48];
+        let expected_uds = [0u8; 64];
         let expected_doe_key = [0u8; 32];
         let expected_fe = [0u8; 32];
         let pic = Pic::new();

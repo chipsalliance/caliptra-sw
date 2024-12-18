@@ -11,12 +11,13 @@ use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
+    bytes_to_be_words_48,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
-    swap_word_bytes, swap_word_bytes_inplace,
+    swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
@@ -24,6 +25,36 @@ use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
 use zerocopy::AsBytes;
+
+// Support testing against older versions of ROM in CI
+// More constants may need to be added here as the ROMs further diverge
+struct RomTestParams<'a> {
+    #[allow(dead_code)]
+    testdata_path: &'a str,
+    fmc_alias_cert_redacted_txt: &'a str,
+    fmc_alias_cert_redacted_der: &'a [u8],
+    tcb_info_vendor: Option<&'a str>,
+    tcb_device_info_model: Option<&'a str>,
+    tcb_fmc_info_model: Option<&'a str>,
+    tcb_info_flags: Option<u32>,
+}
+const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
+    testdata_path: "tests/caliptra_integration_tests/smoke_testdata/rom-latest",
+    fmc_alias_cert_redacted_txt: include_str!(
+        "smoke_testdata/rom-latest/fmc_alias_cert_redacted.txt"
+    ),
+    fmc_alias_cert_redacted_der: include_bytes!(
+        "smoke_testdata/rom-latest/fmc_alias_cert_redacted.der"
+    ),
+    tcb_info_vendor: None,
+    tcb_device_info_model: None,
+    tcb_fmc_info_model: None,
+    tcb_info_flags: Some(0x00000001),
+};
+
+fn get_rom_test_params() -> RomTestParams<'static> {
+    ROM_LATEST_TEST_PARAMS
+}
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -105,8 +136,9 @@ fn test_golden_idevid_pubkey_matches_generated() {
     assert_eq!(
         generated_idevid.cdi,
         [
-            0x4443b819, 0x8ca0984a, 0x2d566eed, 0x40f94074, 0x0c7cc63b, 0x85f939ac, 0xa2df92bf,
-            0xb00f2f3e, 0x1e70ec47, 0x6736c596, 0x58a8a450, 0xeeac2f20,
+            1595302429, 2693222204, 2700750034, 2341068947, 1086336218, 1015077934, 3439704633,
+            2756110496, 670106478, 1965056064, 3175014961, 1018544412, 1086626027, 1869434586,
+            2638089882, 3209973098
         ]
     );
     assert!(generated_idevid
@@ -123,19 +155,14 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert_eq!(
         generated_ldevid.cdi,
         [
-            0xf226cb0f, 0x1b527a8d, 0x9abeb5eb, 0xf407069a, 0xeda6909b, 0xad434d1d, 0x5f3586ff,
-            0xa4729b8c, 0xd9e34ef9, 0xcb4317aa, 0x596674e5, 0x7f3c0f5b,
+            2646856615, 2999180291, 4071428836, 3246385254, 3302857457, 919578714, 2458268004,
+            291060689, 3979116117, 4017638804, 3557014009, 2639554114, 2914235687, 3521247795,
+            1993163061, 3092908117
         ]
     );
     assert!(generated_ldevid
         .derive_public_key()
         .public_eq(&ldevid_pubkey));
-}
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
 }
 
 #[test]
@@ -151,20 +178,21 @@ fn smoke_test() {
         &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_svn: 9,
+            app_svn: 9,
             ..Default::default()
         },
     )
     .unwrap();
     let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
-    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
     let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
     let fuses = Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
-        lms_verify: true,
+        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
@@ -265,12 +293,12 @@ fn smoke_test() {
     hasher.update(&[security_state.device_lifecycle() as u8]);
     hasher.update(&[security_state.debug_locked() as u8]);
     hasher.update(&[fuses.anti_rollback_disable as u8]);
-    hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
-    hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
-    hasher.update(&[image.manifest.fw_image_type]);
+    hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
+    hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+    hasher.update(&[image.manifest.pqc_key_type]);
     hasher.update(&[true as u8]);
     hasher.update(vendor_pk_desc_hash.as_bytes());
-    hasher.update(&owner_pk_desc_hash);
+    hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
@@ -278,8 +306,10 @@ fn smoke_test() {
         dice_tcb_info,
         [
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params()
+                    .tcb_device_info_model
+                    .map(String::from),
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
                 fwids: vec![DiceFwid {
@@ -287,13 +317,13 @@ fn smoke_test() {
                     digest: device_info_hash.to_vec(),
                 },],
 
-                flags: Some(0x00000001),
+                flags: get_rom_test_params().tcb_info_flags,
                 ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
                 fwids: vec![DiceFwid {
@@ -314,14 +344,14 @@ fn smoke_test() {
             security_state,
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_desc_hash_words,
-            owner_pub_key_hash: owner_pk_desc_hash_words,
+            owner_pub_key_hash: owner_pk_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
-            lms_vendor_pub_key_index: image.manifest.header.vendor_lms_pub_key_idx,
+            lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
             rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
         }),
         &expected_ldevid_key,
@@ -404,16 +434,16 @@ fn smoke_test() {
             String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
 
         // To update the alias-cert golden-data:
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.txt", &fmc_alias_cert_redacted_txt).unwrap();
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.der", &fmc_alias_cert_redacted_der).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.txt", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_txt).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.der", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_der).unwrap();
 
         assert_eq!(
             fmc_alias_cert_redacted_txt.as_str(),
-            include_str!("smoke_testdata/fmc_alias_cert_redacted.txt")
+            get_rom_test_params().fmc_alias_cert_redacted_txt
         );
         assert_eq!(
             fmc_alias_cert_redacted_der,
-            include_bytes!("smoke_testdata/fmc_alias_cert_redacted.der")
+            get_rom_test_params().fmc_alias_cert_redacted_der
         );
     }
 
@@ -427,7 +457,7 @@ fn smoke_test() {
     let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
     println!(
-        "Manifest digest is {:02x?}",
+        "Manifest Runtime digest is {:02x?}",
         image.manifest.runtime.digest.as_bytes()
     );
     let expected_rt_alias_key = RtAliasKey::derive(
@@ -461,7 +491,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (9)
+            svn: Some(0x109),
             fwids: vec![DiceFwid {
                 // RT
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -559,6 +590,7 @@ fn smoke_test() {
         ImageOptions {
             fmc_version: 1,
             fmc_svn: 10,
+            app_svn: 10,
             app_version: 2,
             ..Default::default()
         },
@@ -611,7 +643,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (10)
+            svn: Some(0x10A),
             fwids: vec![DiceFwid {
                 // FMC
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),

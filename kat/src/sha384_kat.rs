@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Sha384};
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Sha2_512_384};
 
 pub const SHA384_EXPECTED_DIGEST: Array4x12 = Array4x12::new([
     0x38b060a7, 0x51ac9638, 0x4cd9327e, 0xb1b1e36a, 0x21fdb711, 0x14be0743, 0x4c0cc7bf, 0x63f6e1da,
@@ -35,14 +35,14 @@ impl Sha384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, sha: &mut Sha384) -> CaliptraResult<()> {
+    pub fn execute(&self, sha: &mut Sha2_512_384) -> CaliptraResult<()> {
         self.kat_no_data(sha)
     }
 
-    fn kat_no_data(&self, sha: &mut Sha384) -> CaliptraResult<()> {
+    fn kat_no_data(&self, sha2: &mut Sha2_512_384) -> CaliptraResult<()> {
         let data = &[];
-        let digest = sha
-            .digest(data)
+        let digest = sha2
+            .sha384_digest(data)
             .map_err(|_| CaliptraError::KAT_SHA384_DIGEST_FAILURE)?;
 
         if digest != SHA384_EXPECTED_DIGEST {

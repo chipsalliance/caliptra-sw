@@ -21,43 +21,43 @@ const IMAGE_BUNDLE_SIZE: u32 = 131072;
  * - Ensures bundle is being fuzzed well (by offsets).
  */
 struct TestEnv {
-    digest: ImageDigest,
-    fmc_digest: ImageDigest,
+    digest: ImageDigest384,
+    fmc_digest: ImageDigest384,
     verify_result: bool,
     verify_lms_result: bool,
-    vendor_pub_key_digest: ImageDigest,
+    vendor_pub_key_digest: ImageDigest384,
     vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
     vendor_lms_pub_key_revocation: u32,
-    owner_pub_key_digest: ImageDigest,
+    owner_pub_key_digest: ImageDigest384,
     lifecycle: Lifecycle,
 }
 
 impl Default for TestEnv {
     fn default() -> Self {
         TestEnv {
-            digest: ImageDigest::default(),
-            fmc_digest: ImageDigest::default(),
+            digest: ImageDigest384::default(),
+            fmc_digest: ImageDigest384::default(),
             // PATCHED
             verify_result: true,
             // PATCHED
             verify_lms_result: true,
-            vendor_pub_key_digest: ImageDigest::default(),
+            vendor_pub_key_digest: ImageDigest384::default(),
             vendor_ecc_pub_key_revocation: VendorPubKeyRevocation::default(),
             vendor_lms_pub_key_revocation: 0,
-            owner_pub_key_digest: ImageDigest::default(),
+            owner_pub_key_digest: ImageDigest384::default(),
             lifecycle: Lifecycle::Unprovisioned,
         }
     }
 }
 
 impl ImageVerificationEnv for TestEnv {
-    fn sha384_digest(&mut self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest> {
+    fn sha384_digest(&mut self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest384> {
         Ok(self.digest)
     }
 
     fn ecc384_verify(
         &mut self,
-        _digest: &ImageDigest,
+        _digest: &ImageDigest384,
         _pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
@@ -70,7 +70,7 @@ impl ImageVerificationEnv for TestEnv {
 
     fn lms_verify(
         &mut self,
-        _digest: &ImageDigest,
+        _digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
         _sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
@@ -81,7 +81,7 @@ impl ImageVerificationEnv for TestEnv {
         }
     }
 
-    fn vendor_pub_key_digest(&self) -> ImageDigest {
+    fn vendor_pub_key_digest(&self) -> ImageDigest384 {
         self.vendor_pub_key_digest
     }
 
@@ -93,7 +93,7 @@ impl ImageVerificationEnv for TestEnv {
         self.vendor_lms_pub_key_revocation
     }
 
-    fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest384 {
         self.owner_pub_key_digest
     }
 
@@ -109,24 +109,16 @@ impl ImageVerificationEnv for TestEnv {
         0
     }
 
-    fn vendor_lms_pub_key_idx_dv(&self) -> u32 {
+    fn vendor_pqc_pub_key_idx_dv(&self) -> u32 {
         0
     }
 
-    fn owner_pub_key_digest_dv(&self) -> ImageDigest {
+    fn owner_pub_key_digest_dv(&self) -> ImageDigest384 {
         self.owner_pub_key_digest
     }
 
-    fn get_fmc_digest_dv(&self) -> ImageDigest {
+    fn get_fmc_digest_dv(&self) -> ImageDigest384 {
         self.fmc_digest
-    }
-
-    fn fmc_fuse_svn(&self) -> u32 {
-        0
-    }
-
-    fn runtime_fuse_svn(&self) -> u32 {
-        0
     }
 
     fn iccm_range(&self) -> Range<u32> {

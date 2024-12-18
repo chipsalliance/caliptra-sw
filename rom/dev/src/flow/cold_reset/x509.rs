@@ -11,10 +11,13 @@ Abstract:
     File contains X509 Certificate & CSR related utility functions
 
 --*/
-use super::crypto::Crypto;
 use crate::cprintln;
+use crate::crypto::{Crypto, PubKey};
 use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
+use core::mem::size_of;
+use core::usize;
+use zerocopy::AsBytes;
 
 /// X509 API
 pub enum X509 {}
@@ -24,29 +27,61 @@ impl X509 {
     ///
     /// # Arguments
     ///
-    /// * `env` - ROM Environment
+    /// * `soc_ifc` - SOC Interface object
     ///
     /// # Returns
     ///
     /// `[u8; 17]` - Byte 0 - Ueid Type, Bytes 1-16 Unique Endpoint Identifier
-    pub fn ueid(env: &RomEnv) -> CaliptraResult<[u8; 17]> {
-        let ueid = env.soc_ifc.fuse_bank().ueid();
+    pub fn ueid(soc_ifc: &SocIfc) -> CaliptraResult<[u8; 17]> {
+        let ueid = soc_ifc.fuse_bank().ueid();
         Ok(ueid)
     }
 
-    /// Get X509 Subject Serial Number
+    fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
+        fn copy_and_swap_endianess(src: &[u8], dst: &mut [u8]) {
+            for i in (0..src.len()).step_by(4) {
+                if i + 3 < src.len() && i + 3 < dst.len() {
+                    dst[i] = src[i + 3];
+                    dst[i + 1] = src[i + 2];
+                    dst[i + 2] = src[i + 1];
+                    dst[i + 3] = src[i];
+                }
+            }
+        }
+
+        match pub_key {
+            PubKey::Ecc(pub_key) => {
+                let ecc_pubkey_der = pub_key.to_der();
+                pub_key_bytes[..ecc_pubkey_der.len()].copy_from_slice(&ecc_pubkey_der);
+                ecc_pubkey_der.len()
+            }
+            PubKey::Mldsa(pub_key) => {
+                // pub_key is in Caliptra Hw format (big-endian DWORDs). Convert it to little-endian DWORDs.
+                copy_and_swap_endianess(pub_key.0.as_bytes(), pub_key_bytes);
+                pub_key_bytes.len()
+            }
+        }
+    }
+
+    fn pub_key_digest(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<Array4x8> {
+        // Define an array large enough to hold the largest public key.
+        let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
+        let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
+        Crypto::sha256_digest(&mut env.sha256, &pub_key_bytes[..pub_key_size])
+    }
+
+    /// Get X509 Subject Serial Number from public key
     ///
     /// # Arguments
     ///
     /// * `env`     - ROM Environment
-    /// * `pub_key` - Public Key
+    /// * `pub_key` - ECC or MLDSA Public Key
     ///
     /// # Returns
     ///
     /// `[u8; 64]` - X509 Subject Identifier serial number
-    pub fn subj_sn(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 64]> {
-        let data = pub_key.to_der();
-        let digest = Crypto::sha256_digest(env, &data);
+    pub fn subj_sn(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u8; 64]> {
+        let digest = Self::pub_key_digest(env, pub_key);
         let digest = okref(&digest)?;
         Ok(Self::hex(&digest.into()))
     }
@@ -56,29 +91,33 @@ impl X509 {
     /// # Arguments
     ///
     /// * `env`     - ROM Environment
-    /// * `pub_key` - Public Key
+    /// * `pub_key` - ECC or MLDSA Public Key
     ///
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Subject Key Identifier
-    pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
-        let data = pub_key.to_der();
+    pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u8; 20]> {
+        let mut pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = [0; size_of::<Mldsa87PubKey>()];
+        let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
+        let data: &[u8] = &pub_key_bytes[..pub_key_size];
+
+        // [CAP2][TODO] Get the hash algorithm if the key is MLDSA.
 
         let digest: [u8; 20] = match env.soc_ifc.fuse_bank().idev_id_x509_key_id_algo() {
             X509KeyIdAlgo::Sha1 => {
                 cprintln!("[idev] Sha1 KeyId Algorithm");
-                let digest = Crypto::sha1_digest(env, &data);
+                let digest = Crypto::sha1_digest(env, data);
                 okref(&digest)?.into()
             }
             X509KeyIdAlgo::Sha256 => {
                 cprintln!("[idev] Sha256 KeyId Algorithm");
-                let digest = Crypto::sha256_digest(env, &data);
+                let digest = Crypto::sha256_digest(&mut env.sha256, data);
                 let digest: [u8; 32] = okref(&digest)?.into();
                 digest[..20].try_into().unwrap()
             }
             X509KeyIdAlgo::Sha384 => {
                 cprintln!("[idev] Sha384 KeyId Algorithm");
-                let digest = Crypto::sha384_digest(env, &data);
+                let digest = Crypto::sha384_digest(env, data);
                 let digest: [u8; 48] = okref(&digest)?.into();
                 digest[..20].try_into().unwrap()
             }
@@ -101,26 +140,25 @@ impl X509 {
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Subject Key Identifier
-    pub fn subj_key_id(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
-        let data = pub_key.to_der();
-        let digest = Crypto::sha256_digest(env, &data);
+    pub fn subj_key_id(env: &mut RomEnv, pub_key: &PubKey) -> CaliptraResult<[u8; 20]> {
+        let digest = Self::pub_key_digest(env, pub_key);
         let digest: [u8; 32] = okref(&digest)?.into();
         Ok(digest[..20].try_into().unwrap())
     }
 
-    /// Get Cert Serial Number
+    /// Get Serial Number for ECC certificate.
     ///
     /// # Arguments
     ///
-    /// * `env`     - ROM Environment
-    /// * `pub_key` - Public Key
+    /// * `sha256`  - SHA256 Driver
+    /// * `pub_key` - ECC Public Key
     ///
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Serial Number
-    pub fn cert_sn(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
+    pub fn ecc_cert_sn(sha256: &mut Sha256, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
-        let digest = Crypto::sha256_digest(env, &data);
+        let digest = Crypto::sha256_digest(sha256, &data);
         let mut digest: [u8; 32] = okref(&digest)?.into();
 
         // Ensure the encoded integer is positive, and that the first octet

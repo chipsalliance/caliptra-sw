@@ -17,14 +17,14 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
+    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
-    csrng::CsrngReg, doe::DoeReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
-    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg, doe::DoeReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
+    kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Rom Context
@@ -38,14 +38,14 @@ pub struct RomEnv {
     // SHA2-256 Engine
     pub sha256: Sha256,
 
-    // SHA2-384 Engine
-    pub sha384: Sha384,
+    // SHA2-512/384 Engine
+    pub sha2_512_384: Sha2_512_384,
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
-    /// Hmac384 Engine
-    pub hmac384: Hmac,
+    /// Hmac Engine
+    pub hmac: Hmac,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
@@ -55,9 +55,6 @@ pub struct RomEnv {
 
     /// Key Vault
     pub key_vault: KeyVault,
-
-    /// Data Vault
-    pub data_vault: DataVault,
 
     /// SoC interface
     pub soc_ifc: SocIfc,
@@ -78,7 +75,7 @@ pub struct RomEnv {
     pub persistent_data: PersistentDataAccessor,
 
     /// Mldsa87 Engine
-    pub mldsa: Mldsa87,
+    pub mldsa87: Mldsa87,
 }
 
 impl RomEnv {
@@ -94,20 +91,19 @@ impl RomEnv {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac::new(HmacReg::new()),
+            hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
-            data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa: Mldsa87::new(MldsaReg::new()),
+            mldsa87: Mldsa87::new(MldsaReg::new()),
         })
     }
 }

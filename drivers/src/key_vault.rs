@@ -44,14 +44,6 @@ pub enum KeyId {
     KeyId21 = 21,
     KeyId22 = 22,
     KeyId23 = 23,
-    KeyId24 = 24,
-    KeyId25 = 25,
-    KeyId26 = 26,
-    KeyId27 = 27,
-    KeyId28 = 28,
-    KeyId29 = 29,
-    KeyId30 = 30,
-    KeyId31 = 31,
 }
 
 impl TryFrom<u8> for KeyId {
@@ -82,14 +74,6 @@ impl TryFrom<u8> for KeyId {
             21 => Ok(Self::KeyId21),
             22 => Ok(Self::KeyId22),
             23 => Ok(Self::KeyId23),
-            24 => Ok(Self::KeyId24),
-            25 => Ok(Self::KeyId25),
-            26 => Ok(Self::KeyId26),
-            27 => Ok(Self::KeyId27),
-            28 => Ok(Self::KeyId28),
-            29 => Ok(Self::KeyId29),
-            30 => Ok(Self::KeyId30),
-            31 => Ok(Self::KeyId31),
             _ => Err(()),
         }
     }
@@ -127,8 +111,8 @@ bitfield! {
     /// Flag indicating if the key can be used as HMAC data
     pub hmac_data, set_hmac_data: 1;
 
-    /// Flag indicating if the key can be used as SHA data
-    pub sha_data, set_sha_data: 2;
+    /// Flag indicating if the key can be used as MLDSA seed
+    pub mldsa_seed, set_mldsa_seed: 2;
 
     /// Flag indicating if the key can be used aas ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;
@@ -150,8 +134,8 @@ impl KeyUsage {
         self.set_hmac_data(true);
         *self
     }
-    pub fn set_sha_data_en(&mut self) -> KeyUsage {
-        self.set_sha_data(true);
+    pub fn set_mldsa_seed_en(&mut self) -> KeyUsage {
+        self.set_mldsa_seed(true);
         *self
     }
     pub fn set_ecc_private_key_en(&mut self) -> KeyUsage {
@@ -181,7 +165,7 @@ impl KeyVault {
     ///
     /// Note: The keys that have "use" or "write" lock set will not be erased
     pub fn erase_all_keys(&mut self) {
-        const KEY_IDS: [KeyId; 32] = [
+        const KEY_IDS: [KeyId; 24] = [
             KeyId::KeyId0,
             KeyId::KeyId1,
             KeyId::KeyId2,
@@ -206,14 +190,6 @@ impl KeyVault {
             KeyId::KeyId21,
             KeyId::KeyId22,
             KeyId::KeyId23,
-            KeyId::KeyId24,
-            KeyId::KeyId25,
-            KeyId::KeyId26,
-            KeyId::KeyId27,
-            KeyId::KeyId28,
-            KeyId::KeyId29,
-            KeyId::KeyId30,
-            KeyId::KeyId31,
         ];
 
         for id in KEY_IDS {

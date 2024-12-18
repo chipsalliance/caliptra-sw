@@ -41,6 +41,10 @@ lms_pub_keys = [
   "vnd-lms-pub-key-2.pem",
   "vnd-lms-pub-key-3.pem",
 ]
+
+# [TODO][CAP2] Add MLDSA key files.
+mldsa_pub_keys = []
+
 ecc_priv_keys = [
   "vnd-priv-key-0.pem",
   "vnd-priv-key-1.pem",
@@ -82,8 +86,13 @@ lms_priv_keys = [
   "vnd-lms-priv-key-3.pem",
 ]
 
+mldsa_priv_keys = []
+
 [owner]
 ecc_pub_key = "own-pub-key.pem"
 ecc_priv_key = "own-priv-key.pem"
 lms_pub_key = "own-lms-pub-key.pem"
 lms_priv_key = "own-lms-priv-key.pem"
+mldsa_pub_key = ""
+mldsa_priv_key = ""
+

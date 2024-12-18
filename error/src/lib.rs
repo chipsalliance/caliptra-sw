@@ -48,7 +48,7 @@ impl CaliptraError {
     pub const DRIVER_SHA384_INVALID_STATE_ERR: CaliptraError = CaliptraError::new_const(0x00030007);
     pub const DRIVER_SHA384_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00030008);
     pub const DRIVER_SHA384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00030009);
-    pub const DRIVER_SHA384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
+    pub const DRIVER_SHA2_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
     pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
@@ -200,7 +200,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0019);
     pub const IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001a);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001b);
     pub const IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001c);
@@ -218,12 +218,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0023);
     pub const IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED: CaliptraError =
         CaliptraError::new_const(0x000b0024);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b0025);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b0026);
-    pub const IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE: CaliptraError =
-        CaliptraError::new_const(0x000b0027);
+    // 0x000b0025 was IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
+    // 0x000b0026 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
+    // 0x000b0027 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0028);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED: CaliptraError =
@@ -234,13 +231,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b002b);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
         CaliptraError::new_const(0x000b002c);
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED: CaliptraError =
-        CaliptraError::new_const(0x000b002d);
+    // 0x000b002d was IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE: CaliptraError =
         CaliptraError::new_const(0x000b002e);
     pub const IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE: CaliptraError =
         CaliptraError::new_const(0x000b002f);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b0030);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0031);
@@ -260,7 +256,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b003b);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO: CaliptraError =
         CaliptraError::new_const(0x000b003c);
-    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b003d);
     pub const IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW: CaliptraError =
         CaliptraError::new_const(0x000b003e);
@@ -270,28 +266,52 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0040);
     pub const IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0041);
-    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_MARKER_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0042);
     pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_VERSION_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0043);
-    pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INTENT_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0044);
+        CaliptraError::new_const(0x000b0042);
     pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
+        CaliptraError::new_const(0x000b0043);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_VERSION_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0044);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_TYPE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0045);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
         CaliptraError::new_const(0x000b0046);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_MARKER_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0047);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_VERSION_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0048);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INTENT_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0049);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_TYPE_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b004a);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX: CaliptraError =
-        CaliptraError::new_const(0x000b004b);
     pub const IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000b0047);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
+        CaliptraError::new_const(0x000b0048);
+    pub const IMAGE_VERIFIER_ERR_FW_IMAGE_VERIFICATION_KEY_TYPE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b0049);
+    pub const IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b004a);
+    pub const IMAGE_VERIFIER_ERR_LMS_VENDOR_SIG_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b004b);
+    pub const IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b004c);
-    pub const IMAGE_VERIFIER_ERR_LMS_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_LMS_OWNER_SIG_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b004d);
+    pub const IMAGE_VERIFIER_ERR_MLDSA_VENDOR_PUB_KEY_READ_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000b004e);
+    pub const IMAGE_VERIFIER_ERR_MLDSA_VENDOR_SIG_READ_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000b004f);
+    pub const IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000b0050);
+    pub const IMAGE_VERIFIER_ERR_MLDSA_OWNER_SIG_READ_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000b0051);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_MLDSA_DIGEST_MISSING: CaliptraError =
+        CaliptraError::new_const(0x000b0052);
+    pub const IMAGE_VERIFIER_ERR_OWNER_MLDSA_DIGEST_MISSING: CaliptraError =
+        CaliptraError::new_const(0x000b0053);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000b0054);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b0055);
+    pub const IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000b0056);
+    pub const IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b0057);
+    pub const IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000b0058);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -484,6 +504,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0051);
     pub const RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM: CaliptraError =
         CaliptraError::new_const(0x000E0052);
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID: CaliptraError =
+        CaliptraError::new_const(0x000E0053);
+    pub const RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0054);
+    pub const RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0055);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

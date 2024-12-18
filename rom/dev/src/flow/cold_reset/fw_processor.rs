@@ -47,7 +47,7 @@ pub struct FwProcInfo {
 
     pub fmc_cert_valid_not_after: NotAfter,
 
-    pub fmc_effective_fuse_svn: u32,
+    pub effective_fuse_svn: u32,
 
     pub owner_pub_keys_digest_in_fuses: bool,
 
@@ -65,14 +65,14 @@ impl FirmwareProcessor {
             // sha256
             sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+            // SHA2-512/384 Engine
+            sha2_512_384: &mut env.sha2_512_384,
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac384 Engine
-            hmac384: &mut env.hmac384,
+            // Hmac-512/384 Engine
+            hmac: &mut env.hmac,
 
             /// Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
@@ -108,10 +108,11 @@ impl FirmwareProcessor {
 
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
-            sha384: &mut env.sha384,
+            sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
-            data_vault: &mut env.data_vault,
+            mldsa87: &mut env.mldsa87,
+            data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
         };
@@ -123,10 +124,16 @@ impl FirmwareProcessor {
         Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
+        Self::populate_data_vault(info, &mut env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
+        pcr::extend_pcrs(
+            env.persistent_data.get_mut(),
+            &env.soc_ifc,
+            &mut env.pcr_bank,
+            &mut env.sha2_512_384,
+            info,
+        )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -148,7 +155,7 @@ impl FirmwareProcessor {
         Ok(FwProcInfo {
             fmc_cert_valid_not_before: nb,
             fmc_cert_valid_not_after: nf,
-            fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
+            effective_fuse_svn: info.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
             pqc_verify_config: info.pqc_verify_config as u8,
         })
@@ -296,7 +303,12 @@ impl FirmwareProcessor {
                             return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
                         }
 
-                        Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
+                        Self::stash_measurement(
+                            pcr_bank,
+                            env.sha2_512_384,
+                            persistent_data,
+                            &mut txn,
+                        )?;
 
                         // Generate and send response (with FIPS approved status)
                         let mut resp = StashMeasurementResp {
@@ -373,10 +385,11 @@ impl FirmwareProcessor {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
-            sha384: venv.sha384,
+            sha2_512_384: venv.sha2_512_384,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
+            mldsa87: venv.mldsa87,
             image: venv.image,
         };
 
@@ -390,8 +403,12 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
+            manifest.pqc_key_type,
+            info.vendor_pqc_pub_key_idx,
+            info.fw_svn,
+            info.effective_fuse_svn,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
         Ok(info)
@@ -430,56 +447,57 @@ impl FirmwareProcessor {
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestFmcSvn,
-            log_info.fmc_log_info.manifest_svn.as_bytes(),
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved0
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved0,
-            log_info.fmc_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseFmcSvn
+        // Log DeprecatedFuseFmcSvn (which is now the same as FuseRtSvn)
+        #[allow(deprecated)]
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseFmcSvn,
-            log_info.fmc_log_info.fuse_svn.as_bytes(),
+            FuseLogEntryId::_DeprecatedFuseFmcSvn,
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
         // Log ManifestRtSvn
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestRtSvn,
-            log_info.rt_log_info.manifest_svn.as_bytes(),
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved1
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved1,
-            log_info.rt_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseRtSvn
         log_fuse_data(
             log,
             FuseLogEntryId::FuseRtSvn,
-            log_info.rt_log_info.fuse_svn.as_bytes(),
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyIndex
+        // Log VendorPqcPubKeyIndex
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyIndex,
-            log_info.vendor_lms_pub_key_idx.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyIndex,
+            log_info.vendor_pqc_pub_key_idx.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyRevocation
+        // Log VendorPqcPubKeyRevocation
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyRevocation,
-            log_info.fuse_vendor_lms_pub_key_revocation.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyRevocation,
+            log_info.fuse_vendor_pqc_pub_key_revocation.as_bytes(),
         )?;
 
         Ok(())
@@ -530,47 +548,28 @@ impl FirmwareProcessor {
     ///
     /// # Arguments
     ///
-    /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
+    /// * `persistent_data` - Persistent data accessor
+    ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_data_vault(
-        data_vault: &mut DataVault,
         info: &ImageVerificationInfo,
-        persistent_data: &PersistentDataAccessor,
+        persistent_data: &mut PersistentDataAccessor,
     ) {
-        data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
+        let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
+        let data_vault = &mut persistent_data.get_mut().data_vault;
+        data_vault.set_fmc_tci(&info.fmc.digest.into());
+        data_vault.set_fmc_svn(info.fw_svn);
+        data_vault.set_fmc_entry_point(info.fmc.entry_point);
+        data_vault.set_owner_pk_hash(&info.owner_pub_keys_digest.into());
+        data_vault.set_vendor_ecc_pk_index(info.vendor_ecc_pub_key_idx);
+        data_vault.set_vendor_pqc_pk_index(info.vendor_pqc_pub_key_idx);
+        data_vault.set_rt_tci(&info.runtime.digest.into());
+        data_vault.set_rt_svn(info.fw_svn);
+        data_vault.set_rt_min_svn(info.fw_svn);
+        data_vault.set_rt_entry_point(info.runtime.entry_point);
+        data_vault.set_manifest_addr(manifest_address);
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
-
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
-
-        data_vault.write_cold_reset_entry48(
-            ColdResetEntry48::OwnerPubKeyHash,
-            &info.owner_pub_keys_digest.into(),
-        );
-
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::EccVendorPubKeyIndex,
-            info.vendor_ecc_pub_key_idx,
-        );
-
-        // If LMS is not enabled, write the max value to the data vault
-        // to indicate the index is invalid.
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::LmsVendorPubKeyIndex,
-            info.vendor_lms_pub_key_idx,
-        );
-
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
-
-        data_vault.write_warm_reset_entry4(
-            WarmResetEntry4::ManifestAddr,
-            &persistent_data.get().manifest1 as *const _ as u32,
-        );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
@@ -659,7 +658,7 @@ impl FirmwareProcessor {
     ///     Err - StashMeasurementReadFailure
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
@@ -667,7 +666,7 @@ impl FirmwareProcessor {
         Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;
+        Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;
 
         Ok(())
     }
@@ -685,14 +684,14 @@ impl FirmwareProcessor {
     ///    Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         // Extend measurement into PCR31.
         pcr_bank.extend_pcr(
             PCR_ID_STASH_MEASUREMENT,
-            sha384,
+            sha2,
             stash_measurement.measurement.as_bytes(),
         )?;
 
