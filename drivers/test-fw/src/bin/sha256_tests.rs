@@ -225,7 +225,7 @@ fn test_kat() {
     CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
 
     let mut sha = unsafe { Sha256::new(Sha256Reg::new()) };
-    assert_eq!(Sha256Kat::default().execute(&mut sha).is_ok(), true);
+    assert!(Sha256Kat::default().execute(&mut sha).is_ok());
 }
 
 test_suite! {

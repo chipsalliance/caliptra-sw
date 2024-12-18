@@ -81,13 +81,12 @@ impl Dma {
         let read_addr: usize = read_transaction.read_addr;
         #[cfg(target_pointer_width = "64")]
         dma.src_addr_h().write(|_| (read_addr >> 32) as u32);
-        dma.src_addr_l().write(|_| (read_addr & 0xffff_ffff) as u32);
+        dma.src_addr_l().write(|_| read_addr as u32);
 
         if let DmaReadTarget::AxiWr(target_addr) = read_transaction.target {
             #[cfg(target_pointer_width = "64")]
             dma.dst_addr_h().write(|_| (target_addr >> 32) as u32);
-            dma.dst_addr_l()
-                .write(|_| (target_addr & 0xffff_ffff) as u32);
+            dma.dst_addr_l().write(|_| target_addr as u32);
         }
 
         dma.ctrl().modify(|c| {
@@ -112,14 +111,12 @@ impl Dma {
         let write_addr = write_transaction.write_addr;
         #[cfg(target_pointer_width = "64")]
         dma.dst_addr_h().write(|_| (write_addr >> 32) as u32);
-        dma.dst_addr_l()
-            .write(|_| (write_addr & 0xffff_ffff) as u32);
+        dma.dst_addr_l().write(|_| write_addr as u32);
 
         if let DmaWriteOrigin::AxiRd(origin_addr) = write_transaction.origin {
             #[cfg(target_pointer_width = "64")]
             dma.dst_addr_h().write(|_| (origin_addr >> 32) as u32);
-            dma.dst_addr_l()
-                .write(|_| (origin_addr & 0xffff_ffff) as u32);
+            dma.dst_addr_l().write(|_| origin_addr as u32);
         }
 
         dma.ctrl().modify(|c| {

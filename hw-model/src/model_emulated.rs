@@ -34,7 +34,7 @@ pub struct EmulatedAxiBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
-impl<'a> Bus for EmulatedAxiBus<'a> {
+impl Bus for EmulatedAxiBus<'_> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);

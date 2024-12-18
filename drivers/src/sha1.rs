@@ -216,7 +216,7 @@ pub struct Sha1DigestOp<'a> {
     data_size: usize,
 }
 
-impl<'a> Sha1DigestOp<'a> {
+impl Sha1DigestOp<'_> {
     /// Update the digest with data
     ///
     /// # Arguments
