@@ -235,13 +235,31 @@ The following flows are conducted exclusively when the ROM is operating in ACTIV
 The following flows are conducted when the ROM is operating in the manufacturing mode, indicated by a value of `DEVICE_MANUFACTURING` (0x1) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### UDS Provisioning
-1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set. If the bit is set, the ROM initiates the UDS seed programming flow.
+1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register is set. If the bit is set, ROM initiates the UDS seed programming flow by setting the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
 
-2. In this procedure, the ROM retrieves a 512-bit value from the iTRNG and writes it to the address specified by the `UDS_SEED_OFFSET` register, utilizing DMA hardware assistance.
+2. ROM then retrieves a 512-bit value from the iTRNG, the UDS Seed programming base address from the `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_L` and `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_H` registers and the Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
-3. Following the DMA operation, the ROM updates the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to either `UDS_PROGRAM_SUCCESS` or `UDS_PROGRAM_FAIL`, indicating the outcome of the operation.
+3. ROM then retrieves the UDS granularity from the `CPTRA_HW_CONFIG` register Bit6 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.
 
-4. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
+4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
+    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
+    2. If the granularity is 32-bit, the ROM writes the next word from the UDS seed to the `DIRECT_ACCESS_WDATA_0` register. If the granularity is 64-bit, the ROM writes the next two words to `the DIRECT_ACCESS_WDATA_0` and `DIRECT_ACCESS_WDATA_1` registers, located at offsets 0x44 and 0x48 respectively from the Fuse Controller's base address.
+    3. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register at offset 0x40.
+    4. The ROM triggers the UDS seed write command by writing 0x2 to the `DIRECT_ACCESS_CMD` register at offset 0x3C.
+    5. The ROM continuously polls the `STATUS` register until the DAI state returns to idle.
+    6. [OPEN] Handle DAI error.
+    7. The ROM increments the `DIRECT_ACCESS_ADDRESS` register by 4 for 32-bit granularity or 8 for 64-bit granularity and repeats the process for the remaining words of the UDS seed.
+
+5. After completing the write operation, ROM triggers the partition  digest operation performing the following steps:
+    1. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register.
+    2. The ROM triggers the digest calculation command by writing 0x4 to the `DIRECT_ACCESS_CMD` register.
+    3. The ROM continuously polls the Fuse Controller's `STATUS` register until the DAI state returns to idle.
+
+6. ROM updates the `UDS_PROGRAM_SUCCESS` or the `UDS_PROGRAM_FAIL` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate the outcome of the operation.
+
+7. ROM then resets the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate completion of the programming.
+
+8. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
 1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set
