@@ -527,7 +527,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<MboxFsmE, ()> {
             if val < 8 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, MboxFsmE>(val) })
             } else {
                 Err(())
             }
@@ -581,7 +581,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<MboxStatusE, ()> {
             if val < 0x10 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, MboxStatusE>(val) })
             } else {
                 Err(())
             }

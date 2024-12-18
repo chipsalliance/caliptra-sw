@@ -212,7 +212,7 @@ fn generate_enum(e: &Enum) -> TokenStream {
                     // This transmute is safe because the check above ensures
                     // that the value has a corresponding enum variant, and the
                     // enum is using repr(u32).
-                    Ok(unsafe { core::mem::transmute(val) } )
+                    Ok(unsafe { core::mem::transmute::<u32, #enum_name>(val) } )
                 } else {
                     Err(())
                 }
@@ -319,7 +319,7 @@ mod generate_enums_test {
                     #[inline (always)]
                     fn try_from(val : u32) -> Result<PullDir, ()> {
                         if val < 4 {
-                            Ok(unsafe { core::mem::transmute(val) })
+                            Ok(unsafe { core::mem::transmute::<u32, PullDir>(val) })
                         } else {
                             Err (())
                         }

@@ -1786,7 +1786,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<AxiDmaFsmE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, AxiDmaFsmE>(val) })
             } else {
                 Err(())
             }
@@ -1828,7 +1828,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<RdRouteE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, RdRouteE>(val) })
             } else {
                 Err(())
             }
@@ -1870,7 +1870,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<WrRouteE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, WrRouteE>(val) })
             } else {
                 Err(())
             }

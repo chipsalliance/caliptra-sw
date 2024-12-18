@@ -1352,7 +1352,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<ShaCmdE, ()> {
             if val < 4 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, ShaCmdE>(val) })
             } else {
                 Err(())
             }
