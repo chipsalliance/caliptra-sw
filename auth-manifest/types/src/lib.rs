@@ -14,16 +14,16 @@ Abstract:
 
 #![no_std]
 
-use core::ops::Range;
-
+use bitfield::bitfield;
 use caliptra_image_types::*;
 use core::default::Default;
+use core::ops::Range;
 use memoffset::span_of;
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
-pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 128;
+pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 127;
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
@@ -76,7 +76,7 @@ pub struct AuthManifestPreamble {
 
     pub version: u32,
 
-    pub flags: u32,
+    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED)
 
     pub vendor_pub_keys: AuthManifestPubKeys,
 
@@ -129,21 +129,31 @@ impl AuthManifestPreamble {
     }
 }
 
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    pub struct ImageMetadataFlags(u32);
+    pub image_source, set_image_source: 1, 0;
+    pub ignore_auth_check, set_ignore_auth_check: 2;
+}
+
 /// Caliptra Authorization Manifest Image Metadata
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadata {
-    pub digest: [u8; 48],
+    pub fw_id: u32,
 
-    pub image_source: u32,
+    pub flags: u32, // ImageMetadataFlags(image_source, ignore_auth_check)
+
+    pub digest: [u8; 48],
 }
 
 impl Default for AuthManifestImageMetadata {
     fn default() -> Self {
         AuthManifestImageMetadata {
+            fw_id: u32::MAX,
+            flags: 0,
             digest: [0; 48],
-            image_source: 0,
         }
     }
 }

@@ -504,10 +504,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0051);
     pub const RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM: CaliptraError =
         CaliptraError::new_const(0x000E0052);
-    pub const RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
+    pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID: CaliptraError =
         CaliptraError::new_const(0x000E0053);
-    pub const RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
+    pub const RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000E0054);
+    pub const RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000E0055);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

@@ -5,13 +5,20 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
-use caliptra_common::mailbox_api::{
-    CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
-    MailboxReqHeader,
+use caliptra_common::{
+    mailbox_api::{
+        CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
+        MailboxReq, MailboxReqHeader,
+    },
+    memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
+    FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError};
+use caliptra_hw_model::{
+    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
+    StackInfo, StackRange,
+};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -65,11 +72,26 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         opts
     });
 
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = match args.init_params {
         Some(init_params) => init_params,
         None => InitParams {
             rom: &rom,
+            stack_info: Some(StackInfo::new(image_info)),
             ..Default::default()
         },
     };
