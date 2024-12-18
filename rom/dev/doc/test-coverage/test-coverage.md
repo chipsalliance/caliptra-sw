@@ -46,8 +46,8 @@ Test Scenario| Test Name | ROM Error Code
  Check if RT entry point is within ICCM range  	| **test_runtime_invalid_entry_point_before_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
  Check if RT entry point is within ICCM range  	| **test_runtime_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
  Check if RT entry point is DWORD aligned 	| **test_runtime_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
- Check if RT SVN is greater than max (128) 	| **test_runtime_svn_greater_than_max** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if RT SVN is less than fuse svn 	| **test_runtime_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE
+ Check if FW SVN is greater than max (128) 	| **test_firmware_svn_greater_than_max** | 	 IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED
+ Check if FW SVN is less than fuse svn 	| **test_firmware_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE
  Generates the LDEVID and FMC Alias certificates |**cert_test** | 	 N/A
  Check if the owner and vendor cert validty dates are present in FMC Alias cert | **cert_test_with_custom_dates** | 	 N/A
 
@@ -70,7 +70,7 @@ Check if firmware is zero-sized | **test_zero_firmware_size** | FW_PROC_INVALID_
 Check if firmware is not more than max. size (128K) | **test_firmware_gt_max_size**  | FW_PROC_INVALID_IMAGE_SIZE
 Check if PCR log entries are correctly logged to DCCM | **test_pcr_log**   | N/A
 Check PCR log entries - No Onwer Public Key Hash in fuse_owner_pk_hash | **test_pcr_log_no_owner_key_digest_fuse**   | N/A
-Check PCR log entries - FMC Fuse SVN set in fuse_fmc_key_manifest_svn | **test_pcr_log_fmc_fuse_svn**   | N/A
+Check PCR log entries - FW Fuse SVN set in fuse_fw_manifest_svn | **test_pcr_log_fw_fuse_svn**   | N/A
 Check PCR log entries across Update Reset | **test_pcr_log_across_update_reset**   | N/A
 Check if Fuse log entries are correctly logged to DCCM | **test_fuse_log**   | N/A
 
