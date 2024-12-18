@@ -15,8 +15,8 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::memory_layout::*;
-use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{ColdResetEntry4, PcrId, RomPqcVerifyConfig};
+use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault};
+use caliptra_drivers::{PcrId, RomPqcVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -789,20 +789,13 @@ fn test_check_rom_cold_boot_status_reg() {
 
     hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let coldresetentry4_array = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 2; // Skip first entry
+    let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
+    let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
 
-    // Check RomColdBootStatus datavault value.
-    let coldresetentry4_id =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
     assert_eq!(
-        coldresetentry4_id,
-        ColdResetEntry4::RomColdBootStatus as u32
+        data_vault.rom_cold_boot_status(),
+        u32::from(ColdResetComplete)
     );
-    coldresetentry4_offset += core::mem::size_of::<u32>();
-    let coldresetentry4_value =
-        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(coldresetentry4_value, u32::from(ColdResetComplete));
 }
 
 #[test]

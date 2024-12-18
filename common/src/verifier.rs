@@ -27,7 +27,7 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub mldsa87: &'a mut Mldsa87,
-    pub data_vault: &'a mut DataVault,
+    pub data_vault: &'a DataVault,
     pub pcr_bank: &'a mut PcrBank,
     pub image: &'b [u8],
 }
@@ -154,15 +154,15 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
 
     /// Get the vendor ECC key index saved in data vault on cold boot
     fn vendor_ecc_pub_key_idx_dv(&self) -> u32 {
-        self.data_vault.ecc_vendor_pk_index()
+        self.data_vault.vendor_ecc_pk_index()
     }
 
-    /// Get the vendor LMS key index saved in data vault on cold boot
+    /// Get the vendor PQC key index saved in data vault on cold boot
     fn vendor_pqc_pub_key_idx_dv(&self) -> u32 {
-        self.data_vault.pqc_vendor_pk_index()
+        self.data_vault.vendor_pqc_pk_index()
     }
 
-    /// Get the owner public key digest saved in the dv on cold boot
+    /// Get the owner public keys digest saved in the dv on cold boot
     fn owner_pub_key_digest_dv(&self) -> ImageDigest384 {
         self.data_vault.owner_pk_hash().into()
     }

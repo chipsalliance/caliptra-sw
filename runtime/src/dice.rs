@@ -70,11 +70,7 @@ impl GetLdevCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetLdevCertResp::default();
 
-        resp.data_size = copy_ldevid_cert(
-            &drivers.data_vault,
-            drivers.persistent_data.get(),
-            &mut resp.data,
-        )? as u32;
+        resp.data_size = copy_ldevid_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
 
         Ok(MailboxResp::GetLdevCert(resp))
     }
@@ -86,11 +82,7 @@ impl GetFmcAliasCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetFmcAliasCertResp::default();
 
-        resp.data_size = copy_fmc_alias_cert(
-            &drivers.data_vault,
-            drivers.persistent_data.get(),
-            &mut resp.data,
-        )? as u32;
+        resp.data_size = copy_fmc_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
 
         Ok(MailboxResp::GetFmcAliasCert(resp))
     }
@@ -108,87 +100,23 @@ impl GetRtAliasCertCmd {
     }
 }
 
-/// Retrieve the r portion of the LDevId cert signature
+/// Return the LDevId ECC cert signature
 ///
 /// # Arguments
 ///
 /// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
-///
-/// # Returns
-///
-/// * `Ecc384Scalar` - The r portion of the LDevId cert signature
-fn ldevid_dice_sign_r(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Scalar> {
-    let ds: DataStore = persistent_data
-        .fht
-        .ldevid_cert_sig_r_dv_hdl
-        .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?;
-
-    // The data store is either a warm reset entry or a cold reset entry.
-    match ds {
-        DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
-        DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED),
-    }
-}
-
-/// Retrieve the s portion of the LDevId cert signature
-///
-/// # Arguments
-///
-/// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
-///
-/// # Returns
-///
-/// * `Ecc384Scalar` - The s portion of the LDevId cert signature
-fn ldevid_dice_sign_s(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Scalar> {
-    let ds: DataStore = persistent_data
-        .fht
-        .ldevid_cert_sig_s_dv_hdl
-        .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?;
-
-    // The data store is either a warm reset entry or a cold reset entry.
-    match ds {
-        DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
-        DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED),
-    }
-}
-
-/// Piece together the r and s portions of the LDevId cert signature
-///
-/// # Arguments
-///
-/// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
 ///
 /// # Returns
 ///
 /// * `Ecc384Signature` - The formed signature
-pub fn ldevid_dice_sign(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Signature> {
-    Ok(Ecc384Signature {
-        r: ldevid_dice_sign_r(persistent_data, dv)?,
-        s: ldevid_dice_sign_s(persistent_data, dv)?,
-    })
+pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
+    persistent_data.data_vault.ldev_dice_ecc_signature()
 }
 
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
 ///
-/// * `dv` - DataVault
 /// * `persistent_data` - PersistentData
 /// * `cert` - Buffer to copy LDevID certificate to
 ///
@@ -197,72 +125,15 @@ pub fn ldevid_dice_sign(
 /// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
 pub fn copy_ldevid_cert(
-    dv: &DataVault,
     persistent_data: &PersistentData,
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
         .ldevid_tbs
         .get(..persistent_data.fht.ldevid_tbs_size.into());
-    let sig = ldevid_dice_sign(persistent_data, dv)?;
+    let sig = ldevid_dice_sign(persistent_data);
     cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
-}
-
-/// Retrieve the r portion of the FMC alias cert signature
-///
-/// # Arguments
-///
-/// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
-///
-/// # Returns
-///
-/// * `Ecc384Scalar` - The r portion of the FMC alias cert signature
-fn fmc_dice_sign_r(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Scalar> {
-    let ds: DataStore = persistent_data
-        .fht
-        .fmc_cert_sig_r_dv_hdl
-        .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?;
-
-    // The data store is either a warm reset entry or a cold reset entry.
-    match ds {
-        DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
-        DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED),
-    }
-}
-
-/// Retrieve the s portion of the FMC alias cert signature
-///
-/// # Arguments
-///
-/// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
-///
-/// # Returns
-///
-/// * `Ecc384Scalar` - The s portion of the FMC alias cert signature
-fn fmc_dice_sign_s(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Scalar> {
-    let ds: DataStore = persistent_data
-        .fht
-        .fmc_cert_sig_s_dv_hdl
-        .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?;
-
-    // The data store is either a warm reset entry or a cold reset entry.
-    match ds {
-        DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
-        DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED),
-    }
 }
 
 /// Piece together the r and s portions of the FMC alias cert signature
@@ -270,26 +141,18 @@ fn fmc_dice_sign_s(
 /// # Arguments
 ///
 /// * `persistent_data` - PersistentData
-/// * `dv` - DataVault
 ///
 /// # Returns
 ///
 /// * `Ecc384Signature` - The formed signature
-pub fn fmc_dice_sign(
-    persistent_data: &PersistentData,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Signature> {
-    Ok(Ecc384Signature {
-        r: fmc_dice_sign_r(persistent_data, dv)?,
-        s: fmc_dice_sign_s(persistent_data, dv)?,
-    })
+pub fn fmc_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
+    persistent_data.data_vault.fmc_dice_ecc_signature()
 }
 
 /// Copy FMC alias certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
 ///
-/// * `dv` - DataVault
 /// * `persistent_data` - PersistentData
 /// * `cert` - Buffer to copy LDevID certificate to
 ///
@@ -298,14 +161,13 @@ pub fn fmc_dice_sign(
 /// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
 pub fn copy_fmc_alias_cert(
-    dv: &DataVault,
     persistent_data: &PersistentData,
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
         .fmcalias_tbs
         .get(..persistent_data.fht.fmcalias_tbs_size.into());
-    let sig = fmc_dice_sign(persistent_data, dv)?;
+    let sig = fmc_dice_sign(persistent_data);
     cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }

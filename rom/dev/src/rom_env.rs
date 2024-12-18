@@ -17,14 +17,14 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
+    DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
-    csrng::CsrngReg, doe::DoeReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
-    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg, doe::DoeReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
+    kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Rom Context
@@ -55,9 +55,6 @@ pub struct RomEnv {
 
     /// Key Vault
     pub key_vault: KeyVault,
-
-    /// Data Vault
-    pub data_vault: DataVault,
 
     /// SoC interface
     pub soc_ifc: SocIfc,
@@ -100,7 +97,6 @@ impl RomEnv {
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
-            data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),

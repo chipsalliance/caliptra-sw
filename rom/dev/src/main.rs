@@ -251,7 +251,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     }
 
     // Get the fmc entry point from data vault
-    let entry = env.data_vault.fmc_entry_point();
+    let entry = env.persistent_data.get().data_vault.fmc_entry_point();
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 
