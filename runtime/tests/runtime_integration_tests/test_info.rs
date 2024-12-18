@@ -13,7 +13,10 @@ use caliptra_common::{
     },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::RomInfo;
+
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -59,10 +62,21 @@ fn test_fw_info() {
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
             .unwrap();
 
+    // Set fuses
+    let owner_pub_key_hash = ImageGenerator::new(Crypto::default())
+        .owner_pubkey_digest(&image.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: owner_pub_key_hash,
+        ..Default::default()
+    };
+
     let mut model = caliptra_hw_model::new(
         init_params,
         BootParams {
             fw_image: Some(&image.to_bytes().unwrap()),
+            fuses,
             ..Default::default()
         },
     )
@@ -117,6 +131,8 @@ fn test_fw_info() {
     assert_eq!(info.rom_sha256_digest, rom_info.sha256_digest);
     assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
     assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
+    // Check owner public key hash
+    assert_eq!(info.owner_pub_key_hash, owner_pub_key_hash);
 
     // Make image with newer SVN.
     let mut image_opts20 = image_opts.clone();

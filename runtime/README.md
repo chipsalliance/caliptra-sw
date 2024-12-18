@@ -554,6 +554,8 @@ Command Code: `0x4754_4744` ("GTGD")
 
 Retrieves information about the current Runtime Firmware, FMC, and ROM.
 
+NOTE: Additional fields and info may be appended to the response in subsequent FW versions.
+
 Command Code: `0x494E_464F` ("INFO")
 
 *Table: `FW_INFO` input arguments*
@@ -579,6 +581,7 @@ Command Code: `0x494E_464F` ("INFO")
 | rom_sha256_digest      | u32[8]         | Digest of ROM binary.
 | fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
 | runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
+| owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
 
 ### VERSION
 
