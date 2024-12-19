@@ -118,6 +118,10 @@ impl AuthorizeAndStashCmd {
             .image_metadata_list
             .binary_search_by(|metadata| metadata.fw_id.cmp(&cmd_fw_id))
             .ok()
-            .map(|index| &auth_manifest_image_metadata_col.image_metadata_list[index])
+            .map(|index| {
+                auth_manifest_image_metadata_col
+                    .image_metadata_list
+                    .get(index)
+            })?
     }
 }

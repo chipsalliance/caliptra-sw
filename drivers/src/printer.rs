@@ -68,8 +68,19 @@ impl uDisplay for HexBytes<'_> {
     where
         W: uWrite + ?Sized,
     {
-        for byte in self.0.iter() {
-            ufmt::uwrite!(f, "{:02X}", *byte)?;
+        for &x in self.0.iter() {
+            let c = x >> 4;
+            if c < 10 {
+                f.write_char((c + b'0') as char)?;
+            } else {
+                f.write_char((c - 10 + b'A') as char)?;
+            }
+            let c = x & 0xf;
+            if c < 10 {
+                f.write_char((c + b'0') as char)?;
+            } else {
+                f.write_char((c - 10 + b'A') as char)?;
+            }
         }
         Ok(())
     }
