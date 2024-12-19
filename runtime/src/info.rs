@@ -15,7 +15,6 @@ Abstract:
 use crate::{handoff::RtHandoff, Drivers};
 use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraResult;
-use caliptra_image_types::RomInfo;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {

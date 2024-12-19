@@ -174,7 +174,7 @@ fn fw_load_error_flow_base(
     initial_dbg_manuf_service_reg: Option<u32>,
 ) {
     // Use defaults if not provided
-    let fuses = fuses.unwrap_or(Fuses::default());
+    let fuses = fuses.unwrap_or_default();
     let fw_image = fw_image.unwrap_or(build_fw_image(ImageOptions::default()));
 
     // Attempt to load the FW

@@ -20,7 +20,7 @@ pub struct RtAliasCertTbsParams<'a> {
     pub not_after: &'a [u8; 15usize],
     pub tcb_info_rt_svn: &'a [u8; 1usize],
 }
-impl<'a> RtAliasCertTbsParams<'a> {
+impl RtAliasCertTbsParams<'_> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

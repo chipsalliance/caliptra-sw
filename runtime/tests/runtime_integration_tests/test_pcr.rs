@@ -100,7 +100,7 @@ pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
         .unwrap()
         .unwrap();
 
-    return QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs;
+    QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs
 }
 
 #[test]
