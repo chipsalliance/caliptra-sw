@@ -746,6 +746,7 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-hw-model-types",
  "caliptra-image-crypto",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",

@@ -510,6 +510,14 @@ impl MailboxRecvTxn<'_> {
         self.state = MailboxOpState::Idle;
         Ok(())
     }
+
+    ///
+    /// Set UC TAP unlock
+    ///
+    pub fn set_uc_tap_unlock(&mut self, enable: bool) {
+        let mbox = self.mbox.regs_mut();
+        mbox.tap_mode().modify(|w| w.enabled(enable))
+    }
 }
 
 impl Drop for MailboxRecvTxn<'_> {

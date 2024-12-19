@@ -13,12 +13,14 @@ Abstract:
 --*/
 
 mod cold_reset;
+mod debug_unlock;
 #[cfg(feature = "fake-rom")]
 mod fake;
 mod update_reset;
 mod warm_reset;
 
 use crate::cprintln;
+pub use crate::flow::debug_unlock::DebugUnlockFlow;
 use crate::{handle_fatal_error, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;

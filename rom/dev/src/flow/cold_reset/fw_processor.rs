@@ -616,7 +616,7 @@ impl FirmwareProcessor {
     /// # Returns
     /// * `()` - Ok
     ///    Error code on failure.
-    fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
+    pub fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
         // NOTE: Currently ROM only supports commands with a fixed request size
         //       This check will need to be updated if any commands are added with a variable request size
         if txn.dlen() as usize != data.len() {

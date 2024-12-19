@@ -27,6 +27,9 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
 
+pub const DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN: [u32; 4] =
+    [0xcfcecdcc, 0xcbcac9c8, 0xc7c6c5c4, 0xc3c2c1c0];
+
 struct SecurityStateWrapper(SecurityState);
 impl std::fmt::Debug for SecurityStateWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

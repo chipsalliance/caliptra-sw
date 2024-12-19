@@ -676,6 +676,24 @@ impl CaliptraError {
     // TODO: What base value is right for this?
     // FIPS Hooks
     pub const FIPS_HOOKS_INJECTED_ERROR: CaliptraError = CaliptraError::new_const(0x90100000);
+
+    // Debug unlock errors
+    pub const ROM_SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE: CaliptraError =
+        CaliptraError::new_const(0xa0000000);
+    pub const ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000001);
+    pub const ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN: CaliptraError =
+        CaliptraError::new_const(0xa0000002);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000003);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ: CaliptraError =
+        CaliptraError::new_const(0xa0000003);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL: CaliptraError =
+        CaliptraError::new_const(0xa0000004);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000005);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN: CaliptraError =
+        CaliptraError::new_const(0xa0000006);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

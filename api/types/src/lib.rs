@@ -19,6 +19,9 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
 
+pub const DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN: [u32; 4] =
+    [0xcfcecdcc, 0xcbcac9c8, 0xc7c6c5c4, 0xc3c2c1c0];
+
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum DeviceLifecycle {
@@ -78,6 +81,49 @@ impl SecurityState {
     }
     pub fn set_device_lifecycle(&mut self, val: DeviceLifecycle) -> &mut Self {
         self.0 |= (val as u32) & 0x3;
+        self
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct DbgManufServiceRegReq(u32);
+impl From<u32> for DbgManufServiceRegReq {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+impl From<DbgManufServiceRegReq> for u32 {
+    fn from(value: DbgManufServiceRegReq) -> Self {
+        value.0
+    }
+}
+
+impl DbgManufServiceRegReq {
+    pub fn set_manuf_dbg_unlock_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 0;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
+        self
+    }
+    pub fn set_prod_dbg_unlock_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 1;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
+        self
+    }
+    pub fn set_uds_program_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 2;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
         self
     }
 }
@@ -168,6 +214,7 @@ pub struct Fuses {
     pub fuse_lms_revocation: u32,
     pub fuse_mldsa_revocation: u32,
     pub soc_stepping_id: u16,
+    pub manuf_dbg_unlock_token: [u32; 4],
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -186,6 +233,7 @@ impl Default for Fuses {
             fuse_lms_revocation: Default::default(),
             fuse_mldsa_revocation: Default::default(),
             soc_stepping_id: Default::default(),
+            manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN,
         }
     }
 }

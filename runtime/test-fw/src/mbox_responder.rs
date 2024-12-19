@@ -9,6 +9,7 @@ use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
 use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
+    sha2_512_384::Sha2DigestOpTrait,
     Array4x12, CaliptraError, CaliptraResult,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
