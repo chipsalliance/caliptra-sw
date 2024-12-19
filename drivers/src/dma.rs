@@ -17,6 +17,7 @@ use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg,
 };
+use core::ops::Add;
 use zerocopy::AsBytes;
 
 pub enum DmaReadTarget {
@@ -37,6 +38,22 @@ impl From<u64> for AxiAddr {
             lo: addr as u32,
             hi: (addr >> 32) as u32,
         }
+    }
+}
+impl From<AxiAddr> for u64 {
+    fn from(addr: AxiAddr) -> Self {
+        (addr.hi as u64) << 32 | (addr.lo as u64)
+    }
+}
+
+impl Add for AxiAddr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let self_u64: u64 = self.into();
+        let rhs_u64: u64 = rhs.into();
+        let sum = self_u64 + rhs_u64;
+        sum.into()
     }
 }
 
