@@ -235,7 +235,7 @@ fn smoke_test() {
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
+        hw.step_until_output_contains("[rt] listening for commands...\n")
             .unwrap();
         let output = hw.output().take(usize::MAX);
         assert_output_contains(&output, "Running Caliptra ROM");
@@ -250,14 +250,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");
         assert_output_contains(&output, "Running Caliptra FMC");
-        assert_output_contains(
-            &output,
-            r#"
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
-| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
-| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-        );
+        assert_output_contains(&output, r#"Caliptra RT"#);
     }
 
     let ldev_cert_resp = hw.mailbox_execute_req(GetLdevCertReq::default()).unwrap();
@@ -788,7 +781,7 @@ fn test_rt_wdt_timeout() {
     hw.step_until_boot_status(RUNTIME_BOOT_STATUS_READY, true);
     let fmc_target = hw.output().sink().now();
 
-    let rt_wdt_timeout_cycles = fmc_target - wdt_start - 5_000;
+    let rt_wdt_timeout_cycles = fmc_target - wdt_start - 2_000;
     drop(hw);
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);

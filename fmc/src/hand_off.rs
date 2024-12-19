@@ -45,24 +45,14 @@ impl HandOff {
 
     /// Retrieve FMC CDI
     pub fn fmc_cdi(env: &FmcEnv) -> KeyId {
-        let ds: DataStore =
-            Self::fht(env)
-                .fmc_cdi_kv_hdl
-                .try_into()
-                .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid CDI KV handle");
-                    handle_fatal_error(e.into())
-                });
+        let ds: DataStore = Self::fht(env)
+            .fmc_cdi_kv_hdl
+            .try_into()
+            .unwrap_or_else(|e: CaliptraError| handle_fatal_error(e.into()));
 
         match ds {
-            KeyVaultSlot(key_id) => {
-                cprintln!("[fht] Handoff : FMC CDI: {:?}", key_id as u8);
-                key_id
-            }
-            _ => {
-                cprintln!("[fht] Invalid KeySlot KV Entry");
-                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
-            }
+            KeyVaultSlot(key_id) => key_id,
+            _ => handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into()),
         }
     }
 

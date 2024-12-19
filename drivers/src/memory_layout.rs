@@ -41,7 +41,8 @@ pub const DPE_ORG: u32 = 0x50005400;
 pub const PCR_RESET_COUNTER_ORG: u32 = 0x50006800;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = 0x50006C00;
 pub const IDEVID_CSR_ORG: u32 = 0x50008800;
-pub const DATA_ORG: u32 = 0x50008C00;
+pub const FMC_ALIAS_CSR_ORG: u32 = 0x50008C00;
+pub const DATA_ORG: u32 = 0x50009000;
 
 pub const STACK_ORG: u32 = 0x5000f800;
 pub const ROM_STACK_ORG: u32 = 0x5001C000;
@@ -74,7 +75,8 @@ pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 27 * 1024;
+pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
+pub const DATA_SIZE: u32 = 26 * 1024;
 pub const STACK_SIZE: u32 = 64 * 1024;
 pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -158,7 +160,13 @@ fn mem_layout_test_pcr_reset_counter() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_idevid_csr() {
-    assert_eq!((DATA_ORG - IDEVID_CSR_ORG), IDEVID_CSR_SIZE);
+    assert_eq!((DATA_ORG - FMC_ALIAS_CSR_ORG), FMC_ALIAS_CSR_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_fmc_alias_csr() {
+    assert_eq!((FMC_ALIAS_CSR_ORG - IDEVID_CSR_ORG), IDEVID_CSR_SIZE);
 }
 
 #[test]
