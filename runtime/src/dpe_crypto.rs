@@ -18,9 +18,11 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
-    cprintln, hmac_kdf, sha2_512_384::Sha2DigestOpTrait, Array4x12, Ecc384, Ecc384PrivKeyIn,
-    Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId,
-    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
+    cprintln, hmac_kdf,
+    sha2_512_384::{Sha2DigestOpTrait, Sha384},
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacData,
+    HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp,
+    Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
 use zerocopy::AsBytes;
@@ -69,8 +71,6 @@ impl Drop for DpeCrypto<'_> {
         let _ = self.key_vault.erase_key(KEY_ID_TMP);
     }
 }
-
-use caliptra_drivers::sha2_512_384::Sha384;
 
 pub struct DpeHasher<'a> {
     op: Sha2DigestOp<'a, Sha384>,

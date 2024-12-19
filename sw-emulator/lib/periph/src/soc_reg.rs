@@ -298,6 +298,11 @@ register_bitfields! [
         RSVD OFFSET(6) NUMBITS(26) [],
     ],
 
+    /// Debug intent
+    SsDebugIntent [
+        DEBUG_INTENT OFFSET(0) NUMBITS(1) [],
+    ],
+
     /// SubSytem Debug Manufacturing Service Request Register
     SsDbgManufServiceRegReq [
         MANUF_DBG_UNLOCK_REQ OFFSET(0) NUMBITS(1) [],
@@ -724,6 +729,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x520)]
     ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
 
+    #[register(offset = 0x530)]
+    ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
+
     #[register(offset = 0x524)]
     ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
 
@@ -940,6 +948,7 @@ impl SocRegistersImpl {
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
+            ss_debug_intent: ReadOnlyRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),

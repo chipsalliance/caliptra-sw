@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 mod cold_reset;
+pub mod debug_unlock;
 #[cfg(feature = "fake-rom")]
 mod fake;
 pub(crate) mod uds_programming;

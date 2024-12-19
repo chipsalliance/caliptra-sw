@@ -7,6 +7,7 @@ edition = "2021"
 rust-version = "1.70"
 
 [dependencies]
+caliptra-api.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
   "cfi",
   "cfi-counter",
