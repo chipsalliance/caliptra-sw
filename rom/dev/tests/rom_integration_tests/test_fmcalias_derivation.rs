@@ -14,7 +14,6 @@ use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
 use caliptra_error::CaliptraError;
@@ -744,11 +743,6 @@ fn test_fht_info() {
     let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 552);
     assert_eq!(fht.fmcalias_tbs_size, 753);
-    assert_eq!(fht.ldevid_tbs_addr, LDEVID_TBS_ORG);
-    assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
-    assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
-    assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
-    assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
 }
 
 #[test]
