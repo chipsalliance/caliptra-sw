@@ -14,18 +14,23 @@ Abstract:
 --*/
 
 use super::dice::*;
-use super::x509::*;
 use crate::cprintln;
-use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use crate::crypto::Crypto;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::keyids::KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED;
-use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
-use caliptra_common::RomBootStatus::*;
+use caliptra_common::{
+    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    keyids::{
+        KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
+        KEY_ID_ROM_FMC_CDI,
+    },
+    x509,
+    RomBootStatus::*,
+};
 use caliptra_drivers::*;
 use caliptra_x509::*;
 use zeroize::Zeroize;
@@ -79,12 +84,16 @@ impl LocalDevIdLayer {
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_key_id = X509::subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_key_id =
+            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -186,12 +195,12 @@ impl LocalDevIdLayer {
         let ecc_auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let ecc_pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let ecc_serial_number = X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
+        let ecc_serial_number = x509::X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
         let ecc_serial_number = okref(&ecc_serial_number)?;
 
         // CSR `To Be Signed` Parameters
         let ecc_tbs_params = LocalDevIdCertTbsParams {
-            ueid: &X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,

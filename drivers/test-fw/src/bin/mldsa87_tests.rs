@@ -414,7 +414,7 @@ fn test_gen_key_pair() {
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
         id: KEY_ID,
-        usage: KeyUsage::default().set_mldsa_seed_en(),
+        usage: KeyUsage::default().set_mldsa_key_gen_seed_en(),
     };
 
     hmac.hmac(

@@ -15,21 +15,21 @@ Abstract:
 
 use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
-use super::x509::X509;
 use crate::cprintln;
-use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use crate::crypto::Crypto;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::dice;
+use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
 };
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
+use caliptra_common::{dice, x509};
 use caliptra_drivers::{
     okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle,
 };
@@ -85,12 +85,16 @@ impl FmcAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_key_id = X509::subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_key_id =
+            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -222,12 +226,12 @@ impl FmcAliasLayer {
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
-            ueid: &X509::ueid(soc_ifc)?,
+            ueid: &x509::X509::ueid(soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
             authority_key_id: input.ecc_auth_key_id,
-            serial_number: &X509::ecc_cert_sn(&mut env.sha256, pub_key)?,
+            serial_number: &x509::X509::ecc_cert_sn(&mut env.sha256, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),

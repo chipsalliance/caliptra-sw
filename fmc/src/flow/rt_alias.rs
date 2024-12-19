@@ -13,22 +13,24 @@ Abstract:
 --*/
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
+use caliptra_common::x509::X509;
 
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
-use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cprintln;
-use caliptra_common::crypto::Ecc384KeyPair;
-use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
+use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use caliptra_common::keyids::{
+    KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
+};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
-    ResetReason,
+    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId,
+    PersistentData, ResetReason,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
@@ -45,24 +47,32 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
         }
 
-        if Self::kv_slot_collides(input.auth_key_pair.priv_key) {
+        if Self::kv_slot_collides(input.ecc_auth_key_pair.priv_key)
+            || Self::kv_slot_collides(input.mldsa_auth_key_pair.key_pair_seed)
+        {
             return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
         }
 
         cprintln!("[alias rt] Derive CDI");
-        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
+        cprintln!("[alias rt] Store it in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
         // Derive CDI
         Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
-            "[alias rt] Store priv key in slot 0x{:x}",
-            KEY_ID_RT_PRIV_KEY as u8
+            "[alias rt] Store ECC priv key in slot 0x{:x} and MLDSA key pair seed in slot 0x{:x}",
+            KEY_ID_RT_ECDSA_PRIV_KEY as u8,
+            KEY_ID_RT_MLDSA_KEYPAIR_SEED as u8,
         );
 
-        // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY)?;
+        // Derive DICE ECC and MLDSA Key Pairs from CDI
+        let (ecc_key_pair, mldsa_key_pair) = Self::derive_key_pair(
+            env,
+            KEY_ID_RT_CDI,
+            KEY_ID_RT_ECDSA_PRIV_KEY,
+            KEY_ID_RT_MLDSA_KEYPAIR_SEED,
+        )?;
         cprintln!("[alias rt] Derive Key Pair - Done");
         report_boot_status(FmcBootStatus::RtAliasKeyPairDerivationComplete as u32);
 
@@ -70,18 +80,26 @@ impl RtAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let ecc_subj_sn = X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcBootStatus::RtAliasSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let ecc_subj_key_id =
+            X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcBootStatus::RtAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
             cdi: KEY_ID_RT_CDI,
-            subj_key_pair: key_pair,
-            subj_sn,
-            subj_key_id,
+            ecc_subj_key_pair: ecc_key_pair,
+            ecc_subj_sn,
+            ecc_subj_key_id,
+            mldsa_subj_key_pair: mldsa_key_pair,
+            mldsa_subj_sn,
+            mldsa_subj_key_id,
         };
 
         let manifest = &env.persistent_data.get().manifest1;
@@ -94,7 +112,10 @@ impl RtAliasLayer {
     }
 
     fn kv_slot_collides(slot: KeyId) -> bool {
-        slot == KEY_ID_RT_CDI || slot == KEY_ID_RT_PRIV_KEY || slot == KEY_ID_TMP
+        slot == KEY_ID_RT_CDI
+            || slot == KEY_ID_RT_ECDSA_PRIV_KEY
+            || slot == KEY_ID_RT_MLDSA_KEYPAIR_SEED
+            || slot == KEY_ID_TMP
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -134,18 +155,30 @@ impl RtAliasLayer {
     ///
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
-        let auth_pub = HandOff::fmc_pub_key(env);
-        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
-        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
+        let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
+        let ecc_auth_sn = X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
+        let ecc_auth_key_id = X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
+
+        let mldsa_auth_pub = HandOff::fmc_mldsa_pub_key(env);
+        let mldsa_auth_sn = X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
+        let mldsa_auth_key_id =
+            X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
+
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: HandOff::fmc_priv_key(env),
-                pub_key: auth_pub,
+            ecc_auth_key_pair: Ecc384KeyPair {
+                priv_key: HandOff::fmc_ecc_priv_key(env),
+                pub_key: ecc_auth_pub,
             },
-            auth_sn: auth_serial_number,
-            auth_key_id,
+            mldsa_auth_key_pair: MlDsaKeyPair {
+                key_pair_seed: HandOff::fmc_mldsa_keypair_seed_key(env),
+                pub_key: mldsa_auth_pub,
+            },
+            ecc_auth_sn,
+            ecc_auth_key_id,
+            mldsa_auth_sn,
+            mldsa_auth_key_id,
         };
 
         Ok(input)
@@ -227,7 +260,14 @@ impl RtAliasLayer {
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi)?;
+        Crypto::env_hmac_kdf(
+            env,
+            fmc_cdi,
+            b"alias_rt_cdi",
+            Some(&tci),
+            rt_cdi,
+            HmacMode::Hmac512,
+        )?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         Ok(())
     }
@@ -236,27 +276,39 @@ impl RtAliasLayer {
     ///
     /// # Arguments
     ///
-    /// * `env`      - Fmc Environment
-    /// * `cdi`      - Composite Device Identity
-    /// * `priv_key` - Key slot to store the private key into
+    /// * `env`                - Fmc Environment
+    /// * `cdi`                - Composite Device Identity
+    /// * `ecc_priv_key`       - Key slot to store the ECC private key into
+    /// * `mldsa_keypair_seed` - Key slot to store the MLDSA key pair seed
     ///
     /// # Returns
     ///
-    /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    /// * `(Ecc384KeyPair, MlDsaKeyPair)` - DICE Layer ECC and MLDSA Key Pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut FmcEnv,
         cdi: KeyId,
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"rt_alias_keygen", priv_key);
+        ecc_priv_key: KeyId,
+        mldsa_keypair_seed: KeyId,
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        let result = Crypto::ecc384_key_gen(env, cdi, b"alias_rt_ecc_key", ecc_priv_key);
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
             cfi_assert!(result.is_err());
         }
+        let ecc_keypair = result?;
 
-        result
+        // Derive the MLDSA Key Pair.
+        let result = Crypto::mldsa_key_gen(env, cdi, b"alias_rt_mldsa_key", mldsa_keypair_seed);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        let mldsa_keypair = result?;
+
+        Ok((ecc_keypair, mldsa_keypair))
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -274,11 +326,27 @@ impl RtAliasLayer {
         not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
         not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
-        let auth_priv_key = input.auth_key_pair.priv_key;
-        let auth_pub_key = &input.auth_key_pair.pub_key;
-        let pub_key = &output.subj_key_pair.pub_key;
+        Self::generate_ecc_cert_sig(env, input, output, not_before, not_after)?;
+        Self::generate_mldsa_cert_sig(env, input, output, not_before, not_after)?;
 
-        let serial_number = &X509::cert_sn(env, pub_key)?;
+        report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
+
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn generate_ecc_cert_sig(
+        env: &mut FmcEnv,
+        input: &DiceInput,
+        output: &DiceOutput,
+        not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
+        not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
+    ) -> CaliptraResult<()> {
+        let auth_priv_key = input.ecc_auth_key_pair.priv_key;
+        let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
+        let pub_key = &output.ecc_subj_key_pair.pub_key;
+
+        let serial_number = &X509::ecc_cert_sn(&mut env.sha256, pub_key)?;
 
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
         let rt_svn = HandOff::rt_svn(env) as u8;
@@ -286,11 +354,11 @@ impl RtAliasLayer {
         // Certificate `To Be Signed` Parameters
         let params = RtAliasCertTbsParams {
             // Do we need the UEID here?
-            ueid: &X509::ueid(env)?,
-            subject_sn: &output.subj_sn,
-            subject_key_id: &output.subj_key_id,
-            issuer_sn: &input.auth_sn,
-            authority_key_id: &input.auth_key_id,
+            ueid: &X509::ueid(&env.soc_ifc)?,
+            subject_sn: &output.ecc_subj_sn,
+            subject_key_id: &output.ecc_subj_key_id,
+            issuer_sn: &input.ecc_auth_sn,
+            authority_key_id: &input.ecc_auth_key_id,
             serial_number,
             public_key: &pub_key.to_der(),
             not_before,
@@ -305,19 +373,16 @@ impl RtAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[alias rt] Signing Cert with AUTHO
-            RITY.KEYID = {}",
+            "[alias rt] Signing ECC Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        // AliasRtTbsDigest = sha384_digest(AliasRtTbs) AliaRtTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)
-
         let sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
-            "[alias rt] Erasing AUTHORITY.KEYID = {}",
+            "[alias rt] Erasing ECC AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
@@ -326,13 +391,13 @@ impl RtAliasLayer {
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
-        cprintln!("[alias rt] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[alias rt] PUB.Y = {}", HexBytes(&_pub_y));
+        cprintln!("[alias rt] ECC PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[alias rt] ECC PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[alias rt] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
+        cprintln!("[alias rt] ECC SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[alias rt] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
@@ -345,8 +410,18 @@ impl RtAliasLayer {
         Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
         HandOff::set_rtalias_tbs_size(env, tbs.tbs().len());
 
-        report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
+        Ok(())
+    }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn generate_mldsa_cert_sig(
+        _env: &mut FmcEnv,
+        _input: &DiceInput,
+        _output: &DiceOutput,
+        _not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
+        _not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
+    ) -> CaliptraResult<()> {
+        // [TODO][CAP2] Create MLDSA RtAliasCertTbsParams
         Ok(())
     }
 

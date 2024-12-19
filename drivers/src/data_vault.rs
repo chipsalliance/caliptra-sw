@@ -130,6 +130,24 @@ impl DataVault {
         self.cold_reset_entries.fmc_ecc_pk
     }
 
+    /// Set the fmc MLDSA public key.
+    ///
+    /// # Arguments
+    /// * `pub_key` - fmc MLDSA public key
+    ///
+    pub fn set_fmc_mldsa_pub_key(&mut self, pub_key: &Mldsa87PubKey) {
+        self.cold_reset_entries.fmc_mldsa_pk = *pub_key;
+    }
+
+    /// Get the fmc MLDSA public key.
+    ///
+    /// # Returns
+    /// * fmc MLDSA public key
+    ///
+    pub fn fmc_mldsa_pub_key(&self) -> Mldsa87PubKey {
+        self.cold_reset_entries.fmc_mldsa_pk
+    }
+
     /// Set the fmc tcb component identifier.
     ///
     /// # Arguments

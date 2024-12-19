@@ -16,18 +16,21 @@ Abstract:
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
-use crate::crypto::{Crypto, Ecc384KeyPair, Ecdsa384SignatureAdapter, MlDsaKeyPair, PubKey};
+use crate::crypto::{Crypto, Ecdsa384SignatureAdapter};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::keyids::{
-    KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
-    KEY_ID_UDS,
+use caliptra_common::{
+    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    keyids::{
+        KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
+        KEY_ID_ROM_FMC_CDI, KEY_ID_UDS,
+    },
+    x509,
+    RomBootStatus::*,
 };
-use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::MAX_CSR_SIZE;
 use caliptra_drivers::*;
 use caliptra_x509::*;
 use zeroize::Zeroize;
@@ -88,8 +91,10 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
         let ecc_subj_key_id = X509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
@@ -265,7 +270,7 @@ impl InitDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsParams {
             // Unique Endpoint Identifier
-            ueid: &X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::X509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.ecc_subj_sn,

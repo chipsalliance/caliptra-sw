@@ -13,9 +13,10 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-#[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::keyids::KEY_ID_TMP;
+use caliptra_common::{
+    crypto::{self, Ecc384KeyPair, MlDsaKeyPair},
+    keyids::KEY_ID_TMP,
+};
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
 use zeroize::Zeroize;
@@ -37,34 +38,6 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
     }
 }
 
-/// DICE Layer ECC Key Pair
-#[derive(Debug, Zeroize)]
-pub struct Ecc384KeyPair {
-    /// Private Key KV Slot Id
-    #[zeroize(skip)]
-    pub priv_key: KeyId,
-
-    /// Public Key
-    pub pub_key: Ecc384PubKey,
-}
-
-/// DICE Layer MLDSA Key Pair
-#[derive(Debug, Zeroize)]
-pub struct MlDsaKeyPair {
-    /// Key Pair Generation KV Slot Id
-    #[zeroize(skip)]
-    pub key_pair_seed: KeyId,
-
-    /// Public Key
-    pub pub_key: Mldsa87PubKey,
-}
-
-#[derive(Debug)]
-pub enum PubKey<'a> {
-    Ecc(&'a Ecc384PubKey),
-    Mldsa(&'a Mldsa87PubKey),
-}
-
 pub enum Crypto {}
 
 impl Crypto {
@@ -81,36 +54,6 @@ impl Crypto {
     #[inline(always)]
     pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
         env.sha1.digest(data)
-    }
-
-    /// Calculate SHA2-256 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `sha256` - SHA256 driver
-    /// * `data`   - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x8` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn sha256_digest(sha256: &mut Sha256, data: &[u8]) -> CaliptraResult<Array4x8> {
-        sha256.digest(data)
-    }
-
-    /// Calculate SHA2-384 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x12` - Digest
-    #[inline(always)]
-    pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha2_512_384.sha384_digest(data)
     }
 
     /// Calculate SHA2-512 Digest
@@ -154,7 +97,8 @@ impl Crypto {
                 tag,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_key_gen_seed_en()
+                    .set_mldsa_key_gen_seed_en(),
             )
             .into(),
             mode,
@@ -192,7 +136,7 @@ impl Crypto {
                 KeyUsage::default()
                     .set_hmac_key_en()
                     .set_ecc_key_gen_seed_en()
-                    .set_mldsa_seed_en(),
+                    .set_mldsa_key_gen_seed_en(),
             )
             .into(),
             mode,
@@ -281,7 +225,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let mut digest = Self::sha384_digest(env, data);
+        let mut digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
