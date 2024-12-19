@@ -27,22 +27,29 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
-use caliptra_drivers::KeyId;
 use caliptra_drivers::{
-    cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
-    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
-};
-use caliptra_drivers::{
-    hand_off::DataStore, Ecc384PubKey, Hmac, PcrBank, PcrId, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, Trng,
+    cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
+    CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
+    PcrId, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
+    Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
-use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
-use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
-    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg,
+    dv::DvReg,
+    ecc::EccReg,
+    el2_pic_ctrl::El2PicCtrl,
+    entropy_src::EntropySrcReg,
+    hmac::HmacReg,
+    kv::KvReg,
+    mbox::{enums::MboxStatusE, MboxCsr},
+    mldsa::MldsaReg,
+    pv::PvReg,
+    sha256::Sha256Reg,
+    sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
@@ -70,7 +77,6 @@ pub enum PauserPrivileges {
 pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
-    pub data_vault: DataVault,
     pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
     pub sha256: Sha256,
@@ -89,6 +95,9 @@ pub struct Drivers {
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
+
+    /// Mldsa87 Engine
+    pub mldsa87: Mldsa87,
 
     pub persistent_data: PersistentDataAccessor,
 
@@ -127,7 +136,6 @@ impl Drivers {
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            data_vault: DataVault::new(DvReg::new()),
             key_vault: KeyVault::new(KvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -135,6 +143,7 @@ impl Drivers {
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
             hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
+            mldsa87: Mldsa87::new(MldsaReg::new()),
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
@@ -485,23 +494,18 @@ impl Drivers {
     /// Create certificate chain and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let data_vault = &drivers.data_vault;
         let persistent_data = &drivers.persistent_data;
         let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size =
-            dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)?;
+        let ldevid_cert_size = dice::copy_ldevid_cert(persistent_data.get(), &mut cert)?;
         if ldevid_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
 
         // Write fmc alias cert to cert chain.
-        let fmcalias_cert_size = dice::copy_fmc_alias_cert(
-            data_vault,
-            persistent_data.get(),
-            &mut cert[ldevid_cert_size..],
-        )?;
+        let fmcalias_cert_size =
+            dice::copy_fmc_alias_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }

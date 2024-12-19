@@ -238,6 +238,10 @@ pub struct MailboxRegs {
     #[register(offset = 0x0000_0020, write_fn = write_unlock, read_fn = read_unlock)]
     _unlock: ReadWriteRegister<u32>,
 
+    /// MBOX_TAP_MODE register
+    #[register(offset = 0x0000_0024)]
+    _tap_mode: ReadWriteRegister<u32>,
+
     /// State Machine
     state_machine: StateMachine<Context>,
 
@@ -274,6 +278,7 @@ impl MailboxRegs {
             execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
             _unlock: ReadWriteRegister::new(Self::UNLOCK_VAL),
+            _tap_mode: ReadWriteRegister::new(0),
             state_machine: StateMachine::new(Context::new(ram)),
             requester: MailboxRequester::Caliptra,
             irq: false,
@@ -654,7 +659,7 @@ mod tests {
         // Confirm it is locked
         assert!(uc_regs.lock().read().lock());
 
-        assert_eq!(uc_regs.id().read(), 0);
+        assert_eq!(uc_regs.user().read(), 0);
 
         // Write command
         uc_regs.cmd().write(|_| 0x55);
@@ -735,7 +740,7 @@ mod tests {
         // Confirm it is locked
         assert!(soc_regs.lock().read().lock());
 
-        assert_eq!(soc_regs.id().read(), MailboxRequester::Soc as u32);
+        assert_eq!(soc_regs.user().read(), MailboxRequester::Soc as u32);
 
         // Write command
         soc_regs.cmd().write(|_| 0x55);
@@ -876,7 +881,7 @@ mod tests {
         // Confirm it is locked
         assert!(uc_regs.lock().read().lock());
 
-        let user = uc_regs.id().read();
+        let user = uc_regs.user().read();
         assert_eq!(user, MailboxRequester::Caliptra as u32);
 
         // Write command

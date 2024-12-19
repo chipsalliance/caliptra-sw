@@ -28,7 +28,7 @@ fn warm_reset_basic() {
     )
     .unwrap();
 
-    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -39,7 +39,7 @@ fn warm_reset_basic() {
         BootParams {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash: owner_pk_desc_hash,
+                owner_pk_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
@@ -58,7 +58,7 @@ fn warm_reset_basic() {
     // Perform warm reset
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash: owner_pk_desc_hash,
+        owner_pk_hash,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
@@ -88,7 +88,7 @@ fn warm_reset_during_fw_load() {
     )
     .unwrap();
 
-    let (vendor_pk_desc_hash, owner_pk_desc_hash) = image_pk_desc_hash(&image.manifest);
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -99,7 +99,7 @@ fn warm_reset_during_fw_load() {
         BootParams {
             fuses: Fuses {
                 key_manifest_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash: owner_pk_desc_hash,
+                owner_pk_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 runtime_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
@@ -129,7 +129,7 @@ fn warm_reset_during_fw_load() {
     // Perform warm reset while ROM is executing the firmware load
     hw.warm_reset_flow(&Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash,
-        owner_pk_hash: owner_pk_desc_hash,
+        owner_pk_hash,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()

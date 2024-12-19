@@ -270,7 +270,7 @@ impl<'a> MailboxRecvPeek<'a> {
     /// Returns the value stored in the user register
     pub fn id(&self) -> u32 {
         let mbox = self.mbox.regs();
-        mbox.id().read()
+        mbox.user().read()
     }
 
     /// Returns the value stored in the data length register. This is the total

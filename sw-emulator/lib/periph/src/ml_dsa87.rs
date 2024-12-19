@@ -20,6 +20,7 @@ use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
 use rand::rngs::StdRng;
+use rand::Rng;
 use rand::SeedableRng;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
@@ -355,7 +356,7 @@ impl Mldsa87 {
             self.verify_res
                 .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
         } else {
-            self.verify_res.fill(0);
+            self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
         }
     }
 
@@ -382,9 +383,8 @@ impl Mldsa87 {
     fn seed_read_complete(&mut self) {
         let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
 
-        // TODO will keyvault feature a special ID for ML-DSA usage?
         let mut key_usage = KeyUsage::default();
-        key_usage.set_ecc_key_gen_seed(true);
+        key_usage.set_mldsa_seed(true);
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
@@ -713,7 +713,11 @@ mod tests {
         assert_eq!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
 
         // Bad signature
-        let mut signature = [0; SIG_LEN + 1];
+        let mut rng = rand::thread_rng();
+        let mut signature = [0u8; SIG_LEN + 1];
+
+        rng.fill(&mut signature[..64]);
+
         signature.to_big_endian();
 
         for i in (0..signature.len()).step_by(4) {
@@ -747,7 +751,7 @@ mod tests {
         }
 
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_eq!(&result, &[0; 64]);
+        assert_ne!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
     }
 
     #[test]
@@ -762,7 +766,7 @@ mod tests {
 
             let mut key_vault = KeyVault::new();
             let mut key_usage = KeyUsage::default();
-            key_usage.set_ecc_key_gen_seed(true);
+            key_usage.set_mldsa_seed(true);
 
             key_vault
                 .write_key(key_id, &seed, u32::from(key_usage))

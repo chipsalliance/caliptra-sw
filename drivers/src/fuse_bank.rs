@@ -215,7 +215,7 @@ impl FuseBank<'_> {
     pub fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
         let soc_ifc_regs = self.soc_ifc.regs();
         VendorPubKeyRevocation::from_bits_truncate(
-            soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read().mask(),
+            soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read()[0],
         )
     }
 
@@ -232,6 +232,19 @@ impl FuseBank<'_> {
         soc_ifc_regs.fuse_lms_revocation().read()
     }
 
+    /// Get the mldsa vendor public key revocation mask.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     mldsa vendor public key revocation mask
+    ///
+    pub fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.fuse_mldsa_revocation().read().into()
+    }
+
     /// Get the owner public key hash.
     ///
     /// # Arguments
@@ -242,7 +255,7 @@ impl FuseBank<'_> {
     ///
     pub fn owner_pub_key_hash(&self) -> Array4x12 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        Array4x12::read_from_reg(soc_ifc_regs.fuse_owner_pk_hash())
+        Array4x12::read_from_reg(soc_ifc_regs.cptra_owner_pk_hash())
     }
 
     /// Get the rollback disability setting.

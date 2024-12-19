@@ -14,8 +14,8 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
-use caliptra_auth_man_types::AuthManifestPubKeys;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestPrivKeys};
+use caliptra_auth_man_types::{AuthManifestPubKeys, ImageMetadataFlags};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -41,6 +41,8 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
 pub struct ImageMetadataConfigFromFile {
     digest: String,
     source: u32,
+    fw_id: u32,
+    ignore_auth_check: bool,
 }
 
 // Authorization Manifest configuration from TOML file
@@ -119,14 +121,27 @@ pub(crate) fn image_metadata_config_from_file(
     config: &Vec<ImageMetadataConfigFromFile>,
 ) -> anyhow::Result<Vec<AuthManifestImageMetadata>> {
     let mut image_metadata_list = Vec::new();
+    let mut fw_ids: Vec<u32> = Vec::new();
 
     for image in config {
+        // Check if the firmware ID is already present in the list.
+        if fw_ids.contains(&image.fw_id) {
+            return Err(anyhow::anyhow!(
+                "Duplicate firmware ID found in the image metadata list"
+            ));
+        } else {
+            fw_ids.push(image.fw_id);
+        }
+
         let digest_vec = hex::decode(&image.digest)?;
-        let image_source = image.source;
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_ignore_auth_check(image.ignore_auth_check);
+        flags.set_image_source(image.source);
 
         let image_metadata = AuthManifestImageMetadata {
+            fw_id: image.fw_id,
+            flags: flags.0,
             digest: digest_vec.try_into().unwrap(),
-            image_source,
         };
 
         image_metadata_list.push(image_metadata);

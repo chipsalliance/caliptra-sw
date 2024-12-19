@@ -120,9 +120,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         write_file
     };
 
-    if args.len() < 6 {
+    if args.len() < 5 {
         Err(
-            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <adamsbridge_dir> <dir_core_dir>",
+            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <dir_core_dir>",
         )?;
     }
 
@@ -134,7 +134,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
 
-    let adamsbridge_rdl_dir = Path::new(&args[4]);
+    let adamsbridge_rdl_dir = rtl_dir.join("submodules").join("adams-bridge");
     let mut adamsbridge_rdl_files: Vec<PathBuf> = ADAMSBRIDGE_RDL_FILES
         .iter()
         .map(|p| adamsbridge_rdl_dir.join(p))

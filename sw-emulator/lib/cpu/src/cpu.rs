@@ -22,6 +22,126 @@ use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
+/// Describes a Caliptra stack memory region
+pub struct StackRange(u32, u32);
+impl StackRange {
+    /// **Note:** `stack_start` MUST be greater than `stack_end`. Caliptra's stack grows
+    /// to a lower address.
+    pub fn new(stack_start: u32, stack_end: u32) -> Self {
+        if stack_start < stack_end {
+            panic!("Caliptra's stack grows to a lower address");
+        }
+        Self(stack_start, stack_end)
+    }
+}
+
+/// Describes a Caliptra code region
+pub struct CodeRange(u32, u32);
+impl CodeRange {
+    pub fn new(code_start: u32, code_end: u32) -> Self {
+        if code_start > code_end {
+            panic!("code grows to a higher address");
+        }
+        Self(code_start, code_end)
+    }
+}
+
+/// Contains metadata describing a Caliptra image
+pub struct ImageInfo {
+    stack_range: StackRange,
+    code_range: CodeRange,
+}
+
+impl ImageInfo {
+    pub fn new(stack_range: StackRange, code_range: CodeRange) -> Self {
+        Self {
+            stack_range,
+            code_range,
+        }
+    }
+
+    /// Checks if the program counter is contained in `self`
+    ///
+    /// returns `true` if the pc is in the image. `false` otherwise.
+    fn contains_pc(&self, pc: u32) -> bool {
+        self.code_range.0 <= pc && pc <= self.code_range.1
+    }
+
+    /// Checks if the stack pointer has overflowed.
+    ///
+    /// Returns `Some(u32)` if an overflow has occurred. The `u32` is set
+    /// to the overflow amount.
+    ///
+    /// Returns `None` if no overflow has occurred.
+    fn check_overflow(&self, sp: u32) -> Option<u32> {
+        let stack_end = self.stack_range.1;
+
+        // Stack grows to a lower address
+        if sp < stack_end {
+            let current_overflow = stack_end - sp;
+            Some(current_overflow)
+        } else {
+            None
+        }
+    }
+}
+
+/// Describes the shape of Caliptra's stacks.
+///
+/// Used to monitor stack usage and check for overflows.
+pub struct StackInfo {
+    images: Vec<ImageInfo>,
+    max_stack_overflow: u32,
+    has_overflowed: bool,
+}
+
+impl StackInfo {
+    /// Create a new `StackInfo` by describing the start and end of the stack and code segment for each
+    /// Caliptra image.
+    pub fn new(images: Vec<ImageInfo>) -> Self {
+        Self {
+            images,
+            max_stack_overflow: 0,
+            has_overflowed: false,
+        }
+    }
+}
+
+impl StackInfo {
+    /// Fetch the largest stack overflow.
+    ///
+    /// If the stack never overflowed, returns `None`.
+    fn max_stack_overflow(&self) -> Option<u32> {
+        if self.has_overflowed {
+            Some(self.max_stack_overflow)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if the stack will overflow when pushed to `stack_address`.
+    ///
+    /// Returns `Some(u32)` if the stack will overflow and by how much, `None` if it will not overflow.
+    fn check_overflow(&mut self, pc: u32, stack_address: u32) -> Option<u32> {
+        if stack_address == 0 {
+            // sp is initialized to 0.
+            return None;
+        }
+
+        for image in self.images.iter() {
+            if image.contains_pc(pc) {
+                if let Some(overflow_amount) = image.check_overflow(stack_address) {
+                    self.max_stack_overflow = self.max_stack_overflow.max(overflow_amount);
+                    self.has_overflowed = true;
+                    return Some(overflow_amount);
+                }
+            }
+        }
+
+        None
+    }
+}
+
 #[derive(Clone)]
 pub struct CodeCoverage {
     rom_bit_vec: BitVec,
@@ -162,6 +282,20 @@ pub struct Cpu<TBus: Bus> {
     pub(crate) watch_ptr_cfg: WatchPtrCfg,
 
     pub code_coverage: CodeCoverage,
+    stack_info: Option<StackInfo>,
+}
+
+impl<TBus: Bus> Drop for Cpu<TBus> {
+    fn drop(&mut self) {
+        if let Some(stack_info) = &self.stack_info {
+            if stack_info.has_overflowed {
+                panic!(
+                    "[EMU] Fatal: Caliptra's stack overflowed by {} bytes!",
+                    stack_info.max_stack_overflow().unwrap()
+                )
+            }
+        }
+    }
 }
 
 /// Cpu instruction step action
@@ -201,7 +335,12 @@ impl<TBus: Bus> Cpu<TBus> {
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
             code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
+            stack_info: None,
         }
+    }
+
+    pub fn with_stack_info(&mut self, stack_info: StackInfo) {
+        self.stack_info = Some(stack_info);
     }
 
     /// Read the RISCV CPU Program counter
@@ -266,7 +405,24 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
     pub fn write_xreg(&mut self, reg: XReg, val: RvData) -> Result<(), RvException> {
-        self.xregs.write(reg, val)
+        // XReg::X2 is the sp register.
+        if reg == XReg::X2 {
+            self.check_stack(val);
+        }
+        self.xregs.write(reg, val)?;
+        Ok(())
+    }
+
+    // Check if the stack overflows at the requested address.
+    fn check_stack(&mut self, val: RvData) {
+        if let Some(stack_info) = &mut self.stack_info {
+            if let Some(overflow_amount) = stack_info.check_overflow(self.pc, val) {
+                eprintln!(
+                    "[EMU] Caliptra's stack overflowed by {} bytes at pc 0x{:x}.",
+                    overflow_amount, self.pc
+                );
+            }
+        }
     }
 
     /// Read the specified configuration status register with the current privilege mode

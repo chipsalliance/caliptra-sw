@@ -13,6 +13,9 @@ on:
       rom-logging:
         default: true
         type: boolean
+      rom-version:
+        default: "latest"
+        type: string
 
 jobs:
   build_and_test:
@@ -57,6 +60,9 @@ jobs:
       - name: Run tests
         run: |
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+          if [ "${{ inputs.rom-version }}" != "latest" ]; then
+            export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+          fi
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             export CPTRA_ROM_TYPE=ROM_WITH_UART

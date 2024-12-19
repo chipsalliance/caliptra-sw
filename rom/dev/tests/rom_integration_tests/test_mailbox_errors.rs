@@ -160,7 +160,7 @@ fn test_mailbox_reserved_pauser() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // Set pauser to the reserved value
-    hw.set_axi_id(0xffffffff);
+    hw.set_axi_user(0xffffffff);
 
     // Send anything
     assert_eq!(

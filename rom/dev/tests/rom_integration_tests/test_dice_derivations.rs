@@ -46,7 +46,12 @@ fn test_cold_reset_status_reporting() {
     }
 
     // Wait for uploading firmware.
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     // Manually put the firmware in the mailbox because
     // HwModel::upload_firmware returns only when the transaction is complete.

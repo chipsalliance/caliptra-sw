@@ -4,7 +4,14 @@ use std::mem;
 
 use caliptra_api::SocManager;
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_common::{
+    memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
+    FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
+};
+use caliptra_hw_model::{
+    BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
+    StackRange,
+};
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
 
@@ -18,10 +25,25 @@ pub fn build_hw_model_and_image_bundle(
 
 pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
+            stack_info: Some(StackInfo::new(image_info)),
             ..Default::default()
         },
         BootParams {

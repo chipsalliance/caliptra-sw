@@ -23,9 +23,13 @@ pub(crate) struct VendorKeyConfig {
 
     pub lms_pub_keys: Vec<String>,
 
+    pub mldsa_pub_keys: Vec<String>,
+
     pub ecc_priv_keys: Option<Vec<String>>,
 
     pub lms_priv_keys: Option<Vec<String>>,
+
+    pub mldsa_priv_keys: Option<Vec<String>>,
 }
 
 /// Owner Key Configuration
@@ -38,6 +42,10 @@ pub(crate) struct OwnerKeyConfig {
     pub lms_pub_key: String,
 
     pub lms_priv_key: Option<String>,
+
+    pub mldsa_pub_key: String,
+
+    pub mldsa_priv_key: Option<String>,
 }
 
 // Key Configuration

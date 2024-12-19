@@ -14,7 +14,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::WarmResetEntry4;
+use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
@@ -345,7 +345,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
-        lms_key_idx: 3,
+        pqc_key_idx: 3,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -361,7 +361,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     // Generate firmware with a different vendor LMS key index.
     let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        lms_key_idx: 2,
+        pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
     let image_options = ImageOptions {
@@ -382,7 +382,6 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         },
         BootParams {
             fuses: caliptra_hw_model::Fuses {
-                lms_verify: true,
                 ..Default::default()
             },
             fw_image: Some(&image_bundle.to_bytes().unwrap()),
@@ -396,7 +395,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     assert_eq!(
         hw.upload_firmware(&image_bundle2.to_bytes().unwrap()),
         Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH.into()
         ))
     );
 
@@ -407,7 +406,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH)
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH)
     );
 }
 
@@ -452,20 +451,12 @@ fn test_check_rom_update_reset_status_reg() {
 
     hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
-    let warmresetentry4_array = hw.mailbox_execute(0x1000_000D, &[]).unwrap().unwrap();
-    let mut warmresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first four entries
-
-    // Check RomUpdateResetStatus datavault value.
-    let warmresetentry4_id =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
+    let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
     assert_eq!(
-        warmresetentry4_id,
-        WarmResetEntry4::RomUpdateResetStatus as u32
+        data_vault.rom_update_reset_status(),
+        u32::from(UpdateResetComplete)
     );
-    warmresetentry4_offset += core::mem::size_of::<u32>();
-    let warmresetentry4_value =
-        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(warmresetentry4_value, u32::from(UpdateResetComplete));
 }
 
 #[test]

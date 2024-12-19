@@ -25,7 +25,7 @@ use openssl::{
     ecdsa::EcdsaSig,
     nid::Nid,
     rand::rand_bytes,
-    sha::{Sha256, Sha384},
+    sha::{Sha256, Sha384, Sha512},
 };
 
 use crate::{from_hw_format, sign_with_lms_key, to_hw_format, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
@@ -54,15 +54,21 @@ impl ImageGeneratorCrypto for OsslCrypto {
         OsslSha256Hasher(Sha256::default())
     }
 
-    fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest> {
+    fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest384> {
         let mut engine = Sha384::new();
+        engine.update(data);
+        Ok(to_hw_format(&engine.finish()))
+    }
+
+    fn sha512_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest512> {
+        let mut engine = Sha512::new();
         engine.update(data);
         Ok(to_hw_format(&engine.finish()))
     }
 
     fn ecdsa384_sign(
         &self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         priv_key: &ImageEccPrivKey,
         pub_key: &ImageEccPubKey,
     ) -> anyhow::Result<ImageEccSignature> {
@@ -96,7 +102,7 @@ impl ImageGeneratorCrypto for OsslCrypto {
 
     fn lms_sign(
         &self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature> {
         let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(digest);
@@ -138,6 +144,18 @@ impl ImageGeneratorCrypto for OsslCrypto {
             .to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
         Ok(to_hw_format(&priv_key))
+    }
+
+    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+    }
+
+    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
     }
 }
 

@@ -36,6 +36,7 @@ register_bitfields! [
             HMAC384 = 0,
             HMAC512 = 1,
         ],
+        CSR_MODE OFFSET(4) NUMBITS(1) [],
         RSVD OFFSET(4) NUMBITS(28) [],
     ],
 
@@ -379,6 +380,8 @@ impl HmacSha {
             self.zeroize();
         }
 
+        // [TODO][CAP2] if CSR Mode is set, use a pre-defined key.
+
         Ok(())
     }
 
@@ -598,7 +601,8 @@ impl HmacSha {
                 KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
             Ok(data) => {
-                self.format_block(&data);
+                let key_size = self.key_len() * 4;
+                self.format_block(&data[..key_size.min(data.len())]);
                 self.block_from_kv = true;
                 KeyReadStatus::ERROR::KV_SUCCESS.value
             }

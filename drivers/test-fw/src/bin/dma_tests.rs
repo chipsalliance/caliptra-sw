@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{memory_layout, Dma, Mailbox};
+use caliptra_drivers::{memory_layout, AxiAddr, Dma, Mailbox};
 use caliptra_registers::{axi_dma::AxiDmaReg, ecc::EccReg, mbox::MboxCsr};
 use caliptra_test_harness::test_suite;
 use core::slice;
@@ -27,7 +27,7 @@ fn test_dma_read_from_periph() {
     let ecc_regs = unsafe { EccReg::new() };
     let ecc_name = ecc_regs.regs().name().ptr();
 
-    let dword = dma.read_dword(ecc_name as usize).unwrap();
+    let dword = dma.read_dword(AxiAddr::from(ecc_name as u64)).unwrap();
     assert_eq!(dword.to_ne_bytes(), [0x70, 0x63, 0x65, 0x73]); // secp
 }
 
@@ -40,8 +40,8 @@ fn test_dma_write_to_periph() {
 
     let data: u32 = 0xdead_beef;
 
-    dma.write_dword(ecc_iv as usize, data).unwrap();
-    let dword = dma.read_dword(ecc_iv as usize).unwrap();
+    dma.write_dword(AxiAddr::from(ecc_iv as u64), data).unwrap();
+    let dword = dma.read_dword(AxiAddr::from(ecc_iv as u64)).unwrap();
     assert_eq!(dword, data);
 }
 
@@ -59,8 +59,13 @@ fn test_read_rri_to_mailbox() {
     let mut txn = mbox_driver.try_start_send_txn().unwrap();
     txn.send_request(0xdead_beef, b"").unwrap();
 
-    dma.transfer_payload_to_mbox(rri_regs, test_image.len() as u32, true, block_size)
-        .unwrap();
+    dma.transfer_payload_to_mbox(
+        AxiAddr::from(rri_regs as u64),
+        test_image.len() as u32,
+        true,
+        block_size,
+    )
+    .unwrap();
 
     let mbox_fifo = unsafe {
         slice::from_raw_parts(

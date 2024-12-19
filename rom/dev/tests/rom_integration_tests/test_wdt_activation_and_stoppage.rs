@@ -48,7 +48,12 @@ fn test_wdt_activation_and_stoppage() {
     assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
 
     // Upload the FW once ROM is at the right point
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 

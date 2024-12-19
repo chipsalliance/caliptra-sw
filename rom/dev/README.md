@@ -114,8 +114,6 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Active LMS or MLDSA Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Manufacturer ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
 | Manufacturer LMS or MLDSA Signature | 4628 | Manufacturer LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
-| Owner ECC Key Descriptor | 52 | Public Key Descriptor for ECC key |
-| Owner LMS or MLDSA Key Descriptor | 52 | Public Key Descriptor for LMS or MLDSA key |
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
 | Owner LMS or MLDSA Public Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Owner ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
@@ -696,10 +694,10 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         CPTRA_SECURITY_STATE.LIFECYCLE_STATE,
         CPTRA_SECURITY_STATE.DEBUG_ENABLED,
         FUSE_ANTI_ROLLBACK_DISABLE,
-        ECC_VENDOR_PK_INDEX,
+        VENDOR_ECC_PK_INDEX,
         FW_SVN,
         FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        PQC_VENDOR_PK_INDEX,
+        VENDOR_PQC_PK_INDEX,
         ROM_VERIFY_CONFIG,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])

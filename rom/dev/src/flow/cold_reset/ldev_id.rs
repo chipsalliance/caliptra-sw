@@ -186,12 +186,12 @@ impl LocalDevIdLayer {
         let ecc_auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let ecc_pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let ecc_serial_number = X509::ecc_cert_sn(env, ecc_pub_key);
+        let ecc_serial_number = X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
         let ecc_serial_number = okref(&ecc_serial_number)?;
 
         // CSR `To Be Signed` Parameters
         let ecc_tbs_params = LocalDevIdCertTbsParams {
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
@@ -234,14 +234,14 @@ impl LocalDevIdLayer {
         cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 
-        // Lock the Local Device ID cert signature in data vault until
-        // cold reset
-        env.data_vault.set_ldev_dice_signature(sig);
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
+        // Save the Local Device ID cert signature in data vault.
+        data_vault.set_ldev_dice_ecc_signature(sig);
         sig.zeroize();
 
-        // Lock the Local Device ID public key in data vault until
-        // cold reset
-        env.data_vault.set_ldev_dice_pub_key(ecc_pub_key);
+        // Save the Local Device ID public key in data vault.
+        data_vault.set_ldev_dice_ecc_pub_key(ecc_pub_key);
 
         //  Copy TBS to DCCM.
         copy_tbs(ecc_tbs.tbs(), TbsType::LdevidTbs, env)?;
