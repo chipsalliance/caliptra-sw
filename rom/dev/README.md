@@ -686,6 +686,42 @@ Following is the sequence of steps that are performed to download the firmware i
 
 See Firmware [Image Validation Process](#firmware-image-validation-process).
 
+### Derivation of the key ladder for Stable Identity
+
+Stable Identity calls for a secret that remains stable across firmware updates, but which can ratchet forward when major firmware vulnerabilities are fixed. Caliptra ROM implements this feature in terms of a "key ladder".
+
+The key ladder is initialized from the LDevID CDI during cold-boot. The key ladder length is inversely related to the firmware's SVN. Each step of the ladder is an SVN-unique key. The key for SVN X can be obtained by applying a one-way cryptographic operation to the key for SVN X+1. In this manner, firmware with a given SVN can wield keys bound to its SVN or older, but cannot wield keys bound to newer SVNs.
+
+To comply with FIPS, the one-way cryptographic operation used to compute keys is an SP 800-108 KDF.
+
+When the key ladder is initialized at cold-boot, it is bound to the lifecycle state, debug-locked state, and the firmware's "epoch" from the image header. This ensures that across lifecycle or debug state transtions, or across intentional epoch changes, the keys of the ladder will change.
+
+Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. It ensures that the ladder's length always corresponds to that minimum SVN. The key ladder can only be shortened (and thereby give access to newer SVNs' keys) by cold-booting into firmware with a newer SVN and re-initializing the ladder.
+
+#### Cold-boot
+
+ROM initializes a key ladder for the firmware. LDevID CDI in Key Vault Slot6 is used as an HMAC Key, and the data is a fixed string. The resultant MAC is stored in Slot 2.
+
+    KeyLadderContext = lifecycle state || debug_locked state || firmware epoch
+
+    hmac512_kdf(KvSlot6, label: b"si_init", context: KeyLadderContext, KvSlot2)
+
+    Loop (MAX_FIRMWARE_SVN - (current firmware SVN)) times:
+
+        hmac512_kdf(KvSlot2, label: b"si_extend", context: None, KvSlot2)
+
+#### Update-reset
+
+During update-reset, the key ladder initialized at cold boot is lengthened if necessary, such that its length always corresponds with the minimum SVN since cold boot.
+
+    old_min_svn = [retrieved from data vault]
+    new_min_svn = min(old_min_svn, new_fw_svn)
+    [store new_min_svn in data vault]
+
+    Loop (`old_min_svn` - `new_min_svn`) times:
+
+        hmac512_kdf(KvSlot2, label: b"si_extend", context: None, KvSlot2)
+
 ### Alias FMC DICE layer & PCR extension
 
 Alias FMC Layer includes the measurement of the FMC and other security states. This layer is used to assert a composite identity which includes the security state, FMC measurement along with the previous layer identities.
@@ -1085,6 +1121,8 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Validate the toc exactly like in cold boot.
     - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
       still matches the FMC image section.
+    - Store the minimum firmware SVN that has run since cold-boot in the data vault.
+    - Ratchet the key ladder if necessary.
   - If validation fails during ROM boot, the new RT image will not be copied from
     the mailbox. ROM will boot the existing FMC/Runtime images. Validation
     errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.

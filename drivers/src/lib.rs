@@ -60,7 +60,9 @@ pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
-pub use dma::{Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction};
+pub use dma::{
+    AxiAddr, Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction,
+};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
