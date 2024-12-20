@@ -17,8 +17,10 @@ use crate::instr::Instr;
 use crate::types::{RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvMsecCfg, RvPrivMode};
 use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
-use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
+use caliptra_emu_bus::{Bus, BusError, Clock, Event, EventData, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use std::rc::Rc;
+use std::sync::mpsc;
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
@@ -283,6 +285,11 @@ pub struct Cpu<TBus: Bus> {
 
     pub code_coverage: CodeCoverage,
     stack_info: Option<StackInfo>,
+
+    // incoming communication with other components
+    incoming_events: Option<mpsc::Receiver<Event>>,
+    // events sent to other components
+    outgoing_events: Option<mpsc::Sender<Event>>,
 }
 
 impl<TBus: Bus> Drop for Cpu<TBus> {
@@ -336,6 +343,8 @@ impl<TBus: Bus> Cpu<TBus> {
             // isn't supposed to know anything about the caliptra memory map)
             code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
             stack_info: None,
+            incoming_events: None,
+            outgoing_events: None,
         }
     }
 
@@ -652,10 +661,14 @@ impl<TBus: Bus> Cpu<TBus> {
             return StepAction::Continue;
         }
 
-        match self.exec_instr(instr_tracer) {
+        let action = match self.exec_instr(instr_tracer) {
             Ok(result) => result,
             Err(exception) => self.handle_exception(exception),
-        }
+        };
+
+        // handle incoming events at this point, if there are any
+        self.handle_incoming_events();
+        action
     }
 
     /// Handle synchronous exception
@@ -895,6 +908,49 @@ impl<TBus: Bus> Cpu<TBus> {
         }
 
         Ok(())
+    }
+
+    // returns a sender (that sends events to this CPU)
+    // and a receiver (that receives events that this CPU sends)
+    pub fn register_events(&mut self) -> (mpsc::Sender<Event>, mpsc::Receiver<Event>) {
+        let (tx, rx) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
+
+        self.incoming_events = Some(rx);
+        // let the bus be able to send events
+        self.bus.register_outgoing_events(tx2.clone());
+        self.outgoing_events = Some(tx2);
+        (tx, rx2)
+    }
+
+    fn handle_incoming_events(&mut self) {
+        if let Some(incoming_events) = &self.incoming_events {
+            for event in incoming_events.try_iter() {
+                match event.event {
+                    EventData::WireRequest { name } => {
+                        println!("Caliptra: ignoring unknown wire request {}", name);
+                    }
+                    EventData::WireValue { .. } => {}
+                    EventData::RegisterRequest { name } => {
+                        println!("Caliptra: ignoring unknown register request {}", name);
+                    }
+                    EventData::RegisterValue { .. } => {}
+                    EventData::MemoryRead { .. } => {
+                        panic!("Caliptra core does not support memory read requests");
+                    }
+                    EventData::MemoryWrite { .. } => {
+                        panic!("Caliptra core does not support memory write requests");
+                    }
+                    EventData::I3CBusCommand { .. } => {
+                        panic!("Caliptra core does not support I3C commands");
+                    }
+                    EventData::I3cBusResponse { .. } => {
+                        panic!("Caliptra core does not support I3C responses");
+                    }
+                }
+                self.bus.incoming_event(Rc::new(event));
+            }
+        }
     }
 }
 

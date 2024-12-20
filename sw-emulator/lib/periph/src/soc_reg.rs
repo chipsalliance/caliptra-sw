@@ -17,8 +17,8 @@ use crate::root_bus::ReadyForFwCbArgs;
 use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
-    TimerAction,
+    ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Register,
+    Timer, TimerAction,
 };
 use caliptra_emu_cpu::{IntSource, Irq, Pic};
 use caliptra_emu_derive::Bus;
@@ -28,6 +28,7 @@ use caliptra_registers::soc_ifc::regs::CptraHwConfigReadVal;
 use caliptra_registers::soc_ifc_trng::regs::{CptraTrngStatusReadVal, CptraTrngStatusWriteVal};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::mpsc::Sender;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
@@ -469,6 +470,14 @@ impl Bus for SocRegistersInternal {
     fn update_reset(&mut self) {
         self.regs.borrow_mut().bus_update_reset();
     }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.regs.borrow_mut().incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<Event>) {
+        self.regs.borrow_mut().register_event_sender(sender);
+    }
 }
 
 pub struct SocRegistersExternal {
@@ -519,6 +528,7 @@ impl Bus for SocRegistersExternal {
 
 #[derive(Bus)]
 #[poll_fn(bus_poll)]
+#[register_outgoing_events_fn(register_event_sender)]
 struct SocRegistersImpl {
     #[register(offset = 0x0000)]
     cptra_hw_error_fatal: ReadWriteRegister<u32>,
@@ -544,7 +554,7 @@ struct SocRegistersImpl {
     #[register(offset = 0x0038)]
     cptra_boot_status: ReadWriteRegister<u32>,
 
-    #[register(offset = 0x003c, write_fn = on_write_flow_status)]
+    #[register(offset = 0x003c, write_fn = on_write_flow_status, event_name = "FLOW_STATUS")]
     cptra_flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
     #[register(offset = 0x0040)]
@@ -825,6 +835,7 @@ struct SocRegistersImpl {
     etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
     pending_etrng_response: Option<EtrngResponse>,
     op_pending_etrng_response_action: Option<ActionHandle>,
+    event_sender: Option<Sender<Event>>,
 }
 
 impl SocRegistersImpl {
@@ -963,8 +974,14 @@ impl SocRegistersImpl {
             ss_uds_seed_base_addr_l: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
             ss_uds_seed_base_addr_h: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
             fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
+            event_sender: None,
         };
         regs
+    }
+
+    fn register_event_sender(&mut self, sender: Sender<Event>) {
+        println!("Event sender registered");
+        self.event_sender = Some(sender);
     }
 
     /// Clear secrets
@@ -1381,6 +1398,7 @@ impl SocRegistersImpl {
 mod tests {
     use super::*;
     use crate::{root_bus::TbServicesCb, MailboxRam};
+    use caliptra_emu_bus::{Device, Event, EventData};
     use std::{
         fs::File,
         io::{Read, Write},
@@ -1719,5 +1737,43 @@ mod tests {
                 mcause: 0x0000_0000,
             })
         );
+    }
+
+    #[test]
+    fn test_sends_flow_status() {
+        let pic = Pic::new();
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
+            &clock,
+            mailbox,
+            Iccm::new(&clock),
+            &pic,
+            CaliptraRootBusArgs::default(),
+        );
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        soc_reg.register_outgoing_events(tx);
+        soc_reg.incoming_event(std::rc::Rc::new(Event {
+            src: Device::MCU,
+            dest: Device::CaliptraCore,
+            event: EventData::RegisterRequest {
+                name: "FLOW_STATUS",
+            },
+        }));
+        let event = rx.try_recv().unwrap();
+        assert_eq!(
+            event,
+            Event {
+                src: Device::CaliptraCore,
+                dest: Device::MCU,
+                event: EventData::RegisterValue {
+                    name: "FLOW_STATUS",
+                    value: 0x4000_0000,
+                }
+            }
+        )
     }
 }

@@ -23,8 +23,9 @@ use proc_macro::TokenStream;
         poll_fn,
         warm_reset_fn,
         update_reset_fn,
+        register_outgoing_events_fn,
         register,
-        register_array
+        register_array,
     )
 )]
 pub fn derive_bus(input: TokenStream) -> TokenStream {

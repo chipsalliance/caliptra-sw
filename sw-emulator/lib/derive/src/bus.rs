@@ -12,11 +12,10 @@ Abstract:
     fields of a struct.
 
 --*/
-use std::collections::HashMap;
 
-use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
-
+use proc_macro2::{Delimiter, Group, Ident, Literal, Span, TokenStream, TokenTree};
 use quote::{format_ident, quote};
+use std::collections::HashMap;
 
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
@@ -28,13 +27,16 @@ use crate::util::token_iter::{
 pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mut iter = input.into_iter();
     let struct_attrs = skip_to_struct_with_attributes(&mut iter);
-    let poll_fn = get_poll_fn(&struct_attrs);
-    let warm_reset_fn = get_warm_reset_fn(&struct_attrs);
-    let update_reset_fn = get_update_reset_fn(&struct_attrs);
+    let poll_fn = get_fn(&struct_attrs, "poll_fn");
+    let warm_reset_fn = get_fn(&struct_attrs, "warm_reset_fn");
+    let update_reset_fn = get_fn(&struct_attrs, "update_reset_fn");
+    let incoming_event_fn = get_fn(&struct_attrs, "incoming_event_fn");
+    let register_outgoing_events_fn = get_fn(&struct_attrs, "register_outgoing_events_fn");
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
     let register_fields = parse_register_fields(struct_fields.stream());
+    let has_events = register_fields.iter().any(|r| r.event_name.is_some());
 
     let mask_matches = build_match_tree_from_fields(&peripheral_fields);
 
@@ -68,6 +70,29 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+    let event_responder_tokens = if has_events {
+        gen_event_responder_tokens(&register_fields)
+    } else {
+        quote! {}
+    };
+
+    let self_incoming_event_tokens = if let Some(incoming_event_fn) = &incoming_event_fn {
+        let incoming_event_fn = Ident::new(incoming_event_fn, Span::call_site());
+        quote! {
+            Self::#incoming_event_fn(self, event);
+            #event_responder_tokens
+        }
+    } else {
+        quote! { #event_responder_tokens }
+    };
+    let self_register_outgoing_events_tokens =
+        if let Some(register_outgoing_events_fn) = &register_outgoing_events_fn {
+            let register_outgoing_events_fn =
+                Ident::new(register_outgoing_events_fn, Span::call_site());
+            quote! { Self::#register_outgoing_events_fn(self, sender); }
+        } else {
+            quote! {}
+        };
 
     let field_idents: Vec<_> = peripheral_fields
         .iter()
@@ -98,48 +123,24 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
                 #(self.#field_idents.update_reset();)*
                 #self_update_reset_tokens
             }
+            fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                #(self.#field_idents.incoming_event(event.clone());)*
+                #self_incoming_event_tokens
+            }
 
-        }
-    }
-}
-
-fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
-    for attr in struct_attrs {
-        let mut iter = attr.stream().into_iter();
-        if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "poll_fn" {
-                if let Some(TokenTree::Group(group)) = iter.next() {
-                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
-                        return Some(ident.to_string());
-                    }
-                }
+            fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
+                #(self.#field_idents.register_outgoing_events(sender.clone());)*
+                #self_register_outgoing_events_tokens
             }
         }
     }
-    None
 }
 
-fn get_warm_reset_fn(struct_attrs: &[Group]) -> Option<String> {
+fn get_fn(struct_attrs: &[Group], name: &str) -> Option<String> {
     for attr in struct_attrs {
         let mut iter = attr.stream().into_iter();
         if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "warm_reset_fn" {
-                if let Some(TokenTree::Group(group)) = iter.next() {
-                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
-                        return Some(ident.to_string());
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn get_update_reset_fn(struct_attrs: &[Group]) -> Option<String> {
-    for attr in struct_attrs {
-        let mut iter = attr.stream().into_iter();
-        if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "update_reset_fn" {
+            if ident == name {
                 if let Some(TokenTree::Group(group)) = iter.next() {
                     if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
                         return Some(ident.to_string());
@@ -166,6 +167,8 @@ struct RegisterField {
 
     // Only used if ty_tokens is empty
     array_len: Option<usize>,
+    // used to emit a register event response automatically
+    event_name: Option<String>,
 }
 fn has_read_and_write_fn(attr: &Attribute) -> bool {
     attr.args.contains_key("read_fn") && attr.args.contains_key("write_fn")
@@ -196,6 +199,7 @@ fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
                 is_array: field.attr_name == "register_array",
                 array_len: attr.args.get("len").map(literal::parse_usize),
                 array_item_size: attr.args.get("item_size").map(literal::parse_usize),
+                event_name: attr.args.get("event_name").map(|t| t.to_string()),
             })
         } else {
             panic!(
@@ -504,6 +508,57 @@ fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessTyp
     }
 }
 
+fn gen_event_responder_tokens(registers: &[RegisterField]) -> TokenStream {
+    let match_arms: Vec<_> = registers.iter().filter(|reg| reg.event_name.is_some()).map(|reg| {
+        if reg.is_array {
+            panic!("event attribute not supported for array register");
+        }
+        let event_name = reg.event_name.as_ref().unwrap().trim_matches('"');
+        let event_name = Literal::string(event_name);
+
+        let send_val_tokens = quote! {
+            self.event_sender.iter().for_each(|sender| {
+                let _ = sender.send(caliptra_emu_bus::Event {
+                    src: caliptra_emu_bus::Device::CaliptraCore,
+                    dest: event.src.clone(),
+                    event: caliptra_emu_bus::EventData::RegisterValue {
+                        name: #event_name,
+                        value: val.into(),
+                    },
+                });
+            });
+        };
+
+        if let Some(ref read_fn) = reg.read_fn {
+            let read_fn = Ident::new(read_fn, Span::call_site());
+            quote! {
+                caliptra_emu_bus::EventData::RegisterRequest { name: #event_name } => {
+                    self.#read_fn(caliptra_emu_types::RvSize::Word).into_iter().for_each(|val| {
+                        #send_val_tokens
+                    });
+                }
+            }
+        } else if let Some(ref reg_name) = reg.name {
+            let reg_name = Ident::new(reg_name, Span::call_site());
+                quote! {
+                    caliptra_emu_bus::EventData::RegisterRequest { name: #event_name } => {
+                        caliptra_emu_bus::Register::read(&self.#reg_name, caliptra_emu_types::RvSize::Word).into_iter().for_each(|val| {
+                            #send_val_tokens
+                        });
+                    }
+                }
+        } else {
+            unreachable!();
+        }
+    }).collect();
+    quote! {
+        match event.event {
+            #(#match_arms)*
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,7 +698,7 @@ mod tests {
                 #[peripheral(offset = 0xbb42_0000, mask = 0x0000_ffff)]
                 pub spi0: Spi,
 
-                #[register(offset = 0xcafe_f0d0)]
+                #[register(offset = 0xcafe_f0d0, event_name = "reg_u32")]
                 pub reg_u32: u32,
 
                 #[register(offset = 0xcafe_f0d4)]
@@ -795,6 +850,45 @@ mod tests {
                         self.i2c2.update_reset();
                         self.spi0.update_reset();
                     }
+                    fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                        self.rom.incoming_event(event.clone());
+                        self.sram.incoming_event(event.clone());
+                        self.dram.incoming_event(event.clone());
+                        self.uart0.incoming_event(event.clone());
+                        self.uart1.incoming_event(event.clone());
+                        self.i2c0.incoming_event(event.clone());
+                        self.i2c1.incoming_event(event.clone());
+                        self.i2c2.incoming_event(event.clone());
+                        self.spi0.incoming_event(event.clone());
+                        match event.event {
+                            caliptra_emu_bus::EventData::RegisterRequest { name: "reg_u32" } => {
+                                caliptra_emu_bus::Register::read(&self.reg_u32, caliptra_emu_types::RvSize::Word).into_iter().for_each(|val| {
+                                    self.event_sender.iter().for_each(|sender| {
+                                        let _ = sender.send(caliptra_emu_bus::Event {
+                                            src: caliptra_emu_bus::Device::CaliptraCore,
+                                            dest: event.src.clone(),
+                                            event: caliptra_emu_bus::EventData::RegisterValue {
+                                                name: "reg_u32",
+                                                value: val.into(),
+                                            },
+                                        });
+                                    });
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
+                        self.rom.register_outgoing_events(sender.clone());
+                        self.sram.register_outgoing_events(sender.clone());
+                        self.dram.register_outgoing_events(sender.clone());
+                        self.uart0.register_outgoing_events(sender.clone());
+                        self.uart1.register_outgoing_events(sender.clone());
+                        self.i2c0.register_outgoing_events(sender.clone());
+                        self.i2c1.register_outgoing_events(sender.clone());
+                        self.i2c2.register_outgoing_events(sender.clone());
+                        self.spi0.register_outgoing_events(sender.clone());
+                    }
                 }
             }.to_string()
         );
@@ -820,6 +914,10 @@ mod tests {
                     fn warm_reset(&mut self) {
                     }
                     fn update_reset(&mut self) {
+                    }
+                    fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                    }
+                    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
                     }
                 }
             }.to_string()
