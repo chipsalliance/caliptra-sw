@@ -522,6 +522,14 @@ impl Bus for SocRegistersExternal {
     fn update_reset(&mut self) {
         // Do nothing; external interface can't control reset
     }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.regs.borrow_mut().incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<Event>) {
+        self.regs.borrow_mut().register_event_sender(sender);
+    }
 }
 
 /// SOC Register implementation
@@ -551,10 +559,10 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x0018)]
     cptra_fw_extended_error_info: [u32; CPTRA_FW_EXTENDED_ERROR_INFO_SIZE / 4],
 
-    #[register(offset = 0x0038)]
+    #[register(offset = 0x0038, event_name = "CPTRA_BOOT_STATUS")]
     cptra_boot_status: ReadWriteRegister<u32>,
 
-    #[register(offset = 0x003c, write_fn = on_write_flow_status, event_name = "FLOW_STATUS")]
+    #[register(offset = 0x003c, write_fn = on_write_flow_status, event_name = "CPTRA_FLOW_STATUS")]
     cptra_flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
     #[register(offset = 0x0040)]
@@ -980,7 +988,6 @@ impl SocRegistersImpl {
     }
 
     fn register_event_sender(&mut self, sender: Sender<Event>) {
-        println!("Event sender registered");
         self.event_sender = Some(sender);
     }
 
@@ -1760,7 +1767,7 @@ mod tests {
             src: Device::MCU,
             dest: Device::CaliptraCore,
             event: EventData::RegisterRequest {
-                name: "FLOW_STATUS",
+                name: "CPTRA_FLOW_STATUS",
             },
         }));
         let event = rx.try_recv().unwrap();
@@ -1770,7 +1777,7 @@ mod tests {
                 src: Device::CaliptraCore,
                 dest: Device::MCU,
                 event: EventData::RegisterValue {
-                    name: "FLOW_STATUS",
+                    name: "CPTRA_FLOW_STATUS",
                     value: 0x4000_0000,
                 }
             }

@@ -13,10 +13,11 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::{Bus, BusMmio, Clock, Ram, Timer};
+use caliptra_emu_bus::{Bus, BusMmio, Clock, Event, Ram, Timer};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::sync::mpsc::Sender;
 use std::{cell::RefCell, rc::Rc};
 use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
@@ -121,6 +122,14 @@ impl Bus for MailboxExternal {
         regs.set_request(MailboxRequester::Caliptra);
         result
     }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.regs.borrow_mut().incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<Event>) {
+        self.regs.borrow_mut().register_event_sender(sender);
+    }
 }
 
 #[derive(Clone)]
@@ -182,6 +191,14 @@ impl Bus for MailboxInternal {
             .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().write(size, addr, val)
     }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.regs.borrow_mut().incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<Event>) {
+        self.regs.borrow_mut().register_event_sender(sender);
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 
@@ -201,9 +218,10 @@ impl From<MailboxRequester> for u32 {
 
 /// Mailbox Peripheral
 #[derive(Bus)]
+#[register_outgoing_events_fn(register_event_sender)]
 pub struct MailboxRegs {
     /// MBOX_LOCK register
-    #[register(offset = 0x0000_0000, read_fn = read_lock)]
+    #[register(offset = 0x0000_0000, read_fn = read_lock, event_name = "MBOX_LOCK")]
     lock: ReadOnlyRegister<u32>,
 
     /// MBOX_USER register
@@ -250,8 +268,8 @@ pub struct MailboxRegs {
     /// Trigger interrupt
     irq: bool,
 
-    ///
     timer: Timer,
+    event_sender: Option<Sender<Event>>,
 }
 
 impl MailboxRegs {
@@ -283,8 +301,14 @@ impl MailboxRegs {
             requester: MailboxRequester::Caliptra,
             irq: false,
             timer: Timer::new(clock),
+            event_sender: None,
         }
     }
+
+    fn register_event_sender(&mut self, sender: Sender<Event>) {
+        self.event_sender = Some(sender);
+    }
+
     pub fn set_request(&mut self, requester: MailboxRequester) {
         self.requester = requester;
     }

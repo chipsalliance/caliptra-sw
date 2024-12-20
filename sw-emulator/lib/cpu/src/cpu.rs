@@ -927,26 +927,13 @@ impl<TBus: Bus> Cpu<TBus> {
         if let Some(incoming_events) = &self.incoming_events {
             for event in incoming_events.try_iter() {
                 match event.event {
-                    EventData::WireRequest { name } => {
-                        println!("Caliptra: ignoring unknown wire request {}", name);
-                    }
-                    EventData::WireValue { .. } => {}
-                    EventData::RegisterRequest { name } => {
-                        println!("Caliptra: ignoring unknown register request {}", name);
-                    }
-                    EventData::RegisterValue { .. } => {}
                     EventData::MemoryRead { .. } => {
                         panic!("Caliptra core does not support memory read requests");
                     }
                     EventData::MemoryWrite { .. } => {
                         panic!("Caliptra core does not support memory write requests");
                     }
-                    EventData::I3CBusCommand { .. } => {
-                        panic!("Caliptra core does not support I3C commands");
-                    }
-                    EventData::I3cBusResponse { .. } => {
-                        panic!("Caliptra core does not support I3C responses");
-                    }
+                    _ => {}
                 }
                 self.bus.incoming_event(Rc::new(event));
             }

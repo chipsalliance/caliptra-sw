@@ -39,6 +39,14 @@ pub enum EventData {
         start_addr: u32,
         data: Vec<u8>,
     },
+    MailboxCommand {
+        command: u32,
+        data: Vec<u8>,
+    },
+    MailboxResponse {
+        response: u32,
+        data: Vec<u8>,
+    },
     I3CBusCommand {
         source_addr: u8,
         dest_addr: u8,
