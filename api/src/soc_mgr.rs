@@ -139,10 +139,8 @@ pub trait SocManager {
         self.soc_ifc()
             .cptra_owner_pk_hash()
             .write(&fuses.owner_pk_hash);
-        self.soc_ifc()
-            .fuse_fmc_key_manifest_svn()
-            .write(|_| fuses.fmc_key_manifest_svn);
-        self.soc_ifc().fuse_runtime_svn().write(&fuses.runtime_svn);
+        self.soc_ifc().fuse_fmc_key_manifest_svn().write(|_| 0); // deprecated fuse.
+        self.soc_ifc().fuse_runtime_svn().write(&fuses.fw_svn);
         self.soc_ifc()
             .fuse_anti_rollback_disable()
             .write(|w| w.dis(fuses.anti_rollback_disable));
