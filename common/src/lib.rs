@@ -16,6 +16,7 @@ pub mod fips;
 pub mod keyids;
 pub mod verifier;
 pub mod wdt;
+pub mod x509;
 
 ///merge imports
 pub use hand_off::{
@@ -38,7 +39,7 @@ pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
 pub const FMC_ORG: u32 = 0x40000000;
-pub const FMC_SIZE: u32 = 20 * 1024;
+pub const FMC_SIZE: u32 = 21 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 98 * 1024;
 

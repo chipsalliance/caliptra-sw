@@ -111,16 +111,16 @@ bitfield! {
     /// Flag indicating if the key can be used as HMAC data
     pub hmac_data, set_hmac_data: 1;
 
-    /// Flag indicating if the key can be used as MLDSA seed
-    pub mldsa_seed, set_mldsa_seed: 2;
+    /// Flag indicating if the key can be used as MLDSA Key Generation seed
+    pub mldsa_seed, set_mldsa_key_gen_seed: 2;
 
-    /// Flag indicating if the key can be used aas ECC Private Key
+    /// Flag indicating if the key can be used as ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;
 
-    /// Flag indicating if the key can be used aas ECC Key Generation Seed
+    /// Flag indicating if the key can be used as ECC Key Generation Seed
     pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
 
-    /// Flag indicating if the key can be used aas ECC data part of signature
+    /// Flag indicating if the key can be used as ECC data part of signature
     /// generation and verification process
     pub ecc_data, set_ecc_data:5;
 }
@@ -134,8 +134,8 @@ impl KeyUsage {
         self.set_hmac_data(true);
         *self
     }
-    pub fn set_mldsa_seed_en(&mut self) -> KeyUsage {
-        self.set_mldsa_seed(true);
+    pub fn set_mldsa_key_gen_seed_en(&mut self) -> KeyUsage {
+        self.set_mldsa_key_gen_seed(true);
         *self
     }
     pub fn set_ecc_private_key_en(&mut self) -> KeyUsage {

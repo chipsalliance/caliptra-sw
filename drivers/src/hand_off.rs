@@ -115,7 +115,7 @@ impl From<DataStore> for HandOffDataHandle {
     }
 }
 
-const FHT_RESERVED_SIZE: usize = 1680;
+const FHT_RESERVED_SIZE: usize = 1676;
 
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
@@ -147,7 +147,10 @@ pub struct FirmwareHandoffTable {
     pub fmc_cdi_kv_hdl: HandOffDataHandle,
 
     /// Index of FMC Private Alias Key in the Key Vault.
-    pub fmc_priv_key_kv_hdl: HandOffDataHandle,
+    pub fmc_ecc_priv_key_kv_hdl: HandOffDataHandle,
+
+    /// Index of FMC Alias MLDSA key pair generation seed in the Key Vault.
+    pub fmc_mldsa_keypair_seed_kv_hdl: HandOffDataHandle,
 
     /// Index of RT CDI value in the Key Vault.
     pub rt_cdi_kv_hdl: HandOffDataHandle,
@@ -219,7 +222,8 @@ impl Default for FirmwareHandoffTable {
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
-            fmc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            fmc_ecc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            fmc_mldsa_keypair_seed_kv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_addr: 0,
@@ -258,8 +262,12 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     );
     crate::cprintln!("FMC CDI KV Handle: 0x{:08x}", fht.fmc_cdi_kv_hdl.0);
     crate::cprintln!(
-        "FMC Private Key KV Handle: 0x{:08x}",
-        fht.fmc_priv_key_kv_hdl.0
+        "FMC ECC Private Key KV Handle: 0x{:08x}",
+        fht.fmc_ecc_priv_key_kv_hdl.0
+    );
+    crate::cprintln!(
+        "FMC MLDSA Key Pair Generation Seed KV Handle: 0x{:08x}",
+        fht.fmc_mldsa_keypair_seed_kv_hdl.0
     );
     crate::cprintln!("RT CDI KV Handle: 0x{:08x}", fht.rt_cdi_kv_hdl.0);
     crate::cprintln!(
@@ -321,17 +329,31 @@ mod tests {
     use core::mem;
     const FHT_SIZE: usize = 2048;
     const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
+    const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
 
-    fn fmc_priv_key_store() -> HandOffDataHandle {
+    fn fmc_ecc_priv_key_store() -> HandOffDataHandle {
         HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_ECDSA_PRIV_KEY as u32)
     }
 
-    fn fmc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
-        let ds: DataStore = fht.fmc_priv_key_kv_hdl.try_into().unwrap();
+    fn fmc_ecc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_ecc_priv_key_kv_hdl.try_into().unwrap();
 
         match ds {
             DataStore::KeyVaultSlot(key_id) => key_id,
-            _ => panic!("Invalid FMC private key store"),
+            _ => panic!("Invalid FMC ECC private key store"),
+        }
+    }
+
+    fn fmc_mldsa_keypair_seed_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u32)
+    }
+
+    fn fmc_mldsa_keypair_seed_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_mldsa_keypair_seed_kv_hdl.try_into().unwrap();
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => key_id,
+            _ => panic!("Invalid FMC key pair generation seed store"),
         }
     }
 
@@ -358,19 +380,42 @@ mod tests {
     }
 
     #[test]
-    fn test_fmc_priv_key_store() {
+    fn test_fmc_ecc_priv_key_store() {
         let fht = crate::hand_off::FirmwareHandoffTable {
-            fmc_priv_key_kv_hdl: fmc_priv_key_store(),
+            fmc_ecc_priv_key_kv_hdl: fmc_ecc_priv_key_store(),
             ..Default::default()
         };
         // Check that the key is stored in the KeyVault.
-        assert_eq!(fht.fmc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
+        assert_eq!(fht.fmc_ecc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
         // Check the key slot is correct
         assert_eq!(
-            fht.fmc_priv_key_kv_hdl.reg_num(),
+            fht.fmc_ecc_priv_key_kv_hdl.reg_num(),
             KEY_ID_FMC_ECDSA_PRIV_KEY.into()
         );
 
-        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_ECDSA_PRIV_KEY);
+        assert_eq!(fmc_ecc_priv_key(&fht), KEY_ID_FMC_ECDSA_PRIV_KEY);
+    }
+
+    #[test]
+    fn test_fmc_mldsa_keypair_seed_store() {
+        let fht = crate::hand_off::FirmwareHandoffTable {
+            fmc_mldsa_keypair_seed_kv_hdl: fmc_mldsa_keypair_seed_store(),
+            ..Default::default()
+        };
+        // Check that the key is stored in the KeyVault.
+        assert_eq!(
+            fht.fmc_mldsa_keypair_seed_kv_hdl.vault(),
+            Vault::KeyVault as u32
+        );
+        // Check the key slot is correct
+        assert_eq!(
+            fht.fmc_mldsa_keypair_seed_kv_hdl.reg_num(),
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED.into()
+        );
+
+        assert_eq!(
+            fmc_mldsa_keypair_seed_key(&fht),
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED
+        );
     }
 }
