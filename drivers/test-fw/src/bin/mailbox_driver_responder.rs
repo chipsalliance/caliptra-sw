@@ -49,7 +49,7 @@ extern "C" fn main() {
                 let dlen = txn.dlen() as usize;
                 let dlen_words = (dlen + 3) / 4;
                 println!("dlen: {dlen}");
-                for _ in 0..((dlen_words + (buf.len() - 1)) / buf.len()) {
+                for _ in 0..dlen_words.div_ceil(buf.len()) {
                     txn.copy_request(buf.as_bytes_mut()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }
@@ -87,7 +87,7 @@ extern "C" fn main() {
                 let dlen = txn.dlen() as usize;
                 let dlen_words = (dlen + 3) / 4;
                 println!("dlen: {dlen}");
-                for _ in 0..((dlen_words + (buf.len() - 1)) / buf.len()) {
+                for _ in 0..dlen_words.div_ceil(buf.len()) {
                     txn.copy_request(buf.as_bytes_mut()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }

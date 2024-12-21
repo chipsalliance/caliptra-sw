@@ -55,6 +55,7 @@ default = ["std"]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra_common/std",
+  "caliptra-drivers/std",
   "caliptra-image-types/std",
   "caliptra-image-verify/std",
   "caliptra-x509/std",

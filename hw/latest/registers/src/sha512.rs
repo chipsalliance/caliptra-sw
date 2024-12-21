@@ -1535,7 +1535,7 @@ pub mod enums {
         #[inline(always)]
         fn try_from(val: u32) -> Result<KvErrorE, ()> {
             if val < 0x100 {
-                Ok(unsafe { core::mem::transmute(val) })
+                Ok(unsafe { core::mem::transmute::<u32, KvErrorE>(val) })
             } else {
                 Err(())
             }

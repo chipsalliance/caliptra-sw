@@ -50,7 +50,7 @@ fn test_digest0() {
 
     if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        assert!(txn.send_request(CMD, data).is_ok());
 
         let mut digest = Array4x12::default();
         let mut digest_512 = Array4x16::default();
@@ -59,27 +59,26 @@ fn test_digest0() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, &mut digest);
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(data.len() as u32, 0, false, &mut digest_512);
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
         drop(txn);
     };
@@ -106,7 +105,7 @@ fn test_digest1() {
 
     if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        assert!(txn.send_request(CMD, data).is_ok());
 
         let mut digest = Array4x12::default();
         let mut digest_512 = Array4x16::default();
@@ -115,27 +114,26 @@ fn test_digest1() {
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, &mut digest);
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(data.len() as u32, 0, false, &mut digest_512);
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
         drop(txn);
     };
@@ -165,33 +163,32 @@ fn test_digest2() {
 
     if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        assert!(txn.send_request(CMD, data).is_ok());
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(data.len() as u32, 0, false, &mut digest);
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result =
-                sha_acc_op.digest_512(data.len() as u32, 0, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(data.len() as u32, 0, false, &mut digest_512);
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
         drop(txn);
     };
@@ -221,32 +218,32 @@ fn test_digest_offset() {
 
     if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        assert!(txn.send_request(CMD, data).is_ok());
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_384(8, 4, false, (&mut digest).into());
+            let result = sha_acc_op.digest_384(8, 4, false, &mut digest);
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
 
         if let Some(mut sha_acc_op) = sha_acc
             .try_start_operation(ShaAccLockState::NotAcquired)
             .unwrap()
         {
-            let result = sha_acc_op.digest_512(8, 4, false, (&mut digest_512).into());
+            let result = sha_acc_op.digest_512(8, 4, false, &mut digest_512);
             assert!(result.is_ok());
             assert_eq!(digest_512, Array4x16::from(expected_512));
 
             drop(sha_acc_op);
         } else {
-            assert!(false);
+            panic!("Operation failed");
         }
         drop(txn);
     };
@@ -276,26 +273,26 @@ fn test_digest_zero_size_buffer() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_384(0, 0, true, (&mut digest).into());
+        let result = sha_acc_op.digest_384(0, 0, true, &mut digest);
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
 
         drop(sha_acc_op);
     } else {
-        assert!(false);
+        panic!("Operation failed");
     };
 
     if let Some(mut sha_acc_op) = sha_acc
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_512(0, 0, true, (&mut digest_512).into());
+        let result = sha_acc_op.digest_512(0, 0, true, &mut digest_512);
         assert!(result.is_ok());
         assert_eq!(digest_512, Array4x16::from(expected_512));
 
         drop(sha_acc_op);
     } else {
-        assert!(false);
+        panic!("Operation failed");
     };
 }
 
@@ -338,47 +335,35 @@ fn test_digest_max_mailbox_size() {
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_384(
-            MAX_MAILBOX_CAPACITY_BYTES as u32,
-            0,
-            true,
-            (&mut digest).into(),
-        );
+        let result = sha_acc_op.digest_384(MAX_MAILBOX_CAPACITY_BYTES as u32, 0, true, &mut digest);
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
 
         drop(sha_acc_op);
     } else {
-        assert!(false);
+        panic!("Operation failed");
     };
 
     if let Some(mut sha_acc_op) = sha_acc
         .try_start_operation(ShaAccLockState::NotAcquired)
         .unwrap()
     {
-        let result = sha_acc_op.digest_512(
-            MAX_MAILBOX_CAPACITY_BYTES as u32,
-            0,
-            true,
-            (&mut digest_512).into(),
-        );
+        let result =
+            sha_acc_op.digest_512(MAX_MAILBOX_CAPACITY_BYTES as u32, 0, true, &mut digest_512);
         assert!(result.is_ok());
         assert_eq!(digest_512, Array4x16::from(expected_512));
 
         drop(sha_acc_op);
     } else {
-        assert!(false);
+        panic!("Operation failed");
     };
 }
 
 fn test_kat() {
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
-    assert_eq!(
-        Sha2_512_384AccKat::default()
-            .execute(&mut sha_acc, ShaAccLockState::AssumedLocked)
-            .is_ok(),
-        true
-    );
+    assert!(Sha2_512_384AccKat::default()
+        .execute(&mut sha_acc, ShaAccLockState::AssumedLocked)
+        .is_ok());
 }
 
 test_suite! {
