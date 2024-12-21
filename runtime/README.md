@@ -58,7 +58,100 @@ Caliptra Runtime Firmware will share driver code with ROM and FMC where
 possible; however, it will have its own copies of all of these drivers linked into
 the Runtime Firmware binary.
 
-## Maibox commands
+## Manifest-Based Image Authorization (new in 1.2)
+
+Caliptra's goal is to enable integrators to meet standard security requirements for creating cryptographic identity and securely reporting measurements through DICE and DPE Certificate chains and Caliptra-owned private-public key pairs. In addition, Caliptra 1.0 provides an `ECDSA384_SIGNATURE_VERIFY` command to enable an SoC RoT to verify its own FW signatures so that it can develop an SoC secure boot using Caliptra cryptography. Caliptra 1.1 expanded the verify command to a PQC-safe `LMS_SIGNATURE_VERIFY` command. In each of these cases, it is left up to the vendor to ensure that they build a secure environment for introducing and verifying FW integrity and authenticity and then executing mutable FW.
+
+The Caliptra Measurement manifest feature expands on Caliptra-provided secure verifier abilities. The Measurement Manifest feature provides a standard Caliptra-supported definition to enable the following use cases for integrators, vendors, and owners.
+
+* Caliptra-Endorsed Aggregated Measured Boot
+* Caliptra-Endorsed Local Verifier
+
+Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
+
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest) and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+
+### Caliptra-Endorsed Aggregated Measured Boot
+
+Aggregated Measured Boot is a verified boot where one signed manifest attests to FW integrity of many different FW measurements. The authenticity of the FW is tied to the trust in the public key signing the measurement manifest, which is endorsed by the Caliptra Vendor and/or Owner FW Keys.
+
+### Caliptra-Endorsed Local Verifier
+
+A local verifier provides an authentication of SoC FW by matching SoC FW measurements with measurements from the Caliptra measurement manifest. In this case, the SoC RoT still has its own FW public-key chain that is verified by the SoC RoT, but in addition the SoC RoT introduces the Caliptra Measurement Manifest, which is endorsed by the Caliptra FW key pair. Caliptra provides approval or disapproval of the measurement of any FW back to the SoC RoT. This effectively provides a multi-factor authentication of SoC FW.
+
+The Caliptra-Endorsed Local Verifier could be required by the owner only or both the vendor and the owner.
+
+The main difference between Caliptra-Endorsed Aggregated Measured Boot and Caliptra-Endorsed Local Verifier is if the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed as using it as an additional verification.
+
+### SoC RoT Enforcement of Measurement Manifest
+
+In both use cases, the SoC RoT chooses to provide the Caliptra Measurement Manifest and to enforce the result of the authorization. Caliptra 1.x is not capable of providing any enforcement of measurements for SoC FW execution.
+
+### Caliptra Measurement Manifest Signing Keys Authenticity
+
+Caliptra 1.0 and 1.1 do not put any requirements on how the SoC RoT ensures integrity and authenticity of SoC FW other than requiring the SoC RoT to provide a measurement to Caliptra of any SoC FW before execution. Caliptra Measurement Manifest enables the SoC RoT to perform the integrity check through Caliptra-authorized FW signing keys.
+
+### Unique Measurement Manifest Signing Keys
+
+In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and possibly one for the vendor. These new key pairs are endorsed once by the Caliptra FW signing keys, the signature being in the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
+
+### Caliptra Measurement Manifest Vendor Public Key Authenticity
+
+The Measurement Manifest MUST have an endorsement by the Caliptra Vendor Public Key. In order to fulfill this requirement, the Vendor has 2 options:
+
+* Vendor signing required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses this new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
+* Vendor signing **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
+
+### Caliptra Measurement Manifest Owner Public Key Authenticity
+
+Caliptra will always verify the endorsement of the Measurement Manifest Owner Public key and require that it signed the measurement manifest.
+
+This feature is accomplished by having the SoC send a manifest to Caliptra Runtime through the `SET_AUTH_MANIFEST` mailbox command. The manifest will include a set of hashes for the different SoC images. Later, the SOC will ask for authorization for its images from the Caliptra Runtime through the `AUTHORIZE_AND_STASH` new mailbox command. Caliptra Runtime will authorize the image based on whether its hash was contained in the manifest.
+
+#### Preamble
+
+The manifest begins with the Preamble section, which contains new manifest ECC and LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
+
+#### Image Metadata Collection (IMC)
+
+The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 127 image hashes will be supported.
+
+#### Caliptra Measurement Manifest Keys Endorsement Verification Steps
+
+When Caliptra receives the Measurement Manifest, Caliptra will:
+
+* Verify the vendor endorsement using the Caliptra Vendor FW Public Key and compare with the vendor endorsement signature.
+* If the vendor endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+* If the vendor endorsement is valid, Caliptra will check if a vendor manifest measurement key is required:
+    * If the key is required, Caliptra will trust the Vendor Public key that was just endorsed.
+    * If the key is not required, Caliptra will not perform any more vendor verifications on this measurement manifest.
+* Verify the owner endorsement using the Caliptra owner public key and compare with the owner endorsement signature.
+    * If the owner endorsement is invalid, the `SET_AUTH_MANIFEST` command will be rejected.
+    * Otherwise, the owner public key will be trusted and Caliptra will use it to verify the overall measurement manifest.
+
+### Image Authorization Sequence
+
+The diagram below illustrates how this feature is part of the Caliptra boot flow, and the order of operations needed to use the feature.
+
+```mermaid
+sequenceDiagram
+    ROM->>FMC: Launch FMC
+    FMC->>Runtime: Launch RT
+    Runtime->>SOC: RDY_FOR_RT
+    Note over Runtime,SOC: Manifest Load
+    SOC->>Runtime: SET_MANIFEST
+    Runtime-->>SOC: Success/Failure
+    Note over Runtime,SOC: Image Authorization
+    loop n times
+        SOC->>Runtime: AUTHORIZE_AND_STASH
+        Runtime-->>SOC: Success/Failure
+    end
+
+    Note over Runtime,SOC: DPE Attestation
+    SOC->>Runtime: DPE Attestation
+```
+
+## Mailbox commands
 
 All mailbox command codes are little endian.
 
@@ -721,28 +814,28 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `SET_AUTH_MANIFEST` input arguments*
 
-| **Name**            | **Type**  | **Description**
-| --------            | --------  | ---------------
-| chksum                        | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
-| manifest size                 | u32          | The size of the full Authentication Manifest                                |
-| preamble\_marker              | u32          | Marker needs to be 0x4154_4D4E for the preamble to be valid                 |
-| preamble\_size                | u32          | Size of the preamble                                                        |
-| preamble\_version             | u32          | Version of the preamble                                                     |
-| preamble\_flags               | u32          | Manifest flags. See AUTH_MANIFEST_FLAGS below |
-| preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
-| preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
-| preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
-| preamble\_vendor\_LMS\_sig    | u32[1344]    | Vendor LMOTS-SHA192-W4 signature                                            |
-| preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
-| preamble\_owner\_lms\_key     | u32[6]       | Owner LMS-SHA192-H15 key                                                    |
-| preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
-| preamble\_owner\_LMS\_sig     | u32[1344]    | Owner LMOTS-SHA192-W4 signature                                             |
-| metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
-| metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
-| metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
-| metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
-| metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
+| **Name**                      | **Type**  | **Description** |
+| ------------------------------| ------------------| --------------- |
+| chksum                        | u32                 | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size                 | u32                 | The size of the full Authentication Manifest |
+| manifest\_marker              | u32                 | Marker needs to be 0x4154_4D4E for the preamble to be valid |
+| preamble\_size                | u32                 | Size of the preamble |
+| manifest\_version             | u32                 | Version of the preamble |
+| manifest\_flags               | u32                 | Manifest flags. See `AUTH_MANIFEST_FLAGS` below. |
+| manifest\_vendor\_ecc384\_key | u32[24]                | Manifest Vendor ECC P-384 public key used to verify the IMC Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
+| manifest\_vendor\_lms\_key    | u32[12]                | Manifest Vendor LMS public key used to verify the IMC Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br> Note: If LMS validation is not required, this should field should be zeroed out. |
+| manifest\_vendor\_ecc384\_sig | u32[24]                | Manifest Vendor ECDSA P-384 signature of the Version, Flags, Vendor ECC and LMS public keys, hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
+| manifest\_vendor\_LMS\_sig    | u32[405]              | Vendor LMS signature of the Version, Flags, Vendor ECC and LMS public keys, hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br> Note: If LMS validation is not required, this should field should be zeroed out. |
+| manifest\_owner\_ecc384\_key  | u32[24]                | Manifest Owner ECC P-384 public key used to verify the IMC Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
+| manifest\_owner\_lms\_key     | u32[12]                | Manifest Owner LMS public key used to verify the IMC Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br> Note: If LMS validation is not required, this should field should be zeroed out. |
+| manifest\_owner\_ecc384\_sig  | u32[24]                | Owner ECDSA P-384 signature of the Owner ECC and LMS public keys, hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
+| manifest\_owner\_LMS\_sig     | u32[405]              | Owner LMS signature of the Version, Flags, Owner ECC and LMS public keys, hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br> Note: If LMS validation is not required, this should field should be zeroed out. |
+| metadata\_vendor\_ecc384\_sig | u32[24]                | Metadata Vendor ECC384 signature over the image metadata collection using the manifest vendor ecc384 key. |
+| metadata\_vendor\_LMS\_sig    | u32[405]              | Metadata Vendor LMOTS-SHA192-W4 signature over the image metadata collection using the manifest vendor LMS key. |
+| metadata\_owner\_ecc384\_sig  | u32[24]                | Metadata Owner ECC384 signature over the image metadata collection using the manifest owner ecc384 key. |
+| metadata\_owner\_LMS\_sig     | u32[405]              | Metadata Owner LMOTS-SHA192-W4 signature over the image metadata collection manifest owner LMS key. |
+| metadata\_entry\_entry\_count | u32                 | number of metadata entries |
+| metadata\_entries             | MetaData[127]     | The max number of metadata entries is 127 but less can be used |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
@@ -753,11 +846,11 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 
-| **Name**      | **Type** | **Description**                |
-|---------------|----------|--------------------------------|
-| fw\_id        | u32      | Id of the image                |
-| flags         | u32      | See METADATA_ENTRY_FLAGS below |
-| digest        | u32[48]  | Digest of the image            |
+| **Name**      | **Type** | **Description**                  |
+|---------------|----------|----------------------------------|
+| fw\_id        | u32      | Id of the image                  |
+| flags         | u32      | See `METADATA_ENTRY_FLAGS` below |
+| digest        | u32[48]  | Digest of the image              |
 
 
 *Table: `METADATA_ENTRY_FLAGS` input flags*
@@ -769,10 +862,10 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `SET_AUTH_MANIFEST` output arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type** | **Description** |
+| --------      | -------- | --------------- |
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error. |
 
 
 ### AUTHORIZE_AND_STASH
@@ -781,27 +874,27 @@ Command Code: `0x4154_5348` ("ATSH")
 
 *Table: `AUTHORIZE_AND_STASH` input arguments*
 
-| **Name**    | **Type** | **Description**
-| ------------| -------- | ---------------
-| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
+| **Name**    | **Type** | **Description** |
+| ------------| -------- | --------------- |
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
 | fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
 | measurement | u8[48]   | Digest of the image requested for authorization |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
-| svn         | u32      | SVN                                                                                 |
+| svn         | u32      | SVN |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
-| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
+| source      | u32      | Enumeration values: { InRequest(1) } |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
 
-| **Name**   | **Value** |
-|------------|-----------|
+| **Name**   | **Value**  |
+|------------|------------|
 | SKIP\_STASH | 1 << 0    |
 
 *Table: `AUTHORIZE_AND_STASH` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum            | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| fips_status      | u32      | Indicates if the command is FIPS approved or an error.                     |
+| **Name**        | **Type** | **Description**
+| ----------------| -------- | ---------------
+| chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      | AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) |
 
 ### GET\_IDEVID\_CSR
