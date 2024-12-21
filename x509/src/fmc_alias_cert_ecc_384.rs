@@ -4,19 +4,19 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    fmc_alias_cert.rs
+    fmc_alias_cert_ecc_384.rs
 
 Abstract:
 
-    FMC Alias Certificate related code.
+    ECC384 FMC Alias Certificate related code.
 
 --*/
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert_tbs.rs"));
+include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert_tbs_ecc_384.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/fmc_alias_cert_tbs.rs"}
+include! {"../build/fmc_alias_cert_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -35,16 +35,19 @@ mod tests {
     use x509_parser::x509::X509Version;
 
     const TEST_DEVICE_INFO_HASH: &[u8] =
-        &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_DEVICE_INFO_HASH_LEN];
-    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN];
-    const TEST_UEID: &[u8] = &[0xABu8; FmcAliasCertTbsParams::UEID_LEN];
+        &[0xCDu8; FmcAliasCertTbsEcc384Params::TCB_INFO_DEVICE_INFO_HASH_LEN];
+    const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCertTbsEcc384Params::TCB_INFO_FMC_TCI_LEN];
+    const TEST_UEID: &[u8] = &[0xABu8; FmcAliasCertTbsEcc384Params::UEID_LEN];
     const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
     const TEST_TCB_INFO_FMC_SVN: &[u8] = &[0xB7];
     const TEST_TCB_INFO_FMC_SVN_FUSES: &[u8] = &[0xB8];
 
-    fn make_test_cert(subject_key: &Ecc384AsymKey, issuer_key: &Ecc384AsymKey) -> FmcAliasCertTbs {
-        let params = FmcAliasCertTbsParams {
-            serial_number: &[0xABu8; FmcAliasCertTbsParams::SERIAL_NUMBER_LEN],
+    fn make_test_cert(
+        subject_key: &Ecc384AsymKey,
+        issuer_key: &Ecc384AsymKey,
+    ) -> FmcAliasCertTbsEcc384 {
+        let params = FmcAliasCertTbsEcc384Params {
+            serial_number: &[0xABu8; FmcAliasCertTbsEcc384Params::SERIAL_NUMBER_LEN],
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key
                 .hex_str()
@@ -70,7 +73,7 @@ mod tests {
             not_after: &NotAfter::default().value,
         };
 
-        FmcAliasCertTbs::new(&params)
+        FmcAliasCertTbsEcc384::new(&params)
     }
 
     #[test]
@@ -88,62 +91,67 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(cert.tbs(), FmcAliasCertTbs::TBS_TEMPLATE);
+        assert_ne!(cert.tbs(), FmcAliasCertTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::PUBLIC_KEY_OFFSET
-                ..FmcAliasCertTbs::PUBLIC_KEY_OFFSET + FmcAliasCertTbs::PUBLIC_KEY_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::PUBLIC_KEY_OFFSET
+                ..FmcAliasCertTbsEcc384::PUBLIC_KEY_OFFSET + FmcAliasCertTbsEcc384::PUBLIC_KEY_LEN],
             subject_key.pub_key(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::SUBJECT_SN_OFFSET
-                ..FmcAliasCertTbs::SUBJECT_SN_OFFSET + FmcAliasCertTbs::SUBJECT_SN_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::SUBJECT_SN_OFFSET
+                ..FmcAliasCertTbsEcc384::SUBJECT_SN_OFFSET + FmcAliasCertTbsEcc384::SUBJECT_SN_LEN],
             subject_key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::ISSUER_SN_OFFSET
-                ..FmcAliasCertTbs::ISSUER_SN_OFFSET + FmcAliasCertTbs::ISSUER_SN_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::ISSUER_SN_OFFSET
+                ..FmcAliasCertTbsEcc384::ISSUER_SN_OFFSET + FmcAliasCertTbsEcc384::ISSUER_SN_LEN],
             issuer_key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::UEID_OFFSET
-                ..FmcAliasCertTbs::UEID_OFFSET + FmcAliasCertTbs::UEID_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::UEID_OFFSET
+                ..FmcAliasCertTbsEcc384::UEID_OFFSET + FmcAliasCertTbsEcc384::UEID_LEN],
             TEST_UEID,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::SUBJECT_KEY_ID_OFFSET
-                ..FmcAliasCertTbs::SUBJECT_KEY_ID_OFFSET + FmcAliasCertTbs::SUBJECT_KEY_ID_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                ..FmcAliasCertTbsEcc384::SUBJECT_KEY_ID_OFFSET
+                    + FmcAliasCertTbsEcc384::SUBJECT_KEY_ID_LEN],
             subject_key.sha1(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::AUTHORITY_KEY_ID_OFFSET
-                ..FmcAliasCertTbs::AUTHORITY_KEY_ID_OFFSET + FmcAliasCertTbs::AUTHORITY_KEY_ID_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                ..FmcAliasCertTbsEcc384::AUTHORITY_KEY_ID_OFFSET
+                    + FmcAliasCertTbsEcc384::AUTHORITY_KEY_ID_LEN],
             issuer_key.sha1(),
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FLAGS_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FLAGS_OFFSET + FmcAliasCertTbs::TCB_INFO_FLAGS_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::TCB_INFO_FLAGS_OFFSET
+                ..FmcAliasCertTbsEcc384::TCB_INFO_FLAGS_OFFSET
+                    + FmcAliasCertTbsEcc384::TCB_INFO_FLAGS_LEN],
             TEST_TCB_INFO_FLAGS,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
-                    + FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCertTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCertTbsEcc384::TCB_INFO_DEVICE_INFO_HASH_LEN],
             TEST_DEVICE_INFO_HASH,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_TCI_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
+                ..FmcAliasCertTbsEcc384::TCB_INFO_FMC_TCI_OFFSET
+                    + FmcAliasCertTbsEcc384::TCB_INFO_FMC_TCI_LEN],
             TEST_FMC_HASH,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_SVN_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_OFFSET
+                ..FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_OFFSET
+                    + FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_LEN],
             TEST_TCB_INFO_FMC_SVN,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
-                    + FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_LEN],
+            &cert.tbs()[FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                ..FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                    + FmcAliasCertTbsEcc384::TCB_INFO_FMC_SVN_FUSES_LEN],
             TEST_TCB_INFO_FMC_SVN_FUSES,
         );
 
@@ -213,11 +221,13 @@ mod tests {
     #[test]
     #[cfg(feature = "generate_templates")]
     fn test_fmc_alias_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/fmc_alias_cert_tbs.rs")).unwrap();
+        let manual_template = std::fs::read(std::path::Path::new(
+            "./build/fmc_alias_cert_tbs_ecc_384.rs",
+        ))
+        .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/fmc_alias_cert_tbs.rs"
+            "/fmc_alias_cert_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {

@@ -15,6 +15,7 @@ use crate::cprintln;
 use crate::crypto::{Crypto, PubKey};
 use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
+use caliptra_x509::*;
 use core::mem::size_of;
 use core::usize;
 use zerocopy::AsBytes;
@@ -159,6 +160,30 @@ impl X509 {
     pub fn ecc_cert_sn(sha256: &mut Sha256, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(sha256, &data);
+        let mut digest: [u8; 32] = okref(&digest)?.into();
+
+        // Ensure the encoded integer is positive, and that the first octet
+        // is non-zero (otherwise it will be considered padding, and the integer
+        // will fail to parse if the MSB of the second octet is zero).
+        digest[0] &= !0x80;
+        digest[0] |= 0x04;
+
+        Ok(digest[..20].try_into().unwrap())
+    }
+
+    /// Get Serial Number for Mldsa certificate.
+    ///
+    /// # Arguments
+    ///
+    /// * `sha256`  - SHA256 Driver
+    /// * `pub_key` - MLDSA Public Key
+    ///
+    /// # Returns
+    ///
+    /// `[u8; 20]` - X509 Serial Number
+    pub fn mldsa_cert_sn(sha256: &mut Sha256, pub_key: &Mldsa87PubKey) -> CaliptraResult<[u8; 20]> {
+        // [TODO][CAP2] Can we just take the pub_key here?
+        let digest = Crypto::sha256_digest(sha256, &pub_key.as_bytes());
         let mut digest: [u8; 32] = okref(&digest)?.into();
 
         // Ensure the encoded integer is positive, and that the first octet
