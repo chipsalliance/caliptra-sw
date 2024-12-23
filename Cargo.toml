@@ -146,7 +146,7 @@ dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p38
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
-fips204 = "0.4.1"
+fips204 = "0.4.6"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"

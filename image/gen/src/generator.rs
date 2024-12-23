@@ -16,8 +16,6 @@ use caliptra_image_types::*;
 use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 use zerocopy::AsBytes;
 
 use crate::*;
@@ -159,8 +157,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             result
         }
 
-        let mut rng = StdRng::from_seed([0u8; 32]);
-
         // Private key is received in hw format. Reverse the DWORD endianess for signing.
         let priv_key = {
             let key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
@@ -171,7 +167,9 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Digest is received in hw format. Reverse the DWORD endianess for signing.
         let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
 
-        let signature = priv_key.try_sign_with_rng(&mut rng, &digest, &[]).unwrap();
+        let signature = priv_key
+            .try_sign_with_seed(&[0u8; 32], &digest, &[])
+            .unwrap();
         let signature_extended = {
             let mut sig = [0u8; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
