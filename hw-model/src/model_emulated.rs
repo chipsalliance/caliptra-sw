@@ -30,11 +30,11 @@ use crate::TrngMode;
 use caliptra_emu_bus::{Bus, BusMmio};
 
 use caliptra_api::soc_mgr::SocManager;
-pub struct EmulatedAxiBus<'a> {
+pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
 
-impl<'a> Bus for EmulatedAxiBus<'a> {
+impl<'a> Bus for EmulatedApbBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
@@ -109,14 +109,14 @@ fn hash_slice(slice: &[u8]) -> u64 {
 }
 
 impl SocManager for ModelEmulated {
-    type TMmio<'a> = BusMmio<EmulatedAxiBus<'a>>;
+    type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
 
     fn delay(&mut self) {
         self.step();
     }
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
-        BusMmio::new(self.axi_bus())
+        BusMmio::new(self.apb_bus())
     }
 
     const SOC_IFC_ADDR: u32 = 0x3003_0000;
@@ -128,7 +128,7 @@ impl SocManager for ModelEmulated {
 }
 
 impl HwModel for ModelEmulated {
-    type TBus<'a> = EmulatedAxiBus<'a>;
+    type TBus<'a> = EmulatedApbBus<'a>;
 
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
@@ -228,8 +228,8 @@ impl HwModel for ModelEmulated {
     fn ready_for_fw(&self) -> bool {
         self.ready_for_fw.get()
     }
-    fn axi_bus(&mut self) -> Self::TBus<'_> {
-        EmulatedAxiBus { model: self }
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
+        EmulatedApbBus { model: self }
     }
 
     fn step(&mut self) {
