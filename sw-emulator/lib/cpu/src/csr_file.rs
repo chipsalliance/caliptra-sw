@@ -73,13 +73,13 @@ impl Csr {
     /// PMP configuration register range start, inclusive
     pub const PMPCFG_START: RvAddr = 0x3A0;
     /// PMP configuration register range end, inclusive
-    pub const PMPCFG_END: RvAddr = 0x3A3;
+    pub const PMPCFG_END: RvAddr = 0x3AF;
     /// PMP address register range start, inclusive
     pub const PMPADDR_START: RvAddr = 0x3B0;
     /// PMP address register range end, inclusive
-    pub const PMPADDR_END: RvAddr = 0x3C0;
+    pub const PMPADDR_END: RvAddr = 0x3EF;
     /// Number of PMP address/cfg registers
-    pub const PMPCOUNT: usize = 16;
+    pub const PMPCOUNT: usize = 64;
 
     /// Create a new Configurations and Status register
     ///
@@ -669,8 +669,9 @@ impl CsrFile {
             return Ok(false);
         }
 
+        let addr = addr as u64;
         let pmpaddr = self.any_read(RvPrivMode::M, Csr::PMPADDR_START + index as RvAddr)?;
-        let pmpaddr_shift = pmpaddr << 2;
+        let pmpaddr_shift = (pmpaddr as u64) << 2;
         let addr_top;
         let addr_bottom;
 
@@ -680,7 +681,9 @@ impl CsrFile {
                 // otherwise it's the previous one
                 addr_top = pmpaddr_shift;
                 addr_bottom = if index > 0 {
-                    self.any_read(RvPrivMode::M, Csr::PMPADDR_START + (index - 1) as RvAddr)? << 2
+                    (self.any_read(RvPrivMode::M, Csr::PMPADDR_START + (index - 1) as RvAddr)?
+                        as u64)
+                        << 2
                 } else {
                     0
                 };
@@ -691,13 +694,12 @@ impl CsrFile {
                 addr_bottom = pmpaddr_shift;
             }
             RvPmpAddrMode::Napot => {
-                // Range from 8..32
-                addr_top = pmpaddr_shift + (1 << (pmpaddr.trailing_ones() + 3));
-                addr_bottom = pmpaddr_shift;
+                let (bot, top) = decode_napot_pmpaddr(pmpaddr);
+                addr_bottom = bot;
+                addr_top = top;
             }
             _ => unreachable!(),
         }
-
         Ok(addr >= addr_bottom && addr < addr_top)
     }
 
@@ -748,10 +750,42 @@ impl CsrFile {
     }
 }
 
+// Returns the base address (inclusive) and end address (exclusive) of a NAPOT PMP address
+fn decode_napot_pmpaddr(addr: u32) -> (u64, u64) {
+    let bits = addr.trailing_ones();
+    let addr = addr as u64;
+    let base = (addr & !((1 << bits) - 1)) << 2;
+    (base, base + (1 << (bits + 3)))
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn test_decode_napot_pmpaddr() {
+        assert_eq!((0x0000_0000, 0x0000_0008), decode_napot_pmpaddr(0x00000000));
+        assert_eq!((0x0000_0000, 0x0000_0010), decode_napot_pmpaddr(0x00000001));
+        assert_eq!((0x0040_0000, 0x0040_8000), decode_napot_pmpaddr(0x00100fff));
+        assert_eq!((0x1000_0000, 0x2000_0000), decode_napot_pmpaddr(0x05ffffff));
+        assert_eq!(
+            (0x0000_0000, 0x1_0000_0000),
+            decode_napot_pmpaddr(0x1fffffff)
+        );
+        assert_eq!(
+            (0x0000_0000, 0x2_0000_0000),
+            decode_napot_pmpaddr(0x3fffffff)
+        );
+        assert_eq!(
+            (0x0000_0000, 0x4_0000_0000),
+            decode_napot_pmpaddr(0x7fffffff)
+        );
+        assert_eq!(
+            (0x0000_0000, 0x8_0000_0000),
+            decode_napot_pmpaddr(0xffffffff)
+        );
+    }
 
     #[test]
     fn test_u_mode_read_m_mode_csr() {
