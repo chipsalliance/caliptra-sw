@@ -24,27 +24,12 @@ pub enum EventData {
         name: &'static str,
         value: u32,
     },
-    RegisterRequest {
-        name: &'static str,
-    },
-    RegisterValue {
-        name: &'static str,
-        value: u32,
-    },
     MemoryRead {
         start_addr: u32,
         len: usize,
     },
     MemoryWrite {
         start_addr: u32,
-        data: Vec<u8>,
-    },
-    MailboxCommand {
-        command: u32,
-        data: Vec<u8>,
-    },
-    MailboxResponse {
-        response: u32,
         data: Vec<u8>,
     },
     I3CBusCommand {
