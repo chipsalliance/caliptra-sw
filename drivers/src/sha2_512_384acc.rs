@@ -46,14 +46,14 @@ impl Sha2_512_384Acc {
     /// # Arguments
     ///
     /// * assumed_lock_state - The assumed lock state of the SHA384 Accelerator.
-    /// Note: Callers should pass assumed_lock_state=ShaAccLockState::NotAcquired
-    ///  unless they are the first caller to the peripheral after a cold/warm boot.
+    ///   Note: Callers should pass assumed_lock_state=ShaAccLockState::NotAcquired
+    ///   unless they are the first caller to the peripheral after a cold/warm boot.
     ///
     /// # Returns
     ///
     /// * On success, either an object representing the SHA384 accelerator operation or
-    /// 'None' if unable to acquire the SHA384 Accelerator lock.
-    /// On failure, an error code.
+    ///   'None' if unable to acquire the SHA384 Accelerator lock.
+    ///   On failure, an error code.
     ///
     pub fn try_start_operation(
         &mut self,

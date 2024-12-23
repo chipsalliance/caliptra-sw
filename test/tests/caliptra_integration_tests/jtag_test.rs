@@ -126,6 +126,8 @@ fn gdb_test() {
         .spawn()
         .unwrap();
 
+    gdb.wait().unwrap();
+
     let mut stdin = gdb.stdin.take().expect("Failed to open stdin");
     let mut stderr = BufReader::new(gdb.stderr.as_mut().unwrap());
 

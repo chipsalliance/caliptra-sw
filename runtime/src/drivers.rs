@@ -12,10 +12,10 @@ Abstract:
 
 --*/
 
-#![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
+#![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 
 #[cfg(feature = "fips_self_test")]
-pub use crate::fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 
 use crate::{
     dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
@@ -24,32 +24,19 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
-use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::{
-    cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
-    CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
-    PcrId, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, SocIfc, Trng,
+    cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
+    CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank, PersistentDataAccessor,
+    Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::{
-    csrng::CsrngReg,
-    dv::DvReg,
-    ecc::EccReg,
-    el2_pic_ctrl::El2PicCtrl,
-    entropy_src::EntropySrcReg,
-    hmac::HmacReg,
-    kv::KvReg,
-    mbox::{enums::MboxStatusE, MboxCsr},
-    mldsa::MldsaReg,
-    pv::PvReg,
-    sha256::Sha256Reg,
-    sha512::Sha512Reg,
-    sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg,
-    soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl, entropy_src::EntropySrcReg,
+    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
@@ -59,13 +46,12 @@ use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
-    dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
-    support::Support,
+    dpe_instance::{DpeEnv, DpeInstance},
     DPE_PROFILE,
 };
 
 use core::cmp::Ordering::{Equal, Greater};
-use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
+use crypto::CryptoBuf;
 use zerocopy::AsBytes;
 
 #[derive(PartialEq, Clone)]
@@ -210,7 +196,7 @@ impl Drivers {
             .contexts
             .iter()
             .enumerate()
-            .find(|&(idx, context)| {
+            .find(|&(_idx, context)| {
                 context.state != ContextState::Inactive
                     && context.parent_idx == Context::ROOT_INDEX
                     && context.context_type == ContextType::Normal
@@ -224,13 +210,13 @@ impl Drivers {
     }
 
     /// Validate DPE and disable attestation if validation fails
-    fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+    fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let dpe_validator = DpeValidator { dpe };
         let validation_result = dpe_validator.validate_dpe();
         if let Err(e) = validation_result {
             // If SRAM Dpe Instance validation fails, disable attestation
-            let mut result = DisableAttestationCmd::execute(drivers);
+            let result = DisableAttestationCmd::execute(drivers);
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
             } else {
@@ -251,7 +237,6 @@ impl Drivers {
                 }
             }
         } else {
-            let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             // check that DPE used context limits are not exceeded
             let dpe_context_threshold_exceeded = drivers.is_dpe_context_threshold_exceeded();
             if cfi_launder(dpe_context_threshold_exceeded.is_ok()) {
@@ -297,7 +282,7 @@ impl Drivers {
     }
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
-    fn check_dpe_rt_journey_unchanged(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+    fn check_dpe_rt_journey_unchanged(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &drivers.persistent_data.get().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
@@ -335,13 +320,13 @@ impl Drivers {
     }
 
     /// Check that inactive DPE contexts do not have context tags set
-    fn validate_context_tags(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+    fn validate_context_tags(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = &pdata.context_has_tag;
         let context_tags = &pdata.context_tags;
         let dpe = &pdata.dpe;
 
-        for i in (0..MAX_HANDLES) {
+        for i in 0..MAX_HANDLES {
             if dpe.contexts[i].state == ContextState::Inactive {
                 if context_tags[i] != 0 {
                     return Err(CaliptraError::RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED);
@@ -389,7 +374,7 @@ impl Drivers {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let mut crypto = DpeCrypto::new(
+        let crypto = DpeCrypto::new(
             &mut drivers.sha2_512_384,
             &mut drivers.trng,
             &mut drivers.ecc384,
@@ -594,7 +579,7 @@ impl Drivers {
         let locality = self.mbox.id();
 
         // When the PL0_PAUSER_FLAG bit is not set there can be no PL0 PAUSER.
-        if (flags & PL0_PAUSER_FLAG == 0) {
+        if flags & PL0_PAUSER_FLAG == 0 {
             return PauserPrivileges::PL1;
         }
 

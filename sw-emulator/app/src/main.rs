@@ -415,7 +415,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn change_dword_endianess(data: &mut Vec<u8>) {
+fn change_dword_endianess(data: &mut [u8]) {
     for idx in (0..data.len()).step_by(4) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);

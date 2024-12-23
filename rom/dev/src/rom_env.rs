@@ -15,7 +15,6 @@ Abstract:
 
 --*/
 
-use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DeobfuscationEngine, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
@@ -65,9 +64,6 @@ pub struct RomEnv {
     /// PCR Bank
     pub pcr_bank: PcrBank,
 
-    /// FHT Data Store
-    pub fht_data_store: FhtDataStore,
-
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
 
@@ -100,7 +96,6 @@ impl RomEnv {
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
-            fht_data_store: FhtDataStore::default(),
             trng,
             persistent_data: PersistentDataAccessor::new(),
             mldsa87: Mldsa87::new(MldsaReg::new()),

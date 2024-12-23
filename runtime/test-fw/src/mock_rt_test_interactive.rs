@@ -25,7 +25,7 @@ pub const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-fn rt_entry() -> () {
+fn rt_entry() {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
@@ -46,7 +46,6 @@ fn rt_entry() -> () {
     if let Err(e) = handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
-    return;
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -132,7 +131,7 @@ fn read_pcrs(mbox: &mut Mailbox) {
     const PCR_COUNT: usize = 32;
     for i in 0..PCR_COUNT {
         let pcr = pcr_bank.read_pcr(PcrId::try_from(i as u8).unwrap());
-        let mut pcr_bytes: [u32; 12] = pcr.try_into().unwrap();
+        let mut pcr_bytes: [u32; 12] = pcr.into();
 
         swap_word_bytes_inplace(&mut pcr_bytes);
         mbox.copy_bytes_to_mbox(pcr.as_bytes()).unwrap();
@@ -153,10 +152,11 @@ fn try_to_reset_pcrs(mbox: &mut Mailbox) {
     let res0 = pcr_bank.erase_pcr(caliptra_common::RT_FW_CURRENT_PCR);
     let res1 = pcr_bank.erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR);
 
+    // Resetting the PCRs should fail if locked
     if res0.is_err() && res1.is_err() {
         mbox.set_status(MboxStatusE::CmdComplete);
     } else {
-        mbox.set_status(MboxStatusE::CmdComplete);
+        mbox.set_status(MboxStatusE::CmdFailure);
     }
 }
 

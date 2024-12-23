@@ -340,7 +340,7 @@ fn test_failures_lms_24() {
 
     let new_message = "this is a different message".as_bytes();
     let result = Lms::default()
-        .verify_lms_signature(&mut sha256, &new_message, &LMS_PUBLIC_KEY, &lms_sig)
+        .verify_lms_signature(&mut sha256, new_message, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
     assert_ne!(result, LmsResult::Success);
 

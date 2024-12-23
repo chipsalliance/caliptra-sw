@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::{array::Array4x16, wait, Array4x8, CaliptraError, CaliptraResult};
 use caliptra_registers::sha256::Sha256Reg;
 
@@ -548,7 +546,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
         Ok(())
     }
 }
-impl<'a> Sha256DigestOpHw<'a> {
+impl Sha256DigestOpHw<'_> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha256DigestState::Init

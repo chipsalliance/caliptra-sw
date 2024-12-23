@@ -13,7 +13,7 @@ Abstract:
 --*/
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
-use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -22,7 +22,6 @@ use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha2_512_384;
 use caliptra_drivers::Sha2_512_384Acc;
-use caliptra_registers::mbox::enums::MboxStatusE;
 use zeroize::Zeroize;
 
 use crate::Drivers;
@@ -91,7 +90,7 @@ pub mod fips_self_test_cmd {
             env.persistent_data.get().manifest1.size
                 + env.persistent_data.get().manifest1.fmc.size
                 + env.persistent_data.get().manifest1.runtime.size,
-        );
+        )?;
         env.mbox
             .copy_bytes_to_mbox(env.persistent_data.get().manifest1.as_bytes())?;
 
@@ -105,8 +104,8 @@ pub mod fips_self_test_cmd {
             return Err(CaliptraError::RUNTIME_INVALID_RUNTIME_SIZE);
         }
 
-        let fmc = unsafe { create_slice(&fmc_toc) };
-        let rt = unsafe { create_slice(&rt_toc) };
+        let fmc = unsafe { create_slice(fmc_toc) };
+        let rt = unsafe { create_slice(rt_toc) };
 
         env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
@@ -163,16 +162,16 @@ pub mod fips_self_test_cmd {
             // Hmac-512/384 Engine
             hmac: &mut env.hmac,
 
-            /// Cryptographically Secure Random Number Generator
+            // Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
 
             // LMS Engine
             lms: &mut env.lms,
 
-            /// Ecc384 Engine
+            // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            /// SHA Acc Lock State
+            // SHA Acc Lock State
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
 
