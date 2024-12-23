@@ -334,7 +334,7 @@ impl SocManager for ModelFpgaRealtime {
     type TMmio<'a> = BusMmio<FpgaRealtimeBus<'a>>;
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
-        BusMmio::new(self.axi_bus())
+        BusMmio::new(self.apb_bus())
     }
 
     fn delay(&mut self) {
@@ -344,7 +344,7 @@ impl SocManager for ModelFpgaRealtime {
 impl HwModel for ModelFpgaRealtime {
     type TBus<'a> = FpgaRealtimeBus<'a>;
 
-    fn axi_bus(&mut self) -> Self::TBus<'_> {
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
         FpgaRealtimeBus {
             mmio: self.mmio,
             phantom: Default::default(),

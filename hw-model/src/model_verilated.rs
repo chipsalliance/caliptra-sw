@@ -22,15 +22,15 @@ const DEFAULT_AXI_PAUSER: u32 = 0x1;
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
 
-pub struct VerilatedAxiBus<'a> {
+pub struct VerilatedApbBus<'a> {
     model: &'a mut ModelVerilated,
 }
-impl<'a> Bus for VerilatedAxiBus<'a> {
+impl<'a> Bus for VerilatedApbBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        let result = Ok(self.model.v.axi_read_u32(self.model.soc_axi_pauser, addr));
+        let result = Ok(self.model.v.apb_read_u32(self.model.soc_axi_pauser, addr));
         self.model
             .log
             .borrow_mut()
@@ -53,7 +53,7 @@ impl<'a> Bus for VerilatedAxiBus<'a> {
         }
         self.model
             .v
-            .axi_write_u32(self.model.soc_axi_pauser, addr, val);
+            .apb_write_u32(self.model.soc_axi_pauser, addr, val);
         self.model
             .log
             .borrow_mut()
@@ -113,10 +113,10 @@ fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
     }
 }
 impl SocManager for ModelVerilated {
-    type TMmio<'a> = BusMmio<VerilatedAxiBus<'a>>;
+    type TMmio<'a> = BusMmio<VerilatedApbBus<'a>>;
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
-        BusMmio::new(self.axi_bus())
+        BusMmio::new(self.apb_bus())
     }
 
     fn delay(&mut self) {
@@ -132,7 +132,7 @@ impl SocManager for ModelVerilated {
 }
 
 impl HwModel for ModelVerilated {
-    type TBus<'a> = VerilatedAxiBus<'a>;
+    type TBus<'a> = VerilatedApbBus<'a>;
 
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
     where
@@ -271,8 +271,8 @@ impl HwModel for ModelVerilated {
         self.trng_mode
     }
 
-    fn axi_bus(&mut self) -> Self::TBus<'_> {
-        VerilatedAxiBus { model: self }
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
+        VerilatedApbBus { model: self }
     }
 
     fn step(&mut self) {
