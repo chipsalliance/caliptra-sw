@@ -19,11 +19,50 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
-use rand::rngs::StdRng;
-use rand::Rng;
-use rand::SeedableRng;
+use rand::{CryptoRng, Rng, RngCore};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
+
+// RNG that only allows a single call, which returns the fixed seed.
+pub(crate) struct SeedOnlyRng {
+    seed: [u8; 32],
+    called: bool,
+}
+
+impl SeedOnlyRng {
+    pub(crate) fn new(seed: [u8; 32]) -> Self {
+        Self {
+            seed,
+            called: false,
+        }
+    }
+}
+
+impl RngCore for SeedOnlyRng {
+    fn next_u32(&mut self) -> u32 {
+        unimplemented!()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        unimplemented!()
+    }
+
+    fn fill_bytes(&mut self, out: &mut [u8]) {
+        if self.called {
+            panic!("Can only call fill_bytes once");
+        }
+        assert_eq!(out.len(), 32);
+        out.copy_from_slice(&self.seed[..32]);
+        self.called = true;
+    }
+
+    fn try_fill_bytes(&mut self, out: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(out);
+        Ok(())
+    }
+}
+
+impl CryptoRng for SeedOnlyRng {}
 
 /// ML_DSA87 Initialization Vector size
 const ML_DSA87_IV_SIZE: usize = 64;
@@ -312,8 +351,8 @@ impl Mldsa87 {
     }
 
     fn gen_key(&mut self) {
-        let seed_bytes = &bytes_from_words_be(&self.seed);
-        let mut rng = StdRng::from_seed(*seed_bytes);
+        let seed = bytes_from_words_be(&self.seed);
+        let mut rng = SeedOnlyRng::new(seed);
         let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
 
         self.pubkey = words_from_bytes_be(&pk.into_bytes());
@@ -321,16 +360,12 @@ impl Mldsa87 {
     }
 
     fn sign(&mut self) {
-        let sign_seed = &bytes_from_words_be(&self.sign_rnd);
-        let mut rng = StdRng::from_seed(*sign_seed);
-
         let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
-
         let message = &bytes_from_words_be(&self.msg);
 
         // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
         let signature = secret_key
-            .try_sign_with_rng(&mut rng, message, &[])
+            .try_sign_with_seed(&[0u8; 32], message, &[])
             .unwrap();
         let signature_extended = {
             let mut sig = [0; SIG_LEN + 1];
@@ -550,7 +585,7 @@ mod tests {
 
         // Swap endianness again
         seed.to_big_endian();
-        let mut rng = StdRng::from_seed(seed);
+        let mut rng = SeedOnlyRng::new(seed);
         let (pk, _sk) = try_keygen_with_rng(&mut rng).unwrap();
         assert_eq!(&public_key, &pk.into_bytes());
     }
@@ -623,10 +658,9 @@ mod tests {
         seed.to_big_endian();
         msg.to_big_endian();
         sign_rnd.to_big_endian();
-        let mut keygen_rng = StdRng::from_seed(seed);
+        let mut keygen_rng = SeedOnlyRng::new(seed);
         let (_pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
-        let mut sign_rng = StdRng::from_seed(sign_rnd);
-        let test_signature = sk.try_sign_with_rng(&mut sign_rng, &msg, &[]).unwrap();
+        let test_signature = sk.try_sign_with_seed(&[0u8; 32], &msg, &[]).unwrap();
 
         assert_eq!(&signature[..SIG_LEN], &test_signature);
     }
@@ -646,11 +680,9 @@ mod tests {
         };
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        let mut keygen_rng = StdRng::from_seed(seed);
+        let mut keygen_rng = SeedOnlyRng::new(seed);
         let (pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
-        let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-        let mut sign_rng = StdRng::from_seed(sign_rnd);
-        let test_signature = sk.try_sign_with_rng(&mut sign_rng, &msg, &[]).unwrap();
+        let test_signature = sk.try_sign_with_seed(&[0u8; 32], &msg, &[]).unwrap();
 
         msg.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..msg.len()).step_by(4) {
@@ -760,7 +792,7 @@ mod tests {
         for key_id in 0..KeyVault::KEY_COUNT {
             let clock = Clock::new();
             let mut seed = rand::thread_rng().gen::<[u8; 32]>();
-            let mut keygen_rng = StdRng::from_seed(seed);
+            let mut keygen_rng = SeedOnlyRng::new(seed);
             let (pk, _sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
             seed.to_big_endian(); // Change DWORDs to big-endian.
 
