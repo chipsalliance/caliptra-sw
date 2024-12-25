@@ -568,6 +568,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
     pub const FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR: CaliptraError =
         CaliptraError::new_const(0x0102000A);
+    pub const FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE: CaliptraError =
+        CaliptraError::new_const(0x0102000B);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);

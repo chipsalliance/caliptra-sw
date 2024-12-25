@@ -418,6 +418,12 @@ impl SocIfc {
         let high = self.soc_ifc.regs().ss_otp_fc_base_addr_h().read();
         (high as u64) << 32 | low as u64
     }
+
+    pub fn recovery_interface_base_addr(&self) -> u64 {
+        let low = self.soc_ifc.regs().ss_recovery_ifc_base_addr_l().read();
+        let high = self.soc_ifc.regs().ss_recovery_ifc_base_addr_h().read();
+        (high as u64) << 32 | low as u64
+    }
 }
 
 bitflags::bitflags! {
