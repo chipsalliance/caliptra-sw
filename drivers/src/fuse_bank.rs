@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::Array4x12;
+use crate::{Array4x12, Array4x4};
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use zerocopy::AsBytes;
@@ -311,6 +311,19 @@ impl FuseBank<'_> {
     pub fn lms_revocation(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.fuse_lms_revocation().read()
+    }
+
+    /// Get the manufactoring debug unlock token
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     manufactoring debug unlock token
+    ///
+    pub fn manuf_dbg_unlock_token(&self) -> Array4x4 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        Array4x4::read_from_reg(soc_ifc_regs.fuse_manuf_dbg_unlock_token())
     }
 }
 

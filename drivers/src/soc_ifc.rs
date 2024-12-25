@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use crate::{Array4x16, AxiAddr};
+use bitfield::size_of;
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
@@ -73,6 +75,116 @@ impl SocIfc {
     pub fn debug_locked(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.cptra_security_state().read().debug_locked()
+    }
+
+    /// Subsystem debug intent
+    fn ss_debug_intent(&self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.ss_debug_intent().read().debug_intent()
+    }
+
+    /// Subsystem debug unlock requested
+    pub fn ss_debug_unlock_req(&self) -> CaliptraResult<bool> {
+        if !self.ss_debug_intent() {
+            return Ok(false);
+        }
+
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let lifecycle = self.lifecycle();
+        let dbg_req = soc_ifc_regs.ss_dbg_manuf_service_reg_req().read();
+        let (manuf, prod) = (
+            dbg_req.manuf_dbg_unlock_req(),
+            dbg_req.prod_dbg_unlock_req(),
+        );
+
+        match (manuf, prod, lifecycle) {
+            (true, false, Lifecycle::Manufacturing) | (false, true, Lifecycle::Production) => {
+                Ok(true)
+            }
+            (true, true, _) | (true, false, _) | (false, true, _) => {
+                Err(CaliptraError::ROM_SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE)
+            }
+            (false, false, _) => Ok(false),
+        }
+    }
+
+    /// Set debug unlock in progress
+    pub fn set_ss_dbg_unlock_in_progress(&mut self, process: bool) {
+        let lifecycle = self.lifecycle();
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        match lifecycle {
+            Lifecycle::Manufacturing => soc_ifc_regs
+                .ss_dbg_manuf_service_reg_rsp()
+                .write(|w| w.manuf_dbg_unlock_in_progress(process)),
+            DeviceLifecycleE::Production => soc_ifc_regs
+                .ss_dbg_manuf_service_reg_rsp()
+                .write(|w| w.prod_dbg_unlock_in_progress(process)),
+            _ => (),
+        }
+    }
+
+    /// Set debug unlock as finished with either failure or success
+    pub fn finish_ss_dbg_unluck(&mut self, succes: bool) {
+        let lifecycle = self.lifecycle();
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        if succes {
+            match lifecycle {
+                Lifecycle::Manufacturing => {
+                    soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                        w.manuf_dbg_unlock_in_progress(false)
+                            .manuf_dbg_unlock_success(true)
+                    })
+                }
+                DeviceLifecycleE::Production => {
+                    soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                        w.prod_dbg_unlock_in_progress(false)
+                            .prod_dbg_unlock_success(true)
+                    })
+                }
+                _ => (),
+            }
+        } else {
+            match lifecycle {
+                Lifecycle::Manufacturing => {
+                    soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                        w.manuf_dbg_unlock_in_progress(false)
+                            .manuf_dbg_unlock_fail(true)
+                    })
+                }
+                DeviceLifecycleE::Production => {
+                    soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                        w.prod_dbg_unlock_in_progress(false)
+                            .prod_dbg_unlock_fail(true)
+                    })
+                }
+                _ => (),
+            }
+        }
+    }
+
+    /// MCI AXI base address
+    pub fn ss_mci_axi_base(&self) -> AxiAddr {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        AxiAddr {
+            lo: soc_ifc_regs.ss_caliptra_base_addr_l().read(),
+            hi: soc_ifc_regs.ss_caliptra_base_addr_h().read(),
+        }
+    }
+
+    /// Debug unlock memory offset
+    pub fn debug_unlock_pk_hash_offset(&self, level: usize) -> CaliptraResult<usize> {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let fusebank_offset = soc_ifc_regs
+            .ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset()
+            .read() as usize;
+        let num_of_debug_pk_hashes = soc_ifc_regs
+            .ss_num_of_prod_debug_unlock_auth_pk_hashes()
+            .read();
+        if level as u32 >= num_of_debug_pk_hashes {
+            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL)?
+        }
+        // DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( Debug Unlock Level * SHA2-512 hash size (64 bytes) )
+        Ok(fusebank_offset + size_of::<Array4x16>() * level)
     }
 
     pub fn mbox_valid_pauser(&self) -> [u32; 5] {

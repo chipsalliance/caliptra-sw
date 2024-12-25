@@ -22,7 +22,7 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
-use caliptra_api_types::SecurityState;
+use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
@@ -213,6 +213,8 @@ pub struct CaliptraRootBusArgs {
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
+    pub dbg_manuf_service_req: DbgManufServiceRegReq,
+    pub debug_intent: bool,
 
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
@@ -234,6 +236,8 @@ impl Default for CaliptraRootBusArgs {
             rom: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
+            dbg_manuf_service_req: Default::default(),
+            debug_intent: false,
             tb_services_cb: Default::default(),
             ready_for_fw_cb: Default::default(),
             upload_update_fw: Default::default(),

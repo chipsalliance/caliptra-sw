@@ -43,7 +43,7 @@ mod output;
 mod rv32_builder;
 
 pub use api::mailbox::mbox_write_fifo;
-pub use api_types::{DeviceLifecycle, Fuses, SecurityState, U4};
+pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
 use output::ExitStatus;
@@ -155,6 +155,10 @@ pub struct InitParams<'a> {
 
     pub security_state: SecurityState,
 
+    pub dbg_manuf_service: DbgManufServiceRegReq,
+
+    pub debug_intent: bool,
+
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
@@ -205,6 +209,8 @@ impl<'a> Default for InitParams<'a> {
             log_writer: Box::new(stdout()),
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+            dbg_manuf_service: Default::default(),
+            debug_intent: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,

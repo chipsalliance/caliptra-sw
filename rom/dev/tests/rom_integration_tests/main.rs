@@ -6,6 +6,7 @@ mod rv32_unit_tests;
 mod test_capabilities;
 mod test_cfi;
 mod test_cpu_fault;
+mod test_debug_unlock;
 mod test_dice_derivations;
 mod test_fake_rom;
 mod test_fips_hooks;

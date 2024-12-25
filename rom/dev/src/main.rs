@@ -88,13 +88,17 @@ pub extern "C" fn rom_entry() -> ! {
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
-    let _lifecyle = match env.soc_ifc.lifecycle() {
+    let lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
-    cprintln!("[state] LifecycleState = {}", _lifecyle);
+    cprintln!("[state] LifecycleState = {}", lifecyle);
+
+    if let Err(err) = crate::flow::DebugUnlockFlow::debug_unlock(&mut env) {
+        handle_fatal_error(err.into());
+    }
 
     if cfg!(feature = "fake-rom")
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
