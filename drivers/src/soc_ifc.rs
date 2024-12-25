@@ -365,6 +365,20 @@ impl SocIfc {
             .notif_internal_intr_r()
             .write(|w| w.notif_cmd_avail_sts(true));
     }
+
+    pub fn active_mode(&self) -> bool {
+        self.soc_ifc
+            .regs()
+            .cptra_hw_config()
+            .read()
+            .active_mode_en()
+    }
+
+    pub fn recovery_interface_base_addr(&self) -> u64 {
+        let low = self.soc_ifc.regs().ss_recovery_ifc_base_addr_l().read();
+        let high = self.soc_ifc.regs().ss_recovery_ifc_base_addr_h().read();
+        (high as u64) << 32 | low as u64
+    }
 }
 
 bitflags::bitflags! {
