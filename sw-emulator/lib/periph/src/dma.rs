@@ -13,18 +13,15 @@ File contains DMA peripheral implementation.
 --*/
 
 use caliptra_emu_bus::{
-    Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
-    WriteOnlyRegister,
+    Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer, WriteOnlyRegister,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_bitfields;
-
-use crate::CaliptraRootBus;
 
 #[derive(Clone)]
 pub struct Dma {
@@ -36,10 +33,6 @@ impl Dma {
         Self {
             regs: Rc::new(RefCell::new(DmaRegs::new(clock))),
         }
-    }
-
-    pub fn do_dma_handling(&mut self, root_bus: &mut CaliptraRootBus) {
-        self.regs.borrow_mut().do_dma_handling(root_bus)
     }
 }
 
@@ -158,7 +151,7 @@ pub struct DmaRegs {
 
     // TODO interrupt block
     /// Timer
-    timer: Timer,
+    _timer: Timer,
 
     /// FIFO
     fifo: VecDeque<u8>,
@@ -167,14 +160,11 @@ pub struct DmaRegs {
 impl DmaRegs {
     const NAME: u32 = 0x6776_8068; // CLPD
 
-    const RRI_BASE: u32 = 0x1003_8000; // TODO
-    const RRI_FIFO_OFFSET: u32 = 0x6c;
-
     const FIFO_SIZE: usize = 0x1000;
 
-    const DMA_CLOCKS_PER_WORD: u64 = 4;
+    //    const DMA_CLOCKS_PER_WORD: u64 = 4;
 
-    pub fn new(clock: &Clock) -> Self {
+    pub fn new(_clock: &Clock) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
             capabilities: ReadOnlyRegister::new(Self::FIFO_SIZE as u32 - 1), // MAX FIFO DEPTH
@@ -189,7 +179,7 @@ impl DmaRegs {
             block_size: ReadWriteRegister::new(0),
             write_data: WriteOnlyRegister::new(0),
             read_data: ReadOnlyRegister::new(0),
-            timer: Timer::new(clock),
+            _timer: Timer::new(_clock),
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
         }
     }
@@ -217,13 +207,10 @@ impl DmaRegs {
                 todo!();
             }
 
-            self.timer.schedule_action_in(
-                Self::DMA_CLOCKS_PER_WORD * self.byte_count.reg.get() as u64,
-                TimerAction::DmaAction,
-            );
-            self.status0
-                .reg
-                .write(Status0::BUSY::SET + Status0::DMA_FSM_PRESENT_STATE::WAIT_DATA);
+            todo!("Implement DMA timer scheduling");
+            // self.status0
+            //     .reg
+            //     .write(Status0::BUSY::SET + Status0::DMA_FSM_PRESENT_STATE::WAIT_DATA);
         }
 
         Ok(())
@@ -253,133 +240,135 @@ impl DmaRegs {
         Ok(bytes)
     }
 
-    fn write_to_mailbox(&mut self, data: Vec<u8>, root_bus: &mut CaliptraRootBus) {
-        let mailbox = &mut root_bus.mailbox;
-        let mailbox_regs = &mut mailbox.mailbox_regs();
-        let mut mailbox_regs = mailbox_regs.borrow_mut();
-        // TODO does the CMD matter?
-        mailbox_regs.write_cmd(RvSize::Word, 0xdeadbeef).unwrap();
-        mailbox_regs
-            .write_dlen(RvSize::Word, self.byte_count.reg.get())
-            .unwrap();
+    // fn write_to_mailbox(&mut self, data: Vec<u8>) {
+    //     todo!()
+    // let mailbox = &mut root_bus.mailbox;
+    // let mailbox_regs = &mut mailbox.mailbox_regs();
+    // let mut mailbox_regs = mailbox_regs.borrow_mut();
+    // // TODO does the CMD matter?
+    // mailbox_regs.write_cmd(RvSize::Word, 0xdeadbeef).unwrap();
+    // mailbox_regs
+    //     .write_dlen(RvSize::Word, self.byte_count.reg.get())
+    //     .unwrap();
 
-        assert_eq!(data.len(), self.byte_count.reg.get() as usize);
+    // assert_eq!(data.len(), self.byte_count.reg.get() as usize);
 
-        data.chunks(RvSize::Word as usize).for_each(|c| {
-            mailbox_regs
-                .write_din(RvSize::Word, u32::from_le_bytes(c.try_into().unwrap()))
-                .unwrap()
-        });
-    }
+    // data.chunks(RvSize::Word as usize).for_each(|c| {
+    //     mailbox_regs
+    //         .write_din(RvSize::Word, u32::from_le_bytes(c.try_into().unwrap()))
+    //         .unwrap()
+    // });
+    // }
 
-    pub fn do_dma_handling(&mut self, root_bus: &mut CaliptraRootBus) {
-        // DMA reads
-        let read_addr_fixed = self.control.reg.is_set(Control::READ_ADDR_FIXED);
-        let read_addr = self.src_addr_l.reg.get();
-        assert_eq!(self.src_addr_h.reg.get(), 0); // 32bit
-        let read_data =
-                // Special case for putting stuff image in the mailbox from recovery register interface
-                if read_addr == Self::RRI_BASE + Self::RRI_FIFO_OFFSET && read_addr_fixed {
-                    if let Some(data) = root_bus.recovery.cms_data.clone() {
-                        (*data).clone()
-                    } else {
-                        vec![]
-                    }
-                } else {
-                    let range = read_addr..read_addr + self.byte_count.reg.get();
-                    range
-                        .step_by(RvSize::Word as usize)
-                        .flat_map(|offset| {
-                            let read_offset = if read_addr_fixed { read_addr } else { offset };
-                            root_bus
-                                .read(RvSize::Word, read_offset)
-                                .unwrap()
-                                .to_le_bytes()
-                        }).collect()
-                };
-        match self.control.reg.read_as_enum(Control::READ_ROUTE) {
-            Some(Control::READ_ROUTE::Value::MAILBOX) => {
-                self.write_to_mailbox(read_data, root_bus);
-            }
-            Some(Control::READ_ROUTE::Value::AHB_FIFO) => {
-                if self.fifo.len() + read_data.len() > Self::FIFO_SIZE {
-                    self.status0
-                        .reg
-                        .write(Status0::DMA_FSM_PRESENT_STATE::ERROR);
-                    read_data[..Self::FIFO_SIZE - self.fifo.len()]
-                        .iter()
-                        .for_each(|b| self.fifo.push_back(*b));
-                } else {
-                    read_data.iter().for_each(|b| self.fifo.push_back(*b));
-                }
-                self.status0
-                    .reg
-                    .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32));
-            }
-            Some(Control::READ_ROUTE::Value::AXI_WR) => {
-                todo!()
-            }
-            _ => {}
-        }
+    // pub fn do_dma_handling(&mut self) {
+    //     todo!()
+    // DMA reads
+    // let read_addr_fixed = self.control.reg.is_set(Control::READ_ADDR_FIXED);
+    // let read_addr = self.src_addr_l.reg.get();
+    // assert_eq!(self.src_addr_h.reg.get(), 0); // 32bit
+    // let read_data =
+    //         // Special case for putting stuff image in the mailbox from recovery register interface
+    //         if read_addr == Self::RRI_BASE + Self::RRI_FIFO_OFFSET && read_addr_fixed {
+    //             if let Some(data) = root_bus.recovery.cms_data.clone() {
+    //                 (*data).clone()
+    //             } else {
+    //                 vec![]
+    //             }
+    //         } else {
+    //             let range = read_addr..read_addr + self.byte_count.reg.get();
+    //             range
+    //                 .step_by(RvSize::Word as usize)
+    //                 .flat_map(|offset| {
+    //                     let read_offset = if read_addr_fixed { read_addr } else { offset };
+    //                     root_bus
+    //                         .read(RvSize::Word, read_offset)
+    //                         .unwrap()
+    //                         .to_le_bytes()
+    //                 }).collect()
+    //         };
+    // match self.control.reg.read_as_enum(Control::READ_ROUTE) {
+    //     Some(Control::READ_ROUTE::Value::MAILBOX) => {
+    //         self.write_to_mailbox(read_data, root_bus);
+    //     }
+    //     Some(Control::READ_ROUTE::Value::AHB_FIFO) => {
+    //         if self.fifo.len() + read_data.len() > Self::FIFO_SIZE {
+    //             self.status0
+    //                 .reg
+    //                 .write(Status0::DMA_FSM_PRESENT_STATE::ERROR);
+    //             read_data[..Self::FIFO_SIZE - self.fifo.len()]
+    //                 .iter()
+    //                 .for_each(|b| self.fifo.push_back(*b));
+    //         } else {
+    //             read_data.iter().for_each(|b| self.fifo.push_back(*b));
+    //         }
+    //         self.status0
+    //             .reg
+    //             .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32));
+    //     }
+    //     Some(Control::READ_ROUTE::Value::AXI_WR) => {
+    //         todo!()
+    //     }
+    //     _ => {}
+    // }
 
-        // DMA writes
-        let write_addr_fixed = self.control.reg.is_set(Control::WRITE_ADDR_FIXED);
-        let write_addr = self.dest_addr_l.reg.get();
-        assert_eq!(self.dest_addr_h.reg.get(), 0); // 32bit
-        match self.control.reg.read_as_enum(Control::WRITE_ROUTE) {
-            Some(Control::WRITE_ROUTE::Value::MAILBOX) => todo!(),
-            Some(Control::WRITE_ROUTE::Value::AHB_FIFO) => {
-                let to_send = self
-                    .fifo
-                    .drain(0..self.byte_count.reg.get() as usize)
-                    .collect::<Vec<u8>>();
+    // // DMA writes
+    // let write_addr_fixed = self.control.reg.is_set(Control::WRITE_ADDR_FIXED);
+    // let write_addr = self.dest_addr_l.reg.get();
+    // assert_eq!(self.dest_addr_h.reg.get(), 0); // 32bit
+    // match self.control.reg.read_as_enum(Control::WRITE_ROUTE) {
+    //     Some(Control::WRITE_ROUTE::Value::MAILBOX) => todo!(),
+    //     Some(Control::WRITE_ROUTE::Value::AHB_FIFO) => {
+    //         let to_send = self
+    //             .fifo
+    //             .drain(0..self.byte_count.reg.get() as usize)
+    //             .collect::<Vec<u8>>();
 
-                to_send.chunks(4).enumerate().for_each(|(i, b)| {
-                    let word = u32::from_le_bytes(b.try_into().unwrap());
-                    let addr = if write_addr_fixed {
-                        0
-                    } else {
-                        write_addr + 4 * i as u32
-                    };
-                    root_bus
-                        .write(RvSize::Word, addr as RvAddr, word as RvData)
-                        .unwrap();
-                });
-            }
-            Some(Control::WRITE_ROUTE::Value::AXI_WR) => todo!(),
+    //         to_send.chunks(4).enumerate().for_each(|(i, b)| {
+    //             let word = u32::from_le_bytes(b.try_into().unwrap());
+    //             let addr = if write_addr_fixed {
+    //                 0
+    //             } else {
+    //                 write_addr + 4 * i as u32
+    //             };
+    //             root_bus
+    //                 .write(RvSize::Word, addr as RvAddr, word as RvData)
+    //                 .unwrap();
+    //         });
+    //     }
+    //     Some(Control::WRITE_ROUTE::Value::AXI_WR) => todo!(),
 
-            _ => {}
-        }
+    //     _ => {}
+    // }
 
-        self.status0
-            .reg
-            .modify(Status0::BUSY::CLEAR + Status0::DMA_FSM_PRESENT_STATE::DONE);
-    }
+    // self.status0
+    //     .reg
+    //     .modify(Status0::BUSY::CLEAR + Status0::DMA_FSM_PRESENT_STATE::DONE);
+    // }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    //    use super::*;
 
-    const NAME_OFFSET: u32 = 0;
-    const NAME_VAL: u32 = 0x6776_8068;
-    const CAPABILITIES_OFFSET: u32 = 4;
+    // const NAME_OFFSET: u32 = 0;
+    // const NAME_VAL: u32 = 0x6776_8068;
+    // const CAPABILITIES_OFFSET: u32 = 4;
 
-    #[test]
-    fn test_name() {
-        let clock = Clock::new();
-        let mut dma = Dma::new(&clock);
+    // #[test]
+    // fn test_name() {
+    //     let clock = Clock::new();
+    //     let mut dma = Dma::new(&clock);
 
-        let name = dma.read(RvSize::Word, NAME_OFFSET).unwrap();
-        assert_eq!(name, NAME_VAL);
-    }
+    //     let name = dma.read(RvSize::Word, NAME_OFFSET).unwrap();
+    //     assert_eq!(name, NAME_VAL);
+    // }
 
-    #[test]
-    fn test_capabilities() {
-        let clock = Clock::new();
-        let mut dma = Dma::new(&clock);
+    // #[test]
+    // fn test_capabilities() {
+    //     let clock = Clock::new();
+    //     let mut dma = Dma::new(&clock);
 
-        let capabilities = dma.read(RvSize::Word, CAPABILITIES_OFFSET).unwrap();
-        assert_eq!(capabilities, 0xfff);
-    }
+    //     let capabilities = dma.read(RvSize::Word, CAPABILITIES_OFFSET).unwrap();
+    //     assert_eq!(capabilities, 0xfff);
+    // }
 }
