@@ -247,7 +247,6 @@ impl Default for CaliptraRootBusArgs {
 }
 
 #[derive(Bus)]
-#[handle_dma_fn(handle_dma)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -363,11 +362,6 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
-    }
-
-    fn handle_dma(&mut self) {
-        let mut dma = self.dma.clone();
-        dma.do_dma_handling(self)
     }
 }
 

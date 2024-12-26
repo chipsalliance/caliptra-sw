@@ -130,7 +130,4 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
     fn update_reset(&mut self) {
         self.bus.update_reset();
     }
-    fn handle_dma(&mut self) {
-        self.bus.handle_dma();
-    }
 }

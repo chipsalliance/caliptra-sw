@@ -23,7 +23,6 @@ impl From<MyCustomField> for RvData {
 
 #[derive(Bus)]
 #[poll_fn(poll)]
-#[handle_dma_fn(handle_dma)]
 #[allow(clippy::manual_non_exhaustive)]
 struct MyBus {
     pub log: Log,
@@ -161,10 +160,6 @@ impl MyBus {
 
     fn poll(&self) {
         write!(self.log.w(), "poll; ").unwrap();
-    }
-
-    fn handle_dma(&self) {
-        write!(self.log.w(), "dma; ").unwrap();
     }
 }
 
@@ -553,7 +548,4 @@ fn test_poll_and_dma() {
     Bus::poll(&mut bus);
     assert_eq!(bus.log.take(), "poll; ");
     assert_eq!(bus.fake.log.take(), "poll()\n");
-
-    Bus::handle_dma(&mut bus);
-    assert_eq!(bus.log.take(), "dma; ");
 }
