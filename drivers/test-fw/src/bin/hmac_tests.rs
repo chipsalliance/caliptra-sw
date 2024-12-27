@@ -20,7 +20,7 @@ use caliptra_drivers::{
     hmac_kdf, Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac,
     HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
-use caliptra_kat::Hmac384KdfKat;
+use caliptra_kat::{Hmac384KdfKat, Hmac512KdfKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -746,7 +746,7 @@ fn test_hmac_multi_block_two_step() {
 }
 
 // This test initializes CFI and MUST be ran first.
-fn test_kat() {
+fn test_kat_384() {
     let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -764,6 +764,23 @@ fn test_kat() {
 
     assert!(Hmac384KdfKat::default()
         .execute(&mut hmac384, &mut trng)
+        .is_ok());
+}
+
+fn test_kat_512() {
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    assert!(Hmac512KdfKat::default()
+        .execute(&mut hmac, &mut trng)
         .is_ok());
 }
 
@@ -1009,7 +1026,8 @@ fn test_hmac512_multi_block() {
 
 // test_kat MUST be ran first.
 test_suite! {
-    test_kat,
+    test_kat_384,
+    test_kat_512,
     test_hmac0,
     test_hmac1,
     test_hmac2,
