@@ -16,6 +16,7 @@ TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
+PQC_KEY_TYPE ?= 2
 
 default: build
 
@@ -68,7 +69,7 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--manifest-path ../../image/app/Cargo.toml \
 		-- \
 		create \
-		--pqc-key-type 1 \
+		--pqc-key-type $(PQC_KEY_TYPE) \
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 1 \
 		--pqc-pk-idx 3 \
