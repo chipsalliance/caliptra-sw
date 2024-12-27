@@ -36,17 +36,22 @@ pub const MAN2_ORG: u32 = MAN1_ORG + MAN1_SIZE;
 pub const DATAVAULT_ORG: u32 = MAN2_ORG + MAN2_SIZE;
 pub const FHT_ORG: u32 = DATAVAULT_ORG + DATAVAULT_MAX_SIZE;
 pub const IDEVID_MLDSA_PUB_KEY_ORG: u32 = FHT_ORG + FHT_SIZE;
-pub const LDEVID_TBS_ORG: u32 = IDEVID_MLDSA_PUB_KEY_ORG + IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
-pub const FMCALIAS_TBS_ORG: u32 = LDEVID_TBS_ORG + LDEVID_TBS_SIZE;
-pub const RTALIAS_TBS_ORG: u32 = FMCALIAS_TBS_ORG + FMCALIAS_TBS_SIZE;
-pub const PCR_LOG_ORG: u32 = RTALIAS_TBS_ORG + RTALIAS_TBS_SIZE;
+pub const ECC_LDEVID_TBS_ORG: u32 = IDEVID_MLDSA_PUB_KEY_ORG + IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
+pub const ECC_FMCALIAS_TBS_ORG: u32 = ECC_LDEVID_TBS_ORG + ECC_LDEVID_TBS_SIZE;
+pub const ECC_RTALIAS_TBS_ORG: u32 = ECC_FMCALIAS_TBS_ORG + ECC_FMCALIAS_TBS_SIZE;
+pub const MLDSA_LDEVID_TBS_ORG: u32 = ECC_RTALIAS_TBS_ORG + ECC_RTALIAS_TBS_SIZE;
+pub const MLDSA_FMCALIAS_TBS_ORG: u32 = MLDSA_LDEVID_TBS_ORG + MLDSA_LDEVID_TBS_SIZE;
+pub const MLDSA_RTALIAS_TBS_ORG: u32 = MLDSA_FMCALIAS_TBS_ORG + MLDSA_FMCALIAS_TBS_SIZE;
+pub const PCR_LOG_ORG: u32 = MLDSA_RTALIAS_TBS_ORG + MLDSA_RTALIAS_TBS_SIZE;
 pub const MEASUREMENT_LOG_ORG: u32 = PCR_LOG_ORG + PCR_LOG_SIZE;
 pub const FUSE_LOG_ORG: u32 = MEASUREMENT_LOG_ORG + MEASUREMENT_LOG_SIZE;
 pub const DPE_ORG: u32 = FUSE_LOG_ORG + FUSE_LOG_SIZE;
 pub const PCR_RESET_COUNTER_ORG: u32 = DPE_ORG + DPE_SIZE;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = PCR_RESET_COUNTER_ORG + PCR_RESET_COUNTER_SIZE;
-pub const IDEVID_CSR_ORG: u32 = AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
-pub const DATA_ORG: u32 = IDEVID_CSR_ORG + IDEVID_CSR_SIZE;
+pub const ECC_IDEVID_CSR_ORG: u32 =
+    AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
+pub const MLDSA_IDEVID_CSR_ORG: u32 = ECC_IDEVID_CSR_ORG + ECC_IDEVID_CSR_SIZE;
+pub const DATA_ORG: u32 = MLDSA_IDEVID_CSR_ORG + MLDSA_IDEVID_CSR_SIZE;
 
 pub const STACK_ORG: u32 = DATA_ORG + DATA_SIZE;
 pub const ROM_STACK_ORG: u32 = STACK_ORG + (STACK_SIZE - ROM_STACK_SIZE);
@@ -56,6 +61,8 @@ pub const ROM_ESTACK_ORG: u32 = ESTACK_ORG;
 
 pub const NSTACK_ORG: u32 = ROM_ESTACK_ORG + ROM_ESTACK_SIZE;
 pub const ROM_NSTACK_ORG: u32 = NSTACK_ORG;
+
+pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 
 //
 // Memory Sizes In Bytes
@@ -71,19 +78,23 @@ pub const MAN2_SIZE: u32 = 17 * 1024;
 pub const DATAVAULT_MAX_SIZE: u32 = 15 * 1024;
 pub const FHT_SIZE: u32 = 2 * 1024;
 pub const IDEVID_MLDSA_PUB_KEY_MAX_SIZE: u32 = 3 * 1024;
-pub const LDEVID_TBS_SIZE: u32 = 1024;
-pub const FMCALIAS_TBS_SIZE: u32 = 1024;
-pub const RTALIAS_TBS_SIZE: u32 = 1024;
+pub const ECC_LDEVID_TBS_SIZE: u32 = 1024;
+pub const ECC_FMCALIAS_TBS_SIZE: u32 = 1024;
+pub const ECC_RTALIAS_TBS_SIZE: u32 = 1024;
+pub const MLDSA_LDEVID_TBS_SIZE: u32 = 3 * 1024;
+pub const MLDSA_FMCALIAS_TBS_SIZE: u32 = 4 * 1024;
+pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
 pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
-pub const IDEVID_CSR_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 115 * 1024;
+pub const ECC_IDEVID_CSR_SIZE: u32 = 1024;
+pub const MLDSA_IDEVID_CSR_SIZE: u32 = 8 * 1024;
+pub const DATA_SIZE: u32 = 95 * 1024;
 pub const STACK_SIZE: u32 = 64 * 1024;
-pub const ROM_STACK_SIZE: u32 = 40 * 1024;
+pub const ROM_STACK_SIZE: u32 = 61 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
@@ -122,27 +133,62 @@ fn mem_layout_test_fht() {
 fn mem_layout_test_idevid_mldsa_pub_key() {
     assert!(IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize >= core::mem::size_of::<Mldsa87PubKey>());
     assert_eq!(
-        (LDEVID_TBS_ORG - IDEVID_MLDSA_PUB_KEY_ORG),
+        (ECC_LDEVID_TBS_ORG - IDEVID_MLDSA_PUB_KEY_ORG),
         IDEVID_MLDSA_PUB_KEY_MAX_SIZE
+    );
+}
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_ecc_ldevid() {
+    assert_eq!(
+        (ECC_FMCALIAS_TBS_ORG - ECC_LDEVID_TBS_ORG),
+        ECC_LDEVID_TBS_SIZE
     );
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_ldevid() {
-    assert_eq!((FMCALIAS_TBS_ORG - LDEVID_TBS_ORG), LDEVID_TBS_SIZE);
+fn mem_layout_test_ecc_fmcalias() {
+    assert_eq!(
+        (ECC_RTALIAS_TBS_ORG - ECC_FMCALIAS_TBS_ORG),
+        ECC_FMCALIAS_TBS_SIZE
+    );
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_fmcalias() {
-    assert_eq!((RTALIAS_TBS_ORG - FMCALIAS_TBS_ORG), FMCALIAS_TBS_SIZE);
+fn mem_layout_test_ecc_rtalias() {
+    assert_eq!(
+        (MLDSA_LDEVID_TBS_ORG - ECC_RTALIAS_TBS_ORG),
+        ECC_RTALIAS_TBS_SIZE
+    );
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_rtalias() {
-    assert_eq!((PCR_LOG_ORG - RTALIAS_TBS_ORG), RTALIAS_TBS_SIZE);
+fn mem_layout_test_mldsa_ldevid() {
+    assert_eq!(
+        (MLDSA_FMCALIAS_TBS_ORG - MLDSA_LDEVID_TBS_ORG),
+        MLDSA_LDEVID_TBS_SIZE
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_mldsa_fmcalias() {
+    assert_eq!(
+        (MLDSA_RTALIAS_TBS_ORG - MLDSA_FMCALIAS_TBS_ORG),
+        MLDSA_FMCALIAS_TBS_SIZE
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_mldsa_rtalias() {
+    assert_eq!(
+        (PCR_LOG_ORG - MLDSA_RTALIAS_TBS_ORG),
+        MLDSA_RTALIAS_TBS_SIZE
+    );
 }
 
 #[test]
@@ -181,7 +227,16 @@ fn mem_layout_test_pcr_reset_counter() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_idevid_csr() {
-    assert_eq!((DATA_ORG - IDEVID_CSR_ORG), IDEVID_CSR_SIZE);
+    assert_eq!(
+        (MLDSA_IDEVID_CSR_ORG - ECC_IDEVID_CSR_ORG),
+        ECC_IDEVID_CSR_SIZE
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_mldsa87_idevid_csr() {
+    assert_eq!((DATA_ORG - MLDSA_IDEVID_CSR_ORG), MLDSA_IDEVID_CSR_SIZE);
 }
 
 #[test]
@@ -200,4 +255,10 @@ fn mem_layout_test_stack() {
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_estack() {
     assert_eq!((NSTACK_ORG - ESTACK_ORG), ESTACK_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn dccm_overflow() {
+    assert!(DCCM_ORG + DCCM_SIZE >= LAST_REGION_END);
 }

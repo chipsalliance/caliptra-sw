@@ -27,7 +27,10 @@ use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
     keyids::KEY_ID_ROM_FMC_CDI,
-    memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
+    // [TODO][CAP2] add MLDSA
+    memory_layout::{
+        ECC_FMCALIAS_TBS_ORG, ECC_FMCALIAS_TBS_SIZE, ECC_LDEVID_TBS_ORG, ECC_LDEVID_TBS_SIZE,
+    },
     FirmwareHandoffTable,
 };
 use caliptra_drivers::cprintln;
@@ -212,8 +215,8 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
-    env.persistent_data.get_mut().fht.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ldevid_tbs.get_mut(..tbs.len()) else {
+    env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    let Some(dst) = env.persistent_data.get_mut().ecc_ldevid_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -232,8 +235,8 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
-    env.persistent_data.get_mut().fht.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().fmcalias_tbs.get_mut(..tbs.len()) else {
+    env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    let Some(dst) = env.persistent_data.get_mut().ecc_fmcalias_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);

@@ -33,7 +33,11 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{
     okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle,
 };
-use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use caliptra_x509::{
+    FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
+    FmcAliasCertTbsMlDsa87Params,
+};
+use zerocopy::AsBytes;
 use zeroize::Zeroize;
 
 #[derive(Default)]
@@ -104,7 +108,11 @@ impl FmcAliasLayer {
         };
 
         // Generate FMC Alias Certificate
-        let result = Self::generate_cert_sig(env, input, &output, fw_proc_info);
+        let result: CaliptraResult<()> = (|| {
+            Self::generate_cert_sig_ecc(env, input, &output, fw_proc_info)?;
+            Self::generate_cert_sig_mldsa(env, input, &output, fw_proc_info)?;
+            Ok(())
+        })();
         output.zeroize();
         result?;
 
@@ -186,7 +194,7 @@ impl FmcAliasLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
-    fn generate_cert_sig(
+    fn generate_cert_sig_ecc(
         env: &mut RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
@@ -221,7 +229,7 @@ impl FmcAliasLayer {
         hasher.finalize(&mut fuse_info_digest)?;
 
         // Certificate `To Be Signed` Parameters
-        let params = FmcAliasCertTbsParams {
+        let params = FmcAliasCertTbsEcc384Params {
             ueid: &X509::ueid(soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
@@ -239,18 +247,18 @@ impl FmcAliasLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = FmcAliasCertTbs::new(&params);
+        let tbs = FmcAliasCertTbsEcc384::new(&params);
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[afmc] Signing Cert w/ AUTHORITY.KEYID = {}",
+            "[afmc] ECC Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        cprintln!("[afmc] Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
+        cprintln!("[afmc] ECC Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key).map_err(|err| {
             sig.zeroize();
             err
@@ -275,9 +283,101 @@ impl FmcAliasLayer {
         data_vault.set_fmc_ecc_pub_key(pub_key);
 
         //  Copy TBS to DCCM.
-        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
+        copy_tbs(tbs.tbs(), TbsType::EccFmcalias, env)?;
 
-        // [CAP2][TODO] Generate MLDSA certificate signature, TBS.
+        Ok(())
+    }
+
+    /// Generate Local Device ID Certificate Signature
+    ///
+    /// # Arguments
+    ///
+    /// * `env`    - ROM Environment
+    /// * `input`  - DICE Input
+    /// * `output` - DICE Output
+    fn generate_cert_sig_mldsa(
+        env: &mut RomEnv,
+        input: &DiceInput,
+        output: &DiceOutput,
+        fw_proc_info: &FwProcInfo,
+    ) -> CaliptraResult<()> {
+        let auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
+        let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
+        let pub_key = &output.mldsa_subj_key_pair.pub_key;
+        let data_vault = &env.persistent_data.get().data_vault;
+        let soc_ifc = &env.soc_ifc;
+
+        let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
+
+        let svn = data_vault.fmc_svn() as u8;
+        let fuse_svn = fw_proc_info.effective_fuse_svn as u8;
+
+        let mut fuse_info_digest = Array4x12::default();
+        let mut hasher = env.sha2_512_384.sha384_digest_init()?;
+        hasher.update(&[
+            soc_ifc.lifecycle() as u8,
+            soc_ifc.debug_locked() as u8,
+            soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+            data_vault.vendor_ecc_pk_index() as u8,
+            data_vault.vendor_pqc_pk_index() as u8,
+            fw_proc_info.pqc_verify_config,
+            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
+        ])?;
+        hasher.update(&<[u8; 48]>::from(
+            soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
+        ))?;
+        hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
+        hasher.finalize(&mut fuse_info_digest)?;
+
+        // Certificate `To Be Signed` Parameters
+        let params = FmcAliasCertTbsMlDsa87Params {
+            ueid: &X509::ueid(soc_ifc)?,
+            subject_sn: &output.mldsa_subj_sn,
+            subject_key_id: &output.mldsa_subj_key_id,
+            issuer_sn: input.mldsa_auth_sn,
+            authority_key_id: input.mldsa_auth_key_id,
+            serial_number: &X509::mldsa_cert_sn(&mut env.sha256, pub_key)?,
+            public_key: pub_key.as_bytes().try_into().unwrap(),
+            tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
+            tcb_info_device_info_hash: &fuse_info_digest.into(),
+            tcb_info_flags: &flags,
+            tcb_info_fmc_svn: &svn.to_be_bytes(),
+            tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),
+            not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
+            not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
+        };
+
+        // Generate the `To Be Signed` portion of the CSR
+        let tbs = FmcAliasCertTbsMlDsa87::new(&params);
+
+        // Sign the `To Be Signed` portion
+        cprintln!(
+            "[afmc] MLDSA Signing Cert w/ AUTHORITY.KEYID = {}",
+            auth_priv_key as u8
+        );
+        let mut sig = Crypto::mldsa87_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let sig = okmutref(&mut sig)?;
+
+        // Clear the authority private key
+        cprintln!(
+            "[afmc] MLDSA Erase AUTHORITY.KEYID = {}",
+            auth_priv_key as u8
+        );
+        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+            sig.zeroize();
+            err
+        })?;
+
+        // Set the FMC Certificate Signature in data vault.
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+        data_vault.set_fmc_dice_mldsa_signature(sig);
+        sig.zeroize();
+
+        // Set the FMC Public key in the data vault.
+        data_vault.set_fmc_mldsa_pub_key(pub_key);
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::MldsaFmcalias, env)?;
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())
