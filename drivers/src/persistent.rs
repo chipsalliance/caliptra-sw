@@ -8,7 +8,7 @@ use caliptra_auth_man_types::{
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::ImageManifest;
+use caliptra_image_types::{ImageManifest, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{AsBytes, FromBytes};
@@ -49,13 +49,12 @@ pub type AuthManifestImageMetadataList =
 #[derive(Clone, FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
-    csr_len: u32,
-    csr: [u8; ECC384_MAX_CSR_SIZE],
+    pub csr_len: u32,
+    pub csr: [u8; ECC384_MAX_CSR_SIZE],
 }
 
 #[derive(Clone, FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
-// We need access to the field so the compiler does not create a copy on the stack
 pub struct Mldsa87IdevIdCsr {
     pub csr_len: u32,
     pub csr: [u8; MLDSA87_MAX_CSR_SIZE],
@@ -70,48 +69,103 @@ impl Default for Ecc384IdevIdCsr {
     }
 }
 
-impl Ecc384IdevIdCsr {
-    /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
-    /// the CSR generation flag was not enabled.
-    ///
-    /// This is used by the runtime to distinguish ROM images that support CSR generation from
-    /// ones that do not.
-    ///
-    /// u32::MAX is too large to be a valid CSR, so we use it to encode this state.
-    pub const UNPROVISIONED_CSR: u32 = u32::MAX;
-
-    /// Get the CSR buffer
-    pub fn get(&self) -> Option<&[u8]> {
-        self.csr.get(..self.csr_len as usize)
-    }
-
-    /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
-    pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
-        if csr_len >= ECC384_MAX_CSR_SIZE {
-            return Err(CaliptraError::ROM_IDEVID_INVALID_CSR);
+impl Default for Mldsa87IdevIdCsr {
+    fn default() -> Self {
+        Self {
+            csr_len: Self::UNPROVISIONED_CSR,
+            csr: [0; MLDSA87_MAX_CSR_SIZE],
         }
-
-        let mut _self = Self {
-            csr_len: csr_len as u32,
-            csr: [0; ECC384_MAX_CSR_SIZE],
-        };
-        _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
-
-        Ok(_self)
-    }
-
-    /// Get the length of the CSR in bytes.
-    pub fn get_csr_len(&self) -> u32 {
-        self.csr_len
-    }
-
-    /// Check if the CSR was unprovisioned
-    pub fn is_unprovisioned(&self) -> bool {
-        self.csr_len == Self::UNPROVISIONED_CSR
     }
 }
 
-const _: () = assert!(size_of::<Ecc384IdevIdCsr>() < memory_layout::ECC_IDEVID_CSR_SIZE as usize);
+macro_rules! impl_idevid_csr {
+    ($type:ty, $size:expr) => {
+        impl $type {
+            /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
+            /// the CSR generation flag was not enabled.
+            ///
+            /// This is used by the runtime to distinguish ROM images that support CSR generation from
+            /// ones that do not.
+            ///
+            /// u32::MAX is too large to be a valid CSR, so we use it to encode this state.
+            pub const UNPROVISIONED_CSR: u32 = u32::MAX;
+
+            /// Get the CSR buffer
+            pub fn get(&self) -> Option<&[u8]> {
+                self.csr.get(..self.csr_len as usize)
+            }
+
+            /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
+            pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
+                if csr_len >= $size {
+                    return Err(CaliptraError::ROM_IDEVID_INVALID_CSR);
+                }
+
+                let mut _self = Self {
+                    csr_len: csr_len as u32,
+                    csr: [0; $size],
+                };
+                _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
+
+                Ok(_self)
+            }
+
+            /// Get the length of the CSR in bytes.
+            pub fn get_csr_len(&self) -> u32 {
+                self.csr_len
+            }
+
+            /// Check if the CSR was unprovisioned
+            pub fn is_unprovisioned(&self) -> bool {
+                self.csr_len == Self::UNPROVISIONED_CSR
+            }
+        }
+    };
+}
+
+impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_CSR_SIZE);
+impl_idevid_csr!(Mldsa87IdevIdCsr, MLDSA87_MAX_CSR_SIZE);
+
+pub type Hmac384Tag = [u8; SHA384_DIGEST_BYTE_SIZE];
+pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
+
+pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
+
+/// Calipatra IDEVID CSR Envelop
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Clone, Zeroize)]
+pub struct InitDevIdCsrEnvelop {
+    /// Marker
+    pub marker: u32,
+
+    /// Size of the CSR Envelop
+    pub size: u32,
+
+    /// ECC CSR
+    pub ecc_csr: Ecc384IdevIdCsr,
+
+    /// ECC CSR MAC
+    pub ecc_csr_mac: Hmac384Tag,
+
+    /// MLDSA CSR
+    pub mldsa_csr: Mldsa87IdevIdCsr,
+
+    /// MLDSA CSR MAC
+    pub mldsa_csr_mac: Hmac512Tag,
+}
+
+impl Default for InitDevIdCsrEnvelop {
+    fn default() -> Self {
+        InitDevIdCsrEnvelop {
+            marker: IDEVID_CSR_ENVELOP_MARKER,
+            size: size_of::<InitDevIdCsrEnvelop>() as u32,
+            ecc_csr: Ecc384IdevIdCsr::default(),
+            ecc_csr_mac: [0u8; SHA384_DIGEST_BYTE_SIZE],
+            mldsa_csr: Mldsa87IdevIdCsr::default(),
+            mldsa_csr_mac: [0u8; SHA512_DIGEST_BYTE_SIZE],
+        }
+    }
+}
 
 #[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
@@ -132,8 +186,6 @@ pub struct PersistentData {
     reserved2_1:
         [u8; memory_layout::IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize - size_of::<Mldsa87PubKey>()],
 
-    // TODO: Do we want to hide these fields from the FMC/runtime and force them
-    // to go through the FHT addresses?
     pub ecc_ldevid_tbs: [u8; memory_layout::ECC_LDEVID_TBS_SIZE as usize],
     pub ecc_fmcalias_tbs: [u8; memory_layout::ECC_FMCALIAS_TBS_SIZE as usize],
     pub ecc_rtalias_tbs: [u8; memory_layout::ECC_RTALIAS_TBS_SIZE as usize],
@@ -181,12 +233,9 @@ pub struct PersistentData {
     pub auth_manifest_image_metadata_col:
         [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
-    pub ecc384_idevid_csr: Ecc384IdevIdCsr,
-    reserved10: [u8; memory_layout::ECC_IDEVID_CSR_SIZE as usize - size_of::<Ecc384IdevIdCsr>()],
-
-    // New field addition
-    pub mldsa87_idevid_csr: Mldsa87IdevIdCsr,
-    reserved11: [u8; memory_layout::MLDSA_IDEVID_CSR_SIZE as usize - size_of::<Mldsa87IdevIdCsr>()],
+    pub idevid_csr_envelop: InitDevIdCsrEnvelop,
+    reserved10:
+        [u8; memory_layout::IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelop>()],
 }
 
 impl PersistentData {
@@ -242,16 +291,12 @@ impl PersistentData {
                 memory_layout::AUTH_MAN_IMAGE_METADATA_LIST_ORG
             );
             assert_eq!(
-                addr_of!((*P).ecc384_idevid_csr) as u32,
-                memory_layout::ECC_IDEVID_CSR_ORG
-            );
-            assert_eq!(
-                addr_of!((*P).mldsa87_idevid_csr) as u32,
-                memory_layout::MLDSA_IDEVID_CSR_ORG
+                addr_of!((*P).idevid_csr_envelop) as u32,
+                memory_layout::IDEVID_CSR_ENVELOP_ORG
             );
             assert_eq!(
                 P.add(1) as u32,
-                memory_layout::MLDSA_IDEVID_CSR_ORG + memory_layout::MLDSA_IDEVID_CSR_SIZE
+                memory_layout::IDEVID_CSR_ENVELOP_ORG + memory_layout::IDEVID_CSR_ENVELOP_SIZE
             );
         }
     }

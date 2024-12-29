@@ -30,8 +30,8 @@ fn test_cold_reset_status_reporting() {
     hw.step_until_boot_status(IDevIdKeyPairDerivationComplete.into(), false);
     hw.step_until_boot_status(IDevIdSubjIdSnGenerationComplete.into(), false);
     hw.step_until_boot_status(IDevIdSubjKeyIdGenerationComplete.into(), false);
-    // step_until_boot_status(IdevIdMakeCsrComplete, false);
-    // step_until_boot_status(IdevIdSendCsrComplete, false);
+    // step_until_boot_status(IDevIdMakeCsrEnvelopComplete, false);
+    // step_until_boot_status(IDevIdSendCsrEnvelopComplete, false);
     hw.step_until_boot_status(IDevIdDerivationComplete.into(), false);
     hw.step_until_boot_status(LDevIdCdiDerivationComplete.into(), false);
     hw.step_until_boot_status(LDevIdKeyPairDerivationComplete.into(), false);

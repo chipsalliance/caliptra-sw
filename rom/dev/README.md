@@ -502,12 +502,12 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 |----------------|--------------|-------------------------------------------------------------------------------------------------|
 | Marker         | 4            | Magic Number marking the start of the CSR payload. The value must be 0x435352 (‘CSR’ in ASCII). |
 | Size           | 4            | Size of the entire CSR payload.                                                                 |
-| ECC CSR Size   | 4            | Size of the ECC CSR (m bytes)                                                                   |
-| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC.                                                                           |
-| MLDSA CSR Size | 4            | Size of the ECC CSR (n bytes)                                                                   |
-| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC.                                                                           |
-| ECC CSR        | m            | ECC CSR bytes.                                                                                  |
-| MLDSA CSR      | n            | MLDSA CSR bytes.                                                                                |
+| ECC CSR Size   | 4            | Size of the ECC CSR in bytes.                                                                   |
+| ECC CSR        | 512          | ECC CSR buffer. Actual CSR size is indicated by 'ECC CSR Size'.                                 |
+| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC. MAC is computed over actual CSR bytes.                                    |
+| MLDSA CSR Size | 4            | Size of the MLDSA CSR in bytes.                                                                 |
+| MLDSA CSR      | 7680         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
+| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC. MAC is computed over actual CSR bytes.                                    |
 
 **Post-conditions:**
 
