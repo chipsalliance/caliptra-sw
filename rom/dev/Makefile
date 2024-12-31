@@ -16,6 +16,7 @@ TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
+# Default to MLDSA key type.
 PQC_KEY_TYPE ?= 2
 
 default: build
