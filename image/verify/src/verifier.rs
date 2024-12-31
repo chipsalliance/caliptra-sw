@@ -636,6 +636,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify the PQC (LMS or MLDSA) public key index used to verify header signature is encoded
         // in the header
         if cfi_launder(header.vendor_pqc_pub_key_idx) != info.vendor_pqc_pub_key_idx {
+            cprintln!("cfi idx: {}", cfi_launder(header.vendor_pqc_pub_key_idx));
+            cprintln!("info idx: {}", info.vendor_pqc_pub_key_idx);
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH);
         } else {
             cfi_assert_eq(header.vendor_pqc_pub_key_idx, info.vendor_pqc_pub_key_idx);
@@ -765,20 +767,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
-                    // cprintln!("pub_key");
-                    // for n in mldsa_pub_key.0.iter() {
-                    //     cprintln!("0x{:x}", *n);
-                    // }
-                    cprintln!("digest_512");
-                    for n in digest_512.iter() {
-                        cprintln!("0x{:x}", *n);
-                    }
-
-                    // cprintln!("mldsa_sig");
-                    // for n in mldsa_sig.0.iter().take(8) {
-                    //     cprintln!("0x{:x}", *n);
-                    // }
-
                     let result = self
                         .env
                         .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)

@@ -222,16 +222,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
                 let sig = mldsa_sig.as_bytes();
 
-                println!("sk");
-                let sk = priv_keys.mldsa_priv_keys[pqc_vendor_key_idx as usize];
-                for n in sk.0.iter() {
-                    println!("0x{:x}", n);
-                }
-
-                // println!("sig");
-                // for n in sig.iter() {
-                //     println!("0x{:x}", n);
-                // }
                 vendor_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
             };
         }
