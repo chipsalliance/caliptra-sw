@@ -85,16 +85,15 @@ impl LocalDevIdLayer {
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let ecc_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
         let ecc_subj_key_id =
-            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_key_id =
-            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -197,12 +196,12 @@ impl LocalDevIdLayer {
         let ecc_auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let ecc_pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let ecc_serial_number = x509::X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
+        let ecc_serial_number = x509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
         let ecc_serial_number = okref(&ecc_serial_number)?;
 
         // CSR `To Be Signed` Parameters
         let ecc_tbs_params = LocalDevIdCertTbsEcc384Params {
-            ueid: &x509::X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
@@ -275,12 +274,12 @@ impl LocalDevIdLayer {
         let mldsa_auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
         let mldsa_pub_key = &output.mldsa_subj_key_pair.pub_key;
 
-        let mldsa_serial_number = x509::X509::mldsa_cert_sn(&mut env.sha256, mldsa_pub_key);
+        let mldsa_serial_number = x509::mldsa_cert_sn(&mut env.sha256, mldsa_pub_key);
         let mldsa_serial_number = okref(&mldsa_serial_number)?;
 
         // CSR `To Be Signed` Parameters
         let mldsa_tbs_params = LocalDevIdCertTbsMlDsa87Params {
-            ueid: &x509::X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
             subject_sn: &output.mldsa_subj_sn,
             subject_key_id: &output.mldsa_subj_key_id,
             issuer_sn: input.mldsa_auth_sn,

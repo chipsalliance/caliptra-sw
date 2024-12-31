@@ -100,7 +100,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
+        let digest = env.sha2_512_384.sha384_digest(data);
         let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
@@ -128,7 +128,7 @@ impl Crypto {
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<Ecc384Result> {
-        let digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
+        let digest = env.sha2_512_384.sha384_digest(data);
         let digest = okref(&digest)?;
         env.ecc384.verify(pub_key, digest, sig)
     }

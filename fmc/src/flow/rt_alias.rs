@@ -13,7 +13,7 @@ Abstract:
 --*/
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
-use caliptra_common::x509::X509;
+use caliptra_common::x509;
 
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
@@ -83,15 +83,15 @@ impl RtAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_sn =
-            X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcBootStatus::RtAliasSubjIdSnGenerationComplete.into());
 
         let ecc_subj_key_id =
-            X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_key_id =
-            X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcBootStatus::RtAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -159,13 +159,13 @@ impl RtAliasLayer {
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
         let ecc_auth_pub = HandOff::fmc_ecc_pub_key(env);
-        let ecc_auth_sn = X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
-        let ecc_auth_key_id = X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
+        let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
+        let ecc_auth_key_id = x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_auth_pub))?;
 
         let mldsa_auth_pub = HandOff::fmc_mldsa_pub_key(env);
-        let mldsa_auth_sn = X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
+        let mldsa_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
         let mldsa_auth_key_id =
-            X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_auth_pub))?;
 
         // Create initial output
         let input = DiceInput {
@@ -349,7 +349,7 @@ impl RtAliasLayer {
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let serial_number = &X509::ecc_cert_sn(&mut env.sha256, pub_key)?;
+        let serial_number = &x509::ecc_cert_sn(&mut env.sha256, pub_key)?;
 
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
         let rt_svn = HandOff::rt_svn(env) as u8;
@@ -357,7 +357,7 @@ impl RtAliasLayer {
         // Certificate `To Be Signed` Parameters
         let params = RtAliasCertTbsEcc384Params {
             // Do we need the UEID here?
-            ueid: &X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: &input.ecc_auth_sn,

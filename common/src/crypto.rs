@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 use caliptra_drivers::{
-    Array4x12, Array4x8, CaliptraResult, Ecc384PubKey, Hmac, HmacMode, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, Mldsa87PubKey, Sha256, Sha256Alg, Sha2_512_384, Trng,
+    CaliptraResult, Ecc384PubKey, Hmac, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Mldsa87PubKey, Trng,
 };
 use zeroize::Zeroize;
 
@@ -43,34 +43,6 @@ pub struct MlDsaKeyPair {
 pub enum PubKey<'a> {
     Ecc(&'a Ecc384PubKey),
     Mldsa(&'a Mldsa87PubKey),
-}
-
-/// Calculate SHA2-256 Digest
-///
-/// # Arguments
-///
-/// * `sha256` - SHA256 driver
-/// * `data`   - Input data to hash
-///
-/// # Returns
-///
-/// * `Array4x8` - Digest
-pub fn sha256_digest(sha256: &mut Sha256, data: &[u8]) -> CaliptraResult<Array4x8> {
-    sha256.digest(data)
-}
-
-/// Calculate SHA2-384 Digest
-///
-/// # Arguments
-///
-/// * `sha2_512_384` - SHA2-512-384 driver
-/// * `data` - Input data to hash
-///
-/// # Returns
-///
-/// * `Array4x12` - Digest
-pub fn sha384_digest(sha2_512_384: &mut Sha2_512_384, data: &[u8]) -> CaliptraResult<Array4x12> {
-    sha2_512_384.sha384_digest(data)
 }
 
 /// Calculate HMAC KDF

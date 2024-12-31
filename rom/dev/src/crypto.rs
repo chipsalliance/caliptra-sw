@@ -14,7 +14,7 @@ Abstract:
 
 use crate::rom_env::RomEnv;
 use caliptra_common::{
-    crypto::{self, Ecc384KeyPair, MlDsaKeyPair},
+    crypto::{Ecc384KeyPair, MlDsaKeyPair},
     keyids::KEY_ID_TMP,
 };
 use caliptra_drivers::*;
@@ -225,7 +225,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let mut digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
+        let mut digest = env.sha2_512_384.sha384_digest(data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
