@@ -14,7 +14,7 @@ Abstract:
 
 use crate::rom_env::RomEnv;
 use caliptra_common::{
-    crypto::{self, Ecc384KeyPair, MlDsaKeyPair},
+    crypto::{Ecc384KeyPair, MlDsaKeyPair},
     keyids::KEY_ID_TMP,
 };
 use caliptra_drivers::*;
@@ -41,37 +41,6 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 pub enum Crypto {}
 
 impl Crypto {
-    /// Calculate SHA1 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x5` - Digest
-    #[inline(always)]
-    pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
-        env.sha1.digest(data)
-    }
-
-    /// Calculate SHA2-512 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x16` - Digest
-    #[inline(always)]
-    #[allow(dead_code)]
-    pub fn sha512_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x16> {
-        env.sha2_512_384.sha512_digest(data)
-    }
-
     /// Calculate HMAC
     ///
     /// # Arguments
@@ -225,7 +194,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let mut digest = crypto::sha384_digest(&mut env.sha2_512_384, data);
+        let mut digest = env.sha2_512_384.sha384_digest(data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
@@ -289,7 +258,7 @@ impl Crypto {
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        let mut digest = Self::sha512_digest(env, data);
+        let mut digest = env.sha2_512_384.sha512_digest(data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let result = env.mldsa87.sign(

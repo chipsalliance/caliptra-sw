@@ -14,9 +14,9 @@ Abstract:
 --*/
 
 use super::dice::*;
-use super::x509::*;
 use crate::cprintln;
 use crate::crypto::{Crypto, Ecdsa384SignatureAdapter};
+use crate::flow::cold_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
@@ -92,15 +92,15 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_key_id =
+            cold_reset::x509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_key_id =
-            X509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            cold_reset::x509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -284,7 +284,7 @@ impl InitDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsEcc384Params {
             // Unique Endpoint Identifier
-            ueid: &x509::X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.ecc_subj_sn,
@@ -360,7 +360,7 @@ impl InitDevIdLayer {
 
         let params = InitDevIdCsrTbsMlDsa87Params {
             // Unique Endpoint Identifier
-            ueid: &x509::X509::ueid(&env.soc_ifc)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.mldsa_subj_sn,

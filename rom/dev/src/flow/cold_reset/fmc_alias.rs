@@ -89,16 +89,15 @@ impl FmcAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_sn =
-            x509::X509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
         let ecc_subj_key_id =
-            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_key_id =
-            x509::X509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -234,12 +233,12 @@ impl FmcAliasLayer {
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsEcc384Params {
-            ueid: &x509::X509::ueid(soc_ifc)?,
+            ueid: &x509::ueid(soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
             authority_key_id: input.ecc_auth_key_id,
-            serial_number: &x509::X509::ecc_cert_sn(&mut env.sha256, pub_key)?,
+            serial_number: &x509::ecc_cert_sn(&mut env.sha256, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),
@@ -335,12 +334,12 @@ impl FmcAliasLayer {
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsMlDsa87Params {
-            ueid: &x509::X509::ueid(soc_ifc)?,
+            ueid: &x509::ueid(soc_ifc)?,
             subject_sn: &output.mldsa_subj_sn,
             subject_key_id: &output.mldsa_subj_key_id,
             issuer_sn: input.mldsa_auth_sn,
             authority_key_id: input.mldsa_auth_key_id,
-            serial_number: &x509::X509::mldsa_cert_sn(&mut env.sha256, pub_key)?,
+            serial_number: &x509::mldsa_cert_sn(&mut env.sha256, pub_key)?,
             public_key: pub_key.as_bytes().try_into().unwrap(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),
