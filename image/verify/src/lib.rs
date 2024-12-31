@@ -140,6 +140,9 @@ pub trait ImageVerificationEnv {
     /// Get Vendor LMS Public Key Revocation list
     fn vendor_lms_pub_key_revocation(&self) -> u32;
 
+    /// Get Vendor MLDSA Public Key Revocation list
+    fn vendor_mldsa_pub_key_revocation(&self) -> u32;
+
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest384;
 

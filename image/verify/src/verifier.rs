@@ -240,13 +240,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 vendor_pqc_info = PqcKeyInfo::Lms(lms_pub_key, lms_sig);
 
                 // Verify the vendor LMS public key index and revocation status
-                let (vendor_pqc_pub_key_idx, vendor_lms_pub_key_revocation) =
-                    self.verify_vendor_lms_pk_idx(preamble, reason)?;
+                let key_revocation = self.env.vendor_lms_pub_key_revocation();
+                let vendor_pqc_pub_key_idx =
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
                     key_idx: vendor_pqc_pub_key_idx,
-                    key_revocation: vendor_lms_pub_key_revocation,
+                    key_revocation,
                 }
             }
             FwVerificationPqcKeyType::MLDSA => {
@@ -261,12 +262,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
                 vendor_pqc_info = PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig);
 
-                // [TODO][CAP2] Verify the vendor MLDSA public key index and revocation status
+                // Verify the vendor MLDSA public key index and revocation status
+                let key_revocation = self.env.vendor_mldsa_pub_key_revocation();
+                let vendor_pqc_pub_key_idx =
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
-                    key_idx: 0,
-                    key_revocation: 0,
+                    key_idx: vendor_pqc_pub_key_idx,
+                    key_revocation,
                 }
             }
         };
@@ -367,14 +371,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok((key_idx, revocation))
     }
 
-    /// Verify Vendor LMS Public Key Index
-    fn verify_vendor_lms_pk_idx(
+    /// Verify Vendor PQC (LMS or MLDSA) Public Key Index
+    fn verify_vendor_pqc_pk_idx(
         &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
-    ) -> CaliptraResult<(u32, u32)> {
+        revocation: u32,
+    ) -> CaliptraResult<u32> {
         let key_idx = preamble.vendor_pqc_pub_key_idx;
-        let revocation = self.env.vendor_lms_pub_key_revocation();
         let key_hash_count = preamble
             .vendor_pub_key_info
             .pqc_key_descriptor
@@ -383,14 +387,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Check if the key index is within bounds.
         if key_idx > last_key_idx {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
         }
 
         // Check if key idx is the last key index. Last key index is never revoked.
         if key_idx == last_key_idx {
             cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
         } else if (cfi_launder(revocation) & (0x01u32 << key_idx)) != 0 {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED)?;
         } else {
             cfi_assert_eq(revocation & (0x01u32 << key_idx), 0);
         }
@@ -408,7 +412,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
         }
 
-        Ok((key_idx, revocation))
+        Ok(key_idx)
     }
 
     /// Verify vendor public key info digest
@@ -2217,7 +2221,7 @@ mod tests {
         verify_pqc_result: bool,
         vendor_pub_key_digest: ImageDigest384,
         vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
-        vendor_lms_pub_key_revocation: u32,
+        vendor_pqc_pub_key_revocation: u32,
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
     }
@@ -2232,7 +2236,7 @@ mod tests {
                 verify_pqc_result: false,
                 vendor_pub_key_digest: ImageDigest384::default(),
                 vendor_ecc_pub_key_revocation: VendorPubKeyRevocation::default(),
-                vendor_lms_pub_key_revocation: 0,
+                vendor_pqc_pub_key_revocation: 0,
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
             }
@@ -2296,7 +2300,11 @@ mod tests {
         }
 
         fn vendor_lms_pub_key_revocation(&self) -> u32 {
-            self.vendor_lms_pub_key_revocation
+            self.vendor_pqc_pub_key_revocation
+        }
+
+        fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+            self.vendor_pqc_pub_key_revocation
         }
 
         fn owner_pub_key_digest_fuses(&self) -> ImageDigest384 {
