@@ -765,6 +765,20 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
+                    // cprintln!("pub_key");
+                    // for n in mldsa_pub_key.0.iter() {
+                    //     cprintln!("0x{:x}", *n);
+                    // }
+                    cprintln!("digest_512");
+                    for n in digest_512.iter() {
+                        cprintln!("0x{:x}", *n);
+                    }
+
+                    // cprintln!("mldsa_sig");
+                    // for n in mldsa_sig.0.iter().take(8) {
+                    //     cprintln!("0x{:x}", *n);
+                    // }
+
                     let result = self
                         .env
                         .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)
