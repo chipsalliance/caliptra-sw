@@ -16,7 +16,6 @@ memoffset.workspace = true
 zerocopy.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive.workspace = true
-ufmt.workspace = true
 
 [dev-dependencies]
 caliptra_common = { path = "../../common", default-features = false }

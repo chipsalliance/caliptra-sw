@@ -17,7 +17,6 @@ caliptra-emu-cpu.workspace = true
 caliptra-emu-crypto.workspace = true
 caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
-caliptra-image-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
 fips204.workspace = true

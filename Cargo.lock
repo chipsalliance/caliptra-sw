@@ -478,7 +478,6 @@ dependencies = [
  "caliptra-emu-derive",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
- "caliptra-image-types",
  "caliptra-registers",
  "fips204",
  "lazy_static",
@@ -697,7 +696,6 @@ dependencies = [
  "caliptra-image-types",
  "caliptra_common",
  "memoffset 0.8.0",
- "ufmt",
  "zerocopy",
 ]
 

@@ -221,7 +221,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                 )?;
 
                 let sig = mldsa_sig.as_bytes();
-
                 vendor_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
             };
         }
