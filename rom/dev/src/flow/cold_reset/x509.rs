@@ -101,9 +101,11 @@ impl X509 {
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
         let data: &[u8] = &pub_key_bytes[..pub_key_size];
 
-        // [CAP2][TODO] Get the hash algorithm if the key is MLDSA.
-
-        let digest: [u8; 20] = match env.soc_ifc.fuse_bank().idev_id_x509_key_id_algo() {
+        let digest: [u8; 20] = match env
+            .soc_ifc
+            .fuse_bank()
+            .idev_id_x509_key_id_algo(matches!(pub_key, PubKey::Ecc(_)))
+        {
             X509KeyIdAlgo::Sha1 => {
                 cprintln!("[idev] Sha1 KeyId Algorithm");
                 let digest = Crypto::sha1_digest(env, data);
@@ -119,6 +121,12 @@ impl X509 {
                 cprintln!("[idev] Sha384 KeyId Algorithm");
                 let digest = Crypto::sha384_digest(env, data);
                 let digest: [u8; 48] = okref(&digest)?.into();
+                digest[..20].try_into().unwrap()
+            }
+            X509KeyIdAlgo::Sha512 => {
+                cprintln!("[idev] Sha512 KeyId Algorithm");
+                let digest = Crypto::sha512_digest(env, data);
+                let digest: [u8; 64] = okref(&digest)?.into();
                 digest[..20].try_into().unwrap()
             }
             X509KeyIdAlgo::Fuse => {

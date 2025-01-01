@@ -30,7 +30,8 @@ pub enum X509KeyIdAlgo {
     Sha1 = 0,
     Sha256 = 1,
     Sha384 = 2,
-    Fuse = 3,
+    Sha512 = 3,
+    Fuse = 4,
 }
 
 bitflags::bitflags! {
@@ -46,16 +47,21 @@ bitflags::bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdevidCertAttr {
     Flags = 0,
-    SubjectKeyId1 = 1,
-    SubjectKeyId2 = 2,
-    SubjectKeyId3 = 3,
-    SubjectKeyId4 = 4,
-    SubjectKeyId5 = 5,
-    UeidType = 6,
-    ManufacturerSerialNumber1 = 7,
-    ManufacturerSerialNumber2 = 8,
-    ManufacturerSerialNumber3 = 9,
-    ManufacturerSerialNumber4 = 10,
+    EccSubjectKeyId1 = 1,
+    EccSubjectKeyId2 = 2,
+    EccSubjectKeyId3 = 3,
+    EccSubjectKeyId4 = 4,
+    EccSubjectKeyId5 = 5,
+    MldsaSubjectKeyId1 = 6,
+    MldsaSubjectKeyId2 = 7,
+    MldsaSubjectKeyId3 = 8,
+    MldsaSubjectKeyId4 = 9,
+    MldsaSubjectKeyId5 = 10,
+    UeidType = 11,
+    ManufacturerSerialNumber1 = 12,
+    ManufacturerSerialNumber2 = 13,
+    ManufacturerSerialNumber3 = 14,
+    ManufacturerSerialNumber4 = 15,
 }
 
 impl From<IdevidCertAttr> for usize {
@@ -85,25 +91,31 @@ impl FuseBank<'_> {
     /// Get the key id crypto algorithm.
     ///
     /// # Arguments
-    /// * None
+    /// * `ecc_key_id_algo` - Whether to get ECC or MLDSA key id algorithm
     ///
     /// # Returns
     ///     key id crypto algorithm
     ///
-    pub fn idev_id_x509_key_id_algo(&self) -> X509KeyIdAlgo {
+    pub fn idev_id_x509_key_id_algo(&self, ecc_key_id_algo: bool) -> X509KeyIdAlgo {
         let soc_ifc_regs = self.soc_ifc.regs();
 
-        let flags = soc_ifc_regs
+        let mut flags = soc_ifc_regs
             .fuse_idevid_cert_attr()
             .at(IdevidCertAttr::Flags.into())
             .read();
 
-        match flags & 0x3 {
+        if !ecc_key_id_algo {
+            // ECC Key Id Algo is in Bits 0-2.
+            // MLDSA Key Id Algo is in Bits 3-5.
+            flags >>= 3
+        }
+
+        match flags & 0x7 {
             0 => X509KeyIdAlgo::Sha1,
             1 => X509KeyIdAlgo::Sha256,
             2 => X509KeyIdAlgo::Sha384,
-            3 => X509KeyIdAlgo::Fuse,
-            _ => unreachable!(),
+            4 => X509KeyIdAlgo::Sha512,
+            _ => X509KeyIdAlgo::Fuse,
         }
     }
 
@@ -162,23 +174,23 @@ impl FuseBank<'_> {
 
         let subkeyid1 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::SubjectKeyId1.into())
+            .at(IdevidCertAttr::EccSubjectKeyId1.into())
             .read();
         let subkeyid2 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::SubjectKeyId2.into())
+            .at(IdevidCertAttr::EccSubjectKeyId2.into())
             .read();
         let subkeyid3 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::SubjectKeyId3.into())
+            .at(IdevidCertAttr::EccSubjectKeyId3.into())
             .read();
         let subkeyid4 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::SubjectKeyId4.into())
+            .at(IdevidCertAttr::EccSubjectKeyId4.into())
             .read();
         let subkeyid5 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::SubjectKeyId5.into())
+            .at(IdevidCertAttr::EccSubjectKeyId5.into())
             .read();
 
         let mut subject_key_id = [0u8; 20];
