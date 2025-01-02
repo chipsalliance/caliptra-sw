@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::mailbox::Request;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
@@ -34,7 +35,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
@@ -274,6 +275,20 @@ pub fn assert_error(
     } else {
         panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
     }
+}
+
+pub fn get_certs<R: Request>(model: &mut DefaultHwModel) -> R::Resp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(R::ID), &[]),
+    };
+    let resp_data = model
+        .mailbox_execute(u32::from(R::ID), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp_data.len() <= std::mem::size_of::<<R as Request>::Resp>());
+    let mut resp = R::Resp::new_zeroed();
+    resp.as_mut_bytes()[..resp_data.len()].copy_from_slice(&resp_data);
+    resp
 }
 
 pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
