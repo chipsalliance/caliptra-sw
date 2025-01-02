@@ -11,7 +11,7 @@ caliptra-cfi-lib-git = { workspace = true, default-features = false, features = 
 caliptra-cfi-derive-git.workspace = true
 caliptra_common = { workspace = true, default-features = false, features = ["runtime"] }
 caliptra-cpu.workspace = true
-caliptra-drivers = { workspace = true, features = ["fmc", "runtime"] }
+caliptra-drivers = { workspace = true, features = ["fmc-alias-csr", "runtime"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-auth-man-types = { workspace = true, default-features = false }
@@ -65,3 +65,4 @@ no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 "hw-1.0" = ["caliptra-builder/hw-1.0", "caliptra-drivers/hw-1.0", "caliptra-registers/hw-1.0", "caliptra-kat/hw-1.0","caliptra-cpu/hw-1.0"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+fmc-alias-csr = ["caliptra-drivers/fmc-alias-csr"]

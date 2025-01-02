@@ -12,6 +12,7 @@ use crate::flow::crypto::Ecdsa384SignatureAdapter;
 use zeroize::Zeroize;
 
 use caliptra_drivers::okmutref;
+
 use caliptra_drivers::FmcAliasCsr;
 
 use caliptra_x509::FmcAliasCsrTbs;
@@ -25,7 +26,7 @@ use caliptra_x509::Ecdsa384CsrBuilder;
 ///
 /// # Arguments
 ///
-/// * `hand_off` - HandOff
+/// * `env`    - FMC Environment
 ///
 /// # Returns
 ///
