@@ -329,6 +329,7 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
+        let dma = Dma::new(clock, mailbox_ram.clone());
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
 
@@ -350,7 +351,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
-            dma: Dma::new(clock),
+            dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
         }
