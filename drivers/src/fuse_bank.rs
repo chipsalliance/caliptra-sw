@@ -164,33 +164,51 @@ impl FuseBank<'_> {
     /// Get the subject key identifier.
     ///
     /// # Arguments
-    /// * None
+    /// * `ecc_subject_key_id` - Whether to get ECC or MLDSA subject key identifier
     ///
     /// # Returns
     ///     subject key identifier
     ///
-    pub fn subject_key_id(&self) -> [u8; 20] {
+    pub fn subject_key_id(&self, ecc_subject_key_id: bool) -> [u8; 20] {
+        let key_id = if ecc_subject_key_id {
+            [
+                IdevidCertAttr::EccSubjectKeyId1,
+                IdevidCertAttr::EccSubjectKeyId2,
+                IdevidCertAttr::EccSubjectKeyId3,
+                IdevidCertAttr::EccSubjectKeyId4,
+                IdevidCertAttr::EccSubjectKeyId5,
+            ]
+        } else {
+            [
+                IdevidCertAttr::MldsaSubjectKeyId1,
+                IdevidCertAttr::MldsaSubjectKeyId2,
+                IdevidCertAttr::MldsaSubjectKeyId3,
+                IdevidCertAttr::MldsaSubjectKeyId4,
+                IdevidCertAttr::MldsaSubjectKeyId5,
+            ]
+        };
+
         let soc_ifc_regs = self.soc_ifc.regs();
 
         let subkeyid1 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::EccSubjectKeyId1.into())
+            .at(key_id[0].into())
             .read();
         let subkeyid2 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::EccSubjectKeyId2.into())
+            .at(key_id[1].into())
             .read();
         let subkeyid3 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::EccSubjectKeyId3.into())
+            .at(key_id[2].into())
             .read();
         let subkeyid4 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::EccSubjectKeyId4.into())
+            .at(key_id[3].into())
             .read();
         let subkeyid5 = soc_ifc_regs
             .fuse_idevid_cert_attr()
-            .at(IdevidCertAttr::EccSubjectKeyId5.into())
+            .at(key_id[4].into())
             .read();
 
         let mut subject_key_id = [0u8; 20];

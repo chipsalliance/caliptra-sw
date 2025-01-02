@@ -101,10 +101,12 @@ impl X509 {
         let pub_key_size = Self::get_pubkey_bytes(pub_key, &mut pub_key_bytes);
         let data: &[u8] = &pub_key_bytes[..pub_key_size];
 
+        let ecc_pub_key = matches!(pub_key, PubKey::Ecc(_));
+
         let digest: [u8; 20] = match env
             .soc_ifc
             .fuse_bank()
-            .idev_id_x509_key_id_algo(matches!(pub_key, PubKey::Ecc(_)))
+            .idev_id_x509_key_id_algo(ecc_pub_key)
         {
             X509KeyIdAlgo::Sha1 => {
                 cprintln!("[idev] Sha1 KeyId Algorithm");
@@ -131,7 +133,7 @@ impl X509 {
             }
             X509KeyIdAlgo::Fuse => {
                 cprintln!("[idev] Fuse KeyId");
-                env.soc_ifc.fuse_bank().subject_key_id()
+                env.soc_ifc.fuse_bank().subject_key_id(ecc_pub_key)
             }
         };
 
