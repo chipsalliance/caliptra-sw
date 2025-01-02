@@ -21,7 +21,7 @@ use crate::{
     FirmwareHandoffTable,
 };
 
-#[cfg(feature = "fmc")]
+#[cfg(feature = "fmc-alias-csr")]
 use crate::FmcAliasCsr;
 
 #[cfg(feature = "runtime")]
@@ -74,7 +74,7 @@ pub struct IdevIdCsr {
     csr: [u8; MAX_CSR_SIZE],
 }
 
-#[cfg(feature = "fmc")]
+#[cfg(feature = "fmc-alias-csr")]
 pub mod fmc_alias_csr {
     use super::*;
 
@@ -262,13 +262,13 @@ pub struct PersistentData {
     pub idevid_csr: IdevIdCsr,
     reserved10: [u8; IDEVID_CSR_SIZE as usize - size_of::<IdevIdCsr>()],
 
-    #[cfg(feature = "fmc")]
+    #[cfg(feature = "fmc-alias-csr")]
     pub fmc_alias_csr: FmcAliasCsr,
 
-    #[cfg(feature = "fmc")]
+    #[cfg(feature = "fmc-alias-csr")]
     reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsr>()],
 
-    #[cfg(not(feature = "fmc"))]
+    #[cfg(not(feature = "fmc-alias-csr"))]
     pub fmc_alias_csr: [u8; FMC_ALIAS_CSR_SIZE as usize],
 
     // Reserved memory for future objects.
@@ -362,6 +362,12 @@ impl PersistentData {
             persistent_data_offset += IDEVID_CSR_SIZE;
             assert_eq!(
                 addr_of!((*P).fmc_alias_csr) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += FMC_ALIAS_CSR_SIZE;
+            assert_eq!(
+                addr_of!((*P).reserved_memory) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

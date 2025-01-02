@@ -12,6 +12,7 @@ use crate::flow::crypto::Ecdsa384SignatureAdapter;
 use zeroize::Zeroize;
 
 use caliptra_drivers::okmutref;
+
 use caliptra_drivers::FmcAliasCsr;
 
 use caliptra_x509::FmcAliasCsrTbs;
@@ -25,7 +26,7 @@ use caliptra_x509::Ecdsa384CsrBuilder;
 ///
 /// # Arguments
 ///
-/// * `hand_off` - HandOff
+/// * `env`    - FMC Environment
 ///
 /// # Returns
 ///
@@ -48,12 +49,10 @@ fn dice_output_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceOutput> {
     Ok(output)
 }
 
-fn write_csr_to_peristent_storage(env: &mut FmcEnv, csr: &FmcAliasCsr) -> CaliptraResult<()> {
+fn write_csr_to_peristent_storage(env: &mut FmcEnv, csr: &FmcAliasCsr) {
     let csr_persistent_mem = &mut env.persistent_data.get_mut().fmc_alias_csr;
 
     *csr_persistent_mem = csr.clone();
-
-    Ok(())
 }
 
 #[inline(always)]
@@ -115,9 +114,9 @@ pub fn make_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
 
     let fmc_alias_csr = FmcAliasCsr::new(&csr_buf, csr_len)?;
 
-    let result = write_csr_to_peristent_storage(env, &fmc_alias_csr);
+    write_csr_to_peristent_storage(env, &fmc_alias_csr);
 
     csr_buf.zeroize();
 
-    result
+    Ok(())
 }

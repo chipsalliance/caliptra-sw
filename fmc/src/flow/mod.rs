@@ -14,13 +14,12 @@ Abstract:
 
 mod crypto;
 pub mod dice;
+#[cfg(feature = "fmc-alias-csr")]
 mod fmc_alias_csr;
 mod pcr;
 mod rt_alias;
 mod tci;
 mod x509;
-
-use caliptra_drivers::ResetReason;
 
 use crate::flow::rt_alias::RtAliasLayer;
 
@@ -33,11 +32,18 @@ use caliptra_drivers::CaliptraResult;
 ///
 /// * `env` - FMC Environment
 pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
-    let reset_reason = env.soc_ifc.reset_reason();
+    #[cfg(feature = "fmc-alias-csr")]
+    {
+        use caliptra_cfi_lib::cfi_assert_eq;
+        use caliptra_drivers::ResetReason;
 
-    if reset_reason == ResetReason::ColdReset {
-        // Generate the FMC Alias Certificate Signing Request (CSR)
-        fmc_alias_csr::generate_csr(env)?;
+        let reset_reason = env.soc_ifc.reset_reason();
+
+        if reset_reason == ResetReason::ColdReset {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+            // Generate the FMC Alias Certificate Signing Request (CSR)
+            fmc_alias_csr::generate_csr(env)?;
+        }
     }
 
     RtAliasLayer::run(env)

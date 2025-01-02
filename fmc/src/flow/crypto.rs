@@ -8,7 +8,9 @@ Abstract:
 use caliptra_x509::Ecdsa384Signature;
 
 use crate::fmc_env::FmcEnv;
+#[cfg(feature = "fmc-alias-csr")]
 use caliptra_drivers::okmutref;
+#[cfg(feature = "fmc-alias-csr")]
 use zeroize::Zeroize;
 
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -218,12 +220,14 @@ impl Crypto {
     ///
     /// * `env` - FMC Environment
     /// * `priv_key` - Key slot to retrieve the private key
+    /// * `pub_key` - Public key to verify with
     /// * `data` - Input data to hash
     ///
     /// # Returns
     ///
     /// * `Ecc384Signature` - Signature
     #[inline(always)]
+    #[cfg(feature = "fmc-alias-csr")]
     pub fn ecdsa384_sign_and_verify(
         env: &mut FmcEnv,
         priv_key: KeyId,

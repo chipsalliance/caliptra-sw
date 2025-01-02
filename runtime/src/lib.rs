@@ -22,6 +22,7 @@ mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
 pub mod fips;
+#[cfg(feature = "fmc-alias-csr")]
 mod get_fmc_alias_csr;
 mod get_idev_csr;
 pub mod handoff;
@@ -59,6 +60,7 @@ pub use fips::FipsShutdownCmd;
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 pub use populate_idev::PopulateIDevIdCertCmd;
 
+#[cfg(feature = "fmc-alias-csr")]
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
@@ -227,6 +229,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        #[cfg(feature = "fmc-alias-csr")]
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };

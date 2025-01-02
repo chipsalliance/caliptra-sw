@@ -121,7 +121,7 @@ fn gdb_test() {
     .unwrap();
 
     hw.step();
-    hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
+    hw.step_until_output_contains("[rt] listening for commands...\n")
         .unwrap();
 
     #[cfg(feature = "fpga_realtime")]

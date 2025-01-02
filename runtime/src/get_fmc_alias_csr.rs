@@ -17,13 +17,14 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
-    //   #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
 
         match csr_persistent_mem.get_csr_len() {
             FmcAliasCsr::UNPROVISIONED_CSR => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED),
+            0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
             len => {
                 let mut resp = GetFmcAliasCsrResp {
                     data_size: len,
@@ -39,7 +40,7 @@ impl GetFmcAliasCsrCmd {
                 // csr is guranteed to be the same size as `len`, and therefore
                 // `resp.data_size` by the `FmcAliasCsr::get` API.
                 //
-                // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
+                // A valid `FmcAliasCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
                 // size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 

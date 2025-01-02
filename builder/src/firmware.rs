@@ -42,7 +42,7 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu"],
+    features: &["emu", "fmc-alias-csr"],
 };
 
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
@@ -54,13 +54,13 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["fips_self_test"],
+    features: &["fips_self_test", "fmc-alias-csr"],
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test"],
+    features: &["emu", "fips_self_test", "fmc-alias-csr"],
 };
 
 pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
@@ -72,7 +72,7 @@ pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime"],
+    features: &["emu", "fips_self_test", "fmc-alias-csr", "fpga_realtime"],
 };
 
 pub const APP_ZEROS: FwId = FwId {
