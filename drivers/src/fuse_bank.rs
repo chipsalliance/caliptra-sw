@@ -107,7 +107,7 @@ impl FuseBank<'_> {
         if !ecc_key_id_algo {
             // ECC Key Id Algo is in Bits 0-2.
             // MLDSA Key Id Algo is in Bits 3-5.
-            flags >>= 3
+            flags >>= 3;
         }
 
         match flags & 0x7 {
