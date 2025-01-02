@@ -110,6 +110,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify the preamble
         let preamble = &manifest.preamble;
+        cprintln!("rev: {}", self.env.vendor_mldsa_pub_key_revocation());
         let header_info = self.verify_preamble(preamble, reason, pqc_key_type);
         let header_info = okref(&header_info)?;
 
@@ -264,6 +265,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
                 // Verify the vendor MLDSA public key index and revocation status
                 let key_revocation = self.env.vendor_mldsa_pub_key_revocation();
+
                 let vendor_pqc_pub_key_idx =
                     self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 
@@ -384,6 +386,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .pqc_key_descriptor
             .key_hash_count;
         let last_key_idx: u32 = key_hash_count as u32 - 1;
+        cprintln!("last_key_idx: {}", last_key_idx);
+        cprintln!(
+            "key_type: {}",
+            preamble.vendor_pub_key_info.pqc_key_descriptor.key_type
+        );
+        // why 0?
+        cprintln!("key_revocation: {}", revocation);
+        cprintln!("idx: {}", key_idx);
 
         // Check if the key index is within bounds.
         if key_idx > last_key_idx {

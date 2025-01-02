@@ -696,6 +696,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra_common",
  "memoffset 0.8.0",
+ "ufmt",
  "zerocopy",
 ]
 
