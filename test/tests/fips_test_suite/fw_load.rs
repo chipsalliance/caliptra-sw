@@ -1114,6 +1114,34 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
 }
 
 #[test]
+fn fw_load_error_vendor_mldsa_pub_key_revoked() {
+    let vendor_config = ImageGeneratorVendorConfig {
+        pqc_key_idx: 2,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config,
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+
+    // Set fuses
+    let fuses = caliptra_hw_model::Fuses {
+        fuse_mldsa_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
+        ..Default::default()
+    };
+
+    // Generate image
+    let fw_image = build_fw_image(image_options);
+
+    fw_load_error_flow(
+        Some(fw_image),
+        Some(fuses),
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED.into(),
+    );
+}
+
+#[test]
 fn fw_load_error_fmc_size_zero() {
     // Generate image
     let mut fw_image = build_fw_image(ImageOptions::default());
