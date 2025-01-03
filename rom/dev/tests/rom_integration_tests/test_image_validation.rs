@@ -307,7 +307,6 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
 
     for idx in 0..VENDOR_MLDSA_MAX_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
-            // ecc_key_idx: 3,
             pqc_key_idx: idx,
             ..VENDOR_CONFIG_KEY_0
         };
