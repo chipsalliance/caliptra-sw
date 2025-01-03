@@ -1116,7 +1116,6 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
 #[test]
 fn fw_load_error_vendor_mldsa_pub_key_revoked() {
     let vendor_config = ImageGeneratorVendorConfig {
-        // pqc_key_idx: 5,
         pqc_key_idx: 2,
         ..VENDOR_CONFIG_KEY_0
     };
