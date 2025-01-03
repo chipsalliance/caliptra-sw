@@ -10,15 +10,9 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
         STACK_ORG 		 = 0x{STACK_ORG:08X};
         ESTACK_ORG  	 = 0x{ESTACK_ORG:08X};
         NSTACK_ORG       = 0x{NSTACK_ORG:08X};
-        ECC_LDEVID_TBS_ORG   = 0x{ECC_LDEVID_TBS_ORG:08X};;
-        ECC_FMCALIAS_TBS_ORG = 0x{ECC_FMCALIAS_TBS_ORG:08X};;
-        ECC_RTALIAS_TBS_ORG  = 0x{ECC_RTALIAS_TBS_ORG:08X};
 
         CFI_STATE_ORG = 0x{CFI_STATE_ORG:08X};
 
-        ECC_LDEVID_TBS_SIZE   = 0x{ECC_LDEVID_TBS_SIZE:08X};
-        ECC_FMCALIAS_TBS_SIZE = 0x{ECC_FMCALIAS_TBS_SIZE:08X};
-        ECC_RTALIAS_TBS_SIZE  = 0x{ECC_RTALIAS_TBS_SIZE:08X};
 
         ICCM_SIZE   = 0x{iccm_size:08X};
         DCCM_SIZE   = 0x{DCCM_SIZE:08X};
@@ -31,7 +25,6 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
         MEMORY
         {{
             ICCM 		 (rx) : ORIGIN = ICCM_ORG, 		   LENGTH = ICCM_SIZE
-            ECC_RTALIAS_TBS  (rw) : ORIGIN = ECC_RTALIAS_TBS_ORG,  LENGTH = ECC_RTALIAS_TBS_SIZE
             DATA         (rw) : ORIGIN = DATA_ORG,         LENGTH = DATA_SIZE
             STACK	     (rw) : ORIGIN = STACK_ORG,  	   LENGTH = STACK_SIZE
             ESTACK 		 (rw) : ORIGIN = ESTACK_ORG,       LENGTH = ESTACK_SIZE

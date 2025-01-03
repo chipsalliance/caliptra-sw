@@ -11,17 +11,17 @@ use zerocopy::{AsBytes, FromBytes};
 use crate::helpers;
 
 #[test]
-fn test_get_csr() {
+fn test_get_ecc_csr() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let csr_bytes = {
+    let ecc_csr_bytes = {
         let flags = MfgFlags::GENERATE_IDEVID_CSR;
         hw.soc_ifc()
             .cptra_dbg_manuf_service_reg()
             .write(|_| flags.bits());
 
-        let downloaded = helpers::get_csr(&mut hw).unwrap();
+        let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
         hw.step_until(|m| {
             m.soc_ifc()
@@ -29,15 +29,18 @@ fn test_get_csr() {
                 .read()
                 .ready_for_mb_processing()
         });
-        downloaded
+        csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize].to_vec()
     };
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            &[],
+        ),
     };
 
     let response = hw
-        .mailbox_execute(CommandId::GET_IDEV_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -49,9 +52,9 @@ fn test_get_csr() {
         &get_idv_csr_resp.as_bytes()[core::mem::size_of_val(&get_idv_csr_resp.hdr.chksum)..],
     ));
 
-    assert_eq!(csr_bytes.len() as u32, get_idv_csr_resp.data_size);
+    assert_eq!(ecc_csr_bytes.len() as u32, get_idv_csr_resp.data_size);
     assert_eq!(
-        csr_bytes,
+        ecc_csr_bytes,
         get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize]
     );
 }
@@ -68,10 +71,13 @@ fn test_get_csr_generate_csr_flag_not_set() {
     });
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            &[],
+        ),
     };
 
-    let response = hw.mailbox_execute(CommandId::GET_IDEV_CSR.into(), payload.as_bytes());
+    let response = hw.mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes());
 
     let expected_error = ModelError::MailboxCmdFailed(
         CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR.into(),

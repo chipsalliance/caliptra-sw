@@ -13,7 +13,7 @@ use zerocopy::{AsBytes, FromBytes};
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
 #[test]
-fn test_get_csr() {
+fn test_get_ecc_csr() {
     // `run_rt_test` is responsibly for clearing the CSR bit.
     // Caliptra will wait until the CSR bit is cleared during startup.
     let args = RuntimeTestArgs {
@@ -23,10 +23,13 @@ fn test_get_csr() {
     let mut model = run_rt_test(args);
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            &[],
+        ),
     };
 
-    let result = model.mailbox_execute(CommandId::GET_IDEV_CSR.into(), payload.as_bytes());
+    let result = model.mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes());
 
     match get_ci_rom_version() {
         CiRomVersion::Latest => {
@@ -56,11 +59,14 @@ fn test_missing_csr() {
     });
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            &[],
+        ),
     };
 
     let response = model
-        .mailbox_execute(CommandId::GET_IDEV_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes())
         .unwrap_err();
 
     match get_ci_rom_version() {

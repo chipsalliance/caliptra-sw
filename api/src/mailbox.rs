@@ -52,8 +52,8 @@ impl CommandId {
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
-    // The get IDevID CSR command.
-    pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
+    // The get IDevID ECC CSR command.
+    pub const GET_IDEV_ECC_CSR: Self = Self(0x4944_4352); // "IDCR"
 }
 
 impl From<u32> for CommandId {
@@ -991,7 +991,7 @@ pub struct GetIdevCsrReq {
 }
 
 impl Request for GetIdevCsrReq {
-    const ID: CommandId = CommandId::GET_IDEV_CSR;
+    const ID: CommandId = CommandId::GET_IDEV_ECC_CSR;
     type Resp = GetIdevCsrResp;
 }
 

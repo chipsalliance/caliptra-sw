@@ -7,7 +7,7 @@ use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_common::RomBootStatus;
-use caliptra_drivers::CaliptraError;
+use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
@@ -24,7 +24,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 // Support testing against older versions of ROM in CI
 // More constants may need to be added here as the ROMs further diverge
@@ -91,27 +91,29 @@ fn retrieve_csr_test() {
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
-    let csr_der = mem::take(&mut txn.req.data);
+    let csr_envelop =
+        InitDevIdCsrEnvelope::read_from_prefix(&*mem::take(&mut txn.req.data)).unwrap();
     txn.respond_success();
 
-    let csr = openssl::x509::X509Req::from_der(&csr_der).unwrap();
-    let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
+    let ecc_csr_der = &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize];
+    let ecc_csr = openssl::x509::X509Req::from_der(ecc_csr_der).unwrap();
+    let ecc_csr_txt = String::from_utf8(ecc_csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
-    println!("csr: {}", csr_txt);
+    println!("ecc csr: {}", ecc_csr_txt);
 
     assert_eq!(
-        csr_txt.as_str(),
+        ecc_csr_txt.as_str(),
         include_str!("smoke_testdata/idevid_csr.txt")
     );
-    assert_eq!(csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
+    assert_eq!(ecc_csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
 
     assert!(
-        csr.verify(&csr.public_key().unwrap()).unwrap(),
-        "CSR's self signature failed to validate"
+        ecc_csr.verify(&ecc_csr.public_key().unwrap()).unwrap(),
+        "ECC CSR's self signature failed to validate"
     );
 }
 
