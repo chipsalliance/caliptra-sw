@@ -529,6 +529,14 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0055);
     pub const RUNTIME_KEY_LADDER_TARGET_SVN_TOO_LARGE: CaliptraError =
         CaliptraError::new_const(0x000E0056);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0057);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0058);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_DIGEST: CaliptraError =
+        CaliptraError::new_const(0x000E0059);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE: CaliptraError =
+        CaliptraError::new_const(0x000E005A);
 
     pub const RUNTIME_GET_FMC_CSR_UNPROVISIONED: CaliptraError =
         CaliptraError::new_const(0x000E0057);

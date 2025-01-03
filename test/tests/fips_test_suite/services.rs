@@ -528,7 +528,7 @@ pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
         panic!("Wrong response type!");
     };
 
-    assert!(contains_some_data(&sign_resp.sig_r_or_hmac));
+    assert!(contains_some_data(&sign_resp.sig_r));
     assert!(contains_some_data(&sign_resp.sig_s));
 }
 

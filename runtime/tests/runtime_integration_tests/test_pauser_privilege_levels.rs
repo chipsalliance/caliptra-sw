@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::PQC_KEY_TYPE;
-use caliptra_api::SocManager;
+use caliptra_api::{mailbox::SignWithExportedEcdsaReq, SocManager};
 use caliptra_builder::{
     build_firmware_elf,
     firmware::{APP_WITH_UART, FMC_WITH_UART},
@@ -337,13 +337,73 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
 }
 
 #[test]
+fn test_sign_with_exported_ecdsa_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::SIGN_WITH_EXPORTED_ECDSA),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
+fn test_export_cdi_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let get_cert_chain_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&get_cert_chain_cmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
+    );
+}
+
+#[test]
 fn test_certify_key_x509_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let mut image_opts = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
+        let mut image_opts = ImageOptions::default();
         image_opts.vendor_config.pl0_pauser = None;
+        image_opts.pqc_key_type = *pqc_key_type;
 
         let args = RuntimeTestArgs {
             test_image_options: Some(image_opts),

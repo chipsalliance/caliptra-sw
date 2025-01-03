@@ -62,6 +62,7 @@ impl StashMeasurementCmd {
                 &mut pdata.fht.rt_dice_pub_key,
                 key_id_rt_cdi,
                 key_id_rt_priv_key,
+                &mut drivers.exported_cdi_slots,
             );
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -72,6 +73,7 @@ impl StashMeasurementCmd {
                     &drivers.cert_chain,
                     &nb,
                     &nf,
+                    None,
                     None,
                 ),
             };

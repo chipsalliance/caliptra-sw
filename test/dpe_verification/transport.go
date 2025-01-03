@@ -197,11 +197,10 @@ func (s *CptraModel) GetSupport() *client.Support {
 		RotateContext:       true,
 		X509:                true,
 		Csr:                 true,
-		IsSymmetric:         true,
 		InternalInfo:        true,
 		InternalDice:        true,
-		IsCA:                true,
 		RetainParentContext: true,
+		CdiExport: true,
 	}
 }
 
@@ -233,7 +232,7 @@ func (s *CptraModel) GetProfileMajorVersion() uint16 {
 }
 
 func (s *CptraModel) GetProfileMinorVersion() uint16 {
-	return 11
+	return 12
 }
 
 func (s *CptraModel) GetProfileVendorID() uint32 {
