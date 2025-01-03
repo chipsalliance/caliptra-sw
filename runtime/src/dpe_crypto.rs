@@ -16,15 +16,25 @@ use core::cmp::min;
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
+use caliptra_common::keyids::{
+    KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
+};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
     Ecc384Seed, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
     KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
-use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
+use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
+use dpe::{
+    response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE,
+};
 use zerocopy::IntoBytes;
 use zeroize::Zeroize;
+
+// Currently only can export CDI once, but in the future we may want to support multiple exported
+// CDI handles at the cost of using more KeyVault slots.
+pub const EXPORTED_HANDLES_NUM: usize = 1;
+pub type ExportedCdiHandles = [Option<(KeyId, ExportedCdiHandle)>; EXPORTED_HANDLES_NUM];
 
 pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
@@ -35,6 +45,7 @@ pub struct DpeCrypto<'a> {
     rt_pub_key: &'a mut Ecc384PubKey,
     key_id_rt_cdi: KeyId,
     key_id_rt_priv_key: KeyId,
+    exported_cdi_slots: &'a mut ExportedCdiHandles,
 }
 
 impl<'a> DpeCrypto<'a> {
@@ -48,6 +59,7 @@ impl<'a> DpeCrypto<'a> {
         rt_pub_key: &'a mut Ecc384PubKey,
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
+        exported_cdi_slots: &'a mut ExportedCdiHandles,
     ) -> Self {
         Self {
             sha384,
@@ -58,7 +70,99 @@ impl<'a> DpeCrypto<'a> {
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
+            exported_cdi_slots,
         }
+    }
+
+    fn derive_cdi_inner(
+        &mut self,
+        algs: AlgLen,
+        measurement: &Digest,
+        info: &[u8],
+        key_id: KeyId,
+    ) -> Result<<DpeCrypto<'a> as crypto::Crypto>::Cdi, CryptoError> {
+        match algs {
+            AlgLen::Bit256 => Err(CryptoError::Size),
+            AlgLen::Bit384 => {
+                let mut hasher = self.hash_initialize(algs)?;
+                hasher.update(measurement.bytes())?;
+                hasher.update(info)?;
+                let context = hasher.finish()?;
+
+                hmac384_kdf(
+                    self.hmac384,
+                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
+                    b"derive_cdi",
+                    Some(context.bytes()),
+                    self.trng,
+                    KeyWriteArgs::new(
+                        key_id,
+                        KeyUsage::default()
+                            .set_hmac_key_en()
+                            .set_ecc_key_gen_seed_en(),
+                    )
+                    .into(),
+                )
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                Ok(key_id)
+            }
+        }
+    }
+
+    fn derive_key_pair_inner(
+        &mut self,
+        algs: AlgLen,
+        cdi: &<DpeCrypto<'a> as crypto::Crypto>::Cdi,
+        label: &[u8],
+        info: &[u8],
+        key_id: KeyId,
+    ) -> Result<(<DpeCrypto<'a> as crypto::Crypto>::PrivKey, EcdsaPub), CryptoError> {
+        match algs {
+            AlgLen::Bit256 => Err(CryptoError::Size),
+            AlgLen::Bit384 => {
+                hmac384_kdf(
+                    self.hmac384,
+                    KeyReadArgs::new(*cdi).into(),
+                    label,
+                    Some(info),
+                    self.trng,
+                    KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_key_gen_seed_en())
+                        .into(),
+                )
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+
+                let pub_key = self
+                    .ecc384
+                    .key_pair(
+                        &Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
+                        &Array4x12::default(),
+                        self.trng,
+                        KeyWriteArgs::new(key_id, KeyUsage::default().set_ecc_private_key_en())
+                            .into(),
+                    )
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                let pub_key = EcdsaPub {
+                    x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.x))
+                        .map_err(|_| CryptoError::Size)?,
+                    y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.y))
+                        .map_err(|_| CryptoError::Size)?,
+                };
+                Ok((key_id, pub_key))
+            }
+        }
+    }
+
+    pub fn get_cdi_from_exported_handle(
+        &mut self,
+        exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
+    ) -> Option<<DpeCrypto<'a> as crypto::Crypto>::Cdi> {
+        for cdi_slot in self.exported_cdi_slots.iter() {
+            match cdi_slot {
+                Some((cdi, handle)) if handle == exported_cdi_handle => return Some(*cdi),
+                _ => (),
+            }
+        }
+        None
     }
 }
 
@@ -127,38 +231,42 @@ impl<'a> Crypto for DpeCrypto<'a> {
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn derive_exported_cdi(
+        &mut self,
+        algs: AlgLen,
+        measurement: &Digest,
+        info: &[u8],
+    ) -> Result<ExportedCdiHandle, CryptoError> {
+        let mut exported_cdi_handle = [0; MAX_EXPORTED_CDI_SIZE];
+        self.rand_bytes(&mut exported_cdi_handle)?;
+        let cdi = self.derive_cdi_inner(algs, measurement, info, KEY_ID_EXPORTED_DPE_CDI)?;
+
+        for slot in self.exported_cdi_slots.iter_mut() {
+            match slot {
+                // Matching existing slot
+                Some((cached_cdi, handle)) if *cached_cdi == cdi => {
+                    Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
+                }
+                // Empty slot
+                None => {
+                    *slot = Some((cdi, exported_cdi_handle));
+                    return Ok(exported_cdi_handle);
+                }
+                // Used slot for a different CDI.
+                _ => (),
+            }
+        }
+        Err(CryptoError::ExportedCdiHandleLimitExceeded)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(
         &mut self,
         algs: AlgLen,
         measurement: &Digest,
         info: &[u8],
     ) -> Result<Self::Cdi, CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                let mut hasher = self.hash_initialize(algs)?;
-                hasher.update(measurement.bytes())?;
-                hasher.update(info)?;
-                let context = hasher.finish()?;
-
-                hmac384_kdf(
-                    self.hmac384,
-                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
-                    b"derive_cdi",
-                    Some(context.bytes()),
-                    self.trng,
-                    KeyWriteArgs::new(
-                        KEY_ID_DPE_CDI,
-                        KeyUsage::default()
-                            .set_hmac_key_en()
-                            .set_ecc_key_gen_seed_en(),
-                    )
-                    .into(),
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Ok(KEY_ID_DPE_CDI)
-            }
-        }
+        self.derive_cdi_inner(algs, measurement, info, KEY_ID_DPE_CDI)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -169,42 +277,31 @@ impl<'a> Crypto for DpeCrypto<'a> {
         label: &[u8],
         info: &[u8],
     ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                hmac384_kdf(
-                    self.hmac384,
-                    KeyReadArgs::new(*cdi).into(),
-                    label,
-                    Some(info),
-                    self.trng,
-                    KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_key_gen_seed_en())
-                        .into(),
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+        self.derive_key_pair_inner(algs, cdi, label, info, KEY_ID_DPE_PRIV_KEY)
+    }
 
-                let pub_key = self
-                    .ecc384
-                    .key_pair(
-                        &Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
-                        &Array4x12::default(),
-                        self.trng,
-                        KeyWriteArgs::new(
-                            KEY_ID_DPE_PRIV_KEY,
-                            KeyUsage::default().set_ecc_private_key_en(),
-                        )
-                        .into(),
-                    )
-                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                let pub_key = EcdsaPub {
-                    x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.x))
-                        .map_err(|_| CryptoError::Size)?,
-                    y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.y))
-                        .map_err(|_| CryptoError::Size)?,
-                };
-                Ok((KEY_ID_DPE_PRIV_KEY, pub_key))
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn derive_key_pair_exported(
+        &mut self,
+        algs: AlgLen,
+        exported_handle: &ExportedCdiHandle,
+        label: &[u8],
+        info: &[u8],
+    ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
+        let cdi = {
+            let mut cdi = None;
+            for cdi_slot in self.exported_cdi_slots.iter() {
+                match cdi_slot {
+                    Some((stored_cdi, stored_handle)) if stored_handle == exported_handle => {
+                        cdi = Some(*stored_cdi);
+                        break;
+                    }
+                    _ => (),
+                }
             }
-        }
+            cdi.ok_or(CryptoError::InvalidExportedCdiHandle)
+        }?;
+        self.derive_key_pair_inner(algs, &cdi, label, info, KEY_ID_TMP)
     }
 
     fn ecdsa_sign_with_alias(
@@ -285,70 +382,6 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 let s = CryptoBuf::new(&<[u8; SIZE]>::from(sig.s))?;
 
                 Ok(EcdsaSig { r, s })
-            }
-        }
-    }
-
-    fn hmac_sign_with_derived(
-        &mut self,
-        algs: AlgLen,
-        cdi: &Self::Cdi,
-        label: &[u8],
-        info: &[u8],
-        digest: &Digest,
-    ) -> Result<HmacSig, CryptoError> {
-        match algs {
-            AlgLen::Bit256 => Err(CryptoError::Size),
-            AlgLen::Bit384 => {
-                // derive an EC key pair from the CDI
-                // note: the output point must be kept secret since it is derived from the private key,
-                // so as long as that output is kept secret and not released outside of Caliptra,
-                // it is safe to use it as key material.
-                let key_pair = Self::derive_key_pair(self, algs, cdi, label, info);
-                if cfi_launder(key_pair.is_ok()) {
-                    cfi_assert!(key_pair.is_ok());
-                } else {
-                    cfi_assert!(key_pair.is_err());
-                }
-                let (_, hmac_seed) = key_pair?;
-
-                // create ikm to the hmac kdf by hashing the seed entropy from the pub key
-                // this is more secure than directly using the pub key components in the hmac
-                // kdf since the distribution of the pub key is taken from a set of discrete points
-                let mut hasher = Self::hash_initialize(self, algs)?;
-                hasher.update(hmac_seed.x.bytes())?;
-                hasher.update(hmac_seed.y.bytes())?;
-                let mut hmac_ikm: [u8; 48] = hasher
-                    .finish()?
-                    .bytes()
-                    .try_into()
-                    .map_err(|_| CryptoError::Size)?;
-
-                // derive an hmac key
-                let mut hmac_key = Array4x12::default();
-                hmac384_kdf(
-                    self.hmac384,
-                    Hmac384Key::Array4x12(&Array4x12::from(hmac_ikm)),
-                    &[],
-                    None,
-                    self.trng,
-                    Hmac384Tag::Array4x12(&mut hmac_key),
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                hmac_ikm.zeroize();
-
-                // sign digest with HMAC key
-                let mut tag = Array4x12::default();
-                self.hmac384
-                    .hmac(
-                        &Hmac384Key::Array4x12(&hmac_key),
-                        &Hmac384Data::Slice(digest.bytes()),
-                        self.trng,
-                        Hmac384Tag::Array4x12(&mut tag),
-                    )
-                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                hmac_key.zeroize();
-                HmacSig::new(tag.as_bytes())
             }
         }
     }

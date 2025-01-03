@@ -60,9 +60,11 @@ impl InvokeDpeCmd {
                 &mut pdata.fht.rt_dice_pub_key,
                 key_id_rt_cdi,
                 key_id_rt_priv_key,
+                &mut drivers.exported_cdi_slots,
             );
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+            let ueid = &drivers.soc_ifc.fuse_bank().ueid();
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
                 platform: DpePlatform::new(
@@ -72,6 +74,7 @@ impl InvokeDpeCmd {
                     &nb,
                     &nf,
                     None,
+                    Some(ueid),
                 ),
             };
 
@@ -113,6 +116,13 @@ impl InvokeDpeCmd {
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
+
+                    if DeriveContextCmd::exports_cdi(cmd)
+                        && caller_privilege_level != PauserPrivileges::PL0
+                    {
+                        return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+                    }
+
                     cmd.execute(dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {

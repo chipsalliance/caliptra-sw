@@ -23,6 +23,7 @@ use crate::{
     PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
 
+use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
@@ -58,7 +59,7 @@ use dpe::{
 };
 
 use core::cmp::Ordering::{Equal, Greater};
-use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
+use crypto::{AlgLen, Crypto, CryptoBuf, Hasher, MAX_EXPORTED_CDI_SIZE};
 use zerocopy::IntoBytes;
 
 #[derive(PartialEq, Clone)]
@@ -108,6 +109,7 @@ pub struct Drivers {
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
+    pub exported_cdi_slots: ExportedCdiHandles,
 }
 
 impl Drivers {
@@ -146,6 +148,7 @@ impl Drivers {
             cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
+            exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
         })
     }
 
@@ -387,6 +390,7 @@ impl Drivers {
             &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
+            &mut drivers.exported_cdi_slots,
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
@@ -398,6 +402,7 @@ impl Drivers {
                 &drivers.cert_chain,
                 &nb,
                 &nf,
+                None,
                 None,
             ),
         };

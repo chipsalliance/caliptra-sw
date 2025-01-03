@@ -103,6 +103,11 @@ enum dpe_error_codes {
     DPE_RAND_ERROR             = 0x1007,
 };
 
+enum dpe_derive_context_cmd_flags {
+    DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI         = ( 1UL << 23),
+    DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE = ( 1UL << 22),
+};
+
 #define DPE_PROFILE_256 3
 #define DPE_PROFILE_384 4
 
