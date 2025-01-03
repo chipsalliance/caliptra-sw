@@ -223,6 +223,20 @@ struct caliptra_get_idev_csr_resp {
     uint8_t data[512];
 };
 
+struct caliptra_sign_with_exported_ecdsa_req {
+    struct caliptra_req_header hdr;
+    uint8_t exported_cdi_handle[32];
+    uint8_t tbs[48];
+};
+
+struct caliptra_sign_with_exported_ecdsa_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t derived_public_key_x[48];
+    uint8_t derived_public_key_y[48];
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+};
+
 // DPE commands
 
 #define DPE_MAGIC    0x44504543 // "DPEC"
@@ -295,6 +309,15 @@ struct dpe_derive_context_response {
     struct dpe_resp_hdr resp_hdr;
     uint8_t new_context_handle[DPE_HANDLE_SIZE];
     uint8_t parent_context_handle[DPE_HANDLE_SIZE];
+};
+
+struct dpe_derive_context_exported_cdi_response {
+    struct dpe_resp_hdr resp_hdr;
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    uint8_t parent_context_handle[DPE_HANDLE_SIZE];
+    uint8_t exported_cdi_handle[32];
+    uint32_t certificate_size;
+    uint8_t new_certificate[DPE_CERT_SIZE];
 };
 
 // CERTIFY_KEY
@@ -391,15 +414,16 @@ struct caliptra_invoke_dpe_resp {
     struct caliptra_resp_header cpl;
     uint32_t data_size;
     union {
-        struct dpe_resp_hdr                         resp_hdr;
-        struct dpe_get_profile_response             get_profile_resp;
-        struct dpe_initialize_context_response      initialize_context_resp;
-        struct dpe_derive_context_response          derive_context_resp;
-        struct dpe_certify_key_response             certify_key_resp;
-        struct dpe_sign_response                    sign_resp;
-        struct dpe_rotate_context_handle_response   rotate_context_handle_resp;
-        struct dpe_destroy_context_response         destroy_context_resp;
-        struct dpe_get_certificate_chain_response   get_certificate_chain_resp;
-        uint8_t                                     data[0];
+        struct dpe_resp_hdr                                resp_hdr;
+        struct dpe_get_profile_response                    get_profile_resp;
+        struct dpe_initialize_context_response             initialize_context_resp;
+        struct dpe_derive_context_response                 derive_context_resp;
+        struct dpe_derive_context_exported_cdi_response    derive_context_exported_cdi_resp;
+        struct dpe_certify_key_response                    certify_key_resp;
+        struct dpe_sign_response                           sign_resp;
+        struct dpe_rotate_context_handle_response          rotate_context_handle_resp;
+        struct dpe_destroy_context_response                destroy_context_resp;
+        struct dpe_get_certificate_chain_response          get_certificate_chain_resp;
+        uint8_t                                            data[0];
     };
 };

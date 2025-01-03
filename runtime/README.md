@@ -1735,6 +1735,28 @@ When called from runtime, if the CSR was not previously provisioned this command
 
 When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
 
+### SIGN\_WITH\_EXPORTED\_ECDSA
+
+Command Code: `0x5357_4545` ("SWEE")
+
+*Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| exported_cdi  | u8[32]   | The Exported CDI returned by the DPE `DeriveContext` command. Little endian. |
+| digest        | u8[48]   | The digest to be signed. Little endian.                                      |
+
+*Table: `SIGN_WITH_EXPORTED_ECDSA` output arguments*
+| **Name**           | **Type** | **Description**
+| --------           | -------- | ---------------
+| derived_pubkey_x   | u8[48]   | The X BigNum of the ECDSA public key associated with the signing key.      |
+| derived_pubkey_y   | u8[48]   | The Y BigNum of the ECDSA public key associated with the signing key.      |
+| signature_r        | u8[48]   | The R BigNum of an ECDSA signature.                                        |
+| signature_s        | u8[48]   | The S BigNum of an ECDSA signature.                                        |
+
+The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
 ## Checksum
 
 For every command except for FW_LOAD, the request and response feature a checksum. This

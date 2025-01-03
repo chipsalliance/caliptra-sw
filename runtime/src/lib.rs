@@ -33,6 +33,7 @@ mod pcr;
 mod populate_idev;
 mod recovery_flow;
 mod set_auth_manifest;
+mod sign_with_exported_ecdsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -49,6 +50,7 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
@@ -235,6 +237,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_ECC_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::SIGN_WITH_EXPORTED_ECDSA => {
+            SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
     let resp = okmutref(&mut resp)?;
