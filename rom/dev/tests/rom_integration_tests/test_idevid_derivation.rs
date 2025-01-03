@@ -5,7 +5,7 @@ use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
 use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
-use caliptra_image_types::ImageBundle;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
@@ -54,13 +54,32 @@ fn test_generate_csr() {
 }
 
 #[test]
-fn test_idev_subj_key_id_algo() {
+fn test_ecc_idev_subj_key_id_algo() {
     for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
         let mut fuses = Fuses::default();
         fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
 
         let (mut hw, image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    }
+}
+
+#[test]
+fn test_mldsa_idev_subj_key_id_algo() {
+    for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
+        let mut fuses = Fuses::default();
+        fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
+
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            ..Default::default()
+        };
+
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap();
 
