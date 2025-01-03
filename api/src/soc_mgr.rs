@@ -156,6 +156,9 @@ pub trait SocManager {
             .fuse_lms_revocation()
             .write(|_| fuses.fuse_lms_revocation);
         self.soc_ifc()
+            .fuse_mldsa_revocation()
+            .write(|_| fuses.fuse_mldsa_revocation.into());
+        self.soc_ifc()
             .fuse_soc_stepping_id()
             .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
 
