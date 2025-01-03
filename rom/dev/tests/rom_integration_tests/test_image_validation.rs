@@ -291,7 +291,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed(
-                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED.into()
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED.into()
                 ),
                 hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                     .unwrap_err()
@@ -331,7 +331,7 @@ fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
@@ -2488,7 +2488,7 @@ fn test_preamble_vendor_mldsa_pubkey_out_of_bounds() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err(),
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
         )
     );
 }

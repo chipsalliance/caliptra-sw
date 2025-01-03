@@ -990,7 +990,7 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     fw_load_error_flow(
         Some(fw_image),
         Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS.into(),
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into(),
     );
 }
 
@@ -1109,7 +1109,7 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
     fw_load_error_flow(
         Some(fw_image),
         Some(fuses),
-        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED.into(),
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED.into(),
     );
 }
 

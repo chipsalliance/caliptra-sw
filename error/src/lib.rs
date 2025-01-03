@@ -240,7 +240,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0030);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0031);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0032);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0033);
@@ -250,7 +250,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0036);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0038);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED: CaliptraError =
         CaliptraError::new_const(0x000b0003a);
     pub const IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO: CaliptraError =
         CaliptraError::new_const(0x000b003b);
