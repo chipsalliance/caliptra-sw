@@ -177,8 +177,7 @@ fn smoke_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
@@ -191,8 +190,7 @@ fn smoke_test() {
     let fuses = Fuses {
         key_manifest_pk_hash: vendor_pk_desc_hash_words,
         owner_pk_hash: owner_pk_hash_words,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
@@ -348,9 +346,9 @@ fn smoke_test() {
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
-            fmc_svn: image.manifest.fmc.svn,
+            cold_boot_fw_svn: image.manifest.runtime.svn,
             // This is from the SVN in the fuses (7 bits set)
-            fmc_fuse_svn: 7,
+            fw_fuse_svn: 7,
             lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
             rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
         }),
@@ -589,9 +587,8 @@ fn smoke_test() {
         &firmware::APP,
         ImageOptions {
             fmc_version: 1,
-            fmc_svn: 10,
-            app_svn: 10,
             app_version: 2,
+            fw_svn: 10,
             ..Default::default()
         },
     )

@@ -59,7 +59,7 @@ mod tests {
                     issuer_key.sha1(),
                 )
                 .unwrap(),
-            tcb_info_rt_svn: &[0xE3],
+            tcb_info_fw_svn: &[0xE3],
             tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsEcc384Params::TCB_INFO_RT_TCI_LEN],
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
@@ -109,10 +109,10 @@ mod tests {
             params.authority_key_id,
         );
         assert_eq!(
-            &cert.tbs()[RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_OFFSET
-                ..RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_OFFSET
-                    + RtAliasCertTbsEcc384::TCB_INFO_RT_SVN_LEN],
-            params.tcb_info_rt_svn,
+            &cert.tbs()[RtAliasCertTbsEcc384::TCB_INFO_FW_SVN_OFFSET
+                ..RtAliasCertTbsEcc384::TCB_INFO_FW_SVN_OFFSET
+                    + RtAliasCertTbsEcc384::TCB_INFO_FW_SVN_LEN],
+            params.tcb_info_fw_svn,
         );
         assert_eq!(
             &cert.tbs()[RtAliasCertTbsEcc384::TCB_INFO_RT_TCI_OFFSET
