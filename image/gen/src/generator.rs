@@ -261,17 +261,19 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             pqc_key_descriptor: ImagePqcKeyDescriptor {
                 version: KEY_DESCRIPTOR_VERSION,
                 key_type: FwVerificationPqcKeyType::default() as u8,
-                key_hash_count: config.vendor_config.lms_key_count as u8,
+                key_hash_count: 0,
                 key_hash: ImagePqcKeyHashes::default(),
             },
         };
 
-        // Hash the ECC and LMS vendor public keys.
+        // Hash the ECC vendor public keys.
         for i in 0..config.vendor_config.ecc_key_count {
             let ecc_pub_key = config.vendor_config.pub_keys.ecc_pub_keys[i as usize];
             let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
             vendor_pub_key_info.ecc_key_descriptor.key_hash[i as usize] = ecc_pub_key_digest;
         }
+
+        // Hash the LMS or MLDSA vendor public keys.
         if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
             for i in 0..config.vendor_config.lms_key_count {
                 vendor_pub_key_info.pqc_key_descriptor.key_hash[i as usize] =
@@ -280,6 +282,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                     )?;
             }
             vendor_pub_key_info.pqc_key_descriptor.key_type = FwVerificationPqcKeyType::LMS.into();
+            vendor_pub_key_info.pqc_key_descriptor.key_hash_count =
+                config.vendor_config.lms_key_count as u8;
         } else {
             for i in 0..config.vendor_config.mldsa_key_count {
                 vendor_pub_key_info.pqc_key_descriptor.key_hash[i as usize] =
@@ -289,6 +293,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             }
             vendor_pub_key_info.pqc_key_descriptor.key_type =
                 FwVerificationPqcKeyType::MLDSA.into();
+            vendor_pub_key_info.pqc_key_descriptor.key_hash_count =
+                config.vendor_config.mldsa_key_count as u8;
         }
 
         let mut preamble = ImagePreamble {
