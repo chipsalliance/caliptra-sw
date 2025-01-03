@@ -264,7 +264,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
                 // Verify the vendor MLDSA public key index and revocation status
                 let key_revocation = self.env.vendor_mldsa_pub_key_revocation();
-
                 let vendor_pqc_pub_key_idx =
                     self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 

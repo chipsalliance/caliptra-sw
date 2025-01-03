@@ -302,9 +302,6 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 
 #[test]
 fn test_preamble_vendor_mldsa_pubkey_revocation() {
-    // this test is too slow to run in the verilator nightly
-    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
-
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_MLDSA_MAX_KEY_COUNT - 1;
 
