@@ -12,6 +12,12 @@
 #include "caliptra_types.h"
 #include "idev_csr_array.h"
 
+#include <openssl/asn1.h>
+#include <openssl/bn.h>
+#include <openssl/bio.h>
+#include <openssl/ec.h>
+#include <openssl/x509.h>
+
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint64_t wdt_timeout = 0xA0000000;         // approximately 5s for 500MHz clock
 // Arbitrary example only - values must be customized/tuned for the SoC
@@ -48,6 +54,114 @@ static void caliptra_wait_for_csr_ready(void)
         }
         caliptra_wait();
      }
+}
+
+/* 
+ * caliptra_verify_signature
+ *
+ * Uses OpenSSL to verify that the signature returned by `SignWithExportedEcdsa`
+ * matches the public key in the certificate vended by `DeriveContext`
+ *
+ * @return bool True if the signature passes verification, false otherwise
+ */
+static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
+{
+    BIO* cert_ptr = BIO_new_mem_buf(dpe_resp->new_certificate, dpe_resp->certificate_size);
+    X509* x509 = d2i_X509_bio(cert_ptr, NULL);
+
+    if (x509 == NULL) {
+        printf("Error parsing certificate.\n");
+        return false;
+    }
+
+    EVP_PKEY *pkey = X509_get_pubkey(x509);
+    if (pkey == NULL) {
+        printf("Error getting public key.\n");
+        X509_free(x509);
+        return false;
+    }
+
+    EC_KEY* ec_pub_key = EVP_PKEY_get1_EC_KEY(pkey);
+    if (ec_pub_key == NULL) {
+        printf("Error converting pub key to EC pub key.\n");
+        return false;
+    }
+
+    BIGNUM* r = BN_bin2bn(sign_resp->signature_r, 48, NULL);
+    if (r == NULL) {
+        printf("Error creating ECDSA R.\n");
+        return false;
+    }
+
+    BIGNUM* s = BN_bin2bn(sign_resp->signature_s, 48, NULL);
+    if (s == NULL) {
+        printf("Error creating ECDSA S.\n");
+        return false;
+    }
+
+    ECDSA_SIG *signature = ECDSA_SIG_new();
+    if (signature == NULL) {
+        printf("Error creating signature.\n");
+        return false;
+    }
+    ECDSA_SIG_set0(signature, r, s);
+
+    uint8_t *dersig = NULL;
+    int size = i2d_ECDSA_SIG(signature, &dersig);
+
+    if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ec_pub_key) != 1) {
+       return false;
+    }
+
+    BIGNUM* x = BN_bin2bn(sign_resp->derived_public_key_x, 48, NULL);
+    if (r == NULL) {
+        printf("Error creating ECDSA X.\n");
+        return false;
+    }
+
+    BIGNUM* y = BN_bin2bn(sign_resp->derived_public_key_y, 48, NULL);
+    if (s == NULL) {
+        printf("Error creating ECDSA Y.\n");
+        return false;
+    }
+
+    EC_KEY *ecdsa_key = EC_KEY_new_by_curve_name(NID_secp384r1);
+    if (ecdsa_key == NULL) {
+        printf("Error creating ECDSA public key.\n");
+        return false;
+    }
+
+    EC_POINT *point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
+    if (point == NULL) {
+        printf("Error creating EC point.\n");
+        EC_KEY_free(ecdsa_key);
+        return false;
+    }
+
+    if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(ecdsa_key), point, x, y, BN_CTX_new())) {
+        printf("Error setting EC point coordinates.\n");
+        return false;
+    }
+
+    if (!EC_KEY_set_public_key(ecdsa_key, point)) {
+        printf("Error setting public key.\n");
+        return false;
+    }
+
+    if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ecdsa_key) != 1) {
+       return false;
+    }
+
+    EC_POINT_free(point);
+    BN_free(x);
+    BN_free(y);
+    EC_KEY_free(ecdsa_key);
+    free(dersig);
+    ECDSA_SIG_free(signature);
+    X509_free(x509);
+    BIO_free(cert_ptr);
+
+    return true;
 }
 
 void dump_caliptra_error_codes()
@@ -690,6 +804,80 @@ int rom_test_devid_csr(const test_info* info)
     return failure;
 }
 
+// Verify signing with an exported cdi
+int sign_with_exported_ecdsa_cdi(const test_info* info)
+{
+    int failure = 0;
+    int status = boot_to_ready_for_fw(info, false);
+
+    if (status){
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+
+    status = caliptra_upload_fw(&info->image_bundle, false);
+
+    if (status)
+    {
+        printf("FW Load Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+
+    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
+    derive_context_cmd.cmd_hdr.profile = 0x4;
+    derive_context_cmd.flags = DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE;
+
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
+    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
+
+    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
+    status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
+
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("DPE Command: OK\n");
+    }
+
+    struct dpe_derive_context_exported_cdi_response* exported_resp = &dpe_resp.derive_context_exported_cdi_resp;
+
+    // SHA384 of a 48 bytes of 0s
+    uint8_t tbs[] = {
+        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe,
+        0x22, 0xe4, 0x1c, 0x40, 0x0e, 0xea, 0x91, 0xb9, 0x71, 0xd9,
+        0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
+        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51,
+        0x28, 0xc9, 0xdf, 0x4e, 0xfa, 0xf6, 0xf8, 0xa7
+    };
+
+    struct caliptra_sign_with_exported_ecdsa_req sign_req = { 0 };
+    memcpy(&sign_req.exported_cdi_handle, exported_resp->exported_cdi_handle, sizeof(uint8_t) * 32);
+    memcpy(&sign_req.tbs, &tbs, sizeof(uint8_t) * 48);
+
+    struct caliptra_sign_with_exported_ecdsa_resp sign_resp = { 0 };
+    status = caliptra_sign_with_exported_ecdsa(&sign_req, &sign_resp, false);
+
+    if (status) {
+        printf("Sign with exported Ecdsa failed: 0x%x\n", status);
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(exported_resp, &sign_resp, tbs, sizeof(tbs))) {
+        printf("Sign with exported Ecdsa: OK\n");
+    } else {
+        printf("Error invalid signature.\n");
+        failure = 1;
+    }
+
+    return failure;
+}
+
 // Issue FW load commands repeatedly
 // Coverage for piecewise FW load and runtime FW updates
 int upload_fw_piecewise(const test_info* info)
@@ -820,6 +1008,7 @@ int run_tests(const test_info* info)
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
     run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
+    run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");

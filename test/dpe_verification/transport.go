@@ -197,11 +197,10 @@ func (s *CptraModel) GetSupport() *client.Support {
 		RotateContext:       true,
 		X509:                true,
 		Csr:                 true,
-		IsSymmetric:         true,
 		InternalInfo:        true,
 		InternalDice:        true,
-		IsCA:                true,
 		RetainParentContext: true,
+		CdiExport: true,
 	}
 }
 

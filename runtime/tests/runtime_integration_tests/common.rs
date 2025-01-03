@@ -20,10 +20,10 @@ use caliptra_hw_model::{
     StackInfo, StackRange,
 };
 use dpe::{
-    commands::{Command, CommandHdr},
+    commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
     response::{
-        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
-        Response, ResponseHdr, SignResp,
+        CertifyKeyResp, DeriveContextExportedCdiResp, DeriveContextResp, GetCertificateChainResp,
+        GetProfileResp, NewHandleResp, Response, ResponseHdr, SignResp,
     },
 };
 use openssl::{
@@ -184,6 +184,13 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     match dpe_cmd {
         Command::CertifyKey(_) => {
             Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
+        }
+        Command::DeriveContext(DeriveContextCmd { flags, .. })
+            if flags.contains(DeriveContextFlags::EXPORT_CDI) =>
+        {
+            Response::DeriveContextExportedCdi(
+                DeriveContextExportedCdiResp::read_from_bytes(resp_bytes).unwrap(),
+            )
         }
         Command::DeriveContext(_) => {
             Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
