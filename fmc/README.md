@@ -306,14 +306,14 @@ This field provides the size of the *To Be Signed* portion of the Runtime Alias 
 
 This field provides the size of the *To Be Signed* portion of the Runtime Alias MLDSA certificate.
 
-### rt_hash_chain_max_svn
+### rt_key_ladder_max_svn
 
 This field informs firmware of the maximum RT SVN, which value was used
-to determine the length of RT FW's hash chain.
+to determine the length of RT FW's key ladder.
 
-### rt_hash_chain_kv_hdl
+### rt_key_ladder_kv_hdl
 
-This field provides the Handle into the Key Vault where RT's hash chain is stored.
+This field provides the Handle into the Key Vault where RT's key ladder is stored.
 
 ### reserved
 

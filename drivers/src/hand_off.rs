@@ -213,10 +213,10 @@ pub struct FirmwareHandoffTable {
     pub rtalias_tbs_size: u16,
 
     /// Maximum value RT FW SVN can take.
-    pub rt_hash_chain_max_svn: u16,
+    pub rt_key_ladder_max_svn: u16,
 
-    /// Index of RT hash chain value in the Key Vault.
-    pub rt_hash_chain_kv_hdl: HandOffDataHandle,
+    /// Index of RT key ladder value in the Key Vault.
+    pub rt_key_ladder_kv_hdl: HandOffDataHandle,
 
     /// Reserved for future use.
     pub reserved: [u8; FHT_RESERVED_SIZE],
@@ -253,8 +253,8 @@ impl Default for FirmwareHandoffTable {
             idev_dice_mldsa_pub_key_load_addr: 0,
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
-            rt_hash_chain_max_svn: 0,
-            rt_hash_chain_kv_hdl: HandOffDataHandle(0),
+            rt_key_ladder_max_svn: 0,
+            rt_key_ladder_kv_hdl: HandOffDataHandle(0),
             reserved: [0u8; FHT_RESERVED_SIZE],
         }
     }
