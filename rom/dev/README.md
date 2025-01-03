@@ -57,7 +57,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
-| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
+| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Word 6**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 7,8,9,10**: Manufacturer Serial Number |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 15:8**: FIPS test hook code  <br> **Bit 30**: Fake ROM enable in production lifecycle mode <br> **Bit 31**: Fake ROM image verify enable           |
 
 ## Firmware image bundle
