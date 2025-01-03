@@ -301,6 +301,67 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 }
 
 #[test]
+fn test_preamble_vendor_mldsa_pubkey_revocation() {
+    // this test is too slow to run in the verilator nightly
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    const LAST_KEY_IDX: u32 = VENDOR_MLDSA_MAX_KEY_COUNT - 1;
+
+    for idx in 0..VENDOR_MLDSA_MAX_KEY_COUNT {
+        let vendor_config = ImageGeneratorVendorConfig {
+            // ecc_key_idx: 3,
+            pqc_key_idx: idx,
+            ..VENDOR_CONFIG_KEY_0
+        };
+
+        let image_options = ImageOptions {
+            vendor_config,
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            ..Default::default()
+        };
+
+        let key_idx = image_options.vendor_config.pqc_key_idx;
+
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_mldsa_revocation: 1u32 << key_idx,
+            ..Default::default()
+        };
+
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
+
+        if key_idx == LAST_KEY_IDX {
+            // Last key is never revoked.
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap();
+            hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        } else {
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
