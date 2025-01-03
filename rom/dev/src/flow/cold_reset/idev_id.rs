@@ -246,13 +246,13 @@ impl InitDevIdLayer {
             return Ok(());
         }
 
-        cprintln!("[idev] CSR Envelop upload begun");
+        cprintln!("[idev] CSR Envelope upload begun");
 
         // Generate the CSR
         Self::make_csr_envelop(env, output)
     }
 
-    /// Create Initial Device ID CSR Envelop
+    /// Create Initial Device ID CSR Envelope
     ///
     /// # Arguments
     ///
@@ -268,7 +268,7 @@ impl InitDevIdLayer {
         // Execute Send CSR Flow
         Self::send_csr_envelop(env)?;
 
-        report_boot_status(IDevIdMakeCsrEnvelopComplete.into());
+        report_boot_status(IDevIdMakeCsrEnvelopeComplete.into());
         Ok(())
     }
 
@@ -416,7 +416,7 @@ impl InitDevIdLayer {
 
     fn reset_persistent_storage_csrs(env: &mut RomEnv) -> CaliptraResult<()> {
         let csr_envelop_persistent_mem = &mut env.persistent_data.get_mut().idevid_csr_envelop;
-        *csr_envelop_persistent_mem = InitDevIdCsrEnvelop::default();
+        *csr_envelop_persistent_mem = InitDevIdCsrEnvelope::default();
 
         Ok(())
     }
@@ -443,8 +443,8 @@ impl InitDevIdLayer {
                 // Release access to the mailbox
                 txn.complete()?;
 
-                cprintln!("[idev] CSR Envelop uploaded");
-                report_boot_status(IDevIdSendCsrEnvelopComplete.into());
+                cprintln!("[idev] CSR Envelope uploaded");
+                report_boot_status(IDevIdSendCsrEnvelopeComplete.into());
 
                 // exit the loop
                 break Ok(());

@@ -1674,7 +1674,7 @@ fn cert_test_with_custom_dates() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR Envelop from the mailbox.
+    // Download the CSR Envelope from the mailbox.
     let idevid_csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {
@@ -1740,7 +1740,7 @@ fn cert_test() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR Envelop from the mailbox.
+    // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {
@@ -1805,7 +1805,7 @@ fn cert_test_with_ueid() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR Envelop from the mailbox.
+    // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
     hw.step_until(|m| {

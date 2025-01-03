@@ -131,14 +131,14 @@ pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
 
 pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
 
-/// Calipatra IDEVID CSR Envelop
+/// Calipatra IDEVID CSR Envelope
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Zeroize)]
-pub struct InitDevIdCsrEnvelop {
+pub struct InitDevIdCsrEnvelope {
     /// Marker
     pub marker: u32,
 
-    /// Size of the CSR Envelop
+    /// Size of the CSR Envelope
     pub size: u32,
 
     /// ECC CSR
@@ -154,11 +154,11 @@ pub struct InitDevIdCsrEnvelop {
     pub mldsa_csr_mac: Hmac512Tag,
 }
 
-impl Default for InitDevIdCsrEnvelop {
+impl Default for InitDevIdCsrEnvelope {
     fn default() -> Self {
-        InitDevIdCsrEnvelop {
+        InitDevIdCsrEnvelope {
             marker: IDEVID_CSR_ENVELOP_MARKER,
-            size: size_of::<InitDevIdCsrEnvelop>() as u32,
+            size: size_of::<InitDevIdCsrEnvelope>() as u32,
             ecc_csr: Ecc384IdevIdCsr::default(),
             ecc_csr_mac: [0u8; SHA384_DIGEST_BYTE_SIZE],
             mldsa_csr: Mldsa87IdevIdCsr::default(),
@@ -233,9 +233,9 @@ pub struct PersistentData {
     pub auth_manifest_image_metadata_col:
         [u8; memory_layout::AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
-    pub idevid_csr_envelop: InitDevIdCsrEnvelop,
+    pub idevid_csr_envelop: InitDevIdCsrEnvelope,
     reserved10:
-        [u8; memory_layout::IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelop>()],
+        [u8; memory_layout::IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
 }
 
 impl PersistentData {

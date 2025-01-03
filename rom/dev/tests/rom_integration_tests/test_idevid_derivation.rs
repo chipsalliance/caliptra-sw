@@ -3,7 +3,7 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
-use caliptra_drivers::{IdevidCertAttr, InitDevIdCsrEnvelop, MfgFlags, X509KeyIdAlgo};
+use caliptra_drivers::{IdevidCertAttr, InitDevIdCsrEnvelope, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
 use caliptra_image_types::ImageBundle;
 use openssl::pkey::{PKey, Public};
@@ -18,14 +18,14 @@ const RT_READY_FOR_COMMANDS: u32 = 0x600;
 fn generate_csr_envelop(
     hw: &mut DefaultHwModel,
     image_bundle: &ImageBundle,
-) -> InitDevIdCsrEnvelop {
+) -> InitDevIdCsrEnvelope {
     // Set gen_idev_id_csr to generate CSR.
     let flags = MfgFlags::GENERATE_IDEVID_CSR;
     hw.soc_ifc()
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR Envelop from the mailbox.
+    // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
 
     // Wait for uploading firmware.

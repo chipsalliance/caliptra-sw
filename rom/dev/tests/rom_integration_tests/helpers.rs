@@ -8,7 +8,7 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
-use caliptra_drivers::InitDevIdCsrEnvelop;
+use caliptra_drivers::InitDevIdCsrEnvelope;
 use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
     StackRange,
@@ -82,13 +82,13 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
         .unwrap_or("")
 }
 
-pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelop, ModelError> {
+pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, ModelError> {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
     let mut txn = hw.wait_for_mailbox_receive()?;
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
-    let csr_envelop = InitDevIdCsrEnvelop::read_from_prefix(&*result).unwrap();
+    let csr_envelop = InitDevIdCsrEnvelope::read_from_prefix(&*result).unwrap();
     Ok(csr_envelop)
 }
 
