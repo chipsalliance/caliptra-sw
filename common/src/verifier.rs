@@ -137,6 +137,11 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
     }
 
+    /// Retrieve Vendor MLDSA Public Key Revocation Bitmask
+    fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+        self.soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation()
+    }
+
     /// Retrieve Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest384 {
         self.soc_ifc.fuse_bank().owner_pub_key_hash().into()
