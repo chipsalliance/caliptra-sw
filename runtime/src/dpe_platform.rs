@@ -24,7 +24,7 @@ use dpe::{
     DPE_PROFILE,
 };
 use platform::{
-    CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName,
+    CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
     MAX_SN_SIZE,
 };
@@ -39,6 +39,7 @@ pub struct DpePlatform<'a> {
     not_before: &'a NotBefore,
     not_after: &'a NotAfter,
     dmtf_device_info: Option<&'a [u8]>,
+    ueid: Option<&'a [u8; 17]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
@@ -52,6 +53,7 @@ impl<'a> DpePlatform<'a> {
         not_before: &'a NotBefore,
         not_after: &'a NotAfter,
         dmtf_device_info: Option<&'a [u8]>,
+        ueid: Option<&'a [u8; 17]>,
     ) -> Self {
         Self {
             auto_init_locality,
@@ -60,6 +62,7 @@ impl<'a> DpePlatform<'a> {
             not_before,
             not_after,
             dmtf_device_info,
+            ueid,
         }
     }
 }
@@ -190,5 +193,16 @@ impl Platform for DpePlatform<'_> {
                 }))
             }
         }
+    }
+
+    fn get_ueid(&mut self) -> Result<Ueid, PlatformError> {
+        let buf = *self.ueid.ok_or(PlatformError::MissingUeidError)?;
+        let buf_size = buf.len() as u32;
+
+        let mut ueid = Ueid::default();
+        ueid.buf[..buf_size as usize].clone_from_slice(&buf);
+        ueid.buf_size = buf_size;
+
+        Ok(ueid)
     }
 }
