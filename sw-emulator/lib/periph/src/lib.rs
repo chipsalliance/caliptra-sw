@@ -27,7 +27,6 @@ mod iccm;
 mod key_vault;
 mod mailbox;
 mod ml_dsa87;
-mod recovery;
 mod root_bus;
 mod sha512_acc;
 pub mod soc_reg;

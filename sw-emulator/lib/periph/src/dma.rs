@@ -24,8 +24,9 @@ use std::collections::VecDeque;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
-mod axi_root_bus;
-use axi_root_bus::{AxiRootBus, AxiAddr};
+pub mod axi_root_bus;
+use axi_root_bus::{AxiAddr, AxiRootBus};
+mod recovery;
 
 register_bitfields! [
     u32,
@@ -140,7 +141,7 @@ pub struct Dma {
     fifo: VecDeque<u8>,
 
     /// Axi Bus
-    axi: AxiRootBus,
+    pub axi: AxiRootBus,
 
     /// Mailbox
     mailbox: MailboxRam,

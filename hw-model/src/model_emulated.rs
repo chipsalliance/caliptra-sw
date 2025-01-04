@@ -297,8 +297,9 @@ impl HwModel for ModelEmulated {
         self.step();
     }
 
+    // [TODO][CAP2] Should it be statically provisioned?
     fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        self.cpu.bus.bus.recovery.cms_data = Some(Rc::new(firmware.to_vec()));
+        self.cpu.bus.bus.dma.axi.recovery.cms_data = Some(Rc::new(firmware.to_vec()));
         Ok(())
     }
 }
