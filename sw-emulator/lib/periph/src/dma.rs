@@ -26,6 +26,7 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
+mod recovery;
 
 register_bitfields! [
     u32,
