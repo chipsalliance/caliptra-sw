@@ -131,6 +131,7 @@ impl std::fmt::Debug for FusesWrapper {
             )
             .field("life_cycle", &self.0.life_cycle)
             .field("fuse_lms_revocation", &self.0.fuse_lms_revocation)
+            .field("fuse_mldsa_revocation", &self.0.fuse_mldsa_revocation)
             .field("soc_stepping_id", &self.0.soc_stepping_id)
             .finish()
     }
