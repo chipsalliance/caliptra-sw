@@ -21,7 +21,7 @@ impl GetIdevCsrCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetIdevCsrReq::read_from(cmd_args) {
-            let csr_persistent_mem = &drivers.persistent_data.get().ecc384_idevid_csr;
+            let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
 
             match csr_persistent_mem.get_csr_len() {
                 Ecc384IdevIdCsr::UNPROVISIONED_CSR => {

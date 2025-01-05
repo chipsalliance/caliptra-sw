@@ -3,7 +3,7 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
-use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
+use caliptra_drivers::{IdevidCertAttr, InitDevIdCsrEnvelope, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use openssl::pkey::{PKey, Public};
@@ -15,15 +15,18 @@ use crate::helpers;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
-fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> {
+fn generate_csr_envelop(
+    hw: &mut DefaultHwModel,
+    image_bundle: &ImageBundle,
+) -> InitDevIdCsrEnvelope {
     // Set gen_idev_id_csr to generate CSR.
     let flags = MfgFlags::GENERATE_IDEVID_CSR;
     hw.soc_ifc()
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    // Download the CSR from the mailbox.
-    let downloaded = helpers::get_csr(hw).unwrap();
+    // Download the CSR Envelope from the mailbox.
+    let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
 
     // Wait for uploading firmware.
     hw.step_until(|m| {
@@ -39,18 +42,21 @@ fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> 
 
     let output = hw.output().take(usize::MAX);
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        let csr_str = helpers::get_data("[idev] CSR = ", &output);
+        let csr_str = helpers::get_data("[idev] ECC CSR = ", &output);
         let uploaded = hex::decode(csr_str).unwrap();
-        assert_eq!(uploaded, downloaded);
+        assert_eq!(
+            uploaded,
+            &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize]
+        );
     }
-    downloaded
+    csr_envelop
 }
 
 #[test]
-fn test_generate_csr() {
+fn test_generate_csr_envelop() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    generate_csr(&mut hw, &image_bundle);
+    generate_csr_envelop(&mut hw, &image_bundle);
 }
 
 #[test]
@@ -103,7 +109,7 @@ fn fuses_with_random_uds() -> Fuses {
 }
 
 #[test]
-fn test_generate_csr_stress() {
+fn test_generate_csr_envelop_stress() {
     let num_tests = if cfg!(feature = "slow_tests") {
         1000
     } else {
@@ -115,15 +121,17 @@ fn test_generate_csr_stress() {
         let (mut hw, image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses.clone(), ImageOptions::default());
 
-        let csr_bytes = generate_csr(&mut hw, &image_bundle);
+        let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle);
 
-        // Ensure CSR is valid X.509
-        let req = X509Req::from_der(&csr_bytes).unwrap_or_else(|_| {
-            panic!(
-                "Failed to create a valid X509 cert with UDS seed {:?}",
-                fuses.uds_seed
-            )
-        });
+        // Ensure ECC CSR is valid X.509
+        let req =
+            X509Req::from_der(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize])
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to create a valid X509 cert with UDS seed {:?}",
+                        fuses.uds_seed
+                    )
+                });
         let idevid_pubkey = req.public_key().unwrap();
         assert!(
             req.verify(&idevid_pubkey).unwrap(),

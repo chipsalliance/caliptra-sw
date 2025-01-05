@@ -48,10 +48,9 @@ pub const FUSE_LOG_ORG: u32 = MEASUREMENT_LOG_ORG + MEASUREMENT_LOG_SIZE;
 pub const DPE_ORG: u32 = FUSE_LOG_ORG + FUSE_LOG_SIZE;
 pub const PCR_RESET_COUNTER_ORG: u32 = DPE_ORG + DPE_SIZE;
 pub const AUTH_MAN_IMAGE_METADATA_LIST_ORG: u32 = PCR_RESET_COUNTER_ORG + PCR_RESET_COUNTER_SIZE;
-pub const ECC_IDEVID_CSR_ORG: u32 =
+pub const IDEVID_CSR_ENVELOP_ORG: u32 =
     AUTH_MAN_IMAGE_METADATA_LIST_ORG + AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
-pub const MLDSA_IDEVID_CSR_ORG: u32 = ECC_IDEVID_CSR_ORG + ECC_IDEVID_CSR_SIZE;
-pub const DATA_ORG: u32 = MLDSA_IDEVID_CSR_ORG + MLDSA_IDEVID_CSR_SIZE;
+pub const DATA_ORG: u32 = IDEVID_CSR_ENVELOP_ORG + IDEVID_CSR_ENVELOP_SIZE;
 
 pub const STACK_ORG: u32 = DATA_ORG + DATA_SIZE;
 pub const ROM_STACK_ORG: u32 = STACK_ORG + (STACK_SIZE - ROM_STACK_SIZE);
@@ -90,8 +89,7 @@ pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
-pub const ECC_IDEVID_CSR_SIZE: u32 = 1024;
-pub const MLDSA_IDEVID_CSR_SIZE: u32 = 8 * 1024;
+pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
 pub const DATA_SIZE: u32 = 95 * 1024;
 pub const STACK_SIZE: u32 = 64 * 1024;
 pub const ROM_STACK_SIZE: u32 = 61 * 1024;
@@ -226,17 +224,8 @@ fn mem_layout_test_pcr_reset_counter() {
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_idevid_csr() {
-    assert_eq!(
-        (MLDSA_IDEVID_CSR_ORG - ECC_IDEVID_CSR_ORG),
-        ECC_IDEVID_CSR_SIZE
-    );
-}
-
-#[test]
-#[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_mldsa87_idevid_csr() {
-    assert_eq!((DATA_ORG - MLDSA_IDEVID_CSR_ORG), MLDSA_IDEVID_CSR_SIZE);
+fn mem_layout_test_idevid_csr_envelop() {
+    assert_eq!((DATA_ORG - IDEVID_CSR_ENVELOP_ORG), IDEVID_CSR_ENVELOP_SIZE);
 }
 
 #[test]

@@ -8,12 +8,14 @@ use caliptra_common::{
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
+use caliptra_drivers::InitDevIdCsrEnvelope;
 use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
     StackRange,
 };
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
+use zerocopy::FromBytes;
 
 pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
@@ -80,13 +82,14 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
         .unwrap_or("")
 }
 
-pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
+pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, ModelError> {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
     let mut txn = hw.wait_for_mailbox_receive()?;
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
-    Ok(result)
+    let csr_envelop = InitDevIdCsrEnvelope::read_from_prefix(&*result).unwrap();
+    Ok(csr_envelop)
 }
 
 pub fn change_dword_endianess(data: &mut [u8]) {
@@ -101,12 +104,12 @@ mod tests {
     use super::*;
 
     const LOG: &str = "Foo bar baz \n\
-                       [idev] CSR = foo bar\n\
-                       [idev] CSR = wrong";
+                       [idev] ECC CSR = foo bar\n\
+                       [idev] ECC CSR = wrong";
 
     #[test]
     fn test_get_data() {
-        assert_eq!("foo bar", get_data("[idev] CSR = ", LOG));
+        assert_eq!("foo bar", get_data("[idev] ECC CSR = ", LOG));
 
         assert_eq!("", get_data("CSR = wrong", LOG));
     }
