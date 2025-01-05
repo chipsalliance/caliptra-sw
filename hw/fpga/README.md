@@ -25,24 +25,26 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
    - Version v2022.2
  - FPGA
    - [ZCU104 Development Board](https://www.xilinx.com/products/boards-and-kits/zcu104.html)
-   - TODO: VCK190 or VMK180
+   - [VCK190](https://www.xilinx.com/products/boards-and-kits/vck190.html)
+   - VMK180 will be supported soon.
 
 ### ZCU104 ###
+WARNING!!! Zynq flow is currently probably broken for 2.0 because for MLDSA the normal KeyVault needs to be used. If that is re-stubbed then Zynq can partially work by disabling adam's bridge, but that may not be worth it. WG needs to consider if partial Zynq support is desired.
 #### Processing system one time setup: ####
 1. Install ZCU104 SD card image
    - https://ubuntu.com/download/amd-xilinx
-1. Configure SW6 to boot from SD1.
+1. Configure SW6 to boot from SD1: [Image](./images/zynq_boot_switch.jpg)
    - Mode SW6[4:1]: OFF, OFF, OFF, ON
-     ![](./images/zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
 
 ### Versal ###
 #### Processing system one time setup: ####
-1. Configure SW6 to boot from SD1.
+1. Download VCK190 SD card image
+   - https://ubuntu.com/download/amd-xilinx
+1. Mount boot partition and replace boot1901.bin (TODO: Instead should we create boot1902.bin?)
+1. Configure SW1 to boot from SD1: [Image](./images/versal_boot_switch.jpg)
    - Mode SW1[4:1]: OFF, OFF, OFF, ON
-     TODO: NEW IMAGE
-TODO: Instructions...
-Replace BOOT.BIN with new one
+1. Install rustup using Unix directions: https://rustup.rs/#
 
 #### Serial port configuration: ####
 Serial port settings for connection over USB.
@@ -94,42 +96,27 @@ CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke
 ```
 
 ### Processing System - Programmable Logic interfaces ###
-#### AXI Memory Map ####
- - SoC adapter for driving caliptra-top signals
-   - 0x80000000 - Generic Input Wires
-   - 0x80000008 - Generic Output Wires
-   - 0x80000010-0x8000002C - Deobfuscation key (256 bit)
-   - 0x80000030 - Control
-     - `[0] -> cptra_pwrgood`
-     - `[1] -> cptra_rst_b`
-     - `[3:2] -> device_lifecycle`
-     - `[4] -> debug_locked`
-   - 0x80000034 - Status
-     - `[0] <- cptra_error_fatal`
-     - `[1] <- cptra_error_non_fatal`
-     - `[2] <- ready_for_fuses`
-     - `[3] <- ready_for_fw`
-     - `[4] <- ready_for_runtime`
-   - 0x80000038 - PAUSER
-     - `[31:0] -> PAUSER to Caliptra APB`
-   - 0x80001000 - Log FIFO data. Reads pop data from FIFO.
-     - `[7:0] -> Next log character`
-     - `[8] -> Log character valid`
-   - 0x80001004 - Log FIFO register
-     - `[0] -> Log FIFO empty`
-     - `[1] -> Log FIFO full (probably overrun)`
-   - 0x80001008 - ITRNG FIFO data. Write loads data to FIFO.
-     - `[31:0] -> 32 bits of random data to be fed to itrng_data 4 bits at a time`
-   - 0x8000100C - ITRNG FIFO status.
-     - `[0] -> ITRNG FIFO empty`
-     - `[1] -> ITRNG FIFO full`
-     - `[2] -> ITRNG FIFO reset`
- - ROM Backdoor - 32K
-   - `0x82000000 - 0x82007FFF`
- - Caliptra SoC register interface
-   - `0x90000000`
-#### Interrupts ####
- - 89 - Log FIFO half full.
+[FPGA Wrapper Register Offsets](fpga_wrapper_regs.md)
+
+[Configure SW6 to boot from SD1](./images/zynq_boot_switch.jpg)
+#### Zynq Memory Map ####
+| IP/Peripheral                       | Address size | Start address | End address |
+| :---------------------------------- | :----------- | :------------ | :---------- |
+| ROM Backdoor                        | 96 KiB       | 0x8000_0000   | 0x8001_7FFF |
+| MCU RAM (rsvd for SS)               | 32 KiB       | 0x8002_0000   | 0x8002_FFFF |
+| FPGA Wrapper Registers              | 8 KiB        | 0x9001_0000   | 0x9001_1FFF |
+| MCU Wrapper Registers (rsvd for SS) | 8 KiB        | 0x9001_0000   | 0x9001_1FFF |
+| I3C Registers (rsvd for SS)         | 8 KiB        | 0x9003_0000   | 0x9003_1FFF |
+| Caliptra                            | 1 MiB        | 0x9010_0000   | 0x901F_FFFF |
+#### Versal Memory Map ####
+| IP/Peripheral                       | Address size | Start address | End address |
+| :---------------------------------- | :----------- | :------------ | :---------- |
+| ROM Backdoor                        | 96 KiB       | 0xB000_0000   | 0xB001_7FFF |
+| MCU RAM (rsvd for SS)               | 32 KiB       | 0xB002_0000   | 0xB002_FFFF |
+| FPGA Wrapper Registers              | 8 KiB        | 0xA401_0000   | 0xA401_1FFF |
+| MCU Wrapper Registers (rsvd for SS) | 8 KiB        | 0xA401_0000   | 0xA401_1FFF |
+| I3C Registers (rsvd for SS)         | 8 KiB        | 0xA403_0000   | 0xA403_1FFF |
+| Caliptra                            | 1 MiB        | 0xA410_0000   | 0xA41F_FFFF |
 
 ### JTAG debug
 Requirements:

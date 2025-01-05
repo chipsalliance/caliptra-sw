@@ -10,6 +10,8 @@ set BOARD VCK190
 set DISABLE_ECC FALSE
 set ITRNG TRUE
 set APB FALSE
+set SEGMENTED TRUE
+set SEGMENTED_WRITE_NCR FALSE
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
@@ -30,6 +32,11 @@ if {$BOARD eq "ZCU104"} {
   set outputDir $fpgaDir/caliptra_build_versal
   set ENABLE_ADB TRUE
 }
+
+if {$SEGMENTED} {
+  set outputDir $fpgaDir/caliptra_build_versal_segmented
+}
+
 set caliptrapackageDir $outputDir/caliptra_package
 set sspackageDir $outputDir/ss_package
 # Clean and create output directory.
@@ -65,6 +72,8 @@ if {$APB} {
   lappend VERILOG_OPTIONS CALIPTRA_APB
 }
 lappend VERILOG_OPTIONS FPGA_VERSION=32'h$VERSION
+# Needed to inform Adam's Bridge to use key vault params. TODO: Still need to test if this works
+lappend VERILOG_OPTIONS CALIPTRA
 
 # Start the Vivado GUI for interactive debug
 if {$GUI} {
@@ -89,6 +98,9 @@ source create_caliptra_package.tcl
 
 # Create a project for the SOC connections
 create_project caliptra_fpga_project $outputDir -part $PART
+if {$SEGMENTED} {
+  set_property segmented_configuration true [current_project]
+}
 
 # Include the packaged IP
 set_property  ip_repo_paths  "$caliptrapackageDir" [current_project]
@@ -380,6 +392,7 @@ if {$BOARD eq "ZCU104"} {
   connect_bd_net [get_bd_pins axi_noc_0/aclk6] [get_bd_pins ps_0/fpd_axi_noc_axi0_clk]
   connect_bd_net [get_bd_pins axi_noc_0/aclk7] [get_bd_pins ps_0/fpd_axi_noc_axi1_clk]
 
+
   # Create XDC file with constraints
   set xdc_fd [ open $outputDir/jtag_constraints.xdc w ]
   puts $xdc_fd {create_clock -period 5000.000 -name {jtag_clk} -waveform {0.000 2500.000} [get_pins {caliptra_fpga_project_bd_i/ps_0/inst/pspmc_0/inst/PS9_inst/EMIOGPIO2O[0]}]}
@@ -458,8 +471,8 @@ connect_bd_net \
 if {$BOARD eq "ZCU104"} {
   set managers {ps_0/Data caliptra_ss_package_0/M_AXI_MCU_IFU caliptra_ss_package_0/M_AXI_MCU_LSU caliptra_package_top_0/M_AXI_CALIPTRA}
   foreach manager $managers {
-    assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
-    assign_bd_address -offset 0x80010000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs ss_imem_bram_ctrl_1/S_AXI/Mem0] -force
+    assign_bd_address -offset 0x80000000 -range 0x00020000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+    assign_bd_address -offset 0x80020000 -range 0x00010000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs ss_imem_bram_ctrl_1/S_AXI/Mem0] -force
     assign_bd_address -offset 0x90010000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_package_top_0/S_AXI_WRAPPER/reg0] -force
     assign_bd_address -offset 0x90020000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_WRAPPER/reg0] -force
     assign_bd_address -offset 0x90030000 -range 0x00002000 -target_address_space [get_bd_addr_spaces $manager] [get_bd_addr_segs caliptra_ss_package_0/S_AXI_I3C/reg0] -force
@@ -541,6 +554,16 @@ if {$BOARD eq "ZCU104"} {
 
   # Add DDR pin placement constraints
   add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
+  
+  # Set initial boot property to make the NOC connections part of the boot PDI.
+  if {$SEGMENTED} {
+    set_property initial_boot true [get_noc_logical_paths]
+  }
+
+  # Load a previous NCR
+  if {$SEGMENTED} {
+    read_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+  }
 }
 
 # Start build
@@ -551,7 +574,25 @@ if {$BUILD} {
   wait_on_runs impl_1
   open_run impl_1
   report_utilization -file $outputDir/utilization.txt
-  # Embed git hash in USR_ACCESS register for bitstream identification.
-  set_property BITSTREAM.CONFIG.USR_ACCESS 0x$VERSION [current_design]
-  write_bitstream -bin_file $outputDir/caliptra_fpga
+  if {$BOARD eq "ZCU104"} {
+    # Embed git hash in USR_ACCESS register for bitstream identification.
+    set_property BITSTREAM.CONFIG.USR_ACCESS 0x$VERSION [current_design]
+    write_bitstream -bin_file $outputDir/caliptra_fpga
+  } else {
+
+    if {$SEGMENTED_WRITE_NCR} {
+      # Lock the NoC path segments and save the solution for later builds.
+      set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -filter {initial_boot == 1}]]
+      # TODO is the below line needed?
+      #set_property lock true [get_noc_net_routes -of [get_noc_logical_paths -of [get_noc_logical_instances *N?U128*]]]
+      write_noc_solution -file $fpgaDir/saved_noc_solution.ncr
+    } else {
+      # Verify that the NoC Solutions are identical and the PLD images are compatible.
+      # TODO: Is there a good way to do this? Or should we just rely on the ncr blindly?
+      #pr_verify -initial <first_design>_routed.dcp -additional <second_design>_routed.dcp
+    }
+
+    write_device_image $outputDir/caliptra_fpga.pdi
+    write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa
+  }
 }
