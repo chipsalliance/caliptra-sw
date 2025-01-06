@@ -378,6 +378,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra_common",
  "cfg-if 1.0.0",
  "dpe",
  "openssl",
@@ -950,6 +951,7 @@ dependencies = [
  "caliptra-registers",
  "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]

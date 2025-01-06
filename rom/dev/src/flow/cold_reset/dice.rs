@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-use crate::crypto::{Ecc384KeyPair, MlDsaKeyPair};
+use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair};
 use zeroize::Zeroize;
 
 /// DICE Layer Input
