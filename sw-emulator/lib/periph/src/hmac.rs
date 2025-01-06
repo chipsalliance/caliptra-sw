@@ -348,8 +348,10 @@ impl HmacSha {
             let mode512 = self.control.reg.is_set(Control::MODE);
 
             // If CSR mode is set, use the pre-defined key.
+            // Also reset the key_from_kv flag since the key is not read from the key-vault.
             if self.control.reg.is_set(Control::CSR_MODE) {
                 self.key = self.csr_key;
+                self.key_from_kv = false;
             }
 
             if self.control.reg.is_set(Control::INIT) {
