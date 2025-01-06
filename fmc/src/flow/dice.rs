@@ -15,7 +15,7 @@ Abstract:
 
 use caliptra_drivers::KeyId;
 
-use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair};
 
 /// DICE Layer Input
 #[derive(Debug)]
@@ -28,13 +28,22 @@ pub struct DiceInput {
     pub cdi: KeyId,
 
     /// Authority Key Pair
-    pub auth_key_pair: Ecc384KeyPair,
+    pub ecc_auth_key_pair: Ecc384KeyPair,
 
     /// Authority Serial Number
-    pub auth_sn: [u8; 64],
+    pub ecc_auth_sn: [u8; 64],
 
     /// Authority Key Identifier
-    pub auth_key_id: [u8; 20],
+    pub ecc_auth_key_id: [u8; 20],
+
+    /// MLDSA Authority Key Pair
+    pub mldsa_auth_key_pair: MlDsaKeyPair,
+
+    /// MLDSA Authority Serial Number
+    pub mldsa_auth_sn: [u8; 64],
+
+    /// MLDSA Authority Key Identifier
+    pub mldsa_auth_key_id: [u8; 20],
 }
 
 /// DICE Layer Output
@@ -42,12 +51,22 @@ pub struct DiceInput {
 pub struct DiceOutput {
     /// CDI
     pub cdi: KeyId,
+
     /// Subject key pair for this layer
-    pub subj_key_pair: Ecc384KeyPair,
+    pub ecc_subj_key_pair: Ecc384KeyPair,
 
     /// Subject Serial Number
-    pub subj_sn: [u8; 64],
+    pub ecc_subj_sn: [u8; 64],
 
     /// Subject Key Identifier
-    pub subj_key_id: [u8; 20],
+    pub ecc_subj_key_id: [u8; 20],
+
+    /// MLDSA Subject key pair for this layer
+    pub mldsa_subj_key_pair: MlDsaKeyPair,
+
+    /// MLDSA Subject Serial Number
+    pub mldsa_subj_sn: [u8; 64],
+
+    /// MLDSA Subject Key Identifier
+    pub mldsa_subj_key_id: [u8; 20],
 }
