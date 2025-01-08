@@ -15,6 +15,13 @@ use zerocopy::{AsBytes, FromBytes};
 
 use crate::helpers;
 
+const DEFAULT_CSR_KEY: [u8; 64] = [
+    0x01, 0x45, 0x52, 0xAD, 0x19, 0x55, 0x07, 0x57, 0x50, 0xC6, 0x02, 0xDD, 0x85, 0xDE, 0x4E, 0x9B,
+    0x81, 0x5C, 0xC9, 0xEF, 0x0B, 0xA8, 0x1A, 0x35, 0x7A, 0x05, 0xD7, 0xC0, 0x7F, 0x5E, 0xFA, 0xEB,
+    0xF7, 0x6D, 0xD9, 0xD2, 0x9E, 0x38, 0x19, 0x7F, 0x04, 0x05, 0x25, 0x37, 0x25, 0xB5, 0x68, 0xF4,
+    0x43, 0x26, 0x65, 0xF1, 0xD1, 0x1D, 0x02, 0xA7, 0xBF, 0xB9, 0x27, 0x9F, 0xA2, 0xEB, 0x96, 0xD7,
+];
+
 #[test]
 fn test_get_ecc_csr() {
     let (mut hw, _) =
@@ -112,11 +119,14 @@ fn test_validate_ecc_csr_mac() {
         csr_envelop
     };
 
-    let csr = csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize].to_vec();
-    let key = PKey::hmac(&[0u8; 48]).unwrap();
-    let mut signer = Signer::new(MessageDigest::sha384(), &key).unwrap();
-    signer.update(&csr).unwrap();
-    let hmac = signer.sign_to_vec().unwrap();
+    let hmac = {
+        let csr = csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize].to_vec();
+        let key = PKey::hmac(&DEFAULT_CSR_KEY[..48]).unwrap();
+        let mut signer = Signer::new(MessageDigest::sha384(), &key).unwrap();
+        signer.update(&csr).unwrap();
+
+        signer.sign_to_vec().unwrap()
+    };
 
     assert!(memcmp::eq(&hmac, &csr_envelop.ecc_csr_mac));
 }
@@ -146,11 +156,14 @@ fn test_validate_mldsa_csr_mac() {
         csr_envelop
     };
 
-    let csr = csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize].to_vec();
-    let key = PKey::hmac(&[0u8; 64]).unwrap();
-    let mut signer = Signer::new(MessageDigest::sha512(), &key).unwrap();
-    signer.update(&csr).unwrap();
-    let hmac = signer.sign_to_vec().unwrap();
+    let hmac = {
+        let csr = csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize].to_vec();
+        let key = PKey::hmac(&DEFAULT_CSR_KEY).unwrap();
+        let mut signer = Signer::new(MessageDigest::sha512(), &key).unwrap();
+        signer.update(&csr).unwrap();
+
+        signer.sign_to_vec().unwrap()
+    };
 
     assert!(memcmp::eq(&hmac, &csr_envelop.mldsa_csr_mac));
 }
