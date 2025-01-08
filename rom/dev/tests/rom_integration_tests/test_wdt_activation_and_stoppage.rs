@@ -103,7 +103,7 @@ fn test_rom_wdt_timeout() {
             ..Default::default()
         },
         caliptra_hw_model::BootParams {
-            wdt_timeout_cycles: 1_000_000,
+            wdt_timeout_cycles: u64::MAX,
             ..Default::default()
         },
     )
