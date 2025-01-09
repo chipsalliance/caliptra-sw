@@ -17,8 +17,11 @@ caliptra-image-types.workspace = true
 clap.workspace = true
 elf.workspace = true
 hex.workspace = true
+memoffset.workspace = true
 nix.workspace = true
 once_cell.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 zerocopy.workspace = true
 
 [features]
