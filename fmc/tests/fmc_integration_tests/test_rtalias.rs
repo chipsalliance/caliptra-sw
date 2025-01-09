@@ -6,8 +6,7 @@ use caliptra_builder::{
 use caliptra_common::{
     memory_layout::{
         ECC_FMCALIAS_TBS_ORG, ECC_LDEVID_TBS_ORG, FUSE_LOG_ORG, MEASUREMENT_LOG_ORG,
-        MLDSA_FMCALIAS_TBS_ORG, MLDSA_FMCALIAS_TBS_SIZE, MLDSA_LDEVID_TBS_ORG,
-        MLDSA_LDEVID_TBS_SIZE, PCR_LOG_ORG,
+        MLDSA_FMCALIAS_TBS_ORG, MLDSA_LDEVID_TBS_ORG, PCR_LOG_ORG,
     },
     RomBootStatus::*,
 };
