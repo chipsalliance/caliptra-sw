@@ -105,6 +105,8 @@ fn test_fht_info() {
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
     assert_eq!(fht.mldsa_ldevid_tbs_addr, MLDSA_LDEVID_TBS_ORG);
     assert_eq!(fht.mldsa_fmcalias_tbs_addr, MLDSA_FMCALIAS_TBS_ORG);
+    assert_ne!(fht.mldsa_ldevid_tbs_size, 0);
+    assert_ne!(fht.mldsa_fmcalias_tbs_size, 0);
 }
 
 #[test]
