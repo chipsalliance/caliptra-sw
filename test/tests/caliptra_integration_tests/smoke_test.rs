@@ -54,7 +54,10 @@ const ROM_1_1_TEST_PARAMS: RomTestParams = RomTestParams {
     fmc_alias_cert_redacted_der: include_bytes!(
         "smoke_testdata/rom-1.1/fmc_alias_cert_redacted.der"
     ),
-    ..ROM_1_0_TEST_PARAMS
+    tcb_info_vendor: None,
+    tcb_device_info_model: None,
+    tcb_fmc_info_model: None,
+    tcb_info_flags: Some(0x00000001),
 };
 const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
     testdata_path: "tests/caliptra_integration_tests/smoke_testdata/rom-latest",
@@ -64,10 +67,7 @@ const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
     fmc_alias_cert_redacted_der: include_bytes!(
         "smoke_testdata/rom-latest/fmc_alias_cert_redacted.der"
     ),
-    tcb_info_vendor: None,
-    tcb_device_info_model: None,
-    tcb_fmc_info_model: None,
-    tcb_info_flags: Some(0x00000001),
+    ..ROM_1_1_TEST_PARAMS
 };
 
 fn get_rom_test_params() -> RomTestParams<'static> {

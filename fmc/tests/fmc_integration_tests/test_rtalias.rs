@@ -92,7 +92,7 @@ fn test_fht_info() {
     let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 552);
     match get_ci_rom_version() {
-        CiRomVersion::Rom1_0 | CiRomVersion::Rom1_1 => assert_eq!(fht.fmcalias_tbs_size, 786),
+        CiRomVersion::Rom1_0 => assert_eq!(fht.fmcalias_tbs_size, 786),
         _ => assert_eq!(fht.fmcalias_tbs_size, 753),
     };
     assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);

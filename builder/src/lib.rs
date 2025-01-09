@@ -408,13 +408,13 @@ pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
         CiRomVersion::Rom1_1 => {
             if rom_from_env == &firmware::ROM {
                 Ok(
-                    include_bytes!("../../rom/ci_frozen_rom/1.1/caliptra-rom-1.1.0-51ff0a8.bin")
+                    include_bytes!("../../rom/ci_frozen_rom/1.1/caliptra-rom-1.1.1-d6713db.bin")
                         .as_slice()
                         .into(),
                 )
             } else if rom_from_env == &firmware::ROM_WITH_UART {
                 Ok(include_bytes!(
-                    "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.0-51ff0a8.bin"
+                    "../../rom/ci_frozen_rom/1.1/caliptra-rom-with-log-1.1.1-d6713db.bin"
                 )
                 .as_slice()
                 .into())
