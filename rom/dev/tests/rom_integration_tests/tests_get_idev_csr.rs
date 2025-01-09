@@ -7,10 +7,7 @@ use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use openssl::hash::MessageDigest;
-use openssl::memcmp;
-use openssl::pkey::PKey;
-use openssl::sign::Signer;
+use openssl::{hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
 use zerocopy::{AsBytes, FromBytes};
 
 use crate::helpers;
