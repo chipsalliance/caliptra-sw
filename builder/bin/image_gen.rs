@@ -3,7 +3,12 @@
 use caliptra_builder::firmware;
 use caliptra_builder::version;
 use caliptra_builder::ImageOptions;
+use caliptra_image_types::ImageHeader;
+use caliptra_image_types::ImageManifest;
 use clap::{arg, value_parser, Command};
+use memoffset::{offset_of, span_of};
+use serde_json::{json, to_string_pretty};
+use sha2::{Digest, Sha384};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -33,6 +38,10 @@ fn main() {
         )
         .arg(arg!(--"fake-rom" [FILE] "Fake ROM").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"fake-fw" [FILE] "Fake FW bundle image").value_parser(value_parser!(PathBuf)))
+        .arg(
+            arg!(--"hashes" [FILE] "File path for output JSON file containing image bundle header hashes for external signing tools")
+                .value_parser(value_parser!(PathBuf)),
+        )
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
@@ -75,7 +84,27 @@ fn main() {
             },
         )
         .unwrap();
-        std::fs::write(path, image.to_bytes().unwrap()).unwrap();
+
+        let contents = image.to_bytes().unwrap();
+        std::fs::write(path, contents.clone()).unwrap();
+
+        if let Some(path) = args.get_one::<PathBuf>("hashes") {
+            let header_range = span_of!(ImageManifest, header);
+
+            // Get the vendor digest which is taken from a subset of the header
+            let vendor_header_len = offset_of!(ImageHeader, owner_data);
+            let vendor_range = header_range.start..header_range.start + vendor_header_len;
+            let vendor_digest = Sha384::digest(&contents[vendor_range]);
+
+            // Get the owner digest which is the full header
+            let owner_digest = Sha384::digest(&contents[header_range]);
+
+            let json = json!({
+                "vendor": format!("{vendor_digest:02x}"),
+                "owner": format!("{owner_digest:02x}"),
+            });
+            std::fs::write(path, to_string_pretty(&json).unwrap()).unwrap();
+        }
     }
 
     if let Some(path) = args.get_one::<PathBuf>("fake-fw") {

@@ -283,8 +283,11 @@ dependencies = [
  "clap",
  "elf",
  "hex",
+ "memoffset 0.8.0",
  "nix 0.26.2",
  "once_cell",
+ "serde_json",
+ "sha2",
  "zerocopy",
 ]
 
