@@ -21,6 +21,10 @@ fn main() {
         )
         .arg(arg!(--"fw" [FILE] "FW bundle image").value_parser(value_parser!(PathBuf)))
         .arg(
+            arg!(--"fw-svn" [VALUE] "Security Version Number of firmware image")
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"all_elfs" [DIR] "Build all firmware elf files")
                 .value_parser(value_parser!(PathBuf)),
         )
@@ -46,6 +50,12 @@ fn main() {
         std::fs::write(path, rom).unwrap();
     }
 
+    let fw_svn = if let Some(fw_svn) = args.get_one::<u32>("fw-svn") {
+        *fw_svn
+    } else {
+        0
+    };
+
     let pqc_key_type = match args.get_one("pqc-key-type") {
         Some(1) | None => FwVerificationPqcKeyType::MLDSA,
         Some(3) => FwVerificationPqcKeyType::LMS,
@@ -60,6 +70,7 @@ fn main() {
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
+                fw_svn,
                 pqc_key_type,
                 ..Default::default()
             },
