@@ -20,6 +20,14 @@ fn main() {
         )
         .arg(arg!(--"fw" [FILE] "FW bundle image").value_parser(value_parser!(PathBuf)))
         .arg(
+            arg!(--"fmc-svn" [VALUE] "Security Version Number of FMC firmware image")
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
+            arg!(--"rt-svn" [VALUE] "Security Version Number of RT firmware image")
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"all_elfs" [DIR] "Build all firmware elf files")
                 .value_parser(value_parser!(PathBuf)),
         )
@@ -41,6 +49,18 @@ fn main() {
         std::fs::write(path, rom).unwrap();
     }
 
+    let fmc_svn = if let Some(fmc) = args.get_one::<u32>("fmc-svn") {
+        *fmc
+    } else {
+        0
+    };
+
+    let app_svn = if let Some(rt) = args.get_one::<u32>("rt-svn") {
+        *rt
+    } else {
+        0
+    };
+
     if let Some(path) = args.get_one::<PathBuf>("fw") {
         // Generate Image Bundle
         let image = caliptra_builder::build_and_sign_image(
@@ -49,6 +69,8 @@ fn main() {
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
+                fmc_svn,
+                app_svn,
                 ..Default::default()
             },
         )
@@ -64,6 +86,8 @@ fn main() {
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
+                fmc_svn,
+                app_svn,
                 ..Default::default()
             },
         )
