@@ -997,6 +997,49 @@ Command Code: `0x4154_5348` ("ATSH")
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) 
 
+### GET_IMAGE_LOAD_ADDRESS
+
+The MCU uses this command to retrieve the AXI load address of a SoC Image identified by the firmware id. The address is retrieved from the SoC Manifest loaded by Caliptra.
+
+Command Code: `0x494D_4C41` ("IMLA")
+
+*Table: `GET_IMAGE_LOAD_ADDRESS` input arguments*
+
+| **Name**       | **Type**       | **Description**
+| -------------- | -------------- | ---------------------------------------------------------------------------
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
+
+*Table: `GET_IMAGE_LOAD_ADDRESS` output arguments*
+
+| **Name**          | **Type**       | **Description**
+| ----------------- | -------------- | --------------------------------------------------------------------------
+| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
+| load_address_high | u32            | The higher 4 bytes of the 64-bit AXI load address.
+| load_address_low  | u32            | The lower 4 bytes of the 64-bit AXI load address.
+
+### GET_IMAGE_LOCATION_OFFSET
+
+The MCU uses this command to retrieve the offset where it can find the location of the image blob for a SoC Image from the flash storage partition or firmware update package.
+
+Command Code: `0x494D_4C4F` ("IMLO")
+
+*Table: `GET_IMAGE_LOCATION_OFFSET` input arguments*
+
+| **Name**       | **Type**       | **Description**
+| -------------- | -------------- | ---------------------------------------------------------------------------
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
+
+*Table: `GET_IMAGE_LOCATION_OFFSET` output arguments*
+
+| **Name**          | **Type**       | **Description**
+| ----------------- | -------------- | --------------------------------------------------------------------------
+| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
+| offset            | u32            | The offset in flash storage partition or firmware update package offset where the SoC image resides.
+
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
 These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
