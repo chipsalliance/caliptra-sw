@@ -102,16 +102,13 @@ impl<'a> Crypto for DpeCrypto<'a> {
     type PrivKey = KeyId;
 
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
-        let mut curr_idx = 0;
-        while curr_idx < dst.len() {
+        for chunk in dst.chunks_mut(48) {
             let trng_bytes = <[u8; 48]>::from(
                 self.trng
                     .generate()
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?,
             );
-            let bytes_to_write = min(dst.len() - curr_idx, trng_bytes.len());
-            dst[curr_idx..curr_idx + bytes_to_write].copy_from_slice(&trng_bytes[..bytes_to_write]);
-            curr_idx += bytes_to_write;
+            chunk.copy_from_slice(&trng_bytes[..chunk.len()])
         }
         Ok(())
     }
