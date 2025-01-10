@@ -2,15 +2,9 @@
 
 use crate::common::get_certs;
 use caliptra_api::mailbox::GetFmcAliasCsrReq;
-use caliptra_api::SocManager;
-use caliptra_builder::{get_ci_rom_version, CiRomVersion};
-use caliptra_common::mailbox_api::{CommandId, GetRtAliasCertReq, MailboxReqHeader};
+use caliptra_common::mailbox_api::GetRtAliasCertReq;
 use caliptra_drivers::{FmcAliasCsr, MAX_CSR_SIZE};
-use caliptra_error::CaliptraError;
 use caliptra_hw_model::DefaultHwModel;
-use caliptra_hw_model::{HwModel, ModelError};
-use caliptra_runtime::RtBootStatus;
-use zerocopy::IntoBytes;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
@@ -58,33 +52,4 @@ fn test_get_fmc_alias_csr() {
     );
 
     verify_rt_cert(&mut model, pubkey);
-}
-
-#[test]
-fn test_missing_csr() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
-    };
-
-    let response = model
-        .mailbox_execute(CommandId::GET_IDEV_CSR.into(), payload.as_bytes())
-        .unwrap_err();
-
-    match get_ci_rom_version() {
-        // 1.0 and 1.1 ROM do not support this feature
-        CiRomVersion::Rom1_0 | CiRomVersion::Rom1_1 => assert_eq!(
-            response,
-            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM.into())
-        ),
-        _ => assert_eq!(
-            response,
-            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
-        ),
-    };
 }

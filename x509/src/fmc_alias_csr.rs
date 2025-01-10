@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    idevid_csr.rs
+    fmc_alis_csr.rs
 
 Abstract:
 
-    Initial Device ID Certificate Signing Request related code.
+    FMC Alias CSR Certificate Signing Request related code.
 
 --*/
 
