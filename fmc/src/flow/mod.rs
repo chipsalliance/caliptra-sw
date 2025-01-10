@@ -14,7 +14,6 @@ Abstract:
 
 mod crypto;
 pub mod dice;
-#[cfg(feature = "fmc-alias-csr")]
 mod fmc_alias_csr;
 mod pcr;
 mod rt_alias;
@@ -32,7 +31,6 @@ use caliptra_drivers::CaliptraResult;
 ///
 /// * `env` - FMC Environment
 pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
-    #[cfg(feature = "fmc-alias-csr")]
     {
         use caliptra_cfi_lib::cfi_assert_eq;
         use caliptra_drivers::ResetReason;

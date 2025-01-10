@@ -86,7 +86,6 @@ pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
-#[cfg(feature = "fmc-alias-csr")]
 pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 pub use persistent::AuthManifestImageMetadataList;
