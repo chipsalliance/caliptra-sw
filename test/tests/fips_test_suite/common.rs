@@ -61,6 +61,11 @@ const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
     ..ROM_EXP_1_0_3
 };
 
+const ROM_EXP_1_1_1: RomExpVals = RomExpVals {
+    rom_version: 0x841, // 1.1.1
+    ..ROM_EXP_1_1_0
+};
+
 const ROM_EXP_1_2_0: RomExpVals = RomExpVals {
     rom_version: 0x880, // 1.2.0
     ..ROM_EXP_1_1_0
@@ -123,7 +128,7 @@ impl RomExpVals {
         } else {
             match get_ci_rom_version() {
                 CiRomVersion::Rom1_0 => ROM_EXP_1_0_3,
-                CiRomVersion::Rom1_1 => ROM_EXP_1_1_0,
+                CiRomVersion::Rom1_1 => ROM_EXP_1_1_1,
                 _ => ROM_EXP_CURRENT,
             }
         }
