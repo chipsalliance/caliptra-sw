@@ -714,6 +714,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x35c)]
     fuse_pqc_key_type: u32,
 
+    #[register(offset = 0x508)]
+    ss_recovery_mci_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x50c)]
+    ss_recovery_mci_base_addr_h: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x510)]
     ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -729,11 +735,17 @@ struct SocRegistersImpl {
     #[register(offset = 0x520)]
     ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x530)]
-    ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
-
     #[register(offset = 0x524)]
     ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x528)]
+    ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x52c)]
+    ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x530)]
+    ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
 
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
@@ -879,6 +891,10 @@ impl SocRegistersImpl {
         let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
         // To make things easy the fuse bank is part of the fuse bank controller emulation
         let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
+        let mci_base = crate::dma::axi_root_bus::AxiRootBus::SS_MCI_OFFSET;
+        let ss_prod_dbg_unlock_fuse_offset = crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
+        let ss_prod_dbg_unlock_number_of_fuses =
+            crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -948,7 +964,7 @@ impl SocRegistersImpl {
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
-            ss_debug_intent: ReadOnlyRegister::new(0),
+            ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -989,6 +1005,14 @@ impl SocRegistersImpl {
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
             ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
             ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
+            ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
+            ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
+            ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
+                ss_prod_dbg_unlock_number_of_fuses as u32,
+            ),
+            ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister::new(
+                ss_prod_dbg_unlock_fuse_offset as u32,
+            ),
         };
         regs
     }
