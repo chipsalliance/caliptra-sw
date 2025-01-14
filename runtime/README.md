@@ -1040,6 +1040,27 @@ Command Code: `0x494D_4C4F` ("IMLO")
 | fips_status       | u32            | Indicates if the command is FIPS approved or an error.
 | offset            | u32            | The offset in flash storage partition or firmware update package offset where the SoC image resides.
 
+### GET_IMAGE_SIZE
+
+The MCU uses this command to retrieve the size (in bytes) of a SoC Image.
+
+Command Code: `0x494D_535A` ("IMSZ")
+
+*Table: `GET_IMAGE_SIZE` input arguments*
+
+| **Name**       | **Type**       | **Description**
+| -------------- | -------------- | ---------------------------------------------------------------------------
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
+
+*Table: `GET_IMAGE_SIZE` output arguments*
+
+| **Name**          | **Type**       | **Description**
+| ----------------- | -------------- | --------------------------------------------------------------------------
+| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
+| size              | u32            | The size in bytes of the SoC Image
+
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
 These commands are used by the [Cryptograhic Mailbox](#cryptographic-mailbox-commands-new-in-20) system.
