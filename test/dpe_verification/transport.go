@@ -233,7 +233,7 @@ func (s *CptraModel) GetProfileMajorVersion() uint16 {
 }
 
 func (s *CptraModel) GetProfileMinorVersion() uint16 {
-	return 10
+	return 11
 }
 
 func (s *CptraModel) GetProfileVendorID() uint32 {
