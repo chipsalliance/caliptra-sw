@@ -50,6 +50,7 @@ pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24
 // LMOTS-SHA192-W4
 pub const IMAGE_LMS_OTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
+pub const LMS_PUB_KEY_BYTE_SIZE: usize = 48;
 pub const MLDSA87_PUB_KEY_BYTE_SIZE: usize = 2592;
 pub const MLDSA87_PUB_KEY_WORD_SIZE: usize = 648;
 pub const MLDSA87_PRIV_KEY_BYTE_SIZE: usize = 4896;

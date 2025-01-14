@@ -22,7 +22,7 @@ use caliptra_cfi_lib::{
 };
 use caliptra_drivers::*;
 use caliptra_image_types::*;
-use memoffset::offset_of;
+use memoffset::{offset_of, span_of};
 use zerocopy::AsBytes;
 
 const ZERO_DIGEST: &ImageDigest384 = &[0u32; SHA384_DIGEST_WORD_SIZE];
@@ -202,7 +202,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<HeaderInfo<'a>> {
         // Verify Vendor Public Key Info Digest
-        self.verify_vendor_pub_key_info_digest(&preamble.vendor_pub_key_info, pqc_key_type)?;
+        self.verify_vendor_pub_key_info_digest(&preamble, pqc_key_type)?;
 
         // Verify Owner Public Key Info Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
@@ -418,7 +418,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Verify vendor public key info digest
     fn verify_vendor_pub_key_info_digest(
         &mut self,
-        pub_key_info: &ImageVendorPubKeyInfo,
+        preamble: &ImagePreamble,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
@@ -444,6 +444,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         } else {
             cfi_assert_ne(expected, ZERO_DIGEST);
         }
+
+        let pub_key_info = preamble.vendor_pub_key_info;
 
         // Validate the ECC key descriptor.
         if pub_key_info.ecc_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
@@ -499,7 +501,79 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
         }
 
-        // [TODO] Verify active public key's digest from the descriptor hash list.
+        self.verify_ecc_pub_key_descriptor(preamble)?;
+        self.verify_pqc_pub_key_descriptor(preamble, pqc_key_type)?;
+
+        Ok(())
+    }
+
+    fn verify_ecc_pub_key_descriptor(&mut self, preamble: &ImagePreamble) -> CaliptraResult<()> {
+        let pub_key_info = preamble.vendor_pub_key_info;
+        let ecc_key_idx = preamble.vendor_ecc_pub_key_idx;
+
+        if ecc_key_idx >= pub_key_info.ecc_key_descriptor.key_hash_count.into() {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+        }
+        let expected = &pub_key_info.ecc_key_descriptor.key_hash[ecc_key_idx as usize];
+
+        let range = {
+            let offset = offset_of!(ImageManifest, preamble) as u32;
+            let span = span_of!(ImagePreamble, vendor_ecc_active_pub_key);
+            span.start as u32 + offset..span.end as u32 + offset
+        };
+
+        let actual = &self
+            .env
+            .sha384_digest(range.start, range.len() as u32)
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+            })?;
+
+        if cfi_launder(expected) != actual {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        }
+
+        Ok(())
+    }
+
+    fn verify_pqc_pub_key_descriptor(
+        &mut self,
+        preamble: &ImagePreamble,
+        pqc_key_type: FwVerificationPqcKeyType,
+    ) -> CaliptraResult<()> {
+        let pub_key_info = preamble.vendor_pub_key_info;
+        let pqc_key_idx = preamble.vendor_pqc_pub_key_idx;
+
+        if pqc_key_idx >= pub_key_info.pqc_key_descriptor.key_hash_count.into() {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+        }
+        let expected = &pub_key_info.pqc_key_descriptor.key_hash[pqc_key_idx as usize];
+
+        let start = {
+            let offset = offset_of!(ImageManifest, preamble) as u32;
+            let span = span_of!(ImagePreamble, vendor_pqc_active_pub_key);
+            span.start as u32 + offset
+        };
+
+        let size = if pqc_key_type == FwVerificationPqcKeyType::MLDSA {
+            MLDSA87_PUB_KEY_BYTE_SIZE
+        } else {
+            LMS_PUB_KEY_BYTE_SIZE
+        } as u32;
+
+        let actual = &self.env.sha384_digest(start, size).map_err(|err| {
+            self.env.set_fw_extended_error(err.into());
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+        })?;
+
+        if cfi_launder(expected) != actual {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        }
 
         Ok(())
     }
@@ -1257,6 +1331,48 @@ mod tests {
             FwVerificationPqcKeyType::LMS,
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_vendor_pk_digest_mtimkovich() {
+        let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            vendor_pub_key_digest: DUMMY_DATA,
+            owner_pub_key_digest: DUMMY_DATA,
+            digest_384: DUMMY_DATA,
+            ..Default::default()
+        };
+
+        let mut verifier = ImageVerifier::new(test_env);
+
+        let preamble = ImagePreamble {
+            vendor_pub_key_info: ImageVendorPubKeyInfo {
+                ecc_key_descriptor: ImageEccKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+
+                    key_hash_count: 1,
+                    reserved: 0,
+                    // key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
+                },
+                pqc_key_descriptor: ImagePqcKeyDescriptor {
+                    version: KEY_DESCRIPTOR_VERSION,
+
+                    key_type: FwVerificationPqcKeyType::LMS as u8,
+                    key_hash_count: 1,
+                    // key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
+                },
+            },
+            ..Default::default()
+        };
+
+        let result = verifier.verify_preamble(
+            &preamble,
+            ResetReason::UpdateReset,
+            FwVerificationPqcKeyType::LMS,
+        );
+        assert!(result.is_ok(), "{:?}", result.err());
     }
 
     #[test]
