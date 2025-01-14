@@ -1020,7 +1020,7 @@ Command Code: `0x494D_4C41` ("IMLA")
 
 ### GET_IMAGE_LOCATION_OFFSET
 
-The MCU uses this command to retrieve the offset where it can find the location of the image blob for a SoC Image from the flash storage partition or firmware update package.
+The MCU uses this command to obtain the offset necessary to locate the image blob for a SoC Image within the flash storage partition or firmware update package.
 
 Command Code: `0x494D_4C4F` ("IMLO")
 
