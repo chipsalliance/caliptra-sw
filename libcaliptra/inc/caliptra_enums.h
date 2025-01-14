@@ -103,8 +103,8 @@ enum dpe_error_codes {
     DPE_RAND_ERROR             = 0x1007,
 };
 
-#define DPE_PROFILE_256 1
-#define DPE_PROFILE_384 2
+#define DPE_PROFILE_256 3
+#define DPE_PROFILE_384 4
 
 enum dpe_profile {
     P256Sha256 = DPE_PROFILE_256,
