@@ -5,12 +5,14 @@ use caliptra_builder::version;
 use caliptra_builder::ImageOptions;
 use caliptra_image_types::ImageHeader;
 use caliptra_image_types::ImageManifest;
+use caliptra_image_types::ImageSignatures;
 use clap::{arg, value_parser, Command};
 use memoffset::{offset_of, span_of};
 use serde_json::{json, to_string_pretty};
 use sha2::{Digest, Sha384};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use zerocopy::FromBytes;
 
 fn main() {
     let args = Command::new("image-gen")
@@ -43,6 +45,8 @@ fn main() {
                 .value_parser(value_parser!(PathBuf))
         )
         .arg(arg!(--"zeros" "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
+        .arg(arg!(--"owner-sig-override" [FILE] "Manually overwrite the owner_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"vendor-sig-override" [FILE] "Manually overwrite the vendor_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
@@ -81,7 +85,7 @@ fn main() {
             )
             .unwrap()
         } else {
-            caliptra_builder::build_and_sign_image(
+            let mut image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
                 &firmware::APP_WITH_UART,
                 ImageOptions {
@@ -92,7 +96,21 @@ fn main() {
                     ..Default::default()
                 },
             )
-            .unwrap()
+            .unwrap();
+
+            if let Some(path) = args.get_one::<PathBuf>("owner-sig-override") {
+                let sig_override = std::fs::read(path).unwrap();
+                image.manifest.preamble.owner_sigs =
+                    ImageSignatures::read_from_bytes(&sig_override).unwrap();
+            }
+
+            if let Some(path) = args.get_one::<PathBuf>("vendor-sig-override") {
+                let sig_override = std::fs::read(path).unwrap();
+                image.manifest.preamble.vendor_sigs =
+                    ImageSignatures::read_from_bytes(&sig_override).unwrap();
+            }
+
+            image
         };
 
         let contents = image.to_bytes().unwrap();
