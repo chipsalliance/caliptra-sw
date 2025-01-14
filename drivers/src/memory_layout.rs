@@ -45,22 +45,14 @@ pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 // Memory Sizes In Bytes
 //
 
-// // Reserves a large chunk of DCCM for the PersistentData struct.
-// //
-// // The size was calculated by leaving a portion of the Data section
-// // reserved for future use and then allocating the rest of the DCCM.
-// //
-// // The `DATA_SIZE` variable reflects the leftover space.
-// pub const PERSISTENT_DATA_SIZE: u32 = 53 * 1024;
-
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
 pub const ROM_SIZE: u32 = 96 * 1024;
 pub const MBOX_SIZE: u32 = 256 * 1024;
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
-pub const DATA_SIZE: u32 = 95 * 1024;
-pub const STACK_SIZE: u32 = 64 * 1024;
+pub const DATA_SIZE: u32 = 74 * 1024;
+pub const STACK_SIZE: u32 = 85 * 1024;
 pub const ROM_STACK_SIZE: u32 = 61 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
