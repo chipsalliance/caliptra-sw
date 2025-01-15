@@ -160,6 +160,7 @@ impl HwModel for ModelEmulated {
                 cpu_enabled_cloned.set(true);
             }),
             security_state: params.security_state,
+            dbg_manuf_service_req: params.dbg_manuf_service,
             cptra_obf_key: params.cptra_obf_key,
 
             itrng_nibbles: Some(params.itrng_nibbles),
