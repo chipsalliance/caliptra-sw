@@ -1334,48 +1334,6 @@ mod tests {
     }
 
     #[test]
-    fn test_vendor_pk_digest_mtimkovich() {
-        let test_env = TestEnv {
-            lifecycle: Lifecycle::Production,
-            vendor_pub_key_digest: DUMMY_DATA,
-            owner_pub_key_digest: DUMMY_DATA,
-            digest_384: DUMMY_DATA,
-            ..Default::default()
-        };
-
-        let mut verifier = ImageVerifier::new(test_env);
-
-        let preamble = ImagePreamble {
-            vendor_pub_key_info: ImageVendorPubKeyInfo {
-                ecc_key_descriptor: ImageEccKeyDescriptor {
-                    version: KEY_DESCRIPTOR_VERSION,
-
-                    key_hash_count: 1,
-                    reserved: 0,
-                    // key_hash: ImageEccKeyHashes::default(),
-                    key_hash: [DUMMY_DATA; 4],
-                },
-                pqc_key_descriptor: ImagePqcKeyDescriptor {
-                    version: KEY_DESCRIPTOR_VERSION,
-
-                    key_type: FwVerificationPqcKeyType::LMS as u8,
-                    key_hash_count: 1,
-                    // key_hash: ImagePqcKeyHashes::default(),
-                    key_hash: [DUMMY_DATA; 32],
-                },
-            },
-            ..Default::default()
-        };
-
-        let result = verifier.verify_preamble(
-            &preamble,
-            ResetReason::UpdateReset,
-            FwVerificationPqcKeyType::LMS,
-        );
-        assert!(result.is_ok(), "{:?}", result.err());
-    }
-
-    #[test]
     fn test_verify_fmc_update_rst() {
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,
