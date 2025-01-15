@@ -205,7 +205,7 @@ pub struct RecoveryRegisterInterface {
     prot_cap_version: ReadWriteRegister<u32, VersionCapabilities::Register>,
 
     #[register(offset = 0x0c)]
-    prot_cap_cms_timing: ReadOnlyRegister<u32, CmsTimings::Register>,
+    prot_cap_cms_timing: ReadWriteRegister<u32, CmsTimings::Register>,
 
     // TODO will this work with 32bit memory access?
     //    #[register(offset = 0x10)]
@@ -276,7 +276,7 @@ impl RecoveryRegisterInterface {
                 VersionCapabilities::MAJOR.val(Self::MAJOR_VERSION).value
                     | VersionCapabilities::MINOR.val(Self::MINOR_VERSION).value,
             ),
-            prot_cap_cms_timing: ReadOnlyRegister::new(
+            prot_cap_cms_timing: ReadWriteRegister::new(
                 CmsTimings::CMS.val(1).value // TODO
                     | CmsTimings::MAX_RESPONSE_TIME.val(0xff).value // TODO
                     | CmsTimings::HEARTBEAT_PERIOD.val(0).value, // TODO 0 means unsupported

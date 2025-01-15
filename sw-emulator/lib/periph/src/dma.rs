@@ -91,7 +91,7 @@ pub struct Dma {
     control: ReadWriteRegister<u32, Control::Register>,
 
     /// Status 0
-    #[register(offset = 0x0000_000c)]
+    #[register(offset = 0x0000_000c, read_fn = on_read_status0)]
     status0: ReadOnlyRegister<u32, Status0::Register>,
 
     /// Status 1: Reports remaining byte count that must be sent to destination.
@@ -228,6 +228,18 @@ impl Dma {
         Ok(())
     }
 
+    fn on_read_status0(&mut self, size: RvSize) -> Result<RvData, BusError> {
+        if size != RvSize::Word {
+            Err(BusError::LoadAccessFault)?
+        }
+
+        let status0 = ReadWriteRegister::new(self.status0.reg.get());
+        status0
+            .reg
+            .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32));
+        Ok(status0.reg.get())
+    }
+
     pub fn on_write_data(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         println!("[EMU] DMA write data {:#?} {:#?}", size, val);
         let bytes = &val.to_le_bytes();
@@ -272,7 +284,7 @@ impl Dma {
         }
     }
 
-    fn read_to_mailbox(&mut self) {
+    fn axi_to_mailbox(&mut self) {
         let xfer = self.read_xfer();
         let mbox_ram = self.mailbox.borrow_mut();
 
@@ -285,12 +297,17 @@ impl Dma {
         }
     }
 
-    fn read_to_fifo(&mut self) {
+    fn axi_to_fifo(&mut self) {
         let xfer = self.read_xfer();
 
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.src + if xfer.fixed { 0 } else { i as AxiAddr };
-            println!("axi addr {}", addr);
+            let cur_fifo_depth = self.status0.reg.read(Status0::FIFO_DEPTH);
+            if cur_fifo_depth + 4 >= Self::FIFO_SIZE as u32 {
+                self.status0.reg.write(Status0::ERROR::SET);
+                // TODO set interrupt bits
+                return;
+            }
             let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), addr).unwrap();
             let data_bytes = data.to_le_bytes();
             data_bytes[..Self::AXI_DATA_WIDTH]
@@ -299,7 +316,7 @@ impl Dma {
         }
     }
 
-    fn axi_transfer(&mut self) {
+    fn axi_to_axi(&mut self) {
         let read_xfer = self.read_xfer();
         let write_xfer = self.write_xfer();
 
@@ -313,7 +330,7 @@ impl Dma {
         }
     }
 
-    fn write_from_mailbox(&mut self) {
+    fn mailbox_to_axi(&mut self) {
         let xfer = self.write_xfer();
         let mbox_ram = self.mailbox.borrow_mut();
 
@@ -328,14 +345,23 @@ impl Dma {
         }
     }
 
-    fn write_from_fifo(&mut self) {
+    fn fifo_to_axi(&mut self) {
         let xfer = self.write_xfer();
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
             let data = {
                 let mut bytes = [0u8; Self::AXI_DATA_WIDTH];
                 for byte in bytes.iter_mut() {
-                    *byte = self.fifo.pop_front().unwrap();
+                    match self.fifo.pop_front() {
+                        Some(b) => {
+                            *byte = b;
+                        }
+                        None => {
+                            self.status0.reg.write(Status0::ERROR::SET);
+                            // TODO set interrupt bits
+                            return;
+                        }
+                    }
                 }
                 u32::from_le_bytes(bytes)
             };
@@ -351,19 +377,19 @@ impl Dma {
 
         match (read_target, write_origin) {
             (Control::READ_ROUTE::Value::MAILBOX, Control::WRITE_ROUTE::Value::DISABLE) => {
-                self.read_to_mailbox()
+                self.axi_to_mailbox()
             }
             (Control::READ_ROUTE::Value::AHB_FIFO, Control::WRITE_ROUTE::Value::DISABLE) => {
-                self.read_to_fifo()
+                self.axi_to_fifo()
             }
             (Control::READ_ROUTE::Value::AXI_WR, Control::WRITE_ROUTE::Value::AXI_RD) => {
-                self.axi_transfer()
+                self.axi_to_axi()
             }
             (Control::READ_ROUTE::Value::DISABLE, Control::WRITE_ROUTE::Value::MAILBOX) => {
-                self.write_from_mailbox()
+                self.mailbox_to_axi()
             }
             (Control::READ_ROUTE::Value::DISABLE, Control::WRITE_ROUTE::Value::AHB_FIFO) => {
-                self.write_from_fifo()
+                self.fifo_to_axi()
             }
             (_, _) => panic!("Invalid read/write DMA combination"),
         }

@@ -43,6 +43,8 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
 
 static CALIPTRA_INTEGRATION_RDL_FILE: &str = "src/integration/rtl/caliptra_reg.rdl";
 
+static I3C_CORE_RDL_FILES: &[&str] = &["src/rdl/registers.rdl"];
+
 static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/mldsa_top/rtl/mldsa_reg.rdl"];
 
 static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
@@ -118,8 +120,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         write_file
     };
 
-    if args.len() < 4 {
-        Err("Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dir_core_dir>")?;
+    if args.len() < 5 {
+        Err(
+            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <dir_core_dir>",
+        )?;
     }
 
     let rtl_dir = Path::new(&args[1]);
@@ -138,6 +142,14 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .collect();
     rdl_files.append(&mut adamsbridge_rdl_files);
 
+    let i3c_core_rdl_dir = Path::new(&args[3]);
+    let mut i3c_core_rdl_files: Vec<PathBuf> = I3C_CORE_RDL_FILES
+        .iter()
+        .map(|p| i3c_core_rdl_dir.join(p))
+        .filter(|p| p.exists())
+        .collect();
+    rdl_files.append(&mut i3c_core_rdl_files);
+
     let integration_rdl_file = rtl_dir.join(CALIPTRA_INTEGRATION_RDL_FILE);
     if integration_rdl_file.exists() {
         rdl_files.push(integration_rdl_file);
@@ -150,6 +162,35 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
     rdl_files.append(&mut extra_rdl_files);
+
+    // eliminate duplicate type names
+    let patches = vec![
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_THLD_CTRL",
+            "TTI_QUEUE_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "QUEUE_SIZE",
+            "TTI_QUEUE_SIZE",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "IBI_PORT",
+            "TTI_IBI_PORT",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "DATA_BUFFER_THLD_CTRL",
+            "TTI_DATA_BUFFER_THLD_CTRL",
+        ),
+        (
+            i3c_core_rdl_dir.join("src/rdl/target_transaction_interface.rdl"),
+            "RESET_CONTROL",
+            "TTI_RESET_CONTROL",
+        ),
+    ];
 
     let rtl_commit_id = run_cmd_stdout(
         Command::new("git")
@@ -181,6 +222,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let dest_dir = Path::new(&args[args.len() - 1]);
 
     let file_source = caliptra_systemrdl::FsFileSource::new();
+    for patch in patches {
+        file_source.add_patch(&patch.0, patch.1, patch.2);
+    }
     let scope = caliptra_systemrdl::Scope::parse_root(&file_source, &rdl_files)
         .map_err(|s| s.to_string())?;
     let scope = scope.as_parent();

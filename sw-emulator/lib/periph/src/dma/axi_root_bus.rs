@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    lib.rs
+    axi_root_bus.rs
 
 Abstract:
 

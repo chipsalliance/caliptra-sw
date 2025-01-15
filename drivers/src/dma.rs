@@ -17,6 +17,7 @@ use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg,
 };
+use core::{ops::Add, ptr::read_volatile};
 use zerocopy::AsBytes;
 
 pub enum DmaReadTarget {
@@ -37,6 +38,22 @@ impl From<u64> for AxiAddr {
             lo: addr as u32,
             hi: (addr >> 32) as u32,
         }
+    }
+}
+impl From<AxiAddr> for u64 {
+    fn from(addr: AxiAddr) -> Self {
+        (addr.hi as u64) << 32 | (addr.lo as u64)
+    }
+}
+
+impl Add for AxiAddr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let self_u64: u64 = self.into();
+        let rhs_u64: u64 = rhs.into();
+        let sum = self_u64 + rhs_u64;
+        sum.into()
     }
 }
 
@@ -164,13 +181,23 @@ impl Dma {
             return Err(CaliptraError::DRIVER_DMA_FIFO_UNDERRUN);
         }
 
-        read_data.chunks_mut(4).for_each(|word| {
-            let ptr = dma.read_data().ptr as *mut u8;
-            // Reg only exports u32 writes but we need finer grained access
-            unsafe {
-                ptr.copy_to_nonoverlapping(word.as_mut_ptr(), word.len());
+        let read_data_ptr = dma.read_data().ptr as *const u8;
+
+        // Process all complete 4-byte chunks
+        for chunk in read_data.chunks_exact_mut(4) {
+            let value = unsafe { read_volatile(read_data_ptr as *const u32) };
+            chunk.copy_from_slice(&value.to_le_bytes());
+        }
+
+        // Process remaining bytes (1, 2, or 3)
+        let remainder = read_data.len() % 4;
+        if remainder > 0 {
+            let start = read_data.len() - remainder;
+            let last_chunk = &mut read_data[start..];
+            for byte in last_chunk.iter_mut() {
+                *byte = unsafe { read_volatile(read_data_ptr) };
             }
-        });
+        }
 
         Ok(())
     }
@@ -185,13 +212,21 @@ impl Dma {
             return Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN);
         }
 
-        write_data.chunks(4).for_each(|word| {
+        // Process all complete 4-byte chunks
+        for chunk in write_data.chunks_exact(4) {
+            let value = u32::from_le_bytes(chunk.try_into().unwrap());
+            unsafe { (dma.write_data().ptr as *mut u32).write_volatile(value) };
+        }
+
+        // Process remaining bytes (1, 2, or 3)
+        let remainder = write_data.len() % 4;
+        if remainder > 0 {
+            let last_chunk = &write_data[write_data.len() - remainder..];
             let ptr = dma.write_data().ptr as *mut u8;
-            // Reg only exports u32 writes but we need finer grained access
-            unsafe {
-                ptr.copy_from_nonoverlapping(word.as_ptr(), word.len());
+            for byte in last_chunk.iter() {
+                unsafe { ptr.write_volatile(*byte) };
             }
-        });
+        }
 
         Ok(())
     }
@@ -230,20 +265,34 @@ impl Dma {
     /// * `CaliptraResult<u32>` - Read value or error code
     pub fn read_dword(&mut self, read_addr: AxiAddr) -> CaliptraResult<u32> {
         let mut read_val: u32 = 0;
+        self.read_buffer(read_addr, read_val.as_bytes_mut())?;
+        Ok(read_val)
+    }
 
+    /// Read an arbitrary length buffer to fifo and read back the fifo into the provided buffer
+    ///
+    /// # Arguments
+    ///
+    /// * `read_addr` - Address to read from
+    /// * `buffer`  - Target location to read to
+    ///
+    /// # Returns
+    ///
+    /// * CaliptraResult<()> - Success or failure
+    pub fn read_buffer(&mut self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
         self.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr: false,
-            length: core::mem::size_of::<u32>() as u32,
+            length: buffer.len() as u32,
             target: DmaReadTarget::AhbFifo,
         };
 
         self.setup_dma_read(read_transaction);
         self.do_transaction()?;
-        self.dma_read_fifo(read_val.as_bytes_mut())?;
-        Ok(read_val)
+        self.dma_read_fifo(buffer)?;
+        Ok(())
     }
 
     /// Write a 32-bit word to the specified address
