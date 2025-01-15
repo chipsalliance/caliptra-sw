@@ -81,6 +81,7 @@ members = [
   "test",
   "test-harness",
   "test-harness/types",
+  "zero_bin",
 ]
 
 [workspace.dependencies]

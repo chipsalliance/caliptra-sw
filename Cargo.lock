@@ -937,6 +937,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-zeros"
+version = "0.1.0"
+dependencies = [
+ "caliptra-api",
+ "caliptra-builder",
+ "caliptra-drivers",
+ "caliptra-error",
+ "caliptra-gen-linker-scripts",
+ "caliptra-hw-model",
+ "caliptra_common",
+ "cfg-if 1.0.0",
+]
+
+[[package]]
 name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
