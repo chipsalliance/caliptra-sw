@@ -17,7 +17,7 @@ use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg,
 };
-use core::ops::Add;
+use core::{ops::Add, ptr::read_volatile};
 use zerocopy::AsBytes;
 
 pub enum DmaReadTarget {
@@ -181,13 +181,18 @@ impl Dma {
             return Err(CaliptraError::DRIVER_DMA_FIFO_UNDERRUN);
         }
 
-        read_data.chunks_mut(4).for_each(|word| {
-            let ptr = dma.read_data().ptr as *mut u8;
-            // Reg only exports u32 writes but we need finer grained access
-            unsafe {
-                ptr.copy_to_nonoverlapping(word.as_mut_ptr(), word.len());
-            }
-        });
+        // Only multiple of 4 bytes are allowed
+        if read_data.len() % core::mem::size_of::<u32>() != 0 {
+            return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
+        }
+
+        let read_data_ptr = dma.read_data().ptr as *const u8;
+
+        // Process all complete 4-byte chunks
+        for chunk in read_data.chunks_exact_mut(4) {
+            let value = unsafe { read_volatile(read_data_ptr as *const u32) };
+            chunk.copy_from_slice(&value.to_le_bytes());
+        }
 
         Ok(())
     }
@@ -202,13 +207,16 @@ impl Dma {
             return Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN);
         }
 
-        write_data.chunks(4).for_each(|word| {
-            let ptr = dma.write_data().ptr as *mut u8;
-            // Reg only exports u32 writes but we need finer grained access
-            unsafe {
-                ptr.copy_from_nonoverlapping(word.as_ptr(), word.len());
-            }
-        });
+        // Only multiple of 4 bytes are allowed
+        if write_data.len() % core::mem::size_of::<u32>() != 0 {
+            return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
+        }
+
+        // Process all complete 4-byte chunks
+        for chunk in write_data.chunks(4) {
+            let value = u32::from_le_bytes(chunk.try_into().unwrap());
+            unsafe { (dma.write_data().ptr as *mut u32).write_volatile(value) };
+        }
 
         Ok(())
     }
