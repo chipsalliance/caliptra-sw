@@ -511,10 +511,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let pub_key_info = preamble.vendor_pub_key_info;
         let ecc_key_idx = preamble.vendor_ecc_pub_key_idx;
 
-        if ecc_key_idx >= pub_key_info.ecc_key_descriptor.key_hash_count.into() {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
-        }
-        let expected = &pub_key_info.ecc_key_descriptor.key_hash[ecc_key_idx as usize];
+        let expected = pub_key_info
+            .ecc_key_descriptor
+            .key_hash
+            .get(ecc_key_idx as usize)
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
 
         let range = {
             let offset = offset_of!(ImageManifest, preamble) as u32;
@@ -547,10 +548,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let pub_key_info = preamble.vendor_pub_key_info;
         let pqc_key_idx = preamble.vendor_pqc_pub_key_idx;
 
-        if pqc_key_idx >= pub_key_info.pqc_key_descriptor.key_hash_count.into() {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
-        }
-        let expected = &pub_key_info.pqc_key_descriptor.key_hash[pqc_key_idx as usize];
+        let expected = pub_key_info
+            .pqc_key_descriptor
+            .key_hash
+            .get(pqc_key_idx as usize)
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
 
         let start = {
             let offset = offset_of!(ImageManifest, preamble) as u32;
