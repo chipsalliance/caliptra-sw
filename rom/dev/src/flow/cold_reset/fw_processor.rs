@@ -366,6 +366,8 @@ impl FirmwareProcessor {
                         }
                         txn.complete(true)?;
 
+                        cprintln!("[fwproc] Received RI_DOWNLOAD_FIRMWARE cmd");
+
                         // Download the firmware image from the recovery interface.
                         let image_size_bytes =
                             Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
@@ -824,6 +826,7 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
         let rri_base_addr: u64 = soc_ifc.recovery_interface_base_addr();
+        cprintln!("[fwproc] Recovery Interface Base Address: 0x{:08x}", rri_base_addr);
         const PROT_CAP_2_OFFSET: u32 = 0xC;
         const DEVICE_STATUS_0: u32 = 0x30;
         const RECOVERY_STATUS_OFFSET: u32 = 0x40;
@@ -834,12 +837,14 @@ impl FirmwareProcessor {
         const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
 
         // Set PROT_CAP:Byte11 Bit3 (i.e. DWORD2:Bit27) to 1 ('Flashless boot').
+        cprintln!("[fwproc] Setting PROT_CAP_2:Byte11 Bit3 to 1");
         let addr = AxiAddr::from(rri_base_addr + PROT_CAP_2_OFFSET as u64);
         let mut prot_cap_val = dma.read_dword(addr)?;
         prot_cap_val |= 1 << 27;
         dma.write_dword(addr, prot_cap_val)?;
 
         // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+        cprintln!("[fwproc] Setting DEVICE_STATUS_0:Byte0 to 0x3");
         let addr = AxiAddr::from(rri_base_addr + DEVICE_STATUS_0 as u64);
         let mut device_status_val = dma.read_dword(addr)?;
         device_status_val = (device_status_val & 0xFFFFFF00) | 0x03;

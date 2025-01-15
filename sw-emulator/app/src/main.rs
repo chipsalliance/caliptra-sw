@@ -315,13 +315,14 @@ fn main() -> io::Result<()> {
                 download_idev_id_csr(mailbox, log_dir.clone(), cptra_dbg_manuf_service_reg);
             },
         ),
+        active_mode,
         ..Default::default()
     };
 
     let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
     // Populate the RRI data
     if active_mode {
-        root_bus.recovery.cms_data = Some(current_fw_buf);
+        root_bus.dma.axi.recovery.cms_data = Some(current_fw_buf);
     }
 
     let soc_ifc = unsafe {

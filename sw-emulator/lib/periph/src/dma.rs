@@ -193,6 +193,7 @@ impl Dma {
     }
 
     pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        println!("[EMU] DMA write control {:#?} {:#?}", size, val);
         // Write have to be words
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
@@ -228,6 +229,7 @@ impl Dma {
     }
 
     pub fn on_write_data(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        println!("[EMU] DMA write data {:#?} {:#?}", size, val);
         let bytes = &val.to_le_bytes();
         bytes[..size as usize]
             .iter()
@@ -236,6 +238,7 @@ impl Dma {
     }
 
     pub fn on_read_data(&mut self, size: RvSize) -> Result<RvData, BusError> {
+        println!("[EMU] DMA read data {:#?}", size);
         let range = 0..size as usize;
         let bytes: RvData = range.fold(0, |mut acc, b| {
             acc |= (self.fifo.pop_front().unwrap_or(
