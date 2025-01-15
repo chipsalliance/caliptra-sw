@@ -202,11 +202,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<HeaderInfo<'a>> {
         // Verify Vendor Public Key Info Digest
-<<<<<<< HEAD
-        self.verify_vendor_pub_key_info_digest(preamble, pqc_key_type)?;
-=======
         self.verify_vendor_pub_key_info_digest(&preamble, pqc_key_type)?;
->>>>>>> af19f64f (digest descriptor)
 
         // Verify Owner Public Key Info Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
