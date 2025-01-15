@@ -37,8 +37,9 @@ fn main() {
         .arg(arg!(--"fake-fw" [FILE] "Fake FW bundle image").value_parser(value_parser!(PathBuf)))
         .arg(
             arg!(--"hashes" [FILE] "File path for output JSON file containing image bundle header hashes for external signing tools")
-                .value_parser(value_parser!(PathBuf)),
+                .value_parser(value_parser!(PathBuf))
         )
+        .arg(arg!(--"zeros" "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
         .arg(
             arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
                 .value_parser(value_parser!(i32)),
@@ -73,18 +74,27 @@ fn main() {
 
     if let Some(path) = args.get_one::<PathBuf>("fw") {
         // Generate Image Bundle
-        let image = caliptra_builder::build_and_sign_image(
-            &firmware::FMC_WITH_UART,
-            &firmware::APP_WITH_UART,
-            ImageOptions {
-                fmc_version: version::get_fmc_version(),
-                app_version: version::get_runtime_version(),
-                fw_svn,
-                pqc_key_type,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        let image = if args.contains_id("zeros") {
+            caliptra_builder::build_and_sign_image(
+                &firmware::FMC_ZEROS,
+                &firmware::APP_ZEROS,
+                ImageOptions::default(),
+            )
+            .unwrap()
+        } else {
+            caliptra_builder::build_and_sign_image(
+                &firmware::FMC_WITH_UART,
+                &firmware::APP_WITH_UART,
+                ImageOptions {
+                    fmc_version: version::get_fmc_version(),
+                    app_version: version::get_runtime_version(),
+                    fw_svn,
+                    pqc_key_type,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
 
         let contents = image.to_bytes().unwrap();
         std::fs::write(path, contents.clone()).unwrap();
