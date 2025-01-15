@@ -73,7 +73,7 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
 use dpe::{
@@ -230,10 +230,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-    }?;
+    };
+    let resp = okmutref(&mut resp)?;
 
     // Send the response
-    Packet::copy_to_mbox(drivers, &mut resp)?;
+    Packet::copy_to_mbox(drivers, resp)?;
 
     Ok(MboxStatusE::DataReady)
 }
