@@ -1312,14 +1312,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
@@ -1403,14 +1403,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
@@ -1489,14 +1489,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
