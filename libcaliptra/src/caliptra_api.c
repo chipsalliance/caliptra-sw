@@ -353,6 +353,36 @@ bool caliptra_ready_for_firmware(void)
     return true;
 }
 
+/**
+ * caliptra_ready_for_runtime
+ *
+ * Waits until Caliptra hardware is ready for runtime commands or until
+ * Caliptra reports an error
+ *
+ * @return int 0 if ready, Caliptra error otherwise
+ */
+uint32_t caliptra_ready_for_runtime(void)
+{
+    uint32_t status;
+    bool ready = false;
+
+    do
+    {
+        status = caliptra_read_status();
+
+        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        {
+            ready = true;
+        }
+        else
+        {
+            caliptra_wait();
+        }
+    } while (ready == false);
+
+    return true;
+}
+
 /*
 * caliptra_is_csr_ready
 *
