@@ -206,8 +206,7 @@ fn test_preamble_vendor_mldsa_pubkey_descriptor_digest_mismatch() {
         ..Default::default()
     };
 
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, image_options.clone());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
         ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
     assert_eq!(
