@@ -313,7 +313,7 @@ pub struct CaliptraRootBus {
 
 impl CaliptraRootBus {
     pub const ROM_SIZE: usize = 96 * 1024;
-    pub const ICCM_SIZE: usize = 128 * 1024;
+    pub const ICCM_SIZE: usize = 256 * 1024;
     pub const DCCM_SIZE: usize = 256 * 1024;
 
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {

@@ -237,7 +237,7 @@ fn test_uninitialized_iccm_read() {
     );
 
     const ICCM_ADDR: u32 = 0x4000_0000;
-    const ICCM_SIZE: u32 = 128 * 1024;
+    const ICCM_SIZE: u32 = 256 * 1024;
 
     model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| ICCM_ADDR);
     model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| ICCM_SIZE);

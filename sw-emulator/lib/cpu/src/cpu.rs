@@ -153,7 +153,7 @@ pub struct CoverageBitmaps<'a> {
     pub iccm: &'a bit_vec::BitVec,
 }
 
-const ICCM_SIZE: usize = 128 * 1024;
+const ICCM_SIZE: usize = 256 * 1024;
 const ICCM_ORG: usize = 0x40000000;
 const ICCM_UPPER: usize = ICCM_ORG + ICCM_SIZE - 1;
 

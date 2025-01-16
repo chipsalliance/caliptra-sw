@@ -9,8 +9,8 @@ fn test_asm() {
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            iccm: &vec![0x55u8; 128 * 1024],
-            dccm: &vec![0x66u8; 128 * 1024],
+            iccm: &vec![0x55u8; 256 * 1024],
+            dccm: &vec![0x66u8; 256 * 1024],
             ..Default::default()
         },
         BootParams::default(),
