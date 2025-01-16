@@ -213,6 +213,7 @@ pub struct CaliptraRootBusArgs {
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
     pub dbg_manuf_service_req: DbgManufServiceRegReq,
+    pub active_mode: bool,
 
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
@@ -227,7 +228,6 @@ pub struct CaliptraRootBusArgs {
 
     pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
-    pub active_mode: bool,
 }
 impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
@@ -236,6 +236,7 @@ impl Default for CaliptraRootBusArgs {
             log_dir: Default::default(),
             security_state: Default::default(),
             dbg_manuf_service_req: Default::default(),
+            active_mode: false,
             tb_services_cb: Default::default(),
             ready_for_fw_cb: Default::default(),
             upload_update_fw: Default::default(),
@@ -244,7 +245,6 @@ impl Default for CaliptraRootBusArgs {
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
-            active_mode: false,
         }
     }
 }

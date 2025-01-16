@@ -938,6 +938,8 @@ impl SocRegistersImpl {
             fuse_manuf_dbg_unlock_token: [0; 4],
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
+            ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
+            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -973,8 +975,6 @@ impl SocRegistersImpl {
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
-            ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(0),
-            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
             ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),

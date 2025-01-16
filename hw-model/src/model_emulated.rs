@@ -161,6 +161,7 @@ impl HwModel for ModelEmulated {
             }),
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
+            active_mode: params.active_mode,
             cptra_obf_key: params.cptra_obf_key,
 
             itrng_nibbles: Some(params.itrng_nibbles),
@@ -170,10 +171,13 @@ impl HwModel for ModelEmulated {
         let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
-        root_bus.soc_reg.set_hw_config(match trng_mode {
-            TrngMode::Internal => 1.into(),
-            TrngMode::External => 0.into(),
-        });
+        root_bus.soc_reg.set_hw_config(
+            (match trng_mode {
+                TrngMode::Internal => 1,
+                TrngMode::External => 0,
+            } | if params.active_mode { 1 << 5 } else { 0 })
+            .into(),
+        );
 
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();

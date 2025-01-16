@@ -157,6 +157,8 @@ pub struct InitParams<'a> {
 
     pub dbg_manuf_service: DbgManufServiceRegReq,
 
+    pub active_mode: bool,
+
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
@@ -208,6 +210,7 @@ impl<'a> Default for InitParams<'a> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
+            active_mode: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,
