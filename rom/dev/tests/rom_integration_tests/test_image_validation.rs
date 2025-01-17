@@ -2537,9 +2537,7 @@ fn test_header_verify_vendor_mldsa_pub_key_in_preamble_and_header() {
     );
 }
 
-// TODO: Uncomment this test when functionality is implemented.
-// #[test]
-#[allow(dead_code)]
+#[test]
 fn test_preamble_vendor_mldsa_pubkey_out_of_bounds() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
