@@ -501,13 +501,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
         }
 
-        self.verify_ecc_pub_key_descriptor(preamble)?;
-        self.verify_pqc_pub_key_descriptor(preamble, pqc_key_type)?;
+        self.verify_active_ecc_pub_key_digest(preamble)?;
+        self.verify_active_pqc_pub_key_digest(preamble, pqc_key_type)?;
 
         Ok(())
     }
 
-    fn verify_ecc_pub_key_descriptor(&mut self, preamble: &ImagePreamble) -> CaliptraResult<()> {
+    fn verify_active_ecc_pub_key_digest(&mut self, preamble: &ImagePreamble) -> CaliptraResult<()> {
         let pub_key_info = preamble.vendor_pub_key_info;
         let ecc_key_idx = preamble.vendor_ecc_pub_key_idx;
 
@@ -540,7 +540,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok(())
     }
 
-    fn verify_pqc_pub_key_descriptor(
+    fn verify_active_pqc_pub_key_digest(
         &mut self,
         preamble: &ImagePreamble,
         pqc_key_type: FwVerificationPqcKeyType,

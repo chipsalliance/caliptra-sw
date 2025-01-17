@@ -159,7 +159,7 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
 }
 
 #[test]
-fn test_preamble_vendor_ecc_pubkey_descriptor_digest_mismatch() {
+fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
     let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
@@ -188,7 +188,7 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_digest_mismatch() {
 }
 
 #[test]
-fn test_preamble_vendor_mldsa_pubkey_descriptor_digest_mismatch() {
+fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
     let image_options = ImageOptions {
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
         ..Default::default()
