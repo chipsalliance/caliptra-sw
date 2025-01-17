@@ -1,0 +1,13 @@
+[package]
+name = "mldsa_key_pair_gen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+
+[dependencies]
+fips204 = "0.4.5"
+rand = "0.8.5"
+zerocopy = "0.8.13"
