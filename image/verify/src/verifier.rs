@@ -551,8 +551,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let expected = pub_key_info
             .pqc_key_descriptor
             .key_hash
-            .get(pqc_key_idx as usize)
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+            .get(pqc_key_idx as usize);
+
+        if expected.is_none()
+            || (pqc_key_type == FwVerificationPqcKeyType::LMS
+                && pqc_key_idx >= VENDOR_LMS_MAX_KEY_COUNT)
+            || (pqc_key_type == FwVerificationPqcKeyType::MLDSA
+                && pqc_key_idx >= VENDOR_MLDSA_MAX_KEY_COUNT)
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?
+        }
+
+        let expected = expected.unwrap();
 
         let start = {
             let offset = offset_of!(ImageManifest, preamble) as u32;
