@@ -60,13 +60,17 @@ register_bitfields! [
     Status0 [
         BUSY OFFSET(0) NUMBITS(1) [], // 0 = ready to accept transfer request, 1 = operation in progress
         ERROR OFFSET(1) NUMBITS(1) [],
+        RSVD0 OFFSET(2) NUMBITS(2) [],
         FIFO_DEPTH OFFSET(4) NUMBITS(12) [],
         DMA_FSM_PRESENT_STATE OFFSET(16) NUMBITS(2) [
             IDLE = 0b00,
             WAIT_DATA = 0b01,
             DONE = 0b10,
             ERROR = 0b11,
-        ]
+        ],
+        PAYLOAD_AVAILABLE OFFSET(18) NUMBITS(1) [],
+        IMAAGE_ACTIVATED OFFSET(19) NUMBITS(1) [],
+        RSVD1 OFFSET(20) NUMBITS(12) [],
     ],
 
     /// Block Size

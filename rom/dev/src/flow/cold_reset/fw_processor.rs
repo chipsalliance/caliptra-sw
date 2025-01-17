@@ -869,7 +869,7 @@ impl FirmwareProcessor {
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
         cprintln!("[fwproc] Waiting for payload available signal...");
-        while !dma.payload_available() {}
+        //while !dma.payload_available() {}
 
         // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
         let addr0 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_0 as u64);
