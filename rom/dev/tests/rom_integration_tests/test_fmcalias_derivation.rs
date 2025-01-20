@@ -15,8 +15,7 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::memory_layout::*;
-use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault};
-use caliptra_drivers::{PcrId, RomPqcVerifyConfig};
+use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault, PcrId};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -202,7 +201,7 @@ fn test_pcr_log() {
             FMC_SVN as u8,
             0_u8,
             VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
+            FwVerificationPqcKeyType::MLDSA as u8,
             true as u8,
         ],
     );
@@ -303,7 +302,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             0_u8,
             0_u8,
             VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
+            FwVerificationPqcKeyType::MLDSA as u8,
             false as u8,
         ],
     );
@@ -398,7 +397,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             FMC_SVN as u8,
             FMC_FUSE_SVN as u8,
             VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
+            FwVerificationPqcKeyType::MLDSA as u8,
             true as u8,
         ],
     );

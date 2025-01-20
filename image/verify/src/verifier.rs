@@ -156,7 +156,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                     fuse_svn: self.env.runtime_fuse_svn(),
                 },
             },
-            pqc_verify_config: manifest.pqc_key_type.into(),
+            pqc_key_type,
         };
 
         Ok(info)

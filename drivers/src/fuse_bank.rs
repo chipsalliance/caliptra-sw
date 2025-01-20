@@ -70,23 +70,6 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum RomPqcVerifyConfig {
-    #[default]
-    EcdsaAndLms = 1,
-    EcdsaAndMldsa = 2,
-}
-
-impl From<u8> for RomPqcVerifyConfig {
-    fn from(value: u8) -> Self {
-        match value {
-            1 => RomPqcVerifyConfig::EcdsaAndLms,
-            2 => RomPqcVerifyConfig::EcdsaAndMldsa,
-            _ => RomPqcVerifyConfig::default(),
-        }
-    }
-}
-
 impl FuseBank<'_> {
     /// Get the key id crypto algorithm.
     ///

@@ -189,7 +189,7 @@ impl Default for ImagePqcSignature {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum FwVerificationPqcKeyType {
     LMS = 1,
     MLDSA = 2,
@@ -203,7 +203,7 @@ impl From<FwVerificationPqcKeyType> for u8 {
 
 impl Default for FwVerificationPqcKeyType {
     fn default() -> Self {
-        Self::LMS
+        Self::MLDSA
     }
 }
 

@@ -471,7 +471,7 @@ impl Default for ImageOptions {
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
         }
     }
 }
