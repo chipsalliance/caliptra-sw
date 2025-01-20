@@ -1,3 +1,17 @@
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    main.rs
+
+Abstract:
+
+    File contains app for generating MLDSA key pairs from FIPS204 library.
+
+--*/
+
 use fips204::ml_dsa_87::try_keygen_with_rng;
 use fips204::traits::SerDes;
 use rand::prelude::*;
