@@ -9,6 +9,7 @@
 #include "caliptra_if.h"
 
 #define MBOX_PAUSER_SLOTS (5)
+#define EXTERNAL_PERIPH_BASE 0x30000000
 
 // WARNING: THESE APIS ARE INTENDED FOR SIMULATION ONLY.
 //          SOC FW MUST HAVE NO ACCESS TO THOSE APIS.
@@ -20,13 +21,13 @@ extern "C" {
 
 static inline void caliptra_generic_and_fuse_write(uint32_t offset, uint32_t data)
 {
-    caliptra_write_u32((offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
+    caliptra_write_u32((offset + EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
 }
 
 static inline uint32_t caliptra_generic_and_fuse_read(uint32_t offset)
 {
     uint32_t data;
-    caliptra_read_u32((offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), &data);
+    caliptra_read_u32((offset + EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), &data);
     return data;
 }
 

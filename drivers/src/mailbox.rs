@@ -39,7 +39,7 @@ pub struct Mailbox {
     mbox: MboxCsr,
 }
 
-const MAX_MAILBOX_LEN: u32 = 128 * 1024;
+const MAX_MAILBOX_LEN: u32 = 256 * 1024;
 
 impl Mailbox {
     pub fn new(mbox: MboxCsr) -> Self {

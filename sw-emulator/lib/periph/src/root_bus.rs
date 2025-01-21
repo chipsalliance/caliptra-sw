@@ -289,9 +289,6 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
 
-    #[peripheral(offset = 0x3000_0000, mask = 0x0001_ffff)]
-    pub mailbox_sram: MailboxRam,
-
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     pub mailbox: MailboxInternal,
 
@@ -304,6 +301,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegistersInternal,
 
+    #[peripheral(offset = 0x3004_0000, mask = 0x0003_ffff)]
+    pub mailbox_sram: MailboxRam,
+
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
 
@@ -313,7 +313,7 @@ pub struct CaliptraRootBus {
 
 impl CaliptraRootBus {
     pub const ROM_SIZE: usize = 96 * 1024;
-    pub const ICCM_SIZE: usize = 128 * 1024;
+    pub const ICCM_SIZE: usize = 256 * 1024;
     pub const DCCM_SIZE: usize = 256 * 1024;
 
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
