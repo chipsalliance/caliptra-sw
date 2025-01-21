@@ -7,7 +7,8 @@
 #include <caliptra_top_reg.h>
 #include "caliptra_if.h"
 
-#define CALIPTRA_MAILBOX_MAX_SIZE (128u * 1024u)
+#define CALIPTRA_MAILBOX_MAX_SIZE (256u * 1024u)
+#define EXTERNAL_PERIPH_BASE 0x30000000
 
 enum caliptra_mailbox_status {
     CALIPTRA_MBOX_STATUS_BUSY         = 0,
@@ -85,13 +86,13 @@ extern "C" {
  */
 static inline void caliptra_mbox_write(uint32_t offset, uint32_t data)
 {
-    caliptra_write_u32((offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
+    caliptra_write_u32((offset + EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
 }
 
 static inline uint32_t caliptra_mbox_read(uint32_t offset)
 {
     uint32_t data;
-    caliptra_read_u32((offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &data);
+    caliptra_read_u32((offset + EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &data);
     return data;
 }
 

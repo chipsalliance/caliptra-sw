@@ -231,7 +231,7 @@ impl Sha2_512_384 {
         wait::until(|| status_reg.read().ready());
 
         if status_reg.read().valid() {
-            Ok(reg.gen_pcr_hash_digest().read().into())
+            Ok(reg.gen_pcr_hash_digest().truncate::<12>().read().into())
         } else {
             Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
         }

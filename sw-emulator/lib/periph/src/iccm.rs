@@ -27,7 +27,7 @@ use std::{cell::RefCell, rc::Rc};
 pub struct Iccm {
     iccm: Rc<IccmImpl>,
 }
-const ICCM_SIZE_BYTES: usize = 128 * 1024;
+const ICCM_SIZE_BYTES: usize = 256 * 1024;
 
 impl Iccm {
     pub fn lock(&mut self) {
