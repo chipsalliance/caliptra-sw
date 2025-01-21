@@ -312,6 +312,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0057);
     pub const IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000b0058);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0059);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b005a);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
