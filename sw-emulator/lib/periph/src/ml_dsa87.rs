@@ -213,6 +213,9 @@ pub struct Mldsa87 {
 
     /// Seed read complete action
     op_seed_read_complete_action: Option<ActionHandle>,
+
+    /// Zeroize complete callback
+    op_zeroize_complete_action: Option<ActionHandle>,
 }
 
 impl Mldsa87 {
@@ -250,6 +253,7 @@ impl Mldsa87 {
             key_vault,
             op_complete_action: None,
             op_seed_read_complete_action: None,
+            op_zeroize_complete_action: None,
         }
     }
 
@@ -276,6 +280,10 @@ impl Mldsa87 {
         // Stop actions
         self.op_complete_action = None;
         self.op_seed_read_complete_action = None;
+        self.op_zeroize_complete_action = None;
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::CLEAR);
     }
 
     /// On Write callback for `control` register
@@ -313,7 +321,10 @@ impl Mldsa87 {
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
-            self.zeroize();
+            // Reset the Ready status bit
+            self.status.reg.modify(Status::READY::CLEAR);
+
+            self.op_zeroize_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
         }
 
         Ok(())
@@ -454,6 +465,9 @@ impl Mldsa87 {
         }
         if self.timer.fired(&mut self.op_seed_read_complete_action) {
             self.seed_read_complete();
+        }
+        if self.timer.fired(&mut self.op_zeroize_complete_action) {
+            self.zeroize();
         }
     }
 

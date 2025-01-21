@@ -117,6 +117,9 @@ impl Mldsa87 {
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
 
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
         // Copy seed from keyvault
         KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
             .map_err(|err| err.into_read_seed_err())?;
@@ -172,6 +175,9 @@ impl Mldsa87 {
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
 
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
         // Copy seed from keyvault
         KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
             .map_err(|err| err.into_read_seed_err())?;
@@ -195,8 +201,7 @@ impl Mldsa87 {
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
-        // Clear the hardware when done
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        // No need to zeroize here, as the hardware will be zeroized by verify_res.
 
         let verify_res = self.verify_res(pub_key, msg, &signature)?;
 
@@ -242,6 +247,9 @@ impl Mldsa87 {
 
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Copy digest
         msg.write_to_reg(mldsa.msg());
