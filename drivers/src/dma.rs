@@ -362,7 +362,7 @@ impl Dma {
     ///
     /// # Returns
     /// true if payload is available, false otherwise
-    /// 
+    ///
     pub fn payload_available(&self) -> bool {
         self.dma.regs().status0().read().payload_available()
     }

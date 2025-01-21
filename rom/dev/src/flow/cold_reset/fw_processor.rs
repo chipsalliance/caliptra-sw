@@ -826,12 +826,14 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
         let rri_base_addr: u64 = soc_ifc.recovery_interface_base_addr();
-        cprintln!("[fwproc] Recovery Interface Base Address: 0x{:08x}", rri_base_addr);
+        cprintln!(
+            "[fwproc] Recovery Interface Base Address: 0x{:08x}",
+            rri_base_addr
+        );
         const PROT_CAP_2_OFFSET: u32 = 0xC;
         const DEVICE_STATUS_0: u32 = 0x30;
         const RECOVERY_STATUS_OFFSET: u32 = 0x40;
         const FW_IMAGE_INDEX: u32 = 0x0;
-        const INDIRECT_FIFO_CTRL_0: u32 = 0x48;
         const INDIRECT_FIFO_CTRL_1: u32 = 0x4C;
         const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
         const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
@@ -872,12 +874,10 @@ impl FirmwareProcessor {
         //while !dma.payload_available() {}
 
         // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-        let addr0 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_0 as u64);
+        // [TODO][CAP2] we need to programs CMS, bits not yet there in RDL. use bytes[4:7] for now for size
         let addr1 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_1 as u64);
-        let indirect_fifo_ctrl_val0 = dma.read_dword(addr0)?;
         let indirect_fifo_ctrl_val1 = dma.read_dword(addr1)?;
-        let image_size_dwords =
-            ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF) | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+        let image_size_dwords = indirect_fifo_ctrl_val1;
 
         // Transfer the image from the recovery interface to the mailbox SRAM.
         let image_size_bytes = image_size_dwords * 4;
