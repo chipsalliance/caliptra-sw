@@ -882,7 +882,7 @@ impl SocRegistersImpl {
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: ReadWriteRegister::new(0), // [TODO][CAP2] Program this
+            cptra_hw_config: ReadWriteRegister::new(if args.active_mode { 1 << 5 } else { 0 }),
             cptra_wdt_timer1_en: ReadWriteRegister::new(0),
             cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
             cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
