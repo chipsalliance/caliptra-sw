@@ -19,6 +19,7 @@ use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
     StackInfo, StackRange,
 };
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -69,6 +70,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         opts.vendor_config.pl0_pauser = Some(0x1);
         opts.fmc_version = DEFAULT_FMC_VERSION;
         opts.app_version = DEFAULT_APP_VERSION;
+        opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
         opts
     });
 

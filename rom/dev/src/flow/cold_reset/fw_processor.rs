@@ -51,7 +51,7 @@ pub struct FwProcInfo {
 
     pub owner_pub_keys_digest_in_fuses: bool,
 
-    pub pqc_verify_config: u8,
+    pub pqc_key_type: u8,
 }
 
 pub struct FirmwareProcessor {}
@@ -157,7 +157,7 @@ impl FirmwareProcessor {
             fmc_cert_valid_not_after: nf,
             effective_fuse_svn: info.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
-            pqc_verify_config: info.pqc_verify_config as u8,
+            pqc_key_type: info.pqc_key_type as u8,
         })
     }
 

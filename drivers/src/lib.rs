@@ -72,9 +72,7 @@ pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
-pub use fuse_bank::{
-    FuseBank, IdevidCertAttr, RomPqcVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
-};
+pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
 pub use hmac_kdf::hmac_kdf;
