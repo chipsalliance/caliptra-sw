@@ -213,6 +213,9 @@ pub struct Mldsa87 {
 
     /// Seed read complete action
     op_seed_read_complete_action: Option<ActionHandle>,
+
+    /// Zeroize complete callback
+    op_zeroize_complete_action: Option<ActionHandle>,
 }
 
 impl Mldsa87 {
@@ -250,6 +253,7 @@ impl Mldsa87 {
             key_vault,
             op_complete_action: None,
             op_seed_read_complete_action: None,
+            op_zeroize_complete_action: None,
         }
     }
 
@@ -276,6 +280,10 @@ impl Mldsa87 {
         // Stop actions
         self.op_complete_action = None;
         self.op_seed_read_complete_action = None;
+        self.op_zeroize_complete_action = None;
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::CLEAR);
     }
 
     /// On Write callback for `control` register
@@ -313,7 +321,10 @@ impl Mldsa87 {
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
-            self.zeroize();
+            // Reset the Ready status bit
+            self.status.reg.modify(Status::READY::CLEAR);
+
+            self.op_zeroize_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
         }
 
         Ok(())
@@ -388,8 +399,9 @@ impl Mldsa87 {
         let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
 
         if success {
-            self.verify_res
-                .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
+            self.verify_res.copy_from_slice(
+                &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE / 4..],
+            );
         } else {
             self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
         }
@@ -454,6 +466,9 @@ impl Mldsa87 {
         }
         if self.timer.fired(&mut self.op_seed_read_complete_action) {
             self.seed_read_complete();
+        }
+        if self.timer.fired(&mut self.op_zeroize_complete_action) {
+            self.zeroize();
         }
     }
 
@@ -741,8 +756,17 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
+        let signature = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig
+        };
+
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_eq!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        assert_eq!(
+            result,
+            &signature[signature.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
 
         // Bad signature
         let mut rng = rand::thread_rng();
@@ -782,8 +806,17 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
+        let signature = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig
+        };
+
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_ne!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        assert_ne!(
+            result,
+            &signature[signature.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
     }
 
     #[test]
