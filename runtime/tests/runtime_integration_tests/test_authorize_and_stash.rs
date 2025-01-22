@@ -15,6 +15,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader, SetAuthManifestReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
@@ -40,7 +41,15 @@ pub const FW_ID_2: [u8; 4] = [0x02, 0x00, 0x00, 0x00];
 pub const FW_ID_BAD: [u8; 4] = [0xDE, 0xED, 0xBE, 0xEF];
 
 fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -107,10 +116,14 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     );
 
     // create a new fw image with the runtime replaced by the mbox responder
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
+        image_options,
     )
     .unwrap()
     .to_bytes()
@@ -163,10 +176,14 @@ fn test_authorize_and_stash_cmd_success() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // create a new fw image with the runtime replaced by the mbox responder
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
+        image_options,
     )
     .unwrap()
     .to_bytes()

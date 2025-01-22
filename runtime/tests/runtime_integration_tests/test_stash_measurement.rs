@@ -9,6 +9,7 @@ use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_hw_model::HwModel;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{AsBytes, LayoutVerified};
@@ -17,7 +18,15 @@ use crate::common::{run_rt_test, RuntimeTestArgs};
 
 #[test]
 fn test_stash_measurement() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -49,10 +58,11 @@ fn test_stash_measurement() {
     assert_eq!(resp_hdr.dpe_result, 0);
 
     // create a new fw image with the runtime replaced by the mbox responder
+
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
+        image_options,
     )
     .unwrap()
     .to_bytes()
@@ -82,11 +92,16 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_pcr31_extended_upon_stash_measurement() {
-    let args = RuntimeTestArgs {
-        test_fwid: Some(&firmware::runtime_tests::MBOX),
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
-    let mut model = run_rt_test(args);
+    let runtime_test_args = RuntimeTestArgs {
+        test_fwid: Some(&firmware::runtime_tests::MBOX),
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
 
     // Read PCR_ID_STASH_MEASUREMENT
     let pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();
@@ -96,7 +111,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
-        ImageOptions::default(),
+        image_options.clone(),
     )
     .unwrap()
     .to_bytes()
@@ -128,7 +143,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
+        image_options.clone(),
     )
     .unwrap()
     .to_bytes()
@@ -140,7 +155,7 @@ fn test_pcr31_extended_upon_stash_measurement() {
     let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
+        image_options,
     )
     .unwrap()
     .to_bytes()

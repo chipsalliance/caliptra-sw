@@ -222,7 +222,7 @@ impl FmcAliasLayer {
             soc_ifc.fuse_bank().anti_rollback_disable() as u8,
             data_vault.vendor_ecc_pk_index() as u8,
             data_vault.vendor_pqc_pk_index() as u8,
-            fw_proc_info.pqc_verify_config,
+            fw_proc_info.pqc_key_type,
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
@@ -323,7 +323,7 @@ impl FmcAliasLayer {
             soc_ifc.fuse_bank().anti_rollback_disable() as u8,
             data_vault.vendor_ecc_pk_index() as u8,
             data_vault.vendor_pqc_pk_index() as u8,
-            fw_proc_info.pqc_verify_config,
+            fw_proc_info.pqc_key_type,
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(

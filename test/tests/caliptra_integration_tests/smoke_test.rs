@@ -10,6 +10,7 @@ use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{
     bytes_to_be_words_48,
@@ -181,6 +182,7 @@ fn smoke_test() {
         ImageOptions {
             fmc_svn: 9,
             app_svn: 9,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )
@@ -594,6 +596,7 @@ fn smoke_test() {
             fmc_svn: 10,
             app_svn: 10,
             app_version: 2,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )

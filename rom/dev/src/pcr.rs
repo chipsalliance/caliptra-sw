@@ -92,7 +92,7 @@ pub(crate) fn extend_pcrs(
         data_vault.fmc_svn() as u8,
         info.effective_fuse_svn as u8,
         data_vault.vendor_pqc_pk_index() as u8,
-        info.pqc_verify_config as u8,
+        info.pqc_key_type as u8,
         info.owner_pub_keys_digest_in_fuses as u8,
     ];
 
