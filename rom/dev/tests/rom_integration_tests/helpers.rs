@@ -14,8 +14,13 @@ use caliptra_hw_model::{
     StackRange,
 };
 use caliptra_hw_model::{DefaultHwModel, ModelError};
-use caliptra_image_types::ImageBundle;
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use zerocopy::FromBytes;
+
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
 
 pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,

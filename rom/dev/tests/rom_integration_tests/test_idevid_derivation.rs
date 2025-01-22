@@ -54,23 +54,35 @@ fn generate_csr_envelop(
 
 #[test]
 fn test_generate_csr_envelop() {
-    let (mut hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    generate_csr_envelop(&mut hw, &image_bundle);
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) =
+            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+        generate_csr_envelop(&mut hw, &image_bundle);
+    }
 }
 
 #[test]
 fn test_ecc_idev_subj_key_id_algo() {
-    for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
-        let mut fuses = Fuses::default();
-        fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
+            let mut fuses = Fuses::default();
+            fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
 
-        let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options.clone());
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap();
 
-        hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+            hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+        }
     }
 }
 
@@ -110,53 +122,59 @@ fn fuses_with_random_uds() -> Fuses {
 
 #[test]
 fn test_generate_csr_envelop_stress() {
-    let num_tests = if cfg!(feature = "slow_tests") {
-        1000
-    } else {
-        1
-    };
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let num_tests = if cfg!(feature = "slow_tests") {
+            1000
+        } else {
+            1
+        };
 
-    for _ in 0..num_tests {
-        let fuses = fuses_with_random_uds();
-        let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses.clone(), ImageOptions::default());
+        for _ in 0..num_tests {
+            let fuses = fuses_with_random_uds();
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 
-        let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle);
+            let csr_envelop = generate_csr_envelop(&mut hw, &image_bundle);
 
-        // Ensure ECC CSR is valid X.509
-        let req =
-            X509Req::from_der(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize])
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to create a valid X509 cert with UDS seed {:?}",
-                        fuses.uds_seed
-                    )
-                });
-        let idevid_pubkey = req.public_key().unwrap();
-        assert!(
-            req.verify(&idevid_pubkey).unwrap(),
-            "Invalid public key. Unable to verify CSR with UDS seed {:?}",
-            fuses.uds_seed
-        );
+            // Ensure ECC CSR is valid X.509
+            let req =
+                X509Req::from_der(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize])
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "Failed to create a valid X509 cert with UDS seed {:?}",
+                            fuses.uds_seed
+                        )
+                    });
+            let idevid_pubkey = req.public_key().unwrap();
+            assert!(
+                req.verify(&idevid_pubkey).unwrap(),
+                "Invalid public key. Unable to verify CSR with UDS seed {:?}",
+                fuses.uds_seed
+            );
 
-        let ldev_cert = verify_key(
-            &mut hw,
-            u32::from(CommandId::GET_LDEV_CERT),
-            &idevid_pubkey,
-            &fuses.uds_seed,
-        );
-        let fmc_cert = verify_key(
-            &mut hw,
-            u32::from(CommandId::GET_FMC_ALIAS_CERT),
-            &ldev_cert.public_key().unwrap(),
-            &fuses.uds_seed,
-        );
-        let _rt_cert = verify_key(
-            &mut hw,
-            u32::from(CommandId::GET_RT_ALIAS_CERT),
-            &fmc_cert.public_key().unwrap(),
-            &fuses.uds_seed,
-        );
+            let ldev_cert = verify_key(
+                &mut hw,
+                u32::from(CommandId::GET_LDEV_CERT),
+                &idevid_pubkey,
+                &fuses.uds_seed,
+            );
+            let fmc_cert = verify_key(
+                &mut hw,
+                u32::from(CommandId::GET_FMC_ALIAS_CERT),
+                &ldev_cert.public_key().unwrap(),
+                &fuses.uds_seed,
+            );
+            let _rt_cert = verify_key(
+                &mut hw,
+                u32::from(CommandId::GET_RT_ALIAS_CERT),
+                &fmc_cert.public_key().unwrap(),
+                &fuses.uds_seed,
+            );
+        }
     }
 }
 
