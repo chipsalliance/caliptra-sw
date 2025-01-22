@@ -13,6 +13,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
@@ -37,14 +38,22 @@ fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: Imag
 
 #[test]
 fn test_rt_journey_pcr_updated_in_dpe() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, ImageOptions::default());
+    update_fw(&mut model, &MBOX, image_options);
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -57,7 +66,15 @@ fn test_rt_journey_pcr_updated_in_dpe() {
 
 #[test]
 fn test_tags_persistence() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -76,7 +93,7 @@ fn test_tags_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, ImageOptions::default());
+    update_fw(&mut model, &MBOX, image_options.clone());
 
     const TAGS_INFO_SIZE: usize =
         size_of::<u32>() * MAX_HANDLES + size_of::<U8Bool>() * MAX_HANDLES;
@@ -84,7 +101,7 @@ fn test_tags_persistence() {
     let tags_1: [u8; TAGS_INFO_SIZE] = tags_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    update_fw(&mut model, &MBOX, ImageOptions::default());
+    update_fw(&mut model, &MBOX, image_options);
 
     let tags_resp_2 = model.mailbox_execute(0x7000_0000, &[]).unwrap().unwrap();
     let tags_2: [u8; TAGS_INFO_SIZE] = tags_resp_2.as_bytes().try_into().unwrap();
@@ -97,11 +114,16 @@ fn test_tags_persistence() {
 
 #[test]
 fn test_context_tags_validation() {
-    let args = RuntimeTestArgs {
-        test_fwid: Some(&MBOX),
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
-    let mut model = run_rt_test(args);
+    let runtime_test_args = RuntimeTestArgs {
+        test_fwid: Some(&MBOX),
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
 
     // make context_tags validation fail by "tagging" an inactive context
     let mut context_tags = [0u32; MAX_HANDLES];
@@ -113,7 +135,7 @@ fn test_context_tags_validation() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+    update_fw(&mut model, &APP_WITH_UART, image_options);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -123,8 +145,13 @@ fn test_context_tags_validation() {
 
 #[test]
 fn test_context_has_tag_validation() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let args = RuntimeTestArgs {
         test_fwid: Some(&MBOX),
+        test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -139,7 +166,7 @@ fn test_context_has_tag_validation() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+    update_fw(&mut model, &APP_WITH_UART, image_options);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -149,8 +176,13 @@ fn test_context_has_tag_validation() {
 
 #[test]
 fn test_dpe_validation_deformed_structure() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let args = RuntimeTestArgs {
         test_fwid: Some(&MBOX),
+        test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -169,7 +201,7 @@ fn test_dpe_validation_deformed_structure() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+    update_fw(&mut model, &APP_WITH_UART, image_options);
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
@@ -199,8 +231,13 @@ fn test_dpe_validation_deformed_structure() {
 
 #[test]
 fn test_dpe_validation_illegal_state() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let args = RuntimeTestArgs {
         test_fwid: Some(&MBOX),
+        test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -217,7 +254,7 @@ fn test_dpe_validation_illegal_state() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+    update_fw(&mut model, &APP_WITH_UART, image_options);
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
@@ -247,8 +284,13 @@ fn test_dpe_validation_illegal_state() {
 
 #[test]
 fn test_dpe_validation_used_context_threshold_exceeded() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let args = RuntimeTestArgs {
         test_fwid: Some(&MBOX),
+        test_image_options: Some(image_options.clone()),
         ..Default::default()
     };
     let mut model = run_rt_test(args);
@@ -281,7 +323,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         .unwrap();
 
     // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+    update_fw(&mut model, &APP_WITH_UART, image_options);
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
@@ -301,7 +343,15 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
 #[test]
 fn test_pcr_reset_counter_persistence() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(image_options.clone()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -322,14 +372,14 @@ fn test_pcr_reset_counter_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    update_fw(&mut model, &MBOX, ImageOptions::default());
+    update_fw(&mut model, &MBOX, image_options.clone());
 
     let pcr_reset_counter_resp_1 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_1: [u8; size_of::<PcrResetCounter>()] =
         pcr_reset_counter_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    update_fw(&mut model, &MBOX, ImageOptions::default());
+    update_fw(&mut model, &MBOX, image_options);
 
     let pcr_reset_counter_resp_2 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_2: [u8; size_of::<PcrResetCounter>()] =

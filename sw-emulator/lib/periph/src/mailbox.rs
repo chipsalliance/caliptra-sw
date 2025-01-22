@@ -22,7 +22,7 @@ use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
 
 /// Maximum mailbox capacity.
-const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
+const MAX_MAILBOX_CAPACITY_BYTES: usize = 256 << 10;
 
 register_bitfields! [
     u32,

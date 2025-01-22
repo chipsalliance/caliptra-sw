@@ -21,7 +21,7 @@ use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 
 /// Maximum mailbox capacity in Bytes.
-const MAX_MAILBOX_CAPACITY_BYTES: u32 = 128 << 10;
+const MAX_MAILBOX_CAPACITY_BYTES: u32 = 256 << 10;
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 pub type Sha512Digest<'a> = &'a mut Array4x16;

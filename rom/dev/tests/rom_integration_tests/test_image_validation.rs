@@ -26,9 +26,10 @@ use caliptra_image_fake_keys::{
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
-    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageLmsPublicKey, ImageLmsSignature,
-    ImageManifest, ImageMldsaPubKey, ImageMldsaSignature, MLDSA87_SIGNATURE_WORD_SIZE,
-    VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
+    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageEccPubKey, ImageLmsPublicKey,
+    ImageLmsSignature, ImageManifest, ImageMldsaPubKey, ImageMldsaSignature, ImagePqcPubKey,
+    MLDSA87_SIGNATURE_WORD_SIZE, PQC_PUB_KEY_BYTE_SIZE, VENDOR_ECC_MAX_KEY_COUNT,
+    VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
@@ -158,6 +159,201 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
 }
 
 #[test]
+fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    image_bundle.manifest.preamble.vendor_ecc_active_pub_key = ImageEccPubKey {
+        x: [0xBE; 12],
+        y: [0xEF; 12],
+    };
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH
+        ))
+    );
+}
+
+#[test]
+fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(image_options.clone());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
+        ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
+        ))
+    );
+}
+
+#[test]
+fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(image_options.clone());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
+        ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
+        ))
+    );
+}
+
+#[test]
+fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    let pub_key_idx = image_bundle
+        .manifest
+        .preamble
+        .vendor_pub_key_info
+        .ecc_key_descriptor
+        .key_hash_count;
+    image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = pub_key_idx as u32;
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+        ))
+    );
+}
+
+#[test]
+fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(image_options.clone());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    let pub_key_idx = image_bundle
+        .manifest
+        .preamble
+        .vendor_pub_key_info
+        .pqc_key_descriptor
+        .key_hash_count;
+    image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+        ))
+    );
+}
+
+#[test]
+fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+
+    let gen = ImageGenerator::new(Crypto::default());
+    let image_bundle = helpers::build_image_bundle(image_options.clone());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        life_cycle: DeviceLifecycle::Manufacturing,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        ..Default::default()
+    };
+
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    let pub_key_idx = image_bundle
+        .manifest
+        .preamble
+        .vendor_pub_key_info
+        .pqc_key_descriptor
+        .key_hash_count;
+    image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+        ))
+    );
+}
+
+#[test]
 fn test_preamble_owner_pubkey_digest_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         owner_pk_hash: [0xDEADBEEF; 12],
@@ -261,6 +457,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         let mut image_options = ImageOptions::default();
         let key_idx = vendor_config.pqc_key_idx;
         image_options.vendor_config = vendor_config;
+        image_options.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
         let fuses = caliptra_hw_model::Fuses {
             fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
@@ -567,8 +764,11 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         ..Default::default()
     };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     // Modify the vendor public key.
     let lms_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
@@ -595,8 +795,11 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         ..Default::default()
     };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     // Modify the vendor signature.
     image_bundle.manifest.preamble.vendor_pqc_active_pub_key = lms_pub_key_backup;
@@ -630,8 +833,11 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         ..Default::default()
     };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     // Modify the owner public key.
     let lms_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
@@ -659,8 +865,11 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         ..Default::default()
     };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     // Modify the owner signature.
     image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = lms_pub_key_backup;
@@ -1899,24 +2108,31 @@ fn update_header(image_bundle: &mut ImageBundle) {
         runtime: ElfExecutable::default(),
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        pqc_key_type: FwVerificationPqcKeyType::from_u8(image_bundle.manifest.pqc_key_type)
+            .unwrap(),
     };
 
     let gen = ImageGenerator::new(Crypto::default());
     let vendor_header_digest_384 = gen
         .vendor_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
+    let vendor_header_digest_512 = gen
+        .vendor_header_digest_512(&image_bundle.manifest.header)
+        .unwrap();
     let vendor_header_digest_holder = ImageDigestHolder {
         digest_384: &vendor_header_digest_384,
-        digest_512: None,
+        digest_512: Some(&vendor_header_digest_512),
     };
 
     let owner_header_digest_384 = gen
         .owner_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
+    let owner_header_digest_512 = gen
+        .owner_header_digest_512(&image_bundle.manifest.header)
+        .unwrap();
     let owner_header_digest_holder = ImageDigestHolder {
         digest_384: &owner_header_digest_384,
-        digest_512: None,
+        digest_512: Some(&owner_header_digest_512),
     };
 
     image_bundle.manifest.preamble = gen
@@ -2532,14 +2748,12 @@ fn test_header_verify_vendor_mldsa_pub_key_in_preamble_and_header() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err(),
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH.into()
         )
     );
 }
 
-// TODO: Uncomment this test when functionality is implemented.
-// #[test]
-#[allow(dead_code)]
+#[test]
 fn test_preamble_vendor_mldsa_pubkey_out_of_bounds() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 

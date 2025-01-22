@@ -75,8 +75,8 @@ pub struct ImageVerificationInfo {
     /// Vendor PQC (LMS or MLDSA) public key index
     pub vendor_pqc_pub_key_idx: u32,
 
-    /// PQC Verification Configuration
-    pub pqc_verify_config: RomPqcVerifyConfig,
+    /// PQC Key Type
+    pub pqc_key_type: FwVerificationPqcKeyType,
 
     /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest384,

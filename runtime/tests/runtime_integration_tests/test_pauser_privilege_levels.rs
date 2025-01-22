@@ -530,7 +530,10 @@ fn test_pl0_unset_in_header() {
     )
     .unwrap();
 
-    let mut opts = ImageOptions::default();
+    let mut opts = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     opts.vendor_config.pl0_pauser = None;
     let mut image_bundle =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
@@ -539,7 +542,10 @@ fn test_pl0_unset_in_header() {
     // flag bit to make it valid. Also need to re-generate and re-sign the image.
     image_bundle.manifest.header.pl0_pauser = 1;
 
-    let opts = ImageOptions::default();
+    let opts = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     let ecc_index = opts.vendor_config.ecc_key_idx;
     let lms_index = opts.vendor_config.pqc_key_idx;
     let gen = ImageGenerator::new(Crypto::default());

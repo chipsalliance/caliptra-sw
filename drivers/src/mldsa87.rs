@@ -21,6 +21,7 @@ use crate::{
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 
 #[must_use]
@@ -117,6 +118,9 @@ impl Mldsa87 {
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
 
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
         // Copy seed from keyvault
         KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
             .map_err(|err| err.into_read_seed_err())?;
@@ -172,6 +176,9 @@ impl Mldsa87 {
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
 
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
         // Copy seed from keyvault
         KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
             .map_err(|err| err.into_read_seed_err())?;
@@ -195,23 +202,10 @@ impl Mldsa87 {
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
-        // Clear the hardware when done
-        mldsa.ctrl().write(|w| w.zeroize(true));
-
-        let verify_res = self.verify_res(pub_key, msg, &signature)?;
-
-        let truncated_signature = &signature.0[..16];
-
-        if verify_res.0 == truncated_signature {
-            // We only have a 6, 8 and 12 dword cfi assert
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &verify_res.0[..12].try_into().unwrap(),
-                &truncated_signature[..12].try_into().unwrap(),
-            );
-            caliptra_cfi_lib::cfi_assert_eq_8_words(
-                &verify_res.0[8..].try_into().unwrap(),
-                &truncated_signature[8..].try_into().unwrap(),
-            );
+        // No need to zeroize here, as the hardware will be zeroized by verify.
+        let result = self.verify(pub_key, msg, &signature)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
         } else {
             Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
@@ -242,6 +236,9 @@ impl Mldsa87 {
 
         // Clear the hardware before start
         mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Copy digest
         msg.write_to_reg(mldsa.msg());
@@ -276,15 +273,15 @@ impl Mldsa87 {
     ) -> CaliptraResult<Mldsa87Result> {
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
-        let truncated_signature = &signature.0[..16];
+        let truncated_signature = &signature.0[signature.0.len() - verify_res.0.len()..];
 
         let result = if verify_res.0 == truncated_signature {
             // We only have a 6, 8 and 12 dword cfi assert
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
+            cfi_assert_eq_12_words(
                 &verify_res.0[..12].try_into().unwrap(),
                 &truncated_signature[..12].try_into().unwrap(),
             );
-            caliptra_cfi_lib::cfi_assert_eq_8_words(
+            cfi_assert_eq_8_words(
                 &verify_res.0[8..].try_into().unwrap(),
                 &truncated_signature[8..].try_into().unwrap(),
             );
