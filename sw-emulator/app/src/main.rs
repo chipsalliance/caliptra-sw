@@ -291,7 +291,7 @@ fn main() -> io::Result<()> {
         ready_for_fw_cb: if active_mode {
             ReadyForFwCb::new(move |args| {
                 args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
-                    rri_download(mailbox)
+                    issue_ri_download_fw_mbox_cmd(mailbox)
                 })
             })
         } else {
@@ -484,7 +484,7 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
     soc_mbox.execute().write(|w| w.execute(true));
 }
 
-fn rri_download(mailbox: &mut MailboxInternal) {
+fn issue_ri_download_fw_mbox_cmd(mailbox: &mut MailboxInternal) {
     let soc_mbox = mailbox.as_external().regs();
     // Write the cmd to mailbox.
 

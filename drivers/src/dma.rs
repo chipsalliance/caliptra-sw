@@ -178,17 +178,17 @@ impl Dma {
         let status = dma.status0().read();
 
         if read_data.len() > status.fifo_depth() as usize {
-            return Err(CaliptraError::DRIVER_DMA_FIFO_UNDERRUN);
+            Err(CaliptraError::DRIVER_DMA_FIFO_UNDERRUN)?;
         }
 
         // Only multiple of 4 bytes are allowed
         if read_data.len() % core::mem::size_of::<u32>() != 0 {
-            return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
+            Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE)?;
         }
 
         let read_data_ptr = dma.read_data().ptr as *const u8;
 
-        // Process all complete 4-byte chunks
+        // Process all 4-byte chunks
         for chunk in read_data.chunks_exact_mut(4) {
             let value = unsafe { read_volatile(read_data_ptr as *const u32) };
             chunk.copy_from_slice(&value.to_le_bytes());
@@ -204,15 +204,15 @@ impl Dma {
         let current_fifo_depth = dma.status0().read().fifo_depth();
 
         if write_data.len() as u32 > max_fifo_depth - current_fifo_depth {
-            return Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN);
+            Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN)?;
         }
 
         // Only multiple of 4 bytes are allowed
         if write_data.len() % core::mem::size_of::<u32>() != 0 {
-            return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
+            Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE)?;
         }
 
-        // Process all complete 4-byte chunks
+        // Process all 4-byte chunks
         for chunk in write_data.chunks(4) {
             let value = u32::from_le_bytes(chunk.try_into().unwrap());
             unsafe { (dma.write_data().ptr as *mut u32).write_volatile(value) };

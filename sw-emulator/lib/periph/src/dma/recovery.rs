@@ -204,7 +204,7 @@ impl RecoveryRegisterInterface {
 
     pub fn indirect_fifo_data_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
         if size != RvSize::Word {
-            return Err(BusError::LoadAccessFault);
+            Err(BusError::LoadAccessFault)?;
         }
         let image = match &self.cms_data {
             None => {

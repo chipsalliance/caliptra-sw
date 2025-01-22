@@ -842,6 +842,8 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
+    const CALIPTRA_HW_CONFIG_ACTIVE_MODE: u32 = 1 << 5;
+
     pub fn new(
         clock: &Clock,
         mailbox: MailboxInternal,
@@ -882,7 +884,11 @@ impl SocRegistersImpl {
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: ReadWriteRegister::new(if args.active_mode { 1 << 5 } else { 0 }),
+            cptra_hw_config: ReadWriteRegister::new(if args.active_mode {
+                Self::CALIPTRA_HW_CONFIG_ACTIVE_MODE
+            } else {
+                0
+            }),
             cptra_wdt_timer1_en: ReadWriteRegister::new(0),
             cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
             cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
