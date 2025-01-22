@@ -69,7 +69,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest) and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest) and [`AUTHORIZE_AND_STASH`](#authorize-and-stash). For image format of the manifest, please refer [this file](../auth-manifest/README.md).
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -81,7 +81,7 @@ A local verifier provides an authentication of SoC FW by matching SoC FW measure
 
 The Caliptra-Endorsed Local Verifier could be required by the owner only or both the vendor and the owner.
 
-The main difference between Caliptra-Endorsed Aggregated Measured Boot and Caliptra-Endorsed Local Verifier is if the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed as using it as an additional verification.
+The main difference between Caliptra-Endorsed Aggregated Measured Boot and Caliptra-Endorsed Local Verifier is whether the SoC RoT is relying on the Measurement Manifest for SoC Secure Boot services as opposed to using it as an additional verification.
 
 ### SoC RoT Enforcement of Measurement Manifest
 
@@ -93,14 +93,14 @@ Caliptra 1.0 and 1.1 do not put any requirements on how the SoC RoT ensures inte
 
 ### Unique Measurement Manifest Signing Keys
 
-In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and possibly one for the vendor. These new key pairs are endorsed once by the Caliptra FW signing keys, the signature being in the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
+In order to reduce usage of the Caliptra FW Signing keys, the measurement manifest will be signed by new key pairs: one for the owner and optionally one for the vendor. These new key pairs are endorsed once by the Caliptra FW signing keys, the signature being in the Measurement Manifest, thus allowing the measurement manifest keys to be used independently of the Caliptra FW signing keys.
 
 ### Caliptra Measurement Manifest Vendor Public Key Authenticity
 
 The Measurement Manifest MUST have an endorsement by the Caliptra Vendor Public Key. In order to fulfill this requirement, the Vendor has 2 options:
 
-* Vendor signing required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses this new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
-* Vendor signing **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
+* Vendor signing of `Image Metadata Collection` required: The Vendor creates a new Measurement keypair which will sign the measurement manifest and endorses this new public key with the Caliptra FW Vendor Private Key. The signature covers both the new public key as well as the flags field which indicates that the new Measurement Key Pair will be enforced.
+* Vendor signing of `Image Metadata Collection` **not** required: Vendor leaves the Vendor public key as all zeros, and clears the flag which enforces vendor signing and then endorses these fields with a signature in the Measurement Manifest. In this case, the Vendor releases ownership of enforcing any specific FW in execution.
 
 ### Caliptra Measurement Manifest Owner Public Key Authenticity
 
@@ -139,7 +139,7 @@ sequenceDiagram
     FMC->>Runtime: Launch RT
     Runtime->>SOC: RDY_FOR_RT
     Note over Runtime,SOC: Manifest Load
-    SOC->>Runtime: SET_MANIFEST
+    SOC->>Runtime: SET_AUTH_MANIFEST
     Runtime-->>SOC: Success/Failure
     Note over Runtime,SOC: Image Authorization
     loop n times

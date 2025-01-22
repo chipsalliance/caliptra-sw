@@ -31,7 +31,7 @@ The Caliptra SOC manifest has two main components:
 |---------------|--------------|----------------------------------|
 | Firmware Id   | u32          | Id of the image                  |
 | Flags         | u32          | See `METADATA_ENTRY_FLAGS` below |
-| Digest        | u32[48]      | Digest of the image              |
+| Digest        | u32[12]      | Digest of the image              |
 
 - ### **METADATA ENTRY FLAGS**
 | Field              | Size (bits) | Description |
