@@ -399,8 +399,9 @@ impl Mldsa87 {
         let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
 
         if success {
-            self.verify_res
-                .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
+            self.verify_res.copy_from_slice(
+                &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE / 4..],
+            );
         } else {
             self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
         }
@@ -755,8 +756,17 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
+        let signature = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig
+        };
+
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_eq!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        assert_eq!(
+            result,
+            &signature[signature.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
 
         // Bad signature
         let mut rng = rand::thread_rng();
@@ -796,8 +806,17 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
+        let signature = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig
+        };
+
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_ne!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        assert_ne!(
+            result,
+            &signature[signature.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
     }
 
     #[test]
