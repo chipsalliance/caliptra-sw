@@ -25,7 +25,7 @@ use crate::Mldsa87PubKey;
 // Memory Addresses
 //
 pub const ROM_ORG: u32 = 0x00000000;
-pub const MBOX_ORG: u32 = 0x30000000;
+pub const MBOX_ORG: u32 = 0x30040000;
 pub const ICCM_ORG: u32 = 0x40000000;
 pub const DCCM_ORG: u32 = 0x50000000;
 pub const ROM_DATA_ORG: u32 = 0x50000000;
@@ -68,8 +68,8 @@ pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 //
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
 pub const ROM_SIZE: u32 = 96 * 1024;
-pub const MBOX_SIZE: u32 = 128 * 1024;
-pub const ICCM_SIZE: u32 = 128 * 1024;
+pub const MBOX_SIZE: u32 = 256 * 1024;
+pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
 pub const MAN1_SIZE: u32 = 17 * 1024;

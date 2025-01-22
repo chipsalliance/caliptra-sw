@@ -33,7 +33,7 @@ CFI_STATE_ORG      = 0x500003E4;
  */
 ROM_RELAXATION_PADDING = 8k;
 ROM_SIZE          = 96K;
-ICCM_SIZE         = 128K;
+ICCM_SIZE         = 256K;
 DCCM_SIZE         = 256K;
 DATA_SIZE         = 996;
 STACK_SIZE        = 61K;

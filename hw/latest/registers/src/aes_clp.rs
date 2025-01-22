@@ -9,11 +9,11 @@
 /// programs create one of these in unsafe code near the top of
 /// main(), and pass it to the driver responsible for managing
 /// all access to the hardware.
-pub struct Sha256Reg {
+pub struct AesClpReg {
     _priv: (),
 }
-impl Sha256Reg {
-    pub const PTR: *mut u32 = 0x10028000 as *mut u32;
+impl AesClpReg {
+    pub const PTR: *mut u32 = 0x10011100 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -74,78 +74,55 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers representing of the name
-    /// of SHA256 component.
+    /// of AES component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::sha256::meta::Name, &TMmio>> {
+    pub fn aes_name(&self) -> ureg::Array<2, ureg::RegRef<crate::aes_clp::meta::AesName, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
     /// Two 32-bit read-only registers representing of the version
-    /// of SHA256 component.
+    /// of AES component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::sha256::meta::Version, &TMmio>> {
+    pub fn aes_version(
+        &self,
+    ) -> ureg::Array<2, ureg::RegRef<crate::aes_clp::meta::AesVersion, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// SHA256 component control register type definition.
-    /// After each software write, hardware will erase the register.
+    /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`sha256::regs::CtrlReadVal`]; Write value: [`sha256::regs::CtrlWriteVal`]
+    /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     #[inline(always)]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::sha256::meta::Ctrl, &TMmio> {
+    pub fn aes_kv_rd_key_ctrl(&self) -> ureg::RegRef<crate::aes_clp::meta::AesKvRdKeyCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// SHA256 component status register type definition
+    /// Reports the Key Vault flow status for this engine
     ///
-    /// Read value: [`sha256::regs::StatusReadVal`]; Write value: [`sha256::regs::StatusWriteVal`]
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::sha256::meta::Status, &TMmio> {
+    pub fn aes_kv_rd_key_status(
+        &self,
+    ) -> ureg::RegRef<crate::aes_clp::meta::AesKvRdKeyStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// SHA256 component block register type definition.
-    /// 16 32-bit registers storing the 512-bit padded input in big-endian representation.
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn block(&self) -> ureg::Array<16, ureg::RegRef<crate::sha256::meta::Block, &TMmio>> {
-        unsafe {
-            ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// SHA256 component digest register type definition
-    /// 8 32-bit registers storing the 256-bit digest output in big-endian representation.
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn digest(&self) -> ureg::Array<8, ureg::RegRef<crate::sha256::meta::Digest, &TMmio>> {
-        unsafe {
-            ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -170,7 +147,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn global_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -184,7 +161,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
@@ -198,7 +175,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -220,7 +197,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -242,7 +219,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -257,7 +234,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
@@ -272,7 +249,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
@@ -290,7 +267,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
@@ -308,7 +285,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
@@ -324,7 +301,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error0_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError0IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError0IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
@@ -340,7 +317,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error1_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError1IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError1IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
@@ -356,7 +333,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error2_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError2IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError2IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
@@ -372,7 +349,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error3_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError3IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError3IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
@@ -388,7 +365,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_done_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
@@ -409,7 +386,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error0_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError0IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError0IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
@@ -430,7 +407,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error1_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError1IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError1IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
@@ -451,7 +428,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error2_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
@@ -472,7 +449,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error3_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
@@ -493,7 +470,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_done_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha256::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::aes_clp::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
@@ -543,103 +520,6 @@ impl IntrBlockRf {
 }
 pub mod regs {
     //! Types that represent the values held by registers.
-    #[derive(Clone, Copy)]
-    pub struct CtrlWriteVal(u32);
-    impl CtrlWriteVal {
-        /// Control init command bit: Trigs the SHA256 core to start the
-        /// processing for the first padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn init(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Control next command bit: ​Trigs the SHA256 core to start the
-        /// processing for the remining padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn next(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Control mode command bits: Indicates the SHA256 core to set dynamically
-        /// the type of hashing algorithm. This can be:
-        /// 0 for SHA256/224
-        /// 1 for SHA256
-        #[inline(always)]
-        pub fn mode(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Zeroize all internal registers: Zeroize all internal registers after SHA process, to avoid SCA leakage.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn zeroize(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
-        }
-        /// Control Winternitz verification mode command bits
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn wntz_mode(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Control Winternitz W value
-        #[inline(always)]
-        pub fn wntz_w(self, val: u32) -> Self {
-            Self((self.0 & !(0xf << 5)) | ((val & 0xf) << 5))
-        }
-        /// Control Winternitz n value(SHA192/SHA256 --> n = 24/32)
-        #[inline(always)]
-        pub fn wntz_n_mode(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
-        }
-    }
-    impl From<u32> for CtrlWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<CtrlWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: CtrlWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StatusReadVal(u32);
-    impl StatusReadVal {
-        /// Status ready bit: ​Indicates if the core is ready to take
-        /// a control command and process the block.
-        #[inline(always)]
-        pub fn ready(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Status valid bit: ​Indicates if the process is done and the
-        /// hash value stored in DIGEST registers is valid.
-        #[inline(always)]
-        pub fn valid(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Winternitz busy status bit
-        #[inline(always)]
-        pub fn wntz_busy(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-    }
-    impl From<u32> for StatusReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StatusReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: StatusReadVal) -> u32 {
-            val.0
-        }
-    }
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTReadVal(u32);
     impl ErrorIntrEnTReadVal {
@@ -1114,16 +994,324 @@ pub mod regs {
 }
 pub mod enums {
     //! Enumerations used by some register fields.
-    pub mod selector {}
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    #[repr(u32)]
+    pub enum KvErrorE {
+        Success = 0,
+        KvReadFail = 1,
+        KvWriteFail = 2,
+        Reserved3 = 3,
+        Reserved4 = 4,
+        Reserved5 = 5,
+        Reserved6 = 6,
+        Reserved7 = 7,
+        Reserved8 = 8,
+        Reserved9 = 9,
+        Reserved10 = 10,
+        Reserved11 = 11,
+        Reserved12 = 12,
+        Reserved13 = 13,
+        Reserved14 = 14,
+        Reserved15 = 15,
+        Reserved16 = 16,
+        Reserved17 = 17,
+        Reserved18 = 18,
+        Reserved19 = 19,
+        Reserved20 = 20,
+        Reserved21 = 21,
+        Reserved22 = 22,
+        Reserved23 = 23,
+        Reserved24 = 24,
+        Reserved25 = 25,
+        Reserved26 = 26,
+        Reserved27 = 27,
+        Reserved28 = 28,
+        Reserved29 = 29,
+        Reserved30 = 30,
+        Reserved31 = 31,
+        Reserved32 = 32,
+        Reserved33 = 33,
+        Reserved34 = 34,
+        Reserved35 = 35,
+        Reserved36 = 36,
+        Reserved37 = 37,
+        Reserved38 = 38,
+        Reserved39 = 39,
+        Reserved40 = 40,
+        Reserved41 = 41,
+        Reserved42 = 42,
+        Reserved43 = 43,
+        Reserved44 = 44,
+        Reserved45 = 45,
+        Reserved46 = 46,
+        Reserved47 = 47,
+        Reserved48 = 48,
+        Reserved49 = 49,
+        Reserved50 = 50,
+        Reserved51 = 51,
+        Reserved52 = 52,
+        Reserved53 = 53,
+        Reserved54 = 54,
+        Reserved55 = 55,
+        Reserved56 = 56,
+        Reserved57 = 57,
+        Reserved58 = 58,
+        Reserved59 = 59,
+        Reserved60 = 60,
+        Reserved61 = 61,
+        Reserved62 = 62,
+        Reserved63 = 63,
+        Reserved64 = 64,
+        Reserved65 = 65,
+        Reserved66 = 66,
+        Reserved67 = 67,
+        Reserved68 = 68,
+        Reserved69 = 69,
+        Reserved70 = 70,
+        Reserved71 = 71,
+        Reserved72 = 72,
+        Reserved73 = 73,
+        Reserved74 = 74,
+        Reserved75 = 75,
+        Reserved76 = 76,
+        Reserved77 = 77,
+        Reserved78 = 78,
+        Reserved79 = 79,
+        Reserved80 = 80,
+        Reserved81 = 81,
+        Reserved82 = 82,
+        Reserved83 = 83,
+        Reserved84 = 84,
+        Reserved85 = 85,
+        Reserved86 = 86,
+        Reserved87 = 87,
+        Reserved88 = 88,
+        Reserved89 = 89,
+        Reserved90 = 90,
+        Reserved91 = 91,
+        Reserved92 = 92,
+        Reserved93 = 93,
+        Reserved94 = 94,
+        Reserved95 = 95,
+        Reserved96 = 96,
+        Reserved97 = 97,
+        Reserved98 = 98,
+        Reserved99 = 99,
+        Reserved100 = 100,
+        Reserved101 = 101,
+        Reserved102 = 102,
+        Reserved103 = 103,
+        Reserved104 = 104,
+        Reserved105 = 105,
+        Reserved106 = 106,
+        Reserved107 = 107,
+        Reserved108 = 108,
+        Reserved109 = 109,
+        Reserved110 = 110,
+        Reserved111 = 111,
+        Reserved112 = 112,
+        Reserved113 = 113,
+        Reserved114 = 114,
+        Reserved115 = 115,
+        Reserved116 = 116,
+        Reserved117 = 117,
+        Reserved118 = 118,
+        Reserved119 = 119,
+        Reserved120 = 120,
+        Reserved121 = 121,
+        Reserved122 = 122,
+        Reserved123 = 123,
+        Reserved124 = 124,
+        Reserved125 = 125,
+        Reserved126 = 126,
+        Reserved127 = 127,
+        Reserved128 = 128,
+        Reserved129 = 129,
+        Reserved130 = 130,
+        Reserved131 = 131,
+        Reserved132 = 132,
+        Reserved133 = 133,
+        Reserved134 = 134,
+        Reserved135 = 135,
+        Reserved136 = 136,
+        Reserved137 = 137,
+        Reserved138 = 138,
+        Reserved139 = 139,
+        Reserved140 = 140,
+        Reserved141 = 141,
+        Reserved142 = 142,
+        Reserved143 = 143,
+        Reserved144 = 144,
+        Reserved145 = 145,
+        Reserved146 = 146,
+        Reserved147 = 147,
+        Reserved148 = 148,
+        Reserved149 = 149,
+        Reserved150 = 150,
+        Reserved151 = 151,
+        Reserved152 = 152,
+        Reserved153 = 153,
+        Reserved154 = 154,
+        Reserved155 = 155,
+        Reserved156 = 156,
+        Reserved157 = 157,
+        Reserved158 = 158,
+        Reserved159 = 159,
+        Reserved160 = 160,
+        Reserved161 = 161,
+        Reserved162 = 162,
+        Reserved163 = 163,
+        Reserved164 = 164,
+        Reserved165 = 165,
+        Reserved166 = 166,
+        Reserved167 = 167,
+        Reserved168 = 168,
+        Reserved169 = 169,
+        Reserved170 = 170,
+        Reserved171 = 171,
+        Reserved172 = 172,
+        Reserved173 = 173,
+        Reserved174 = 174,
+        Reserved175 = 175,
+        Reserved176 = 176,
+        Reserved177 = 177,
+        Reserved178 = 178,
+        Reserved179 = 179,
+        Reserved180 = 180,
+        Reserved181 = 181,
+        Reserved182 = 182,
+        Reserved183 = 183,
+        Reserved184 = 184,
+        Reserved185 = 185,
+        Reserved186 = 186,
+        Reserved187 = 187,
+        Reserved188 = 188,
+        Reserved189 = 189,
+        Reserved190 = 190,
+        Reserved191 = 191,
+        Reserved192 = 192,
+        Reserved193 = 193,
+        Reserved194 = 194,
+        Reserved195 = 195,
+        Reserved196 = 196,
+        Reserved197 = 197,
+        Reserved198 = 198,
+        Reserved199 = 199,
+        Reserved200 = 200,
+        Reserved201 = 201,
+        Reserved202 = 202,
+        Reserved203 = 203,
+        Reserved204 = 204,
+        Reserved205 = 205,
+        Reserved206 = 206,
+        Reserved207 = 207,
+        Reserved208 = 208,
+        Reserved209 = 209,
+        Reserved210 = 210,
+        Reserved211 = 211,
+        Reserved212 = 212,
+        Reserved213 = 213,
+        Reserved214 = 214,
+        Reserved215 = 215,
+        Reserved216 = 216,
+        Reserved217 = 217,
+        Reserved218 = 218,
+        Reserved219 = 219,
+        Reserved220 = 220,
+        Reserved221 = 221,
+        Reserved222 = 222,
+        Reserved223 = 223,
+        Reserved224 = 224,
+        Reserved225 = 225,
+        Reserved226 = 226,
+        Reserved227 = 227,
+        Reserved228 = 228,
+        Reserved229 = 229,
+        Reserved230 = 230,
+        Reserved231 = 231,
+        Reserved232 = 232,
+        Reserved233 = 233,
+        Reserved234 = 234,
+        Reserved235 = 235,
+        Reserved236 = 236,
+        Reserved237 = 237,
+        Reserved238 = 238,
+        Reserved239 = 239,
+        Reserved240 = 240,
+        Reserved241 = 241,
+        Reserved242 = 242,
+        Reserved243 = 243,
+        Reserved244 = 244,
+        Reserved245 = 245,
+        Reserved246 = 246,
+        Reserved247 = 247,
+        Reserved248 = 248,
+        Reserved249 = 249,
+        Reserved250 = 250,
+        Reserved251 = 251,
+        Reserved252 = 252,
+        Reserved253 = 253,
+        Reserved254 = 254,
+        Reserved255 = 255,
+    }
+    impl KvErrorE {
+        #[inline(always)]
+        pub fn success(&self) -> bool {
+            *self == Self::Success
+        }
+        #[inline(always)]
+        pub fn kv_read_fail(&self) -> bool {
+            *self == Self::KvReadFail
+        }
+        #[inline(always)]
+        pub fn kv_write_fail(&self) -> bool {
+            *self == Self::KvWriteFail
+        }
+    }
+    impl TryFrom<u32> for KvErrorE {
+        type Error = ();
+        #[inline(always)]
+        fn try_from(val: u32) -> Result<KvErrorE, ()> {
+            if val < 0x100 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
+            }
+        }
+    }
+    impl From<KvErrorE> for u32 {
+        fn from(val: KvErrorE) -> Self {
+            val as u32
+        }
+    }
+    pub mod selector {
+        pub struct KvErrorESelector();
+        impl KvErrorESelector {
+            #[inline(always)]
+            pub fn success(&self) -> super::KvErrorE {
+                super::KvErrorE::Success
+            }
+            #[inline(always)]
+            pub fn kv_read_fail(&self) -> super::KvErrorE {
+                super::KvErrorE::KvReadFail
+            }
+            #[inline(always)]
+            pub fn kv_write_fail(&self) -> super::KvErrorE {
+                super::KvErrorE::KvWriteFail
+            }
+        }
+    }
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type Name = ureg::ReadOnlyReg32<u32>;
-    pub type Version = ureg::ReadOnlyReg32<u32>;
-    pub type Ctrl = ureg::WriteOnlyReg32<0x84, crate::sha256::regs::CtrlWriteVal>;
-    pub type Status = ureg::ReadOnlyReg32<crate::sha256::regs::StatusReadVal>;
-    pub type Block = ureg::WriteOnlyReg32<0, u32>;
-    pub type Digest = ureg::ReadOnlyReg32<u32>;
+    pub type AesName = ureg::ReadOnlyReg32<u32>;
+    pub type AesVersion = ureg::ReadOnlyReg32<u32>;
+    pub type AesKvRdKeyCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type AesKvRdKeyStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
     pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
         0,
         crate::sha512_acc::regs::GlobalIntrEnTReadVal,
