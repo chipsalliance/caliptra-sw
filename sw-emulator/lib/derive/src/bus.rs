@@ -69,12 +69,6 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
-    let event_responder_tokens = if has_events {
-        gen_event_responder_tokens(&register_fields)
-    } else {
-        quote! {}
-    };
-
     let self_incoming_event_tokens = if let Some(incoming_event_fn) = &incoming_event_fn {
         let incoming_event_fn = Ident::new(incoming_event_fn, Span::call_site());
         quote! {

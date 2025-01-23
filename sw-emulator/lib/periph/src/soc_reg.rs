@@ -963,7 +963,6 @@ impl SocRegistersImpl {
             ss_uds_seed_base_addr_l: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
             ss_uds_seed_base_addr_h: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
             fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
-            event_sender: None,
         };
         regs
     }

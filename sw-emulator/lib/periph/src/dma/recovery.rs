@@ -12,11 +12,14 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister};
+use caliptra_emu_bus::{
+    BusError, Event, EventData, ReadOnlyRegister, ReadWriteRegister, RecoveryCommandCode,
+};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use std::mem;
 use std::rc::Rc;
+use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
@@ -94,6 +97,8 @@ register_bitfields! [
 
 /// Recovery register interface
 #[derive(Bus)]
+#[incoming_event_fn(incoming_event)]
+#[register_outgoing_events_fn(register_outgoing_events)]
 pub struct RecoveryRegisterInterface {
     // Capability registers
     #[register(offset = 0x0)]
@@ -158,6 +163,7 @@ pub struct RecoveryRegisterInterface {
     pub indirect_fifo_data: ReadWriteRegister<u32>,
 
     pub cms_data: Option<Rc<Vec<u8>>>, // TODO Multiple images?
+    pub event_sender: Option<mpsc::Sender<Event>>,
 }
 
 impl RecoveryRegisterInterface {
@@ -199,6 +205,7 @@ impl RecoveryRegisterInterface {
             indirect_fifo_data: ReadWriteRegister::new(0),
 
             cms_data: None,
+            event_sender: None,
         }
     }
 
@@ -285,6 +292,50 @@ impl RecoveryRegisterInterface {
         match &self.cms_data {
             Some(d) => Ok((d.as_ref().len() / mem::size_of::<u32>()) as u32),
             None => Ok(0),
+        }
+    }
+
+    pub fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.event_sender = Some(sender);
+    }
+
+    pub fn incoming_event(&mut self, event: Rc<Event>) {
+        let sender = self
+            .event_sender
+            .as_ref()
+            .expect("Incoming event but we have no sender registered");
+        match &event.event {
+            EventData::RecoveryImageAvailable { image_id, image } => {}
+            EventData::RecoveryBlockReadRequest {
+                source_addr,
+                target_addr,
+                command_code,
+            } => {
+                let resp: Option<Vec<u8>> = match command_code {
+                    RecoveryCommandCode::ProtCap => Some(
+                        self.prot_cap_0.reg.get().to_le_bytes()[0..2]
+                            .iter()
+                            .copied()
+                            .collect(),
+                    ),
+                    _ => None,
+                };
+                if let Some(resp) = resp {
+                    sender
+                        .send(Event {
+                            src: event.dest,
+                            dest: event.src,
+                            event: EventData::RecoveryBlockReadResponse {
+                                source_addr: *target_addr,
+                                target_addr: *source_addr,
+                                command_code: *command_code,
+                                payload: resp,
+                            },
+                        })
+                        .expect("Could not send event");
+                }
+            }
+            _ => {}
         }
     }
 }

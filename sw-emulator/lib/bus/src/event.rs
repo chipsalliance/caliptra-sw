@@ -7,7 +7,7 @@ pub struct Event {
     pub event: EventData,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {
     CaliptraCore,
     MCU,
@@ -32,6 +32,27 @@ pub enum EventData {
         start_addr: u32,
         data: Vec<u8>,
     },
+    RecoveryBlockWrite {
+        source_addr: u8,
+        target_addr: u8,
+        command_code: RecoveryCommandCode,
+        payload: Vec<u8>,
+    },
+    RecoveryBlockReadRequest {
+        source_addr: u8,
+        target_addr: u8,
+        command_code: RecoveryCommandCode,
+    },
+    RecoveryBlockReadResponse {
+        source_addr: u8,
+        target_addr: u8,
+        command_code: RecoveryCommandCode,
+        payload: Vec<u8>,
+    },
+    RecoveryImageAvailable {
+        image_id: u8,
+        image: Vec<u8>,
+    },
     I3CBusCommand {
         source_addr: u8,
         dest_addr: u8,
@@ -45,4 +66,22 @@ pub enum EventData {
         descriptor: u64,
         data: Vec<u8>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RecoveryCommandCode {
+    ProtCap,
+    DeviceId,
+    DeviceStatus,
+    DeviceReset,
+    RecoveryCtrl,
+    RecoveryStatus,
+    HwStatus,
+    IndirectCtrl,
+    IndirectStatus,
+    IndirectData,
+    Vendor,
+    IndirectFifoCtrl,
+    IndirectFifoStatus,
+    IndirectFifoData,
 }
