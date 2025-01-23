@@ -35,7 +35,7 @@ static int set_fuses()
     {
         fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
     }
-    memcpy(&fuses.key_manifest_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
+    memcpy(&fuses.vendor_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
     if ((status = caliptra_init_fuses(&fuses)) != 0)
     {
         printf("Failed to init fuses: %d\n", status);

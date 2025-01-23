@@ -338,7 +338,7 @@ fn main() -> io::Result<()> {
                 .try_into()
                 .expect("mfg_pk_hash must be 48 bytes"),
         );
-        soc_ifc.fuse_key_manifest_pk_hash().write(&mfg_pk_hash);
+        soc_ifc.fuse_vendor_pk_hash().write(&mfg_pk_hash);
     }
 
     if !owner_pk_hash.is_empty() {

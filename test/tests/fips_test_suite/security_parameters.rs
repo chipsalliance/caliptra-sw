@@ -39,16 +39,16 @@ fn attempt_csp_fuse_read<T: HwModel>(hw: &mut T) {
 }
 
 fn attempt_psp_fuse_modify<T: HwModel>(hw: &mut T) {
-    let owner_pk_hash_read_orig_val = hw.soc_ifc().fuse_key_manifest_pk_hash().at(0).read();
+    let owner_pk_hash_read_orig_val = hw.soc_ifc().cptra_owner_pk_hash().at(0).read();
 
     // TODO: Add exception for SW emulator (write failure panics)
     // Try to write a new value
-    let owner_pk_hash_ptr = hw.soc_ifc().fuse_key_manifest_pk_hash().at(0).ptr;
+    let owner_pk_hash_ptr = hw.soc_ifc().cptra_owner_pk_hash().at(0).ptr;
     unsafe {
         caliptra_hw_model::BusMmio::new(hw.apb_bus()).write_volatile(owner_pk_hash_ptr, 0xaaaaaaaa)
     };
 
-    let owner_pk_hash_read_val = hw.soc_ifc().fuse_key_manifest_pk_hash().at(0).read();
+    let owner_pk_hash_read_val = hw.soc_ifc().cptra_owner_pk_hash().at(0).read();
 
     // Make sure the value was unchanged
     assert_eq!(owner_pk_hash_read_orig_val, owner_pk_hash_read_val);
@@ -128,7 +128,7 @@ fn attempt_ssp_access<T: HwModel>(hw: &mut T) {
 pub fn attempt_ssp_access_rom() {
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
-        key_manifest_pk_hash: [0x55555555u32; 12],
+        vendor_pk_hash: [0x55555555u32; 12],
         ..Default::default()
     };
 
@@ -163,7 +163,7 @@ pub fn attempt_ssp_access_fw_load() {
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         life_cycle: DeviceLifecycle::Production,
         ..Default::default()
     };
@@ -214,7 +214,7 @@ pub fn attempt_ssp_access_rt() {
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         life_cycle: DeviceLifecycle::Production,
         ..Default::default()
     };

@@ -87,10 +87,8 @@ mod constants {
     pub const CPTRA_OWNER_PK_HASH_START: u32 = 0x140;
     pub const CPTRA_OWNER_PK_HASH_SIZE: usize = 48;
     pub const CPTRA_FUSE_PAUSER_LOCK_START: u32 = 0x10c;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_START: u32 = 0x260;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_SIZE: usize = 48;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_START: u32 = 0x290;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE: usize = 32;
+    pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x260;
+    pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
     pub const FUSE_FMC_SVN_START: u32 = 0x2b4;
     pub const FUSE_RUNTIME_SVN_START: u32 = 0x2b8;
     pub const FUSE_RUNTIME_SVN_SIZE: usize = 16;
@@ -670,10 +668,10 @@ struct SocRegistersImpl {
     fuse_field_entropy: [u32; FUSE_FIELD_ENTROPY_SIZE / 4],
 
     #[register_array(offset = 0x0260)]
-    fuse_key_manifest_pk_hash: [u32; FUSE_KEY_MANIFEST_PK_HASH_SIZE / 4],
+    fuse_vendor_pk_hash: [u32; FUSE_VENDOR_PK_HASH_SIZE / 4],
 
-    #[register_array(offset = 0x0290)]
-    fuse_key_manifest_pk_hash_mask: [u32; FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE / 4],
+    #[register(offset = 0x0290)]
+    fuse_ecc_revocation: u32,
 
     #[register(offset = 0x02b4)]
     fuse_fmc_svn: u32,
@@ -909,8 +907,8 @@ impl SocRegistersImpl {
             cptra_owner_pk_hash_lock: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
-            fuse_key_manifest_pk_hash: [0; 12],
-            fuse_key_manifest_pk_hash_mask: [0; 8],
+            fuse_vendor_pk_hash: [0; 12],
+            fuse_ecc_revocation: Default::default(),
             fuse_fmc_svn: Default::default(),
             fuse_runtime_svn: Default::default(),
             fuse_anti_rollback_disable: Default::default(),

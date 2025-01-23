@@ -128,7 +128,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
         self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
     }
 

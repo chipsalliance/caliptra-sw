@@ -193,7 +193,7 @@ fn smoke_test() {
     let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
+        vendor_pk_hash: vendor_pk_desc_hash_words,
         owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7

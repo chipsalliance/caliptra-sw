@@ -278,8 +278,8 @@ int caliptra_init_fuses(const struct caliptra_fuses *fuses)
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, CALIPTRA_ARRAY_SIZE(fuses->uds_seed));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, CALIPTRA_ARRAY_SIZE(fuses->field_entropy));
-    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->key_manifest_pk_hash));
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK_0, fuses->key_manifest_pk_hash_mask);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_VENDOR_PK_HASH_0, fuses->vendor_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->vendor_pk_hash));
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ECC_REVOCATION, fuses->ecc_revocation);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_CPTRA_OWNER_PK_HASH_0, fuses->owner_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->owner_pk_hash));
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->runtime_svn, CALIPTRA_ARRAY_SIZE(fuses->runtime_svn));

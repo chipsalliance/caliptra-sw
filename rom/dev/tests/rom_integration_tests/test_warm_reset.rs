@@ -41,7 +41,7 @@ fn test_warm_reset_success() {
         },
         BootParams {
             fuses: Fuses {
-                key_manifest_pk_hash: vendor_pk_desc_hash,
+                vendor_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash,
                 fmc_key_manifest_svn: 0b1111111,
                 runtime_svn: [0x7F, 0, 0, 0], // Equals 7
@@ -60,7 +60,7 @@ fn test_warm_reset_success() {
 
     // Perform warm reset
     hw.warm_reset_flow(&Fuses {
-        key_manifest_pk_hash: vendor_pk_desc_hash,
+        vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
