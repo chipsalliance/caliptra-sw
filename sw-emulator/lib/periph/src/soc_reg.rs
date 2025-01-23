@@ -702,6 +702,12 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x34c)]
     fuse_manuf_dbg_unlock_token: [u32; FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE / 4],
 
+    #[register(offset = 0x510)]
+    ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x514)]
+    ss_recovery_ifc_base_addr_h: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x520)]
     ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -836,6 +842,8 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
+    const CALIPTRA_HW_CONFIG_ACTIVE_MODE: u32 = 1 << 5;
+
     pub fn new(
         clock: &Clock,
         mailbox: MailboxInternal,
@@ -845,6 +853,8 @@ impl SocRegistersImpl {
     ) -> Self {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
+
+        let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -874,7 +884,11 @@ impl SocRegistersImpl {
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: ReadWriteRegister::new(0), // [TODO][CAP2] Program this
+            cptra_hw_config: ReadWriteRegister::new(if args.active_mode {
+                Self::CALIPTRA_HW_CONFIG_ACTIVE_MODE
+            } else {
+                0
+            }),
             cptra_wdt_timer1_en: ReadWriteRegister::new(0),
             cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
             cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
@@ -906,6 +920,8 @@ impl SocRegistersImpl {
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 4],
+            ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
+            ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),

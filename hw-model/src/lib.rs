@@ -634,11 +634,11 @@ pub trait HwModel: SocManager {
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
     }
 
-    /// The AXI bus from the SoC to Caliptra
+    /// The APB bus from the SoC to Caliptra
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
     /// microcontroller executing a few instructions
-    fn axi_bus(&mut self) -> Self::TBus<'_>;
+    fn apb_bus(&mut self) -> Self::TBus<'_>;
 
     /// Step execution ahead one clock cycle.
     fn step(&mut self);
@@ -667,7 +667,7 @@ pub trait HwModel: SocManager {
 
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
-    /// should come via a caliptra_top wire rather than an AXI register.
+    /// should come via a caliptra_top wire rather than an APB register.
     fn ready_for_fw(&self) -> bool;
 
     /// Initializes the fuse values and locks them in until the next reset. This
@@ -1153,21 +1153,21 @@ mod tests {
             .write(|w| w.lock(true));
 
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             0
         );
 
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             1
         );
 
         model
-            .axi_bus()
+            .apb_bus()
             .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
             .unwrap();
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
             4242
         );
     }

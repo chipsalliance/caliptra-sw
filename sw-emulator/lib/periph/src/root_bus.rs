@@ -17,7 +17,6 @@ use crate::{
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::Mldsa87,
-    recovery::RecoveryRegisterInterface,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
@@ -227,6 +226,7 @@ pub struct CaliptraRootBusArgs {
 
     pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pub active_mode: bool,
 }
 impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
@@ -242,12 +242,12 @@ impl Default for CaliptraRootBusArgs {
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
+            active_mode: false,
         }
     }
 }
 
 #[derive(Bus)]
-#[handle_dma_fn(handle_dma)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -272,10 +272,6 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x1003_0000, mask = 0x0000_ffff)]
     pub ml_dsa87: Mldsa87,
-
-    // We set I3C at 0x1004_0000 and EC is at 0x100 offset
-    #[peripheral(offset = 0x1004_0100, mask = 0x0000_7fff)] // TODO
-    pub recovery: RecoveryRegisterInterface,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Iccm,
@@ -330,6 +326,7 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
+        let dma = Dma::new(clock, mailbox_ram.clone());
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
 
@@ -342,7 +339,6 @@ impl CaliptraRootBus {
             sha512,
             sha256: HashSha256::new(clock),
             ml_dsa87: Mldsa87::new(clock, key_vault.clone()),
-            recovery: RecoveryRegisterInterface::new(),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
@@ -351,7 +347,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
-            dma: Dma::new(clock),
+            dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
         }
@@ -363,11 +359,6 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
-    }
-
-    fn handle_dma(&mut self) {
-        let mut dma = self.dma.clone();
-        dma.do_dma_handling(self)
     }
 }
 
