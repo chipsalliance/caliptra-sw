@@ -86,6 +86,14 @@ impl Mailbox {
         }
     }
 
+    // Fake mailbox transaction used when downloading firmware image from Recovery Interface.
+    pub fn fake_recv_txn(&mut self) -> MailboxRecvTxn {
+        MailboxRecvTxn {
+            state: MailboxOpState::Execute,
+            mbox: &mut self.mbox,
+        }
+    }
+
     /// Lets the caller peek into the mailbox without touching the transaction.
     pub fn peek_recv(&mut self) -> Option<MailboxRecvPeek> {
         let mbox = self.mbox.regs();
