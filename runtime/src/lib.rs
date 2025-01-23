@@ -29,6 +29,7 @@ pub mod info;
 mod invoke_dpe;
 mod pcr;
 mod populate_idev;
+mod recovery_flow;
 mod set_auth_manifest;
 mod stash_measurement;
 mod subject_alt_name;

@@ -19,11 +19,11 @@ pub enum UintType {
     U8,
     U16,
     U32,
-    U64,
 }
 
-pub trait Uint: Clone + Copy + private::Sealed {
+pub trait Uint: Clone + Copy + Into<u32> + private::Sealed {
     const TYPE: UintType;
+    fn from_u32(val: u32) -> Self;
 }
 
 mod private {
@@ -32,23 +32,27 @@ mod private {
 
 impl Uint for u8 {
     const TYPE: UintType = UintType::U8;
+    fn from_u32(val: u32) -> Self {
+        (val & 0xff) as u8
+    }
 }
 impl private::Sealed for u8 {}
 
 impl Uint for u16 {
     const TYPE: UintType = UintType::U16;
+    fn from_u32(val: u32) -> Self {
+        (val & 0xffff) as u16
+    }
 }
 impl private::Sealed for u16 {}
 
 impl Uint for u32 {
     const TYPE: UintType = UintType::U32;
+    fn from_u32(val: u32) -> Self {
+        val
+    }
 }
 impl private::Sealed for u32 {}
-
-impl Uint for u64 {
-    const TYPE: UintType = UintType::U64;
-}
-impl private::Sealed for u64 {}
 
 /// The root trait for metadata describing a MMIO register.
 ///
