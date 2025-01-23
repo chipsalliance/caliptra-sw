@@ -14,8 +14,7 @@ File contains DMA peripheral implementation.
 
 use crate::MailboxRam;
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer,
-    WriteOnlyRegister,
+    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer, WriteOnlyRegister
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -27,6 +26,12 @@ use tock_registers::register_bitfields;
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
 mod recovery;
+
+const RECOVERY_STATUS_OFFSET: u64 = 0x40;
+const AWATING_RECOVERY_IMAGE: u32 = 0x1;
+
+/// The number of CPU clock cycles it takes to receive the payload from the DMA.
+const PAYLOAD_AVAILABLE_OP_TICKS: u64 = 1000;
 
 register_bitfields! [
     u32,
@@ -60,13 +65,17 @@ register_bitfields! [
     Status0 [
         BUSY OFFSET(0) NUMBITS(1) [], // 0 = ready to accept transfer request, 1 = operation in progress
         ERROR OFFSET(1) NUMBITS(1) [],
+        RESERVED OFFSET(2) NUMBITS(2) [],
         FIFO_DEPTH OFFSET(4) NUMBITS(12) [],
         DMA_FSM_PRESENT_STATE OFFSET(16) NUMBITS(2) [
             IDLE = 0b00,
             WAIT_DATA = 0b01,
             DONE = 0b10,
             ERROR = 0b11,
-        ]
+        ],
+        PAYLOAD_AVAILABLE OFFSET(18) NUMBITS(1) [],
+        IMAGE_ACTIVATED OFFSET(19) NUMBITS(1) [],
+        RESERVED2 OFFSET(20) NUMBITS(12) [],
     ],
 
     /// Block Size
@@ -137,6 +146,9 @@ pub struct Dma {
     /// Operation complete callback
     op_complete_action: Option<ActionHandle>,
 
+    /// Payload available callback
+    op_payload_available_action: Option<ActionHandle>,
+
     /// FIFO
     fifo: VecDeque<u8>,
 
@@ -186,6 +198,7 @@ impl Dma {
             read_data: ReadOnlyRegister::new(0),
             timer: Timer::new(clock),
             op_complete_action: None,
+            op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
             axi: AxiRootBus::new(),
             mailbox,
@@ -365,6 +378,17 @@ impl Dma {
             self.axi
                 .write(Self::AXI_DATA_WIDTH.into(), addr, data)
                 .unwrap();
+
+            // Check if FW is inficating that it is ready to receive the recovery image.
+            if ((addr & RECOVERY_STATUS_OFFSET) == RECOVERY_STATUS_OFFSET) && ((data & AWATING_RECOVERY_IMAGE) == AWATING_RECOVERY_IMAGE) {
+                self.status0.reg.write(Status0::PAYLOAD_AVAILABLE::CLEAR);
+
+                // Schedule the timer to indicate that the payload is available
+                self.op_payload_available_action = Some(
+                    self.timer
+                        .schedule_poll_in(PAYLOAD_AVAILABLE_OP_TICKS),
+                );
+            }
         }
     }
 
@@ -399,6 +423,9 @@ impl Dma {
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
             self.op_complete();
+        }
+        if self.timer.fired(&mut self.op_payload_available_action) {
+            self.status0.reg.write(Status0::PAYLOAD_AVAILABLE::SET);
         }
     }
 }
