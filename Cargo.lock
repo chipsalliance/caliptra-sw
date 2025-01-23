@@ -838,6 +838,7 @@ dependencies = [
  "platform",
  "sha2",
  "ufmt",
+ "ureg",
  "wycheproof",
  "x509-parser",
  "zerocopy",
