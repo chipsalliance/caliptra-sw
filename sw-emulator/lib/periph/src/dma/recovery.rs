@@ -312,12 +312,37 @@ impl RecoveryRegisterInterface {
                 command_code,
             } => {
                 let resp: Option<Vec<u8>> = match command_code {
-                    RecoveryCommandCode::ProtCap => Some(
-                        self.prot_cap_0.reg.get().to_le_bytes()[0..2]
-                            .iter()
-                            .copied()
-                            .collect(),
+                    RecoveryCommandCode::ProtCap => to_payload(
+                        &[
+                            self.prot_cap_0.reg.get(),
+                            self.prot_cap_1.reg.get(),
+                            self.prot_cap_2.reg.get(),
+                            self.prot_cap_3.reg.get(),
+                        ],
+                        15,
                     ),
+                    RecoveryCommandCode::DeviceId => to_payload(
+                        &[
+                            self.device_id_0.reg.get(),
+                            self.device_id_1.reg.get(),
+                            self.device_id_2.reg.get(),
+                            self.device_id_3.reg.get(),
+                            self.device_id_4.reg.get(),
+                            self.device_id_5.reg.get(),
+                            self.device_id_6.reg.get(),
+                        ],
+                        24,
+                    ),
+                    RecoveryCommandCode::DeviceStatus => to_payload(
+                        &[
+                            self.device_status_0.reg.get(),
+                            self.device_status_1.reg.get(),
+                        ],
+                        7,
+                    ),
+                    RecoveryCommandCode::RecoveryCtrl => {
+                        to_payload(&[self.recovery_ctrl.reg.get()], 3)
+                    }
                     _ => None,
                 };
                 if let Some(resp) = resp {
@@ -338,6 +363,15 @@ impl RecoveryRegisterInterface {
             _ => {}
         }
     }
+}
+
+fn to_payload(data: &[u32], len: usize) -> Option<Vec<u8>> {
+    Some(
+        data.iter()
+            .flat_map(|x| x.to_le_bytes().iter().copied().collect::<Vec<u8>>())
+            .take(len)
+            .collect(),
+    )
 }
 
 impl Default for RecoveryRegisterInterface {
