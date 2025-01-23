@@ -162,7 +162,7 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x68, read_fn = indirect_fifo_data_read)]
     pub indirect_fifo_data: ReadWriteRegister<u32>,
 
-    pub cms_data: Option<Rc<Vec<u8>>>, // TODO Multiple images?
+    pub cms_data: Vec<Vec<u8>>,
     pub event_sender: Option<mpsc::Sender<Event>>,
 }
 
@@ -204,7 +204,7 @@ impl RecoveryRegisterInterface {
             indirect_fifo_status_5: ReadWriteRegister::new(0),
             indirect_fifo_data: ReadWriteRegister::new(0),
 
-            cms_data: None,
+            cms_data: vec![],
             event_sender: None,
         }
     }
@@ -213,12 +213,14 @@ impl RecoveryRegisterInterface {
         if size != RvSize::Word {
             Err(BusError::LoadAccessFault)?;
         }
-        let image = match &self.cms_data {
-            None => {
-                println!("No image set in RRI");
-                return Ok(0xffff_ffff);
-            }
-            Some(x) => x,
+        if self.cms_data.is_empty() {
+            println!("No image set in RRI");
+            return Ok(0xffff_ffff);
+        }
+        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+        let Some(image) = self.cms_data.get(image_index) else {
+            println!("Recovery image index out of bounds");
+            return Ok(0xffff_ffff);
         };
 
         let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl::CMS);
@@ -257,7 +259,8 @@ impl RecoveryRegisterInterface {
         }
         let load: ReadWriteRegister<u32, IndirectCtrl::Register> = ReadWriteRegister::new(val);
         if load.reg.is_set(IndirectCtrl::RESET) {
-            if let Some(image) = &self.cms_data {
+            let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+            if let Some(image) = self.cms_data.get(image_index) {
                 let cms = load.reg.read(IndirectCtrl::CMS);
                 if cms != 0 {
                     self.indirect_fifo_status_0
@@ -289,8 +292,9 @@ impl RecoveryRegisterInterface {
             Err(BusError::LoadAccessFault)?
         }
 
-        match &self.cms_data {
-            Some(d) => Ok((d.as_ref().len() / mem::size_of::<u32>()) as u32),
+        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+        match self.cms_data.get(image_index) {
+            Some(d) => Ok((d.len() / mem::size_of::<u32>()) as u32),
             None => Ok(0),
         }
     }
@@ -305,7 +309,20 @@ impl RecoveryRegisterInterface {
             .as_ref()
             .expect("Incoming event but we have no sender registered");
         match &event.event {
-            EventData::RecoveryImageAvailable { image_id, image } => {}
+            EventData::RecoveryImageAvailable { image_id, image } => {
+                let idx = *image_id as usize;
+                // ensure we have space for the image
+                if idx >= self.cms_data.len() {
+                    self.cms_data
+                        .extend(std::iter::repeat(vec![]).take(idx - self.cms_data.len() + 1));
+                }
+                while idx >= self.cms_data.len() {
+                    self.cms_data.push(vec![]);
+                }
+                // replace any existing image
+                self.cms_data[idx].clear();
+                self.cms_data[idx].extend_from_slice(image);
+            }
             EventData::RecoveryBlockReadRequest {
                 source_addr,
                 target_addr,
@@ -395,10 +412,10 @@ mod tests {
 
     #[test]
     fn test_get_image() {
-        let image = Rc::new(vec![0xab; 512]);
+        let image = vec![0xab; 512];
         let image_len = image.len();
         let mut rri = RecoveryRegisterInterface::new();
-        rri.cms_data = Some(image.clone());
+        rri.cms_data = vec![image.clone()];
 
         // Reset
         rri.write(RvSize::Word, INDIRECT_FIFO_CTRL, INDIRECT_FIFO_RESET)
@@ -413,6 +430,6 @@ mod tests {
             let bytes = dword_read.to_le_bytes();
             read_image.extend_from_slice(&bytes);
         }
-        assert_eq!(read_image, *image);
+        assert_eq!(read_image, image);
     }
 }
