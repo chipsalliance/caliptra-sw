@@ -703,6 +703,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x35c)]
     fuse_pqc_key_type: u32,
 
+    #[register(offset = 0x508)]
+    ss_mci_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x50c)]
+    ss_mci_base_addr_h: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x510)]
     ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -856,6 +862,7 @@ impl SocRegistersImpl {
         flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
 
         let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
+        let mci_offset = crate::dma::axi_root_bus::AxiRootBus::MCI_OFFSET;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -921,6 +928,8 @@ impl SocRegistersImpl {
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 4],
+            ss_mci_base_addr_l: ReadOnlyRegister::new(mci_offset as u32),
+            ss_mci_base_addr_h: ReadOnlyRegister::new((mci_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             internal_obf_key: args.cptra_obf_key,

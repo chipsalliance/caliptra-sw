@@ -7,6 +7,12 @@ pub struct Event {
     pub event: EventData,
 }
 
+impl Event {
+    pub fn new(src: Device, dest: Device, event: EventData) -> Self {
+        Self { src, dest, event }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {
     CaliptraCore,
@@ -26,7 +32,11 @@ pub enum EventData {
     },
     MemoryRead {
         start_addr: u32,
-        len: usize,
+        len: u32,
+    },
+    MemoryReadResponse {
+        start_addr: u32,
+        data: Vec<u8>,
     },
     MemoryWrite {
         start_addr: u32,

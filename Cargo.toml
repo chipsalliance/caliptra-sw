@@ -97,10 +97,16 @@ caliptra-api = { path = "api" }
 caliptra-api-types = { path = "api/types" }
 caliptra-auth-man-gen = { path = "auth-manifest/gen", default-features = false }
 caliptra-auth-man-types = { path = "auth-manifest/types", default-features = false }
-caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = [
+  "cfi",
+  "cfi-counter",
+] }
 caliptra-cfi-derive = { path = "cfi/derive" }
-caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
-caliptra-cfi-derive-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive-git", rev = "a98e499d279e81ae85881991b1e9eee354151189"}
+caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = [
+  "cfi",
+  "cfi-counter",
+] }
+caliptra-cfi-derive-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive-git", rev = "a98e499d279e81ae85881991b1e9eee354151189" }
 caliptra_common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
@@ -134,16 +140,19 @@ caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
-caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
+caliptra-verilated = { path = "hw/verilated", features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
 cbindgen = { version = "0.24.0", default-features = false }
 cfg-if = "1.0.0"
 chrono = "0.4"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
+const-random = "0.1.18"
 cms = "0.2.2"
 convert_case = "0.6.0"
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+dpe = { path = "dpe/dpe", default-features = false, features = [
+  "dpe_profile_p384_sha384",
+] }
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
@@ -174,7 +183,9 @@ syn = "1.0.107"
 tinytemplate = "1.1"
 tock-registers = { git = "https://github.com/tock/tock.git", rev = "b128ae817b86706c8c4e39d27fae5c54b98659f1" }
 toml = "0.7.0"
-ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
+ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = [
+  "inline",
+] }
 uio = { version = "0.2.0" }
 ureg = { path = "ureg" }
 ureg-codegen = { path = "ureg/lib/codegen" }
@@ -186,9 +197,11 @@ zerocopy = "0.6.6"
 serial_test = "2.0.0"
 nix = "0.26.2"
 libc = "0.2"
-zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
+zeroize = { version = "1.6.0", default-features = false, features = [
+  "zeroize_derive",
+] }
 regex = "1.10.2"
-ecdsa = { version = "0.16.9", features = ["pem"]}
+ecdsa = { version = "0.16.9", features = ["pem"] }
 sec1 = { version = "0.7.3" }
 
 [profile.firmware]

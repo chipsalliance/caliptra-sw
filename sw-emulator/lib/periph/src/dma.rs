@@ -14,13 +14,15 @@ File contains DMA peripheral implementation.
 
 use crate::MailboxRam;
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer,
+    ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::borrow::BorrowMut;
 use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
@@ -87,6 +89,8 @@ register_bitfields! [
 
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[incoming_event_fn(incoming_event)]
+#[register_outgoing_events_fn(register_outgoing_events)]
 pub struct Dma {
     /// ID
     #[register(offset = 0x0000_0000)]
@@ -158,6 +162,11 @@ pub struct Dma {
 
     /// Mailbox
     mailbox: MailboxRam,
+
+    // Ongoing DMA operations
+    pending_axi_to_axi: Option<WriteXfer>,
+    pending_axi_to_fifo: bool,
+    pending_axi_to_mailbox: bool,
 }
 
 struct ReadXfer {
@@ -203,6 +212,9 @@ impl Dma {
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
             axi: AxiRootBus::new(),
             mailbox,
+            pending_axi_to_axi: None,
+            pending_axi_to_fifo: false,
+            pending_axi_to_mailbox: false,
         }
     }
 
@@ -295,53 +307,103 @@ impl Dma {
         }
     }
 
-    fn axi_to_mailbox(&mut self) {
+    // Returns true if this completed immediately.
+    fn axi_to_mailbox(&mut self) -> bool {
         let xfer = self.read_xfer();
-        let mbox_ram = self.mailbox.borrow_mut();
 
-        for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
-            let addr = xfer.src + if xfer.fixed { 0 } else { i as AxiAddr };
-            let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), addr).unwrap();
+        // check if we have to do the read async
+        if self.axi.must_schedule(xfer.src) {
+            self.pending_axi_to_mailbox = true;
+            self.timer.schedule_poll_in(1);
+            self.axi.schedule_read(xfer.src, xfer.len as u32).unwrap();
+            return false;
+        }
+
+        let block = self.read_axi_block(xfer);
+        self.write_mailbox(&block);
+        true
+    }
+
+    fn write_mailbox(&mut self, block: &[u8]) {
+        let mbox_ram = self.mailbox.borrow_mut();
+        for i in (0..block.len()).step_by(Self::AXI_DATA_WIDTH) {
+            let data = u32::from_le_bytes(block[i..i + Self::AXI_DATA_WIDTH].try_into().unwrap());
             mbox_ram
                 .write(Self::AXI_DATA_WIDTH.into(), i as RvAddr, data as RvData)
                 .unwrap();
         }
     }
 
-    fn axi_to_fifo(&mut self) {
+    // Returns true if this completed immediately.
+    fn axi_to_fifo(&mut self) -> bool {
         let xfer = self.read_xfer();
 
-        for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
-            let addr = xfer.src + if xfer.fixed { 0 } else { i as AxiAddr };
+        // check if we have to do the read async
+        if self.axi.must_schedule(xfer.src) {
+            self.pending_axi_to_fifo = true;
+            self.timer.schedule_poll_in(1);
+            self.axi.schedule_read(xfer.src, xfer.len as u32).unwrap();
+            return false;
+        }
+
+        let block = self.read_axi_block(xfer);
+        self.write_fifo_block(&block);
+        true
+    }
+
+    fn write_fifo_block(&mut self, block: &[u8]) {
+        for i in (0..block.len()).step_by(Self::AXI_DATA_WIDTH) {
             let cur_fifo_depth = self.status0.reg.read(Status0::FIFO_DEPTH);
             if cur_fifo_depth + 4 >= Self::FIFO_SIZE as u32 {
                 self.status0.reg.write(Status0::ERROR::SET);
                 // TODO set interrupt bits
                 return;
             }
-            let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), addr).unwrap();
-            let data_bytes = data.to_le_bytes();
-            data_bytes[..Self::AXI_DATA_WIDTH]
-                .iter()
-                .for_each(|b| self.fifo.push_back(*b));
+            self.fifo.extend(&block[i..i + Self::AXI_DATA_WIDTH]);
         }
     }
 
-    fn axi_to_axi(&mut self) {
+    // Returns true if this completed immediately.
+    fn axi_to_axi(&mut self) -> bool {
         let read_xfer = self.read_xfer();
         let write_xfer = self.write_xfer();
 
+        // check if we have to do the read async
+        if self.axi.must_schedule(read_xfer.src) {
+            self.pending_axi_to_axi = Some(write_xfer);
+            self.timer.schedule_poll_in(1);
+            self.axi
+                .schedule_read(read_xfer.src, read_xfer.len as u32)
+                .unwrap();
+            return false;
+        }
+        let data = self.read_axi_block(read_xfer);
+        self.write_axi_block(&data, write_xfer);
+        true
+    }
+
+    fn read_axi_block(&mut self, read_xfer: ReadXfer) -> Vec<u8> {
+        let mut block = vec![];
         for i in (0..read_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let src = read_xfer.src + if read_xfer.fixed { 0 } else { i as AxiAddr };
-            let dest = write_xfer.dest + if write_xfer.fixed { 0 } else { i as AxiAddr };
             let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), src).unwrap();
+            block.extend(data.to_le_bytes());
+        }
+        block
+    }
+
+    fn write_axi_block(&mut self, block: &[u8], write_xfer: WriteXfer) {
+        for i in (0..write_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
+            let dest = write_xfer.dest + if write_xfer.fixed { 0 } else { i as AxiAddr };
+            let data = u32::from_le_bytes(block[i..i + Self::AXI_DATA_WIDTH].try_into().unwrap());
             self.axi
                 .write(Self::AXI_DATA_WIDTH.into(), dest, data)
                 .unwrap();
         }
     }
 
-    fn mailbox_to_axi(&mut self) {
+    // Returns true if this completed immediately.
+    fn mailbox_to_axi(&mut self) -> bool {
         let xfer = self.write_xfer();
         let mbox_ram = self.mailbox.borrow_mut();
 
@@ -354,9 +416,11 @@ impl Dma {
                 .write(Self::AXI_DATA_WIDTH.into(), addr, data)
                 .unwrap();
         }
+        true
     }
 
-    fn fifo_to_axi(&mut self) {
+    // Returns true if this completed immediately.
+    fn fifo_to_axi(&mut self) -> bool {
         let xfer = self.write_xfer();
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
@@ -370,7 +434,7 @@ impl Dma {
                         None => {
                             self.status0.reg.write(Status0::ERROR::SET);
                             // TODO set interrupt bits
-                            return;
+                            return true;
                         }
                     }
                 }
@@ -390,13 +454,14 @@ impl Dma {
                     Some(self.timer.schedule_poll_in(PAYLOAD_AVAILABLE_OP_TICKS));
             }
         }
+        true
     }
 
     fn op_complete(&mut self) {
         let read_target = self.control.reg.read_as_enum(Control::READ_ROUTE).unwrap();
         let write_origin = self.control.reg.read_as_enum(Control::WRITE_ROUTE).unwrap();
 
-        match (read_target, write_origin) {
+        let complete = match (read_target, write_origin) {
             (Control::READ_ROUTE::Value::MAILBOX, Control::WRITE_ROUTE::Value::DISABLE) => {
                 self.axi_to_mailbox()
             }
@@ -413,8 +478,14 @@ impl Dma {
                 self.fifo_to_axi()
             }
             (_, _) => panic!("Invalid read/write DMA combination"),
-        }
+        };
 
+        if complete {
+            self.set_status_complete();
+        }
+    }
+
+    fn set_status_complete(&mut self) {
         self.status0
             .reg
             .modify(Status0::BUSY::CLEAR + Status0::DMA_FSM_PRESENT_STATE::DONE);
@@ -427,6 +498,34 @@ impl Dma {
         if self.timer.fired(&mut self.op_payload_available_action) {
             self.status0.reg.write(Status0::PAYLOAD_AVAILABLE::SET);
         }
+        if let Some(dma_data) = self.axi.dma_result.take() {
+            if let Some(write_xfer) = self.pending_axi_to_axi.take() {
+                self.write_axi_block(&dma_data, write_xfer);
+                self.set_status_complete();
+            } else if self.pending_axi_to_fifo {
+                self.write_fifo_block(&dma_data);
+                self.set_status_complete();
+                self.pending_axi_to_fifo = false;
+            } else if self.pending_axi_to_mailbox {
+                self.write_mailbox(&dma_data);
+                self.set_status_complete();
+                self.pending_axi_to_mailbox = false;
+            }
+        } else if self.pending_axi_to_axi.is_some()
+            || self.pending_axi_to_fifo
+            || self.pending_axi_to_mailbox
+        {
+            // check again next cycle
+            self.timer.schedule_poll_in(1);
+        }
+    }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.axi.incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.axi.register_outgoing_events(sender);
     }
 }
 
