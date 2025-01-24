@@ -260,7 +260,6 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 
 pub struct BootParams<'a> {
     pub fuses: Fuses,
-    pub active_mode: bool,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
@@ -273,7 +272,6 @@ impl<'a> Default for BootParams<'a> {
     fn default() -> Self {
         Self {
             fuses: Default::default(),
-            active_mode: false,
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
@@ -515,6 +513,9 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
+/// The download firmware from recovery interface Opcode
+const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -616,7 +617,13 @@ pub trait HwModel: SocManager {
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
             self.cover_fw_mage(fw_image);
-            if boot_params.active_mode {
+            let active_mode = self.soc_ifc().cptra_hw_config().read().active_mode_en();
+            writeln!(
+                self.output().logger(),
+                "mode {}",
+                if active_mode { "active" } else { "passive" }
+            )?;
+            if active_mode {
                 self.upload_firmware_rri(fw_image)?;
             } else {
                 self.upload_firmware(fw_image)?;
@@ -1030,7 +1037,10 @@ pub trait HwModel: SocManager {
     /// Upload fw image to RRI.
     fn upload_firmware_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware)?;
-        // TODO Add method to inform caliptra to start fetching from the RRI
+        let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
         Ok(())
     }
 
