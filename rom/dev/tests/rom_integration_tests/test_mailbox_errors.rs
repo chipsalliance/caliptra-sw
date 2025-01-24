@@ -33,25 +33,31 @@ fn test_unknown_command_is_fatal() {
 
 #[test]
 fn test_mailbox_command_aborted_after_handle_fatal_error() {
-    let (mut hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    assert_eq!(
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
-        )),
-        hw.upload_firmware(&[])
-    );
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) =
+            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+        assert_eq!(
+            Err(ModelError::MailboxCmdFailed(
+                CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+            )),
+            hw.upload_firmware(&[])
+        );
 
-    // Make sure a new attempt to upload firmware is rejected (even though this
-    // command would otherwise succeed)
-    //
-    // The original failure reason should still be in the register
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
-        ))
-    );
+        // Make sure a new attempt to upload firmware is rejected (even though this
+        // command would otherwise succeed)
+        //
+        // The original failure reason should still be in the register
+        assert_eq!(
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
+            Err(ModelError::MailboxCmdFailed(
+                CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+            ))
+        );
+    }
 }
 
 #[test]

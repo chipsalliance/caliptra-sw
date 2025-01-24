@@ -101,111 +101,126 @@ fn test_warm_reset_during_cold_boot_before_image_validation() {
 
 #[test]
 fn test_warm_reset_during_cold_boot_during_image_validation() {
-    let fuses = Fuses {
-        life_cycle: DeviceLifecycle::Unprovisioned,
-        ..Default::default()
-    };
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            life_cycle: DeviceLifecycle::Unprovisioned,
+            ..Default::default()
+        };
 
-    let (mut hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-    hw.start_mailbox_execute(
-        CommandId::FIRMWARE_LOAD.into(),
-        &image_bundle.to_bytes().unwrap(),
-    )
-    .unwrap();
+        hw.start_mailbox_execute(
+            CommandId::FIRMWARE_LOAD.into(),
+            &image_bundle.to_bytes().unwrap(),
+        )
+        .unwrap();
 
-    hw.step_until_boot_status(FwProcessorManifestLoadComplete.into(), true);
+        hw.step_until_boot_status(FwProcessorManifestLoadComplete.into(), true);
 
-    // Step for few times to land in image validation
-    for _ in 0..1000 {
-        hw.step();
+        // Step for few times to land in image validation
+        for _ in 0..1000 {
+            hw.step();
+        }
+
+        // Perform a warm reset
+        hw.warm_reset_flow(&Fuses::default());
+
+        // Wait for error
+        while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
+            hw.step();
+        }
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_fatal().read(),
+            u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET)
+        );
     }
-
-    // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
-
-    // Wait for error
-    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
-        hw.step();
-    }
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET)
-    );
 }
 
 #[test]
 fn test_warm_reset_during_cold_boot_after_image_validation() {
-    let fuses = Fuses {
-        life_cycle: DeviceLifecycle::Unprovisioned,
-        ..Default::default()
-    };
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            life_cycle: DeviceLifecycle::Unprovisioned,
+            ..Default::default()
+        };
 
-    let (mut hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    // Step till after last step in cold boot is complete
-    hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
+        // Step till after last step in cold boot is complete
+        hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
 
-    // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
+        // Perform a warm reset
+        hw.warm_reset_flow(&Fuses::default());
 
-    // Wait for error
-    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
-        hw.step();
+        // Wait for error
+        while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
+            hw.step();
+        }
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_fatal().read(),
+            u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET)
+        );
     }
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET)
-    );
 }
 
 #[test]
 fn test_warm_reset_during_update_reset() {
-    let fuses = Fuses {
-        life_cycle: DeviceLifecycle::Unprovisioned,
-        ..Default::default()
-    };
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            life_cycle: DeviceLifecycle::Unprovisioned,
+            ..Default::default()
+        };
 
-    let (mut hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+        // Trigger an update reset with "new" firmware
+        hw.start_mailbox_execute(
+            CommandId::FIRMWARE_LOAD.into(),
+            &image_bundle.to_bytes().unwrap(),
+        )
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+        if cfg!(not(feature = "fpga_realtime")) {
+            hw.step_until_boot_status(KatStarted.into(), true);
+            hw.step_until_boot_status(KatComplete.into(), true);
+            hw.step_until_boot_status(UpdateResetStarted.into(), false);
+        }
 
-    // Trigger an update reset with "new" firmware
-    hw.start_mailbox_execute(
-        CommandId::FIRMWARE_LOAD.into(),
-        &image_bundle.to_bytes().unwrap(),
-    )
-    .unwrap();
+        assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
-    if cfg!(not(feature = "fpga_realtime")) {
-        hw.step_until_boot_status(KatStarted.into(), true);
-        hw.step_until_boot_status(KatComplete.into(), true);
-        hw.step_until_boot_status(UpdateResetStarted.into(), false);
+        // Step till after last step in update reset is complete
+        hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
+
+        // Perform a warm reset
+        hw.warm_reset_flow(&Fuses::default());
+
+        // Wait for error
+        while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
+            hw.step();
+        }
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_fatal().read(),
+            u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET)
+        );
     }
-
-    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
-
-    // Step till after last step in update reset is complete
-    hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), true);
-
-    // Perform a warm reset
-    hw.warm_reset_flow(&Fuses::default());
-
-    // Wait for error
-    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
-        hw.step();
-    }
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET)
-    );
 }
