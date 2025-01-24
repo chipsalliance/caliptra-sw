@@ -124,18 +124,11 @@ pub trait SocManager {
             .fuse_field_entropy()
             .write(&fuses.field_entropy);
         self.soc_ifc()
-            .fuse_key_manifest_pk_hash()
-            .write(&fuses.key_manifest_pk_hash);
-        self.soc_ifc().fuse_key_manifest_pk_hash_mask().write(&[
-            fuses.key_manifest_pk_hash_mask.into(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]);
+            .fuse_vendor_pk_hash()
+            .write(&fuses.vendor_pk_hash);
+        self.soc_ifc()
+            .fuse_ecc_revocation()
+            .write(|w| w.ecc_revocation(fuses.fuse_ecc_revocation.into()));
         self.soc_ifc()
             .cptra_owner_pk_hash()
             .write(&fuses.owner_pk_hash);

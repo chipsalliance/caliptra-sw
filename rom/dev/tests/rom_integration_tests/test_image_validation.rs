@@ -114,7 +114,7 @@ fn test_invalid_manifest_size() {
 fn test_preamble_zero_vendor_pubkey_digest() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: [0u32; 12],
+        vendor_pk_hash: [0u32; 12],
         ..Default::default()
     };
     let (mut hw, image_bundle) =
@@ -138,7 +138,7 @@ fn test_preamble_zero_vendor_pubkey_digest() {
 fn test_preamble_vendor_pubkey_digest_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: [0xDEADBEEF; 12],
+        vendor_pk_hash: [0xDEADBEEF; 12],
         ..Default::default()
     };
 
@@ -168,7 +168,7 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -202,7 +202,7 @@ fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -233,7 +233,7 @@ fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -259,7 +259,7 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -296,7 +296,7 @@ fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -332,7 +332,7 @@ fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
 
@@ -394,10 +394,8 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
         image_options.vendor_config = vendor_config;
 
         let fuses = caliptra_hw_model::Fuses {
-            key_manifest_pk_hash_mask: U4::try_from(
-                1u32 << image_options.vendor_config.ecc_key_idx,
-            )
-            .unwrap(),
+            fuse_ecc_revocation: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
+                .unwrap(),
             ..Default::default()
         };
 
@@ -1828,7 +1826,7 @@ fn test_runtime_svn_greater_than_max() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -1863,7 +1861,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         runtime_svn: fuse_svn,
         ..Default::default()
     };

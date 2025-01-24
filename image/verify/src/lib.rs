@@ -54,7 +54,7 @@ pub struct ImageVerificationLogInfo {
     pub vendor_ecc_pub_key_idx: u32,
 
     /// Vendor ECC Public Key Revocation Fuse
-    pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+    pub fuse_vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
 
     // PQC (LMS or MLDSA) Vendor Public Key Index
     pub vendor_pqc_pub_key_idx: u32,
@@ -135,7 +135,7 @@ pub trait ImageVerificationEnv {
     fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest384;
 
     /// Get Vendor ECC Public Key Revocation list
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation;
 
     /// Get Vendor LMS Public Key Revocation list
     fn vendor_lms_pub_key_revocation(&self) -> u32;

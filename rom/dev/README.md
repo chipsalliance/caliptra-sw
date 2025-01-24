@@ -57,8 +57,8 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
 | FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
-| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
-| FUSE_ECC_REVOCATION (FUSE_KEY_MANIFEST_PK_HASH_MASK)  | 32           | Manufacturer ECC Public Key Revocation Mask             |
+| FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
+| FUSE_ECC_REVOCATION             | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
 | FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
@@ -94,7 +94,7 @@ Firmware manifest consists of preamble, header and table of contents.
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 
 - Loads the preamble from the mailbox.
-- Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
+- Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_VENDOR_PK_HASH). If the hashes do not match, the boot fails.
 - Verifies the active Manufacturer Public Key(s) based on fuse (FUSE_ECC_REVOCATION for ECC public key, FUSE_LMS_REVOCATION for LMS public key or FUSE_MLDSA_REVOCATION for MLDSA public key)
 
 *Note: All fields are little endian unless specified*
@@ -989,7 +989,7 @@ The following are the pre-conditions that should be satisfied:
 
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
 - The FUSES programmed by the soc are
-  - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer key descriptors present in preamble.
+  - fuse_vendor_pk_hash : This fuse contains the hash of the manufacturer key descriptors present in the preamble.
   - fuse_ecc_revocation : This is the bitmask of the ECC keys which are revoked.
   - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
   - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
@@ -1006,7 +1006,7 @@ The following are the pre-conditions that should be satisfied:
 - Load the preamble bytes from the mailbox.
 - Based on the firmware image type, the image includes an ECC key descriptor and either an LMS or MLDSA key descriptor within the preamble. The ECC descriptor encapsulates up to four ECC public key hashes, the LMS descriptor up to 32 public key hashes, and the MLDSA descriptor up to four MLDSA public key hashes.
 - The firmware image, depending on its type, incorporates an ECC key and either an LMS or MLDSA manufacturing public key within the preamble. These constitute the active public keys.
-- The fuse_key_manifest_pk_hash fuse holds the SHA2-384 hash of the ECC, and LMS or MLDSA manufacturing key descriptors.
+- The fuse_vendor_pk_hash fuse holds the SHA2-384 hash of the ECC, and LMS or MLDSA manufacturing key descriptors.
 - The key descriptors are validated by generating a SHA2-384 hash of the ECC and LMS or MLDSA key descriptors and comparing it against the hash stored in the fuse. If the hashes do not match, the image validation fails.
 - Upon a successful hash match, the ECC, and LMS or MLDSA key descriptors are deemed valid.
 - Subsequently, the active manufacturer public keys are validated against one of the hashes in the key descriptors. The specific hash for comparison is identified by the active key indices.

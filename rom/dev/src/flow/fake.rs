@@ -36,7 +36,7 @@ use caliptra_common::{
 use caliptra_drivers::cprintln;
 use caliptra_drivers::Lifecycle;
 use caliptra_drivers::LmsResult;
-use caliptra_drivers::VendorPubKeyRevocation;
+use caliptra_drivers::VendorEccPubKeyRevocation;
 use caliptra_drivers::*;
 use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
@@ -348,7 +348,7 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
         self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
     }
 

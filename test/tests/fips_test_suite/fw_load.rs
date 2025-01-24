@@ -131,7 +131,7 @@ fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
         .unwrap();
 
     Fuses {
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
     }
@@ -345,7 +345,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid() {
         // Set fuses
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
-            key_manifest_pk_hash: [0u32; 12],
+            vendor_pk_hash: [0u32; 12],
             ..Default::default()
         };
 
@@ -365,7 +365,7 @@ fn fw_load_error_vendor_pub_key_digest_failure() {
         // Set fuses
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
-            key_manifest_pk_hash: [0xDEADBEEF; 12],
+            vendor_pk_hash: [0xDEADBEEF; 12],
             ..Default::default()
         };
 
@@ -385,7 +385,7 @@ fn fw_load_error_vendor_pub_key_digest_mismatch() {
         // Set fuses
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
-            key_manifest_pk_hash: [0xDEADBEEF; 12],
+            vendor_pk_hash: [0xDEADBEEF; 12],
             ..Default::default()
         };
 
@@ -459,10 +459,8 @@ fn fw_load_error_vendor_ecc_pub_key_revoked() {
 
         // Set fuses
         let fuses = caliptra_hw_model::Fuses {
-            key_manifest_pk_hash_mask: U4::try_from(
-                1u32 << image_options.vendor_config.ecc_key_idx,
-            )
-            .unwrap(),
+            fuse_ecc_revocation: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
+                .unwrap(),
             ..Default::default()
         };
 
@@ -1145,7 +1143,7 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            key_manifest_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_digest,
             ..Default::default()
         };
 
@@ -1179,7 +1177,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            key_manifest_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_digest,
             runtime_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
             ..Default::default()
         };
@@ -1618,7 +1616,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
 
     let fuses = Fuses {
         life_cycle: DeviceLifecycle::Production,
-        key_manifest_pk_hash: vendor_pk_desc_hash,
+        vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
         ..Default::default()
     };

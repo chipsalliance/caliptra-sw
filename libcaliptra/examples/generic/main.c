@@ -32,7 +32,7 @@ static void set_fuses(test_info* info)
     {
         // Pub key hash fuses are stored as big-endian
         fuses->owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
-        fuses->key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
+        fuses->vendor_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
     }
 }
 
