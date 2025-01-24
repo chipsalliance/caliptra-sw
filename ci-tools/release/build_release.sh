@@ -1,38 +1,52 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed under the Apache-2.0 license
 
 set -euo pipefail
 
+# clean up
+previous_head=""
+function stash_cleanup {
+  # ignore if we did not stash anything
+  if [ -z "$previous_head" ]; then
+    return
+  fi
+
+  git restore Cargo.lock
+  git checkout "$previous_head"
+  git stash apply stash^{/stash-"$previous_head"}
+}
+
 # Check arg count; TODO(benjamindoron): RTL and FPGA too, using hw_version?
-if [ $# -ne 1 -a $# -ne 3 ]
-  then
-    echo "Usage: $(basename $0) <release_name> [<rom_ref> <firmware_version>]"
-	exit -1
+if [[ $# -ne 1 ]] && [[ $# -ne 3 ]]; then
+  echo "Usage: $(basename "$0") <release_name> [<rom_ref> <firmware_version>]"
+  exit 1
 fi
 
 WORKSPACE_DIR="release/workspace"
 release_scripts_path=$(dirname "$0")
 # Generate Release Folder
-rm -rf release
-mkdir -p $WORKSPACE_DIR
+rm -rfv release
+mkdir -pv $WORKSPACE_DIR
 
 # Regardless of arguments, determine commits
 if [ $# -eq 3 ]; then
-  rom_ref=$2
-  firmware_version=$3
+  rom_ref="$2"
+  firmware_version="$3"
 else
-  rom_ref=$(git rev-parse --short HEAD)
-  firmware_version=$(git rev-parse --short HEAD)
+  rom_ref="$(git rev-parse --short HEAD)"
+  firmware_version="$(git rev-parse --short HEAD)"
 fi
 
-if [ $rom_ref != $firmware_version ]; then
+if [ "$rom_ref" != "$firmware_version" ]; then
   # Save state
-  git stash
-  previous_head=$(git rev-parse --short HEAD)
-
+  previous_head="$(git rev-parse --short HEAD)"
+  git stash push -m "stash-$previous_head"
   git restore Cargo.lock
-  git checkout $rom_ref
+  git checkout "$rom_ref"
 fi
+
+# make sure anytime we the script exits due to an error, we clean up the state
+trap stash_cleanup EXIT
 
 # Generate ROM Binary
 cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin
@@ -49,9 +63,9 @@ cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPAC
 # Copy fake ROM ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
 
-if [ $rom_ref != $firmware_version ]; then
+if [ "$rom_ref" != "$firmware_version" ]; then
   git restore Cargo.lock
-  git checkout $firmware_version
+  git checkout "$firmware_version"
 fi
 
 # Generate Image Bundle Binary
@@ -77,56 +91,56 @@ elif [ -d hw-latest ]; then
   cp -rf hw-latest/fpga $WORKSPACE_DIR/fpga
 else
   echo "Unable to find HW source code!"
-  exit -1
+  exit 1
 fi
 # Copy libcaliptra
 cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
 
 # Calculate RTL hash
 # Generate file list (excluding files integrators will modify)
-$release_scripts_path/tools/generate_rtl_file_list.sh $WORKSPACE_DIR/caliptra-rtl $WORKSPACE_DIR/rtl_hash_file_list.txt
+"$release_scripts_path"/tools/generate_rtl_file_list.sh $WORKSPACE_DIR/caliptra-rtl $WORKSPACE_DIR/rtl_hash_file_list.txt
 # Calculate hash
-if ! rtl_hash=$($release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/caliptra-rtl/src $WORKSPACE_DIR/rtl_hash_file_list.txt); then
-    echo "Failed to generate RTL hash"
-    # Dump output from the failure
-    echo "$rtl_hash"
-    exit -1
+if ! rtl_hash=$("$release_scripts_path"/tools/rtl_hash.sh $WORKSPACE_DIR/caliptra-rtl/src $WORKSPACE_DIR/rtl_hash_file_list.txt); then
+  echo "Failed to generate RTL hash"
+  # Dump output from the failure
+  echo "$rtl_hash"
+  exit 1
 fi
 echo "RTL hash is $rtl_hash"
 # Include hash tool with release
-cp $release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/
+cp "$release_scripts_path"/tools/rtl_hash.sh $WORKSPACE_DIR/
 
 # Generate Notes
-echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
-echo -e "Nightly $1" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "Caliptra-RTL Rev: $(git rev-parse HEAD:hw/latest/rtl)" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "Caliptra-SW Rev: $(git rev-parse HEAD)" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "RTL hash (see rtl_hash.sh): $rtl_hash" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "Content:" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tRTL: caliptra-rtl/" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tROM Bin: caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tROM ELF: caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tImage Bundle Bin: image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFMC ELF: caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tRTFW ELF: caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFake ROM Bin: fake-caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFake ROM ELF: fake-caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFake Image Bundle Bin: fake-image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFake FMC ELF: fake-caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFake RTFW ELF: fake-caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tFPGA Model: fpga/" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tRTL hash tool: rtl_hash.sh" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tRTL hash file list: rtl_hash_file_list.txt" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "Caliptra HW Release Note " >$WORKSPACE_DIR/release_notes.txt
+echo -e "Nightly $1" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "Caliptra-RTL Rev: $(git rev-parse HEAD:hw/latest/rtl)" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "Caliptra-SW Rev: $(git rev-parse HEAD)" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "RTL hash (see rtl_hash.sh): $rtl_hash" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "Content:" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTL: caliptra-rtl/" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tROM Bin: caliptra-rom.bin" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tROM ELF: caliptra-rom.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tImage Bundle Bin: image-bundle.bin" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFMC ELF: caliptra-fmc.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTFW ELF: caliptra-runtime.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake ROM Bin: fake-caliptra-rom.bin" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake ROM ELF: fake-caliptra-rom.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake Image Bundle Bin: fake-image-bundle.bin" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake FMC ELF: fake-caliptra-fmc.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake RTFW ELF: fake-caliptra-runtime.elf" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tLIBCaliptra: libcaliptra/" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tFPGA Model: fpga/" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTL hash tool: rtl_hash.sh" >>$WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTL hash file list: rtl_hash_file_list.txt" >>$WORKSPACE_DIR/release_notes.txt
 
 # Restore state
-if [ $rom_ref != $firmware_version ]; then
-  git restore Cargo.lock
-  git checkout $previous_head
-
-  git stash pop
+if [ "$rom_ref" != "$firmware_version" ]; then
+  stash_cleanup
 fi
 
 # Generate Zip
 cd ./release/workspace
 zip -r ../release.zip ./*
+
+# no double cleanup
+trap - EXIT
