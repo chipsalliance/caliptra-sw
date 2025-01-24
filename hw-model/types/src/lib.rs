@@ -112,14 +112,8 @@ impl std::fmt::Debug for FusesWrapper {
         f.debug_struct("Fuses")
             .field("uds_seed", &HexSlice(&self.0.uds_seed))
             .field("field_entropy", &HexSlice(&self.0.field_entropy))
-            .field(
-                "key_manifest_pk_hash",
-                &HexSlice(&self.0.key_manifest_pk_hash),
-            )
-            .field(
-                "key_manifest_pk_hash_mask",
-                &self.0.key_manifest_pk_hash_mask,
-            )
+            .field("vendor_pk_hash", &HexSlice(&self.0.vendor_pk_hash))
+            .field("fuse_ecc_revocation", &self.0.fuse_ecc_revocation)
             .field("owner_pk_hash", &HexSlice(&self.0.owner_pk_hash))
             .field("fmc_key_manifest_svn", &self.0.fmc_key_manifest_svn)
             .field("runtime_svn", &HexSlice(&self.0.runtime_svn))

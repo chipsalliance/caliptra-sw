@@ -37,7 +37,7 @@ enum PqcKeyInfo<'a> {
 struct HeaderInfo<'a> {
     vendor_ecc_pub_key_idx: u32,
     vendor_pqc_pub_key_idx: u32,
-    vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+    vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
     vendor_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_pqc_info: PqcKeyInfo<'a>,
     vendor_pqc_pub_key_revocation: u32,
@@ -329,7 +329,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
-    ) -> CaliptraResult<(u32, VendorPubKeyRevocation)> {
+    ) -> CaliptraResult<(u32, VendorEccPubKeyRevocation)> {
         let key_idx = preamble.vendor_ecc_pub_key_idx;
         let revocation = self.env.vendor_ecc_pub_key_revocation();
         let key_hash_count = preamble
@@ -347,7 +347,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if key_idx == last_key_idx {
             cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
         } else {
-            let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
+            let key = VendorEccPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
             if cfi_launder(revocation).contains(cfi_launder(key)) {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED)?;
             } else {
@@ -2306,7 +2306,7 @@ mod tests {
         verify_result: bool,
         verify_pqc_result: bool,
         vendor_pub_key_digest: ImageDigest384,
-        vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+        vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
         vendor_pqc_pub_key_revocation: u32,
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
@@ -2321,7 +2321,7 @@ mod tests {
                 verify_result: false,
                 verify_pqc_result: false,
                 vendor_pub_key_digest: ImageDigest384::default(),
-                vendor_ecc_pub_key_revocation: VendorPubKeyRevocation::default(),
+                vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation::default(),
                 vendor_pqc_pub_key_revocation: 0,
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
@@ -2381,7 +2381,7 @@ mod tests {
             self.vendor_pub_key_digest
         }
 
-        fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+        fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
             self.vendor_ecc_pub_key_revocation
         }
 

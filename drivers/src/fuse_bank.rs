@@ -36,7 +36,7 @@ pub enum X509KeyIdAlgo {
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug, Launder)]
-    pub struct VendorPubKeyRevocation : u32 {
+    pub struct VendorEccPubKeyRevocation : u32 {
         const KEY0 = 0b0001;
         const KEY1 = 0b0010;
         const KEY2 = 0b0100;
@@ -214,7 +214,7 @@ impl FuseBank<'_> {
     ///
     pub fn vendor_pub_key_info_hash(&self) -> Array4x12 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        Array4x12::read_from_reg(soc_ifc_regs.fuse_key_manifest_pk_hash())
+        Array4x12::read_from_reg(soc_ifc_regs.fuse_vendor_pk_hash())
     }
 
     /// Get the ecc vendor public key revocation mask.
@@ -225,10 +225,10 @@ impl FuseBank<'_> {
     /// # Returns
     ///     ecc vendor public key revocation mask
     ///
-    pub fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    pub fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
         let soc_ifc_regs = self.soc_ifc.regs();
-        VendorPubKeyRevocation::from_bits_truncate(
-            soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read()[0],
+        VendorEccPubKeyRevocation::from_bits_truncate(
+            soc_ifc_regs.fuse_ecc_revocation().read().into(),
         )
     }
 

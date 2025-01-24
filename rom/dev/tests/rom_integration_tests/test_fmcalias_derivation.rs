@@ -139,7 +139,7 @@ fn test_pcr_log() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
     };
@@ -242,7 +242,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        key_manifest_pk_hash: gen
+        vendor_pk_hash: gen
             .vendor_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap(),
         ..Default::default()
@@ -334,7 +334,7 @@ fn test_pcr_log_fmc_fuse_svn() {
 
     let fuses = Fuses {
         anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
         runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
@@ -479,7 +479,7 @@ fn test_pcr_log_across_update_reset() {
         anti_rollback_disable: false,
         fmc_key_manifest_svn: FMC_FUSE_SVN,
         runtime_svn: [1, 0, 0, 0],
-        key_manifest_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
     };
