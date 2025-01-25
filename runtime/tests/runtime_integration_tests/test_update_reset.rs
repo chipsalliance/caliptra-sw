@@ -25,7 +25,7 @@ use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
-fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
+pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
         .unwrap()
         .to_bytes()
