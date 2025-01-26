@@ -134,11 +134,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify Runtime
         let runtime_info = self.verify_runtime(image_info.runtime)?;
 
-        // The FMC and RT FW images within the bundle each include an SVN, for
-        // backwards compatibility with 1.x. ROM only inspects the RT FW SVN.
-        let fw_svn = image_info.runtime.svn;
-
-        self.verify_svn(fw_svn)?;
+        self.verify_svn(manifest.header.svn)?;
 
         let effective_fuse_svn = self.effective_fuse_svn();
 
@@ -149,7 +145,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
-            fw_svn,
+            fw_svn: manifest.header.svn,
             effective_fuse_svn,
             log_info: ImageVerificationLogInfo {
                 vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
@@ -157,7 +153,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 fuse_vendor_pqc_pub_key_revocation: header_info.vendor_pqc_pub_key_revocation,
                 vendor_pqc_pub_key_idx: header_info.vendor_pqc_pub_key_idx,
                 fw_log_info: FirmwareSvnLogInfo {
-                    manifest_svn: fw_svn,
+                    manifest_svn: manifest.header.svn,
                     reserved: 0,
                     fuse_svn: self.env.runtime_fuse_svn(),
                 },
@@ -2230,7 +2226,6 @@ mod tests {
         let verify_info = ImageTocEntry {
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
-            svn: 1,
             size: 100,
             ..Default::default()
         };
@@ -2293,7 +2288,6 @@ mod tests {
         let verify_info = ImageTocEntry {
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
-            svn: 1,
             size: 100,
             ..Default::default()
         };
