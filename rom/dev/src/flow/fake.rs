@@ -409,4 +409,11 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     fn set_fw_extended_error(&mut self, err: u32) {
         self.soc_ifc.set_fw_extended_error(err);
     }
+
+    fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType> {
+        let pqc_key_type =
+            FwVerificationPqcKeyType::from_u8(self.soc_ifc.fuse_bank().pqc_key_type() as u8)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+        Ok(pqc_key_type)
+    }
 }

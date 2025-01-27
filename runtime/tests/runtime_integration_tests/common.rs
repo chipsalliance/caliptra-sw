@@ -112,6 +112,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         BootParams {
             fw_image: Some(&image.to_bytes().unwrap()),
             fuses: Fuses {
+                fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,

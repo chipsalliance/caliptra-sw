@@ -104,6 +104,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
 fn test_pl1_derive_context_dpe_context_thresholds() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -210,6 +211,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
 fn test_pl1_init_ctx_dpe_context_thresholds() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -256,6 +258,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
 fn test_populate_idev_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -287,6 +290,7 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
 fn test_stash_measurement_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -318,6 +322,7 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
 fn test_certify_key_x509_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -348,6 +353,7 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
 fn test_certify_key_extended_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -384,6 +390,7 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
 fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -515,7 +522,10 @@ fn test_measurement_log_pl_context_threshold() {
 
 #[test]
 fn test_pl0_unset_in_header() {
-    let fuses = Fuses::default();
+    let fuses = Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+        ..Default::default()
+    };
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let mut model = caliptra_hw_model::new(
         InitParams {

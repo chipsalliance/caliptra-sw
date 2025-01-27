@@ -155,6 +155,10 @@ pub trait SocManager {
             .fuse_soc_stepping_id()
             .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
 
+        self.soc_ifc()
+            .fuse_pqc_key_type()
+            .write(|w| w.key_type(fuses.fuse_pqc_key_type));
+
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
 
         if !self.soc_ifc().cptra_fuse_wr_done().read().done() {

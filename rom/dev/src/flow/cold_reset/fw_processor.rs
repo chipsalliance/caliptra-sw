@@ -31,7 +31,7 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
-use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
@@ -449,7 +449,7 @@ impl FirmwareProcessor {
         cprintln!(
             "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
-            manifest.pqc_key_type,
+            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type) == Some(FwVerificationPqcKeyType::MLDSA)  { "MLDSA" } else { "LMS" },
             info.vendor_pqc_pub_key_idx,
             info.fw_svn,
             info.effective_fuse_svn,

@@ -22,7 +22,7 @@ fn main() {
     let sub_cmds = vec![Command::new("create")
         .about("Create a new firmware image bundle")
         .arg(
-            arg!(--"pqc-key-type" <U32> "Type of image keys: 1: ECC + LMS; 2: ECC + MLDSA")
+            arg!(--"pqc-key-type" <U32> "Type of PQC key validation: 1: MLDSA; 3: LMS")
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )

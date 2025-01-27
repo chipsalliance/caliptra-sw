@@ -753,7 +753,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         FW_SVN,
         FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
         VENDOR_PQC_PK_INDEX,
-        ROM_VERIFY_CONFIG,
+        PQC_KEY_TYPE,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
     pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)
@@ -995,6 +995,7 @@ The following are the pre-conditions that should be satisfied:
   - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
   - fuse_owner_pk_hash : The hash of the owner public keys in preamble.
   - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
+  - fuse_pqc_key_type: This bitmask specifies the enabled PQC key type for firmware validation, indicating either MLDSA or LMS.
 - The SOC has written the data to the mailbox.
 - The SOC has written the data length in the DLEN mailbox register.
 - The SOC has put the FW_DOWNLOAD command in the command register.

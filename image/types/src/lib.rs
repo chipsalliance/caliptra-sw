@@ -192,8 +192,8 @@ impl Default for ImagePqcSignature {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum FwVerificationPqcKeyType {
-    LMS = 1,
-    MLDSA = 2,
+    MLDSA = 1,
+    LMS = 3,
 }
 
 impl From<FwVerificationPqcKeyType> for u8 {
@@ -211,8 +211,8 @@ impl Default for FwVerificationPqcKeyType {
 impl FwVerificationPqcKeyType {
     pub fn from_u8(value: u8) -> Option<FwVerificationPqcKeyType> {
         match value {
-            1 => Some(FwVerificationPqcKeyType::LMS),
-            2 => Some(FwVerificationPqcKeyType::MLDSA),
+            1 => Some(FwVerificationPqcKeyType::MLDSA),
+            3 => Some(FwVerificationPqcKeyType::LMS),
             _ => None,
         }
     }

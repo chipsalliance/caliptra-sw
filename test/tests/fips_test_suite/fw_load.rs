@@ -38,8 +38,8 @@ enum TocDigest {
 }
 
 const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
-    FwVerificationPqcKeyType::LMS,
     FwVerificationPqcKeyType::MLDSA,
+    FwVerificationPqcKeyType::LMS,
 ];
 
 pub fn build_fw_image(image_options: ImageOptions) -> ImageBundle {
@@ -133,6 +133,7 @@ fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
     Fuses {
         vendor_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
+        fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
         ..Default::default()
     }
 }
@@ -208,7 +209,11 @@ fn fw_load_error_flow_base(
     pqc_key_type: FwVerificationPqcKeyType,
 ) {
     // Use defaults if not provided
-    let fuses = fuses.unwrap_or(Fuses::default());
+    let fuses_default = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        ..Default::default()
+    };
+    let fuses = fuses.unwrap_or(fuses_default);
     let image_options = ImageOptions {
         pqc_key_type,
         ..Default::default()
@@ -346,6 +351,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: [0u32; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -366,6 +372,7 @@ fn fw_load_error_vendor_pub_key_digest_failure() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: [0xDEADBEEF; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -386,6 +393,7 @@ fn fw_load_error_vendor_pub_key_digest_mismatch() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: [0xDEADBEEF; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -418,6 +426,7 @@ fn fw_load_error_owner_pub_key_digest_mismatch() {
         // Set fuses
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: [0xDEADBEEF; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -433,8 +442,12 @@ fn fw_load_error_owner_pub_key_digest_mismatch() {
 #[test]
 fn fw_load_error_vendor_ecc_pub_key_index_out_of_bounds() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
         // Generate image
-        let mut fw_image = build_fw_image(ImageOptions::default());
+        let mut fw_image = build_fw_image(image_options);
         // Change ECC pub key index to max+1
         fw_image.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_MAX_KEY_COUNT;
 
@@ -461,6 +474,7 @@ fn fw_load_error_vendor_ecc_pub_key_revoked() {
         let fuses = caliptra_hw_model::Fuses {
             fuse_ecc_revocation: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
                 .unwrap(),
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -737,6 +751,10 @@ fn fw_load_error_fmc_runtime_overlap() {
 #[test]
 fn fw_load_error_fmc_runtime_incorrect_order() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -755,7 +773,7 @@ fn fw_load_error_fmc_runtime_incorrect_order() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER.into(),
             *pqc_key_type,
         );
@@ -765,6 +783,10 @@ fn fw_load_error_fmc_runtime_incorrect_order() {
 #[test]
 fn fw_load_error_owner_ecc_pub_key_invalid_arg() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -782,7 +804,7 @@ fn fw_load_error_owner_ecc_pub_key_invalid_arg() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG.into(),
             *pqc_key_type,
         );
@@ -792,6 +814,10 @@ fn fw_load_error_owner_ecc_pub_key_invalid_arg() {
 #[test]
 fn fw_load_error_owner_ecc_signature_invalid_arg() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -803,7 +829,7 @@ fn fw_load_error_owner_ecc_signature_invalid_arg() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG.into(),
             *pqc_key_type,
         );
@@ -813,6 +839,10 @@ fn fw_load_error_owner_ecc_signature_invalid_arg() {
 #[test]
 fn fw_load_error_vendor_pub_key_invalid_arg() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -829,7 +859,7 @@ fn fw_load_error_vendor_pub_key_invalid_arg() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INVALID_ARG.into(),
             *pqc_key_type,
         );
@@ -839,6 +869,10 @@ fn fw_load_error_vendor_pub_key_invalid_arg() {
 #[test]
 fn fw_load_error_vendor_ecc_signature_invalid_arg() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -850,7 +884,7 @@ fn fw_load_error_vendor_ecc_signature_invalid_arg() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG.into(),
             *pqc_key_type,
         );
@@ -951,6 +985,10 @@ fn fw_load_error_update_reset_fmc_digest_mismatch() {
 #[test]
 fn fw_load_error_fmc_load_addr_invalid() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -963,7 +1001,7 @@ fn fw_load_error_fmc_load_addr_invalid() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into(),
             *pqc_key_type,
         );
@@ -973,6 +1011,10 @@ fn fw_load_error_fmc_load_addr_invalid() {
 #[test]
 fn fw_load_error_fmc_load_addr_unaligned() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -985,7 +1027,7 @@ fn fw_load_error_fmc_load_addr_unaligned() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED.into(),
             *pqc_key_type,
         );
@@ -995,6 +1037,10 @@ fn fw_load_error_fmc_load_addr_unaligned() {
 #[test]
 fn fw_load_error_fmc_entry_point_invalid() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1007,7 +1053,7 @@ fn fw_load_error_fmc_entry_point_invalid() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into(),
             *pqc_key_type,
         );
@@ -1017,6 +1063,10 @@ fn fw_load_error_fmc_entry_point_invalid() {
 #[test]
 fn fw_load_error_fmc_entry_point_unaligned() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1029,7 +1079,7 @@ fn fw_load_error_fmc_entry_point_unaligned() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into(),
             *pqc_key_type,
         );
@@ -1039,6 +1089,10 @@ fn fw_load_error_fmc_entry_point_unaligned() {
 #[test]
 fn fw_load_error_runtime_load_addr_invalid() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1051,7 +1105,7 @@ fn fw_load_error_runtime_load_addr_invalid() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into(),
             *pqc_key_type,
         );
@@ -1061,6 +1115,10 @@ fn fw_load_error_runtime_load_addr_invalid() {
 #[test]
 fn fw_load_error_runtime_load_addr_unaligned() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1073,7 +1131,7 @@ fn fw_load_error_runtime_load_addr_unaligned() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED.into(),
             *pqc_key_type,
         );
@@ -1083,6 +1141,10 @@ fn fw_load_error_runtime_load_addr_unaligned() {
 #[test]
 fn fw_load_error_runtime_entry_point_invalid() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1095,7 +1157,7 @@ fn fw_load_error_runtime_entry_point_invalid() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into(),
             *pqc_key_type,
         );
@@ -1105,6 +1167,10 @@ fn fw_load_error_runtime_entry_point_invalid() {
 #[test]
 fn fw_load_error_runtime_entry_point_unaligned() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1117,7 +1183,7 @@ fn fw_load_error_runtime_entry_point_unaligned() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED.into(),
             *pqc_key_type,
         );
@@ -1144,6 +1210,7 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1179,6 +1246,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
             runtime_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1194,6 +1262,10 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
 #[test]
 fn fw_load_error_image_len_more_than_bundle_size() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Generate image
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1206,7 +1278,7 @@ fn fw_load_error_image_len_more_than_bundle_size() {
 
         fw_load_error_flow(
             Some(fw_image),
-            None,
+            Some(fuses),
             CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE.into(),
             *pqc_key_type,
         );
@@ -1214,7 +1286,7 @@ fn fw_load_error_image_len_more_than_bundle_size() {
 }
 
 #[test]
-fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
+fn fw_load_error_vendor_pub_key_index_mismatch() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         // Generate image
         let image_options = ImageOptions {
@@ -1227,26 +1299,20 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
             fw_image.manifest.preamble.vendor_pqc_pub_key_idx + 1;
         update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
-        // Turn LMS verify on
-        let fuses = caliptra_hw_model::Fuses {
-            ..Default::default()
-        };
-
         fw_load_error_flow(
             Some(fw_image),
-            Some(fuses),
+            None,
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH.into(),
             *pqc_key_type,
         );
     }
 }
 
-// [TODO][CAP2] fw_load_error_vendor_mldsa_pub_key_index_mismatch
-
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_vendor_lms_verify_failure() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -1272,13 +1338,9 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     // Set LMS pub key index to MAX + 1
     fw_image.manifest.preamble.vendor_pqc_pub_key_idx = VENDOR_LMS_MAX_KEY_COUNT;
 
-    let fuses = caliptra_hw_model::Fuses {
-        ..Default::default()
-    };
-
     fw_load_error_flow(
         Some(fw_image),
-        Some(fuses),
+        None,
         CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into(),
         FwVerificationPqcKeyType::LMS,
     );
@@ -1309,13 +1371,9 @@ fn fw_load_error_vendor_lms_signature_invalid() {
     // Modify the vendor public key.
     lms_pub_key.digest = [Default::default(); 6];
 
-    let fuses = caliptra_hw_model::Fuses {
-        ..Default::default()
-    };
-
     fw_load_error_flow(
         Some(fw_image),
-        Some(fuses),
+        None,
         CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into(),
         FwVerificationPqcKeyType::LMS,
     );
@@ -1349,6 +1407,7 @@ fn fw_load_error_fmc_runtime_load_addr_overlap() {
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_owner_lms_verify_failure() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -1389,6 +1448,7 @@ fn fw_load_error_owner_lms_signature_invalid() {
 
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -1417,6 +1477,7 @@ fn fw_load_error_vendor_lms_pub_key_revoked() {
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
         fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -1446,6 +1507,7 @@ fn fw_load_error_vendor_mldsa_pub_key_revoked() {
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
         fuse_mldsa_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
+        fuse_pqc_key_type: FwVerificationPqcKeyType::MLDSA as u32,
         ..Default::default()
     };
 
@@ -1519,13 +1581,9 @@ fn fw_load_error_update_reset_vendor_pqc_pub_key_idx_mismatch() {
         // Generate image
         let update_image = build_fw_image(image_options_update_reset);
 
-        let fuses = caliptra_hw_model::Fuses {
-            ..Default::default()
-        };
-
         update_fw_error_flow(
             None,
-            Some(fuses),
+            None,
             Some(update_image),
             CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH.into(),
             *pqc_key_type,
@@ -1618,6 +1676,7 @@ fn fw_load_bad_pub_key_flow(fw_image: ImageBundle, exp_error_code: u32) {
         life_cycle: DeviceLifecycle::Production,
         vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
+        fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
         ..Default::default()
     };
 
@@ -1781,6 +1840,7 @@ fn fw_load_blank_pub_key_hashes() {
         // Don't populate pub key hashes
         let fuses = Fuses {
             life_cycle: DeviceLifecycle::Production,
+            fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1810,7 +1870,14 @@ fn fw_load_blank_pub_key_hashes() {
 #[test]
 pub fn corrupted_fw_load_version() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let mut hw = fips_test_init_to_rom(None, None);
+        let boot_params = BootParams {
+            fuses: Fuses {
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut hw = fips_test_init_to_rom(None, Some(boot_params));
 
         // Generate image
         let image_options = ImageOptions {

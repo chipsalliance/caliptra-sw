@@ -146,6 +146,7 @@ fn test_pcr_log() {
             anti_rollback_disable: true,
             vendor_pk_hash: vendor_pubkey_digest,
             owner_pk_hash: owner_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -257,6 +258,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             vendor_pk_hash: gen
                 .vendor_pubkey_digest(&image_bundle.manifest.preamble)
                 .unwrap(),
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -357,6 +359,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             owner_pk_hash: owner_pubkey_digest,
             fmc_key_manifest_svn: FMC_FUSE_SVN,
             runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -507,6 +510,7 @@ fn test_pcr_log_across_update_reset() {
             runtime_svn: [1, 0, 0, 0],
             vendor_pk_hash: vendor_pubkey_digest,
             owner_pk_hash: owner_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -610,6 +614,7 @@ fn test_fuse_log() {
         anti_rollback_disable: true,
         fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
         runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -755,6 +760,11 @@ fn test_fht_info() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -762,7 +772,7 @@ fn test_fht_info() {
                 ..Default::default()
             },
             BootParams {
-                fuses: Fuses::default(),
+                fuses,
                 ..Default::default()
             },
         )
@@ -800,6 +810,7 @@ fn test_check_rom_cold_boot_status_reg() {
             ..Default::default()
         };
         let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -845,7 +856,10 @@ fn test_upload_single_measurement() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -919,7 +933,10 @@ fn test_upload_measurement_limit() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -1069,7 +1086,10 @@ fn test_upload_no_measurement() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {

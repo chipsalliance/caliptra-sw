@@ -59,8 +59,11 @@ fn test_generate_csr_envelop() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
         generate_csr_envelop(&mut hw, &image_bundle);
     }
 }
@@ -73,7 +76,10 @@ fn test_ecc_idev_subj_key_id_algo() {
             ..Default::default()
         };
         for algo in 0..(X509KeyIdAlgo::Fuse as u32 + 1) {
-            let mut fuses = Fuses::default();
+            let mut fuses = Fuses {
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
             fuses.idevid_cert_attr[IdevidCertAttr::Flags as usize] = algo;
 
             let (mut hw, image_bundle) =
@@ -134,7 +140,8 @@ fn test_generate_csr_envelop_stress() {
         };
 
         for _ in 0..num_tests {
-            let fuses = fuses_with_random_uds();
+            let mut fuses = fuses_with_random_uds();
+            fuses.fuse_pqc_key_type = *pqc_key_type as u32;
             let (mut hw, image_bundle) =
                 helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 

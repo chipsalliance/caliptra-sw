@@ -280,7 +280,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0047);
     pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
         CaliptraError::new_const(0x000b0048);
-    pub const IMAGE_VERIFIER_ERR_FW_IMAGE_VERIFICATION_KEY_TYPE_INVALID: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0049);
     pub const IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b004a);
@@ -316,6 +316,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0059);
     pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b005a);
+    pub const IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE: CaliptraError =
+        CaliptraError::new_const(0x000b005b);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b005c);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =

@@ -325,6 +325,18 @@ impl FuseBank<'_> {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.fuse_lms_revocation().read()
     }
+
+    /// Get the PQC (MLDSA or LMS) key type.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///    PQC key type (1 for MLDSA, 3 for LMS)
+    ///
+    pub fn pqc_key_type(&self) -> u32 {
+        self.soc_ifc.regs().fuse_pqc_key_type().read().into()
+    }
 }
 
 #[cfg(test)]

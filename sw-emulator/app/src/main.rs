@@ -170,6 +170,11 @@ fn main() -> io::Result<()> {
                 .required(false)
                 .action(ArgAction::SetTrue)
         )
+        .arg(
+            arg!(--"pqc-key-type" <U32> "Type of PQC key validation: 1: MLDSA; 3: LMS")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -196,6 +201,7 @@ fn main() -> io::Result<()> {
         }
     };
     let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
+    let pqc_key_type = args.get_one::<u32>("pqc-key-type").unwrap();
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
@@ -413,6 +419,11 @@ fn main() -> io::Result<()> {
             .at(1)
             .write(|_| (*wdt_timeout >> 32) as u32);
     }
+
+    // Populate the pqc_key_type fuse.
+    soc_ifc
+        .fuse_pqc_key_type()
+        .write(|w| w.key_type(*pqc_key_type));
 
     let cpu = Cpu::new(root_bus, clock);
 

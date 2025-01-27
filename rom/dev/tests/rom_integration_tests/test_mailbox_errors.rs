@@ -38,8 +38,11 @@ fn test_mailbox_command_aborted_after_handle_fatal_error() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
         assert_eq!(
             Err(ModelError::MailboxCmdFailed(
                 CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()

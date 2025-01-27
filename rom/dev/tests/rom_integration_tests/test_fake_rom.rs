@@ -110,7 +110,10 @@ fn test_fake_rom_fw_load() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -160,7 +163,10 @@ fn test_fake_rom_update_reset() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -224,7 +230,10 @@ fn test_image_verify() {
             ..Default::default()
         };
         const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {

@@ -8,7 +8,7 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::{self, KatStarted};
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, SecurityState};
 
 #[test]
 fn test_wdt_activation_and_stoppage() {
@@ -29,6 +29,10 @@ fn test_wdt_activation_and_stoppage() {
         )
         .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env())
             .unwrap();
         let mut hw = caliptra_hw_model::new(
@@ -37,7 +41,10 @@ fn test_wdt_activation_and_stoppage() {
                 security_state,
                 ..Default::default()
             },
-            caliptra_hw_model::BootParams::default(),
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
         )
         .unwrap();
 
