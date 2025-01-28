@@ -22,20 +22,11 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
 
 ### Requirements: ###
  - Vivado
-   - Version v2022.2
+   - Version v2022.2 (2024.2 required for Segmented Configuration)
  - FPGA
    - [ZCU104 Development Board](https://www.xilinx.com/products/boards-and-kits/zcu104.html)
    - [VCK190](https://www.xilinx.com/products/boards-and-kits/vck190.html)
    - VMK180 will be supported soon.
-
-### ZCU104 ###
-WARNING!!! Zynq flow is currently probably broken for 2.0 because for MLDSA the normal KeyVault needs to be used. If that is re-stubbed then Zynq can partially work by disabling adam's bridge, but that may not be worth it. WG needs to consider if partial Zynq support is desired.
-#### Processing system one time setup: ####
-1. Install ZCU104 SD card image
-   - https://ubuntu.com/download/amd-xilinx
-1. Configure SW6 to boot from SD1: [Image](./images/zynq_boot_switch.jpg)
-   - Mode SW6[4:1]: OFF, OFF, OFF, ON
-1. Install rustup using Unix directions: https://rustup.rs/#
 
 ### Versal ###
 #### Processing system one time setup: ####
@@ -58,14 +49,16 @@ Serial port settings for connection over USB.
 The FPGA build process uses Vivado's batch mode to procedurally create the Vivado project using fpga_configuration.tcl.
 This script provides a number of configuration options for features that can be enabled using "-tclargs OPTION=VALUE OPTION=VALUE"
 
-| Option    | Purpose
-| ------    | -------
-| BUILD     | Automatically start building the FPGA.
-| GUI       | Open the Vivado GUI.
-| JTAG      | Assign JTAG signals to Zynq PS GPIO.
-| ITRNG     | Enable Caliptra's ITRNG.
-| CG_EN     | Removes FPGA optimizations and allows clock gating.
-| HW_LATEST | Use hw/latest instead of hw/1.0.
+| Option      | Purpose
+| ------      | -------
+| BUILD       | Automatically start building the FPGA.
+| GUI         | Open the Vivado GUI.
+| JTAG        | Assign JTAG signals to Zynq PS GPIO.
+| ITRNG       | Enable Caliptra's ITRNG.
+| CG_EN       | Removes FPGA optimizations and allows clock gating.
+| RTL_VERSION | RTL directory under hw/. latest or 1.0.
+| BOARD       | TODO: VCK190 currently only otpion.
+| SEGMENTED   | Enabling [Segmented Configuration](https://github.com/Xilinx/Vivado-Design-Tutorials/tree/2024.2/Versal/Boot_and_Config/Segmented_Configuration) causes the design to be split into a boot.pdi that configures the NOC and a pl.pdi that holds the rest of the design. This flow allows the PL to be changed without rebooting the system. Segmented Configuration requires Vivado 2024.2.
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
@@ -78,21 +71,24 @@ This script provides a number of configuration options for features that can be 
     - Run Synthesis: `launch_runs synth_1`
     - [Optional] Set Up Debug signals on Synthesized Design
     - Run Implementation: `launch_runs impl_1`
-    - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
+    - Generate Device Image: `write_device_image $outputDir/caliptra_fpga`
+    - Export hardware: `write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa`
 
-### Loading and execution Steps: ###
-[setup_fpga.sh](setup_fpga.sh) performs platform setup that is needed after each boot.
- - Disables CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
- - Reduces fan speed by setting the GPIO pin connected to the fan controller FULLSPD pin to output.
-   - https://support.xilinx.com/s/question/0D52E00006iHuopSAC/zcu104-fan-running-at-max-speed?language=en_US
- - Builds and installs the rom_backdoor and io_module kernel modules.
- - Sets the clock for the FPGA logic.
- - Installs the provided FPGA image.
+### Build boot.bin: ###
+ - Source petalinux settings.sh
+ - Run steps from [create_boot_bin.sh](create_boot_bin.sh) to use Petalinux to create the BOOT.BIN
+   - `./create_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
+ - Copy BOOT.BIN to the boot partition as boot1900.bin
+   - The boot partition can be mounted and modified from an external system
+   - /boot/firmware/boot1900.bin
+   - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
 
+### Running Caliptra tests from the FPGA: ###
 ```shell
-sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
+sudo insmod /home/ubuntu/caliptra-sw/hw/fpga/io_module/io_module.ko
+sudo chmod 666 /dev/uio0
 
-CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
+CPTRA_UIO_NUM=0 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
 ```
 
 ### Processing System - Programmable Logic interfaces ###
@@ -119,6 +115,7 @@ CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke
 | Caliptra                            | 1 MiB        | 0xA410_0000   | 0xA41F_FFFF |
 
 ### JTAG debug
+TODO: Broken
 Requirements:
 - Security state must have either debug_locked == false or lifecycle == manuf.
 - Set "debug = true" in firmware profile to provide line information to GDB.

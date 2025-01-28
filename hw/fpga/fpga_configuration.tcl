@@ -10,7 +10,7 @@ set BOARD VCK190
 set DISABLE_ECC FALSE
 set ITRNG TRUE
 set APB FALSE
-set SEGMENTED TRUE
+set SEGMENTED FALSE
 set SEGMENTED_WRITE_NCR FALSE
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
