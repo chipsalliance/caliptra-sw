@@ -47,6 +47,7 @@ fn main() {
         .arg(arg!(--"zeros" "Build an image bundle with zero'd FMC and RT. This will NMI immediately."))
         .arg(arg!(--"owner-sig-override" [FILE] "Manually overwrite the owner_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"vendor-sig-override" [FILE] "Manually overwrite the vendor_sigs of the FW bundle image with the contents of binary [FILE]. The signature should be an ECC signature concatenated with an LMS signature").value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)))
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
@@ -76,25 +77,32 @@ fn main() {
     };
 
     if let Some(path) = args.get_one::<PathBuf>("fw") {
+        let image_options = if let Some(path) = args.get_one::<PathBuf>("image-options") {
+            toml::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+        } else if args.contains_id("zeros") {
+            ImageOptions::default()
+        } else {
+            ImageOptions {
+                fmc_version: version::get_fmc_version(),
+                app_version: version::get_runtime_version(),
+                fmc_svn,
+                app_svn,
+                ..Default::default()
+            }
+        };
         // Generate Image Bundle
         let image = if args.contains_id("zeros") {
             caliptra_builder::build_and_sign_image(
                 &firmware::FMC_ZEROS,
                 &firmware::APP_ZEROS,
-                ImageOptions::default(),
+                image_options,
             )
             .unwrap()
         } else {
             let mut image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
                 &firmware::APP_WITH_UART,
-                ImageOptions {
-                    fmc_version: version::get_fmc_version(),
-                    app_version: version::get_runtime_version(),
-                    fmc_svn,
-                    app_svn,
-                    ..Default::default()
-                },
+                image_options,
             )
             .unwrap();
 
@@ -179,4 +187,61 @@ fn test_binaries_are_identical() {
             "binaries are not consistent in {fwid:?}"
         );
     }
+}
+
+#[test]
+fn test_image_options_imports_correctly() {
+    // Toml options
+    let t: ImageOptions =
+        toml::from_str(&std::fs::read_to_string("test_data/default_image_options.toml").unwrap())
+            .unwrap();
+
+    // Default options
+    let d = ImageOptions {
+        fmc_version: version::get_fmc_version(),
+        app_version: version::get_runtime_version(),
+        ..Default::default()
+    };
+
+    // Check top level fields
+    assert_eq!(t.fmc_version, d.fmc_version);
+    assert_eq!(t.fmc_svn, d.fmc_svn);
+    assert_eq!(t.app_version, d.app_version);
+    assert_eq!(t.app_svn, d.app_svn);
+
+    // Check vendor config fields. Only the first key is populated in the toml file.
+    let t_v = &t.vendor_config;
+    let d_v = &d.vendor_config;
+    assert_eq!(t_v.ecc_key_idx, d_v.ecc_key_idx);
+    assert_eq!(t_v.lms_key_idx, d_v.lms_key_idx);
+    assert_eq!(t_v.not_before, d_v.not_before);
+    assert_eq!(t_v.not_after, d_v.not_after);
+    assert_eq!(t_v.pl0_pauser, d_v.pl0_pauser);
+    assert_eq!(t_v.pub_keys.ecc_pub_keys[0], d_v.pub_keys.ecc_pub_keys[0]);
+    assert_eq!(t_v.pub_keys.lms_pub_keys[0], d_v.pub_keys.lms_pub_keys[0]);
+    assert_eq!(
+        t_v.priv_keys.unwrap().ecc_priv_keys[0],
+        d_v.priv_keys.unwrap().ecc_priv_keys[0]
+    );
+    assert_eq!(
+        t_v.priv_keys.unwrap().lms_priv_keys[0],
+        d_v.priv_keys.unwrap().lms_priv_keys[0]
+    );
+
+    // Check owner config fields
+    let t_o = &t.owner_config.unwrap();
+    let d_o = &d.owner_config.unwrap();
+    assert_eq!(t_o.not_before, d_o.not_before);
+    assert_eq!(t_o.not_after, d_o.not_after);
+    assert_eq!(t_o.epoch, d_o.epoch);
+    assert_eq!(t_o.pub_keys.ecc_pub_key, d_o.pub_keys.ecc_pub_key);
+    assert_eq!(t_o.pub_keys.lms_pub_key, d_o.pub_keys.lms_pub_key);
+    assert_eq!(
+        t_o.priv_keys.unwrap().ecc_priv_key,
+        d_o.priv_keys.unwrap().ecc_priv_key
+    );
+    assert_eq!(
+        t_o.priv_keys.unwrap().lms_priv_key,
+        d_o.priv_keys.unwrap().lms_priv_key
+    );
 }
