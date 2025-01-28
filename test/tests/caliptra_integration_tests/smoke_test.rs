@@ -197,6 +197,7 @@ fn smoke_test() {
         owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
         runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
@@ -356,7 +357,7 @@ fn smoke_test() {
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
             lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
-            rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
+            pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         }),
         &expected_ldevid_key,
     );

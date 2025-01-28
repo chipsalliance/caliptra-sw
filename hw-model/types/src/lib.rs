@@ -127,6 +127,7 @@ impl std::fmt::Debug for FusesWrapper {
             .field("fuse_lms_revocation", &self.0.fuse_lms_revocation)
             .field("fuse_mldsa_revocation", &self.0.fuse_mldsa_revocation)
             .field("soc_stepping_id", &self.0.soc_stepping_id)
+            .field("fuse_pqc_key_type", &self.0.fuse_pqc_key_type)
             .finish()
     }
 }

@@ -17,7 +17,7 @@ use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
 use zerocopy::{AsBytes, FromBytes};
@@ -30,6 +30,10 @@ fn test_update_reset_success() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -47,6 +51,7 @@ fn test_update_reset_success() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -85,6 +90,10 @@ fn test_update_reset_no_mailbox_cmd() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
@@ -99,6 +108,7 @@ fn test_update_reset_no_mailbox_cmd() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -139,6 +149,10 @@ fn test_update_reset_non_fw_load_cmd() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
@@ -153,6 +167,7 @@ fn test_update_reset_non_fw_load_cmd() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -190,6 +205,10 @@ fn test_update_reset_verify_image_failure() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_WITH_UART,
@@ -204,6 +223,7 @@ fn test_update_reset_verify_image_failure() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -247,6 +267,10 @@ fn test_update_reset_boot_status() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
@@ -261,6 +285,7 @@ fn test_update_reset_boot_status() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -309,6 +334,10 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
             ecc_key_idx: 3,
             ..VENDOR_CONFIG_KEY_0
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let image_options = ImageOptions {
             vendor_config: vendor_config_cold_boot,
             pqc_key_type: *pqc_key_type,
@@ -327,6 +356,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -458,6 +488,10 @@ fn test_check_rom_update_reset_status_reg() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
@@ -473,6 +507,7 @@ fn test_check_rom_update_reset_status_reg() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )
@@ -562,6 +597,10 @@ fn test_update_reset_max_fw_image() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
@@ -577,6 +616,7 @@ fn test_update_reset_max_fw_image() {
             },
             BootParams {
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )

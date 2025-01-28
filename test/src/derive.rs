@@ -14,6 +14,8 @@ use zerocopy::{transmute, AsBytes};
 
 #[cfg(test)]
 use caliptra_api_types::DeviceLifecycle;
+#[cfg(test)]
+use caliptra_image_types::FwVerificationPqcKeyType;
 
 use crate::{
     crypto::{self, derive_ecdsa_key, hmac384_drbg_keygen, hmac512, hmac512_kdf},
@@ -310,7 +312,7 @@ pub struct Pcr0Input {
     pub fmc_svn: u32,
     pub fmc_fuse_svn: u32,
     pub lms_vendor_pub_key_index: u32,
-    pub rom_verify_config: u32,
+    pub pqc_key_type: u32,
 }
 impl Pcr0Input {}
 
@@ -333,7 +335,7 @@ impl Pcr0 {
                 input.fmc_svn as u8,
                 input.fmc_fuse_svn as u8,
                 input.lms_vendor_pub_key_index as u8,
-                input.rom_verify_config as u8,
+                input.pqc_key_type as u8,
                 input.owner_pub_key_hash_from_fuses as u8,
             ],
         );
@@ -377,13 +379,13 @@ fn test_derive_pcr0() {
         fmc_svn: 5,
         fmc_fuse_svn: 2,
         lms_vendor_pub_key_index: u32::MAX,
-        rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
+        pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            132444429, 987394663, 2275449643, 2729083116, 322701188, 1268620383, 68534608,
-            1944581982, 1207702945, 1427901733, 3489811836, 435454516
+            1597321057, 3306746665, 3870835391, 3103173150, 3318383838, 3407565263, 3776158384,
+            4231654246, 1759479765, 3561253448, 1491479508, 1619944441
         ])
     )
 }

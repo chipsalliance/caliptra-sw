@@ -16,8 +16,8 @@ TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
-# Default to MLDSA key type.
-PQC_KEY_TYPE ?= 2
+# MLDSA (default): 1, LMS: 3.
+PQC_KEY_TYPE ?= 1
 
 default: build
 
@@ -127,6 +127,7 @@ run: build-emu build-fw-image build-rom
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
+		--pqc-key-type $(PQC_KEY_TYPE) \
 
 run-active: build-emu build-fw-image build-rom
 	cargo \

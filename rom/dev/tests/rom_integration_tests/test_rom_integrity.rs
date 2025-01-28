@@ -7,7 +7,7 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -60,6 +60,10 @@ fn test_read_rom_info_from_fmc() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let rom_info_from_image =
             RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
@@ -79,6 +83,7 @@ fn test_read_rom_info_from_fmc() {
             },
             BootParams {
                 fw_image: Some(&image_bundle),
+                fuses,
                 ..Default::default()
             },
         )

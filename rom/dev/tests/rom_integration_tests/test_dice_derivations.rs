@@ -21,8 +21,13 @@ fn test_cold_reset_status_reporting() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let (mut hw, image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         hw.step_until_boot_status(CfiInitialized.into(), false);
         hw.step_until_boot_status(KatStarted.into(), false);
@@ -122,12 +127,18 @@ fn test_cold_reset_success() {
         )
         .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
+                fuses,
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
                 ..Default::default()
             },
@@ -155,12 +166,18 @@ fn test_cold_reset_no_rng() {
         )
         .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
                 ..Default::default()
             },
             BootParams {
+                fuses,
                 fw_image: Some(&image_bundle.to_bytes().unwrap()),
                 initial_dbg_manuf_service_reg: 0x2, // Disable RNG
                 ..Default::default()

@@ -172,4 +172,7 @@ pub trait ImageVerificationEnv {
 
     // Set the extended error code
     fn set_fw_extended_error(&mut self, err: u32);
+
+    // Get the PQC Key Type from the fuse.
+    fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
 }

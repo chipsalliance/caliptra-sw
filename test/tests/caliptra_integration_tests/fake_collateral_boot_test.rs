@@ -254,7 +254,7 @@ fn fake_boot_test() {
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
             lms_vendor_pub_key_index: u32::MAX,
-            rom_verify_config: 0, // RomVerifyConfig::EcdsaOnly
+            pqc_key_type: 0, // RomVerifyConfig::EcdsaOnly
         }),
         &expected_ldevid_key,
     );

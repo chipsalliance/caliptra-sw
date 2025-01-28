@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 #![cfg_attr(not(test), no_std)]
 
+use caliptra_image_types::FwVerificationPqcKeyType;
+
 // Rationale behind this choice
 //
 // * The constant should be easily recognizable in waveforms and debug logs
@@ -18,6 +20,8 @@ pub const DEFAULT_FIELD_ENTROPY: [u32; 8] = [
 pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
+
+pub const DEFAULT_PQC_KEY_TYPE: u32 = FwVerificationPqcKeyType::MLDSA as u32;
 
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -168,6 +172,7 @@ pub struct Fuses {
     pub fuse_lms_revocation: u32,
     pub fuse_mldsa_revocation: u32,
     pub soc_stepping_id: u16,
+    pub fuse_pqc_key_type: u32,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -186,6 +191,7 @@ impl Default for Fuses {
             fuse_lms_revocation: Default::default(),
             fuse_mldsa_revocation: Default::default(),
             soc_stepping_id: Default::default(),
+            fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
         }
     }
 }

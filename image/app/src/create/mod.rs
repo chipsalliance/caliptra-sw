@@ -174,11 +174,8 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .parent()
         .with_context(|| "Invalid parent path")?;
 
-    let pqc_key_type = if *pqc_key_type == 1 {
-        FwVerificationPqcKeyType::LMS
-    } else {
-        FwVerificationPqcKeyType::MLDSA
-    };
+    let pqc_key_type = FwVerificationPqcKeyType::from_u8(*pqc_key_type as u8)
+        .ok_or_else(|| anyhow!("Unsupported PQC key type: {}", pqc_key_type))?;
 
     let gen_config = ImageGeneratorConfig::<ElfExecutable> {
         pqc_key_type,

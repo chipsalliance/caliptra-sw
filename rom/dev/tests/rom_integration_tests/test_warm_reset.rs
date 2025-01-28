@@ -108,6 +108,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
         };
         let fuses = Fuses {
             life_cycle: DeviceLifecycle::Unprovisioned,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -149,6 +150,7 @@ fn test_warm_reset_during_cold_boot_after_image_validation() {
         };
         let fuses = Fuses {
             life_cycle: DeviceLifecycle::Unprovisioned,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -183,6 +185,7 @@ fn test_warm_reset_during_update_reset() {
         };
         let fuses = Fuses {
             life_cycle: DeviceLifecycle::Unprovisioned,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 

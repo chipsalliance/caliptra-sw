@@ -700,6 +700,9 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x34c)]
     fuse_manuf_dbg_unlock_token: [u32; FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE / 4],
 
+    #[register(offset = 0x35c)]
+    fuse_pqc_key_type: u32,
+
     #[register(offset = 0x510)]
     ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -880,7 +883,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
+            cptra_hw_rev_id: ReadOnlyRegister::new(0x02), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.active_mode {
                 Self::CALIPTRA_HW_CONFIG_ACTIVE_MODE
@@ -959,6 +962,7 @@ impl SocRegistersImpl {
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_uds_seed_base_addr_l: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
             ss_uds_seed_base_addr_h: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
+            fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
         };
         regs
     }

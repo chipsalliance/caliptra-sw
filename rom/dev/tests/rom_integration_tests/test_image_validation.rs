@@ -78,8 +78,13 @@ fn test_invalid_manifest_marker() {
             ..Default::default()
         };
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         image_bundle.manifest.marker = 0xDEADBEEF;
 
         assert_eq!(
@@ -104,13 +109,71 @@ fn test_invalid_manifest_size() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
 
         assert_eq!(
             ModelError::MailboxCmdFailed(
                 CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH.into()
+            ),
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err()
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_invalid_pqc_key_type() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    for pqc_key_type in 0..std::u8::MAX {
+        if pqc_key_type == FwVerificationPqcKeyType::LMS as u8
+            || pqc_key_type == FwVerificationPqcKeyType::MLDSA as u8
+        {
+            continue;
+        }
+        image_bundle.manifest.pqc_key_type = pqc_key_type;
+
+        assert_eq!(
+            ModelError::MailboxCmdFailed(
+                CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID.into()
+            ),
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err()
+        );
+    }
+}
+
+#[test]
+fn test_pqc_key_type_mismatch() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let incorrect_pqc_key_type = match pqc_key_type {
+            FwVerificationPqcKeyType::LMS => FwVerificationPqcKeyType::MLDSA,
+            FwVerificationPqcKeyType::MLDSA => FwVerificationPqcKeyType::LMS,
+        };
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: incorrect_pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        assert_eq!(
+            ModelError::MailboxCmdFailed(
+                CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH.into()
             ),
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap_err()
@@ -133,6 +196,7 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: [0u32; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
@@ -162,6 +226,7 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: [0xDEADBEEF; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -197,6 +262,7 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: vendor_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -263,6 +329,7 @@ fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         vendor_pk_hash: vendor_pubkey_digest,
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -294,6 +361,7 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: vendor_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -332,6 +400,7 @@ fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
         vendor_pk_hash: vendor_pubkey_digest,
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -397,6 +466,7 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         };
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: [0xDEADBEEF; 12],
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -440,6 +510,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
             let fuses = caliptra_hw_model::Fuses {
                 fuse_ecc_revocation: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
                     .unwrap(),
+                fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
 
@@ -507,6 +578,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 
         let fuses = caliptra_hw_model::Fuses {
             fuse_lms_revocation: 1u32 << image_options.vendor_config.pqc_key_idx,
+            fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
             ..Default::default()
         };
 
@@ -607,8 +679,12 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_MAX_KEY_COUNT;
 
         assert_eq!(
@@ -629,6 +705,7 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
 #[test]
 fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -654,8 +731,12 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 
         // Set ecc_pub_key.x to zero.
         let ecc_pub_key_x_backup = image_bundle.manifest.preamble.vendor_ecc_active_pub_key.x;
@@ -681,7 +762,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         drop(hw);
 
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Set ecc_pub_key.y to zero.
         image_bundle.manifest.preamble.vendor_ecc_active_pub_key.x = ecc_pub_key_x_backup;
@@ -714,8 +795,12 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 
         // Set vendor_sig.r to zero.
         let vendor_sig_r_backup = image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r;
@@ -736,7 +821,7 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
         drop(hw);
 
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Set vendor_sig.s to zero.
         image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r = vendor_sig_r_backup;
@@ -764,8 +849,12 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
 
         // Modify the vendor public key.
         let ecc_pub_key_backup = image_bundle.manifest.preamble.vendor_ecc_active_pub_key;
@@ -798,7 +887,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         drop(hw);
 
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options);
 
         // Modify the vendor signature.
         image_bundle.manifest.preamble.vendor_ecc_active_pub_key = ecc_pub_key_backup;
@@ -835,6 +924,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
 #[test]
 fn test_header_verify_vendor_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -866,6 +956,7 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -904,6 +995,7 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
 #[test]
 fn test_header_verify_owner_lms_sig_mismatch() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -936,6 +1028,7 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -973,8 +1066,12 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Change vendor pubkey index.
         image_bundle.manifest.header.vendor_ecc_pub_key_idx =
@@ -1002,6 +1099,7 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
 #[test]
 fn test_header_verify_vendor_lms_pub_key_in_preamble_and_header() {
     let fuses = caliptra_hw_model::Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let image_options = ImageOptions {
@@ -1035,7 +1133,10 @@ fn test_header_verify_owner_sig_zero_fuses() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
-        let fuses = caliptra_hw_model::Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
 
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
@@ -1084,6 +1185,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1142,6 +1244,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1191,6 +1294,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1243,6 +1347,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1295,6 +1400,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1347,6 +1453,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
 
         let fuses = caliptra_hw_model::Fuses {
             owner_pk_hash: digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
 
@@ -1389,8 +1496,12 @@ fn test_toc_invalid_entry_count() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Change the TOC length.
         image_bundle.manifest.header.toc_len = caliptra_image_types::MAX_TOC_ENTRY_COUNT + 1;
@@ -1418,8 +1529,12 @@ fn test_toc_invalid_toc_digest() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Change the TOC digest.
         image_bundle.manifest.header.toc_digest[0] = 0xDEADBEEF;
@@ -1447,8 +1562,12 @@ fn test_toc_fmc_size_zero() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let fmc_new_size = 0;
         // These are unchanged.
         let fmc_new_offset = image_bundle.manifest.fmc.offset;
@@ -1476,9 +1595,13 @@ fn test_toc_fmc_range_overlap() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Case 1: FMC offset == Runtime offset
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
         let fmc_new_offset = image_bundle.manifest.runtime.offset;
         // These are unchanged.
         let fmc_new_size = image_bundle.manifest.fmc.size;
@@ -1502,7 +1625,7 @@ fn test_toc_fmc_range_overlap() {
 
         // Case 2: FMC offset > Runtime offset
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
         let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
         // These are unchanged.
         let fmc_new_size = image_bundle.manifest.fmc.size;
@@ -1526,7 +1649,7 @@ fn test_toc_fmc_range_overlap() {
 
         // // Case 3: FMC start offset < Runtime offset < FMC end offset
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let runtime_new_offset = image_bundle.manifest.fmc.offset + 1;
         // These are unchanged.
         let fmc_new_offset = image_bundle.manifest.fmc.offset;
@@ -1561,8 +1684,12 @@ fn test_toc_fmc_range_incorrect_order() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let fmc_new_offset = image_bundle.manifest.runtime.offset;
         let fmc_new_size = image_bundle.manifest.runtime.size;
         let runtime_new_offset = image_bundle.manifest.fmc.offset;
@@ -1596,11 +1723,15 @@ fn test_fmc_rt_load_address_range_overlap() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         // Case 1:
         // [-FMC--]
         //      [--RT--]
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options.clone());
+            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
         let rt_new_load_addr = image_bundle.manifest.fmc.load_addr + 1;
         let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
         assert_eq!(
@@ -1620,7 +1751,7 @@ fn test_fmc_rt_load_address_range_overlap() {
         //      [-FMC--]
         //  [--RT--]
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let fmc_new_load_addr = image_bundle.manifest.runtime.load_addr + 1;
         let image = update_load_addr(&mut image_bundle, true, fmc_new_load_addr);
         assert_eq!(
@@ -1644,8 +1775,12 @@ fn test_fmc_digest_mismatch() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Change the FMC image.
         image_bundle.fmc[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
@@ -1672,8 +1807,12 @@ fn test_fmc_invalid_load_addr_before_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_load_addr(&mut image_bundle, true, ICCM_ORG - 4);
         assert_eq!(
@@ -1697,8 +1836,12 @@ fn test_fmc_invalid_load_addr_after_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR + 1);
         assert_eq!(
@@ -1722,8 +1865,12 @@ fn test_fmc_not_contained_in_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR - 4);
         assert_eq!(
@@ -1742,8 +1889,12 @@ fn test_fmc_load_addr_unaligned() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let load_addr = image_bundle.manifest.fmc.load_addr;
         let image = update_load_addr(&mut image_bundle, true, load_addr + 1);
         assert_eq!(
@@ -1767,8 +1918,12 @@ fn test_fmc_invalid_entry_point_before_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_entry_point(&mut image_bundle, true, ICCM_ORG - 4);
         assert_eq!(
@@ -1792,9 +1947,13 @@ fn test_fmc_invalid_entry_point_after_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let mut image_bundle = helpers::build_image_bundle(image_options);
         let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
-        let mut hw = helpers::build_hw_model(Fuses::default());
+        let mut hw = helpers::build_hw_model(fuses);
 
         assert_eq!(
             ModelError::MailboxCmdFailed(
@@ -1817,10 +1976,14 @@ fn test_fmc_entry_point_unaligned() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let mut image_bundle = helpers::build_image_bundle(image_options);
         let entry_point = image_bundle.manifest.fmc.entry_point;
         let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
-        let mut hw = helpers::build_hw_model(Fuses::default());
+        let mut hw = helpers::build_hw_model(fuses);
 
         assert_eq!(
             ModelError::MailboxCmdFailed(
@@ -1843,8 +2006,12 @@ fn test_toc_rt_size_zero() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let runtime_new_size = 0;
 
@@ -1876,8 +2043,12 @@ fn test_runtime_digest_mismatch() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         // Change the FMC image.
         image_bundle.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
@@ -1903,8 +2074,12 @@ fn test_runtime_invalid_load_addr_before_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let rt_new_load_addr = ICCM_ORG
             - (image_bundle.manifest.fmc.load_addr - ICCM_ORG + image_bundle.manifest.runtime.size);
@@ -1930,8 +2105,12 @@ fn test_runtime_invalid_load_addr_after_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
         assert_eq!(
@@ -1955,8 +2134,12 @@ fn test_runtime_not_contained_in_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR - 3);
         assert_eq!(
@@ -1975,8 +2158,12 @@ fn test_runtime_load_addr_unaligned() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let load_addr = image_bundle.manifest.runtime.load_addr;
         let image = update_load_addr(&mut image_bundle, false, load_addr + 1);
         assert_eq!(
@@ -2000,8 +2187,12 @@ fn test_runtime_invalid_entry_point_before_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_entry_point(&mut image_bundle, false, ICCM_ORG - 4);
         assert_eq!(
@@ -2025,8 +2216,12 @@ fn test_runtime_invalid_entry_point_after_iccm() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
         assert_eq!(
@@ -2050,8 +2245,12 @@ fn test_runtime_entry_point_unaligned() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let entry_point = image_bundle.manifest.runtime.entry_point;
         let image = update_entry_point(&mut image_bundle, false, entry_point + 1);
         assert_eq!(
@@ -2085,6 +2284,7 @@ fn test_runtime_svn_greater_than_max() {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let image_options = ImageOptions {
@@ -2128,6 +2328,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
             runtime_svn: fuse_svn,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let image_options = ImageOptions {
@@ -2163,7 +2364,10 @@ fn cert_test_with_custom_dates() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -2252,7 +2456,10 @@ fn cert_test() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -2320,7 +2527,10 @@ fn cert_test_with_ueid() {
             ..Default::default()
         };
         let ueid = [0x04030201, 0x08070605, 0x0C0B0A09, 0x100F0E0D];
-        let mut fuses = Fuses::default();
+        let mut fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber1 as usize] = ueid[0];
         fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber2 as usize] = ueid[1];
         fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber3 as usize] = ueid[2];
@@ -2686,13 +2896,20 @@ fn test_max_fw_image() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            BootParams::default(),
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
         )
         .unwrap();
 
@@ -2736,13 +2953,20 @@ fn test_max_fw_image() {
 
 #[test]
 fn test_mldsa_verification() {
+    let fuses = Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::MLDSA as u32,
+        ..Default::default()
+    };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             ..Default::default()
         },
-        BootParams::default(),
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -2765,13 +2989,20 @@ fn test_mldsa_verification() {
 }
 
 fn hw_and_mldsa_image_bundle() -> (DefaultHwModel, ImageBundle) {
+    let fuses = Fuses {
+        fuse_pqc_key_type: FwVerificationPqcKeyType::MLDSA as u32,
+        ..Default::default()
+    };
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
             ..Default::default()
         },
-        BootParams::default(),
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
     )
     .unwrap();
 

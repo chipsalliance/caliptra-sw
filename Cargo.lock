@@ -224,6 +224,9 @@ dependencies = [
 [[package]]
 name = "caliptra-api-types"
 version = "0.1.0"
+dependencies = [
+ "caliptra-image-types",
+]
 
 [[package]]
 name = "caliptra-auth-man-gen"

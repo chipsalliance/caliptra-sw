@@ -104,9 +104,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)?;
         }
 
-        // Check the verification pqc key type.
+        // Check if the PQC key type is valid.
         let pqc_key_type = FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type)
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_FW_IMAGE_VERIFICATION_KEY_TYPE_INVALID)?;
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID)?;
+
+        // Check if the PQC key type matches the fuse value.
+        let pqc_key_type_fuse = self.env.pqc_key_type_fuse()?;
+        if pqc_key_type != pqc_key_type_fuse {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH)?;
+        }
 
         // Verify the preamble
         let preamble = &manifest.preamble;
@@ -2310,6 +2316,7 @@ mod tests {
         vendor_pqc_pub_key_revocation: u32,
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
+        pqc_key_type: FwVerificationPqcKeyType,
     }
 
     impl Default for TestEnv {
@@ -2325,6 +2332,7 @@ mod tests {
                 vendor_pqc_pub_key_revocation: 0,
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
+                pqc_key_type: FwVerificationPqcKeyType::MLDSA,
             }
         }
     }
@@ -2430,6 +2438,10 @@ mod tests {
                 start: ICCM_ORG,
                 end: ICCM_ORG + ICCM_SIZE,
             }
+        }
+
+        fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType> {
+            Ok(self.pqc_key_type)
         }
 
         fn set_fw_extended_error(&mut self, _err: u32) {}

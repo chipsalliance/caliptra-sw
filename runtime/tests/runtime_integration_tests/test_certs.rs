@@ -12,6 +12,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -57,6 +58,8 @@ fn test_rt_cert_with_custom_dates() {
         .copy_from_slice(OWNER_CONFIG.1.as_bytes());
 
     opts.owner_config = Some(own_config);
+
+    opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(opts),
