@@ -27,7 +27,7 @@ register_bitfields! [
     u32,
 
     /// Recovery Control
-    RecoveryControl [
+    pub RecoveryControl [
         CMS OFFSET(0) NUMBITS(8) [],
         IMAGE_SELECTION OFFSET(8) NUMBITS(8) [
             NoOperation = 0,
@@ -42,7 +42,7 @@ register_bitfields! [
     ],
 
     /// Recovery Status
-    RecoveryStatus [
+    pub RecoveryStatus [
         DEVICE_RECOVERY OFFSET(0) NUMBITS(8) [
             NotInRecovery = 0x0,
             AwaitingRecoveryImage = 0x1,
@@ -58,7 +58,7 @@ register_bitfields! [
     ],
 
     /// HW Status
-    HwStatus [
+    pub HwStatus [
         HW_STATUS OFFSET(0) NUMBITS(8) [
             TemperatureCritial = 0x0,
             HardwareSoftError = 0x1,
@@ -76,13 +76,13 @@ register_bitfields! [
     ],
 
     /// Indirect FIFO Control
-    IndirectCtrl [
+    pub IndirectCtrl [
         CMS OFFSET(0) NUMBITS(8),
         RESET OFFSET(8) NUMBITS(1),
     ],
 
     /// Indirect FIFO Status
-    IndirectStatus [
+    pub IndirectStatus [
         FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
         FIFO_FULL OFFSET(1) NUMBITS(1) [],
         REGION_TYPE OFFSET(8) NUMBITS(3) [

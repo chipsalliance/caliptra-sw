@@ -28,7 +28,7 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
-mod recovery;
+pub mod recovery;
 
 const RECOVERY_STATUS_OFFSET: u64 = 0x40;
 const AWATING_RECOVERY_IMAGE: u32 = 0x1;
