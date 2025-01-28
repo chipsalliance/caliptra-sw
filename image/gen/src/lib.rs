@@ -18,6 +18,7 @@ pub use generator::ImageGenerator;
 
 use anyhow::Context;
 use caliptra_image_types::*;
+use serde_derive::Deserialize;
 use std::path::Path;
 
 /// Image Generator Executable
@@ -123,7 +124,7 @@ pub fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCA
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Deserialize)]
 pub struct ImageGeneratorVendorConfig {
     pub ecc_key_count: u32,
 
@@ -147,7 +148,7 @@ pub struct ImageGeneratorVendorConfig {
 }
 
 /// Image Generator Owner Configuration
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct ImageGeneratorOwnerConfig {
     pub pub_keys: OwnerPubKeyConfig,
 
