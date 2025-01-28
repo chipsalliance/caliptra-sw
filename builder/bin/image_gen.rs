@@ -48,6 +48,7 @@ fn main() {
             arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
                 .value_parser(value_parser!(i32)),
         )
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given toml file").value_parser(value_parser!(PathBuf)))
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
@@ -77,25 +78,32 @@ fn main() {
     };
 
     if let Some(path) = args.get_one::<PathBuf>("fw") {
+        let image_options = if let Some(path) = args.get_one::<PathBuf>("image-options") {
+            toml::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+        } else if args.contains_id("zeros") {
+            ImageOptions::default()
+        } else {
+            ImageOptions {
+                fmc_version: version::get_fmc_version(),
+                app_version: version::get_runtime_version(),
+                fw_svn,
+                pqc_key_type,
+                ..Default::default()
+            }
+        };
         // Generate Image Bundle
         let image = if args.contains_id("zeros") {
             caliptra_builder::build_and_sign_image(
                 &firmware::FMC_ZEROS,
                 &firmware::APP_ZEROS,
-                ImageOptions::default(),
+                image_options,
             )
             .unwrap()
         } else {
             let mut image = caliptra_builder::build_and_sign_image(
                 &firmware::FMC_WITH_UART,
                 &firmware::APP_WITH_UART,
-                ImageOptions {
-                    fmc_version: version::get_fmc_version(),
-                    app_version: version::get_runtime_version(),
-                    fw_svn,
-                    pqc_key_type,
-                    ..Default::default()
-                },
+                image_options,
             )
             .unwrap();
 
@@ -179,4 +187,96 @@ fn test_binaries_are_identical() {
             "binaries are not consistent in {fwid:?}"
         );
     }
+}
+
+#[test]
+fn test_image_options_imports_correctly() {
+    // Use a thread with a larger stack to avoid stack overflow
+    const STACK_SIZE: usize = 16 * 1024 * 1024; // 16MB stack
+
+    let thread_result = std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(|| {
+            // Toml options
+            let t: ImageOptions = toml::from_str(
+                &std::fs::read_to_string("test_data/default_image_options.toml").unwrap(),
+            )
+            .unwrap();
+
+            // Default options
+            let d = ImageOptions {
+                fmc_version: version::get_fmc_version(),
+                app_version: version::get_runtime_version(),
+                ..Default::default()
+            };
+
+            // Check top level fields
+            assert_eq!(t.fmc_version, d.fmc_version);
+            assert_eq!(t.fw_svn, d.fw_svn);
+            assert_eq!(t.app_version, d.app_version);
+            assert_eq!(t.pqc_key_type, d.pqc_key_type);
+
+            // Check vendor config fields. Only the first key is populated in the toml file.
+            let t_v = &t.vendor_config;
+            let d_v = &d.vendor_config;
+            assert_eq!(t_v.ecc_key_idx, d_v.ecc_key_idx);
+            assert_eq!(t_v.pqc_key_idx, d_v.pqc_key_idx);
+            assert_eq!(t_v.ecc_key_count, d_v.ecc_key_count);
+            assert_eq!(t_v.lms_key_count, d_v.lms_key_count);
+            assert_eq!(t_v.mldsa_key_count, d_v.mldsa_key_count);
+            assert_eq!(t_v.not_before, d_v.not_before);
+            assert_eq!(t_v.not_after, d_v.not_after);
+            assert_eq!(t_v.pl0_pauser, d_v.pl0_pauser);
+
+            // Check vendor public keys
+            assert_eq!(t_v.pub_keys.ecc_pub_keys[0], d_v.pub_keys.ecc_pub_keys[0]);
+            assert_eq!(t_v.pub_keys.lms_pub_keys[0], d_v.pub_keys.lms_pub_keys[0]);
+            assert_eq!(
+                t_v.pub_keys.mldsa_pub_keys[0],
+                d_v.pub_keys.mldsa_pub_keys[0]
+            );
+
+            // Check vendor private keys
+            assert_eq!(
+                t_v.priv_keys.unwrap().ecc_priv_keys[0],
+                d_v.priv_keys.unwrap().ecc_priv_keys[0]
+            );
+            assert_eq!(
+                t_v.priv_keys.unwrap().lms_priv_keys[0],
+                d_v.priv_keys.unwrap().lms_priv_keys[0]
+            );
+            assert_eq!(
+                t_v.priv_keys.unwrap().mldsa_priv_keys[0],
+                d_v.priv_keys.unwrap().mldsa_priv_keys[0]
+            );
+
+            // Check owner config fields
+            let t_o = &t.owner_config.unwrap();
+            let d_o = &d.owner_config.unwrap();
+            assert_eq!(t_o.not_before, d_o.not_before);
+            assert_eq!(t_o.not_after, d_o.not_after);
+
+            // Check owner public keys
+            assert_eq!(t_o.pub_keys.ecc_pub_key, d_o.pub_keys.ecc_pub_key);
+            assert_eq!(t_o.pub_keys.lms_pub_key, d_o.pub_keys.lms_pub_key);
+            assert_eq!(t_o.pub_keys.mldsa_pub_key, d_o.pub_keys.mldsa_pub_key);
+
+            // Check owner private keys
+            assert_eq!(
+                t_o.priv_keys.unwrap().ecc_priv_key,
+                d_o.priv_keys.unwrap().ecc_priv_key
+            );
+            assert_eq!(
+                t_o.priv_keys.unwrap().lms_priv_key,
+                d_o.priv_keys.unwrap().lms_priv_key
+            );
+            assert_eq!(
+                t_o.priv_keys.unwrap().mldsa_priv_key,
+                d_o.priv_keys.unwrap().mldsa_priv_key
+            );
+        })
+        .unwrap();
+
+    // Wait for the thread to complete and propagate any panics
+    thread_result.join().unwrap();
 }
