@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    Alias RT DICE Layer & PCR extension
+    aliasrt DICE Layer & PCR extension
 
 --*/
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -49,20 +49,21 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
         }
 
-        cprintln!("[alias rt] Derive CDI");
-        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
+        cprintln!("[aliasrt] Derive CDI");
+        cprintln!("[aliasrt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
         // Derive CDI
         Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
+        cprintln!("[aliasrt] Derive Key Pair");
         cprintln!(
-            "[alias rt] Store priv key in slot 0x{:x}",
+            "[aliasrt] Store priv key in slot 0x{:x}",
             KEY_ID_RT_PRIV_KEY as u8
         );
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY)?;
-        cprintln!("[alias rt] Derive Key Pair - Done");
+        cprintln!("[aliasrt] Derive Key Pair - Done");
         report_boot_status(FmcBootStatus::RtAliasKeyPairDerivationComplete as u32);
 
         // Generate the Subject Serial Number and Subject Key Identifier.
@@ -100,16 +101,16 @@ impl RtAliasLayer {
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
         Self::extend_pcrs(env)?;
-        cprintln!("[alias rt] Extend RT PCRs Done");
+        cprintln!("[aliasrt] Extend RT PCRs Done");
 
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_CURRENT_PCR);
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_JOURNEY_PCR);
-        cprintln!("[alias rt] Lock RT PCRs Done");
+        cprintln!("[aliasrt] Lock RT PCRs Done");
 
         Self::populate_dv(env)?;
-        cprintln!("[alias rt] Populate DV Done");
+        cprintln!("[aliasrt] Populate DV Done");
         report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
@@ -169,7 +170,7 @@ impl RtAliasLayer {
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
-                cprintln!("[alias rt : skip pcr extension");
+                cprintln!("[aliasrt :skip pcr extension");
                 Ok(())
             }
             ResetReason::Unknown => {
@@ -325,7 +326,7 @@ impl RtAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[alias rt] Signing Cert with AUTHO
+            "[aliasrt] Signing Cert with AUTHO
             RITY.KEYID = {}",
             auth_priv_key as u8
         );
@@ -337,7 +338,7 @@ impl RtAliasLayer {
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
-            "[alias rt] Erasing AUTHORITY.KEYID = {}",
+            "[aliasrt] Erasing AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
@@ -346,13 +347,13 @@ impl RtAliasLayer {
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
-        cprintln!("[alias rt] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[alias rt] PUB.Y = {}", HexBytes(&_pub_y));
+        cprintln!("[aliasrt] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[aliasrt] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[alias rt] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
+        cprintln!("[aliasrt] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[aliasrt] SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
