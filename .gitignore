@@ -30,3 +30,4 @@ hw/fpga/vivado*.log
 libcaliptra/libcaliptra.a
 
 hw-latest/verilated/out/*
+rom/dev/tools/mldsa_key_pair_gen/target/*

@@ -49,6 +49,11 @@ pub const TEST_DIGEST: [u8; 48] = [
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
 
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
+
 #[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
