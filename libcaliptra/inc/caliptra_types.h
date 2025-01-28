@@ -204,7 +204,7 @@ struct caliptra_certify_key_extended_req {
 
 struct caliptra_certify_key_extended_resp {
     struct caliptra_resp_header hdr;
-    uint8_t certify_key_resp[2176];
+    uint8_t certify_key_resp[6272];
 };
 
 struct caliptra_fips_version_resp {
@@ -243,7 +243,7 @@ struct dpe_resp_hdr {
 
 
 #define DPE_HANDLE_SIZE 16
-#define DPE_CERT_SIZE   2048
+#define DPE_CERT_SIZE   6144
 
 #ifndef DPE_PROFILE
 #define DPE_PROFILE DPE_PROFILE_384
