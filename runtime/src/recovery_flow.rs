@@ -57,7 +57,7 @@ impl RecoveryFlow {
             .auth_manifest_image_metadata_col = image_metadata_collection;
         // [TODO][CAP2]: capture measurement of Soc manifest?
         // [TODO][CAP2]: this should be writing to MCU SRAM directly via AXI
-        let _mcu_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
+        let _mcu_size_bytes = dma_recovery.download_image_to_mbox(MCU_FIRMWARE_INDEX)?;
         // [TODO][CAP2]: instruct Caliptra HW to read MCU SRAM and generate the hash (using HW SHA accelerator and AXI mastering capabilities to do this)
         // [TODO][CAP2]: use this hash and verify it against the hash in the SOC manifest
         // [TODO][CAP2]: after verifying/authorizing the image and if it passes, it will set EXEC/GO bit into the register as specified in the previous command. This register write will also assert a Caliptra interface wire
