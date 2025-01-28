@@ -289,8 +289,11 @@ dependencies = [
  "memoffset 0.8.0",
  "nix 0.26.2",
  "once_cell",
+ "serde",
+ "serde_derive",
  "serde_json",
  "sha2",
+ "toml 0.7.3",
  "zerocopy",
 ]
 
@@ -662,6 +665,8 @@ dependencies = [
  "fips204",
  "memoffset 0.8.0",
  "rand",
+ "serde",
+ "serde_derive",
  "zerocopy",
 ]
 
@@ -685,6 +690,8 @@ dependencies = [
  "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
+ "serde",
+ "serde_derive",
  "zerocopy",
  "zeroize",
 ]
@@ -722,6 +729,8 @@ dependencies = [
  "arbitrary",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "serde",
+ "serde_derive",
  "zerocopy",
  "zeroize",
 ]
