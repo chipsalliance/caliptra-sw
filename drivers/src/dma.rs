@@ -138,7 +138,7 @@ impl Dma {
             self.dma.set(Some(dma));
             Ok(result)
         } else {
-            Err(CaliptraError::RUNTIME_INTERNAL) // should never happen
+            Err(CaliptraError::DRIVER_DMA_INTERNAL) // should never happen
         }
     }
 
