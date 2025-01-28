@@ -402,6 +402,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// * `RvException` - Exception with cause `RvExceptionCause::IllegalRegister`
     pub fn write_xreg(&mut self, reg: XReg, val: RvData) -> Result<(), RvException> {
         // XReg::X2 is the sp register.
+        #[cfg(not(feature = "sw_emu_stack_check_disable"))]
         if reg == XReg::X2 {
             self.check_stack(val);
         }
