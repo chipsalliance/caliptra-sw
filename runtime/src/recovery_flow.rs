@@ -43,10 +43,7 @@ impl RecoveryFlow {
 
         // // download SoC manifest
         let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
-        let Some(preamble) = AuthManifestPreamble::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
-        };
-        let Some(image_metadata_collection) = AuthManifestImageMetadataCollection::read_from_prefix(&drivers.mbox.raw_mailbox_contents()[AUTH_MANIFEST_PREAMBLE_SIZE..]) else {
+        let Some(manifest) = AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         };
         // [TODO][CAP2]: authenticate SoC manifest using keys available through Caliptra Image
@@ -54,7 +51,7 @@ impl RecoveryFlow {
         drivers
             .persistent_data
             .get_mut()
-            .auth_manifest_image_metadata_col = image_metadata_collection;
+            .auth_manifest_image_metadata_col = manifest.image_metadata_col;
         // [TODO][CAP2]: capture measurement of Soc manifest?
         // [TODO][CAP2]: this should be writing to MCU SRAM directly via AXI
         let _mcu_size_bytes = dma_recovery.download_image_to_mbox(MCU_FIRMWARE_INDEX)?;
