@@ -12,12 +12,14 @@ doctest = false
 arbitrary = { workspace = true, optional = true }
 caliptra-cfi-derive.workspace = true
 caliptra-cfi-lib.workspace = true
+caliptra-error = { workspace = true, default-features = false }
 caliptra-lms-types.workspace = true
 memoffset.workspace = true
+serde = { workspace = true, optional = true }
+serde_derive = { workspace = true, optional = true }
 zerocopy.workspace = true
-caliptra-error = { workspace = true, default-features = false }
 zeroize.workspace = true
 
 [features]
 default = ["std"]
-std = []
+std = ["dep:serde", "dep:serde_derive", "caliptra-lms-types/std"]

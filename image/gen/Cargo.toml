@@ -14,4 +14,6 @@ bitflags.workspace = true
 caliptra-image-types = { workspace = true, features = ["std"] }
 caliptra-lms-types.workspace = true
 memoffset.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
 zerocopy.workspace = true
