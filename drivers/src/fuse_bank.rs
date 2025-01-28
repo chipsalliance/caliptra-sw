@@ -104,9 +104,6 @@ impl FuseBank<'_> {
 
     /// Get the manufacturer serial number.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     manufacturer serial number
     ///
@@ -206,9 +203,6 @@ impl FuseBank<'_> {
 
     /// Get the vendor public key info hash.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     vendor public key info hash
     ///
@@ -218,9 +212,6 @@ impl FuseBank<'_> {
     }
 
     /// Get the ecc vendor public key revocation mask.
-    ///
-    /// # Arguments
-    /// * None
     ///
     /// # Returns
     ///     ecc vendor public key revocation mask
@@ -234,9 +225,6 @@ impl FuseBank<'_> {
 
     /// Get the lms vendor public key revocation mask.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     lms vendor public key revocation mask
     ///
@@ -246,9 +234,6 @@ impl FuseBank<'_> {
     }
 
     /// Get the mldsa vendor public key revocation mask.
-    ///
-    /// # Arguments
-    /// * None
     ///
     /// # Returns
     ///     mldsa vendor public key revocation mask
@@ -260,9 +245,6 @@ impl FuseBank<'_> {
 
     /// Get the owner public key hash.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     owner public key hash
     ///
@@ -273,9 +255,6 @@ impl FuseBank<'_> {
 
     /// Get the rollback disability setting.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     rollback disability setting
     ///
@@ -285,9 +264,6 @@ impl FuseBank<'_> {
     }
 
     /// Get the fmc fuse security version number.
-    ///
-    /// # Arguments
-    /// * None
     ///
     /// # Returns
     ///     fmc security version number
@@ -302,9 +278,6 @@ impl FuseBank<'_> {
 
     /// Get the runtime fuse security version number.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
     ///     runtime security version number
     ///
@@ -314,9 +287,6 @@ impl FuseBank<'_> {
     }
 
     /// Get the lms revocation bits.
-    ///
-    /// # Arguments
-    /// * None
     ///
     /// # Returns
     ///     lms revocation bits
@@ -328,11 +298,8 @@ impl FuseBank<'_> {
 
     /// Get the PQC (MLDSA or LMS) key type.
     ///
-    /// # Arguments
-    /// * None
-    ///
     /// # Returns
-    ///    PQC key type (1 for MLDSA, 3 for LMS)
+    ///    PQC key type set in the fuses.
     ///
     pub fn pqc_key_type(&self) -> u32 {
         self.soc_ifc.regs().fuse_pqc_key_type().read().into()
