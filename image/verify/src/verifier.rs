@@ -861,17 +861,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
-                    let result = self
-                        .env
-                        .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)
-                        .map_err(|err| {
-                            self.env.set_fw_extended_error(err.into());
-                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE
-                        })?;
-
-                    if cfi_launder(result) != Mldsa87Result::Success {
-                        Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID)?;
-                    }
+                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, false)?;
                 } else {
                     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_DIGEST_MISSING)?;
                 }
@@ -898,17 +888,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
-                    let result = self
-                        .env
-                        .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)
-                        .map_err(|err| {
-                            self.env.set_fw_extended_error(err.into());
-                            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE
-                        })?;
-
-                    if cfi_launder(result) != Mldsa87Result::Success {
-                        Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID)?;
-                    }
+                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, true)?;
                 } else {
                     Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_DIGEST_MISSING)?;
                 }
@@ -964,6 +944,54 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             return Err(signature_invalid);
         } else {
             caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+        }
+
+        Ok(())
+    }
+
+    /// Verify MLDSA Signature
+    fn verify_mldsa_sig(
+        &mut self,
+        digest: &ImageDigest512,
+        mldsa_pub_key: &ImageMldsaPubKey,
+        mldsa_sig: &ImageMldsaSignature,
+        is_owner: bool,
+    ) -> CaliptraResult<()> {
+        let (verify_failure, signature_invalid) = if is_owner {
+            (
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE,
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID,
+            )
+        } else {
+            (
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE,
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID,
+            )
+        };
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            let fips_verify_failure = if is_owner {
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_MLDSA_VERIFY_FAILURE
+            } else {
+                caliptra_drivers::FipsTestHook::FW_LOAD_VENDOR_MLDSA_VERIFY_FAILURE
+            };
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                fips_verify_failure,
+                caliptra_drivers::FipsTestHook::MLDSA_VERIFY_FAILURE,
+            )
+        };
+
+        let result = self
+            .env
+            .mldsa87_verify(digest, mldsa_pub_key, mldsa_sig)
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                verify_failure
+            })?;
+
+        if cfi_launder(result) != Mldsa87Result::Success {
+            Err(signature_invalid)?;
         }
 
         Ok(())

@@ -16,8 +16,9 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
-    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageLmsPublicKey,
-    SHA384_DIGEST_WORD_SIZE, VENDOR_ECC_MAX_KEY_COUNT, VENDOR_LMS_MAX_KEY_COUNT,
+    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageLmsPublicKey, ImageMldsaPubKey,
+    MLDSA87_PUB_KEY_WORD_SIZE, SHA384_DIGEST_WORD_SIZE, VENDOR_ECC_MAX_KEY_COUNT,
+    VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
 };
 use caliptra_test::image_pk_desc_hash;
 
@@ -235,6 +236,7 @@ fn fw_load_error_flow_base(
     );
 
     // Upload initial FW
+
     let mut fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
 
     // Update the FW if specified
@@ -1311,21 +1313,26 @@ fn fw_load_error_vendor_pub_key_index_mismatch() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_vendor_lms_verify_failure() {
-    let fuses = caliptra_hw_model::Fuses {
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
-
     fw_load_error_flow_with_test_hooks(
         None,
-        Some(fuses),
+        None,
         CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE.into(),
         FipsTestHook::FW_LOAD_VENDOR_LMS_VERIFY_FAILURE,
         FwVerificationPqcKeyType::LMS,
     );
 }
 
-// [TODO][CAP2] fw_load_error_vendor_mldsa_verify_failure
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+fn fw_load_error_vendor_mldsa_verify_failure() {
+    fw_load_error_flow_with_test_hooks(
+        None,
+        None,
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE.into(),
+        FipsTestHook::FW_LOAD_VENDOR_MLDSA_VERIFY_FAILURE,
+        FwVerificationPqcKeyType::MLDSA,
+    );
+}
 
 #[test]
 fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
@@ -1346,7 +1353,24 @@ fn fw_load_error_vendor_lms_pub_key_index_out_of_bounds() {
     );
 }
 
-// [TODO][CAP2] fw_load_error_vendor_mldsa_pub_key_index_out_of_bounds
+#[test]
+fn fw_load_error_vendor_mldsa_pub_key_index_out_of_bounds() {
+    // Generate image
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+    let mut fw_image = build_fw_image(image_options);
+    // Set pub key index to MAX + 1
+    fw_image.manifest.preamble.vendor_pqc_pub_key_idx = VENDOR_MLDSA_MAX_KEY_COUNT;
+
+    fw_load_error_flow(
+        Some(fw_image),
+        None,
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into(),
+        FwVerificationPqcKeyType::MLDSA,
+    );
+}
 
 #[test]
 fn fw_load_error_vendor_lms_signature_invalid() {
@@ -1379,7 +1403,36 @@ fn fw_load_error_vendor_lms_signature_invalid() {
     );
 }
 
-// [TODO][CAP2] fw_load_error_vendor_mldsa_signature_invalid
+#[test]
+fn fw_load_error_vendor_mldsa_signature_invalid() {
+    // Generate image
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+    let mut fw_image = build_fw_image(image_options);
+
+    // Get a mutable reference to the public key.
+    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .vendor_pqc_active_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+
+    // Modify the vendor public key.
+    *pub_key = ImageMldsaPubKey([0xDEADBEEF; MLDSA87_PUB_KEY_WORD_SIZE]);
+
+    fw_load_error_flow(
+        Some(fw_image),
+        None,
+        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID.into(),
+        FwVerificationPqcKeyType::MLDSA,
+    );
+}
 
 #[test]
 fn fw_load_error_fmc_runtime_load_addr_overlap() {
@@ -1406,21 +1459,26 @@ fn fw_load_error_fmc_runtime_load_addr_overlap() {
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
 fn fw_load_error_owner_lms_verify_failure() {
-    let fuses = caliptra_hw_model::Fuses {
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
-
     fw_load_error_flow_with_test_hooks(
         None,
-        Some(fuses),
+        None,
         CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE.into(),
         FipsTestHook::FW_LOAD_OWNER_LMS_VERIFY_FAILURE,
         FwVerificationPqcKeyType::LMS,
     );
 }
 
-// [TODO][CAP2] fw_load_error_owner_mldsa_verify_failure
+#[test]
+#[cfg(not(feature = "test_env_immutable_rom"))]
+fn fw_load_error_owner_mldsa_verify_failure() {
+    fw_load_error_flow_with_test_hooks(
+        None,
+        None,
+        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE.into(),
+        FipsTestHook::FW_LOAD_OWNER_MLDSA_VERIFY_FAILURE,
+        FwVerificationPqcKeyType::MLDSA,
+    );
+}
 
 #[test]
 fn fw_load_error_owner_lms_signature_invalid() {
@@ -1446,21 +1504,45 @@ fn fw_load_error_owner_lms_signature_invalid() {
     // Modify the owner public key
     lms_pub_key.digest = [Default::default(); 6];
 
-    // Turn LMS verify on
-    let fuses = caliptra_hw_model::Fuses {
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
-
     fw_load_error_flow(
         Some(fw_image),
-        Some(fuses),
+        None,
         CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID.into(),
         FwVerificationPqcKeyType::LMS,
     );
 }
 
-// [TODO][CAP2] fw_load_error_owner_mldsa_signature_invalid
+#[test]
+fn fw_load_error_owner_mldsa_signature_invalid() {
+    // Generate image
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+    let mut fw_image = build_fw_image(image_options);
+
+    // Get a mutable reference to the public key.
+    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .owner_pub_keys
+            .pqc_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+
+    // Modify the owner public key.
+    *pub_key = Default::default();
+
+    fw_load_error_flow(
+        Some(fw_image),
+        None,
+        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID.into(),
+        FwVerificationPqcKeyType::MLDSA,
+    );
+}
 
 #[test]
 fn fw_load_error_vendor_lms_pub_key_revoked() {
@@ -1746,29 +1828,28 @@ fn fw_load_bad_owner_ecc_pub_key() {
 }
 
 #[test]
-fn fw_load_bad_vendor_lms_pub_key() {
-    // Generate image
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    let mut fw_image = build_fw_image(image_options);
+fn fw_load_bad_vendor_pqc_pub_key() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let mut fw_image = build_fw_image(image_options);
 
-    // Modify the pub key hash
-    fw_image
-        .manifest
-        .preamble
-        .vendor_pub_key_info
-        .pqc_key_descriptor
-        .key_hash[0][0] ^= 0x1;
+        // Modify the pub key hash
+        fw_image
+            .manifest
+            .preamble
+            .vendor_pub_key_info
+            .pqc_key_descriptor
+            .key_hash[0][0] ^= 0x1;
 
-    fw_load_bad_pub_key_flow(
-        fw_image,
-        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH.into(),
-    );
+        fw_load_bad_pub_key_flow(
+            fw_image,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH.into(),
+        );
+    }
 }
-
-// [TODO][CAP2] fw_load_bad_vendor_mldsa_pub_key
 
 #[test]
 fn fw_load_bad_owner_lms_pub_key() {
@@ -1798,7 +1879,32 @@ fn fw_load_bad_owner_lms_pub_key() {
     );
 }
 
-// [TODO][CAP2] fw_load_bad_owner_mldsa_pub_key
+#[test]
+fn fw_load_bad_owner_mldsa_pub_key() {
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+    let mut fw_image = build_fw_image(image_options);
+
+    // Modify the pub key
+    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+        fw_image
+            .manifest
+            .preamble
+            .owner_pub_keys
+            .pqc_pub_key
+            .0
+            .as_bytes_mut(),
+    )
+    .unwrap();
+    *pub_key = ImageMldsaPubKey([0xDEADBEEF; MLDSA87_PUB_KEY_WORD_SIZE]);
+
+    fw_load_bad_pub_key_flow(
+        fw_image,
+        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH.into(),
+    );
+}
 
 #[test]
 fn fw_load_blank_pub_keys() {
