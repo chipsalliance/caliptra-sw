@@ -46,7 +46,6 @@ impl GetFmcAliasCsrCmd {
 
                 Ok(MailboxResp::GetFmcAliasCsr(resp))
             }
-            _ => Err(CaliptraError::RUNTIME_INTERNAL),
         }
     }
 }
