@@ -3,7 +3,7 @@
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{
     execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
-    DpeResult, RuntimeTestArgs, TEST_LABEL,
+    run_rt_test_pqc, DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
@@ -12,7 +12,8 @@ use caliptra_common::mailbox_api::{
     GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -67,7 +68,8 @@ fn test_rt_cert_with_custom_dates() {
             test_image_options: Some(opts),
             ..Default::default()
         };
-        let mut model = run_rt_test(args);
+        // TODO(mtimkovich): This only runs against lms.
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         let payload = MailboxReqHeader {
             chksum: caliptra_common::checksum::calc_checksum(
@@ -341,7 +343,12 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
 
 // Helper for cold reset compatible with SW emulator
 // NOTE: Assumes all other boot and init params are default except for ROM and FW image
-fn cold_reset(mut hw: DefaultHwModel, rom: &[u8], fw_image: &[u8]) -> DefaultHwModel {
+fn cold_reset(
+    mut hw: DefaultHwModel,
+    rom: &[u8],
+    fw_image: &[u8],
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> DefaultHwModel {
     if cfg!(any(feature = "fpga_realtime", feature = "verilator")) {
         // Re-creating the model does not seem to work for FPGA (and SW emulator cannot cold reset)
         hw.cold_reset();
@@ -352,8 +359,13 @@ fn cold_reset(mut hw: DefaultHwModel, rom: &[u8], fw_image: &[u8]) -> DefaultHwM
         })
         .unwrap();
     }
+    let fuses = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        ..Default::default()
+    };
     hw.boot(BootParams {
         fw_image: Some(fw_image),
+        fuses,
         ..Default::default()
     })
     .unwrap();
@@ -387,12 +399,20 @@ pub fn test_all_measurement_apis() {
         //      Stash a measurement, boot to runtime, then get the DPE cert
         //      Start with a fresh cold boot for each method
         //
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            BootParams::default(),
+            BootParams {
+                fw_image: Some(&fw_image),
+                fuses,
+                ..Default::default()
+            },
         )
         .unwrap();
 
@@ -429,7 +449,7 @@ pub fn test_all_measurement_apis() {
         //      Boot to runtime, stash a measurement, then get the DPE cert
         //      Start with a fresh cold boot for each method
         //
-        hw = cold_reset(hw, &rom, &fw_image);
+        hw = cold_reset(hw, &rom, &fw_image, *pqc_key_type);
 
         // Send the stash measurement command
         let _resp = hw
@@ -449,7 +469,7 @@ pub fn test_all_measurement_apis() {
         //      Boot to runtime, perform DPE derive context, then get the DPE cert
         //      Start with a fresh cold boot for each method
         //
-        hw = cold_reset(hw, &rom, &fw_image);
+        hw = cold_reset(hw, &rom, &fw_image, *pqc_key_type);
 
         // Send derive context call
         let derive_context_cmd = DeriveContextCmd {

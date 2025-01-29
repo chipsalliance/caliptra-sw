@@ -13,7 +13,7 @@ use caliptra_common::{
         MailboxRespHeader,
     },
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
@@ -64,10 +64,16 @@ fn test_fw_info() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
                 .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let mut model = caliptra_hw_model::new(
             init_params,
             BootParams {
                 fw_image: Some(&image.to_bytes().unwrap()),
+                fuses,
                 ..Default::default()
             },
         )

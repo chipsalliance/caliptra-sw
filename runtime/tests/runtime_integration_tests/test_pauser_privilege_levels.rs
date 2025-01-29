@@ -33,7 +33,8 @@ use dpe::{
 use zerocopy::AsBytes;
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
+    TEST_LABEL,
 };
 
 const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
@@ -115,7 +116,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             ..Default::default()
         };
 
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -226,7 +227,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
             ..Default::default()
         };
 
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -276,7 +277,7 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
             test_image_options: Some(image_opts),
             ..Default::default()
         };
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -312,7 +313,7 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
             test_image_options: Some(image_opts),
             ..Default::default()
         };
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -349,7 +350,7 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
             ..Default::default()
         };
 
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -384,7 +385,7 @@ fn test_certify_key_extended_cannot_be_called_from_pl1() {
             ..Default::default()
         };
 
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -425,7 +426,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
             ..Default::default()
         };
 
-        let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -665,7 +666,10 @@ fn test_user_not_pl0() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
         let mut model = caliptra_hw_model::new(
             InitParams {

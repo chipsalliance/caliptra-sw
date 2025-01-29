@@ -189,7 +189,10 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let fuses = Fuses::default();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
         let mut model = caliptra_hw_model::new(
             InitParams {
