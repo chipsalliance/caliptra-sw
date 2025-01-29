@@ -364,7 +364,6 @@ impl FirmwareProcessor {
                             txn.complete(false)?;
                             Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
                         }
-                        txn.complete(true)?;
 
                         // Download the firmware image from the recovery interface.
                         let image_size_bytes =
