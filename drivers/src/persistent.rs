@@ -41,7 +41,7 @@ pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
 pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
-pub const RESERVED_MEMORY_SIZE: u32 = 18 * 1024;
+pub const RESERVED_MEMORY_SIZE: u32 = 3 * 1024;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
