@@ -132,8 +132,6 @@ pub struct ImageGeneratorOwnerConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
-
-    pub epoch: [u8; 2],
 }
 
 /// Image Generator Configuration
