@@ -578,7 +578,7 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
     };
     update_fw(&mut model, &APP_WITH_UART, image_options);
 
-    // Attempt Authorization with a bad image hash.
+    // Attempt Authorization with a unauthorized fw id.
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_127,
