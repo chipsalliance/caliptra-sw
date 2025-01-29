@@ -292,6 +292,8 @@ jobs:
       rom-logging: false
       rom-version: "1.1"
 
+  # The current 1.0.x ROM used in CI will overflow the stack into unused space
+  # We disable the stack overflow check (sw_emu_stack_check_disable) when testing against that ROM
   sw-emulator-hw-1_0-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
     needs: find-latest-release
@@ -299,7 +301,7 @@ jobs:
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-etrng-log
-      extra-features: hw-1.0,slow_tests
+      extra-features: hw-1.0,slow_tests,sw_emu_stack_check_disable
       rom-logging: true
       rom-version: "1.0"
 
@@ -310,7 +312,7 @@ jobs:
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-etrng-nolog
-      extra-features: hw-1.0,slow_tests
+      extra-features: hw-1.0,slow_tests,sw_emu_stack_check_disable
       rom-logging: false
       rom-version: "1.0"
 
@@ -321,7 +323,7 @@ jobs:
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-itrng-log
-      extra-features: hw-1.0,slow_tests,itrng
+      extra-features: hw-1.0,slow_tests,itrng,sw_emu_stack_check_disable
       rom-logging: true
       rom-version: "1.0"
 
@@ -332,7 +334,7 @@ jobs:
     uses: ./.github/workflows/fw-test-emu.yml
     with:
       artifact-suffix: -sw-emulator-hw-1.0-itrng-nolog
-      extra-features: hw-1.0,slow_tests,itrng
+      extra-features: hw-1.0,slow_tests,itrng,sw_emu_stack_check_disable
       rom-logging: false
       rom-version: "1.0"
 
