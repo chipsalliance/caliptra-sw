@@ -43,7 +43,7 @@ register_bitfields! [
 
     /// Recovery Status
     pub RecoveryStatus [
-        DEVICE_RECOVERY OFFSET(0) NUMBITS(8) [
+        DEVICE_RECOVERY OFFSET(0) NUMBITS(4) [
             NotInRecovery = 0x0,
             AwaitingRecoveryImage = 0x1,
             BootingRecoveryImage = 0x2,
@@ -54,6 +54,7 @@ register_bitfields! [
             InvalidComponentAddressSpace = 0xf,
             // 0x10-ff Reserved
         ],
+        RECOVERY_IMAGE_INDEX OFFSET(4) NUMBITS(4) [],
         VENDOR_SPECIFIC OFFSET(8) NUMBITS(8) [],
     ],
 
