@@ -328,8 +328,12 @@ fn test_set_auth_manifest_cmd_invalid_len() {
     );
 }
 
-fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: CaliptraError) {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+fn set_manifest_command_execute(
+    manifest: AuthorizationManifest,
+    lms_verify: bool,
+    expected_err: Option<CaliptraError>,
+) {
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), lms_verify);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -346,22 +350,24 @@ fn test_manifest_expect_err(manifest: AuthorizationManifest, expected_err: Calip
     });
     set_auth_manifest_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
-
-    assert_error(&mut model, expected_err, resp);
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        set_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+    if let Some(expected_err) = expected_err {
+        assert_error(&mut model, expected_err, result.unwrap_err());
+    } else {
+        result.unwrap().expect("We should have received a response");
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_cmd_zero_metadata_entry() {
     let auth_manifest = create_auth_manifest_of_metadata_size(0);
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
     );
 }
 
@@ -369,31 +375,7 @@ fn test_set_auth_manifest_cmd_zero_metadata_entry() {
 fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
     let auth_manifest =
         create_auth_manifest_of_metadata_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
-
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let buf = auth_manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
-
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
-
-    model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    set_manifest_command_execute(auth_manifest, true, None);
 }
 
 #[test]
@@ -419,9 +401,10 @@ fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
         };
     }
 
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
     );
 }
 
@@ -429,9 +412,10 @@ fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
 fn test_set_auth_manifest_invalid_preamble_marker() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.marker = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER,
+        true,
+        Some(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER),
     );
 }
 
@@ -439,9 +423,10 @@ fn test_set_auth_manifest_invalid_preamble_marker() {
 fn test_set_auth_manifest_invalid_preamble_size() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.size -= 1;
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH),
     );
 }
 
@@ -449,9 +434,10 @@ fn test_set_auth_manifest_invalid_preamble_size() {
 fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
     );
 }
 
@@ -459,19 +445,28 @@ fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
 fn test_set_auth_manifest_invalid_vendor_lms_sig() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID),
     );
+}
+
+#[test]
+fn test_set_auth_manifest_invalid_vendor_lms_sig_no_lms() {
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = Default::default();
+    set_manifest_command_execute(auth_manifest, false, None);
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_ecc_sig() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID),
     );
 }
 
@@ -479,19 +474,28 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID),
     );
+}
+
+#[test]
+fn test_set_auth_manifest_invalid_owner_lms_sig_no_lms() {
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = Default::default();
+    set_manifest_command_execute(auth_manifest, false, None);
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_metadata_list_count() {
     let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
     auth_manifest.image_metadata_col.entry_count = 0;
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
     );
 }
 
@@ -502,9 +506,10 @@ fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
         .preamble
         .vendor_image_metdata_signatures
         .ecc_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
     );
 }
 
@@ -515,10 +520,21 @@ fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
         .preamble
         .vendor_image_metdata_signatures
         .lms_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID),
     );
+}
+
+#[test]
+fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig_no_lms() {
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .lms_sig = Default::default();
+    set_manifest_command_execute(auth_manifest, false, None);
 }
 
 #[test]
@@ -528,9 +544,10 @@ fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
         .preamble
         .owner_image_metdata_signatures
         .ecc_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID),
     );
 }
 
@@ -541,10 +558,20 @@ fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
         .preamble
         .owner_image_metdata_signatures
         .lms_sig = Default::default();
-    test_manifest_expect_err(
+    set_manifest_command_execute(
         auth_manifest,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+        true,
+        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID),
     );
+}
+#[test]
+fn test_set_auth_manifest_invalid_owner_metadata_lms_sig_no_lms() {
+    let mut auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    auth_manifest
+        .preamble
+        .owner_image_metdata_signatures
+        .lms_sig = Default::default();
+    set_manifest_command_execute(auth_manifest, false, None);
 }
 
 #[test]
@@ -557,30 +584,7 @@ fn test_set_auth_manifest_cmd_ignore_vendor_ecc_sig() {
         .vendor_image_metdata_signatures
         .ecc_sig = Default::default();
 
-    let buf = auth_manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
-
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
-
-    model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    set_manifest_command_execute(auth_manifest, true, None);
 }
 
 #[test]
@@ -593,28 +597,5 @@ fn test_set_auth_manifest_cmd_ignore_vendor_lms_sig() {
         .vendor_image_metdata_signatures
         .lms_sig = Default::default();
 
-    let buf = auth_manifest.as_bytes();
-    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
-    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
-
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
-
-    model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    set_manifest_command_execute(auth_manifest, true, None);
 }
