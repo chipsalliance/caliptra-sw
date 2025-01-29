@@ -47,7 +47,7 @@ register_bitfields! [
             NotInRecovery = 0x0,
             AwaitingRecoveryImage = 0x1,
             BootingRecoveryImage = 0x2,
-            RecoverySuccesfull = 0x3,
+            RecoverySuccessful = 0x3,
             RecoveryFailed = 0xc,
             AuthenticationError = 0xd,
             ErrorEnteringRecovery = 0xe,
