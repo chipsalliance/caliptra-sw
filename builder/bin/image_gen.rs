@@ -77,6 +77,7 @@ fn main() {
     };
 
     if let Some(path) = args.get_one::<PathBuf>("fw") {
+        // Get image options
         let image_options = if let Some(path) = args.get_one::<PathBuf>("image-options") {
             toml::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
         } else if args.contains_id("zeros") {
@@ -90,36 +91,29 @@ fn main() {
                 ..Default::default()
             }
         };
-        // Generate Image Bundle
-        let image = if args.contains_id("zeros") {
-            caliptra_builder::build_and_sign_image(
-                &firmware::FMC_ZEROS,
-                &firmware::APP_ZEROS,
-                image_options,
-            )
-            .unwrap()
+
+        // Get image types (zeros or actual firmware)
+        let (fmc_type, app_type) = if args.contains_id("zeros") {
+            (firmware::FMC_ZEROS, firmware::APP_ZEROS)
         } else {
-            let mut image = caliptra_builder::build_and_sign_image(
-                &firmware::FMC_WITH_UART,
-                &firmware::APP_WITH_UART,
-                image_options,
-            )
-            .unwrap();
-
-            if let Some(path) = args.get_one::<PathBuf>("owner-sig-override") {
-                let sig_override = std::fs::read(path).unwrap();
-                image.manifest.preamble.owner_sigs =
-                    ImageSignatures::read_from_bytes(&sig_override).unwrap();
-            }
-
-            if let Some(path) = args.get_one::<PathBuf>("vendor-sig-override") {
-                let sig_override = std::fs::read(path).unwrap();
-                image.manifest.preamble.vendor_sigs =
-                    ImageSignatures::read_from_bytes(&sig_override).unwrap();
-            }
-
-            image
+            (firmware::FMC_WITH_UART, firmware::APP_WITH_UART)
         };
+
+        // Generate Image Bundle
+        let mut image =
+            caliptra_builder::build_and_sign_image(&fmc_type, &app_type, image_options).unwrap();
+
+        // Override signatures if provided
+        if let Some(path) = args.get_one::<PathBuf>("owner-sig-override") {
+            let sig_override = std::fs::read(path).unwrap();
+            image.manifest.preamble.owner_sigs =
+                ImageSignatures::read_from_bytes(&sig_override).unwrap();
+        }
+        if let Some(path) = args.get_one::<PathBuf>("vendor-sig-override") {
+            let sig_override = std::fs::read(path).unwrap();
+            image.manifest.preamble.vendor_sigs =
+                ImageSignatures::read_from_bytes(&sig_override).unwrap();
+        }
 
         let contents = image.to_bytes().unwrap();
         std::fs::write(path, contents.clone()).unwrap();
