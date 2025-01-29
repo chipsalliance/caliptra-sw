@@ -695,7 +695,7 @@ The key ladder is initialized from the LDevID CDI during cold-boot. The key ladd
 
 To comply with FIPS, the one-way cryptographic operation used to compute keys is an SP 800-108 KDF.
 
-When the key ladder is initialized at cold-boot, it is bound to the lifecycle state, debug-locked state, and the firmware's "epoch" from the image header. This ensures that across lifecycle or debug state transtions, or across intentional epoch changes, the keys of the ladder will change.
+When the key ladder is initialized at cold-boot, it is bound to the lifecycle state and debug-locked. This ensures that the keys of the ladder will change across lifecycle or debug state transtions.
 
 Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. It ensures that the ladder's length always corresponds to that minimum SVN. The key ladder can only be shortened (and thereby give access to newer SVNs' keys) by cold-booting into firmware with a newer SVN and re-initializing the ladder.
 
@@ -703,7 +703,7 @@ Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. I
 
 ROM initializes a key ladder for the firmware. LDevID CDI in Key Vault Slot6 is used as an HMAC Key, and the data is a fixed string. The resultant MAC is stored in Slot 2.
 
-    KeyLadderContext = lifecycle state || debug_locked state || firmware epoch
+    KeyLadderContext = lifecycle state || debug_locked state
 
     hmac512_kdf(KvSlot6, label: b"si_init", context: KeyLadderContext, KvSlot2)
 
