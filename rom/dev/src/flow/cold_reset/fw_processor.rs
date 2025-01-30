@@ -32,7 +32,6 @@ use caliptra_common::{
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
-use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
