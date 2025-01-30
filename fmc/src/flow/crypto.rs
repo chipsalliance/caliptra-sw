@@ -12,10 +12,27 @@ use caliptra_common::{
     keyids::KEY_ID_TMP,
 };
 use caliptra_drivers::{
-    okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
+    okmutref, okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
     Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
     Mldsa87Seed,
 };
+use caliptra_x509::Ecdsa384Signature;
+use zeroize::Zeroize;
+
+pub trait Ecdsa384SignatureAdapter {
+    /// Convert to ECDSA Signature
+    fn to_ecdsa(&self) -> Ecdsa384Signature;
+}
+
+impl Ecdsa384SignatureAdapter for Ecc384Signature {
+    /// Convert to ECDSA Signatuure
+    fn to_ecdsa(&self) -> Ecdsa384Signature {
+        Ecdsa384Signature {
+            r: (&self.r).into(),
+            s: (&self.s).into(),
+        }
+    }
+}
 
 pub enum Crypto {}
 
@@ -132,6 +149,38 @@ impl Crypto {
         let digest = env.sha2_512_384.sha384_digest(data);
         let digest = okref(&digest)?;
         env.ecc384.verify(pub_key, digest, sig)
+    }
+
+    /// Sign the data using ECC Private Key.
+    /// Verify the signature using the ECC Public Key.
+    ///
+    /// This routine calculates the digest of the `data`, signs the hash and returns the signature.
+    /// This routine also verifies the signature using the public key.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    /// * `priv_key` - Key slot to retrieve the private key
+    /// * `pub_key` - Public key to verify with
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Signature
+    #[inline(always)]
+    pub fn ecdsa384_sign_and_verify(
+        env: &mut FmcEnv,
+        priv_key: KeyId,
+        pub_key: &Ecc384PubKey,
+        data: &[u8],
+    ) -> CaliptraResult<Ecc384Signature> {
+        let mut digest = env.sha2_512_384.sha384_digest(data);
+        let digest = okmutref(&mut digest)?;
+        let priv_key_args = KeyReadArgs::new(priv_key);
+        let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
+        let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
+        digest.0.zeroize();
+        result
     }
 
     /// Generate MLDSA Key Pair

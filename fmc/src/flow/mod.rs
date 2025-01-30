@@ -14,6 +14,7 @@ Abstract:
 
 mod crypto;
 pub mod dice;
+mod fmc_alias_csr;
 mod pcr;
 mod rt_alias;
 mod tci;
@@ -29,5 +30,18 @@ use caliptra_drivers::CaliptraResult;
 ///
 /// * `env` - FMC Environment
 pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+    {
+        use caliptra_cfi_lib::cfi_assert_eq;
+        use caliptra_drivers::ResetReason;
+
+        let reset_reason = env.soc_ifc.reset_reason();
+
+        if reset_reason == ResetReason::ColdReset {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+            // Generate the FMC Alias Certificate Signing Request (CSR)
+            fmc_alias_csr::generate_csr(env)?;
+        }
+    }
+
     RtAliasLayer::run(env)
 }
