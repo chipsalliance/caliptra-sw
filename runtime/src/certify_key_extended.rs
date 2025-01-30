@@ -12,9 +12,6 @@ Abstract:
 
 --*/
 
-use core::str::from_utf8;
-
-use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
