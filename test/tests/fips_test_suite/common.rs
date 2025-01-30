@@ -6,6 +6,7 @@ use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::*,
     response::{
@@ -14,6 +15,11 @@ use dpe::{
     },
 };
 use zerocopy::{AsBytes, FromBytes};
+
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
 
 pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
 pub const HOOK_CODE_OFFSET: u32 = 16;
