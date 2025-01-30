@@ -439,21 +439,32 @@ impl<'a> DmaMmio<'a> {
 }
 
 impl<'a> Mmio for &DmaMmio<'a> {
+    #[inline(always)]
     unsafe fn read_volatile<T: ureg::Uint>(&self, src: *const T) -> T {
+        // we only support 32-bit reads
+        if T::TYPE != ureg::UintType::U32 {
+            unreachable!();
+        }
         let offset = src as usize;
         let a = self.dma.read_dword(self.base + offset);
-        // we don't support u64
         self.set_error(a.err());
         T::from_u32(a.unwrap_or_default())
     }
 }
 
 impl<'a> MmioMut for &DmaMmio<'a> {
+    #[inline(always)]
     unsafe fn write_volatile<T: ureg::Uint>(&self, dst: *mut T, src: T) {
-        let offset = dst as usize;
-        // we don't support u64
-        let result = self.dma.write_dword(self.base + offset, src.into());
-        self.set_error(result.err());
+        // we only support 32-bit writes
+        if T::TYPE != ureg::UintType::U32 {
+            unreachable!();
+        }
+        // this will always work because we only support u32
+        if let Ok(src) = src.try_into() {
+            let offset = dst as usize;
+            let result = self.dma.write_dword(self.base + offset, src);
+            self.set_error(result.err());
+        }
     }
 }
 
