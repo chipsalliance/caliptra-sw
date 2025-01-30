@@ -48,6 +48,7 @@ impl RecoveryFlow {
         };
         // [TODO][CAP2]: authenticate SoC manifest using keys available through Caliptra Image
         // TODO: switch to ref_from method when we upgrade zerocopy
+        // [TODO][CAP2]: replace this copy with set_manifest
         drivers
             .persistent_data
             .get_mut()

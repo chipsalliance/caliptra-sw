@@ -448,7 +448,8 @@ impl<'a> Mmio for &DmaMmio<'a> {
         let offset = src as usize;
         let a = self.dma.read_dword(self.base + offset);
         self.set_error(a.err());
-        T::from_u32(a.unwrap_or_default())
+        // try_into() will always succeed since we only support u32
+        a.unwrap_or_default().try_into().unwrap_or_default()
     }
 }
 
