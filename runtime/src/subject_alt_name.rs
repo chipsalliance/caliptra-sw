@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::str::from_utf8;
-
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{AddSubjectAltNameReq, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -52,14 +50,24 @@ impl AddSubjectAltNameCmd {
         }
     }
 
+    /// Verifies that `dmtf_device_info` only contains ascii characters and contains exactly 2 ':'
+    /// characters.
+    ///
+    /// dmtf_device_info_utf8 must match ^[^:]*:[^:]*:[^:]*$
     fn validate_dmtf_device_info(dmtf_device_info: &[u8]) -> CaliptraResult<()> {
-        let dmtf_device_info_utf8 = from_utf8(dmtf_device_info)
-            .map_err(|_| CaliptraError::RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED)?;
-        // dmtf_device_info_utf8 must match ^[^:]*:[^:]*:[^:]*$
-        if dmtf_device_info_utf8.chars().filter(|c| *c == ':').count() != 2 {
-            Err(CaliptraError::RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED)
-        } else {
-            Ok(())
+        let mut colon_count = 0;
+        for c in dmtf_device_info.iter() {
+            if !c.is_ascii() {
+                Err(CaliptraError::RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED)?
+            }
+
+            if *c == b':' {
+                colon_count += 1;
+            }
         }
+        if colon_count != 2 {
+            Err(CaliptraError::RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED)?
+        }
+        Ok(())
     }
 }
