@@ -1215,6 +1215,19 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Sign with Exported
+int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_SIGN_WITH_EXPORTED_ECDSA, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Self test start
 int caliptra_self_test_start(bool async)
 {

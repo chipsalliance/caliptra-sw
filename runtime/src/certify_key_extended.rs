@@ -60,6 +60,7 @@ impl CertifyKeyExtendedCmd {
             &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
+            &mut drivers.exported_cdi_slots,
         );
         let pl0_pauser = pdata.manifest1.header.pl0_pauser;
         let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
@@ -81,6 +82,7 @@ impl CertifyKeyExtendedCmd {
                 &nb,
                 &nf,
                 dmtf_device_info,
+                None,
             ),
         };
 

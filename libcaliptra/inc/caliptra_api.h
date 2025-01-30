@@ -183,6 +183,9 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 // Get IDev CSR
 int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
 
+// Sign with Exported Ecdsa
+int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
+
 // Self test start
 int caliptra_self_test_start(bool async);
 

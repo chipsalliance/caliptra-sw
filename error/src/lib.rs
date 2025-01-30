@@ -449,6 +449,14 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0052);
     pub const RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID: CaliptraError =
         CaliptraError::new_const(0x000E0053);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0054);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0055);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_DIGEST: CaliptraError =
+        CaliptraError::new_const(0x000E0056);
+    pub const RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE: CaliptraError =
+        CaliptraError::new_const(0x000E0057);
 
     pub const RUNTIME_GET_FMC_CSR_UNPROVISIONED: CaliptraError =
         CaliptraError::new_const(0x000E0054);
