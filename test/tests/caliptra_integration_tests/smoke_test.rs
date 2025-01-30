@@ -847,9 +847,15 @@ fn test_fmc_wdt_timeout() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let mut hw = caliptra_hw_model::new(
             init_params,
             BootParams {
+                fuses,
                 ..Default::default()
             },
         )
