@@ -17,6 +17,7 @@ ufmt.workspace = true
 zerocopy.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive.workspace = true
+zeroize.workspace = true
 
 
 [build-dependencies]
