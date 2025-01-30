@@ -68,7 +68,6 @@ fn test_rt_cert_with_custom_dates() {
             test_image_options: Some(opts),
             ..Default::default()
         };
-        // TODO(mtimkovich): This only runs against lms.
         let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
         let payload = MailboxReqHeader {
