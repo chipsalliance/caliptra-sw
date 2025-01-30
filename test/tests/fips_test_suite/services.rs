@@ -7,7 +7,7 @@ use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
@@ -771,12 +771,18 @@ pub fn zeroize_halt_check_no_output() {
         .to_bytes()
         .unwrap();
 
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
         let mut hw = fips_test_init_to_rt(
             Some(InitParams {
                 ..Default::default()
             }),
             Some(BootParams {
                 fw_image: Some(&fw_image),
+                fuses,
                 initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
                     << HOOK_CODE_OFFSET,
                 ..Default::default()
