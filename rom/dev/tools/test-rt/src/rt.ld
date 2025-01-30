@@ -17,14 +17,14 @@ OUTPUT_FORMAT("elf32-littleriscv", "elf32-littleriscv", "elf32-littleriscv")
 ENTRY(_start)
 
 
-ICCM_ORG    = 0x40004000; /* Range [0x40000000 - 0x40003FFF] is reserved for FMC */
+ICCM_ORG    = 0x40005C00; /* Range [0x40000000 - 0x40005BFF] is reserved for FMC */
 DCCM_ORG    = 0x50000000;
 DATA_ORG    = 0x50004C00;
 STACK_ORG   = 0x5003C000;
 ESTACK_ORG  = 0x5003F800;
 NSTACK_ORG  = 0x5003FC00;
 
-ICCM_SIZE   = 112K;
+ICCM_SIZE   = 128K;
 DCCM_SIZE   = 256K;
 DATA_SIZE   = 93K;
 STACK_SIZE  = 14K;
@@ -84,11 +84,10 @@ SECTIONS
     {
         _padding = .;
         // The manifest size gets replaced in build.rs
-        . += ICCM_SIZE - SIZEOF(.rodata) - SIZEOF(.text) - SIZEOF(.data) - 1 - #MANIFEST_SIZE#;
+        . += ICCM_SIZE - SIZEOF(.rodata) - SIZEOF(.text) - SIZEOF(.data) - 1;
         BYTE(0xff);
         _epadding = .;
     } > ICCM
-
 
 	.bss (NOLOAD) : ALIGN(4) 
     {

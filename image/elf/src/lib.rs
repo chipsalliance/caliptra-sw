@@ -76,6 +76,11 @@ impl ElfExecutable {
             if segment_data.is_empty() {
                 continue;
             }
+            println!(
+                "[image] Segment: 0x{:08x} - 0x{:08x}",
+                segment.p_paddr,
+                segment.p_paddr + segment_data.len() as u64
+            );
             load_into_image(
                 &mut content,
                 load_addr,
@@ -85,6 +90,7 @@ impl ElfExecutable {
         }
 
         let entry_point = elf_file.ehdr.e_entry as u32;
+        println!("[image] load addr: 0x{:08x}, entry point: 0x{:08x}", load_addr, entry_point);
 
         Ok(Self {
             version,

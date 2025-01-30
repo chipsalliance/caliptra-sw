@@ -60,11 +60,13 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let id = ImageTocEntryId::Fmc;
         let offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
         let (fmc_toc, fmc) = self.gen_image(config, id, offset)?;
+        println!("FMC size: {}, load address: {:#x}, entry point: {:#x}", fmc_toc.size, fmc_toc.load_addr, fmc_toc.entry_point);
 
         // Create Runtime TOC & Content
         let id = ImageTocEntryId::Runtime;
         let offset = offset + fmc_toc.size;
         let (runtime_toc, runtime) = self.gen_image(config, id, offset)?;
+        println!("Runtime size: {}, load address: {:#x}, entry point: {:#x}", runtime_toc.size, runtime_toc.load_addr, runtime_toc.entry_point);
 
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
@@ -434,6 +436,9 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             ImageTocEntryId::Fmc => &config.fmc,
             ImageTocEntryId::Runtime => &config.runtime,
         };
+
+
+        println!("Load address: {:#x}", image.load_addr());
 
         let toc_type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;

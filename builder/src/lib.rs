@@ -221,6 +221,7 @@ pub fn build_firmware_elfs_uncached<'a>(
                 fwid,
                 fs::read(target_dir.join(TARGET).join(PROFILE).join(fwid.bin_name))?,
             );
+            println!("Target: {:?}", target_dir.join(TARGET).join(PROFILE).join(fwid.bin_name));
         }
     }
     Ok(fwids
@@ -314,6 +315,7 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
 
     if let Some(fw_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
         let path = PathBuf::from(fw_dir).join(id.elf_filename());
+        println!("Reading prebuilt firmware from {}", path.display());
         let result = std::fs::read(&path).map_err(|e| {
             io::Error::new(
                 e.kind(),

@@ -2,6 +2,12 @@
 
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
+use crate::{
+    fuse_log::FuseLogEntry,
+    memory_layout,
+    pcr_log::{MeasurementLogEntry, PcrLogEntry},
+    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey,
+};
 #[cfg(feature = "runtime")]
 use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
@@ -13,13 +19,6 @@ use caliptra_image_types::{ImageManifest, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
-
-use crate::{
-    fuse_log::FuseLogEntry,
-    memory_layout,
-    pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, Mldsa87PubKey,
-};
 
 #[cfg(feature = "runtime")]
 use crate::pcr_reset::PcrResetCounter;
@@ -44,6 +43,7 @@ pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
 pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
+pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
@@ -143,6 +143,59 @@ macro_rules! impl_idevid_csr {
 
 impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_CSR_SIZE);
 impl_idevid_csr!(Mldsa87IdevIdCsr, MLDSA87_MAX_CSR_SIZE);
+
+pub mod fmc_alias_csr {
+    use super::*;
+    const _: () = assert!(size_of::<FmcAliasCsr>() < FMC_ALIAS_CSR_SIZE as usize);
+    #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+    #[repr(C)]
+    pub struct FmcAliasCsr {
+        csr_len: u32,
+        csr: [u8; ECC384_MAX_CSR_SIZE],
+    }
+    impl Default for FmcAliasCsr {
+        fn default() -> Self {
+            Self {
+                csr_len: Self::UNPROVISIONED_CSR,
+                csr: [0; ECC384_MAX_CSR_SIZE],
+            }
+        }
+    }
+    impl FmcAliasCsr {
+        /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
+        /// the CSR generation flag was not enabled.
+        ///
+        /// This is used by the runtime to distinguish ROM images that support CSR generation from
+        /// ones that do not.
+        ///
+        /// u32::MAX is too large to be a valid CSR, so we use it to encode this state.
+        pub const UNPROVISIONED_CSR: u32 = u32::MAX;
+        /// Get the CSR buffer
+        pub fn get(&self) -> Option<&[u8]> {
+            self.csr.get(..self.csr_len as usize)
+        }
+        /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
+        pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
+            if csr_len >= ECC384_MAX_CSR_SIZE {
+                return Err(CaliptraError::FMC_ALIAS_INVALID_CSR);
+            }
+            let mut _self = Self {
+                csr_len: csr_len as u32,
+                csr: [0; ECC384_MAX_CSR_SIZE],
+            };
+            _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
+            Ok(_self)
+        }
+        /// Get the length of the CSR in bytes.
+        pub fn get_csr_len(&self) -> u32 {
+            self.csr_len
+        }
+        /// Check if the CSR was unprovisioned
+        pub fn is_unprovisioned(&self) -> bool {
+            self.csr_len == Self::UNPROVISIONED_CSR
+        }
+    }
+}
 
 pub type Hmac384Tag = [u8; SHA384_DIGEST_BYTE_SIZE];
 pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
@@ -250,6 +303,9 @@ pub struct PersistentData {
 
     pub idevid_csr_envelop: InitDevIdCsrEnvelope,
     reserved10: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
+
+    pub fmc_alias_csr: FmcAliasCsr,
+    reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsr>()],
 }
 
 impl PersistentData {
@@ -364,6 +420,16 @@ impl PersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
+            persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
+            assert_eq!(
+                addr_of!((*P).fmc_alias_csr) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            assert_eq!(
+                P.add(1) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + size_of::<PersistentData>() as u32
+            );
             assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
     }

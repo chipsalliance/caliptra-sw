@@ -24,7 +24,7 @@ STACK_ORG        = 0x5003C000;
 ESTACK_ORG       = 0x5003F800;
 NSTACK_ORG       = 0x5003FC00;
 
-ICCM_SIZE         = 16K;
+ICCM_SIZE         = 23K;
 DCCM_SIZE         = 256K;
 DATA_SIZE         = 93K;
 STACK_SIZE        = 14K;

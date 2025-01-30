@@ -71,3 +71,4 @@ fips_self_test = []
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+

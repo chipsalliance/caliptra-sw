@@ -92,8 +92,10 @@ pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
+pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 pub use persistent::AuthManifestImageMetadataList;
+
 pub use persistent::{
     Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
     PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_CSR_SIZE,

@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    Alias RT DICE Layer & PCR extension
+    aliasrt DICE Layer & PCR extension
 
 --*/
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -56,15 +56,15 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
         }
 
-        cprintln!("[alias rt] Derive CDI");
-        cprintln!("[alias rt] Store it in slot 0x{:x}", KEY_ID_RT_CDI as u8);
+        cprintln!("[aliasrt] Derive CDI");
+        cprintln!("[aliasrt] Store it in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
         // Derive CDI
         Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
-        cprintln!("[alias rt] Derive Key Pair");
+        cprintln!("[aliasrt] Derive Key Pair");
         cprintln!(
-            "[alias rt] Store ECC priv key in slot 0x{:x} and MLDSA key pair seed in slot 0x{:x}",
+            "[aliasrt] Store ECC priv key in slot 0x{:x} and MLDSA key pair seed in slot 0x{:x}",
             KEY_ID_RT_ECDSA_PRIV_KEY as u8,
             KEY_ID_RT_MLDSA_KEYPAIR_SEED as u8,
         );
@@ -76,7 +76,7 @@ impl RtAliasLayer {
             KEY_ID_RT_ECDSA_PRIV_KEY,
             KEY_ID_RT_MLDSA_KEYPAIR_SEED,
         )?;
-        cprintln!("[alias rt] Derive Key Pair - Done");
+        cprintln!("[aliasrt] Derive Key Pair - Done");
         report_boot_status(FmcBootStatus::RtAliasKeyPairDerivationComplete as u32);
 
         // Generate the Subject Serial Number and Subject Key Identifier.
@@ -124,16 +124,14 @@ impl RtAliasLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
-        cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env)?;
-        cprintln!("[alias rt] Extend RT PCRs Done");
+        cprintln!("[aliasrt] Extend RT PCRs Done");
 
-        cprintln!("[alias rt] Lock RT PCRs");
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_CURRENT_PCR);
         env.pcr_bank
             .set_pcr_lock(caliptra_common::RT_FW_JOURNEY_PCR);
-        cprintln!("[alias rt] Lock RT PCRs Done");
+        cprintln!("[aliasrt] Lock RT PCRs Done");
 
         report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);
 
@@ -206,7 +204,7 @@ impl RtAliasLayer {
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
-                cprintln!("[alias rt : skip pcr extension");
+                cprintln!("[aliasrt :skip pcr extension");
                 Ok(())
             }
             ResetReason::Unknown => {
@@ -376,7 +374,7 @@ impl RtAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[alias rt] Signing ECC Cert with AUTHORITY.KEYID = {}",
+            "[aliasrt] Signing ECC Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
 
@@ -385,7 +383,7 @@ impl RtAliasLayer {
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
-            "[alias rt] Erasing ECC AUTHORITY.KEYID = {}",
+            "[aliasrt] Erasing ECC AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
@@ -394,13 +392,13 @@ impl RtAliasLayer {
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
-        cprintln!("[alias rt] ECC PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[alias rt] ECC PUB.Y = {}", HexBytes(&_pub_y));
+        cprintln!("[aliasrt] ECC PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[aliasrt] ECC PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[alias rt] ECC SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[alias rt] ECC SIG.S = {}", HexBytes(&_sig_s));
+        cprintln!("[aliasrt] ECC SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[aliasrt] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {

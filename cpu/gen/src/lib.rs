@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 use caliptra_common::memory_layout::*;
-// [TODO][CAP2] Add MLDSA
 pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
     format!(
         r#"
@@ -12,7 +11,6 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
         NSTACK_ORG       = 0x{NSTACK_ORG:08X};
 
         CFI_STATE_ORG = 0x{CFI_STATE_ORG:08X};
-
 
         ICCM_SIZE   = 0x{iccm_size:08X};
         DCCM_SIZE   = 0x{DCCM_SIZE:08X};
