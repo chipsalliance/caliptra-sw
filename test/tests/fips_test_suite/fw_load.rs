@@ -236,7 +236,6 @@ fn fw_load_error_flow_base(
     );
 
     // Upload initial FW
-
     let mut fw_load_result = hw.upload_firmware(&image_to_bytes_no_error_check(&fw_image));
 
     // Update the FW if specified
