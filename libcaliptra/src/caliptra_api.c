@@ -325,20 +325,27 @@ uint32_t caliptra_read_fw_fatal_error()
 /**
  * caliptra_ready_for_firmware
  *
- * Reports if the Caliptra hardware is ready for firmware upload
+ * Waits until Caliptra hardware is ready for firmware upload or until
+ * Caliptra reports an error
  *
  * @return bool True if ready, false otherwise
  */
-bool caliptra_ready_for_firmware(void)
+uint32_t caliptra_ready_for_firmware(void)
 {
     uint32_t status;
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
         status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_MB_PROCESSING_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_MB_PROCESSING_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_MB_PROCESSING_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_MB_PROCESSING_MASK)
         {
             ready = true;
         }
@@ -348,7 +355,7 @@ bool caliptra_ready_for_firmware(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
 }
 
 /**
@@ -362,13 +369,19 @@ bool caliptra_ready_for_firmware(void)
 uint32_t caliptra_ready_for_runtime(void)
 {
     uint32_t status;
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
         status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK)
         {
             ready = true;
         }
@@ -378,7 +391,7 @@ uint32_t caliptra_ready_for_runtime(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
 }
 
 /*
