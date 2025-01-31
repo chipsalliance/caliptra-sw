@@ -161,9 +161,7 @@ fn test_invoke_dpe_asymmetric_sign() {
         panic!("Wrong response type!");
     };
 
-    // r contains the hmac so it should not be all 0s
     assert_ne!(sign_resp.sig_r, [0u8; 48]);
-    // s must be all 0s for hmac sign
     assert_ne!(sign_resp.sig_s, [0u8; 48]);
 }
 
