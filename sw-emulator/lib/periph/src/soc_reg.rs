@@ -975,7 +975,7 @@ impl SocRegistersImpl {
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
-            fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
+            fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
             ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
             ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
