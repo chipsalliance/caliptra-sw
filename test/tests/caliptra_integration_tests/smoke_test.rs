@@ -738,9 +738,7 @@ fn smoke_test() {
     }
 }
 
-//[CAP2][TODO] This test is failing in the CI. It is disabled until the issue is resolved.
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn test_rt_wdt_timeout() {
     // There is too much jitter in the fpga_realtime TRNG response timing to hit
     // the window of time where the RT is running but hasn't yet reset the

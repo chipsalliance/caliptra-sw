@@ -271,6 +271,11 @@ impl Mldsa87 {
         msg: &Mldsa87Msg,
         signature: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
+        }
+
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
         let truncated_signature = &signature.0[signature.0.len() - verify_res.0.len()..];
