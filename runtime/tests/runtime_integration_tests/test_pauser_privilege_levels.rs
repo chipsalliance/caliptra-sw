@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::PQC_KEY_TYPE;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     build_firmware_elf,
@@ -32,7 +33,8 @@ use dpe::{
 use zerocopy::AsBytes;
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
+    TEST_LABEL,
 };
 
 const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
@@ -102,72 +104,76 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
 
 #[test]
 fn test_pl1_derive_context_dpe_context_thresholds() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
-
-    let mut model = run_rt_test(args);
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
-
-    // First initialize a simulation context in locality 1
-    // so that we get a non-default handle which we can use
-    // when calling DeriveContext with the RETAIN_PARENT_CONTEXT flag
-    let init_ctx_cmd = InitCtxCmd::new_simulation();
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::InitCtx(init_ctx_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::InitCtx(init_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
-    let mut handle = init_ctx_resp.handle;
-
-    // Call DeriveContext with PL1 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. When we initialize
-    // DPE, we measure the RT journey PCR in Caliptra's locality: 0xFFFFFFFF, which counts as a PL1 locality.
-    // Then, we initialize a simulation context in locality 1. Thus, we can call derive child
-    // from PL1 exactly 16 - 2 = 14 times, and the last iteration of this loop, is expected to throw a threshold breached error.
-    let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
-    for i in 0..num_iterations {
-        let derive_context_cmd = DeriveContextCmd {
-            handle,
-            data: DATA,
-            flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-            tci_type: 0,
-            target_locality: 0,
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
         };
 
-        // If we are on the last call to DeriveContext, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
-        if i == num_iterations - 1 {
-            let resp = execute_dpe_cmd(
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        // First initialize a simulation context in locality 1
+        // so that we get a non-default handle which we can use
+        // when calling DeriveContext with the RETAIN_PARENT_CONTEXT flag
+        let init_ctx_cmd = InitCtxCmd::new_simulation();
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::InitCtx(init_ctx_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::InitCtx(init_ctx_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+        let mut handle = init_ctx_resp.handle;
+
+        // Call DeriveContext with PL1 enough times to breach the threshold on the last iteration.
+        // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. When we initialize
+        // DPE, we measure the RT journey PCR in Caliptra's locality: 0xFFFFFFFF, which counts as a PL1 locality.
+        // Then, we initialize a simulation context in locality 1. Thus, we can call derive child
+        // from PL1 exactly 16 - 2 = 14 times, and the last iteration of this loop, is expected to throw a threshold breached error.
+        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+        for i in 0..num_iterations {
+            let derive_context_cmd = DeriveContextCmd {
+                handle,
+                data: DATA,
+                flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+                tci_type: 0,
+                target_locality: 0,
+            };
+
+            // If we are on the last call to DeriveContext, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+            if i == num_iterations - 1 {
+                let resp = execute_dpe_cmd(
                 &mut model,
                 &mut Command::DeriveContext(derive_context_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED,
                 ),
             );
-            assert!(resp.is_none());
-            break;
-        }
+                assert!(resp.is_none());
+                break;
+            }
 
-        let resp = execute_dpe_cmd(
-            &mut model,
-            &mut Command::DeriveContext(derive_context_cmd),
-            DpeResult::Success,
-        );
-        let Some(Response::DeriveContext(derive_context_resp)) = resp else {
+            let resp = execute_dpe_cmd(
+                &mut model,
+                &mut Command::DeriveContext(derive_context_cmd),
+                DpeResult::Success,
+            );
+            let Some(Response::DeriveContext(derive_context_resp)) = resp else {
             panic!("Wrong response type!");
         };
-        handle = derive_context_resp.handle;
+            handle = derive_context_resp.handle;
+        }
     }
 }
 
@@ -209,226 +215,250 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
 
 #[test]
 fn test_pl1_init_ctx_dpe_context_thresholds() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
 
-    let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD;
-    for i in 0..num_iterations {
-        let init_ctx_cmd = InitCtxCmd::new_simulation();
+        let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD;
+        for i in 0..num_iterations {
+            let init_ctx_cmd = InitCtxCmd::new_simulation();
 
-        // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1st iteration since
-        // RT initialization creates the RT journey measurement context in Caliptra's locality,
-        // which is PL1.
-        if i == num_iterations - 1 {
-            let resp = execute_dpe_cmd(
+            // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1st iteration since
+            // RT initialization creates the RT journey measurement context in Caliptra's locality,
+            // which is PL1.
+            if i == num_iterations - 1 {
+                let resp = execute_dpe_cmd(
                 &mut model,
                 &mut Command::InitCtx(init_ctx_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED,
                 ),
             );
-            assert!(resp.is_none());
-            break;
-        }
+                assert!(resp.is_none());
+                break;
+            }
 
-        let resp = execute_dpe_cmd(
-            &mut model,
-            &mut Command::InitCtx(init_ctx_cmd),
-            DpeResult::Success,
-        );
-        let Some(Response::InitCtx(_)) = resp else {
+            let resp = execute_dpe_cmd(
+                &mut model,
+                &mut Command::InitCtx(init_ctx_cmd),
+                DpeResult::Success,
+            );
+            let Some(Response::InitCtx(_)) = resp else {
             panic!("Wrong response type!");
         };
+        }
     }
 }
 
 #[test]
 fn test_populate_idev_cannot_be_called_from_pl1() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
-    let mut model = run_rt_test(args);
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq::default());
-    pop_idev_cmd.populate_chksum().unwrap();
+        let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq::default());
+        pop_idev_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::POPULATE_IDEV_CERT),
-            pop_idev_cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
-    assert_error(
-        &mut model,
-        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        resp,
-    );
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::POPULATE_IDEV_CERT),
+                pop_idev_cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
 }
 
 #[test]
 fn test_stash_measurement_cannot_be_called_from_pl1() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
-    let mut model = run_rt_test(args);
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
-    cmd.populate_chksum().unwrap();
+        let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
+        cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::STASH_MEASUREMENT),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
-    assert_error(
-        &mut model,
-        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        resp,
-    );
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::STASH_MEASUREMENT),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
 }
 
 #[test]
 fn test_certify_key_x509_cannot_be_called_from_pl1() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
 
-    let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::CertifyKey(certify_key_cmd),
-        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
-    );
-    assert!(resp.is_none());
+        let certify_key_cmd = CertifyKeyCmd {
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: CertifyKeyFlags::empty(),
+            format: CertifyKeyCmd::FORMAT_X509,
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::CertifyKey(certify_key_cmd),
+            DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
+        );
+        assert!(resp.is_none());
+    }
 }
 
 #[test]
 fn test_certify_key_extended_cannot_be_called_from_pl1() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
 
-    let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let mut certify_key_extended_cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        certify_key_req: [0u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
-        flags: CertifyKeyExtendedFlags::empty(),
-    });
-    certify_key_extended_cmd.populate_chksum().unwrap();
+        let mut certify_key_extended_cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            certify_key_req: [0u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
+            flags: CertifyKeyExtendedFlags::empty(),
+        });
+        certify_key_extended_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
-            certify_key_extended_cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
-    assert_error(
-        &mut model,
-        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        resp,
-    );
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+                certify_key_extended_cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
 }
 
 #[test]
 fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
 
-    let args = RuntimeTestArgs {
-        test_image_options: Some(image_opts),
-        ..Default::default()
-    };
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
 
-    let mut model = run_rt_test(args);
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    // init ctx since we have currently have no parent handle for pl1
-    let init_ctx_cmd = InitCtxCmd::new_simulation();
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::InitCtx(init_ctx_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::InitCtx(init_ctx_resp)) = resp else {
+        // init ctx since we have currently have no parent handle for pl1
+        let init_ctx_cmd = InitCtxCmd::new_simulation();
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::InitCtx(init_ctx_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::InitCtx(init_ctx_resp)) = resp else {
         panic!("Wrong response type!");
     };
 
-    let derive_context_cmd = DeriveContextCmd {
-        handle: init_ctx_resp.handle,
-        data: DATA,
-        flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
-        tci_type: 0,
-        target_locality: 0,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::DeriveContext(derive_context_cmd),
-        DpeResult::MboxCmdFailure(
-            caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
-        ),
-    );
-    assert!(resp.is_none());
+        let derive_context_cmd = DeriveContextCmd {
+            handle: init_ctx_resp.handle,
+            data: DATA,
+            flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
+            tci_type: 0,
+            target_locality: 0,
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(derive_context_cmd),
+            DpeResult::MboxCmdFailure(
+                caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            ),
+        );
+        assert!(resp.is_none());
+    }
 }
 
 #[test]
@@ -631,45 +661,53 @@ fn test_pl0_unset_in_header() {
 
 #[test]
 fn test_user_not_pl0() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let mut model = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let mut opts = ImageOptions::default();
-    opts.vendor_config.pl0_pauser = Some(0); // Caller PAUSER is always 1 for current models
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
-
-    model
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        opts.vendor_config.pl0_pauser = Some(0); // Caller PAUSER is always 1 for current models
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
-    // If PAUSER is not PL0, make sure PL0-only operation fails
-    let certify_key_cmd = CertifyKeyCmd {
-        handle: ContextHandle::default(),
-        label: TEST_LABEL,
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCmd::FORMAT_X509,
-    };
-    let resp = execute_dpe_cmd(
-        &mut model,
-        &mut Command::CertifyKey(certify_key_cmd),
-        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
-    );
-    assert!(resp.is_none());
+        model
+            .upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        // If PAUSER is not PL0, make sure PL0-only operation fails
+        let certify_key_cmd = CertifyKeyCmd {
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: CertifyKeyFlags::empty(),
+            format: CertifyKeyCmd::FORMAT_X509,
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::CertifyKey(certify_key_cmd),
+            DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
+        );
+        assert!(resp.is_none());
+    }
 }
