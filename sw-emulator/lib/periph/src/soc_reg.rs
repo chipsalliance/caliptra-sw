@@ -326,7 +326,8 @@ register_bitfields! [
         RSVD_EN OFFSET(1) NUMBITS(3) [],
         LMS_ACC_EN OFFSET(4) NUMBITS(1) [],
         ACTIVE_MODE_en OFFSET(5) NUMBITS(1) [],
-        RSVD OFFSET(6) NUMBITS(26) [],
+        FUSE_GRANULARITY_64BIT OFFSET(6) NUMBITS(1) [],
+        RSVD OFFSET(7) NUMBITS(25) [],
     ],
 ];
 
@@ -399,10 +400,15 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().clear_secrets();
     }
 
+    // [TODO][CAP2] Rdl is not yet updated for UDS fuse controller 32/64 granularity bit (6)
     pub fn set_hw_config(&mut self, val: CptraHwConfigReadVal) {
         self.regs.borrow_mut().cptra_hw_config = ReadWriteRegister {
             reg: InMemoryRegister::<u32, HwConfig::Register>::new(val.into()),
         };
+    }
+
+    pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {
+        self.regs.borrow_mut().fuse_uds_seed = *seed;
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -709,6 +715,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x514)]
     ss_recovery_ifc_base_addr_h: ReadOnlyRegister<u32>,
 
+    #[register(offset = 0x518)]
+    ss_otp_fc_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x51c)]
+    ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x520)]
     ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -856,6 +868,9 @@ impl SocRegistersImpl {
         flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
 
         let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
+        let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
+        // To make things easy the fuse bank is part of the fuse bank controller emulation
+        let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -923,6 +938,8 @@ impl SocRegistersImpl {
             fuse_manuf_dbg_unlock_token: [0; 4],
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
+            ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
+            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -958,11 +975,11 @@ impl SocRegistersImpl {
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
-            ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(0),
-            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
-            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
-            ss_uds_seed_base_addr_h: ReadOnlyRegister::new(0), // [TODO][CAP2] Program this
-            fuse_pqc_key_type: 1,                              // MLDSA (default): 1, LMS: 3
+            fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
+            ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
+            ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
+            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
+            ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
         };
         regs
     }

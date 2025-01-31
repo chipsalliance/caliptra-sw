@@ -35,6 +35,7 @@ impl FipsTestHook {
     pub const HMAC384_FAILURE: u8 = 0x47;
     pub const LMS_VERIFY_FAILURE: u8 = 0x48;
     pub const ECC384_KEY_PAIR_GENERATE_FAILURE: u8 = 0x49;
+    pub const MLDSA_VERIFY_FAILURE: u8 = 0x4A;
 
     // FW Load Errors
     pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;
@@ -47,6 +48,8 @@ impl FipsTestHook {
     pub const FW_LOAD_RUNTIME_DIGEST_FAILURE: u8 = 0x57;
     pub const FW_LOAD_VENDOR_LMS_VERIFY_FAILURE: u8 = 0x58;
     pub const FW_LOAD_OWNER_LMS_VERIFY_FAILURE: u8 = 0x59;
+    pub const FW_LOAD_VENDOR_MLDSA_VERIFY_FAILURE: u8 = 0x5A;
+    pub const FW_LOAD_OWNER_MLDSA_VERIFY_FAILURE: u8 = 0x5B;
 
     /// # Safety
     ///
