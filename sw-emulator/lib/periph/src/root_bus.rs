@@ -21,7 +21,7 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
-use caliptra_api_types::SecurityState;
+use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
@@ -212,6 +212,8 @@ pub struct CaliptraRootBusArgs {
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
+    pub dbg_manuf_service_req: DbgManufServiceRegReq,
+    pub active_mode: bool,
 
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
@@ -226,7 +228,6 @@ pub struct CaliptraRootBusArgs {
 
     pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
-    pub active_mode: bool,
 }
 impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
@@ -234,6 +235,8 @@ impl Default for CaliptraRootBusArgs {
             rom: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
+            dbg_manuf_service_req: Default::default(),
+            active_mode: false,
             tb_services_cb: Default::default(),
             ready_for_fw_cb: Default::default(),
             upload_update_fw: Default::default(),
@@ -242,7 +245,6 @@ impl Default for CaliptraRootBusArgs {
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
-            active_mode: false,
         }
     }
 }
@@ -326,7 +328,7 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
-        let dma = Dma::new(clock, mailbox_ram.clone());
+        let dma = Dma::new(clock, mailbox_ram.clone(), soc_reg.clone());
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
 

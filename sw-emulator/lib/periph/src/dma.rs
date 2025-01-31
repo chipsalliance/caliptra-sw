@@ -12,7 +12,7 @@ File contains DMA peripheral implementation.
 
 --*/
 
-use crate::MailboxRam;
+use crate::{MailboxRam, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
@@ -26,6 +26,7 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
+pub mod otp_fc;
 mod recovery;
 
 const RECOVERY_STATUS_OFFSET: u64 = 0x40;
@@ -182,7 +183,7 @@ impl Dma {
 
     const DMA_CLOCKS_PER_WORD: u64 = 4;
 
-    pub fn new(clock: &Clock, mailbox: MailboxRam) -> Self {
+    pub fn new(clock: &Clock, mailbox: MailboxRam, soc_reg: SocRegistersInternal) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
             capabilities: ReadOnlyRegister::new(Self::FIFO_SIZE as u32 - 1), // MAX FIFO DEPTH
@@ -201,7 +202,7 @@ impl Dma {
             op_complete_action: None,
             op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
-            axi: AxiRootBus::new(),
+            axi: AxiRootBus::new(soc_reg),
             mailbox,
         }
     }
@@ -434,6 +435,9 @@ impl Dma {
 mod tests {
     use tock_registers::registers::InMemoryRegister;
 
+    use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
+    use caliptra_emu_cpu::Pic;
+
     use super::*;
 
     const AXI_TEST_OFFSET: AxiAddr = 0xaa00;
@@ -516,7 +520,12 @@ mod tests {
     fn test_dma_fifo_read_write() {
         let clock = Clock::new();
         let mbox_ram = MailboxRam::new();
-        let mut dma = Dma::new(&clock, mbox_ram);
+        let iccm = Iccm::new(&clock);
+        let pic = Pic::new();
+        let args = CaliptraRootBusArgs::default();
+        let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
+        let soc_reg = SocRegistersInternal::new(&clock, mailbox_internal, iccm, &pic, args);
+        let mut dma = Dma::new(&clock, mbox_ram, soc_reg);
 
         assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), 0xaabbccdd); // Initial test value
         let test_value = 0xdeadbeef;

@@ -387,11 +387,9 @@ impl SocIfc {
             .ss_dbg_manuf_service_reg_rsp()
             .write(|w| {
                 if flow_succeeded {
-                    w.uds_program_success(true);
-                    w.uds_program_fail(false)
+                    w.uds_program_success(true).uds_program_fail(false)
                 } else {
-                    w.uds_program_success(false);
-                    w.uds_program_fail(true)
+                    w.uds_program_success(false).uds_program_fail(true)
                 }
             });
     }
