@@ -34,6 +34,10 @@ static void set_fuses(test_info* info)
         fuses->owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
         fuses->key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
     }
+
+#if !defined(SKIP_LMS_VERIFY)
+    fuses->lms_verify = true;
+#endif
 }
 
 static struct caliptra_buffer read_file_or_exit(const char* path)
