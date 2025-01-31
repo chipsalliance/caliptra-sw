@@ -49,6 +49,11 @@ pub const TEST_DIGEST: [u8; 48] = [
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
 
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
+
 #[derive(Default)]
 pub struct RuntimeTestArgs<'a> {
     pub test_fwid: Option<&'static FwId<'static>>,
@@ -113,6 +118,83 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
             fw_image: Some(&image.to_bytes().unwrap()),
             fuses: Fuses {
                 fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+                ..Default::default()
+            },
+            initial_dbg_manuf_service_reg: boot_flags,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
+
+    model
+}
+
+pub fn run_rt_test_pqc(
+    args: RuntimeTestArgs,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> DefaultHwModel {
+    let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    };
+    let runtime_fwid = args.test_fwid.unwrap_or(default_rt_fwid);
+
+    let image_options = args.test_image_options.unwrap_or_else(|| {
+        let mut opts = ImageOptions::default();
+        opts.vendor_config.pl0_pauser = Some(0x1);
+        opts.fmc_version = DEFAULT_FMC_VERSION;
+        opts.app_version = DEFAULT_APP_VERSION;
+        opts.pqc_key_type = pqc_key_type;
+        opts
+    });
+
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let init_params = match args.init_params {
+        Some(init_params) => init_params,
+        None => InitParams {
+            rom: &rom,
+            stack_info: Some(StackInfo::new(image_info)),
+            ..Default::default()
+        },
+    };
+
+    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
+        .unwrap();
+
+    let boot_flags = if let Some(flags) = args.test_mfg_flags {
+        flags.bits()
+    } else {
+        0
+    };
+
+    let mut model = caliptra_hw_model::new(
+        init_params,
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            fuses: Fuses {
+                fuse_pqc_key_type: pqc_key_type as u32,
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,

@@ -19,18 +19,16 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 pub type AxiAddr = u64;
 
+use crate::dma::otp_fc::FuseController;
 use crate::dma::recovery::RecoveryRegisterInterface;
+use crate::SocRegistersInternal;
 
 pub struct AxiRootBus {
     pub reg: u32,
 
     pub recovery: RecoveryRegisterInterface,
-}
 
-impl Default for AxiRootBus {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub otp_fc: FuseController,
 }
 
 impl AxiRootBus {
@@ -38,10 +36,14 @@ impl AxiRootBus {
     pub const RECOVERY_REGISTER_INTERFACE_OFFSET: AxiAddr = 0xf_00000000;
     pub const RECOVERY_REGISTER_INTERFACE_END: AxiAddr = 0xf_000000ff;
 
-    pub fn new() -> Self {
+    pub const OTC_FC_OFFSET: AxiAddr = 0xf_00001000;
+    pub const OTC_FC_END: AxiAddr = 0xf_00001fff;
+
+    pub fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
             reg: 0xaabbccdd,
             recovery: RecoveryRegisterInterface::new(),
+            otp_fc: FuseController::new(soc_reg),
         }
     }
 
@@ -51,6 +53,10 @@ impl AxiRootBus {
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
                 let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
                 return Bus::read(&mut self.recovery, size, addr);
+            }
+            Self::OTC_FC_OFFSET..=Self::OTC_FC_END => {
+                let addr = (addr - Self::OTC_FC_OFFSET) as RvAddr;
+                return Bus::read(&mut self.otp_fc, size, addr);
             }
             _ => {}
         };
@@ -64,6 +70,10 @@ impl AxiRootBus {
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
                 let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
                 return Bus::write(&mut self.recovery, size, addr, val);
+            }
+            Self::OTC_FC_OFFSET..=Self::OTC_FC_END => {
+                let addr = (addr - Self::OTC_FC_OFFSET) as RvAddr;
+                return Bus::write(&mut self.otp_fc, size, addr, val);
             }
             _ => {}
         }

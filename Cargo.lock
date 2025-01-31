@@ -486,6 +486,7 @@ dependencies = [
  "fips204",
  "lazy_static",
  "rand",
+ "sha2",
  "sha3",
  "smlang",
  "tock-registers",
