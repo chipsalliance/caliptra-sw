@@ -1741,11 +1741,11 @@ Command Code: `0x5357_4545` ("SWEE")
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| exported_cdi  | u8[32]   | The Exported CDI returned by the DPE `DeriveContext` command. Little endian. |
-| digest        | u8[48]   | The digest to be signed. Little endian.                                      |
+| **Name**             | **Type** | **Description**
+| --------             | -------- | ---------------
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
+| tbs                  | u8[48]   | The bytes to be signed. Little endian.                                              |
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` output arguments*
 | **Name**           | **Type** | **Description**
