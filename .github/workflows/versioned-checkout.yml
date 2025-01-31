@@ -8,21 +8,29 @@ on:
   workflow_call:
     inputs:
         rom-ref:
-            description: 'The git ref to checkout for building the ROM'
-            type: string
-            default: "main"
-            required: true
+          description: 'The git ref to checkout for building the ROM'
+          type: string
+          default: "main"
+          required: true
         rom-logging:
-            description: 'Whether to include logging in the ROM'
-            type: boolean
-            default: false
-            required: false
+          description: 'Whether to include logging in the ROM'
+          type: boolean
+          default: false
+          required: false
         fw-ref:
-            description: 'The git ref to checkout for building the firmware (FMC and RT)'
-            type: string
-            default: "main"
-            required: true
-
+          description: 'The git ref to checkout for building the firmware (FMC and RT)'
+          type: string
+          default: "main"
+          required: true
+        hw-version:
+          default: "latest"
+          type: string
+          required: false
+        workflow_call:
+          description: 'Set true for workflow_call'
+          default: true
+          type: boolean
+        
 jobs:
   build_versioned_rom:
     runs-on: [e2-standard-16]
@@ -68,6 +76,10 @@ jobs:
       - name: Build FMC and RT
         run: |
             mkdir /tmp/caliptra-fmc-rt-firmware
+            FEATURES=""
+            if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+                FEATURES=hw-${{ inputs.hw-version }}
+            fi
             cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-fmc-rt-firmware
 
   unify_rom_fmc_rt:
