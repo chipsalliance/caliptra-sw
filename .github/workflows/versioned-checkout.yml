@@ -1,0 +1,80 @@
+# Reusable workflow to checkout and build a versioned ROM and firmware and merge them into a single directory.
+name: Versioned Checkout and Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_call:
+    inputs:
+        rom-ref:
+            description: 'The git ref to checkout for building the ROM'
+            type: string
+            default: "main"
+            required: true
+        rom-logging:
+            description: 'Whether to include logging in the ROM'
+            type: boolean
+            default: false
+            required: false
+        fw-ref:
+            description: 'The git ref to checkout for building the firmware (FMC and RT)'
+            type: string
+            default: "main"
+            required: true
+
+jobs:
+  build_versioned_rom:
+    runs-on: [e2-standard-16]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+
+    steps:
+      - name: Checkout versioned ROM (${{ inputs.rom-ref }})
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.rom-ref }}
+
+      - name: Build ROM
+        run: |
+          mkdir /tmp/caliptra-rom-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-rom-firmware
+
+          if [ -z "${{ inputs.rom-logging }}" ] || [ "${{ inputs.rom-logging }}" == "false" ]; then
+            cargo run -p caliptra-builder -- --rom-no-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          else
+            cargo run -p caliptra-builder -- --rom-with-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          fi
+
+  build_versioned_fmc_rt:
+    runs-on: [e2-standard-16]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+
+    steps:
+      - name: Checkout versioned FMC and RT (${{ inputs.fw-ref }})
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.fw-ref }}
+
+      - name: Build FMC and RT
+        run: |
+            mkdir /tmp/caliptra-fmc-rt-firmware
+            cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-fmc-rt-firmware
+
+  unify_rom_fmc_rt:
+    runs-on: [e2-standard-16]
+    steps:
+      - name: Merge Rom files and Firmware files
+        run: |
+            mkdir /tmp/caliptra
+            cp /tmp/caliptra-fmc-rt-firmware/*.elf /tmp/caliptra
+            cp /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra
