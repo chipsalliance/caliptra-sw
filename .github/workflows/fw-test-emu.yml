@@ -19,6 +19,9 @@ on:
       rom-version:
         default: "latest"
         type: string
+      fw-ref:
+        default: "main"
+        type: string
 
 jobs:
   build_and_test:
@@ -57,17 +60,12 @@ jobs:
         run: |
           git submodule update --init dpe
 
-      - name: Build ROM
-        run: |
-          # TODO: Confirm if this is the desired test behaviour
-          mkdir /tmp/caliptra-rom-firmware
-          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-rom-firmware
-
-          if [ -z "${{ inputs.rom-logging }}" ] || [ "${{ inputs.rom-logging }}" == "false" ]; then
-            cargo run -p caliptra-builder -- --rom-no-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
-          else
-            cargo run -p caliptra-builder -- --rom-with-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
-          fi
+      - name: Checkout versioned ROM and firmware
+        uses: ./.github/workflows/versioned-checkout.yml
+        with:
+          rom-ref: "${{ inputs.rom-ref }}"
+          rom-logging: "${{ inputs.rom-logging }}"
+          fw-ref: "${{ inputs.fw-ref }}"
 
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -75,15 +73,6 @@ jobs:
       - name: Pull dpe submodule
         run: |
           git submodule update --init dpe
-
-      - name: Build firmware
-        run: |
-          mkdir /tmp/caliptra-test-firmware
-          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
-
-      - name: Merge ROM and firmware
-        run: |
-          mv /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra-test-firmware/
 
       - name: Run tests
         run: |
