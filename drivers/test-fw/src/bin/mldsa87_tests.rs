@@ -18,7 +18,7 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, Mldsa87, Mldsa87Msg, Mldsa87PubKey, Mldsa87Result, Mldsa87SignRnd,
+    KeyWriteArgs, Mldsa87, Mldsa87Msg, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
     Mldsa87Signature, Trng,
 };
 use caliptra_registers::csrng::CsrngReg;
@@ -302,8 +302,9 @@ fn test_gen_key_pair() {
     )
     .unwrap();
 
-    let seed = KeyReadArgs::new(KEY_ID);
-    let public_key = ml_dsa87.key_pair(&seed, &mut trng).unwrap();
+    let public_key = ml_dsa87
+        .key_pair(&Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)), &mut trng, None)
+        .unwrap();
     assert_eq!(public_key, Mldsa87PubKey::from(PUBKEY));
 }
 
@@ -321,12 +322,11 @@ fn test_sign() {
     };
 
     let sign_rnd = Mldsa87SignRnd::default(); // Deterministic signing
-    let seed = KeyReadArgs::new(KEY_ID); // Reuse SEED
 
     let signature = ml_dsa87
         .sign(
-            &seed,
-            &Mldsa87PubKey::from(PUBKEY),
+            &Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)),
+            &Mldsa87PubKey::from(PUBKEY), // Reuse SEED
             &MESSAGE.into(),
             &sign_rnd,
             &mut trng,

@@ -59,7 +59,7 @@ impl From<KeyReadArgs> for Ecc384Seed<'_> {
     }
 }
 
-/// ECC-384 Public Key output
+/// ECC-384 Private Key output
 #[derive(Debug)]
 pub enum Ecc384PrivKeyOut<'a> {
     /// Array
