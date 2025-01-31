@@ -40,8 +40,25 @@ bool caliptra_ready_for_fuses(void);
 //          STILL_READY_FOR_FUSES   - Flow status still indicates ready for fuses after writing fuse done
 int caliptra_init_fuses(const struct caliptra_fuses *fuses);
 
-// Query if ROM is ready for firmware
-bool caliptra_ready_for_firmware(void);
+/**
+ * caliptra_ready_for_firmware
+ *
+ * Waits until Caliptra hardware is ready for firmware upload or until
+ * Caliptra reports an error
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_ready_for_firmware(void);
+
+/**
+ * caliptra_ready_for_runtime
+ *
+ * Waits until Caliptra hardware is ready for runtime commands or until
+ * Caliptra reports an error
+ *
+ * @return int 0 if ready, Caliptra error otherwise
+ */
+uint32_t caliptra_ready_for_runtime(void);
 
 // Read the value of the caliptra FW non-fatal error code
 // returns: Caliptra error code (see error/src/lib.rs)

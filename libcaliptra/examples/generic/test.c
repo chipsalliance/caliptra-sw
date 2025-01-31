@@ -402,6 +402,13 @@ int rt_test_all_commands(const test_info* info)
         printf("FW Load: OK\n");
     }
 
+    status = caliptra_ready_for_runtime();
+    if (status) {
+        printf("Firmware Boot Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+
     // GET_IDEV_CERT
     struct caliptra_get_idev_cert_req idev_cert_req = {};
     struct caliptra_get_idev_cert_resp idev_cert_resp;
