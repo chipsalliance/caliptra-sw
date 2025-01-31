@@ -275,6 +275,8 @@ impl ImageBundle {
 }
 
 /// Calipatra Image Manifest
+///
+/// NOTE: only the header, fmc, and runtime portions of this struct are covered by signature.
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -518,6 +520,8 @@ pub struct ImageHeader {
     /// TOC Digest
     pub toc_digest: ImageDigest384,
 
+    pub svn: u32,
+
     /// Vendor Data
     pub vendor_data: VendorSignedData,
 
@@ -571,12 +575,8 @@ pub struct ImageTocEntry {
     // Firmware release number
     pub version: u32,
 
-    /// Security Version Number
-    /// Only read for Runtime entries. Not read for FMC.
-    pub svn: u32,
-
     /// Reserved field
-    pub reserved: u32,
+    pub reserved: [u32; 2],
 
     /// Entry Point
     pub load_addr: u32,

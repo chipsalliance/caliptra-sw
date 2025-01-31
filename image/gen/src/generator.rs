@@ -363,6 +363,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             flags: Self::DEFAULT_FLAGS,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
+            svn: config.runtime.svn(),
             ..Default::default()
         };
 
@@ -437,8 +438,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             r#type: r#type.into(),
             revision: *image.rev(),
             version: image.version(),
-            svn: image.svn(),
-            reserved: 0,
+            reserved: [0; 2],
             load_addr: image.load_addr(),
             entry_point: image.entry_point(),
             offset,

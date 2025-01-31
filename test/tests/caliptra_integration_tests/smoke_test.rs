@@ -358,7 +358,7 @@ fn smoke_test() {
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
-            fmc_svn: image.manifest.fmc.svn,
+            fmc_svn: image.manifest.header.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
             lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,

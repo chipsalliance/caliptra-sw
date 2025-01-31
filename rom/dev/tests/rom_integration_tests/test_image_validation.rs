@@ -2358,6 +2358,22 @@ fn test_runtime_svn_less_than_fuse_svn() {
 }
 
 #[test]
+fn test_runtime_svn_corruption() {
+    let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
+
+    // Change SVN.
+    image_bundle.manifest.header.svn += 1;
+
+    assert_eq!(
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
+        )
+    );
+}
+
+#[test]
 fn cert_test_with_custom_dates() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let mut opts = ImageOptions {
