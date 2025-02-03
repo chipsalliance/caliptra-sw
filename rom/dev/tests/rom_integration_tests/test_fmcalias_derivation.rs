@@ -163,11 +163,10 @@ fn test_pcr_log() {
         )
         .unwrap();
 
-        const FMC_SVN: u32 = 1;
+        const FW_SVN: u32 = 1;
         let image_options = ImageOptions {
             vendor_config: VENDOR_CONFIG_KEY_1,
-            fmc_svn: FMC_SVN,
-            app_svn: FMC_SVN,
+            fw_svn: FW_SVN,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -205,7 +204,7 @@ fn test_pcr_log() {
                 debug_locked as u8,
                 anti_rollback_disable as u8,
                 VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-                FMC_SVN as u8,
+                FW_SVN as u8,
                 0_u8,
                 VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
                 *pqc_key_type as u8,
@@ -350,15 +349,14 @@ fn test_pcr_log_fmc_fuse_svn() {
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        const FMC_SVN: u32 = 3;
-        const FMC_FUSE_SVN: u32 = 2;
+        const FW_SVN: u32 = 3;
+        const FW_FUSE_SVN: u32 = 2;
 
         let fuses = Fuses {
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
             owner_pk_hash: owner_pubkey_digest,
-            fmc_key_manifest_svn: FMC_FUSE_SVN,
-            runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
+            fw_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -378,8 +376,7 @@ fn test_pcr_log_fmc_fuse_svn() {
 
         let image_options = ImageOptions {
             vendor_config: VENDOR_CONFIG_KEY_1,
-            fmc_svn: FMC_SVN,
-            app_svn: FMC_SVN,
+            fw_svn: FW_SVN,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -417,8 +414,8 @@ fn test_pcr_log_fmc_fuse_svn() {
                 debug_locked as u8,
                 anti_rollback_disable as u8,
                 VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-                FMC_SVN as u8,
-                FMC_FUSE_SVN as u8,
+                FW_SVN as u8,
+                FW_FUSE_SVN as u8,
                 VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
                 *pqc_key_type as u8,
                 true as u8,
@@ -501,13 +498,11 @@ fn test_pcr_log_across_update_reset() {
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        const FMC_SVN: u32 = 2;
-        const FMC_FUSE_SVN: u32 = 1;
+        const FW_SVN: u32 = 2;
 
         let fuses = Fuses {
             anti_rollback_disable: false,
-            fmc_key_manifest_svn: FMC_FUSE_SVN,
-            runtime_svn: [1, 0, 0, 0],
+            fw_svn: [1, 0, 0, 0],
             vendor_pk_hash: vendor_pubkey_digest,
             owner_pk_hash: owner_pubkey_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
@@ -529,8 +524,7 @@ fn test_pcr_log_across_update_reset() {
 
         let image_options = ImageOptions {
             vendor_config: VENDOR_CONFIG_KEY_1,
-            fmc_svn: FMC_SVN,
-            app_svn: FMC_SVN,
+            fw_svn: FW_SVN,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -608,12 +602,12 @@ fn test_pcr_log_across_update_reset() {
 #[test]
 #[allow(deprecated)]
 fn test_fuse_log() {
-    const FMC_SVN: u32 = 4;
+    const FW_SVN: u32 = 4;
+    const FW_FUSE_SVN: u32 = 3;
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
-        runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
+        fw_svn: [0x7, 0, 0, 0], // Value of FW_FUSE_SVN
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
@@ -635,12 +629,12 @@ fn test_fuse_log() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         owner_config: Some(OWNER_CONFIG),
-        fmc_svn: FMC_SVN,
         fmc_version: 0,
-        app_svn: FMC_SVN,
         app_version: 0,
         pqc_key_type: FwVerificationPqcKeyType::LMS,
+        fw_svn: FW_SVN,
     };
+
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap();
@@ -675,15 +669,15 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0,);
 
-    // Validate the ManifestFmcSvn
+    // Validate the ColdBootFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestFmcSvn as u32
+        FuseLogEntryId::ColdBootFwSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_SVN);
 
     // Validate the ManifestReserved0
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -703,17 +697,17 @@ fn test_fuse_log() {
         fuse_log_entry.entry_id,
         FuseLogEntryId::_DeprecatedFuseFmcSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
 
-    // Validate the ManifestRtSvn
+    // Validate the ManifestFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestRtSvn as u32
+        FuseLogEntryId::ManifestFwSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_SVN);
 
     // Validate the ManifestReserved1
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -725,12 +719,12 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0);
 
-    // Validate the FuseRtSvn
+    // Validate the FuseFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFwSvn as u32);
+    assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
 
     // Validate the VendorPqcPubKeyIndex
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();

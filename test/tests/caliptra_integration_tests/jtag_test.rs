@@ -81,8 +81,7 @@ fn gdb_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
@@ -93,7 +92,7 @@ fn gdb_test() {
     let fuses = Fuses {
         vendor_pk_hash: vendor_pk_desc_hash,
         owner_pk_hash,
-        fmc_key_manifest_svn: 0b1111111,
+        fw_svn: [0x7F, 0, 0, 0],
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(

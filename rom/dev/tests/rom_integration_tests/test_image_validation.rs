@@ -2288,7 +2288,7 @@ fn test_runtime_svn_greater_than_max() {
             ..Default::default()
         };
         let image_options = ImageOptions {
-            app_svn: caliptra_image_verify::MAX_RUNTIME_SVN + 1,
+            fw_svn: caliptra_image_verify::MAX_FIRMWARE_SVN + 1,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -2296,7 +2296,7 @@ fn test_runtime_svn_greater_than_max() {
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
         assert_eq!(
             ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED.into()
+                CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED.into()
             ),
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap_err()
@@ -2327,12 +2327,12 @@ fn test_runtime_svn_less_than_fuse_svn() {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
-            runtime_svn: fuse_svn,
+            fw_svn: fuse_svn,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
         let image_options = ImageOptions {
-            app_svn: 62,
+            fw_svn: 62,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -2340,14 +2340,14 @@ fn test_runtime_svn_less_than_fuse_svn() {
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
         assert_eq!(
             ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
+                CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE.into()
             ),
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap_err()
         );
         assert_eq!(
             hw.soc_ifc().cptra_fw_error_fatal().read(),
-            u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)
+            u32::from(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE)
         );
 
         assert_eq!(
@@ -2619,6 +2619,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
         owner_config: opts.owner_config,
         pqc_key_type: FwVerificationPqcKeyType::from_u8(image_bundle.manifest.pqc_key_type)
             .unwrap(),
+        fw_svn: 0,
     };
 
     let gen = ImageGenerator::new(Crypto::default());

@@ -60,6 +60,7 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
         pqc_key_type,
+        fw_svn: 0,
     };
 
     let gen = ImageGenerator::new(Crypto::default());
@@ -1196,7 +1197,7 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         // Generate image
         let image_options = ImageOptions {
-            app_svn: caliptra_image_verify::MAX_RUNTIME_SVN + 1,
+            fw_svn: caliptra_image_verify::MAX_FIRMWARE_SVN + 1,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -1218,20 +1219,18 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
         fw_load_error_flow(
             Some(fw_image),
             Some(fuses),
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED.into(),
+            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED.into(),
             *pqc_key_type,
         );
     }
 }
-
-// IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED is defined but never used in the code (svn is a u32)
 
 #[test]
 fn fw_load_error_runtime_svn_less_than_fuse() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         // Generate image
         let image_options = ImageOptions {
-            app_svn: 62,
+            fw_svn: 62,
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
@@ -1246,7 +1245,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
             vendor_pk_hash: vendor_pubkey_digest,
-            runtime_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
+            fw_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -1254,7 +1253,7 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
         fw_load_error_flow(
             Some(fw_image),
             Some(fuses),
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into(),
+            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE.into(),
             *pqc_key_type,
         );
     }

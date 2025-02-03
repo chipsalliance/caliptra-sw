@@ -219,11 +219,11 @@ impl UpdateResetFlow {
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
         data_vault.set_rt_tci(&info.runtime.digest.into());
 
-        let cur_min_svn = data_vault.rt_min_svn();
+        let cur_min_svn = data_vault.fw_min_svn();
         let new_min_svn = core::cmp::min(cur_min_svn, info.fw_svn);
 
-        data_vault.set_rt_svn(info.fw_svn);
-        data_vault.set_rt_min_svn(new_min_svn);
+        data_vault.set_fw_svn(info.fw_svn);
+        data_vault.set_fw_min_svn(new_min_svn);
         data_vault.set_rt_entry_point(info.runtime.entry_point);
 
         report_boot_status(UpdateResetPopulateDataVaultComplete.into());
