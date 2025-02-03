@@ -106,23 +106,21 @@ jobs:
           retention-days: 1
 
   build_test_binaries:
-    runs-on: [e2-standard-16]
-    timeout-minutes: 60
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      hw-version: "${{ inputs.hw-version }}"
+      workflow_call: "${{ inputs.workflow_call }}"
+    # runs-on: [e2-standard-16]
+    # timeout-minutes: 60
 
-    env:
+    envs:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
 
     steps:
-      - name: Checkout versioned ROM and firmware
-        uses: ./.github/workflows/versioned-checkout.yml
-        with:
-          rom-ref: "${{ inputs.rom-ref }}"
-          rom-logging: "${{ inputs.rom-logging }}"
-          fw-ref: "${{ inputs.fw-ref }}"
-          hw-version: "${{ inputs.hw-version }}"
-          workflow_call: "${{ inputs.workflow_call }}"
-    
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
