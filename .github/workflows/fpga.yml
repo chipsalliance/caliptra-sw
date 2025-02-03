@@ -111,24 +111,25 @@ jobs:
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
+  versioned-checkout-build:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      hw-version: "${{ inputs.hw-version }}"
+      workflow_call: "${{ inputs.workflow_call }}"
+
   build_test_binaries:
     runs-on: [e2-standard-8]
     timeout-minutes: 60
+    needs: versioned-checkout-build
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
 
     steps:
-      - name: Checkout versioned ROM and firmware
-        uses: ./.github/workflows/versioned-checkout.yml
-        with:
-          rom-ref: "${{ inputs.rom-ref }}"
-          rom-logging: "${{ inputs.rom-logging }}"
-          fw-ref: "${{ inputs.fw-ref }}"
-          hw-version: "${{ inputs.hw-version }}"
-          workflow_call: "${{ inputs.workflow_call }}"
-    
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
@@ -140,6 +141,12 @@ jobs:
         with:
           path: /tmp/caliptra-fpga-sysroot.tar
           key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          name: caliptra-unified
 
       - name: Extract sysroot
         if: "steps.restore_sysroot_cache.outputs.cache-hit"
@@ -160,7 +167,7 @@ jobs:
           sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
           sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
 
-          # Remove unnecesary files
+          # Remove unnecessary files
           sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
           sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
           sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
