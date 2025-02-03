@@ -492,7 +492,8 @@ impl<'a> DmaRecovery<'a> {
         // SAFETY: we aren't referencing memory directly
         let regs = unsafe {
             I3CRegisterBlock::new_with_mmio(
-                core::ptr::null_mut(), // we don't use this except for offset calculations,
+                // substract the recovery offset since all recovery registers are relative to it
+                core::ptr::null_mut::<u32>().sub(0x100 / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
@@ -514,7 +515,8 @@ impl<'a> DmaRecovery<'a> {
         // SAFETY: we aren't referencing memory directly
         let regs = unsafe {
             I3CRegisterBlock::new_with_mmio(
-                core::ptr::null_mut(), // we don't use this except for offset calculations
+                // substract the recovery offset since all recovery registers are relative to it
+                core::ptr::null_mut::<u32>().sub(0x100 / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
