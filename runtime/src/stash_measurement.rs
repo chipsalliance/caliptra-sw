@@ -29,7 +29,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    // #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,
@@ -49,37 +49,12 @@ impl StashMeasurementCmd {
             // the PL0 context threshold to be exceeded.
             drivers.is_dpe_context_threshold_exceeded()?;
 
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
             let pdata = drivers.persistent_data.get_mut();
-            let mut crypto = DpeCrypto::new(
-                &mut drivers.sha384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac384,
-                &mut drivers.key_vault,
-                &mut pdata.fht.rt_dice_pub_key,
-                key_id_rt_cdi,
-                key_id_rt_priv_key,
-                &mut drivers.exported_cdi_slots,
-            );
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pdata.manifest1.header.pl0_pauser,
-                    &hashed_rt_pub_key,
-                    &drivers.cert_chain,
-                    &nb,
-                    &nf,
-                    None,
-                    None,
-                ),
-            };
+            let mut env: DpeEnv<'_, CptraDpeTypes> =
+                drivers.initialize_dpe_mailbox(&nb, &nf, None, None)?;
 
             let locality = drivers.mbox.user();
-
             let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: *measurement,

@@ -485,6 +485,46 @@ impl Drivers {
         Ok(())
     }
 
+    // Helper function to initialize dpe for mailbox command drivers
+    // Will also be called by initialze_dpe
+    // #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn initialize_dpe_mailbox<'a>(
+        &'a mut self,
+        nb: &'a NotBefore,
+        nf: &'a NotAfter,
+        device_info: Option<&'a [u8]>,
+        euid: Option<&'a [u8; 17]>,
+    ) -> CaliptraResult<DpeEnv<'_, CptraDpeTypes>> {
+        let hashed_rt_pub_key = self.compute_rt_alias_sn()?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(self)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(self)?;
+        let pdata = self.persistent_data.get_mut();
+        let mut crypto = DpeCrypto::new(
+            &mut self.sha384,
+            &mut self.trng,
+            &mut self.ecc384,
+            &mut self.hmac384,
+            &mut self.key_vault,
+            &mut pdata.fht.rt_dice_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
+            &mut self.exported_cdi_slots,
+        );
+
+        Ok(DpeEnv::<CptraDpeTypes> {
+            crypto,
+            platform: DpePlatform::new(
+                pdata.manifest1.header.pl0_pauser,
+                &hashed_rt_pub_key,
+                &self.cert_chain,
+                &nb,
+                &nf,
+                device_info,
+                euid,
+            ),
+        })
+    }
+
     /// Create certificate chain and store in Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
