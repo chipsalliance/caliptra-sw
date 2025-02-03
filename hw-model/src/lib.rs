@@ -4,10 +4,11 @@ use api::CaliptraApiError;
 use caliptra_api as api;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, Event};
 use core::panic;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::mpsc;
 use std::{
     error::Error,
     fmt::Display,
@@ -274,6 +275,10 @@ pub struct BootParams<'a> {
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
     pub valid_axi_user: Vec<u32>,
     pub wdt_timeout_cycles: u64,
+    // SoC manifest passed via the recovery interface
+    pub soc_manifest: Option<&'a [u8]>,
+    // MCU firmware image passed via the recovery interface
+    pub mcu_fw_image: Option<&'a [u8]>,
 }
 
 impl<'a> Default for BootParams<'a> {
@@ -286,6 +291,8 @@ impl<'a> Default for BootParams<'a> {
             initial_adaptp_thresh_reg: Default::default(),
             valid_axi_user: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
+            soc_manifest: Default::default(),
+            mcu_fw_image: Default::default(),
         }
     }
 }
@@ -632,7 +639,11 @@ pub trait HwModel: SocManager {
                 if active_mode { "active" } else { "passive" }
             )?;
             if active_mode {
-                self.upload_firmware_rri(fw_image)?;
+                self.upload_firmware_rri(
+                    fw_image,
+                    boot_params.soc_manifest,
+                    boot_params.mcu_fw_image,
+                )?;
             } else {
                 self.upload_firmware(fw_image)?;
             }
@@ -1036,17 +1047,31 @@ pub trait HwModel: SocManager {
     }
 
     /// HW-model function to place the image in rri
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError>;
+    fn put_firmware_in_rri(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError>;
 
     /// Upload fw image to RRI.
-    fn upload_firmware_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        self.put_firmware_in_rri(firmware)?;
+    fn upload_firmware_rri(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
         let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
         Ok(())
     }
+
+    fn events_from_caliptra(&mut self) -> Vec<Event>;
+
+    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event>;
 
     fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<Self>, ModelError>
     where

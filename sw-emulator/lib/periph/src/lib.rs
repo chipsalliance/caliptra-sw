@@ -16,7 +16,7 @@ extern crate arrayref;
 
 mod asym_ecc384;
 mod csrng;
-mod dma;
+pub mod dma;
 mod doe;
 mod emu_ctrl;
 mod hash_sha256;

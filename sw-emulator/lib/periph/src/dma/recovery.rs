@@ -12,11 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister};
+use caliptra_emu_bus::{
+    BusError, Event, EventData, ReadOnlyRegister, ReadWriteRegister, RecoveryCommandCode,
+};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
-use std::mem;
 use std::rc::Rc;
+use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
@@ -24,7 +26,7 @@ register_bitfields! [
     u32,
 
     /// Recovery Control
-    RecoveryControl [
+    pub RecoveryControl [
         CMS OFFSET(0) NUMBITS(8) [],
         IMAGE_SELECTION OFFSET(8) NUMBITS(8) [
             NoOperation = 0,
@@ -39,23 +41,24 @@ register_bitfields! [
     ],
 
     /// Recovery Status
-    RecoveryStatus [
-        DEVICE_RECOVERY OFFSET(0) NUMBITS(8) [
+    pub RecoveryStatus [
+        DEVICE_RECOVERY OFFSET(0) NUMBITS(4) [
             NotInRecovery = 0x0,
             AwaitingRecoveryImage = 0x1,
             BootingRecoveryImage = 0x2,
-            RecoverySuccesfull = 0x3,
+            RecoverySuccessful = 0x3,
             RecoveryFailed = 0xc,
             AuthenticationError = 0xd,
             ErrorEnteringRecovery = 0xe,
             InvalidComponentAddressSpace = 0xf,
             // 0x10-ff Reserved
         ],
+        RECOVERY_IMAGE_INDEX OFFSET(4) NUMBITS(4) [],
         VENDOR_SPECIFIC OFFSET(8) NUMBITS(8) [],
     ],
 
     /// HW Status
-    HwStatus [
+    pub HwStatus [
         HW_STATUS OFFSET(0) NUMBITS(8) [
             TemperatureCritial = 0x0,
             HardwareSoftError = 0x1,
@@ -73,13 +76,17 @@ register_bitfields! [
     ],
 
     /// Indirect FIFO Control
-    IndirectCtrl [
+    pub IndirectCtrl0 [
         CMS OFFSET(0) NUMBITS(8),
         RESET OFFSET(8) NUMBITS(1),
+        LEN23 OFFSET(16) NUMBITS(16),
+    ],
+    pub IndirectCtrl1 [
+        LEN01 OFFSET(0) NUMBITS(16),
     ],
 
     /// Indirect FIFO Status
-    IndirectStatus [
+    pub IndirectStatus [
         FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
         FIFO_FULL OFFSET(1) NUMBITS(1) [],
         REGION_TYPE OFFSET(8) NUMBITS(3) [
@@ -94,6 +101,8 @@ register_bitfields! [
 
 /// Recovery register interface
 #[derive(Bus)]
+#[incoming_event_fn(incoming_event)]
+#[register_outgoing_events_fn(register_outgoing_events)]
 pub struct RecoveryRegisterInterface {
     // Capability registers
     #[register(offset = 0x0)]
@@ -139,9 +148,9 @@ pub struct RecoveryRegisterInterface {
 
     // Indirect FIFO registers
     #[register(offset = 0x48, write_fn = indirect_fifo_ctrl_0_write)]
-    pub indirect_fifo_ctrl_0: ReadWriteRegister<u32, IndirectCtrl::Register>,
-    #[register(offset = 0x4c, read_fn = indirect_fifo_ctrl_1_read)]
-    pub indirect_fifo_ctrl_1: ReadWriteRegister<u32>,
+    pub indirect_fifo_ctrl_0: ReadWriteRegister<u32, IndirectCtrl0::Register>,
+    #[register(offset = 0x4c)]
+    pub indirect_fifo_ctrl_1: ReadOnlyRegister<u32, IndirectCtrl1::Register>,
     #[register(offset = 0x50)]
     pub indirect_fifo_status_0: ReadOnlyRegister<u32, IndirectStatus::Register>,
     #[register(offset = 0x54)]
@@ -157,7 +166,8 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x68, read_fn = indirect_fifo_data_read)]
     pub indirect_fifo_data: ReadWriteRegister<u32>,
 
-    pub cms_data: Option<Rc<Vec<u8>>>, // TODO Multiple images?
+    pub cms_data: Vec<Vec<u8>>,
+    pub event_sender: Option<mpsc::Sender<Event>>,
 }
 
 impl RecoveryRegisterInterface {
@@ -195,7 +205,7 @@ impl RecoveryRegisterInterface {
 
             // Indirect FIFO registers
             indirect_fifo_ctrl_0: ReadWriteRegister::new(0),
-            indirect_fifo_ctrl_1: ReadWriteRegister::new(0),
+            indirect_fifo_ctrl_1: ReadOnlyRegister::new(0),
             indirect_fifo_status_0: ReadOnlyRegister::new(0x1), // EMPTY=1
             indirect_fifo_status_1: ReadOnlyRegister::new(0),
             indirect_fifo_status_2: ReadOnlyRegister::new(0),
@@ -204,7 +214,8 @@ impl RecoveryRegisterInterface {
             indirect_fifo_status_5: ReadWriteRegister::new(0),
             indirect_fifo_data: ReadWriteRegister::new(0),
 
-            cms_data: None,
+            cms_data: vec![],
+            event_sender: None,
         }
     }
 
@@ -212,15 +223,17 @@ impl RecoveryRegisterInterface {
         if size != RvSize::Word {
             Err(BusError::LoadAccessFault)?;
         }
-        let image = match &self.cms_data {
-            None => {
-                println!("No image set in RRI");
-                return Ok(0xffff_ffff);
-            }
-            Some(x) => x,
+        if self.cms_data.is_empty() {
+            println!("No image set in RRI");
+            return Ok(0xffff_ffff);
+        }
+        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+        let Some(image) = self.cms_data.get(image_index) else {
+            println!("Recovery image index out of bounds");
+            return Ok(0xffff_ffff);
         };
 
-        let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl::CMS);
+        let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl0::CMS);
         if cms != 0 {
             println!("CMS {cms} not supported");
             return Ok(0xffff_ffff);
@@ -254,16 +267,29 @@ impl RecoveryRegisterInterface {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
-        let load: ReadWriteRegister<u32, IndirectCtrl::Register> = ReadWriteRegister::new(val);
-        if load.reg.is_set(IndirectCtrl::RESET) {
-            if let Some(image) = &self.cms_data {
-                let cms = load.reg.read(IndirectCtrl::CMS);
+        let load: ReadWriteRegister<u32, IndirectCtrl0::Register> = ReadWriteRegister::new(val);
+        if load.reg.is_set(IndirectCtrl0::RESET) {
+            let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+            if let Some(image) = self.cms_data.get(image_index) {
+                let cms = load.reg.read(IndirectCtrl0::CMS);
                 if cms != 0 {
                     self.indirect_fifo_status_0
                         .reg
                         .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
                 } else {
-                    self.indirect_fifo_ctrl_1.reg.set(image.len() as u32 / 4); // DWORD
+                    let len_dwords = image.len() as u32 / 4;
+                    self.indirect_fifo_ctrl_0
+                        .reg
+                        .modify(IndirectCtrl0::CMS.val(cms));
+                    self.indirect_fifo_ctrl_0
+                        .reg
+                        .modify(IndirectCtrl0::RESET::CLEAR);
+                    self.indirect_fifo_ctrl_0
+                        .reg
+                        .modify(IndirectCtrl0::LEN23.val(len_dwords >> 16));
+                    self.indirect_fifo_ctrl_1
+                        .reg
+                        .modify(IndirectCtrl1::LEN01.val(len_dwords & 0xffff));
                     self.indirect_fifo_status_0
                         .reg
                         .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
@@ -274,7 +300,11 @@ impl RecoveryRegisterInterface {
                     .reg
                     .modify(IndirectStatus::FIFO_EMPTY::CLEAR + IndirectStatus::FIFO_FULL::CLEAR);
             } else {
-                println!("No Image in RRI");
+                println!(
+                    "No Image in RRI ({} >= {})",
+                    image_index,
+                    self.cms_data.len()
+                );
                 self.indirect_fifo_status_0
                     .reg
                     .set(IndirectStatus::REGION_TYPE::UnsupportedRegion.value);
@@ -283,16 +313,99 @@ impl RecoveryRegisterInterface {
         Ok(())
     }
 
-    pub fn indirect_fifo_ctrl_1_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
-        if size != RvSize::Word {
-            Err(BusError::LoadAccessFault)?
-        }
+    pub fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.event_sender = Some(sender);
+    }
 
-        match &self.cms_data {
-            Some(d) => Ok((d.as_ref().len() / mem::size_of::<u32>()) as u32),
-            None => Ok(0),
+    pub fn incoming_event(&mut self, event: Rc<Event>) {
+        let sender = self
+            .event_sender
+            .as_ref()
+            .expect("Incoming event but we have no sender registered");
+        match &event.event {
+            EventData::RecoveryImageAvailable { image_id, image } => {
+                let idx = *image_id as usize;
+                // ensure we have space for the image
+                if idx >= self.cms_data.len() {
+                    self.cms_data
+                        .extend(std::iter::repeat(vec![]).take(idx - self.cms_data.len() + 1));
+                }
+                while idx >= self.cms_data.len() {
+                    self.cms_data.push(vec![]);
+                }
+                // replace any existing image
+                self.cms_data[idx].clear();
+                self.cms_data[idx].extend_from_slice(image);
+            }
+            EventData::RecoveryBlockReadRequest {
+                source_addr,
+                target_addr,
+                command_code,
+            } => {
+                let resp: Option<Vec<u8>> = match command_code {
+                    RecoveryCommandCode::ProtCap => to_payload(
+                        &[
+                            self.prot_cap_0.reg.get(),
+                            self.prot_cap_1.reg.get(),
+                            self.prot_cap_2.reg.get(),
+                            self.prot_cap_3.reg.get(),
+                        ],
+                        15,
+                    ),
+                    RecoveryCommandCode::DeviceId => to_payload(
+                        &[
+                            self.device_id_0.reg.get(),
+                            self.device_id_1.reg.get(),
+                            self.device_id_2.reg.get(),
+                            self.device_id_3.reg.get(),
+                            self.device_id_4.reg.get(),
+                            self.device_id_5.reg.get(),
+                            self.device_id_6.reg.get(),
+                        ],
+                        24,
+                    ),
+                    RecoveryCommandCode::DeviceStatus => to_payload(
+                        &[
+                            self.device_status_0.reg.get(),
+                            self.device_status_1.reg.get(),
+                        ],
+                        7,
+                    ),
+                    RecoveryCommandCode::RecoveryStatus => {
+                        to_payload(&[self.recovery_status.reg.get()], 2)
+                    }
+                    RecoveryCommandCode::RecoveryCtrl => {
+                        to_payload(&[self.recovery_ctrl.reg.get()], 3)
+                    }
+                    _ => None,
+                };
+                if let Some(resp) = resp {
+                    sender
+                        .send(Event {
+                            src: event.dest,
+                            dest: event.src,
+                            event: EventData::RecoveryBlockReadResponse {
+                                source_addr: *target_addr,
+                                target_addr: *source_addr,
+                                command_code: *command_code,
+                                payload: resp,
+                            },
+                        })
+                        .expect("Could not send event");
+                }
+            }
+            _ => {}
         }
     }
+}
+
+fn to_payload(data: &[u32], len: usize) -> Option<Vec<u8>> {
+    Some(
+        data.iter()
+            .flat_map(|x| x.to_le_bytes().to_vec())
+            .take(len)
+            .collect(),
+    )
 }
 
 impl Default for RecoveryRegisterInterface {
@@ -308,24 +421,26 @@ mod tests {
 
     use super::*;
 
-    const INDIRECT_FIFO_CTRL: RvAddr = 0x48;
+    const INDIRECT_FIFO_CTRL0: RvAddr = 0x48;
     const INDIRECT_FIFO_RESET: RvData = 0x100;
-    const INDIRECT_FIFO_IMAGE_SIZE: RvAddr = 0x4c;
+    const INDIRECT_FIFO_CTRL1: RvAddr = 0x4c;
     const INDIRECT_FIFO_STATUS: RvAddr = 0x50;
     const INDIRECT_FIFO_DATA: RvAddr = 0x68;
 
     #[test]
     fn test_get_image() {
-        let image = Rc::new(vec![0xab; 512]);
+        let image = vec![0xab; 512];
         let image_len = image.len();
         let mut rri = RecoveryRegisterInterface::new();
-        rri.cms_data = Some(image.clone());
+        rri.cms_data = vec![image.clone()];
 
         // Reset
-        rri.write(RvSize::Word, INDIRECT_FIFO_CTRL, INDIRECT_FIFO_RESET)
+        rri.write(RvSize::Word, INDIRECT_FIFO_CTRL0, INDIRECT_FIFO_RESET)
             .unwrap();
 
-        let image_size = rri.read(RvSize::Word, INDIRECT_FIFO_IMAGE_SIZE).unwrap();
+        let a = rri.read(RvSize::Word, INDIRECT_FIFO_CTRL0).unwrap();
+        let b = rri.read(RvSize::Word, INDIRECT_FIFO_CTRL1).unwrap();
+        let image_size = (a & 0xffff_0000) | (b & 0xffff);
         assert_eq!(image_len, image_size as usize * 4);
 
         let mut read_image = Vec::new();
@@ -334,6 +449,6 @@ mod tests {
             let bytes = dword_read.to_le_bytes();
             read_image.extend_from_slice(&bytes);
         }
-        assert_eq!(read_image, *image);
+        assert_eq!(read_image, image);
     }
 }
