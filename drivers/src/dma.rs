@@ -28,7 +28,7 @@ use crate::cprintln;
 pub enum DmaReadTarget {
     Mbox,
     AhbFifo,
-    AxiWr(AxiAddr),
+    AxiWr(AxiAddr, bool),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -155,7 +155,7 @@ impl Dma {
             dma.src_addr_l().write(|_| read_addr.lo);
             dma.src_addr_h().write(|_| read_addr.hi);
 
-            if let DmaReadTarget::AxiWr(target_addr) = read_transaction.target {
+            if let DmaReadTarget::AxiWr(target_addr, _) = read_transaction.target {
                 dma.dst_addr_l().write(|_| target_addr.lo);
                 dma.dst_addr_h().write(|_| target_addr.hi);
             }
@@ -164,12 +164,16 @@ impl Dma {
                 c.rd_route(|_| match read_transaction.target {
                     DmaReadTarget::Mbox => RdRouteE::Mbox,
                     DmaReadTarget::AhbFifo => RdRouteE::AhbFifo,
-                    DmaReadTarget::AxiWr(_) => RdRouteE::AxiWr,
+                    DmaReadTarget::AxiWr(_, _) => RdRouteE::AxiWr,
                 })
                 .rd_fixed(read_transaction.fixed_addr)
                 .wr_route(|_| match read_transaction.target {
-                    DmaReadTarget::AxiWr(_) => WrRouteE::AxiRd,
+                    DmaReadTarget::AxiWr(_, _) => WrRouteE::AxiRd,
                     _ => WrRouteE::Disable,
+                })
+                .wr_fixed(match read_transaction.target {
+                    DmaReadTarget::AxiWr(_, fixed) => fixed,
+                    _ => false,
                 })
             });
 
@@ -461,15 +465,21 @@ impl<'a> MmioMut for &DmaMmio<'a> {
 // Wrapper around the DMA peripheral that provides access to the I3C recovery interface.
 pub struct DmaRecovery<'a> {
     base: AxiAddr,
+    mci_base: AxiAddr,
     dma: &'a Dma,
 }
 
 impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
+    const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
 
     #[inline(always)]
-    pub fn new(base: AxiAddr, dma: &'a Dma) -> Self {
-        Self { base, dma }
+    pub fn new(base: AxiAddr, mci_base: AxiAddr, dma: &'a Dma) -> Self {
+        Self {
+            base,
+            mci_base,
+            dma,
+        }
     }
 
     /// Returns a register block that can be used to read
@@ -535,6 +545,28 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
+    fn transfer_payload_to_axi(
+        &self,
+        read_addr: AxiAddr,
+        payload_len_bytes: u32,
+        write_addr: AxiAddr,
+        fixed_addr: bool,
+        block_size: u32,
+    ) -> CaliptraResult<()> {
+        self.dma.flush();
+
+        let read_transaction = DmaReadTransaction {
+            read_addr,
+            fixed_addr,
+            length: payload_len_bytes,
+            target: DmaReadTarget::AxiWr(write_addr, false),
+        };
+        self.dma.setup_dma_read(read_transaction);
+        self.dma.set_block_size(block_size);
+        self.dma.do_transaction()?;
+        Ok(())
+    }
+
     pub fn transfer_mailbox_to_axi(
         &self,
         payload_len_bytes: u32,
@@ -557,21 +589,70 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // Downloads an image from the recovery interface to the mailbox SRAM.
-    pub fn download_image_to_mbox(&self, fw_image_index: u32) -> CaliptraResult<u32> {
+    pub fn download_image_to_mbox(
+        &self,
+        fw_image_index: u32,
+        caliptra_fw: bool,
+    ) -> CaliptraResult<u32> {
         const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
-        const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+        let image_size_bytes = self.download_image(fw_image_index, caliptra_fw)?;
+        // Transfer the image from the recovery interface to the mailbox SRAM.
+        let addr = self.base + INDIRECT_FIFO_DATA_OFFSET;
+        self.transfer_payload_to_mbox(
+            addr,
+            image_size_bytes,
+            true,
+            Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+        )?;
+        self.set_device_status_recovery_pending()?;
+        Ok(image_size_bytes)
+    }
+
+    // Downloads an image from the recovery interface to the MCU SRAM.
+    pub fn download_image_to_mcu(
+        &self,
+        fw_image_index: u32,
+        caliptra_fw: bool,
+    ) -> CaliptraResult<u32> {
+        const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
+        let image_size_bytes = self.download_image(fw_image_index, caliptra_fw)?;
+        let addr = self.base + INDIRECT_FIFO_DATA_OFFSET;
+        let mcu_offset = 0x20_0000u64;
+        cprintln!("[dma-recovery] Uploading image to MCU SRAM");
+        self.transfer_payload_to_axi(
+            addr,
+            image_size_bytes,
+            self.mci_base + mcu_offset,
+            true,
+            Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+        )?;
+        self.set_device_status_recovery_pending()?;
+        Ok(image_size_bytes)
+    }
+
+    pub fn set_device_status_recovery_pending(&self) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+
+            // Set DEVICE_STATUS:Byte0 to 0x4 ('Recovery pending').
+            recovery
+                .device_status_0()
+                .modify(|val| (val & !0xff) | 0x04);
+        })
+    }
+
+    // Downloads an image from the recovery interface to the mailbox SRAM.
+    pub fn download_image(&self, fw_image_index: u32, caliptra_fw: bool) -> CaliptraResult<u32> {
+        cprintln!(
+            "[dma-recovery] Requesting recovery image {}",
+            fw_image_index
+        );
 
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
             // Set PROT_CAP:Byte11 Bit3 (i.e. DWORD2:Bit27) to 1 ('Flashless boot').
             recovery.prot_cap_0().modify(|val| val | (1 << 27));
-
-            // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
-            // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
-            recovery
-                .device_status_0()
-                .modify(|val| (val & 0xFF00FF00) | (0x12 << 16) | 0x03);
 
             // Set RECOVERY_STATUS:Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image') &
             // Byte0 Bit[7:4] to 0 (Recovery image index).
@@ -581,30 +662,53 @@ impl<'a> DmaRecovery<'a> {
                 // Set Byte0 Bit[7:4] to recovery image index
                 (recovery_status_val & 0xFFFFFF00) | (fw_image_index << 4) | 0x1
             });
+
+            if caliptra_fw {
+                // the first image is our own firmware, so we needd to set up to receive it
+                // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+                // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
+                recovery
+                    .device_status_0()
+                    .modify(|val| (val & 0xFF00FF00) | (0x12 << 16) | 0x03);
+            } else {
+                // if this is our own firmware, then we must now be running the recovery image,
+                // which is necessary to load further images
+                // Set DEVICE_STATUS:Byte0 to 0x5 ('Running recovery image').
+                recovery
+                    .device_status_0()
+                    .modify(|val| (val & !0xff) | 0x05);
+            }
         })?;
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
-        cprintln!("[fwproc] Waiting for payload available signal...");
+        cprintln!("[dma-recovery] Waiting for payload available signal...");
         while !self.dma.payload_available() {}
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
+            // set RESET signal to indirect control to load the nexxt image
+            recovery.indirect_fifo_ctrl_0().modify(|val| val | (1 << 8));
+
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
             // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-            //let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
+            let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
             let indirect_fifo_ctrl_val1 = recovery.indirect_fifo_ctrl_1().read();
 
-            // let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
-            //     | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
-            let image_size_dwords = indirect_fifo_ctrl_val1;
+            let image_size_dwords =
+                (indirect_fifo_ctrl_val0 & 0xFFFF0000) | (indirect_fifo_ctrl_val1 & 0xFFFF);
 
             image_size_dwords * 4
         })?;
 
-        // Transfer the image from the recovery interface to the mailbox SRAM.
-        let addr = self.base + INDIRECT_FIFO_DATA_OFFSET;
-        self.transfer_payload_to_mbox(addr, image_size_bytes, true, RECOVERY_DMA_BLOCK_SIZE_BYTES)?;
         Ok(image_size_bytes)
+    }
+
+    // TODO: move to separate MCI struct and use autogenerated registers
+    pub fn set_mci_flow_status(&self, status: u32) -> CaliptraResult<()> {
+        let mmio = &DmaMmio::new(self.mci_base, self.dma);
+        // Safety: 0x24 is the offset for the MCI flow status register
+        unsafe { mmio.write_volatile(0x24 as *mut u32, status) };
+        mmio.check_error(())
     }
 }

@@ -130,4 +130,13 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
     fn update_reset(&mut self) {
         self.bus.update_reset();
     }
+    fn incoming_event(&mut self, event: Rc<caliptra_emu_bus::Event>) {
+        self.bus.incoming_event(event);
+    }
+    fn register_outgoing_events(
+        &mut self,
+        sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>,
+    ) {
+        self.bus.register_outgoing_events(sender);
+    }
 }
