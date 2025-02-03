@@ -155,7 +155,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 fw_log_info: FirmwareSvnLogInfo {
                     manifest_svn: manifest.header.svn,
                     reserved: 0,
-                    fuse_svn: self.env.runtime_fuse_svn(),
+                    fuse_svn: self.env.fw_fuse_svn(),
                 },
             },
             pqc_key_type,
@@ -168,14 +168,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// or equal to the fuse SVN.
     fn verify_svn(&mut self, fw_svn: u32) -> CaliptraResult<()> {
         if self.svn_check_required() {
-            if fw_svn > MAX_RUNTIME_SVN {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
+            if fw_svn > MAX_FIRMWARE_SVN {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            if cfi_launder(fw_svn) < self.env.runtime_fuse_svn() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
+            if cfi_launder(fw_svn) < self.env.fw_fuse_svn() {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE)?;
             } else {
-                cfi_assert_ge(fw_svn, self.env.runtime_fuse_svn());
+                cfi_assert_ge(fw_svn, self.env.fw_fuse_svn());
             }
         }
         Ok(())
@@ -191,7 +191,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             0_u32
         } else {
             cfi_assert!(!self.env.anti_rollback_disable());
-            self.env.runtime_fuse_svn()
+            self.env.fw_fuse_svn()
         }
     }
 
@@ -2451,7 +2451,7 @@ mod tests {
             self.fmc_digest
         }
 
-        fn runtime_fuse_svn(&self) -> u32 {
+        fn fw_fuse_svn(&self) -> u32 {
             0
         }
 
