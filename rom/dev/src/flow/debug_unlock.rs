@@ -26,6 +26,7 @@ use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Ecc384PubKey, Ecc384Result,
     Ecc384Scalar, Ecc384Signature, Lifecycle, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
+    ShaAccLockState,
 };
 use caliptra_error::CaliptraError;
 use zerocopy::AsBytes;
@@ -220,6 +221,32 @@ fn handle_production_token(
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
+    // We get the digest before emptying the mbox
+    let key_digest = {
+        let token = core::mem::MaybeUninit::<ProductionAuthDebugUnlockToken>::uninit();
+        let token = unsafe { token.assume_init() };
+
+        let start_offset = {
+            let base = token.as_bytes().as_ptr() as usize;
+            let field = &token.ecc_public_key as *const _ as usize;
+            field - base
+        };
+        let data_len = core::mem::size_of_val(&token.ecc_public_key)
+            + core::mem::size_of_val(&token.mldsa_public_key);
+        let mut request_digest = Array4x16::default();
+        let mut acc_op = env
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::AssumedLocked)?
+            .ok_or(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
+        acc_op.digest_512(
+            data_len as u32,
+            start_offset as u32,
+            false,
+            &mut request_digest,
+        )?;
+        request_digest
+    };
+
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut token = ProductionAuthDebugUnlockToken::default();
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_bytes_mut())?;
@@ -255,21 +282,15 @@ fn handle_production_token(
     let mut fuse_digest: [u8; 64] = [0; 64];
     dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest)?;
 
-    let mut digest_op = env.sha2_512_384.sha512_digest_init()?;
-    digest_op.update(&token.ecc_public_key)?;
-    digest_op.update(&token.mldsa_public_key)?;
-    let mut request_digest = Array4x16::default();
-    digest_op.finalize(&mut request_digest)?;
-
     // Verify that digest of keys match
     let fuse_digest = Array4x16::from(fuse_digest);
-    if cfi_launder(request_digest) != fuse_digest {
+    if cfi_launder(key_digest) != fuse_digest {
         env.soc_ifc.finish_ss_dbg_unlock(false);
         txn.set_uc_tap_unlock(false);
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
     } else {
         caliptra_cfi_lib::cfi_assert_eq_12_words(
-            &request_digest.0[..12].try_into().unwrap(),
+            &key_digest.0[..12].try_into().unwrap(),
             &fuse_digest.0[..12].try_into().unwrap(),
         );
     }
