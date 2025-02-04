@@ -25,7 +25,7 @@ use {
     p384::pkcs8::DecodePublicKey,
     rand::{rngs::OsRng, RngCore},
     sec1::DecodeEcPrivateKey,
-    sha2::{Digest, Sha256, Sha384},
+    sha2::{Digest, Sha256, Sha384, Sha512},
 };
 
 use crate::{from_hw_format, sign_with_lms_key, to_hw_format, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
@@ -54,7 +54,7 @@ impl ImageGeneratorCrypto for RustCrypto {
         RustCryptoSha256Hasher(Sha256::default())
     }
 
-    fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest> {
+    fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest384> {
         let mut engine = Sha384::new();
         engine.update(data);
         Ok(to_hw_format(&engine.finalize()))
@@ -62,7 +62,7 @@ impl ImageGeneratorCrypto for RustCrypto {
 
     fn ecdsa384_sign(
         &self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         priv_key: &ImageEccPrivKey,
         _pub_key: &ImageEccPubKey,
     ) -> anyhow::Result<ImageEccSignature> {
@@ -84,7 +84,7 @@ impl ImageGeneratorCrypto for RustCrypto {
 
     fn lms_sign(
         &self,
-        digest: &ImageDigest,
+        digest: &ImageDigest384,
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature> {
         let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(digest);
@@ -98,7 +98,7 @@ impl ImageGeneratorCrypto for RustCrypto {
             .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
 
         let pub_key =
-            p384::PublicKey::from_public_key_pem(from_utf8(&key_bytes)?)?.to_encoded_point(true);
+            p384::PublicKey::from_public_key_pem(from_utf8(&key_bytes)?)?.to_encoded_point(false);
 
         let x = pub_key.x().ok_or(anyhow!("Error parsing x coordinate"))?;
         let y = pub_key.y().ok_or(anyhow!("Error parsing y coordinate"))?;
@@ -117,6 +117,24 @@ impl ImageGeneratorCrypto for RustCrypto {
         let priv_key = p384::ecdsa::SigningKey::from_sec1_pem(from_utf8(&key_bytes)?)?.to_bytes();
 
         Ok(to_hw_format(&priv_key))
+    }
+
+    fn sha512_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest512> {
+        let mut engine = Sha512::new();
+        engine.update(data);
+        Ok(to_hw_format(&engine.finalize()))
+    }
+
+    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+    }
+
+    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
     }
 }
 

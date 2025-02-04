@@ -82,6 +82,7 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--rt-rev $(GIT_REV) \
 		--fw-svn 0 \
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
+		--print-hashes
 
 bloat: build
 	 cargo \
