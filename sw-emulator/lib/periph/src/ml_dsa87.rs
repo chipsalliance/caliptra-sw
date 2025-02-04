@@ -183,7 +183,14 @@ pub struct Mldsa87 {
     #[register_array(offset = 0x0000_2000)]
     signature: [u32; ML_DSA87_SIGNATURE_SIZE / 4],
 
-    // Private Key In & Out (We don't want to use this)
+    // Private Key Out
+    #[register_array(offset = 0x0000_4000)]
+    privkey_out: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+
+    /// Private Key In
+    #[register_array(offset = 0x0000_6000)]
+    privkey_in: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+
     /// Key Vault Read Control
     #[register(offset = 0x0000_8000, write_fn = on_write_kv_rd_seed_ctrl)]
     kv_rd_seed_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
@@ -244,6 +251,8 @@ impl Mldsa87 {
             verify_res: Default::default(),
             pubkey: [0; ML_DSA87_PUBKEY_SIZE / 4],
             signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
+            privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
+            privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             kv_rd_seed_ctrl: ReadWriteRegister::new(0),
             kv_rd_seed_status: ReadOnlyRegister::new(0),
             error_global_intr: ReadOnlyRegister::new(0),
@@ -274,6 +283,8 @@ impl Mldsa87 {
         self.verify_res = Default::default();
         self.pubkey = [0; ML_DSA87_PUBKEY_SIZE / 4];
         self.signature = [0; ML_DSA87_SIGNATURE_SIZE / 4];
+        self.privkey_out = [0; ML_DSA87_PRIVKEY_SIZE / 4];
+        self.privkey_in = [0; ML_DSA87_PRIVKEY_SIZE / 4];
         self.kv_rd_seed_ctrl.reg.set(0);
         self.kv_rd_seed_status.reg.write(KvRdSeedStatus::READY::SET);
         self.private_key = [0; ML_DSA87_PRIVKEY_SIZE];
@@ -363,19 +374,27 @@ impl Mldsa87 {
 
     fn gen_key(&mut self) {
         let mut seed = bytes_from_words_be(&self.seed);
-
-        // Reverse seed.
         seed.reverse();
         let mut rng = SeedOnlyRng::new(seed);
         let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
         let mut pk = pk.into_bytes();
+        // Convert to hardware format.
         pk.reverse();
         self.pubkey = words_from_bytes_be(&pk);
         self.private_key = sk.into_bytes();
+        if !self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
+            self.privkey_out = words_from_bytes_be(&self.private_key);
+        }
     }
 
-    fn sign(&mut self) {
-        let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
+    fn sign(&mut self, caller_provided: bool) {
+        let secret_key = if caller_provided {
+            let mut sk = bytes_from_words_be(&self.privkey_in);
+            sk.reverse();
+            PrivateKey::try_from_bytes(sk).unwrap()
+        } else {
+            PrivateKey::try_from_bytes(self.private_key).unwrap()
+        };
         let mut message = bytes_from_words_be(&self.msg);
         message.reverse();
 
@@ -420,13 +439,12 @@ impl Mldsa87 {
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::KEYGEN) => self.gen_key(),
             Some(Control::CTRL::Value::SIGNING) => {
-                self.sign();
-                todo!()
-            } // NOT used?
+                self.sign(true);
+            }
             Some(Control::CTRL::Value::VERIFYING) => self.verify(),
             Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
                 self.gen_key();
-                self.sign()
+                self.sign(false)
             }
             _ => panic!("Invalid value in ML-DSA Control"),
         }
