@@ -89,7 +89,12 @@ const RT_EXP_1_1_0: RtExpVals = RtExpVals {
     fw_version: 0x0101_0000, // 1.1.0
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_1_0 };
+const RT_EXP_1_2_0: RtExpVals = RtExpVals {
+    fmc_version: 0x880,      // 1.2.0
+    fw_version: 0x0102_0000, // 1.2.0
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_2_0 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -120,6 +125,9 @@ impl RomExpVals {
                 // Add more versions here
                 "1_0_1" => ROM_EXP_1_0_1,
                 "1_0_3" => ROM_EXP_1_0_3,
+                "1_1_0" => ROM_EXP_1_1_0,
+                "1_1_1" => ROM_EXP_1_1_1,
+                "1_2_0" => ROM_EXP_1_2_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
@@ -140,6 +148,8 @@ impl RtExpVals {
             match version.as_str() {
                 // Add more versions here
                 "1_0_0" => RT_EXP_1_0_0,
+                "1_1_0" => RT_EXP_1_1_0,
+                "1_2_0" => RT_EXP_1_2_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
                     version
