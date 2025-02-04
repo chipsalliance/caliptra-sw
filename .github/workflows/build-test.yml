@@ -107,6 +107,13 @@ jobs:
           (cd rom/dev && ./build.sh)
           sccache --show-stats
 
+      # Make sure FMC and runtime can build for hw-1.0
+      - name: hw-1.0 build test
+        run: |
+          mkdir hw-1.0_build_test
+          cargo run --manifest-path=builder/Cargo.toml --bin image --features=hw-1.0 -- --fw hw-1.0_build_test/image-bundle.bin
+          rm -r hw-1.0_build_test
+
       # Clippy needs to build crates as part of the check, so do it after the
       # build.
       - name: Clippy lint check
