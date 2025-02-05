@@ -476,6 +476,8 @@ pub struct DmaRecovery<'a> {
 }
 
 impl<'a> DmaRecovery<'a> {
+    const RECOVERY_REGISTER_OFFSET: usize = 0x100;
+
     #[inline(always)]
     pub fn new(base: AxiAddr, dma: &'a Dma) -> Self {
         Self { base, dma }
@@ -493,7 +495,8 @@ impl<'a> DmaRecovery<'a> {
         let regs = unsafe {
             I3CRegisterBlock::new_with_mmio(
                 // substract the recovery offset since all recovery registers are relative to it
-                core::ptr::null_mut::<u32>().sub(0x100 / core::mem::size_of::<u32>()),
+                core::ptr::null_mut::<u32>()
+                    .sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
@@ -516,7 +519,8 @@ impl<'a> DmaRecovery<'a> {
         let regs = unsafe {
             I3CRegisterBlock::new_with_mmio(
                 // substract the recovery offset since all recovery registers are relative to it
-                core::ptr::null_mut::<u32>().sub(0x100 / core::mem::size_of::<u32>()),
+                core::ptr::null_mut::<u32>()
+                    .sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
