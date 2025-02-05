@@ -165,10 +165,16 @@ impl RecoveryRegisterInterface {
         Self {
             // Capability registers
             extcap_header: ReadOnlyRegister::new(0x0020C0), // CAP_LENGTH = 0x0020, CAP_ID = 0xC0
-            prot_cap_0: ReadWriteRegister::new(0),
-            prot_cap_1: ReadWriteRegister::new(0),
-            prot_cap_2: ReadWriteRegister::new(0),
-            prot_cap_3: ReadWriteRegister::new(0),
+            prot_cap_0: ReadWriteRegister::new(0x2050_434f), // "OCP RECV" in ASCII
+            prot_cap_1: ReadWriteRegister::new(0x5643_4552),
+            // lower two bytes are version 1.1
+            // required: device id = bit 0
+            // required: device status = bit 4
+            // recovery memory access / indirect ctrl = bit 5
+            // c-image = bit 7
+            // fifo cms support / indirect ctrl= bit 12
+            prot_cap_2: ReadWriteRegister::new(0x10b1_0101),
+            prot_cap_3: ReadWriteRegister::new(0x0000_0017), // maximum response time of 128ms, no heartbeat
 
             // Device ID registers
             device_id_0: ReadWriteRegister::new(0),

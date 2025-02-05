@@ -381,6 +381,7 @@ impl CaliptraError {
     pub const DRIVER_DMA_FIFO_UNDERRUN: CaliptraError = CaliptraError::new_const(0x0000f002);
     pub const DRIVER_DMA_FIFO_OVERRUN: CaliptraError = CaliptraError::new_const(0x0000f003);
     pub const DRIVER_DMA_FIFO_INVALID_SIZE: CaliptraError = CaliptraError::new_const(0x0000f004);
+    pub const DRIVER_DMA_INTERNAL: CaliptraError = CaliptraError::new_const(0x0000f004);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);

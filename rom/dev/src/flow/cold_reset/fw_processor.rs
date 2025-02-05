@@ -823,63 +823,9 @@ impl FirmwareProcessor {
         dma: &mut Dma,
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
-        let rri_base_addr: u64 = soc_ifc.recovery_interface_base_addr();
-        const PROT_CAP_2_OFFSET: u32 = 0xC;
-        const DEVICE_STATUS_0: u32 = 0x30;
-        const RECOVERY_STATUS_OFFSET: u32 = 0x40;
+        let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
         const FW_IMAGE_INDEX: u32 = 0x0;
-        // const INDIRECT_FIFO_CTRL_0: u32 = 0x48;
-        const INDIRECT_FIFO_CTRL_1: u32 = 0x4C;
-        const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
-        const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
-
-        // Set PROT_CAP:Byte11 Bit3 (i.e. DWORD2:Bit27) to 1 ('Flashless boot').
-        let addr = AxiAddr::from(rri_base_addr + PROT_CAP_2_OFFSET as u64);
-        let mut prot_cap_val = dma.read_dword(addr)?;
-        prot_cap_val |= 1 << 27;
-        dma.write_dword(addr, prot_cap_val)?;
-
-        // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
-        let addr = AxiAddr::from(rri_base_addr + DEVICE_STATUS_0 as u64);
-        let mut device_status_val = dma.read_dword(addr)?;
-        device_status_val = (device_status_val & 0xFFFFFF00) | 0x03;
-
-        // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
-        device_status_val = (device_status_val & 0xFF00FFFF) | (0x12 << 16);
-
-        dma.write_dword(addr, device_status_val)?;
-
-        // Set RECOVERY_STATUS:Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image') &
-        // Byte0 Bit[7:4] to 0 (Recovery image index).
-        let addr = AxiAddr::from(rri_base_addr + RECOVERY_STATUS_OFFSET as u64);
-        let mut recovery_status_val = dma.read_dword(addr)?;
-
-        // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
-        recovery_status_val = (recovery_status_val & 0xFFFFFFF0) | 0x1;
-
-        // Set Byte0 Bit[7:4] to FW_IMAGE_INDEX (Recovery image index)
-        recovery_status_val = (recovery_status_val & 0xFFFFFF0F) | (FW_IMAGE_INDEX << 4);
-
-        dma.write_dword(addr, recovery_status_val)?;
-
-        // Loop on the 'payload_available' signal for the recovery image details to be available.
-        cprintln!("[fwproc] Waiting for payload available signal...");
-        while !dma.payload_available() {}
-
-        // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-        // let addr0 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_0 as u64);
-        // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
-        let addr1 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_1 as u64);
-        // let indirect_fifo_ctrl_val0 = dma.read_dword(addr0)?;
-        let indirect_fifo_ctrl_val1 = dma.read_dword(addr1)?;
-        // let image_size_dwords =
-        //     ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF) | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
-        let image_size_dwords = indirect_fifo_ctrl_val1;
-
-        // Transfer the image from the recovery interface to the mailbox SRAM.
-        let image_size_bytes = image_size_dwords * 4;
-        let addr = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_DATA_OFFSET as u64);
-        dma.transfer_payload_to_mbox(addr, image_size_bytes, true, RECOVERY_DMA_BLOCK_SIZE_BYTES)?;
-        Ok(image_size_bytes)
+        let dma_recovery = DmaRecovery::new(rri_base_addr, dma);
+        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 }
