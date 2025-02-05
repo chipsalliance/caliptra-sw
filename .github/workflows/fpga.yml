@@ -25,6 +25,12 @@ on:
       rom-version:
         default: "latest"
         type: string
+      rom-ref:
+        default: "main"
+        type: string
+      fw-ref:
+        default: "main"
+        type: string
       workflow_call:
         description: 'Set true for workflow_call'
         default: true
@@ -35,7 +41,6 @@ on:
       fpga-itrng:
         default: true
         type: boolean
-
 
 jobs:
   check_cache:
@@ -101,10 +106,17 @@ jobs:
           retention-days: 1
 
   build_test_binaries:
-    runs-on: [e2-standard-16]
-    timeout-minutes: 60
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      hw-version: "${{ inputs.hw-version }}"
+      workflow_call: "${{ inputs.workflow_call }}"
+    # runs-on: [e2-standard-16]
+    # timeout-minutes: 60
 
-    env:
+    envs:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
 
@@ -193,15 +205,9 @@ jobs:
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
 
-      - name: Build test firmware
+      - name: Merge ROM and firmware
         run: |
-          mkdir /tmp/caliptra-test-firmware
-
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          mv /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra-test-firmware/
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
@@ -424,7 +430,7 @@ jobs:
         run: |
           export RUST_TEST_THREADS=1
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
