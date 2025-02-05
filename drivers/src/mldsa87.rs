@@ -231,8 +231,6 @@ impl Mldsa87 {
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Copy seed or the private key to the hardware
-        // Whether to keygen and sign or just sign.
-        let mut keygen = true;
         match seed {
             Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
             Mldsa87Seed::Key(key) => {
