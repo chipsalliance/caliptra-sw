@@ -278,7 +278,7 @@ All mailbox command codes are little endian.
 | `CME_BAD_CMK`    | `0x434D_424B` ("CMBK") | Invalid CMK                                          |
 | `CME_CMK_OFLW`   | `0x434D_424F` ("CMBO") | CMK has been used too many times                     |
 | `CME_BAD_CTXT`   | `0x434D_4243` ("CMBC") | Bad context                                          |
-| `CME_FULL`       | `0x434D_4546` ("CMEF") | Cryptographic Mailbox Full                           |
+| `CME_FULL`       | `0x434D_4546` ("CMEF") | Too many Cryptographic Mailbox usage counters in use |
 
 Relevant registers:
 
@@ -1216,7 +1216,7 @@ Command Code: `0x434D_4846` ("CMHF")
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC / HKDF usage.
+The CMK must have been created for HMAC / HKDF usage. The output will be tagged for HKDF usage.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
