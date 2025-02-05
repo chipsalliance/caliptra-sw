@@ -32,24 +32,23 @@ impl WarmResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 
+        let data_vault = &env.persistent_data.get().data_vault;
+
         // Check if previous Cold-Reset was successful.
-        if cfi_launder(env.data_vault.rom_cold_boot_status()) != ColdResetComplete.into() {
+        if cfi_launder(data_vault.rom_cold_boot_status()) != ColdResetComplete.into() {
             cprintln!("[warm-reset] Prev Cold-Reset failed");
             return Err(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET);
         } else {
-            cfi_assert_eq(
-                env.data_vault.rom_cold_boot_status(),
-                ColdResetComplete.into(),
-            );
+            cfi_assert_eq(data_vault.rom_cold_boot_status(), ColdResetComplete.into());
         }
 
         // Check if previous Update-Reset, if any,  was successful.
-        if cfi_launder(env.data_vault.rom_update_reset_status()) == UpdateResetStarted.into() {
+        if cfi_launder(data_vault.rom_update_reset_status()) == UpdateResetStarted.into() {
             cprintln!("[warm-reset] Prev Update Reset failed");
             return Err(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET);
         } else {
             cfi_assert_ne(
-                env.data_vault.rom_update_reset_status(),
+                data_vault.rom_update_reset_status(),
                 UpdateResetStarted.into(),
             );
         }

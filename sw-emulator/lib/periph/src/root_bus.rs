@@ -17,12 +17,11 @@ use crate::{
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::Mldsa87,
-    recovery::RecoveryRegisterInterface,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
-use caliptra_api_types::SecurityState;
+use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
@@ -213,6 +212,8 @@ pub struct CaliptraRootBusArgs {
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
+    pub dbg_manuf_service_req: DbgManufServiceRegReq,
+    pub active_mode: bool,
 
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
@@ -234,6 +235,8 @@ impl Default for CaliptraRootBusArgs {
             rom: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
+            dbg_manuf_service_req: Default::default(),
+            active_mode: false,
             tb_services_cb: Default::default(),
             ready_for_fw_cb: Default::default(),
             upload_update_fw: Default::default(),
@@ -247,7 +250,6 @@ impl Default for CaliptraRootBusArgs {
 }
 
 #[derive(Bus)]
-#[handle_dma_fn(handle_dma)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -273,10 +275,6 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, mask = 0x0000_ffff)]
     pub ml_dsa87: Mldsa87,
 
-    // We set I3C at 0x1004_0000 and EC is at 0x100 offset
-    #[peripheral(offset = 0x1004_0100, mask = 0x0000_7fff)] // TODO
-    pub recovery: RecoveryRegisterInterface,
-
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Iccm,
 
@@ -288,9 +286,6 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
-
-    #[peripheral(offset = 0x3000_0000, mask = 0x0001_ffff)]
-    pub mailbox_sram: MailboxRam,
 
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     pub mailbox: MailboxInternal,
@@ -304,6 +299,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegistersInternal,
 
+    #[peripheral(offset = 0x3004_0000, mask = 0x0003_ffff)]
+    pub mailbox_sram: MailboxRam,
+
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
 
@@ -312,9 +310,9 @@ pub struct CaliptraRootBus {
 }
 
 impl CaliptraRootBus {
-    pub const ROM_SIZE: usize = 48 * 1024;
-    pub const ICCM_SIZE: usize = 128 * 1024;
-    pub const DCCM_SIZE: usize = 128 * 1024;
+    pub const ROM_SIZE: usize = 96 * 1024;
+    pub const ICCM_SIZE: usize = 256 * 1024;
+    pub const DCCM_SIZE: usize = 256 * 1024;
 
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
         let mut key_vault = KeyVault::new();
@@ -330,6 +328,7 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
+        let dma = Dma::new(clock, mailbox_ram.clone(), soc_reg.clone());
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
 
@@ -342,7 +341,6 @@ impl CaliptraRootBus {
             sha512,
             sha256: HashSha256::new(clock),
             ml_dsa87: Mldsa87::new(clock, key_vault.clone()),
-            recovery: RecoveryRegisterInterface::new(),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
@@ -351,7 +349,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
-            dma: Dma::new(clock),
+            dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
         }
@@ -363,11 +361,6 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
-    }
-
-    fn handle_dma(&mut self) {
-        let mut dma = self.dma.clone();
-        dma.do_dma_handling(self)
     }
 }
 
@@ -415,7 +408,8 @@ mod tests {
                 0x00_u8, 0x11, 0x22, 0x33, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
                 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
                 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
-                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
             ]
         );
     }
@@ -446,7 +440,8 @@ mod tests {
                 0x00_u8, 0x11, 0x22, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
             ]
         );
     }

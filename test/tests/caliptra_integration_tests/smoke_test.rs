@@ -7,23 +7,60 @@ use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_common::RomBootStatus;
-use caliptra_drivers::CaliptraError;
+use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
+    bytes_to_be_words_48,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
-    swap_word_bytes, swap_word_bytes_inplace,
+    swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
+
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
+
+// Support testing against older versions of ROM in CI
+// More constants may need to be added here as the ROMs further diverge
+struct RomTestParams<'a> {
+    #[allow(dead_code)]
+    testdata_path: &'a str,
+    fmc_alias_cert_redacted_txt: &'a str,
+    fmc_alias_cert_redacted_der: &'a [u8],
+    tcb_info_vendor: Option<&'a str>,
+    tcb_device_info_model: Option<&'a str>,
+    tcb_fmc_info_model: Option<&'a str>,
+    tcb_info_flags: Option<u32>,
+}
+const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
+    testdata_path: "tests/caliptra_integration_tests/smoke_testdata/rom-latest",
+    fmc_alias_cert_redacted_txt: include_str!(
+        "smoke_testdata/rom-latest/fmc_alias_cert_redacted.txt"
+    ),
+    fmc_alias_cert_redacted_der: include_bytes!(
+        "smoke_testdata/rom-latest/fmc_alias_cert_redacted.der"
+    ),
+    tcb_info_vendor: None,
+    tcb_device_info_model: None,
+    tcb_fmc_info_model: None,
+    tcb_info_flags: Some(0x00000001),
+};
+
+fn get_rom_test_params() -> RomTestParams<'static> {
+    ROM_LATEST_TEST_PARAMS
+}
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -60,27 +97,29 @@ fn retrieve_csr_test() {
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
-    let csr_der = mem::take(&mut txn.req.data);
+    let csr_envelop =
+        InitDevIdCsrEnvelope::read_from_prefix(&*mem::take(&mut txn.req.data)).unwrap();
     txn.respond_success();
 
-    let csr = openssl::x509::X509Req::from_der(&csr_der).unwrap();
-    let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
+    let ecc_csr_der = &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize];
+    let ecc_csr = openssl::x509::X509Req::from_der(ecc_csr_der).unwrap();
+    let ecc_csr_txt = String::from_utf8(ecc_csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
-    println!("csr: {}", csr_txt);
+    println!("ecc csr: {}", ecc_csr_txt);
 
     assert_eq!(
-        csr_txt.as_str(),
+        ecc_csr_txt.as_str(),
         include_str!("smoke_testdata/idevid_csr.txt")
     );
-    assert_eq!(csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
+    assert_eq!(ecc_csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
 
     assert!(
-        csr.verify(&csr.public_key().unwrap()).unwrap(),
-        "CSR's self signature failed to validate"
+        ecc_csr.verify(&ecc_csr.public_key().unwrap()).unwrap(),
+        "ECC CSR's self signature failed to validate"
     );
 }
 
@@ -105,8 +144,9 @@ fn test_golden_idevid_pubkey_matches_generated() {
     assert_eq!(
         generated_idevid.cdi,
         [
-            0x4443b819, 0x8ca0984a, 0x2d566eed, 0x40f94074, 0x0c7cc63b, 0x85f939ac, 0xa2df92bf,
-            0xb00f2f3e, 0x1e70ec47, 0x6736c596, 0x58a8a450, 0xeeac2f20,
+            1595302429, 2693222204, 2700750034, 2341068947, 1086336218, 1015077934, 3439704633,
+            2756110496, 670106478, 1965056064, 3175014961, 1018544412, 1086626027, 1869434586,
+            2638089882, 3209973098
         ]
     );
     assert!(generated_idevid
@@ -123,19 +163,14 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert_eq!(
         generated_ldevid.cdi,
         [
-            0xf226cb0f, 0x1b527a8d, 0x9abeb5eb, 0xf407069a, 0xeda6909b, 0xad434d1d, 0x5f3586ff,
-            0xa4729b8c, 0xd9e34ef9, 0xcb4317aa, 0x596674e5, 0x7f3c0f5b,
+            2646856615, 2999180291, 4071428836, 3246385254, 3302857457, 919578714, 2458268004,
+            291060689, 3979116117, 4017638804, 3557014009, 2639554114, 2914235687, 3521247795,
+            1993163061, 3092908117
         ]
     );
     assert!(generated_ldevid
         .derive_public_key()
         .public_eq(&ldevid_pubkey));
-}
-
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
 }
 
 #[test]
@@ -150,21 +185,22 @@ fn smoke_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
+            fw_svn: 9,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )
     .unwrap();
     let vendor_pk_desc_hash = sha384(image.manifest.preamble.vendor_pub_key_info.as_bytes());
-    let owner_pk_desc_hash = sha384(image.manifest.preamble.owner_pub_key_info.as_bytes());
+    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
     let vendor_pk_desc_hash_words = bytes_to_be_words_48(&vendor_pk_desc_hash);
-    let owner_pk_desc_hash_words = bytes_to_be_words_48(&owner_pk_desc_hash);
+    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
-        owner_pk_hash: owner_pk_desc_hash_words,
-        fmc_key_manifest_svn: 0b1111111,
-        lms_verify: true,
+        vendor_pk_hash: vendor_pk_desc_hash_words,
+        owner_pk_hash: owner_pk_hash_words,
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
@@ -265,12 +301,12 @@ fn smoke_test() {
     hasher.update(&[security_state.device_lifecycle() as u8]);
     hasher.update(&[security_state.debug_locked() as u8]);
     hasher.update(&[fuses.anti_rollback_disable as u8]);
-    hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
-    hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
-    hasher.update(&[image.manifest.fw_image_type]);
+    hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
+    hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+    hasher.update(&[image.manifest.pqc_key_type]);
     hasher.update(&[true as u8]);
     hasher.update(vendor_pk_desc_hash.as_bytes());
-    hasher.update(&owner_pk_desc_hash);
+    hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
@@ -278,8 +314,10 @@ fn smoke_test() {
         dice_tcb_info,
         [
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params()
+                    .tcb_device_info_model
+                    .map(String::from),
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
                 fwids: vec![DiceFwid {
@@ -287,13 +325,13 @@ fn smoke_test() {
                     digest: device_info_hash.to_vec(),
                 },],
 
-                flags: Some(0x00000001),
+                flags: get_rom_test_params().tcb_info_flags,
                 ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
-                vendor: None,
-                model: None,
+                vendor: get_rom_test_params().tcb_info_vendor.map(String::from),
+                model: get_rom_test_params().tcb_fmc_info_model.map(String::from),
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
                 fwids: vec![DiceFwid {
@@ -314,15 +352,15 @@ fn smoke_test() {
             security_state,
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_desc_hash_words,
-            owner_pub_key_hash: owner_pk_desc_hash_words,
+            owner_pub_key_hash: owner_pk_hash_words,
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
-            fmc_svn: image.manifest.fmc.svn,
+            cold_boot_fw_svn: image.manifest.header.svn,
             // This is from the SVN in the fuses (7 bits set)
-            fmc_fuse_svn: 7,
-            lms_vendor_pub_key_index: image.manifest.header.vendor_lms_pub_key_idx,
-            rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
+            fw_fuse_svn: 7,
+            lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
+            pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         }),
         &expected_ldevid_key,
     );
@@ -404,16 +442,16 @@ fn smoke_test() {
             String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
 
         // To update the alias-cert golden-data:
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.txt", &fmc_alias_cert_redacted_txt).unwrap();
-        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.der", &fmc_alias_cert_redacted_der).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.txt", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_txt).unwrap();
+        // std::fs::write(format!("{}/fmc_alias_cert_redacted.der", get_rom_test_params().testdata_path), &fmc_alias_cert_redacted_der).unwrap();
 
         assert_eq!(
             fmc_alias_cert_redacted_txt.as_str(),
-            include_str!("smoke_testdata/fmc_alias_cert_redacted.txt")
+            get_rom_test_params().fmc_alias_cert_redacted_txt
         );
         assert_eq!(
             fmc_alias_cert_redacted_der,
-            include_bytes!("smoke_testdata/fmc_alias_cert_redacted.der")
+            get_rom_test_params().fmc_alias_cert_redacted_der
         );
     }
 
@@ -427,7 +465,7 @@ fn smoke_test() {
     let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
 
     println!(
-        "Manifest digest is {:02x?}",
+        "Manifest Runtime digest is {:02x?}",
         image.manifest.runtime.digest.as_bytes()
     );
     let expected_rt_alias_key = RtAliasKey::derive(
@@ -461,7 +499,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (9)
+            svn: Some(0x109),
             fwids: vec![DiceFwid {
                 // RT
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -558,8 +597,9 @@ fn smoke_test() {
         &firmware::APP,
         ImageOptions {
             fmc_version: 1,
-            fmc_svn: 10,
             app_version: 2,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            fw_svn: 10,
             ..Default::default()
         },
     )
@@ -611,7 +651,8 @@ fn smoke_test() {
         Some(DiceTcbInfo {
             vendor: None,
             model: None,
-            svn: Some(0x100),
+            // This is from the SVN in the image (10)
+            svn: Some(0x10A),
             fwids: vec![DiceFwid {
                 // FMC
                 hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
@@ -694,9 +735,7 @@ fn smoke_test() {
     }
 }
 
-//[CAP2][TODO] This test is failing in the CI. It is disabled until the issue is resolved.
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn test_rt_wdt_timeout() {
     // There is too much jitter in the fpga_realtime TRNG response timing to hit
     // the window of time where the RT is running but hasn't yet reset the
@@ -780,83 +819,92 @@ fn test_rt_wdt_timeout() {
 
 #[test]
 fn test_fmc_wdt_timeout() {
-    const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
-
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-
-    // Boot in debug mode to capture timestamps by boot status.
-    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
-    let init_params = caliptra_hw_model::InitParams {
-        rom: &rom,
-        security_state,
-        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
-        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
-        ..Default::default()
-    };
-
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let mut hw = caliptra_hw_model::new(
-        init_params,
-        BootParams {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
+        const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-    // WDT started shortly before KATs are started.
-    hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
-    let wdt_start = hw.output().sink().now();
+        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
-    hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+        // Boot in debug mode to capture timestamps by boot status.
+        let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+        let init_params = caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+            etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
+            ..Default::default()
+        };
 
-    hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
-    let fmc_target = hw.output().sink().now();
+        let image =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
 
-    let fmc_wdt_timeout_cycles = fmc_target - wdt_start;
-    drop(hw);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
 
-    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
-    let init_params = caliptra_hw_model::InitParams {
-        rom: &rom,
-        security_state,
-        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
-        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
-        ..Default::default()
-    };
+        let mut hw = caliptra_hw_model::new(
+            init_params,
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-    let boot_params = caliptra_hw_model::BootParams {
-        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
-        ..Default::default()
-    };
+        // WDT started shortly before KATs are started.
+        hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+        let wdt_start = hw.output().sink().now();
 
-    let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+        hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::FMC_GLOBAL_WDT_EXPIRED),
-    );
+        hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
+        let fmc_target = hw.output().sink().now();
 
-    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
-    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
-    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
-    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
-    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+        let fmc_wdt_timeout_cycles = fmc_target - wdt_start;
+        drop(hw);
 
-    // no mcause if wdt times out
-    assert_eq!(mcause, 0);
-    // no mscause if wdt times out
-    assert_eq!(mscause, 0);
-    // mepc is a memory address so won't be 0
-    assert_ne!(mepc, 0);
-    // return address won't be 0
-    assert_ne!(ra, 0);
-    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
-    assert_eq!(error_internal_intr_r, 0b01000000);
+        let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
+        let init_params = caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+            etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
+            ..Default::default()
+        };
+
+        let boot_params = caliptra_hw_model::BootParams {
+            wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+            ..Default::default()
+        };
+
+        let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+
+        hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_fatal().read(),
+            u32::from(CaliptraError::FMC_GLOBAL_WDT_EXPIRED),
+        );
+
+        let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+        let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+        let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+        let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+        let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+        // no mcause if wdt times out
+        assert_eq!(mcause, 0);
+        // no mscause if wdt times out
+        assert_eq!(mscause, 0);
+        // mepc is a memory address so won't be 0
+        assert_ne!(mepc, 0);
+        // return address won't be 0
+        assert_ne!(ra, 0);
+        // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+        assert_eq!(error_internal_intr_r, 0b01000000);
+    }
 }

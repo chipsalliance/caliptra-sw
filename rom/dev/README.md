@@ -57,15 +57,14 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
 | FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
-| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
-| FUSE_ECC_REVOCATION (FUSE_KEY_MANIFEST_PK_HASH_MASK)  | 32           | Manufacturer ECC Public Key Revocation Mask             |
+| FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
+| FUSE_ECC_REVOCATION             | 32           | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
 | FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
 | FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
-| FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
-| FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
-| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
-| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11,12**: Unique Endpoint ID <br> **Words 13,14,15,16**: Manufacturer Serial Number |
+| FUSE_FIRMWARE_SVN               | 128          | Firmware Security Version Number                         |
+| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set  |
+| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 12,13,14,15**: Manufacturer Serial Number |
 | MANUF_DEBUG_UNLOCK_TOKEN       | 128           | Secret value for manufacturing debug unlock authorization |
 
 ### Architectural Registers
@@ -95,7 +94,7 @@ Firmware manifest consists of preamble, header and table of contents.
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 
 - Loads the preamble from the mailbox.
-- Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
+- Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_VENDOR_PK_HASH). If the hashes do not match, the boot fails.
 - Verifies the active Manufacturer Public Key(s) based on fuse (FUSE_ECC_REVOCATION for ECC public key, FUSE_LMS_REVOCATION for LMS public key or FUSE_MLDSA_REVOCATION for MLDSA public key)
 
 *Note: All fields are little endian unless specified*
@@ -115,8 +114,6 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Active LMS or MLDSA Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Manufacturer ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
 | Manufacturer LMS or MLDSA Signature | 4628 | Manufacturer LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
-| Owner ECC Key Descriptor | 52 | Public Key Descriptor for ECC key |
-| Owner LMS or MLDSA Key Descriptor | 52 | Public Key Descriptor for LMS or MLDSA key |
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
 | Owner LMS or MLDSA Public Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
 | Owner ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
@@ -159,7 +156,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
 | Image Version | 4 | Firmware release number |
-| Image SVN | 4 | Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN) |
+| Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
 | Reserved | 4 | Reserved field |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
@@ -181,8 +178,8 @@ The following sections define the various cryptographic primitives used by Calip
 | Deobfuscation Engine | `doe_decrypt_uds(kv_slot, iv)` | Decrypt UDS to the specified key vault slot with specified initialization vector<br>**Input**:<br> ***kv_slot*** - key vault slot to decrypt the uds to<br>***iv*** - initialization vector |
 |   | `doe_decrypt_fe(kv_slot, iv)` | Decrypt Field Entropy to the specified key vault slot with specified initialization vector <br>**Input**:<br>***kv_slot*** - key vault slot to decrypt the field entropy to<br>***iv*** - initialization vector |
 |   | `doe_clear_secrets()` | Clear UDS Fuse Register, Field Entropy Fuse Register and Obfuscation key |
-| Hashed Message Authentication Code | `hmac384_mac(key,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
-|   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
+| Hashed Message Authentication Code | `hmac_mac(key,data,mac_kv_slot,mode)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to<br>***mode*** - HMAC384 or HMAC512 |
+|   | `hmac_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to<br>***mode*** - HMAC384 or HMAC512 |
 | | `hmac512_mac(key,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot<br>**Input**:<br>***key*** - caller specified key<br>data - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
 |   | `hmac512_mac(kv_slot,data,mac_kv_slot)` | Calculate the MAC using a caller provided key and data. The resultant MAC is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the MAC to |
 | Elliptic Curve Cryptography | `ecc384_keygen(seed_kv_slot, priv_kv_slot) -> pub_key` | Generate ECC384 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>***priv_kv_slot*** - key vault slot to store the private key to<br>**Output**:<br>***pub-key*** - public key associated with the private key |
@@ -238,13 +235,32 @@ The following flows are conducted exclusively when the ROM is operating in ACTIV
 The following flows are conducted when the ROM is operating in the manufacturing mode, indicated by a value of `DEVICE_MANUFACTURING` (0x1) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### UDS Provisioning
-1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register is set. If the bit is set, the ROM initiates the UDS seed programming flow.
+1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register is set. If the bit is set, ROM initiates the UDS seed programming flow by setting the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
 
-2. In this procedure, the ROM retrieves a 512-bit value from the iTRNG and writes it to the address specified by the `UDS_SEED_OFFSET` register, utilizing DMA hardware assistance.
+2. ROM then retrieves a 512-bit value from the iTRNG, the UDS Seed programming base address from the `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_L` and `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_H` registers and the Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
-3. Following the DMA operation, the ROM updates the `UDS_PROGRAM_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to either `UDS_PROGRAM_SUCCESS` or `UDS_PROGRAM_FAIL`, indicating the outcome of the operation.
+3. ROM then retrieves the UDS granularity from the `CPTRA_HW_CONFIG` register Bit6 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.
 
-4. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
+4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
+    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit (Bit 14) of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
+    2. If the granularity is 32-bit, the ROM writes the next word from the UDS seed to the `DIRECT_ACCESS_WDATA_0` register. If the granularity is 64-bit, the ROM writes the next two words to `the DIRECT_ACCESS_WDATA_0` and `DIRECT_ACCESS_WDATA_1` registers, located at offsets 0x44 and 0x48 respectively from the Fuse Controller's base address.
+    3. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register at offset 0x40.
+    4. The ROM triggers the UDS seed write command by writing 0x2 to the `DIRECT_ACCESS_CMD` register at offset 0x3C.
+    5. [OPEN] Handle DAI error.
+    6. The ROM increments the `DIRECT_ACCESS_ADDRESS` register by 4 for 32-bit granularity or 8 for 64-bit granularity and repeats the process for the remaining words of the UDS seed.
+
+5. The ROM continuously polls the Fuse Controller's `STATUS` register until the DAI state returns to idle.
+
+6. After completing the write operation, ROM triggers the partition  digest operation performing the following steps:
+    1. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register.
+    2. The ROM triggers the digest calculation command by writing 0x4 to the `DIRECT_ACCESS_CMD` register.
+    3. The ROM continuously polls the Fuse Controller's `STATUS` register until the DAI state returns to idle.
+
+7. ROM updates the `UDS_PROGRAM_SUCCESS` or the `UDS_PROGRAM_FAIL` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate the outcome of the operation.
+
+8. ROM then resets the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register to indicate completion of the programming.
+
+9. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
 1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set
@@ -472,9 +488,9 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
 11. Generate the MACs over the tbs digests as follows:
 
-    `IDevIdTbsEcdsaMac = hmac384_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa)`
+    `IDevIdTbsEcdsaMac = hmac_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa, HmacMode::Hmac384)`
 
-    `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa)`
+    `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa, HmacMode::Hmac512)`
 
 12. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
 
@@ -486,12 +502,12 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 |----------------|--------------|-------------------------------------------------------------------------------------------------|
 | Marker         | 4            | Magic Number marking the start of the CSR payload. The value must be 0x435352 (‘CSR’ in ASCII). |
 | Size           | 4            | Size of the entire CSR payload.                                                                 |
-| ECC CSR Size   | 4            | Size of the ECC CSR (m bytes)                                                                   |
-| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC.                                                                           |
-| MLDSA CSR Size | 4            | Size of the ECC CSR (n bytes)                                                                   |
-| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC.                                                                           |
-| ECC CSR        | m            | ECC CSR bytes.                                                                                  |
-| MLDSA CSR      | n            | MLDSA CSR bytes.                                                                                |
+| ECC CSR Size   | 4            | Size of the ECC CSR in bytes.                                                                   |
+| ECC CSR        | 512          | ECC CSR buffer. Actual CSR size is indicated by 'ECC CSR Size'.                                 |
+| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC. MAC is computed over actual CSR bytes.                                    |
+| MLDSA CSR Size | 4            | Size of the MLDSA CSR in bytes.                                                                 |
+| MLDSA CSR      | 7680         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
+| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC. MAC is computed over actual CSR bytes.                                    |
 
 **Post-conditions:**
 
@@ -671,6 +687,42 @@ Following is the sequence of steps that are performed to download the firmware i
 
 See Firmware [Image Validation Process](#firmware-image-validation-process).
 
+### Derivation of the key ladder for Stable Identity
+
+Stable Identity calls for a secret that remains stable across firmware updates, but which can ratchet forward when major firmware vulnerabilities are fixed. Caliptra ROM implements this feature in terms of a "key ladder".
+
+The key ladder is initialized from the LDevID CDI during cold-boot. The key ladder length is inversely related to the firmware's SVN. Each step of the ladder is an SVN-unique key. The key for SVN X can be obtained by applying a one-way cryptographic operation to the key for SVN X+1. In this manner, firmware with a given SVN can wield keys bound to its SVN or older, but cannot wield keys bound to newer SVNs.
+
+To comply with FIPS, the one-way cryptographic operation used to compute keys is an SP 800-108 KDF.
+
+When the key ladder is initialized at cold-boot, it is bound to the lifecycle state and debug-locked. This ensures that the keys of the ladder will change across lifecycle or debug state transtions.
+
+Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. It ensures that the ladder's length always corresponds to that minimum SVN. The key ladder can only be shortened (and thereby give access to newer SVNs' keys) by cold-booting into firmware with a newer SVN and re-initializing the ladder.
+
+#### Cold-boot
+
+ROM initializes a key ladder for the firmware. LDevID CDI in Key Vault Slot6 is used as an HMAC Key, and the data is a fixed string. The resultant MAC is stored in Slot 2.
+
+    KeyLadderContext = lifecycle state || debug_locked state
+
+    hmac512_kdf(KvSlot6, label: b"si_init", context: KeyLadderContext, KvSlot2)
+
+    Loop (MAX_FIRMWARE_SVN - (current firmware SVN)) times:
+
+        hmac512_kdf(KvSlot2, label: b"si_extend", context: None, KvSlot2)
+
+#### Update-reset
+
+During update-reset, the key ladder initialized at cold boot is lengthened if necessary, such that its length always corresponds with the minimum SVN since cold boot.
+
+    old_min_svn = [retrieved from data vault]
+    new_min_svn = min(old_min_svn, new_fw_svn)
+    [store new_min_svn in data vault]
+
+    Loop (`old_min_svn` - `new_min_svn`) times:
+
+        hmac512_kdf(KvSlot2, label: b"si_extend", context: None, KvSlot2)
+
 ### Alias FMC DICE layer & PCR extension
 
 Alias FMC Layer includes the measurement of the FMC and other security states. This layer is used to assert a composite identity which includes the security state, FMC measurement along with the previous layer identities.
@@ -683,7 +735,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 - Firmware Image Bundle is successfully loaded and verified from the Mailbox
 - ROM has following information from Firmware Image Bundle
 - FMC_DIGEST - Digest of the FMC
-- FMC_SVN - SVN for FMC
+- FW_SVN - SVN for the firmware
 - MANUFACTURER_PK - Manufacturer Public Key(s) used to verify the firmware image bundle
 - MANUFACTURER_PK_INDEX - Index of the MANUFACTURER_PK in the firmware image bundle
 
@@ -697,11 +749,11 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         CPTRA_SECURITY_STATE.LIFECYCLE_STATE,
         CPTRA_SECURITY_STATE.DEBUG_ENABLED,
         FUSE_ANTI_ROLLBACK_DISABLE,
-        ECC_VENDOR_PK_INDEX,
-        FMC_SVN,
-        FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
-        PQC_VENDOR_PK_INDEX,
-        ROM_VERIFY_CONFIG,
+        VENDOR_ECC_PK_INDEX,
+        FW_SVN,
+        FW_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
+        VENDOR_PQC_PK_INDEX,
+        PQC_KEY_TYPE,
         OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
     pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)
@@ -774,7 +826,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `dccm_dv_store(FMC_DIGEST, lock_for_wr)`
 
-    `dccm_dv_store(FMC_SVN, lock_for_wr)`
+    `dccm_dv_store(FW_SVN, lock_for_wr)`
 
     `dccm_dv_store(FUSE_OWNER_PK_HASH, lock_for_wr)`
 
@@ -811,7 +863,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  | 🔒Alias FMC Cert ECDSA Signature R    |
  | 🔒Alias FMC Cert ECDSA Signature S    |
  | 🔒Alias FMC Cert MLDSA Signature      |
- | 🔒FMC SVN                             |
+ | 🔒FW SVN                              |
  | 🔒ROM Cold Boot Status                |
  | 🔒FMC Entry Point                     |
  | 🔒Manufacturer ECDSA Public Key Index |
@@ -828,7 +880,6 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  - **Cold Reset Unlockable values:**
  These values are unlocked on a Cold Reset:
     - FMC TCI
-    - FMC SVN
     - FMC Entry Point
     - Owner Pub Key Hash
     - Ecc Vendor Pub Key Index
@@ -838,8 +889,8 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
  - **Warm Reset unlockable values:**
  These values are unlocked on a Warm or Cold Reset:
     - RT TCI
-    - RT SVN
     - RT Entry Point
+    - FW SVN
     - Manifest Addr
     - ROM Update Reset Status
 
@@ -866,8 +917,8 @@ ROM locks the following entities to prevent any updates:
 
  - **Warm Reset unlockable values:**
     - RT TCI
-    - RT SVN
     - RT Entry Point
+    - FW SVN
     - Manifest Addr
     - ROM Update Reset Status
 
@@ -938,13 +989,13 @@ The following are the pre-conditions that should be satisfied:
 
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
 - The FUSES programmed by the soc are
-  - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer key descriptors present in preamble.
+  - fuse_vendor_pk_hash : This fuse contains the hash of the manufacturer key descriptors present in the preamble.
   - fuse_ecc_revocation : This is the bitmask of the ECC keys which are revoked.
   - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
   - fuse_mldsa_revocation : This is the bitmask of the MLDSA keys which are revoked.
   - fuse_owner_pk_hash : The hash of the owner public keys in preamble.
-  - fuse_key_manifest_svn : Used in FMC validation to make sure that the version number is good.
-  - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
+  - fuse_firmware_svn : Used in FW validation to make sure that the firmware image's SVN is good.
+  - fuse_pqc_key_type: This bitmask specifies the enabled PQC key type for firmware validation, indicating either MLDSA or LMS.
 - The SOC has written the data to the mailbox.
 - The SOC has written the data length in the DLEN mailbox register.
 - The SOC has put the FW_DOWNLOAD command in the command register.
@@ -956,7 +1007,7 @@ The following are the pre-conditions that should be satisfied:
 - Load the preamble bytes from the mailbox.
 - Based on the firmware image type, the image includes an ECC key descriptor and either an LMS or MLDSA key descriptor within the preamble. The ECC descriptor encapsulates up to four ECC public key hashes, the LMS descriptor up to 32 public key hashes, and the MLDSA descriptor up to four MLDSA public key hashes.
 - The firmware image, depending on its type, incorporates an ECC key and either an LMS or MLDSA manufacturing public key within the preamble. These constitute the active public keys.
-- The fuse_key_manifest_pk_hash fuse holds the SHA2-384 hash of the ECC, and LMS or MLDSA manufacturing key descriptors.
+- The fuse_vendor_pk_hash fuse holds the SHA2-384 hash of the ECC, and LMS or MLDSA manufacturing key descriptors.
 - The key descriptors are validated by generating a SHA2-384 hash of the ECC and LMS or MLDSA key descriptors and comparing it against the hash stored in the fuse. If the hashes do not match, the image validation fails.
 - Upon a successful hash match, the ECC, and LMS or MLDSA key descriptors are deemed valid.
 - Subsequently, the active manufacturer public keys are validated against one of the hashes in the key descriptors. The specific hash for comparison is identified by the active key indices.
@@ -1053,7 +1104,7 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Alias FMC Public MLDSA Key.
     - Digest of the FMC part of the image.
     - Digest of the ECC and LMS or MLDSA owner public keys portion of preamble.
-    - FMC SVN.
+    - FW SVN.
     - ROM Cold Boot Status.
     - FMC Entry Point.
     - ECC Vendor public key index.
@@ -1072,6 +1123,8 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Validate the toc exactly like in cold boot.
     - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
       still matches the FMC image section.
+    - Store the minimum firmware SVN that has run since cold-boot in the data vault.
+    - Ratchet the key ladder if necessary.
   - If validation fails during ROM boot, the new RT image will not be copied from
     the mailbox. ROM will boot the existing FMC/Runtime images. Validation
     errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.

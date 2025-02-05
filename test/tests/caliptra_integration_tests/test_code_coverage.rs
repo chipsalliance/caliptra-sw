@@ -29,7 +29,12 @@ fn test_emu_coverage() {
         )
         .unwrap();
         // Upload FW
-        hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
         let CoverageBitmaps { rom, iccm: _iccm } = hw.code_coverage_bitmap();
         calculator::coverage_from_bitmap(0, rom, &instr_pcs)
     };

@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac, KeyVault, Mailbox,
-    Sha256, Sha2_512_384Acc, Sha384, SocIfc,
+    Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc,
 };
 
 #[allow(clippy::empty_loop)]
@@ -19,7 +19,7 @@ pub fn handle_fatal_error(code: u32) -> ! {
         Ecc384::zeroize();
         Hmac::zeroize();
         Sha256::zeroize();
-        Sha384::zeroize();
+        Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();
 
         // Zeroize the key vault.

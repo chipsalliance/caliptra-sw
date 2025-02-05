@@ -31,16 +31,16 @@ pub struct Csrng {
     #[register(offset = 0x18, write_fn = cmd_req_write)]
     cmd_req: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x1c)]
+    #[register(offset = 0x2c)]
     sw_cmd_sts: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x20, read_fn = genbits_vld_read)]
+    #[register(offset = 0x30, read_fn = genbits_vld_read)]
     genbits_vld: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x24, read_fn = genbits_read)]
+    #[register(offset = 0x34, read_fn = genbits_read)]
     genbits: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x38)]
+    #[register(offset = 0x54)]
     err_code: ReadOnlyRegister<u32>,
 
     // Entropy Source registers
@@ -84,7 +84,7 @@ impl Csrng {
             // These reset values come from register definitions
             ctrl: 0x999,
             cmd_req: WriteOnlyRegister::new(0),
-            sw_cmd_sts: ReadOnlyRegister::new(0b01),
+            sw_cmd_sts: ReadOnlyRegister::new(0b110), // cmd_rdy=1, cmd_ack=1, cmd_sts=0
             genbits_vld: ReadOnlyRegister::new(0b01),
             genbits: ReadOnlyRegister::new(0),
             err_code: ReadOnlyRegister::new(0),

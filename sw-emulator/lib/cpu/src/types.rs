@@ -129,9 +129,11 @@ emu_enum! {
 
         // Bitmanip instructions
         Bitmanip = 0b011_0000,
-
+        // OR-Combine byte granule
         Orc = 0b001_0100,
-
+        // Bit clear
+        Bclr = 0b010_0100,
+        // Byte reverse
         Rev8 = 0b011_0100,
     };
     Invalid
@@ -302,19 +304,24 @@ emu_enum! {
     {
         /// Add function
         Add = 0b000_0000,
-
         /// Multiply function
         Mul = 0b000_0001,
-
         /// Sub function
         Sub = 0b010_0000,
-
-        // Min, Max, or Clmul
+        /// Min, Max, or Clmul
         MinMaxClmul = 0b000_0101,
-
+        /// Zero-extend
         Zext = 0b000_0100,
-
+        /// Rotate
         Rotate = 0b011_0000,
+        /// Shift 1 and add
+        Sh1add = 0b001_0000,
+        /// Bit set
+        Bset = 0b001_0100,
+        /// Bit clear
+        Bclr = 0b010_0100,
+        /// Bit invert
+        Binv = 0b011_0100,
     };
     Invalid
 }
@@ -366,14 +373,18 @@ impl RvInstr32OpFunct7 {
     /// Remainder Unsigned function
     pub const Remu: RvInstr32OpFunct7 = RvInstr32OpFunct7::Mul;
 
-    // AND with inverted operand
+    /// AND with inverted operand
     pub const Andn: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
 
-    // OR with inverted operand
+    /// OR with inverted operand
     pub const Orn: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
 
-    // XNOR with inverted operand
+    /// XNOR with inverted operand
     pub const Xnor: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
+
+    // Bit manipulation extension
+    /// Shift 1 and adds
+    pub const Sh1add: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sh1add;
 }
 
 emu_enum! {

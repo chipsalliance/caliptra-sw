@@ -32,7 +32,7 @@ mod fuse_bank;
 pub mod fuse_log;
 pub mod hand_off;
 mod hmac;
-mod hmac384_kdf;
+mod hmac_kdf;
 mod key_vault;
 mod kv_access;
 mod lms;
@@ -48,8 +48,8 @@ pub mod pic;
 pub mod printer;
 mod sha1;
 mod sha256;
+mod sha2_512_384;
 mod sha2_512_384acc;
-mod sha384;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
@@ -59,10 +59,10 @@ pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
-pub use data_vault::{
-    ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
+pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
+pub use dma::{
+    AxiAddr, Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction,
 };
-pub use dma::{Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
@@ -72,12 +72,10 @@ pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
 #[cfg(feature = "fips-test-hooks")]
 pub use fips_test_hooks::FipsTestHook;
-pub use fuse_bank::{
-    FuseBank, IdevidCertAttr, RomPqcVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
-};
+pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorEccPubKeyRevocation, X509KeyIdAlgo};
 pub use hand_off::FirmwareHandoffTable;
 pub use hmac::{Hmac, HmacData, HmacKey, HmacMode, HmacOp, HmacTag};
-pub use hmac384_kdf::hmac384_kdf;
+pub use hmac_kdf::hmac_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
@@ -95,15 +93,15 @@ pub use pcr_reset::PcrResetCounter;
 #[cfg(feature = "runtime")]
 pub use persistent::AuthManifestImageMetadataList;
 pub use persistent::{
-    FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
-    StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_CSR_SIZE, MEASUREMENT_MAX_COUNT,
-    PCR_LOG_MAX_COUNT,
+    Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
+    PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_CSR_SIZE,
+    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE, PCR_LOG_MAX_COUNT,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
+pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
-pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 

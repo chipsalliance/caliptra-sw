@@ -34,10 +34,12 @@ pub const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
 #[cfg(feature = "fmc")]
 pub const KEY_ID_RT_CDI: KeyId = KeyId::KeyId4;
 #[cfg(feature = "fmc")]
-pub const KEY_ID_RT_PRIV_KEY: KeyId = KeyId::KeyId5;
+pub const KEY_ID_RT_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId5;
+#[cfg(feature = "fmc")]
+pub const KEY_ID_RT_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId9;
 #[cfg(feature = "runtime")]
-pub const KEY_ID_DPE_CDI: KeyId = KeyId::KeyId8;
+pub const KEY_ID_DPE_CDI: KeyId = KeyId::KeyId10;
 #[cfg(feature = "runtime")]
-pub const KEY_ID_DPE_PRIV_KEY: KeyId = KeyId::KeyId9;
+pub const KEY_ID_DPE_PRIV_KEY: KeyId = KeyId::KeyId11;
 
 pub const KEY_ID_TMP: KeyId = KeyId::KeyId3;

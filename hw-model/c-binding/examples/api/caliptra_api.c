@@ -21,18 +21,16 @@ int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fus
     // Write Fuses
     caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, CALIPTRA_ARRAY_SIZE(fuses->uds_seed));
     caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, CALIPTRA_ARRAY_SIZE(fuses->field_entropy));
-    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->key_manifest_pk_hash));
-    caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
-    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->owner_pk_hash));
-    caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
-    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->runtime_svn, CALIPTRA_ARRAY_SIZE(fuses->runtime_svn));
+    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_VENDOR_PK_HASH_0, fuses->vendor_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->vendor_pk_hash));
+    caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_ECC_REVOCATION, fuses->ecc_revocation);
+    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_CPTRA_OWNER_PK_HASH_0, fuses->owner_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->owner_pk_hash));
+    caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->firmware_svn, CALIPTRA_ARRAY_SIZE(fuses->firmware_svn));
     caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
     caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, CALIPTRA_ARRAY_SIZE(fuses->idevid_cert_attr));
     caliptra_fuse_array_write(model, GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, CALIPTRA_ARRAY_SIZE(fuses->idevid_manuf_hsm_id));
-    caliptra_fuse_write(model, GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
 
     // Write to Caliptra Fuse Done
-    caliptra_model_axi_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
+    caliptra_model_apb_write_u32(model, EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
 
     // It shouldn`t be longer ready for fuses
     if (caliptra_model_ready_for_fuses(model))
@@ -49,7 +47,7 @@ int caliptra_bootfsm_go(struct caliptra_model *model)
     }
 
     // Write BOOTFSM_GO Register
-    caliptra_model_axi_write_u32(model, CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
+    caliptra_model_apb_write_u32(model, EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
 
     return 0;
 }

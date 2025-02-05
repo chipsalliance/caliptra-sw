@@ -52,10 +52,10 @@ impl InvokeDpeCmd {
 
             let pdata = drivers.persistent_data.get_mut();
             let crypto = DpeCrypto::new(
-                &mut drivers.sha384,
+                &mut drivers.sha2_512_384,
                 &mut drivers.trng,
                 &mut drivers.ecc384,
-                &mut drivers.hmac384,
+                &mut drivers.hmac,
                 &mut drivers.key_vault,
                 &mut pdata.fht.rt_dice_pub_key,
                 key_id_rt_cdi,

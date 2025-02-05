@@ -31,11 +31,11 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
-use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
-use core::mem::ManuallyDrop;
+use core::mem::{size_of, ManuallyDrop};
 use zerocopy::{AsBytes, LayoutVerified};
 use zeroize::Zeroize;
 
@@ -47,11 +47,11 @@ pub struct FwProcInfo {
 
     pub fmc_cert_valid_not_after: NotAfter,
 
-    pub fmc_effective_fuse_svn: u32,
+    pub effective_fuse_svn: u32,
 
     pub owner_pub_keys_digest_in_fuses: bool,
 
-    pub pqc_verify_config: u8,
+    pub pqc_key_type: u8,
 }
 
 pub struct FirmwareProcessor {}
@@ -65,14 +65,14 @@ impl FirmwareProcessor {
             // sha256
             sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+            // SHA2-512/384 Engine
+            sha2_512_384: &mut env.sha2_512_384,
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac384 Engine
-            hmac384: &mut env.hmac384,
+            // Hmac-512/384 Engine
+            hmac: &mut env.hmac,
 
             /// Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
@@ -87,10 +87,11 @@ impl FirmwareProcessor {
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
-        let mut txn = Self::process_mailbox_commands(
+        let (mut txn, image_size_bytes) = Self::process_mailbox_commands(
             &mut env.soc_ifc,
             &mut env.mbox,
             &mut env.pcr_bank,
+            &mut env.dma,
             &mut kats_env,
             env.persistent_data.get_mut(),
         )?;
@@ -103,34 +104,45 @@ impl FirmwareProcessor {
         };
 
         // Load the manifest into DCCM.
-        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
+        let manifest = Self::load_manifest(
+            &mut env.persistent_data,
+            &mut txn,
+            env.soc_ifc.active_mode(),
+        );
         let manifest = okref(&manifest)?;
 
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
-            sha384: &mut env.sha384,
+            sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
-            data_vault: &mut env.data_vault,
+            mldsa87: &mut env.mldsa87,
+            data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
         };
 
         // Verify the image
-        let info = Self::verify_image(&mut venv, manifest, txn.dlen());
+        let info = Self::verify_image(&mut venv, manifest, image_size_bytes);
         let info = okref(&info)?;
 
         Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
+        Self::populate_data_vault(info, &mut env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
+        pcr::extend_pcrs(
+            env.persistent_data.get_mut(),
+            &env.soc_ifc,
+            &mut env.pcr_bank,
+            &mut env.sha2_512_384,
+            info,
+        )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn)?;
+        Self::load_image(manifest, &mut txn, env.soc_ifc.active_mode())?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -148,9 +160,9 @@ impl FirmwareProcessor {
         Ok(FwProcInfo {
             fmc_cert_valid_not_before: nb,
             fmc_cert_valid_not_after: nf,
-            fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
+            effective_fuse_svn: info.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
-            pqc_verify_config: info.pqc_verify_config as u8,
+            pqc_key_type: info.pqc_key_type as u8,
         })
     }
 
@@ -161,7 +173,8 @@ impl FirmwareProcessor {
     /// * `soc_ifc` - SOC Interface
     /// * `mbox` - Mailbox
     /// * `pcr_bank` - PCR Bank
-    /// * `sha384` - SHA384
+    /// * `dma` - DMA engine
+    /// * `env` - KAT Environment
     /// * `persistent_data` - Persistent data
     ///
     /// # Returns
@@ -177,10 +190,12 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
+        dma: &mut Dma,
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
-    ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
+    ) -> CaliptraResult<(ManuallyDrop<MailboxRecvTxn<'a>>, u32)> {
         let mut self_test_in_progress = false;
+        let active_mode = soc_ifc.active_mode();
 
         cprintln!("[fwproc] Wait for Commands...");
         loop {
@@ -199,6 +214,10 @@ impl FirmwareProcessor {
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
+                    if active_mode {
+                        Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE)?;
+                    }
+
                     // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
                     let txn = mbox
                         .peek_recv()
@@ -208,14 +227,15 @@ impl FirmwareProcessor {
                     // transaction will be completed by either handle_fatal_error() (on
                     // failure) or by a manual complete call upon success.
                     let txn = ManuallyDrop::new(txn.start_txn());
-                    if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                        cprintln!("Invalid Img size: {} bytes" txn.dlen());
+                    let image_size_bytes = txn.dlen();
+                    if image_size_bytes == 0 || image_size_bytes > IMAGE_BYTE_SIZE as u32 {
+                        cprintln!("Invalid Image of size {} bytes", image_size_bytes);
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
 
-                    cprintln!("[fwproc] Recv'd Img size: {} bytes" txn.dlen());
+                    cprintln!("[fwproc] Received Image of size {} bytes", image_size_bytes);
                     report_boot_status(FwProcessorDownloadImageComplete.into());
-                    return Ok(txn);
+                    return Ok((txn, image_size_bytes));
                 }
 
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
@@ -296,7 +316,12 @@ impl FirmwareProcessor {
                             return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
                         }
 
-                        Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
+                        Self::stash_measurement(
+                            pcr_bank,
+                            env.sha2_512_384,
+                            persistent_data,
+                            &mut txn,
+                        )?;
 
                         // Generate and send response (with FIPS approved status)
                         let mut resp = StashMeasurementResp {
@@ -306,11 +331,11 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
-                    CommandId::GET_IDEV_CSR => {
+                    CommandId::GET_IDEV_ECC_CSR => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
-                        let csr_persistent_mem = &persistent_data.idevid_csr;
+                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
                         let mut resp = GetIdevCsrResp::default();
 
                         if csr_persistent_mem.is_unprovisioned() {
@@ -330,6 +355,27 @@ impl FirmwareProcessor {
 
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::RI_DOWNLOAD_FIRMWARE => {
+                        if !active_mode {
+                            cprintln!(
+                                "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
+                            );
+                            txn.complete(false)?;
+                            Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
+                        }
+                        txn.complete(true)?;
+
+                        // Download the firmware image from the recovery interface.
+                        let image_size_bytes =
+                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
+                        let txn = ManuallyDrop::new(mbox.fake_recv_txn());
+                        cprintln!(
+                            "[fwproc] Received Image from Recovery Interface of size {} bytes",
+                            image_size_bytes
+                        );
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok((txn, image_size_bytes));
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
@@ -352,9 +398,19 @@ impl FirmwareProcessor {
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
+        active_mode: bool,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
-        txn.copy_request(manifest.as_bytes_mut())?;
+        if active_mode {
+            let mbox_sram = txn.raw_mailbox_contents();
+            let manifest_buf = manifest.as_bytes_mut();
+            if mbox_sram.len() < manifest_buf.len() {
+                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+            }
+            manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
+        } else {
+            txn.copy_request(manifest.as_bytes_mut())?;
+        }
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -373,10 +429,11 @@ impl FirmwareProcessor {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
-            sha384: venv.sha384,
+            sha2_512_384: venv.sha2_512_384,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
+            mldsa87: venv.mldsa87,
             image: venv.image,
         };
 
@@ -390,8 +447,12 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[fwproc] Img verified w/ Vendor ECC Key Idx {}",
+            "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
+            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type) == Some(FwVerificationPqcKeyType::MLDSA)  { "MLDSA" } else { "LMS" },
+            info.vendor_pqc_pub_key_idx,
+            info.fw_svn,
+            info.effective_fuse_svn,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
         Ok(info)
@@ -426,60 +487,61 @@ impl FirmwareProcessor {
                 .as_bytes(),
         )?;
 
-        // Log ManifestFmcSvn
+        // Log cold-boot FW SVN
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestFmcSvn,
-            log_info.fmc_log_info.manifest_svn.as_bytes(),
+            FuseLogEntryId::ColdBootFwSvn,
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved0
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved0,
-            log_info.fmc_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseFmcSvn
+        // Log DeprecatedFuseFmcSvn (which is now the same as FuseFwSvn)
+        #[allow(deprecated)]
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseFmcSvn,
-            log_info.fmc_log_info.fuse_svn.as_bytes(),
+            FuseLogEntryId::_DeprecatedFuseFmcSvn,
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log ManifestRtSvn
+        // Log ManifestFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestRtSvn,
-            log_info.rt_log_info.manifest_svn.as_bytes(),
+            FuseLogEntryId::ManifestFwSvn,
+            log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestReserved1
         log_fuse_data(
             log,
             FuseLogEntryId::ManifestReserved1,
-            log_info.rt_log_info.reserved.as_bytes(),
+            log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseRtSvn
+        // Log FuseFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseRtSvn,
-            log_info.rt_log_info.fuse_svn.as_bytes(),
+            FuseLogEntryId::FuseFwSvn,
+            log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyIndex
+        // Log VendorPqcPubKeyIndex
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyIndex,
-            log_info.vendor_lms_pub_key_idx.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyIndex,
+            log_info.vendor_pqc_pub_key_idx.as_bytes(),
         )?;
 
-        // Log VendorLmsPubKeyRevocation
+        // Log VendorPqcPubKeyRevocation
         log_fuse_data(
             log,
-            FuseLogEntryId::VendorLmsPubKeyRevocation,
-            log_info.fuse_vendor_lms_pub_key_revocation.as_bytes(),
+            FuseLogEntryId::VendorPqcPubKeyRevocation,
+            log_info.fuse_vendor_pqc_pub_key_revocation.as_bytes(),
         )?;
 
         Ok(())
@@ -489,25 +551,42 @@ impl FirmwareProcessor {
     ///
     /// # Arguments
     ///
-    /// * `env`      - ROM Environment
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
+    /// * `active_mode` - Indicates if ROM is running in the Active mode
     // Inlined to reduce ROM size
     #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
+    fn load_image(
+        manifest: &ImageManifest,
+        txn: &mut MailboxRecvTxn,
+        active_mode: bool,
+    ) -> CaliptraResult<()> {
         cprintln!(
             "[fwproc] Load FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
 
-        let fmc_dest = unsafe {
-            let addr = (manifest.fmc.load_addr) as *mut u32;
-            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
-        };
-
-        txn.copy_request(fmc_dest.as_bytes_mut())?;
+        if active_mode {
+            let mbox_sram = txn.raw_mailbox_contents();
+            let fmc_dest = unsafe {
+                let addr = (manifest.fmc.load_addr) as *mut u8;
+                core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
+            };
+            let start = size_of::<ImageManifest>();
+            let end = start + fmc_dest.len();
+            if start > end || mbox_sram.len() < end {
+                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+            }
+            fmc_dest.copy_from_slice(&mbox_sram[start..end]);
+        } else {
+            let fmc_dest = unsafe {
+                let addr = (manifest.fmc.load_addr) as *mut u32;
+                core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
+            };
+            txn.copy_request(fmc_dest.as_bytes_mut())?;
+        }
 
         cprintln!(
             "[fwproc] Load Runtime at address 0x{:08x} len {}",
@@ -515,12 +594,25 @@ impl FirmwareProcessor {
             manifest.runtime.size
         );
 
-        let runtime_dest = unsafe {
-            let addr = (manifest.runtime.load_addr) as *mut u32;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
-        };
-
-        txn.copy_request(runtime_dest.as_bytes_mut())?;
+        if active_mode {
+            let mbox_sram = txn.raw_mailbox_contents();
+            let runtime_dest = unsafe {
+                let addr = (manifest.runtime.load_addr) as *mut u8;
+                core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
+            };
+            let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+            let end = start + runtime_dest.len();
+            if start > end || mbox_sram.len() < end {
+                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+            }
+            runtime_dest.copy_from_slice(&mbox_sram[start..end]);
+        } else {
+            let runtime_dest = unsafe {
+                let addr = (manifest.runtime.load_addr) as *mut u32;
+                core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
+            };
+            txn.copy_request(runtime_dest.as_bytes_mut())?;
+        }
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
@@ -530,47 +622,28 @@ impl FirmwareProcessor {
     ///
     /// # Arguments
     ///
-    /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
+    /// * `persistent_data` - Persistent data accessor
+    ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_data_vault(
-        data_vault: &mut DataVault,
         info: &ImageVerificationInfo,
-        persistent_data: &PersistentDataAccessor,
+        persistent_data: &mut PersistentDataAccessor,
     ) {
-        data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
+        let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
+        let data_vault = &mut persistent_data.get_mut().data_vault;
+        data_vault.set_fmc_tci(&info.fmc.digest.into());
+        data_vault.set_cold_boot_fw_svn(info.fw_svn);
+        data_vault.set_fmc_entry_point(info.fmc.entry_point);
+        data_vault.set_owner_pk_hash(&info.owner_pub_keys_digest.into());
+        data_vault.set_vendor_ecc_pk_index(info.vendor_ecc_pub_key_idx);
+        data_vault.set_vendor_pqc_pk_index(info.vendor_pqc_pub_key_idx);
+        data_vault.set_rt_tci(&info.runtime.digest.into());
+        data_vault.set_fw_svn(info.fw_svn);
+        data_vault.set_fw_min_svn(info.fw_svn);
+        data_vault.set_rt_entry_point(info.runtime.entry_point);
+        data_vault.set_manifest_addr(manifest_address);
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
-
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
-
-        data_vault.write_cold_reset_entry48(
-            ColdResetEntry48::OwnerPubKeyHash,
-            &info.owner_pub_keys_digest.into(),
-        );
-
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::EccVendorPubKeyIndex,
-            info.vendor_ecc_pub_key_idx,
-        );
-
-        // If LMS is not enabled, write the max value to the data vault
-        // to indicate the index is invalid.
-        data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::LmsVendorPubKeyIndex,
-            info.vendor_lms_pub_key_idx,
-        );
-
-        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
-
-        data_vault.write_warm_reset_entry4(
-            WarmResetEntry4::ManifestAddr,
-            &persistent_data.get().manifest1 as *const _ as u32,
-        );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
@@ -659,7 +732,7 @@ impl FirmwareProcessor {
     ///     Err - StashMeasurementReadFailure
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
@@ -667,7 +740,7 @@ impl FirmwareProcessor {
         Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;
+        Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;
 
         Ok(())
     }
@@ -685,14 +758,14 @@ impl FirmwareProcessor {
     ///    Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
-        sha384: &mut Sha384,
+        sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         // Extend measurement into PCR31.
         pcr_bank.extend_pcr(
             PCR_ID_STASH_MEASUREMENT,
-            sha384,
+            sha2,
             stash_measurement.measurement.as_bytes(),
         )?;
 
@@ -700,7 +773,7 @@ impl FirmwareProcessor {
         Self::log_measurement(persistent_data, stash_measurement)
     }
 
-    /// Log mesaure data to the Stash Measurement log
+    /// Log measurement data to the Stash Measurement log
     ///
     /// # Arguments
     /// * `persistent_data` - Persistent data
@@ -735,5 +808,78 @@ impl FirmwareProcessor {
         fht.meas_log_index += 1;
 
         Ok(())
+    }
+
+    /// Retrieve the fw image from the recovery interface and store it in the mailbox sram.
+    ///
+    /// # Arguments
+    /// * `dma` - DMA driver
+    /// * `soc_ifc` - SOC Interface
+    ///
+    /// # Returns
+    /// * `()` - Ok
+    ///   Error code on failure.
+    fn retrieve_image_from_recovery_interface(
+        dma: &mut Dma,
+        soc_ifc: &mut SocIfc,
+    ) -> CaliptraResult<u32> {
+        let rri_base_addr: u64 = soc_ifc.recovery_interface_base_addr();
+        const PROT_CAP_2_OFFSET: u32 = 0xC;
+        const DEVICE_STATUS_0: u32 = 0x30;
+        const RECOVERY_STATUS_OFFSET: u32 = 0x40;
+        const FW_IMAGE_INDEX: u32 = 0x0;
+        // const INDIRECT_FIFO_CTRL_0: u32 = 0x48;
+        const INDIRECT_FIFO_CTRL_1: u32 = 0x4C;
+        const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
+        const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+
+        // Set PROT_CAP:Byte11 Bit3 (i.e. DWORD2:Bit27) to 1 ('Flashless boot').
+        let addr = AxiAddr::from(rri_base_addr + PROT_CAP_2_OFFSET as u64);
+        let mut prot_cap_val = dma.read_dword(addr)?;
+        prot_cap_val |= 1 << 27;
+        dma.write_dword(addr, prot_cap_val)?;
+
+        // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+        let addr = AxiAddr::from(rri_base_addr + DEVICE_STATUS_0 as u64);
+        let mut device_status_val = dma.read_dword(addr)?;
+        device_status_val = (device_status_val & 0xFFFFFF00) | 0x03;
+
+        // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
+        device_status_val = (device_status_val & 0xFF00FFFF) | (0x12 << 16);
+
+        dma.write_dword(addr, device_status_val)?;
+
+        // Set RECOVERY_STATUS:Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image') &
+        // Byte0 Bit[7:4] to 0 (Recovery image index).
+        let addr = AxiAddr::from(rri_base_addr + RECOVERY_STATUS_OFFSET as u64);
+        let mut recovery_status_val = dma.read_dword(addr)?;
+
+        // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
+        recovery_status_val = (recovery_status_val & 0xFFFFFFF0) | 0x1;
+
+        // Set Byte0 Bit[7:4] to FW_IMAGE_INDEX (Recovery image index)
+        recovery_status_val = (recovery_status_val & 0xFFFFFF0F) | (FW_IMAGE_INDEX << 4);
+
+        dma.write_dword(addr, recovery_status_val)?;
+
+        // Loop on the 'payload_available' signal for the recovery image details to be available.
+        cprintln!("[fwproc] Waiting for payload available signal...");
+        while !dma.payload_available() {}
+
+        // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
+        // let addr0 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_0 as u64);
+        // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
+        let addr1 = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_CTRL_1 as u64);
+        // let indirect_fifo_ctrl_val0 = dma.read_dword(addr0)?;
+        let indirect_fifo_ctrl_val1 = dma.read_dword(addr1)?;
+        // let image_size_dwords =
+        //     ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF) | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+        let image_size_dwords = indirect_fifo_ctrl_val1;
+
+        // Transfer the image from the recovery interface to the mailbox SRAM.
+        let image_size_bytes = image_size_dwords * 4;
+        let addr = AxiAddr::from(rri_base_addr + INDIRECT_FIFO_DATA_OFFSET as u64);
+        dma.transfer_payload_to_mbox(addr, image_size_bytes, true, RECOVERY_DMA_BLOCK_SIZE_BYTES)?;
+        Ok(image_size_bytes)
     }
 }

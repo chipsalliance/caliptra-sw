@@ -77,12 +77,12 @@ impl SocIfc {
 
     pub fn mbox_valid_pauser(&self) -> [u32; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        soc_ifc_regs.cptra_mbox_valid_axi_id().read()
+        soc_ifc_regs.cptra_mbox_valid_axi_user().read()
     }
 
     pub fn mbox_pauser_lock(&self) -> [bool; 5] {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let pauser_lock = soc_ifc_regs.cptra_mbox_axi_id_lock();
+        let pauser_lock = soc_ifc_regs.cptra_mbox_axi_user_lock();
         [
             pauser_lock.at(0).read().lock(),
             pauser_lock.at(1).read().lock(),
@@ -119,14 +119,16 @@ impl SocIfc {
             .write(|w| w.idevid_csr_ready(true));
     }
 
-    /// Set ready for firmware
+    /// Set ready for Mailbox operations
     ///
     /// # Arguments
     ///
     /// * None
-    pub fn flow_status_set_ready_for_firmware(&mut self) {
+    pub fn flow_status_set_ready_for_mb_processing(&mut self) {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+        soc_ifc
+            .cptra_flow_status()
+            .write(|w| w.ready_for_mb_processing(true));
     }
 
     /// Get 'ready for firmware' status
@@ -134,9 +136,9 @@ impl SocIfc {
     /// # Arguments
     ///
     /// * None
-    pub fn flow_status_ready_for_firmware(&mut self) -> bool {
+    pub fn flow_status_ready_for_mb_processing(&mut self) -> bool {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().read().ready_for_fw()
+        soc_ifc.cptra_flow_status().read().ready_for_mb_processing()
     }
 
     pub fn fuse_bank(&self) -> FuseBank {
@@ -362,6 +364,63 @@ impl SocIfc {
             .intr_block_rf()
             .notif_internal_intr_r()
             .write(|w| w.notif_cmd_avail_sts(true));
+    }
+
+    pub fn uds_program_req(&self) -> bool {
+        self.soc_ifc
+            .regs()
+            .ss_dbg_manuf_service_reg_req()
+            .read()
+            .uds_program_req()
+    }
+
+    pub fn set_uds_programming_flow_state(&mut self, in_progress: bool) {
+        self.soc_ifc
+            .regs_mut()
+            .ss_dbg_manuf_service_reg_rsp()
+            .write(|w| w.uds_program_in_progress(in_progress));
+    }
+
+    pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
+        self.soc_ifc
+            .regs_mut()
+            .ss_dbg_manuf_service_reg_rsp()
+            .write(|w| {
+                if flow_succeeded {
+                    w.uds_program_success(true).uds_program_fail(false)
+                } else {
+                    w.uds_program_success(false).uds_program_fail(true)
+                }
+            });
+    }
+
+    pub fn uds_seed_dest_base_addr_low(&self) -> u32 {
+        self.soc_ifc.regs().ss_uds_seed_base_addr_l().read()
+    }
+
+    pub fn active_mode(&self) -> bool {
+        self.soc_ifc
+            .regs()
+            .cptra_hw_config()
+            .read()
+            .active_mode_en()
+    }
+
+    pub fn uds_fuse_row_granularity_64(&self) -> bool {
+        let config_val: u32 = self.soc_ifc.regs().cptra_hw_config().read().into();
+        ((config_val >> 6) & 1) != 0
+    }
+
+    pub fn fuse_controller_base_addr(&self) -> u64 {
+        let low = self.soc_ifc.regs().ss_otp_fc_base_addr_l().read();
+        let high = self.soc_ifc.regs().ss_otp_fc_base_addr_h().read();
+        (high as u64) << 32 | low as u64
+    }
+
+    pub fn recovery_interface_base_addr(&self) -> u64 {
+        let low = self.soc_ifc.regs().ss_recovery_ifc_base_addr_l().read();
+        let high = self.soc_ifc.regs().ss_recovery_ifc_base_addr_h().read();
+        (high as u64) << 32 | low as u64
     }
 }
 

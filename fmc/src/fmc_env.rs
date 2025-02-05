@@ -16,13 +16,13 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    CaliptraResult, DataVault, Ecc384, Hmac, KeyVault, Mailbox, PcrBank, PersistentDataAccessor,
-    Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    CaliptraResult, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, PcrBank, PersistentDataAccessor,
+    Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
-    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
+    mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Hardware Context
@@ -33,23 +33,20 @@ pub struct FmcEnv {
     // SHA2-256 Engine
     pub sha256: Sha256,
 
-    // SHA2-384 Engine
-    pub sha384: Sha384,
+    // SHA2-512/384 Engine
+    pub sha2_512_384: Sha2_512_384,
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: Sha2_512_384Acc,
 
-    /// Hmac384 Engine
-    pub hmac384: Hmac,
+    /// Hmac Engine
+    pub hmac: Hmac,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
     /// Key Vault
     pub key_vault: KeyVault,
-
-    /// Data Vault
-    pub data_vault: DataVault,
 
     /// Device state
     pub soc_ifc: SocIfc,
@@ -65,6 +62,9 @@ pub struct FmcEnv {
 
     /// Persistent Data
     pub persistent_data: PersistentDataAccessor,
+
+    /// Mldsa87 Engine
+    pub mldsa: Mldsa87,
 }
 
 impl FmcEnv {
@@ -86,17 +86,17 @@ impl FmcEnv {
         Ok(Self {
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac::new(HmacReg::new()),
+            hmac: Hmac::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             key_vault: KeyVault::new(KvReg::new()),
-            data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
             persistent_data: PersistentDataAccessor::new(),
+            mldsa: Mldsa87::new(MldsaReg::new()),
         })
     }
 }

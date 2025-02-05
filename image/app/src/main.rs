@@ -22,7 +22,7 @@ fn main() {
     let sub_cmds = vec![Command::new("create")
         .about("Create a new firmware image bundle")
         .arg(
-            arg!(--"image-type" <U32> "Type of image keys: 1: ECC + LMS; 2: ECC + MLDSA")
+            arg!(--"pqc-key-type" <U32> "Type of PQC key validation: 1: MLDSA; 3: LMS")
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )
@@ -37,7 +37,7 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"lms-pk-idx" <U32> "Vendor LMS Public Key Index")
+            arg!(--"pqc-pk-idx" <U32> "Vendor PQC (LMS or MLDSA) Public Key Index")
                 .required(false)
                 .value_parser(value_parser!(u32)),
         )
@@ -57,11 +57,6 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"fmc-svn" <U32> "FMC Security Version Number")
-                .required(true)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
             arg!(--"rt" <FILE> "Runtime ELF binary")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
@@ -77,7 +72,7 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"rt-svn" <U32> "Runtime Security Version Number")
+            arg!(--"fw-svn" <U32> "Firmware Security Version Number")
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )

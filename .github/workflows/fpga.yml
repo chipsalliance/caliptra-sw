@@ -4,7 +4,8 @@ name: FPGA Build
 on:
   push:
     branches: ["main"]
-  pull_request:
+  # Disabled in main-2.x until FPGA CI works again.
+  # pull_request:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -20,6 +21,9 @@ on:
         default: true
         type: boolean
       hw-version:
+        default: "latest"
+        type: string
+      rom-version:
         default: "latest"
         type: string
       workflow_call:
@@ -161,6 +165,9 @@ jobs:
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+          if [ "${{ inputs.rom-version }}" != "latest" ]; then
+            export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+          fi
 
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_realtime,${{ inputs.extra-features }}
@@ -428,7 +435,12 @@ jobs:
   #           echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
   #           exit 1
   #         fi
-  #         echo CPTRA_ROM_TYPE=${CPTRA_ROM_TYPE}
+
+#           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
+#             VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+#           fi
+
+  #         echo VARS=${VARS}
 
   #         COMMON_ARGS=(
   #             --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"

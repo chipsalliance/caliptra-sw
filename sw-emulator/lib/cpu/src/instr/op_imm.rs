@@ -39,107 +39,69 @@ impl<TBus: Bus> Cpu<TBus> {
         // Read the content of source register
         let reg = self.read_xreg(instr.rs())?;
 
-        let data = match instr.funct3().into() {
-            // Add Immediate (`addi`) Instruction
-            RvInstr32OpImmFunct3::Addi => reg.wrapping_add(instr.imm() as u32) as RvData,
+        let data = if let Some(data) = self.exec_bit_instr_op_imm(instr, reg) {
+            data
+        } else {
+            match instr.funct3().into() {
+                // Add Immediate (`addi`) Instruction
+                RvInstr32OpImmFunct3::Addi => reg.wrapping_add(instr.imm() as u32) as RvData,
 
-            RvInstr32OpImmFunct3::Sli => {
-                match instr.funct7().into() {
-                    // Shift Left Logical Immediate (`slli`) Instruction
-                    RvInstr32OpImmFunct7::Slli => reg.wrapping_shl(instr.shamt()) as RvData,
+                RvInstr32OpImmFunct3::Sli => {
+                    match instr.funct7().into() {
+                        // Shift Left Logical Immediate (`slli`) Instruction
+                        RvInstr32OpImmFunct7::Slli => reg.wrapping_shl(instr.shamt()) as RvData,
 
-                    // Count leading zeroes
-                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0000 => {
-                        reg.leading_zeros()
+                        // Illegal Instruction
+                        _ => Err(RvException::illegal_instr(instr.0))?,
                     }
-
-                    // Count trailing zeroes
-                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0001 => {
-                        reg.trailing_zeros()
-                    }
-
-                    // Count set bits
-                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0010 => {
-                        reg.count_ones()
-                    }
-
-                    // Sign-extend byte
-                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0100 => {
-                        reg as i8 as i32 as u32
-                    }
-
-                    // Sign-extend halfword
-                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0101 => {
-                        reg as i16 as i32 as u32
-                    }
-
-                    // Illegal Instruction
-                    _ => Err(RvException::illegal_instr(instr.0))?,
                 }
-            }
 
-            // Set Less Than Immediate (`slti`) Instruction
-            RvInstr32OpImmFunct3::Slti => {
-                if (reg as i32) < instr.imm() {
-                    1
-                } else {
-                    0
-                }
-            }
-
-            // Set Less Than Immediate Unsigned (`sltiu`) Instruction
-            RvInstr32OpImmFunct3::Sltiu => {
-                if reg < instr.imm() as u32 {
-                    1
-                } else {
-                    0
-                }
-            }
-
-            // Xor Immediate (`xori`) Instruction
-            RvInstr32OpImmFunct3::Xori => reg ^ instr.imm() as u32,
-
-            // Shift Right Immediate Instruction
-            RvInstr32OpImmFunct3::Sri => {
-                match instr.funct7().into() {
-                    // Shift Right Logical Immediate (`srli`) Instruction
-                    RvInstr32OpImmFunct7::Srli => reg.wrapping_shr(instr.shamt()) as RvData,
-
-                    // Shift Right Arithmetic Immediate (`srai`) Instruction
-                    RvInstr32OpImmFunct7::Srai => {
-                        (reg as i32).wrapping_shr(instr.shamt()) as RvData
+                // Set Less Than Immediate (`slti`) Instruction
+                RvInstr32OpImmFunct3::Slti => {
+                    if (reg as i32) < instr.imm() {
+                        1
+                    } else {
+                        0
                     }
-                    // Rotate Right Immediate (`rori`)
-                    RvInstr32OpImmFunct7::Bitmanip => reg.rotate_right(instr.shamt()),
-
-                    // Bitwise OR-Combine, byte granule
-                    RvInstr32OpImmFunct7::Orc if instr.funct5() == 0b0_0111 => {
-                        let reg_bytes = reg.to_le_bytes();
-                        u32::from_le_bytes(core::array::from_fn(|i| {
-                            if reg_bytes[i] != 0 {
-                                0xff
-                            } else {
-                                0x00
-                            }
-                        }))
-                    }
-
-                    // Byte-reverse register
-                    RvInstr32OpImmFunct7::Rev8 if instr.funct5() == 0b1_1000 => reg.swap_bytes(),
-
-                    // Illegal Instruction
-                    _ => Err(RvException::illegal_instr(instr.0))?,
                 }
+
+                // Set Less Than Immediate Unsigned (`sltiu`) Instruction
+                RvInstr32OpImmFunct3::Sltiu => {
+                    if reg < instr.imm() as u32 {
+                        1
+                    } else {
+                        0
+                    }
+                }
+
+                // Xor Immediate (`xori`) Instruction
+                RvInstr32OpImmFunct3::Xori => reg ^ instr.imm() as u32,
+
+                // Shift Right Immediate Instruction
+                RvInstr32OpImmFunct3::Sri => {
+                    match instr.funct7().into() {
+                        // Shift Right Logical Immediate (`srli`) Instruction
+                        RvInstr32OpImmFunct7::Srli => reg.wrapping_shr(instr.shamt()) as RvData,
+
+                        // Shift Right Arithmetic Immediate (`srai`) Instruction
+                        RvInstr32OpImmFunct7::Srai => {
+                            (reg as i32).wrapping_shr(instr.shamt()) as RvData
+                        }
+
+                        // Illegal Instruction
+                        _ => Err(RvException::illegal_instr(instr.0))?,
+                    }
+                }
+
+                // Or Immediate (`ori`) Instruction
+                RvInstr32OpImmFunct3::Ori => reg | instr.imm() as u32,
+
+                // And Immediate (`ori`) Instruction
+                RvInstr32OpImmFunct3::Andi => reg & instr.imm() as u32,
+
+                // Illegal Instruction
+                _ => Err(RvException::illegal_instr(instr.0))?,
             }
-
-            // Or Immediate (`ori`) Instruction
-            RvInstr32OpImmFunct3::Ori => reg | instr.imm() as u32,
-
-            // And Immediate (`ori`) Instruction
-            RvInstr32OpImmFunct3::Andi => reg & instr.imm() as u32,
-
-            // Illegal Instruction
-            _ => Err(RvException::illegal_instr(instr.0))?,
         };
 
         // Save the contents to register

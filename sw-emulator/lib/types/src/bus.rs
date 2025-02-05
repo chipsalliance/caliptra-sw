@@ -74,8 +74,4 @@ pub trait Bus {
     fn update_reset(&mut self) {
         // By default, do nothing
     }
-
-    fn handle_dma(&mut self) {
-        // By default, do nothing
-    }
 }

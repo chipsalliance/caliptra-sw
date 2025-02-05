@@ -20,8 +20,8 @@ use caliptra_drivers::Ecc384;
 use caliptra_drivers::Hmac;
 use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
+use caliptra_drivers::Sha2_512_384;
 use caliptra_drivers::Sha2_512_384Acc;
-use caliptra_drivers::Sha384;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use zeroize::Zeroize;
 
@@ -40,7 +40,7 @@ impl FipsModule {
             Ecc384::zeroize();
             Hmac::zeroize();
             Sha256::zeroize();
-            Sha384::zeroize();
+            Sha2_512_384::zeroize();
             Sha2_512_384Acc::zeroize();
 
             // Zeroize the key vault.
@@ -113,10 +113,11 @@ pub mod fips_self_test_cmd {
 
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
-            sha384: &mut env.sha384,
+            sha2_512_384: &mut env.sha2_512_384,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
-            data_vault: &mut env.data_vault,
+            mldsa87: &mut env.mldsa87,
+            data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: env.mbox.raw_mailbox_contents(),
         };
@@ -153,14 +154,14 @@ pub mod fips_self_test_cmd {
             // sha256
             sha256: &mut env.sha256,
 
-            // SHA2-384 Engine
-            sha384: &mut env.sha384,
+            // SHA2-512/384 Engine
+            sha2_512_384: &mut env.sha2_512_384,
 
             // SHA2-512/384 Accelerator
             sha2_512_384_acc: &mut env.sha2_512_384_acc,
 
-            // Hmac384 Engine
-            hmac384: &mut env.hmac384,
+            // Hmac-512/384 Engine
+            hmac: &mut env.hmac,
 
             /// Cryptographically Secure Random Number Generator
             trng: &mut env.trng,

@@ -130,7 +130,12 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
         }))
     }
     hw.boot(BootParams::default()).unwrap();
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     // Verify crypto operations can be performed
     // Verify the SHA engine is usable
@@ -226,7 +231,12 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
         hw = fips_test_init_model(None)
     }
     hw.boot(BootParams::default()).unwrap();
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     // Verify crypto operations can be performed
     // Verify the SHA engine is usable

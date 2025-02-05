@@ -162,6 +162,12 @@ pub mod tests {
         addi(XReg::X0, XReg::X0, 0)
     }
 
+    pub fn sign_extend(x: u32) -> u32 {
+        let x = x as i32;
+        let x = x | (-(((x) >> 11) & 1) << 11);
+        x as u32
+    }
+
     /// Encode Add Upper Immediate to program counter (`auipc`) instruction
     pub fn auipc(rd: XReg, imm: i32) -> u32 {
         let mut instr = RvInstr32U(0);
@@ -193,6 +199,124 @@ pub mod tests {
     op_instr!(rem, Six, Rem);
     op_instr!(and, Seven, And);
     op_instr!(remu, Seven, Remu);
+
+    // bit manipulation extension
+    op_instr!(sh1add, Two, Sh1add);
+    op_instr!(sh2add, Four, Sh1add);
+    op_instr!(sh3add, Six, Sh1add);
+    op_instr!(bset, One, Bset);
+    op_instr!(binv, One, Binv);
+    op_instr!(bclr, One, Bclr);
+    op_instr!(bext, Five, Bclr);
+    op_instr!(andn, Seven, Sub);
+    op_instr!(orn, Six, Sub);
+    op_instr!(xnor, Four, Sub);
+    op_instr!(max, Six, MinMaxClmul);
+    op_instr!(maxu, Seven, MinMaxClmul);
+    op_instr!(min, Four, MinMaxClmul);
+    op_instr!(minu, Five, MinMaxClmul);
+    op_instr!(rol, One, Rotate);
+    op_instr!(ror, Five, Rotate);
+    op_instr!(clmul, One, MinMaxClmul);
+    op_instr!(clmulh, Three, MinMaxClmul);
+    op_instr!(clmulr, Two, MinMaxClmul);
+    op_imm_instr!(bseti, Sli, Orc);
+    op_imm_instr!(binvi, Sli, Rev8);
+    op_imm_instr!(bclri, Sli, Bclr);
+    op_imm_instr!(bexti, Sri, Bclr);
+    op_imm_instr!(rori, Sri, Bitmanip);
+
+    pub fn clz(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x600);
+        instr.set_funct3(1);
+        instr.0
+    }
+
+    pub fn cpop(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x602);
+        instr.set_funct3(1);
+        instr.0
+    }
+
+    pub fn ctz(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x601);
+        instr.set_funct3(1);
+        instr.0
+    }
+
+    pub fn orc_b(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x287);
+        instr.set_funct3(5);
+        instr.0
+    }
+
+    pub fn rev8(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x698);
+        instr.set_funct3(5);
+        instr.0
+    }
+
+    pub fn sext_b(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x604);
+        instr.set_funct3(1);
+        instr.0
+    }
+
+    pub fn sext_h(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32I(0);
+        instr.set_opcode(RvInstr32Opcode::OpImm);
+        instr.set_rd(rd);
+        instr.set_rs(rs);
+        instr.set_imm(0x605);
+        instr.set_funct3(1);
+        instr.0
+    }
+
+    pub fn zext_h(rd: XReg, rs: XReg) -> u32 {
+        let mut instr = RvInstr32R(0);
+        instr.set_opcode(RvInstr32Opcode::Op);
+        instr.set_rd(rd);
+        instr.set_rs1(rs);
+        instr.set_rs2(XReg::X0);
+        instr.set_funct3(4);
+        instr.set_funct7(RvInstr32OpFunct7::Zext.into());
+        instr.0
+    }
+
+    // load immediate (first instruction)
+    pub fn li0(rd: XReg, imm: u32) -> u32 {
+        let v = (imm >> 12) + if imm & 0x800 == 0x800 { 1 } else { 0 };
+        lui(rd, v as i32)
+    }
+
+    // load immediate (second instruction)
+    pub fn li1(rd: XReg, imm: u32) -> u32 {
+        addi(rd, rd, (imm & 0xfff) as i32)
+    }
 
     /// Encode Load Upper Immediate (`lui`) instruction
     pub fn lui(rd: XReg, imm: i32) -> u32 {
@@ -236,4 +360,14 @@ pub mod tests {
     op_system_instr!(csrrwi, Csrrwi);
     op_system_instr!(csrrsi, Csrrsi);
     op_system_instr!(csrrci, Csrrci);
+
+    #[test]
+    fn test_sign_extend() {
+        for i in 0..0x800 {
+            assert_eq!(i, sign_extend(i));
+        }
+        for i in 0x800..0x1000 {
+            assert_eq!(0xffff_f000 | i, sign_extend(i));
+        }
+    }
 }
