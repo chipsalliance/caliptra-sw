@@ -117,6 +117,8 @@ impl CaliptraError {
     pub const DRIVER_MLDSA87_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00058003);
     pub const DRIVER_MLDSA87_SIGN_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x00058004);
+    pub const DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE: CaliptraError =
+        CaliptraError::new_const(0x00058005);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);

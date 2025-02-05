@@ -14,7 +14,7 @@ Abstract:
 #![allow(dead_code)]
 
 use crate::{
-    array::{Array4x1157, Array4x16, Array4x648, Array4x8},
+    array::{Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8},
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
@@ -35,6 +35,9 @@ pub enum Mldsa87Result {
 /// MLDSA-87 Public Key
 pub type Mldsa87PubKey = Array4x648;
 
+/// MLDSA-87 Private Key
+pub type Mldsa87PrivKey = Array4x1224;
+
 /// MLDSA-87 Signature
 pub type Mldsa87Signature = Array4x1157;
 
@@ -45,6 +48,40 @@ pub type Mldsa87Msg = Array4x16;
 pub type Mldsa87SignRnd = Array4x8;
 
 type Mldsa87VerifyRes = Array4x16;
+
+/// MLDSA-87 Seed
+#[derive(Debug, Copy, Clone)]
+pub enum Mldsa87Seed<'a> {
+    /// Array
+    Array4x8(&'a Array4x8),
+
+    /// Key Vault Key
+    Key(KeyReadArgs),
+
+    /// Private Key
+    PrivKey(&'a Mldsa87PrivKey),
+}
+
+impl<'a> From<&'a Array4x8> for Mldsa87Seed<'a> {
+    /// Converts to this type from the input type.
+    fn from(value: &'a Array4x8) -> Self {
+        Self::Array4x8(value)
+    }
+}
+
+impl From<KeyReadArgs> for Mldsa87Seed<'_> {
+    /// Converts to this type from the input type.
+    fn from(value: KeyReadArgs) -> Self {
+        Self::Key(value)
+    }
+}
+
+impl<'a> From<&'a Mldsa87PrivKey> for Mldsa87Seed<'a> {
+    /// Converts to this type from the input type.
+    fn from(value: &'a Mldsa87PrivKey) -> Self {
+        Self::PrivKey(value)
+    }
+}
 
 /// MLDSA-87  API
 pub struct Mldsa87 {
@@ -99,16 +136,18 @@ impl Mldsa87 {
     ///
     /// # Arguments
     ///
-    /// * `seed` - Key Vault slot containing the seed for deterministic MLDSA Key Pair generation.
+    /// * `seed` - Either an array of 4x8 bytes or a key vault key to use as seed.
     /// * `trng` - TRNG driver instance.
+    /// * `priv_key_out` - Optional output parameter to store the private key.
     ///
     /// # Returns
     ///
     /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
     pub fn key_pair(
         &mut self,
-        seed: &KeyReadArgs,
+        seed: &Mldsa87Seed,
         trng: &mut Trng,
+        priv_key_out: Option<&mut Mldsa87PrivKey>,
     ) -> CaliptraResult<Mldsa87PubKey> {
         let mldsa = self.mldsa87.regs_mut();
 
@@ -121,9 +160,15 @@ impl Mldsa87 {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
-        // Copy seed from keyvault
-        KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
-            .map_err(|err| err.into_read_seed_err())?;
+        // Copy seed to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(_) => Err(CaliptraError::DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE)?,
+        }
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
@@ -137,6 +182,11 @@ impl Mldsa87 {
 
         // Copy pubkey
         let pubkey = Mldsa87PubKey::read_from_reg(mldsa.pubkey());
+
+        // Copy private key if requested.
+        if let Some(priv_key) = priv_key_out {
+            *priv_key = Mldsa87PrivKey::read_from_reg(mldsa.privkey_out());
+        }
 
         // Clear the hardware when done
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -162,12 +212,13 @@ impl Mldsa87 {
     /// * `Mldsa87Signature` - Generated signature
     pub fn sign(
         &mut self,
-        seed: &KeyReadArgs,
+        seed: &Mldsa87Seed,
         pub_key: &Mldsa87PubKey,
         msg: &Mldsa87Msg,
         sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
     ) -> CaliptraResult<Mldsa87Signature> {
+        let mut gen_keypair = true;
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -179,9 +230,18 @@ impl Mldsa87 {
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
-        // Copy seed from keyvault
-        KvAccess::copy_from_kv(*seed, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
-            .map_err(|err| err.into_read_seed_err())?;
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+            }
+        }
 
         // Copy digest
         KvAccess::copy_from_arr(msg, mldsa.msg())?;
@@ -194,7 +254,15 @@ impl Mldsa87 {
         KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
 
         // Program the command register for key generation
-        mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen_sign()));
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+        });
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
