@@ -14,6 +14,7 @@ use caliptra_common::{
 use caliptra_drivers::{
     okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
     Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Mldsa87Seed,
 };
 
 pub enum Crypto {}
@@ -157,9 +158,11 @@ impl Crypto {
         Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
 
         // Generate the public key.
-        let pub_key = env
-            .mldsa
-            .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
+        let pub_key = env.mldsa.key_pair(
+            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            &mut env.trng,
+            None,
+        )?;
 
         Ok(MlDsaKeyPair {
             key_pair_seed,

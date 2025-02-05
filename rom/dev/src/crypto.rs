@@ -226,9 +226,11 @@ impl Crypto {
         Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
 
         // Generate the public key.
-        let pub_key = env
-            .mldsa87
-            .key_pair(&KeyReadArgs::new(key_pair_seed), &mut env.trng)?;
+        let pub_key = env.mldsa87.key_pair(
+            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            &mut env.trng,
+            None,
+        )?;
 
         Ok(MlDsaKeyPair {
             key_pair_seed,
@@ -260,9 +262,8 @@ impl Crypto {
     ) -> CaliptraResult<Mldsa87Signature> {
         let mut digest = env.sha2_512_384.sha512_digest(data);
         let digest = okmutref(&mut digest)?;
-        let priv_key_args = KeyReadArgs::new(priv_key);
         let result = env.mldsa87.sign(
-            &priv_key_args,
+            &Mldsa87Seed::Key(KeyReadArgs::new(priv_key)),
             pub_key,
             digest,
             &Mldsa87SignRnd::default(),
