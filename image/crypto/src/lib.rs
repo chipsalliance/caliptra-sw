@@ -708,7 +708,7 @@ mod tests {
 
         assert_eq!(
             sig,
-            ImageqLmsSignature {
+            ImageLmsSignature {
                 q: 5.into(),
                 ots: ImageLmOTSSignature {
                     ots_type: IMAGE_LMS_OTS_TYPE_8,
