@@ -90,10 +90,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("fmc-version")
         .with_context(|| "fmc-version arg not specified")?;
 
-    let fmc_svn: &u32 = args
-        .get_one::<u32>("fmc-svn")
-        .with_context(|| "fmc-svn arg not specified")?;
-
     let fmc_rev: &String = args
         .get_one::<String>("fmc-rev")
         .with_context(|| "fmc-rev arg not specified")?;
@@ -106,13 +102,13 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("rt-version")
         .with_context(|| "rt-version arg not specified")?;
 
-    let runtime_svn: &u32 = args
-        .get_one::<u32>("rt-svn")
-        .with_context(|| "rt-svn arg not specified")?;
-
     let runtime_rev: &String = args
         .get_one::<String>("rt-rev")
         .with_context(|| "rt-rev arg not specified")?;
+
+    let fw_svn: &u32 = args
+        .get_one::<u32>("fw-svn")
+        .with_context(|| "fw-svn arg not specified")?;
 
     let ecc_key_idx: &u32 = args
         .get_one::<u32>("ecc-pk-idx")
@@ -158,7 +154,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let fmc = ElfExecutable::open(
         fmc_path,
         *fmc_version,
-        *fmc_svn,
         fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 
@@ -166,7 +161,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime = ElfExecutable::open(
         runtime_path,
         *runtime_version,
-        *runtime_svn,
         runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 
@@ -197,6 +191,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         )?,
         fmc,
         runtime,
+        fw_svn: *fw_svn,
     };
 
     let gen = ImageGenerator::new(Crypto::default());

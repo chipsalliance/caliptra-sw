@@ -487,10 +487,10 @@ impl FirmwareProcessor {
                 .as_bytes(),
         )?;
 
-        // Log ManifestFmcSvn
+        // Log cold-boot FW SVN
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestFmcSvn,
+            FuseLogEntryId::ColdBootFwSvn,
             log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
@@ -501,7 +501,7 @@ impl FirmwareProcessor {
             log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log DeprecatedFuseFmcSvn (which is now the same as FuseRtSvn)
+        // Log DeprecatedFuseFmcSvn (which is now the same as FuseFwSvn)
         #[allow(deprecated)]
         log_fuse_data(
             log,
@@ -509,10 +509,10 @@ impl FirmwareProcessor {
             log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
-        // Log ManifestRtSvn
+        // Log ManifestFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestRtSvn,
+            FuseLogEntryId::ManifestFwSvn,
             log_info.fw_log_info.manifest_svn.as_bytes(),
         )?;
 
@@ -523,10 +523,10 @@ impl FirmwareProcessor {
             log_info.fw_log_info.reserved.as_bytes(),
         )?;
 
-        // Log FuseRtSvn
+        // Log FuseFwSvn
         log_fuse_data(
             log,
-            FuseLogEntryId::FuseRtSvn,
+            FuseLogEntryId::FuseFwSvn,
             log_info.fw_log_info.fuse_svn.as_bytes(),
         )?;
 
@@ -633,14 +633,14 @@ impl FirmwareProcessor {
         let manifest_address = &persistent_data.get().manifest1 as *const _ as u32;
         let data_vault = &mut persistent_data.get_mut().data_vault;
         data_vault.set_fmc_tci(&info.fmc.digest.into());
-        data_vault.set_fmc_svn(info.fw_svn);
+        data_vault.set_cold_boot_fw_svn(info.fw_svn);
         data_vault.set_fmc_entry_point(info.fmc.entry_point);
         data_vault.set_owner_pk_hash(&info.owner_pub_keys_digest.into());
         data_vault.set_vendor_ecc_pk_index(info.vendor_ecc_pub_key_idx);
         data_vault.set_vendor_pqc_pk_index(info.vendor_pqc_pub_key_idx);
         data_vault.set_rt_tci(&info.runtime.digest.into());
-        data_vault.set_rt_svn(info.fw_svn);
-        data_vault.set_rt_min_svn(info.fw_svn);
+        data_vault.set_fw_svn(info.fw_svn);
+        data_vault.set_fw_min_svn(info.fw_svn);
         data_vault.set_rt_entry_point(info.runtime.entry_point);
         data_vault.set_manifest_addr(manifest_address);
 

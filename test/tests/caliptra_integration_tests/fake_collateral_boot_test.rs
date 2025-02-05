@@ -52,8 +52,7 @@ fn fake_boot_test() {
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
@@ -70,8 +69,7 @@ fn fake_boot_test() {
             fuses: Fuses {
                 vendor_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash,
-                fmc_key_manifest_svn: 0b1111111,
-                runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -250,9 +248,9 @@ fn fake_boot_test() {
             owner_pub_key_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: FMC_CANNED_DIGEST,
-            fmc_svn: image.manifest.fmc.svn,
+            fw_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
-            fmc_fuse_svn: 7,
+            fw_fuse_svn: 7,
             lms_vendor_pub_key_index: u32::MAX,
             pqc_key_type: 0, // RomVerifyConfig::EcdsaOnly
         }),

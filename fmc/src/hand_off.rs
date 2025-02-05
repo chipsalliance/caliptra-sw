@@ -154,9 +154,9 @@ impl HandOff {
         env.persistent_data.get().data_vault.rt_tci()
     }
 
-    /// Retrieve runtime SVN.
-    pub fn rt_svn(env: &FmcEnv) -> u32 {
-        env.persistent_data.get().data_vault.rt_svn()
+    /// Retrieve firmware SVN.
+    pub fn fw_svn(env: &FmcEnv) -> u32 {
+        env.persistent_data.get().data_vault.fw_svn()
     }
 
     /// Store runtime Dice Signature

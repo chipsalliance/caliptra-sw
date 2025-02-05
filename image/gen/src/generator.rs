@@ -59,12 +59,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Create FMC TOC & Content
         let id = ImageTocEntryId::Fmc;
         let offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
-        let (fmc_toc, fmc) = self.gen_image(&config.fmc, id, offset)?;
+        let (fmc_toc, fmc) = self.gen_image(config, id, offset)?;
 
         // Create Runtime TOC & Content
         let id = ImageTocEntryId::Runtime;
         let offset = offset + fmc_toc.size;
-        let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
+        let (runtime_toc, runtime) = self.gen_image(config, id, offset)?;
 
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
@@ -363,7 +363,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             flags: Self::DEFAULT_FLAGS,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
-            svn: config.runtime.svn(),
+            svn: config.fw_svn,
             ..Default::default()
         };
 
@@ -423,13 +423,18 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     /// Generate image
     fn gen_image<E>(
         &self,
-        image: &E,
+        config: &ImageGeneratorConfig<E>,
         id: ImageTocEntryId,
         offset: u32,
     ) -> anyhow::Result<(ImageTocEntry, Vec<u8>)>
     where
         E: ImageGeneratorExecutable,
     {
+        let image = match id {
+            ImageTocEntryId::Fmc => &config.fmc,
+            ImageTocEntryId::Runtime => &config.runtime,
+        };
+
         let r#type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 

@@ -24,9 +24,6 @@ pub trait ImageGeneratorExecutable {
     /// Executable Version Number
     fn version(&self) -> u32;
 
-    /// Executable Security Version Number
-    fn svn(&self) -> u32;
-
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
 
@@ -149,4 +146,6 @@ where
     pub fmc: T,
 
     pub runtime: T,
+
+    pub fw_svn: u32,
 }
