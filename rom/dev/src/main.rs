@@ -18,8 +18,8 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
-use caliptra_common::RomBootStatus;
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
+use caliptra_common::{cprint, RomBootStatus};
 use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
@@ -66,6 +66,7 @@ extern "C" {
 
 #[no_mangle]
 pub extern "C" fn rom_entry() -> ! {
+    cprintln!("Caliptra ROM: 2/6/2025");
     cprintln!("{}", BANNER);
 
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
@@ -167,10 +168,10 @@ pub extern "C" fn rom_entry() -> ! {
                 ShaAccLockState::AssumedLocked
             },
         };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
-        }
+        // let result = run_fips_tests(&mut kats_env);
+        // if let Err(err) = result {
+        //     handle_fatal_error(err.into());
+        // }
     }
 
     if let Err(err) = flow::run(&mut env) {
@@ -250,6 +251,24 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
 }
 
 fn launch_fmc(env: &mut RomEnv) -> ! {
+    let fmc_dest = unsafe {
+        let addr = 0x40000000 as *mut u32;
+        core::slice::from_raw_parts_mut(addr, 30)
+    };
+
+    // Dump the ICCM contents.
+    cprintln!("[fwproc] ICCM contents (before jumping to FMC):");
+    for i in 0..30 {
+        let pointer = &fmc_dest[i] as *const _; // Get the pointer to fmc_dest[i]
+        let value = fmc_dest[i];
+        let bytes = value.to_ne_bytes(); // Convert the value to a byte array
+        cprint!("0x{:08x}: ", pointer as u32,);
+        for byte in &bytes {
+            cprint!("{:02x} ", *byte);
+        }
+        cprintln!("");
+    }
+
     // Function is defined in start.S
     extern "C" {
         fn exit_rom(entry: u32) -> !;

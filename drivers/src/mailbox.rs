@@ -298,15 +298,39 @@ impl<'a> MailboxRecvPeek<'a> {
 
 /// Mailbox Fifo abstraction
 mod fifo {
+    use crate::cprint;
+
     use super::*;
 
-    fn dequeue_words(mbox: &mut MboxCsr, buf: &mut [Unalign<u32>]) {
+    fn dequeue_words(mbox: &mut MboxCsr, buf: &mut [Unalign<u32>]) -> (u32, u32) {
+        let mut dwords_read: u32 = 0;
+
+        let pointer = (&buf[0] as *const _) as usize;
+        let is_fmc = if pointer == 0x40000000 { true } else { false };
+
+        let mut count = 32;
         let mbox = mbox.regs_mut();
         for word in buf.iter_mut() {
-            *word = Unalign::new(mbox.dataout().read());
+            let tmp = mbox.dataout().read();
+            dwords_read += 1;
+
+            if is_fmc && count > 0 {
+                let pointer = word as *const _;
+                let bytes = (tmp as u32).to_ne_bytes();
+                cprint!("0x{:08x}: ", pointer as u32,);
+                cprint!("[Mailbox Bytes] ");
+                for byte in &bytes {
+                    cprint!("{:02x} ", *byte);
+                }
+                cprint!("\n");
+                count -= 1;
+            }
+            *word = Unalign::new(tmp);
         }
+        let mbox_ptr = mbox.status().read().mbox_rdptr();
+        (dwords_read, mbox_ptr)
     }
-    pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) {
+    pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) -> (u32, u32) {
         let dlen_bytes = mbox.regs().dlen().read() as usize;
         if dlen_bytes < buf.len() {
             buf = &mut buf[..dlen_bytes];
@@ -316,7 +340,7 @@ mod fifo {
         let (mut buf_words, suffix) =
             LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words).unwrap();
 
-        dequeue_words(mbox, &mut buf_words);
+        let (dwords_read, mbox_ptr) = dequeue_words(mbox, &mut buf_words);
         if !suffix.is_empty() {
             let last_word = mbox.regs().dataout().read();
             let suffix_len = suffix.len();
@@ -324,6 +348,7 @@ mod fifo {
                 .as_bytes_mut()
                 .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
         }
+        (dwords_read, mbox_ptr)
     }
 
     fn enqueue_words(mbox: &mut MboxCsr, buf: &[Unalign<u32>]) {
@@ -426,15 +451,15 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Status of Operation
     ///
-    pub fn copy_request(&mut self, data: &mut [u8]) -> CaliptraResult<()> {
+    pub fn copy_request(&mut self, data: &mut [u8]) -> CaliptraResult<(u32, u32)> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
-        fifo::dequeue(self.mbox, data);
+        let (dwords_read, mbox_ptr) = fifo::dequeue(self.mbox, data);
         if mailbox_uncorrectable_ecc() {
             return Err(CaliptraError::DRIVER_MAILBOX_UNCORRECTABLE_ECC);
         }
-        Ok(())
+        Ok((dwords_read, mbox_ptr))
     }
 
     /// Pulls at most `(data.len() + 3) / 4` words from the mailbox FIFO.

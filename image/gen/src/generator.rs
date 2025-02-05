@@ -16,6 +16,7 @@ use caliptra_image_types::*;
 use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
+use std::io::{self, Read};
 use zerocopy::AsBytes;
 
 use crate::*;
@@ -47,6 +48,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGeneratorExecutable,
     {
+        println!("Manifest Size: {}", core::mem::size_of::<ImageManifest>());
         let image_size =
             IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size();
         if image_size > IMAGE_BYTE_SIZE as u32 {
@@ -127,6 +129,14 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             fmc: fmc_toc,
             runtime: runtime_toc,
         };
+
+        println!("FMC");
+        for i in 0..fmc.len() {
+            print!("{:02x} ", fmc[i]);
+        }
+        println!("FMC - End");
+        let mut buffer = [0; 1];
+        io::stdin().read_exact(&mut buffer).unwrap();
 
         // Create Image Bundle
         let image = ImageBundle {

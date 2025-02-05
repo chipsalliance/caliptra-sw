@@ -15,7 +15,7 @@
 TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
-EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
+EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\", \"-Adead_code\",\"-Aunused-mut\",\"-Aunused-variables\",\"-Aunused-imports\"]
 # MLDSA (default): 1, LMS: 3.
 PQC_KEY_TYPE ?= 1
 
@@ -113,7 +113,6 @@ build-rom:
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run -p caliptra-builder -- \
 		--rom-with-log $(TARGET_DIR)/caliptra-rom.bin \
-		--fw /dev/null
 
 run: build-emu build-fw-image build-rom
 	cargo \

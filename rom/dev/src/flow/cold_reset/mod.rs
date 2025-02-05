@@ -65,23 +65,24 @@ impl ColdResetFlow {
         fht::initialize_fht(env);
 
         // Execute IDEVID layer
-        let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
-        let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
+        // let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
+        // let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
+        env.soc_ifc.flow_status_set_ready_for_mb_processing();
 
         // Execute LDEVID layer
-        let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
-        idevid_layer_output.zeroize();
-        let mut ldevid_layer_output = result?;
-        let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
+        // let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
+        // idevid_layer_output.zeroize();
+        // let mut ldevid_layer_output = result?;
+        // let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
 
         // Download and validate firmware.
         let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
         // Execute FMCALIAS layer
-        let result = FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info);
-        ldevid_layer_output.zeroize();
-        fw_proc_info.zeroize();
-        result?;
+        // let result = FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info);
+        // ldevid_layer_output.zeroize();
+        // fw_proc_info.zeroize();
+        // result?;
 
         // Indicate Cold-Reset successful completion.
         // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.

@@ -409,7 +409,13 @@ impl FirmwareProcessor {
             }
             manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
         } else {
-            txn.copy_request(manifest.as_bytes_mut())?;
+            let (dwords_read, mbox_ptr) = txn.copy_request(manifest.as_bytes_mut())?;
+            cprintln!(
+                "Manifest loaded: Size: {:?}, DWORD reads from mailbox: {:?}, Current mbox_ptr: {:?}",
+				size_of::<ImageManifest>(),
+                dwords_read,
+                mbox_ptr
+            );
         }
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
@@ -586,6 +592,20 @@ impl FirmwareProcessor {
                 core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
             };
             txn.copy_request(fmc_dest.as_bytes_mut())?;
+
+            // Dump the ICCM contents.
+            cprintln!("[fwproc] ICCM contents (After copying to ICCM):");
+            for i in 0..30 {
+                let pointer = &fmc_dest[i] as *const _; // Get the pointer to fmc_dest[i]
+                let value = fmc_dest[i];
+                let bytes = value.to_ne_bytes(); // Convert the value to a byte array
+                cprint!("0x{:08x}: ", pointer as u32,);
+                cprint!("[Target Bytes] ");
+                for byte in &bytes {
+                    cprint!("{:02x} ", *byte);
+                }
+                cprintln!("");
+            }
         }
 
         cprintln!(

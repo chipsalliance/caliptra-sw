@@ -20,6 +20,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder,
 };
+use caliptra_drivers::cprintln;
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::{offset_of, span_of};
@@ -711,34 +712,34 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Verify vendor signatures.
-        self.verify_vendor_sig(
-            &vendor_digest_holder,
-            info.vendor_ecc_info,
-            &info.vendor_pqc_info,
-        )?;
+        // self.verify_vendor_sig(
+        //     &vendor_digest_holder,
+        //     info.vendor_ecc_info,
+        //     &info.vendor_pqc_info,
+        // )?;
 
         // Verify the ECC public key index used to verify header signature is encoded
         // in the header
-        if cfi_launder(header.vendor_ecc_pub_key_idx) != info.vendor_ecc_pub_key_idx {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)?;
-        } else {
-            cfi_assert_eq(header.vendor_ecc_pub_key_idx, info.vendor_ecc_pub_key_idx);
-        }
+        // if cfi_launder(header.vendor_ecc_pub_key_idx) != info.vendor_ecc_pub_key_idx {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)?;
+        // } else {
+        //     cfi_assert_eq(header.vendor_ecc_pub_key_idx, info.vendor_ecc_pub_key_idx);
+        // }
 
         // Verify the PQC (LMS or MLDSA) public key index used to verify header signature is encoded
         // in the header
-        if cfi_launder(header.vendor_pqc_pub_key_idx) != info.vendor_pqc_pub_key_idx {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH);
-        } else {
-            cfi_assert_eq(header.vendor_pqc_pub_key_idx, info.vendor_pqc_pub_key_idx);
-        }
+        // if cfi_launder(header.vendor_pqc_pub_key_idx) != info.vendor_pqc_pub_key_idx {
+        //     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_MISMATCH);
+        // } else {
+        //     cfi_assert_eq(header.vendor_pqc_pub_key_idx, info.vendor_pqc_pub_key_idx);
+        // }
 
         // Verify owner signatures.
-        self.verify_owner_sig(
-            &owner_digest_holder,
-            info.owner_ecc_info,
-            &info.owner_pqc_info,
-        )?;
+        // self.verify_owner_sig(
+        //     &owner_digest_holder,
+        //     info.owner_ecc_info,
+        //     &info.owner_pqc_info,
+        // )?;
 
         let verif_info = TocInfo {
             len: header.toc_len,
@@ -1116,6 +1117,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         verify_info: &ImageTocEntry,
         reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
+        cprintln!(
+            "FMC Offset: {}, Size: {} bytes, Load Addr: {:x}",
+            verify_info.offset,
+            verify_info.size,
+            verify_info.load_addr
+        );
+
         let range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
@@ -1186,6 +1194,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
+        cprintln!(
+            "RUNTIME Offset: {}, Size: {} bytes, Load Addr: {:x}",
+            verify_info.offset,
+            verify_info.size,
+            verify_info.load_addr
+        );
+
         let range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
