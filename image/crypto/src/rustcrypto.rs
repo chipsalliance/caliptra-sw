@@ -17,7 +17,9 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context};
 
-use caliptra_image_gen::{ImageGeneratorCrypto, ImageGeneratorHasher};
+use caliptra_image_gen::{
+    from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
+};
 use caliptra_image_types::*;
 
 use {
@@ -28,7 +30,7 @@ use {
     sha2::{Digest, Sha256, Sha384, Sha512},
 };
 
-use crate::{from_hw_format, sign_with_lms_key, to_hw_format, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
+use crate::{sign_with_lms_key, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
 
 #[derive(Default)]
 pub struct RustCrypto {}
@@ -123,18 +125,6 @@ impl ImageGeneratorCrypto for RustCrypto {
         let mut engine = Sha512::new();
         engine.update(data);
         Ok(to_hw_format(&engine.finalize()))
-    }
-
-    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
-        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
-    }
-
-    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
-        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
     }
 }
 

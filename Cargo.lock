@@ -607,10 +607,8 @@ dependencies = [
  "chrono",
  "clap",
  "hex",
- "openssl",
  "serde",
  "serde_derive",
- "sha2",
  "toml 0.7.3",
  "zerocopy",
 ]

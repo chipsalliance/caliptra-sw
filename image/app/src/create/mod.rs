@@ -27,10 +27,6 @@ use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
 use hex::ToHex;
-#[cfg(feature = "openssl")]
-use openssl::sha::sha384;
-#[cfg(feature = "rustcrypto")]
-use sha2::{Digest, Sha384};
 use std::path::Path;
 use std::path::PathBuf;
 use zerocopy::AsBytes;
@@ -387,19 +383,20 @@ fn owner_config(
     }
 }
 
-#[cfg(feature = "rustcrypto")]
-fn sha384(data: &[u8]) -> [u8; 48] {
-    let mut hasher = Sha384::new();
-    hasher.update(data);
-    let result = hasher.finalize();
-    let mut hash = [0u8; 48];
-    hash.copy_from_slice(&result);
-    hash
-}
-
 // Returns the vendor public key descriptor and owner public key hashes from the image.
 pub fn image_pk_desc_hash(manifest: &ImageManifest) -> (String, String) {
-    let vendor_pk_desc_hash = sha384(manifest.preamble.vendor_pub_key_info.as_bytes()).encode_hex();
-    let owner_pk_hash = sha384(manifest.preamble.owner_pub_keys.as_bytes()).encode_hex();
+    let crypto = Crypto::default();
+    let vendor_pk_desc_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.vendor_pub_key_info.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
+    let owner_pk_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.owner_pub_keys.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
     (vendor_pk_desc_hash, owner_pk_hash)
 }

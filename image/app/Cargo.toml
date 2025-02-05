@@ -16,14 +16,12 @@ caliptra-image-types = { workspace = true, features = ["std"] }
 chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
-openssl = { workspace = true, optional = true }
 serde_derive.workspace = true
 serde.workspace = true
-sha2 = { workspace = true, optional = true }
 toml.workspace = true
 zerocopy.workspace = true
 
 [features]
 default = ["openssl"]
-openssl = ["caliptra-image-crypto/openssl", "dep:openssl"]
-rustcrypto = ["caliptra-image-crypto/rustcrypto", "dep:sha2"]
+openssl = ["caliptra-image-crypto/openssl"]
+rustcrypto = ["caliptra-image-crypto/rustcrypto"]
