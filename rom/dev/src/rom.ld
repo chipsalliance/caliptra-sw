@@ -20,9 +20,9 @@ ROM_ORG          = 0x00000000;
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;
 DATA_ORG         = 0x50000000;
-STACK_ORG        = 0x5001C000;
-ESTACK_ORG       = 0x5001F800;
-NSTACK_ORG       = 0x5001FC00;
+STACK_ORG        = 0x50030000;
+ESTACK_ORG       = 0x5003F400;
+NSTACK_ORG       = 0x5003F800;
 
 CFI_STATE_ORG      = 0x500003E4;
 
@@ -32,11 +32,11 @@ CFI_STATE_ORG      = 0x500003E4;
  * ensure that the sections fit within the true 48k ROM size.
  */
 ROM_RELAXATION_PADDING = 8k;
-ROM_SIZE          = 48K;
-ICCM_SIZE         = 128K;
-DCCM_SIZE         = 128K;
+ROM_SIZE          = 96K;
+ICCM_SIZE         = 256K;
+DCCM_SIZE         = 256K;
 DATA_SIZE         = 996;
-STACK_SIZE        = 14K;
+STACK_SIZE        = 61K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
 

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, CaliptraError, CaliptraResult, Sha384};
+use crate::{Array4x12, CaliptraError, CaliptraResult, Sha2_512_384};
 use caliptra_registers::pv::PvReg;
 
 /// PCR Identifier
@@ -263,7 +263,12 @@ impl PcrBank {
     /// * `sha`  - SHA2-384 Engine
     /// * `data` - Data to extend
     ///
-    pub fn extend_pcr(&self, id: PcrId, sha: &mut Sha384, data: &[u8]) -> CaliptraResult<()> {
-        sha.pcr_extend(id, data)
+    pub fn extend_pcr(
+        &self,
+        id: PcrId,
+        sha2: &mut Sha2_512_384,
+        data: &[u8],
+    ) -> CaliptraResult<()> {
+        sha2.pcr_extend(id, data)
     }
 }

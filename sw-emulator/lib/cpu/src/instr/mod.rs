@@ -16,6 +16,7 @@ References:
 --*/
 
 mod auipc;
+mod bit;
 mod branch;
 mod compression;
 mod fence;

@@ -6,7 +6,7 @@ fail-fast = false
 slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.nightly.overrides]]
-filter = 'test(test_generate_csr_stress)'
+filter = 'test(test_generate_csr_envelop_stress)'
 slow-timeout = { period = "30s", terminate-after = 140 }
 
 [[profile.nightly.overrides]]

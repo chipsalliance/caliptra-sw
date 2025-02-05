@@ -536,7 +536,7 @@ impl HashSha512Regs {
             // Copy the hash to the PCR if this is the last block and PCR_HASH_EXTEND is set.
             let pcr_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
             self.key_vault
-                .write_pcr(pcr_id, array_ref![self.hash.data(), 0, KeyVault::KEY_SIZE])
+                .write_pcr(pcr_id, array_ref![self.hash.data(), 0, KeyVault::PCR_SIZE])
                 .unwrap();
 
             self.block_read_ctrl
@@ -560,10 +560,12 @@ impl HashSha512Regs {
         // Clear the block
         self.block.fill(0);
 
-        let result: Result<[u8; KeyVault::KEY_SIZE], BusError> = if pcr_hash_extend == 0 {
-            let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
-            self.key_vault.read_key(key_id, key_usage)
+        let result: Result<[u8; KeyVault::PCR_SIZE], BusError> = if pcr_hash_extend == 0 {
+            let key_usage = KeyUsage::default();
+            match self.key_vault.read_key(key_id, key_usage) {
+                Err(x) => Err(x),
+                Ok(x) => Ok(x[..KeyVault::PCR_SIZE].try_into().unwrap()),
+            }
         } else {
             Ok(self.key_vault.read_pcr(key_id))
         };
@@ -582,8 +584,8 @@ impl HashSha512Regs {
         if let Some(data) = data {
             if pcr_hash_extend != 0 {
                 // Copy the PCR (48 bytes) to the block registers.
-                self.block[..KeyVault::KEY_SIZE / 4].copy_from_slice(&words_from_bytes_le(
-                    &<[u8; KeyVault::KEY_SIZE]>::try_from(&data[..KeyVault::KEY_SIZE]).unwrap(),
+                self.block[..KeyVault::PCR_SIZE / 4].copy_from_slice(&words_from_bytes_le(
+                    &<[u8; KeyVault::PCR_SIZE]>::try_from(&data[..KeyVault::PCR_SIZE]).unwrap(),
                 ));
                 self.pcr_present = true;
             } else {
@@ -603,13 +605,12 @@ impl HashSha512Regs {
     ///
     /// # Arguments
     ///
-    /// * `data_len` - Size of the data
     /// * `data` - Data to hash. This is in big-endian format.
     ///
     /// # Error
     ///
     /// * `None`
-    fn format_block(&mut self, data: &[u8; KeyVault::KEY_SIZE]) {
+    fn format_block(&mut self, data: &[u8]) {
         let mut block_arr = [0u8; SHA512_BLOCK_SIZE];
 
         block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
@@ -890,8 +891,7 @@ mod tests {
             let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
             block[..data.len()].copy_from_slice(data);
             block.to_big_endian(); // Keys are stored in big-endian format.
-            let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            let key_usage = KeyUsage::default();
 
             key_vault
                 .write_key(block_id, &block, u32::from(key_usage))
@@ -950,8 +950,7 @@ mod tests {
 
         if hash_to_kv {
             // Instruct hash to be written to the key-vault.
-            let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            let key_usage = KeyUsage::default();
             let hash_ctrl = InMemoryRegister::<u32, HashWriteControl::Register>::new(0);
             hash_ctrl.modify(
                 HashWriteControl::KEY_ID.val(hash_id)
@@ -1078,8 +1077,7 @@ mod tests {
 
         let mut hash_le: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
         if hash_to_kv {
-            let mut key_usage = KeyUsage::default();
-            key_usage.set_sha_data(true);
+            let key_usage = KeyUsage::default();
             hash_le[..KeyVault::KEY_SIZE]
                 .copy_from_slice(&sha512.key_vault.read_key(hash_id, key_usage).unwrap()[..]);
         } else {
@@ -1169,34 +1167,8 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_kv_block_read() {
-        let test_block: [u8; KeyVault::KEY_SIZE] = [
-            0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
-            0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
-            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
-            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
-        ];
-
-        let expected: [u8; SHA384_HASH_SIZE] = [
-            0x4a, 0x8a, 0x78, 0xb1, 0xa0, 0xa, 0x13, 0x33, 0xfc, 0x92, 0x32, 0x2f, 0xad, 0xd2,
-            0x47, 0x47, 0xf2, 0xcd, 0x2f, 0x1, 0x8e, 0xff, 0xa3, 0x61, 0xff, 0x13, 0x33, 0x10,
-            0x5b, 0x86, 0x6a, 0xc9, 0x39, 0xea, 0xd2, 0x67, 0x2b, 0xdb, 0xba, 0x4e, 0x18, 0x1c,
-            0xb3, 0x4f, 0xb7, 0xeb, 0xa4, 0xf6,
-        ];
-
-        for key_id in 0..KeyVault::KEY_COUNT {
-            test_sha(
-                &test_block,
-                &expected,
-                Sha512Mode::Sha384,
-                &[KeyVaultAction::BlockFromVault(key_id)],
-            );
-        }
-    }
-
-    #[test]
     fn test_sha384_kv_block_read_fail() {
-        let test_block: [u8; KeyVault::KEY_SIZE] = [
+        let test_block: [u8; SHA384_HASH_SIZE] = [
             0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
             0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
             0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
@@ -1238,34 +1210,8 @@ mod tests {
     }
 
     #[test]
-    fn test_sha384_kv_hash_write() {
-        let test_block: [u8; KeyVault::KEY_SIZE] = [
-            0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
-            0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
-            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
-            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
-        ];
-
-        let expected: [u8; SHA384_HASH_SIZE] = [
-            0x4a, 0x8a, 0x78, 0xb1, 0xa0, 0xa, 0x13, 0x33, 0xfc, 0x92, 0x32, 0x2f, 0xad, 0xd2,
-            0x47, 0x47, 0xf2, 0xcd, 0x2f, 0x1, 0x8e, 0xff, 0xa3, 0x61, 0xff, 0x13, 0x33, 0x10,
-            0x5b, 0x86, 0x6a, 0xc9, 0x39, 0xea, 0xd2, 0x67, 0x2b, 0xdb, 0xba, 0x4e, 0x18, 0x1c,
-            0xb3, 0x4f, 0xb7, 0xeb, 0xa4, 0xf6,
-        ];
-
-        for key_id in 0..8 {
-            test_sha(
-                &test_block,
-                &expected,
-                Sha512Mode::Sha384,
-                &[KeyVaultAction::HashToVault(key_id)],
-            );
-        }
-    }
-
-    #[test]
     fn test_sha384_kv_hash_write_fail() {
-        let test_block: [u8; KeyVault::KEY_SIZE] = [
+        let test_block: [u8; SHA384_HASH_SIZE] = [
             0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
             0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
             0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
@@ -1292,36 +1238,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_sha384_kv_block_read_hash_write() {
-        let test_block: [u8; KeyVault::KEY_SIZE] = [
-            0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
-            0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
-            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
-            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
-        ];
-
-        let expected: [u8; SHA384_HASH_SIZE] = [
-            0x4a, 0x8a, 0x78, 0xb1, 0xa0, 0xa, 0x13, 0x33, 0xfc, 0x92, 0x32, 0x2f, 0xad, 0xd2,
-            0x47, 0x47, 0xf2, 0xcd, 0x2f, 0x1, 0x8e, 0xff, 0xa3, 0x61, 0xff, 0x13, 0x33, 0x10,
-            0x5b, 0x86, 0x6a, 0xc9, 0x39, 0xea, 0xd2, 0x67, 0x2b, 0xdb, 0xba, 0x4e, 0x18, 0x1c,
-            0xb3, 0x4f, 0xb7, 0xeb, 0xa4, 0xf6,
-        ];
-
-        for key_id in 0..KeyVault::KEY_COUNT {
-            test_sha(
-                &test_block,
-                &expected,
-                Sha512Mode::Sha384,
-                &[
-                    KeyVaultAction::BlockFromVault(key_id),
-                    KeyVaultAction::HashToVault((key_id + 1) % KeyVault::KEY_COUNT),
-                ],
-            );
-        }
-    }
-
-    fn test_pcr_hash_extend(data: &[u8], pcr_data: &mut [u8; KeyVault::KEY_SIZE], expected: &[u8]) {
+    fn test_pcr_hash_extend(data: &[u8], pcr_data: &mut [u8; SHA384_HASH_SIZE], expected: &[u8]) {
         // Prime the PCR vault.
         let clock = Clock::new();
         let pcr_id = 0;

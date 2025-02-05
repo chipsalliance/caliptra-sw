@@ -45,3 +45,4 @@ caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-test.workspace = true
 openssl.workspace = true
+caliptra_common.workspace = true

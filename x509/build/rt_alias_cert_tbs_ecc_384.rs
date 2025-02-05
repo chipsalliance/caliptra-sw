@@ -7,7 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-pub struct RtAliasCertTbsParams<'a> {
+pub struct RtAliasCertTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
     pub issuer_sn: &'a [u8; 64usize],
@@ -18,9 +18,9 @@ pub struct RtAliasCertTbsParams<'a> {
     pub ueid: &'a [u8; 17usize],
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
-    pub tcb_info_rt_svn: &'a [u8; 1usize],
+    pub tcb_info_fw_svn: &'a [u8; 1usize],
 }
-impl<'a> RtAliasCertTbsParams<'a> {
+impl<'a> RtAliasCertTbsEcc384Params<'a> {
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;
@@ -31,12 +31,12 @@ impl<'a> RtAliasCertTbsParams<'a> {
     pub const UEID_LEN: usize = 17usize;
     pub const NOT_BEFORE_LEN: usize = 15usize;
     pub const NOT_AFTER_LEN: usize = 15usize;
-    pub const TCB_INFO_RT_SVN_LEN: usize = 1usize;
+    pub const TCB_INFO_FW_SVN_LEN: usize = 1usize;
 }
-pub struct RtAliasCertTbs {
+pub struct RtAliasCertTbsEcc384 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
-impl RtAliasCertTbs {
+impl RtAliasCertTbsEcc384 {
     const PUBLIC_KEY_OFFSET: usize = 321usize;
     const SUBJECT_SN_OFFSET: usize = 234usize;
     const ISSUER_SN_OFFSET: usize = 89usize;
@@ -47,7 +47,7 @@ impl RtAliasCertTbs {
     const UEID_OFFSET: usize = 476usize;
     const NOT_BEFORE_OFFSET: usize = 157usize;
     const NOT_AFTER_OFFSET: usize = 174usize;
-    const TCB_INFO_RT_SVN_OFFSET: usize = 510usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 510usize;
     const PUBLIC_KEY_LEN: usize = 97usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
@@ -58,7 +58,7 @@ impl RtAliasCertTbs {
     const UEID_LEN: usize = 17usize;
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
-    const TCB_INFO_RT_SVN_LEN: usize = 1usize;
+    const TCB_INFO_FW_SVN_LEN: usize = 1usize;
     pub const TBS_TEMPLATE_LEN: usize = 649usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
         48u8, 130u8, 2u8, 133u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
@@ -106,7 +106,7 @@ impl RtAliasCertTbs {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8,
     ];
-    pub fn new(params: &RtAliasCertTbsParams) -> Self {
+    pub fn new(params: &RtAliasCertTbsEcc384Params) -> Self {
         let mut template = Self {
             tbs: Self::TBS_TEMPLATE,
         };
@@ -122,7 +122,7 @@ impl RtAliasCertTbs {
     pub fn tbs(&self) -> &[u8] {
         &self.tbs
     }
-    fn apply(&mut self, params: &RtAliasCertTbsParams) {
+    fn apply(&mut self, params: &RtAliasCertTbsEcc384Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
             buf: &mut [u8; 649usize],
@@ -167,9 +167,9 @@ impl RtAliasCertTbs {
             &mut self.tbs,
             params.not_after,
         );
-        apply_slice::<{ Self::TCB_INFO_RT_SVN_OFFSET }, { Self::TCB_INFO_RT_SVN_LEN }>(
+        apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
-            params.tcb_info_rt_svn,
+            params.tcb_info_fw_svn,
         );
     }
 }

@@ -14,6 +14,8 @@ use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
 };
 
+use crate::helpers;
+
 const PUB_KEY_X: [u8; 48] = [
     0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B, 0x6B,
     0x53, 0x87, 0xB3, 0x4D, 0xA2, 0x18, 0x76, 0x07, 0xC1, 0xAD, 0x0A, 0x4D, 0x1A, 0x8C, 0x2E, 0x41,
@@ -93,152 +95,194 @@ fn test_fake_rom_production_enabled() {
     .unwrap();
 
     // Wait for ready for FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 }
 
 #[test]
 fn test_fake_rom_fw_load() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    // Build the image we are going to send to ROM to load
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    // Upload the FW once ROM is at the right point
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    // Keep going until we launch FMC
-    hw.step_until_output_contains("[exit] Launching FMC")
+        // Build the image we are going to send to ROM to load
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &FAKE_TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
         .unwrap();
 
-    // Make sure we actually get into FMC
-    hw.step_until_output_contains("Running Caliptra FMC")
-        .unwrap();
+        // Upload the FW once ROM is at the right point
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        // Keep going until we launch FMC
+        hw.step_until_output_contains("[exit] Launching FMC")
+            .unwrap();
+
+        // Make sure we actually get into FMC
+        hw.step_until_output_contains("Running Caliptra FMC")
+            .unwrap();
+    }
 }
 
 #[test]
 fn test_fake_rom_update_reset() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    // Upload FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &FAKE_TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    // Upload FW again
-    hw.start_mailbox_execute(
-        CommandId::FIRMWARE_LOAD.into(),
-        &image_bundle.to_bytes().unwrap(),
-    )
-    .unwrap();
+        // Upload FW
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    if cfg!(not(feature = "fpga_realtime")) {
-        hw.step_until_boot_status(UpdateResetStarted.into(), true);
+        hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+        // Upload FW again
+        hw.start_mailbox_execute(
+            CommandId::FIRMWARE_LOAD.into(),
+            &image_bundle.to_bytes().unwrap(),
+        )
+        .unwrap();
+
+        if cfg!(not(feature = "fpga_realtime")) {
+            hw.step_until_boot_status(UpdateResetStarted.into(), true);
+        }
+        hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+        assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+
+        // Tell the test-fmc to "exit with success" (necessary because the FMC is in
+        // interactive mode)
+        hw.mailbox_execute(0x1000_000C, &[]).unwrap();
+
+        hw.step_until_exit_success().unwrap();
     }
-    hw.step_until_boot_status(UpdateResetComplete.into(), true);
-
-    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
-
-    // Tell the test-fmc to "exit with success" (necessary because the FMC is in
-    // interactive mode)
-    hw.mailbox_execute(0x1000_000C, &[]).unwrap();
-
-    hw.step_until_exit_success().unwrap();
 }
 
 #[test]
 fn test_image_verify() {
-    const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
-            initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
+        };
+        const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
+        let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-    let mut image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
+        let mut image_bundle = caliptra_builder::build_and_sign_image(
+            &FAKE_TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    // Modify the vendor public key.
-    image_bundle
-        .manifest
-        .preamble
-        .vendor_ecc_active_pub_key
-        .x
-        .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
-    image_bundle
-        .manifest
-        .preamble
-        .vendor_ecc_active_pub_key
-        .y
-        .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
+        // Modify the vendor public key.
+        image_bundle
+            .manifest
+            .preamble
+            .vendor_ecc_active_pub_key
+            .x
+            .clone_from_slice(Array4x12::from(PUB_KEY_X).0.as_slice());
+        image_bundle
+            .manifest
+            .preamble
+            .vendor_ecc_active_pub_key
+            .y
+            .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
-    assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
-        ),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
+        assert_eq!(
+            ModelError::MailboxCmdFailed(
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
+            ),
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err()
+        );
 
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(FwProcessorManifestLoadComplete)
-    );
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
 }
 
 #[test]
@@ -256,7 +300,12 @@ fn test_fake_rom_version() {
     .unwrap();
 
     // Wait for ready for FW
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_rev_id().at(0).read() as u16,

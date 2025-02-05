@@ -15,10 +15,12 @@ Abstract:
 mod cold_reset;
 #[cfg(feature = "fake-rom")]
 mod fake;
+pub(crate) mod uds_programming;
 mod update_reset;
 mod warm_reset;
 
 use crate::cprintln;
+pub use crate::flow::uds_programming::UdsProgrammingFlow;
 use crate::{handle_fatal_error, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;

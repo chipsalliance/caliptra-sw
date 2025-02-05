@@ -13,23 +13,27 @@ Abstract:
 
 --*/
 
-use super::crypto::*;
 use super::dice::*;
-use super::x509::*;
 use crate::cprintln;
+use crate::crypto::{Crypto, Ecdsa384SignatureAdapter};
+use crate::flow::cold_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::keyids::{
-    KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
-    KEY_ID_UDS,
+use caliptra_common::{
+    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    keyids::{
+        KEY_ID_FE, KEY_ID_IDEVID_ECDSA_PRIV_KEY, KEY_ID_IDEVID_MLDSA_KEYPAIR_SEED,
+        KEY_ID_ROM_FMC_CDI, KEY_ID_UDS,
+    },
+    x509,
+    RomBootStatus::*,
 };
-use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::MAX_CSR_SIZE;
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zerocopy::AsBytes;
 use zeroize::Zeroize;
 
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
@@ -62,7 +66,7 @@ impl InitDevIdLayer {
         // If CSR is not requested, indicate to the SOC that it can start
         // uploading the firmware image to the mailbox.
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Decrypt the UDS
@@ -88,13 +92,15 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier for ECC.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let ecc_subj_key_id =
+            cold_reset::x509::idev_subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
         let mldsa_subj_key_id =
-            X509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+            cold_reset::x509::idev_subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -108,11 +114,11 @@ impl InitDevIdLayer {
         };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
-        Self::generate_csr(env, &output)?;
+        Self::generate_csrs(env, &output)?;
 
         // Indicate (if not already done) to SOC that it can start uploading the firmware image to the mailbox.
-        if !env.soc_ifc.flow_status_ready_for_firmware() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
+        if !env.soc_ifc.flow_status_ready_for_mb_processing() {
+            env.soc_ifc.flow_status_set_ready_for_mb_processing();
         }
 
         // Write IDevID public key to FHT
@@ -180,7 +186,7 @@ impl InitDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
+        Crypto::env_hmac_kdf(env, uds, b"idevid_cdi", None, cdi, HmacMode::Hmac512)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
@@ -228,7 +234,7 @@ impl InitDevIdLayer {
         Ok((ecc_keypair, mldsa_keypair))
     }
 
-    /// Generate Local Device ID CSR
+    /// Generate Local Device ID CSRs
     ///
     /// # Arguments
     ///
@@ -236,36 +242,49 @@ impl InitDevIdLayer {
     /// * `output` - DICE Output
     // Inlined to reduce ROM size
     #[inline(always)]
-    fn generate_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn generate_csrs(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         //
         // Generate the CSR if requested via Manufacturing Service Register
         //
         // A flag is asserted via JTAG interface to enable the generation of CSR
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
-            let dev_id_csr = IdevIdCsr::default();
-            Self::write_csr_to_peristent_storage(env, &dev_id_csr)?;
+            Self::reset_persistent_storage_csrs(env)?;
             return Ok(());
         }
 
-        cprintln!("[idev] CSR upload begun");
+        cprintln!("[idev] CSR Envelope upload begun");
 
         // Generate the CSR
-        Self::make_csr(env, output)
+        Self::make_csr_envelop(env, output)
     }
 
-    /// Create Initial Device ID CSR
+    /// Create Initial Device ID CSR Envelope
     ///
     /// # Arguments
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn make_csr_envelop(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+        // Generate ECC CSR.
+        Self::make_ecc_csr(env, output)?;
+
+        // Generate MLDSA CSR.
+        Self::make_mldsa_csr(env, output)?;
+
+        // Execute Send CSR Flow
+        Self::send_csr_envelop(env)?;
+
+        report_boot_status(IDevIdMakeCsrEnvelopeComplete.into());
+        Ok(())
+    }
+
+    fn make_ecc_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.ecc_subj_key_pair;
 
         // CSR `To Be Signed` Parameters
-        let params = InitDevIdCsrTbsParams {
+        let params = InitDevIdCsrTbsEcc384Params {
             // Unique Endpoint Identifier
-            ueid: &X509::ueid(env)?,
+            ueid: &x509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.ecc_subj_sn,
@@ -275,10 +294,10 @@ impl InitDevIdLayer {
         };
 
         // Generate the `To Be Signed` portion of the CSR
-        let tbs = InitDevIdCsrTbs::new(&params);
+        let tbs = InitDevIdCsrTbsEcc384::new(&params);
 
         cprintln!(
-            "[idev] Sign CSR w/ SUBJECT.KEYID = {}",
+            "[idev] ECC Sign CSR w/ SUBJECT.KEYID = {}",
             key_pair.priv_key as u8
         );
 
@@ -289,16 +308,16 @@ impl InitDevIdLayer {
 
         let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
         let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        cprintln!("[idev] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[idev] PUB.Y = {}", HexBytes(&_pub_y));
+        cprintln!("[idev] ECC PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[idev] ECC PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[idev] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
+        cprintln!("[idev] ECC SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[idev] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mut csr_buf = [0; MAX_CSR_SIZE];
+        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
         let ecdsa384_sig = sig.to_ecdsa();
         let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &ecdsa384_sig)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
@@ -306,33 +325,104 @@ impl InitDevIdLayer {
 
         let csr_bldr = result?;
         let csr_len = csr_bldr
-            .build(&mut csr_buf)
+            .build(&mut csr_envelop.ecc_csr.csr)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
 
-        if csr_len > csr_buf.len() {
+        if csr_len > csr_envelop.ecc_csr.csr.len() {
             return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
+        csr_envelop.ecc_csr.csr_len = csr_len as u32;
 
-        // [TODO] Generate MLDSA CSR.
+        cprintln!(
+            "[idev] ECC CSR = {}",
+            HexBytes(&csr_envelop.ecc_csr.csr[..csr_len])
+        );
 
-        cprintln!("[idev] CSR = {}", HexBytes(&csr_buf[..csr_len]));
-        report_boot_status(IDevIdMakeCsrComplete.into());
+        // Generate the CSR MAC.
+        let mut tag = Array4x12::default();
+        let csr_slice = &csr_envelop.ecc_csr.csr[..csr_len];
+        env.hmac.hmac(
+            &HmacKey::CsrMode(),
+            &HmacData::Slice(csr_slice),
+            &mut env.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac384,
+        )?;
 
-        let dev_id_csr = IdevIdCsr::new(&csr_buf, csr_len)?;
+        // Copy the tag to the CSR envelop.
+        csr_envelop.ecc_csr_mac = tag.into();
 
-        // Execute Send CSR Flow
-        let mut result = Self::send_csr(env, &dev_id_csr);
-        if result.is_ok() {
-            result = Self::write_csr_to_peristent_storage(env, &dev_id_csr);
-        }
-        csr_buf.zeroize();
-
-        result
+        Ok(())
     }
 
-    fn write_csr_to_peristent_storage(env: &mut RomEnv, csr: &IdevIdCsr) -> CaliptraResult<()> {
-        let csr_persistent_mem = &mut env.persistent_data.get_mut().idevid_csr;
-        *csr_persistent_mem = csr.clone();
+    fn make_mldsa_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+        let key_pair = &output.mldsa_subj_key_pair;
+
+        let params = InitDevIdCsrTbsMlDsa87Params {
+            // Unique Endpoint Identifier
+            ueid: &x509::ueid(&env.soc_ifc)?,
+
+            // Subject Name
+            subject_sn: &output.mldsa_subj_sn,
+
+            // Public Key
+            public_key: &key_pair.pub_key.into(),
+        };
+
+        // Generate the `To Be Signed` portion of the CSR
+        let tbs = InitDevIdCsrTbsMlDsa87::new(&params);
+
+        cprintln!(
+            "[idev] MLDSA Sign CSR w/ SUBJECT.KEYID = {}",
+            key_pair.key_pair_seed as u8
+        );
+
+        // Sign the `To Be Signed` portion
+        let mut sig = Crypto::mldsa87_sign_and_verify(
+            env,
+            key_pair.key_pair_seed,
+            &key_pair.pub_key,
+            tbs.tbs(),
+        )?;
+
+        // Build the CSR with `To Be Signed` & `Signature`
+        let mldsa87_signature = caliptra_x509::Mldsa87Signature {
+            sig: sig.as_bytes()[..4627].try_into().unwrap(),
+        };
+        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        let result = MlDsa87CsrBuilder::new(tbs.tbs(), &mldsa87_signature)
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
+        sig.zeroize();
+
+        let csr_bldr = result?;
+        let csr_len = csr_bldr
+            .build(&mut csr_envelop.mldsa_csr.csr)
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
+
+        if csr_len > csr_envelop.mldsa_csr.csr.len() {
+            return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
+        }
+        csr_envelop.mldsa_csr.csr_len = csr_len as u32;
+
+        // Generate the CSR MAC.
+        let mut tag = Array4x16::default();
+        let csr_slice = &csr_envelop.mldsa_csr.csr[..csr_len];
+        env.hmac.hmac(
+            &HmacKey::CsrMode(),
+            &HmacData::Slice(csr_slice),
+            &mut env.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )?;
+
+        // Copy the tag to the CSR envelop.
+        csr_envelop.mldsa_csr_mac = tag.into();
+        Ok(())
+    }
+
+    fn reset_persistent_storage_csrs(env: &mut RomEnv) -> CaliptraResult<()> {
+        let csr_envelop_persistent_mem = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+        *csr_envelop_persistent_mem = InitDevIdCsrEnvelope::default();
 
         Ok(())
     }
@@ -342,15 +432,15 @@ impl InitDevIdLayer {
     /// # Argument
     ///
     /// * `env` - ROM Environment
-    /// * `csr` - Certificate Signing Request to send to SOC
-    fn send_csr(env: &mut RomEnv, csr: &IdevIdCsr) -> CaliptraResult<()> {
+    fn send_csr_envelop(env: &mut RomEnv) -> CaliptraResult<()> {
+        let csr_envelop = &env.persistent_data.get().idevid_csr_envelop;
         loop {
-            // Create Mailbox send transaction to send the CSR
+            // Create Mailbox send transaction to send the CSR envelop
             if let Some(mut txn) = env.mbox.try_start_send_txn() {
                 // Copy the CSR to mailbox
-                txn.send_request(0, csr.get().ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?)?;
+                txn.send_request(0, csr_envelop.as_bytes())?;
 
-                // Signal the JTAG/SOC that Initial Device ID CSR is ready
+                // Signal the JTAG/SOC that Initial Device ID CSR envelop is ready
                 env.soc_ifc.flow_status_set_idevid_csr_ready();
 
                 // Wait for JTAG/SOC to consume the mailbox
@@ -359,23 +449,12 @@ impl InitDevIdLayer {
                 // Release access to the mailbox
                 txn.complete()?;
 
-                cprintln!("[idev] CSR uploaded");
-                report_boot_status(IDevIdSendCsrComplete.into());
+                cprintln!("[idev] CSR Envelope uploaded");
+                report_boot_status(IDevIdSendCsrEnvelopeComplete.into());
 
                 // exit the loop
                 break Ok(());
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use caliptra_drivers::memory_layout::IDEVID_CSR_SIZE;
-
-    #[test]
-    fn verify_csr_fits_in_dccm() {
-        assert!(MAX_CSR_SIZE <= IDEVID_CSR_SIZE as usize);
     }
 }

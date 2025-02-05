@@ -6,7 +6,7 @@
 #![no_std]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha2_512_384};
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 #[allow(unused)]
 use caliptra_test_harness::println;
@@ -28,11 +28,11 @@ extern "C" fn main() {
     // Init CFI
     CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
 
-    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     pcr_bank
-        .extend_pcr(PcrId::PcrId1, &mut sha384, &[0_u8; 4])
+        .extend_pcr(PcrId::PcrId1, &mut sha2, &[0_u8; 4])
         .unwrap();
 
     let pcr1 = pcr_bank.read_pcr(PcrId::PcrId1);
@@ -46,7 +46,7 @@ extern "C" fn main() {
 
     assert_eq!(pcr1, Array4x12::from(expected_pcr1));
 
-    let digest = sha384.digest(&expected_pcr1).unwrap();
+    let digest = sha2.sha384_digest(&expected_pcr1).unwrap();
 
     let expected_digest = [
         0x5f, 0xeb, 0xea, 0xe8, 0x58, 0x75, 0x73, 0x40, 0x29, 0x58, 0xa9, 0x24, 0xba, 0x75, 0xc7,

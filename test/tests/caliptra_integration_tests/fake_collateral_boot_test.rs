@@ -13,7 +13,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, LDevId},
-    swap_word_bytes, swap_word_bytes_inplace,
+    image_pk_desc_hash, swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::sha384;
@@ -42,12 +42,6 @@ fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
     csr.public_key().unwrap()
 }
 
-fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
-    let mut result: [u32; 12] = zerocopy::transmute!(*buf);
-    swap_word_bytes_inplace(&mut result);
-    result
-}
-
 // [CAP2][TODO] This test is disabled because it needs to be updated.
 //#[test]
 fn fake_boot_test() {
@@ -58,18 +52,13 @@ fn fake_boot_test() {
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
+            fw_svn: 9,
             ..Default::default()
         },
     )
     .unwrap();
-    let vendor_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.vendor_pub_key_info.as_bytes(),
-    ));
 
-    let owner_pk_desc_hash = bytes_to_be_words_48(&sha384(
-        image.manifest.preamble.owner_pub_key_info.as_bytes(),
-    ));
+    let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
     let mut hw = caliptra_hw_model::new(
         InitParams {
@@ -78,9 +67,9 @@ fn fake_boot_test() {
         },
         BootParams {
             fuses: Fuses {
-                key_manifest_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash: owner_pk_desc_hash,
-                fmc_key_manifest_svn: 0b1111111,
+                vendor_pk_hash: vendor_pk_desc_hash,
+                owner_pk_hash,
+                fw_svn: [0x7F, 0, 0, 0], // Equals 7
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
@@ -259,11 +248,11 @@ fn fake_boot_test() {
             owner_pub_key_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: FMC_CANNED_DIGEST,
-            fmc_svn: image.manifest.fmc.svn,
+            fw_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
-            fmc_fuse_svn: 7,
+            fw_fuse_svn: 7,
             lms_vendor_pub_key_index: u32::MAX,
-            rom_verify_config: 0, // RomVerifyConfig::EcdsaOnly
+            pqc_key_type: 0, // RomVerifyConfig::EcdsaOnly
         }),
         &expected_ldevid_key,
     );

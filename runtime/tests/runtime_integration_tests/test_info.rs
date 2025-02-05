@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
+use crate::common::PQC_KEY_TYPE;
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
@@ -12,7 +13,7 @@ use caliptra_common::{
         MailboxRespHeader,
     },
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
@@ -39,122 +40,137 @@ fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
 
 #[test]
 fn test_fw_info() {
-    let mut image_opts = ImageOptions::default();
-    image_opts.vendor_config.pl0_pauser = Some(0x1);
-    image_opts.fmc_version = 0xaaaa;
-    image_opts.app_version = 0xbbbbbbbb;
-    image_opts.fmc_svn = 5;
-
-    let mut image_opts10 = image_opts.clone();
-    image_opts10.app_svn = 10;
-
-    // Cannot use run_rt_test since we need the rom and image to verify info
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let init_params = InitParams {
-        rom: &rom,
-        ..Default::default()
-    };
-
-    let image =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
-            .unwrap();
-
-    let mut model = caliptra_hw_model::new(
-        init_params,
-        BootParams {
-            fw_image: Some(&image.to_bytes().unwrap()),
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
+        image_opts.vendor_config.pl0_pauser = Some(0x1);
+        image_opts.fmc_version = 0xaaaa;
+        image_opts.app_version = 0xbbbbbbbb;
 
-    let rom_info = find_rom_info(&rom).unwrap();
+        let mut image_opts10 = image_opts.clone();
+        image_opts10.fw_svn = 10;
 
-    let get_fwinfo = |model: &mut DefaultHwModel| {
-        let payload = MailboxReqHeader {
-            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+        // Cannot use run_rt_test since we need the rom and image to verify info
+        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let init_params = InitParams {
+            rom: &rom,
+            ..Default::default()
         };
 
-        let resp = model
-            .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
-            .unwrap()
-            .unwrap();
+        let image =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
+                .unwrap();
 
-        let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
 
-        // Verify checksum and FIPS status
-        assert!(caliptra_common::checksum::verify_checksum(
-            info.hdr.chksum,
-            0x0,
-            &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
-        ));
-        assert_eq!(
-            info.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
-        );
-        assert_eq!(info.attestation_disabled, 0);
-        info
-    };
+        let mut model = caliptra_hw_model::new(
+            init_params,
+            BootParams {
+                fw_image: Some(&image.to_bytes().unwrap()),
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-    let update_to = |model: &mut DefaultHwModel, image: &[u8]| {
-        model
-            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image)
-            .unwrap();
+        let rom_info = find_rom_info(&rom).unwrap();
 
-        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
-    };
+        let get_fwinfo = |model: &mut DefaultHwModel| {
+            let payload = MailboxReqHeader {
+                chksum: caliptra_common::checksum::calc_checksum(
+                    u32::from(CommandId::FW_INFO),
+                    &[],
+                ),
+            };
 
-    let info = get_fwinfo(&mut model);
-    // Verify FW info
-    assert_eq!(info.pl0_pauser, 0x1);
-    assert_eq!(info.fmc_manifest_svn, 5);
-    assert_eq!(info.runtime_svn, 10);
-    assert_eq!(info.min_runtime_svn, 10);
-    // Verify revision (Commit ID) and digest of each component
-    assert_eq!(info.rom_revision, rom_info.revision);
-    assert_eq!(info.fmc_revision, image.manifest.fmc.revision);
-    assert_eq!(info.runtime_revision, image.manifest.runtime.revision);
-    assert_eq!(info.rom_sha256_digest, rom_info.sha256_digest);
-    assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
-    assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
+            let resp = model
+                .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+                .unwrap()
+                .unwrap();
 
-    // Make image with newer SVN.
-    let mut image_opts20 = image_opts.clone();
-    image_opts20.app_svn = 20;
+            let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
 
-    let image20 =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts20)
-            .unwrap()
-            .to_bytes()
-            .unwrap();
+            // Verify checksum and FIPS status
+            assert!(caliptra_common::checksum::verify_checksum(
+                info.hdr.chksum,
+                0x0,
+                &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+            ));
+            assert_eq!(
+                info.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+            assert_eq!(info.attestation_disabled, 0);
+            info
+        };
 
-    // Trigger an update reset.
-    update_to(&mut model, &image20);
+        let update_to = |model: &mut DefaultHwModel, image: &[u8]| {
+            model
+                .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image)
+                .unwrap();
 
-    let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 20);
-    assert_eq!(info.min_runtime_svn, 10);
+            model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+        };
 
-    // Make image with older SVN.
-    let mut image_opts5 = image_opts;
-    image_opts5.app_svn = 5;
+        let info = get_fwinfo(&mut model);
+        // Verify FW info
+        assert_eq!(info.pl0_pauser, 0x1);
+        assert_eq!(info.fw_svn, 10);
+        assert_eq!(info.min_fw_svn, 10);
+        // Verify revision (Commit ID) and digest of each component
+        assert_eq!(info.rom_revision, rom_info.revision);
+        assert_eq!(info.fmc_revision, image.manifest.fmc.revision);
+        assert_eq!(info.runtime_revision, image.manifest.runtime.revision);
+        assert_eq!(info.rom_sha256_digest, rom_info.sha256_digest);
+        assert_eq!(info.fmc_sha384_digest, image.manifest.fmc.digest);
+        assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
 
-    let image5 =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts5)
-            .unwrap()
-            .to_bytes()
-            .unwrap();
+        // Make image with newer SVN.
+        let mut image_opts20 = image_opts.clone();
+        image_opts20.fw_svn = 20;
 
-    update_to(&mut model, &image5);
-    let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 5);
-    assert_eq!(info.min_runtime_svn, 5);
+        let image20 =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts20)
+                .unwrap()
+                .to_bytes()
+                .unwrap();
 
-    // Go back to SVN 20
-    update_to(&mut model, &image20);
-    let info = get_fwinfo(&mut model);
-    assert_eq!(info.runtime_svn, 20);
-    assert_eq!(info.min_runtime_svn, 5);
+        // Trigger an update reset.
+        update_to(&mut model, &image20);
+
+        let info = get_fwinfo(&mut model);
+        assert_eq!(info.fw_svn, 20);
+        assert_eq!(info.min_fw_svn, 10);
+        assert_eq!(info.cold_boot_fw_svn, 10);
+
+        // Make image with older SVN.
+        let mut image_opts5 = image_opts;
+        image_opts5.fw_svn = 5;
+
+        let image5 =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts5)
+                .unwrap()
+                .to_bytes()
+                .unwrap();
+
+        update_to(&mut model, &image5);
+        let info = get_fwinfo(&mut model);
+        assert_eq!(info.fw_svn, 5);
+        assert_eq!(info.min_fw_svn, 5);
+        assert_eq!(info.cold_boot_fw_svn, 10);
+
+        // Go back to SVN 20
+        update_to(&mut model, &image20);
+        let info = get_fwinfo(&mut model);
+        assert_eq!(info.fw_svn, 20);
+        assert_eq!(info.min_fw_svn, 5);
+        assert_eq!(info.cold_boot_fw_svn, 10);
+    }
 }
 
 #[test]

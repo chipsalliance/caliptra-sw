@@ -40,9 +40,13 @@ fn test_report_idevid_csr_ready() {
 
 fn test_report_ready_for_firmware() {
     let soc_ifc = unsafe { SocIfcReg::new() };
-    SocIfc::new(soc_ifc).flow_status_set_ready_for_firmware();
+    SocIfc::new(soc_ifc).flow_status_set_ready_for_mb_processing();
     let soc_ifc = unsafe { SocIfcReg::new() };
-    assert!(soc_ifc.regs().cptra_flow_status().read().ready_for_fw());
+    assert!(soc_ifc
+        .regs()
+        .cptra_flow_status()
+        .read()
+        .ready_for_mb_processing());
 }
 
 test_suite! {

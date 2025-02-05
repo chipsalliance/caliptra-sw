@@ -52,8 +52,11 @@ impl CommandId {
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
-    // The get IDevID CSR command.
-    pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
+    // The download firmware from recovery interface command.
+    pub const RI_DOWNLOAD_FIRMWARE: Self = Self(0x5249_4644); // "RIFD"
+
+    // The get IDevID ECC CSR command.
+    pub const GET_IDEV_ECC_CSR: Self = Self(0x4944_4352); // "IDCR"
 }
 
 impl From<u32> for CommandId {
@@ -776,9 +779,9 @@ impl Response for FipsVersionResp {}
 pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
-    pub runtime_svn: u32,
-    pub min_runtime_svn: u32,
-    pub fmc_manifest_svn: u32,
+    pub fw_svn: u32,
+    pub min_fw_svn: u32,
+    pub cold_boot_fw_svn: u32,
     pub attestation_disabled: u32,
     pub rom_revision: [u8; 20],
     pub fmc_revision: [u8; 20],
@@ -991,7 +994,7 @@ pub struct GetIdevCsrReq {
 }
 
 impl Request for GetIdevCsrReq {
-    const ID: CommandId = CommandId::GET_IDEV_CSR;
+    const ID: CommandId = CommandId::GET_IDEV_ECC_CSR;
     type Resp = GetIdevCsrResp;
 }
 
@@ -1059,8 +1062,8 @@ impl AuthAndStashFlags {
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct AuthorizeAndStashReq {
     pub hdr: MailboxReqHeader,
-    pub metadata: [u8; 4],
-    pub measurement: [u8; 48],
+    pub fw_id: [u8; 4],
+    pub measurement: [u8; 48], // Image digest.
     pub context: [u8; 48],
     pub svn: u32,
     pub flags: u32,
@@ -1070,7 +1073,7 @@ impl Default for AuthorizeAndStashReq {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            metadata: Default::default(),
+            fw_id: Default::default(),
             measurement: [0u8; 48],
             context: [0u8; 48],
             svn: Default::default(),

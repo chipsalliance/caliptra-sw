@@ -1,12 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -54,37 +55,48 @@ fn test_rom_integrity_failure() {
 
 #[test]
 fn test_read_rom_info_from_fmc() {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let rom_info_from_image =
-        RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fw_image: Some(&image_bundle),
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom_info_from_image =
+            RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
 
-    // 0x1000_0008 is test-fmc/read_rom_info()
-    let rom_info_from_fw = RomInfo::read_from(
-        hw.mailbox_execute(0x1000_0008, &[])
-            .unwrap()
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
-    assert_eq!(rom_info_from_fw.as_bytes(), rom_info_from_image.as_bytes());
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams {
+                fw_image: Some(&image_bundle),
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // 0x1000_0008 is test-fmc/read_rom_info()
+        let rom_info_from_fw = RomInfo::read_from(
+            hw.mailbox_execute(0x1000_0008, &[])
+                .unwrap()
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        assert_eq!(rom_info_from_fw.as_bytes(), rom_info_from_image.as_bytes());
+    }
 }

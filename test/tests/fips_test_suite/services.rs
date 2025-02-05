@@ -7,7 +7,7 @@ use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
@@ -756,40 +756,52 @@ pub fn execute_all_services_rt() {
 
 #[test]
 pub fn zeroize_halt_check_no_output() {
-    // Build FW with test hooks and init to runtime
-    let fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART_FIPS_TEST_HOOKS,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-
-    let mut hw = fips_test_init_to_rt(
-        Some(InitParams {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        }),
-        Some(BootParams {
-            fw_image: Some(&fw_image),
-            initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
-                << HOOK_CODE_OFFSET,
-            ..Default::default()
-        }),
-    );
-
-    // Send the shutdown command (do not wait for response)
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
-    };
-    hw.start_mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+        };
+        // Build FW with test hooks and init to runtime
+        let fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART_FIPS_TEST_HOOKS,
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
         .unwrap();
 
-    // Wait for ACK that ROM reached halt point
-    hook_wait_for_complete(&mut hw);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
 
-    // Check output is inhibited
-    verify_output_inhibited(&mut hw);
+        let mut hw = fips_test_init_to_rt(
+            Some(InitParams {
+                ..Default::default()
+            }),
+            Some(BootParams {
+                fw_image: Some(&fw_image),
+                fuses,
+                initial_dbg_manuf_service_reg: (FipsTestHook::HALT_SHUTDOWN_RT as u32)
+                    << HOOK_CODE_OFFSET,
+                ..Default::default()
+            }),
+        );
+
+        // Send the shutdown command (do not wait for response)
+        let payload = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
+        };
+        hw.start_mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+            .unwrap();
+
+        // Wait for ACK that ROM reached halt point
+        hook_wait_for_complete(&mut hw);
+
+        // Check output is inhibited
+        verify_output_inhibited(&mut hw);
+    }
 }
 
 #[test]

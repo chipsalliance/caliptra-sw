@@ -39,7 +39,7 @@ pub struct Mailbox {
     mbox: MboxCsr,
 }
 
-const MAX_MAILBOX_LEN: u32 = 128 * 1024;
+const MAX_MAILBOX_LEN: u32 = 256 * 1024;
 
 impl Mailbox {
     pub fn new(mbox: MboxCsr) -> Self {
@@ -83,6 +83,14 @@ impl Mailbox {
                 mbox: &mut self.mbox,
             }),
             _ => None,
+        }
+    }
+
+    // Fake mailbox transaction used when downloading firmware image from Recovery Interface.
+    pub fn fake_recv_txn(&mut self) -> MailboxRecvTxn {
+        MailboxRecvTxn {
+            state: MailboxOpState::Execute,
+            mbox: &mut self.mbox,
         }
     }
 
@@ -270,7 +278,7 @@ impl<'a> MailboxRecvPeek<'a> {
     /// Returns the value stored in the user register
     pub fn id(&self) -> u32 {
         let mbox = self.mbox.regs();
-        mbox.id().read()
+        mbox.user().read()
     }
 
     /// Returns the value stored in the data length register. This is the total

@@ -6,6 +6,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::HwModel;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::{CertifyKeyCmd, CertifyKeyFlags, Command, SignCmd, SignFlags},
     context::ContextHandle,
@@ -116,14 +117,15 @@ fn test_attestation_disabled_flag_after_update_reset() {
     );
 
     // trigger update reset to same firmware
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
+    let image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let updated_fw_image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
         .unwrap();

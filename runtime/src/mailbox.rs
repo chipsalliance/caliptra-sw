@@ -103,7 +103,7 @@ impl Mailbox {
     /// Gets the id of the mailbox
     pub fn id(&self) -> u32 {
         let mbox = self.mbox.regs();
-        mbox.id().read()
+        mbox.user().read()
     }
 
     /// Copies data in mailbox to `buf`

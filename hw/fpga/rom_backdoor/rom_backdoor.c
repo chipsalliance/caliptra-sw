@@ -12,7 +12,7 @@
 #define ROM_BACKDOOR_MAJOR_ID 47
 
 #define ROM_ADDRESS 0x82000000
-#define ROM_SIZE 0xC000
+#define ROM_SIZE 0x18000
 
 struct rom_backdoor_backend_data
 {

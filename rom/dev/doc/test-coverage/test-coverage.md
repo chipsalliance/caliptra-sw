@@ -3,7 +3,7 @@ Test Scenario| Test Name | ROM Error Code
 -----|---|---
  Check if manifest.marker is set to 0x4E414D43 	| **test_invalid_manifest_marker** | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
  Check if manifest.size is set to ImageManifest size 	| **test_invalid_manifest_size** | 	 IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH
- Check if vendor public key digest is not zero in the fuse_key_manifest_pk_hash fuse 	| **test_preamble_zero_vendor_pubkey_digest** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
+ Check if vendor public key digest is not zero in the fuse_vendor_pk_hash fuse 	| **test_preamble_zero_vendor_pubkey_digest** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
  Check if the vendor public key hash from fuse matches the hash of the vendor public keys in the Preamble 	| **test_preamble_vendor_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
  Check if the owner public key hash from fuse_owner_pk_hash fuse is not zero and matches the hash of the owner public key in the Preamble 	| **test_preamble_owner_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
  Check revoking of key idx 0/1/2 <br> * Check that last key (idx = 3) is not revocable 	| **test_preamble_vendor_ecc_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
@@ -37,8 +37,6 @@ Test Scenario| Test Name | ROM Error Code
  Check if FMC entry point is within ICCM range  	| **test_fmc_invalid_entry_point_before_iccm** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
  Check if FMC entry point is within ICCM range  	| **test_fmc_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
  Check if FMC entry point is DWORD aligned 	| **test_fmc_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED
- Check if FMC SVN is greater than max (32) 	| **test_fmc_svn_greater_than_32** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if FMC SVN is less than fuse svn 	| **test_fmc_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
  Check if RT size if 0 	| **test_toc_rt_size_zero** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
  Check if manifest.rt_toc.digest matches Runtime image digest 	| **test_runtime_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
  Check if RT load address is within ICCM range 	| **test_runtime_invalid_load_addr_before_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
@@ -48,8 +46,8 @@ Test Scenario| Test Name | ROM Error Code
  Check if RT entry point is within ICCM range  	| **test_runtime_invalid_entry_point_before_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
  Check if RT entry point is within ICCM range  	| **test_runtime_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
  Check if RT entry point is DWORD aligned 	| **test_runtime_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
- Check if RT SVN is greater than max (128) 	| **test_runtime_svn_greater_than_max** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if RT SVN is less than fuse svn 	| **test_runtime_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE
+ Check if FW SVN is greater than max (128) 	| **test_firmware_svn_greater_than_max** | 	 IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED
+ Check if FW SVN is less than fuse svn 	| **test_firmware_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE
  Generates the LDEVID and FMC Alias certificates |**cert_test** | 	 N/A
  Check if the owner and vendor cert validty dates are present in FMC Alias cert | **cert_test_with_custom_dates** | 	 N/A
 
@@ -58,11 +56,11 @@ Test Scenario| Test Name | ROM Error Code
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Tests with X509KeyIdAlgo::[SHA1/SHA256/SHA384/Fuse] for generating  IDEVID Subject Key Identifier | **test_idev_subj_key_id_algo**  | N/A
-Requests CSR and downloads the CSR  | **test_generate_csr**  | N/A
+Requests CSR and downloads the CSR  | **test_generate_csr_envelop**  | N/A
 Check value in ColdResetEntry4::RomColdBootStatus datavault register | **test_check_rom_cold_boot_status_reg**   | N/A
 Check if entries are correctly added in Firmware Handoff table | **test_fht_info**   | N/A
 Check if boot statuses are correctly reported | **test_cold_reset_status_reporting** | N/A
-Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. |**test_generate_csr_stress** | N/A
+Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. |**test_generate_csr_envelop_stress** | N/A
 
 <br><br>
 # **Firmware Downloader Tests**
@@ -72,7 +70,7 @@ Check if firmware is zero-sized | **test_zero_firmware_size** | FW_PROC_INVALID_
 Check if firmware is not more than max. size (128K) | **test_firmware_gt_max_size**  | FW_PROC_INVALID_IMAGE_SIZE
 Check if PCR log entries are correctly logged to DCCM | **test_pcr_log**   | N/A
 Check PCR log entries - No Onwer Public Key Hash in fuse_owner_pk_hash | **test_pcr_log_no_owner_key_digest_fuse**   | N/A
-Check PCR log entries - FMC Fuse SVN set in fuse_fmc_key_manifest_svn | **test_pcr_log_fmc_fuse_svn**   | N/A
+Check PCR log entries - FW Fuse SVN set in fuse_fw_manifest_svn | **test_pcr_log_fw_fuse_svn**   | N/A
 Check PCR log entries across Update Reset | **test_pcr_log_across_update_reset**   | N/A
 Check if Fuse log entries are correctly logged to DCCM | **test_fuse_log**   | N/A
 
@@ -102,7 +100,7 @@ Tests update reset flow by providing a non-fw load Mailbox command  | **test_upd
 Tests update reset flow by providing non-compliant fw image   | **test_update_reset_verify_image_failure** | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
 Check if boot statuses are correctly reported | **test_update_reset_boot_status** | N/A
 Tests update reset flow by providing a different vendor ECC public key index in the image  | **test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** |IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
-Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
+Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PQC_PUB_KEY_IDX_MISMATCH
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | **test_update_reset_max_fw_image** | N/A
 <br><br>
