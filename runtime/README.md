@@ -958,19 +958,21 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 
-| **Name**      | **Type** | **Description**                |
-|---------------|----------|--------------------------------|
-| fw\_id        | u32      | Id of the image                |
-| flags         | u32      | See METADATA_ENTRY_FLAGS below |
-| digest        | u32[48]  | Digest of the image            |
 
+| **Name**               | **Type** | **Description** |
+|------------------------|---------|----------------|
+| Image Hash            | u8[48]      | SHA2-384 hash of a SOC image. |
+| fw_id                 | u32       | Unique value selected by the vendor to distinguish between component images.<br />This corresponds to the ComponentIdentifier field defined in the [DMTF PLDM Firmware Update Specification](https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.3.0.pdf). |
+| Flags                 | u32       | A set of 32-bit flags specific to the image.<br />**Bit0**: If set, the image hash will not be verified; otherwise, the metadata image hash will be compared against the calculated hash of the image.<br />**Bit1**: If set, it indicates that the image is an MCU Runtime image; otherwise, it indicates a SOC Image. |
+| Image Load Address High | u32     | The higher 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
+| Image Load Address Low  | u32     | The lower 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
+| Staging Address High    | u32     | The higher 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
+| Staging Address Low     | u32     | The lower 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
+| Classification          | u32     | This field indicates the DMTF Firmware classification of the image.<br />Refer to the description of ComponentClassification in the [DMTF PLDM Firmware Update Specification](https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.3.0.pdf). |
+| Version Number         | u32      | This is a vendor-defined field that can be used to compare versions of the image.<br />This is useful when comparing the current version in the device with the one in this package by using integer comparison rather than comparing using the VersionString.<br />For example, this can be in the form of MajorMinorRevisionPatch or a timestamp corresponding to the release date.<br />This functions the same as the ComponentComparisonStamp in the [DMTF PLDM Firmware Update Specification](https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.3.0.pdf). |
+| Version String        | u8[32]      | A null-terminated UTF-8 string that indicates the version of the image. The maximum length is limited to 32 bytes, including the string terminator.<br /><br />Example: "1.2.0" |
+| ImageSize             | u32       | Size in bytes of the image.|
 
-*Table: `METADATA_ENTRY_FLAGS` input flags*
-
-| **Name**            | **Size (Bits)** | **Description** |
-|---------------------|-----------------|-----------------|
-| image\_source       | 2               | 1: InRequest    |
-| ignore\_auth\_check | 1               | If set, the image digest is not compared for the firmware id |
 
 ### AUTHORIZE_AND_STASH
 
@@ -987,10 +989,10 @@ Command Code: `0x4154_5348` ("ATSH")
 | ------------| -------- | ---------------
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
 | fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
-| measurement | u8[48]   | Digest of the image requested for authorization |
+| measurement | u8[48]   | Digest of the image requested for authorization. The `source` field needs to be set to '1` for InRequest, otherwise<br />this field is ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
-| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
+| source      | u32      | This field identifies the source of the digest to be used to compare with the SoC's<br />SHA digest in the SoC Manifest<br /><br />Values<br />1 - InRequest - Use the hash in the 'measurement' field of this command<br />2 - ShaAcc - Use the result of the SHA Accelerator.<br />3 - LoadAddress - The image located in the `LoadAddress` will be streamed to the SHA Accelerator to <br />               retrieve the digest that will be used for authorization.<br />4 - StagingAddress - The image located in the `StagingAddress` will be streamed to the SHA Accelerator to<br />               retrieve the digest that will be used for authorization |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
 | **Name**    | **Value** |
@@ -1003,6 +1005,56 @@ Command Code: `0x4154_5348` ("ATSH")
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) 
+
+### GET_IME_COUNT
+
+The MCU uses this command to retrieve the number of Image Metadata Entries defined in the SoC Manifest.
+
+Command Code: `0x494D_4354` ("IMCT")
+
+*Table: `GET_IME_COUNT` input arguments*
+
+| **Name** | **Type** | **Description**                                                       |
+| -------------- | -------------- | --------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian. |
+
+*Table: `GET_IME_COUNT` output arguments*
+
+| **Name** | **Type** | **Description**                                                      |
+| -------------- | -------------- | -------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
+| count          | u32            | The number of metadata entries in the SoC Manifest                         |
+
+### GET_IME
+
+The MCU uses this command to retrieve the Image Metadata Entry defined in the SoC Manifest given by an index to the Image Metadata Collection (IMC).
+
+Command Code: `0x494D_4530` ("IME0")
+
+*Table: `GET_IME` input arguments*
+
+| **Name** | **Type** | **Description**                                                                                                                                                                                   |
+| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.                                                                                                                             |
+| index          | u32            | The index to the SoC Manifest's IMC that refers to a particular IME (starting from 0).
+
+*Table: `GET_IME` output arguments*
+
+| **Name** | **Type** | **Description**                                                                                                                                                                                         |
+| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.                                                                                                                                    |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                                                                                                                                                        |
+| fw_id          | u32            | Firmware id of the Image. This corresponds to the `Image Identifier` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| flags          | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| ImageSize               | u32          | Size in bytes of the image.
 
 ### GET_IMAGE_LOAD_ADDRESS
 
@@ -1067,6 +1119,27 @@ Command Code: `0x494D_535A` ("IMSZ")
 | chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status       | u32            | Indicates if the command is FIPS approved or an error.
 | size              | u32            | The size in bytes of the SoC Image
+
+### ACTIVATE_FIRMWARE
+
+The MCU uses this command to 'activate' the image that has been previously downloaded through PLDM - T5.
+For the full behavior of this command, refer to the [Subsystem Support for Hitless Updates](https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#subsystem-support-for-hitless-updates) specification.
+
+Command Code: `0x4143_5446` ("ACTF")
+
+*Table: `ACTIVATE_FIRMWARE` input arguments*
+
+| **Name** | **Type** | **Description**                                                       |
+| -------------- | -------------- | --------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian. |
+| fw_id          | u8[4]          | Firmware id of the image, in little-endian format                           |
+
+*Table: `ACTIVATE_FIRMWARE` output arguments*
+
+| **Name** | **Type** | **Description**                                                      |
+| -------------- | -------------- | -------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
 
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
