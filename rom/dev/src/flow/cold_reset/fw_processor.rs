@@ -80,6 +80,9 @@ impl FirmwareProcessor {
             // LMS Engine
             lms: &mut env.lms,
 
+            // Mldsa87 Engine
+            mldsa87: &mut env.mldsa87,
+
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
 
