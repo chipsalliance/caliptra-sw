@@ -26,8 +26,10 @@ use caliptra_image_gen::*;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
+use hex::ToHex;
 use std::path::Path;
 use std::path::PathBuf;
+use zerocopy::AsBytes;
 
 use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};
@@ -122,6 +124,8 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<PathBuf>("out")
         .with_context(|| "out arg not specified")?;
 
+    let print_hashes = args.get_flag("print-hashes");
+
     //YYYYMMDDHHMMSS - Zulu Time
     let mut own_from_date: [u8; 15] = [0u8; 15];
     let mut own_to_date: [u8; 15] = [0u8; 15];
@@ -196,6 +200,12 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
 
     let gen = ImageGenerator::new(Crypto::default());
     let image = gen.generate(&gen_config).unwrap();
+
+    if print_hashes {
+        let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+        println!("Vendor PK hash: {}", vendor_pk_desc_hash);
+        println!("Owner PK hash: {}", owner_pk_hash);
+    }
 
     let out_file = std::fs::OpenOptions::new()
         .create(true)
@@ -371,4 +381,22 @@ fn owner_config(
     } else {
         Ok(None)
     }
+}
+
+// Returns the vendor public key descriptor and owner public key hashes from the image.
+pub fn image_pk_desc_hash(manifest: &ImageManifest) -> (String, String) {
+    let crypto = Crypto::default();
+    let vendor_pk_desc_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.vendor_pub_key_info.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
+    let owner_pk_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.owner_pub_keys.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
+    (vendor_pk_desc_hash, owner_pk_hash)
 }
