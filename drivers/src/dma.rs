@@ -609,10 +609,12 @@ impl<'a> DmaRecovery<'a> {
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
             // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-            let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
+            //let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
             let indirect_fifo_ctrl_val1 = recovery.indirect_fifo_ctrl_1().read();
-            let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
-                | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+
+            // let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
+            //     | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+            let image_size_dwords = indirect_fifo_ctrl_val1;
 
             image_size_dwords * 4
         })?;
