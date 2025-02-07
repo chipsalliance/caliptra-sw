@@ -100,7 +100,11 @@ fn main() {
             arg!(--"mfg-to-date" <String> "Certificate Validity End Date By Manufacturer [YYYYMMDDHHMMSS - Zulu Time]")
                 .required(false)
                 .value_parser(value_parser!(String)),
-        )];
+        )
+        .arg(
+            arg!(--"print-hashes" "Print vendor and owner hashes").action(clap::ArgAction::SetTrue),
+        )
+        ];
 
     let cmd = Command::new("caliptra-image-app")
         .arg_required_else_help(true)
