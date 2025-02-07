@@ -16,7 +16,6 @@ use caliptra_drivers::{
     Array4x8, Array4xN, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey,
     Mldsa87Seed, Mldsa87SignRnd, Trng,
 };
-use zerocopy::AsBytes;
 
 const KAT_PUB_KEY: Mldsa87PubKey = Array4xN::new([
     0x7aed27b5, 0xa562dd2f, 0x10f310cc, 0x99f6bf11, 0xec184836, 0x372625fd, 0xfb5c0b87, 0x06883dcd,
@@ -415,22 +414,11 @@ const KAT_SIGNATURE: [u32; 1157] = [
     0x83f77540, 0xd7e53766, 0x784cb5fc, 0x41be7973, 0xf8a8b10b,
 ];
 
-fn bytes_from_words_be(arr: &[u32; 1224]) -> [u8; 4896] {
-    let mut result = [0u8; 4896];
-    for (i, n) in arr.iter().enumerate() {
-        result.as_mut()[i * 4..][..4].copy_from_slice(&n.to_be_bytes());
-    }
-    result
-}
-
 #[derive(Default, Debug)]
 pub struct Mldsa87Kat {}
 
 impl Mldsa87Kat {
     /// This function executes the Known Answer Tests (aka KAT) for MLDSA87.
-    ///
-    /// Test vector source:
-    /// Zeroed inputs, outputs verified against python cryptography lib built on OpenSSL
     ///
     /// # Arguments
     ///
@@ -453,9 +441,7 @@ impl Mldsa87Kat {
             .key_pair(&Mldsa87Seed::Array4x8(&SEED), trng, Some(&mut priv_key))
             .map_err(|_| CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE)?;
 
-        priv_key.0.reverse();
-
-        if pub_key != KAT_PUB_KEY || priv_key.as_bytes() != bytes_from_words_be(&KAT_PRIV_KEY.0) {
+        if pub_key != KAT_PUB_KEY || priv_key != KAT_PRIV_KEY {
             Err(CaliptraError::KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE)?;
         }
 

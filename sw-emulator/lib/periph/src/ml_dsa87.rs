@@ -373,25 +373,31 @@ impl Mldsa87 {
     }
 
     fn gen_key(&mut self) {
+        // Reverse dword endianness.
         let mut seed = bytes_from_words_be(&self.seed);
         seed.reverse();
         let mut rng = SeedOnlyRng::new(seed);
-        let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
-        let mut pk = pk.into_bytes();
+        let (pubkey, privkey) = try_keygen_with_rng(&mut rng).unwrap();
+        let mut pubkey = pubkey.into_bytes();
         // Convert to hardware format.
-        pk.reverse();
-        self.pubkey = words_from_bytes_be(&pk);
-        self.private_key = sk.into_bytes();
+        pubkey.reverse();
+        self.pubkey = words_from_bytes_be(&pubkey);
+        // Private key is in library format (reverse of normal format).
+        self.private_key = privkey.into_bytes();
         if !self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
-            self.privkey_out = words_from_bytes_be(&self.private_key);
+            // privkey_out is in hardware format.
+            let mut privkey_out = self.private_key.clone();
+            privkey_out.reverse();
+            self.privkey_out = words_from_bytes_be(&privkey_out);
         }
     }
 
     fn sign(&mut self, caller_provided: bool) {
         let secret_key = if caller_provided {
-            let mut sk = bytes_from_words_be(&self.privkey_in);
-            sk.reverse();
-            PrivateKey::try_from_bytes(sk).unwrap()
+            // Convert to library format.
+            let mut privkey = bytes_from_words_be(&self.privkey_in);
+            privkey.reverse();
+            PrivateKey::try_from_bytes(privkey).unwrap()
         } else {
             PrivateKey::try_from_bytes(self.private_key).unwrap()
         };
