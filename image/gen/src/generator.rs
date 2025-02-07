@@ -47,8 +47,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGeneratorExecutable,
     {
-        println!("fmc size: {}", config.fmc.size());
-        println!("runtime size: {}", config.runtime.size());
         let image_size =
             IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size();
         if image_size > IMAGE_BYTE_SIZE as u32 {
