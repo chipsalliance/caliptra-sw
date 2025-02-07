@@ -386,7 +386,7 @@ impl Mldsa87 {
         self.private_key = privkey.into_bytes();
         if !self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
             // privkey_out is in hardware format.
-            let mut privkey_out = self.private_key.clone();
+            let mut privkey_out = self.private_key;
             privkey_out.reverse();
             self.privkey_out = words_from_bytes_be(&privkey_out);
         }
