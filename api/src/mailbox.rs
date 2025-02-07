@@ -1150,7 +1150,7 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    const MAILBOX_SIZE: u32 = 128 * 1024;
+    const MAILBOX_SIZE: u32 = 256 * 1024;
 
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);
