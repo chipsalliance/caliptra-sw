@@ -3,6 +3,7 @@
 use caliptra_builder::firmware;
 use caliptra_builder::version;
 use caliptra_builder::ImageOptions;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use clap::{arg, value_parser, Command};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -25,6 +26,10 @@ fn main() {
         )
         .arg(arg!(--"fake-rom" [FILE] "Fake ROM").value_parser(value_parser!(PathBuf)))
         .arg(arg!(--"fake-fw" [FILE] "Fake FW bundle image").value_parser(value_parser!(PathBuf)))
+        .arg(
+            arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
+                .value_parser(value_parser!(i32)),
+        )
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
@@ -41,6 +46,12 @@ fn main() {
         std::fs::write(path, rom).unwrap();
     }
 
+    let pqc_key_type = match args.get_one("pqc-key-type") {
+        Some(1) | None => FwVerificationPqcKeyType::MLDSA,
+        Some(3) => FwVerificationPqcKeyType::LMS,
+        _ => panic!("--pqc-key-type must be 1 or 3"),
+    };
+
     if let Some(path) = args.get_one::<PathBuf>("fw") {
         // Generate Image Bundle
         let image = caliptra_builder::build_and_sign_image(
@@ -49,6 +60,7 @@ fn main() {
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
+                pqc_key_type,
                 ..Default::default()
             },
         )
@@ -64,6 +76,7 @@ fn main() {
             ImageOptions {
                 fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
+                pqc_key_type,
                 ..Default::default()
             },
         )
