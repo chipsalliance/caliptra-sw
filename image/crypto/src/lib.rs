@@ -78,24 +78,6 @@ pub fn lms_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPrivKey> 
     ImageLmsPrivKey::read_from(&key_bytes[..]).ok_or(anyhow!("Error parsing LMS priv key"))
 }
 
-/// Convert the slice to hardware format
-fn to_hw_format<const NUM_WORDS: usize>(value: &[u8]) -> [u32; NUM_WORDS] {
-    let mut result = [0u32; NUM_WORDS];
-    for i in 0..result.len() {
-        result[i] = u32::from_be_bytes(value[i * 4..][..4].try_into().unwrap())
-    }
-    result
-}
-
-/// Convert the hardware format to byte array
-fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCALAR_BYTE_SIZE] {
-    let mut result = [0u8; ECC384_SCALAR_BYTE_SIZE];
-    for i in 0..value.len() {
-        *<&mut [u8; 4]>::try_from(&mut result[i * 4..][..4]).unwrap() = value[i].to_be_bytes();
-    }
-    result
-}
-
 fn generate_lmots_pubkey_helper<T: Sha256Hasher>(
     id: &[u8],
     q: u32,
