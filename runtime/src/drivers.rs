@@ -36,7 +36,6 @@ use caliptra_drivers::{
     Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
-use caliptra_registers::axi_dma::AxiDmaReg;
 use caliptra_registers::{
     csrng::CsrngReg,
     dv::DvReg,
@@ -159,7 +158,7 @@ impl Drivers {
             cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
-            dma: Dma::new(AxiDmaReg::new()),
+            dma: Dma::default(),
         })
     }
 
