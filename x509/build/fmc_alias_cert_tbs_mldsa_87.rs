@@ -5,9 +5,7 @@ Licensed under the Apache-2.0 license.
 Abstract:
 
 --"]
-
 // TODO generate when x509 libraries support MLDSA
-
 pub struct FmcAliasCertTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
@@ -26,7 +24,7 @@ pub struct FmcAliasCertTbsMlDsa87Params<'a> {
 }
 
 #[allow(dead_code)]
-impl<'a> FmcAliasCertTbsMlDsa87Params<'a> {
+impl FmcAliasCertTbsMlDsa87Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

@@ -123,7 +123,7 @@ pub fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCA
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub struct ImageGeneratorVendorConfig {
     pub ecc_key_count: u32,
 

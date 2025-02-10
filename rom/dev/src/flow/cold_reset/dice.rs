@@ -32,9 +32,11 @@ pub struct DiceInput<'a> {
     pub mldsa_auth_key_pair: &'a MlDsaKeyPair,
 
     /// MLDSA Authority Serial Number
+    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_auth_sn: &'a [u8; 64],
 
     /// MLDSA Authority Key Identifier
+    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_auth_key_id: &'a [u8; 20],
 }
 

@@ -132,8 +132,8 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             DpeResult::Success,
         );
         let Some(Response::InitCtx(init_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+            panic!("Wrong response type!");
+        };
         let mut handle = init_ctx_resp.handle;
 
         // Call DeriveContext with PL1 enough times to breach the threshold on the last iteration.
@@ -170,8 +170,8 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
                 DpeResult::Success,
             );
             let Some(Response::DeriveContext(derive_context_resp)) = resp else {
-            panic!("Wrong response type!");
-        };
+                panic!("Wrong response type!");
+            };
             handle = derive_context_resp.handle;
         }
     }
@@ -258,8 +258,8 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
                 DpeResult::Success,
             );
             let Some(Response::InitCtx(_)) = resp else {
-            panic!("Wrong response type!");
-        };
+                panic!("Wrong response type!");
+            };
         }
     }
 }
@@ -440,8 +440,8 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
             DpeResult::Success,
         );
         let Some(Response::InitCtx(init_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+            panic!("Wrong response type!");
+        };
 
         let derive_context_cmd = DeriveContextCmd {
             handle: init_ctx_resp.handle,
