@@ -12,25 +12,18 @@ Abstract:
 
 --*/
 
-use core::str::from_utf8;
-
-use arrayvec::ArrayVec;
-use bitflags::bitflags;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
     MailboxRespHeader,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCmd, Command, CommandExecution},
+    commands::{CertifyKeyCmd, CommandExecution},
     response::Response,
 };
 use zerocopy::{AsBytes, FromBytes};
 
-use crate::{
-    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, MAX_CERT_CHAIN_SIZE,
-    PL0_PAUSER_FLAG,
-};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
@@ -84,7 +77,7 @@ impl CertifyKeyExtendedCmd {
             ),
         };
 
-        let mut dpe = &mut pdata.dpe;
+        let dpe = &mut pdata.dpe;
         let certify_key_cmd = CertifyKeyCmd::read_from(&cmd.certify_key_req[..])
             .ok_or(CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let locality = drivers.mbox.id();

@@ -96,7 +96,7 @@ pub trait ImageGeneratorCrypto {
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub struct ImageGeneratorVendorConfig {
     pub ecc_key_count: u32,
 

@@ -7,9 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-
 // TODO generate when x509 libraries support MLDSA
-
 #[allow(dead_code)]
 pub struct RtAliasCertTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
@@ -25,7 +23,7 @@ pub struct RtAliasCertTbsMlDsa87Params<'a> {
     pub tcb_info_rt_svn: &'a [u8; 1usize],
 }
 #[allow(dead_code)]
-impl<'a> RtAliasCertTbsMlDsa87Params<'a> {
+impl RtAliasCertTbsMlDsa87Params<'_> {
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
     pub const ISSUER_SN_LEN: usize = 64usize;

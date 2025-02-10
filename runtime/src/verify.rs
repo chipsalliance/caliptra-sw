@@ -22,7 +22,6 @@ use caliptra_drivers::{
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
-use zerocopy::AsBytes;
 use zerocopy::{BigEndian, FromBytes, LittleEndian, U32};
 
 pub struct EcdsaVerifyCmd;

@@ -16,19 +16,13 @@ use core::cmp::min;
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
-use caliptra_image_types::{ImageHeader, ImageManifest};
 use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
-use dpe::{
-    x509::{CertWriter, DirectoryString, Name},
-    DPE_PROFILE,
-};
+use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName,
-    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
-    MAX_SN_SIZE,
+    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
 };
-use zerocopy::AsBytes;
 
 use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_CERT_CHAIN_SIZE};
 
