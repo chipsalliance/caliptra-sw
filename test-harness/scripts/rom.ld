@@ -18,11 +18,11 @@ OUTPUT_ARCH( "riscv" )
 
 MEMORY
 {
-  ROM   (rx) : ORIGIN = 0x00000000, LENGTH = 48K
+  ROM   (rx) : ORIGIN = 0x00000000, LENGTH = 96K
   ICCM_CTL (rwx) : ORIGIN = 0xBFF0, LENGTH = 8
   DCCM_CTL (rwx) : ORIGIN = 0xBFF8, LENGTH = 8
-  ICCM (rwx) : ORIGIN = 0x40000000, LENGTH = 128K
-  DCCM (rwx) : ORIGIN = 0x50000000, LENGTH = 128K
+  ICCM (rwx) : ORIGIN = 0x40000000, LENGTH = 256K
+  DCCM (rwx) : ORIGIN = 0x50000000, LENGTH = 256K
   DATA (rw) : ORIGIN  = 0x50004800, LENGTH = 94K
 }
 
@@ -51,10 +51,10 @@ SECTIONS
         . = ALIGN(4);
     } > DATA
 
-    .iccm.ctl : { LONG(0x40000000); LONG(0x40020000) } > ICCM_CTL    
+    .iccm.ctl : { LONG(0x40000000); LONG(0x40020000) } > ICCM_CTL
 
     .data.ctl : { LONG(0x50000000); LONG(0x50020000) } > DCCM_CTL
-    
+
     .bss (NOLOAD) :
     {
         . = ALIGN(4);
