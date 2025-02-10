@@ -23,6 +23,9 @@ BUILDER_PATH = ../../../builder
 # main sources don't need a command line.
 DEFINES  = -DROM_PATH=\"$(ROM_FILE)\"
 DEFINES += -DFW_PATH=\"$(FW_FILE)\"
+ifdef SKIP_LMS_VERIFY
+	DEFINES += -DSKIP_LMS_VERIFY=\"$(SKIP_LMS_VERIFY)\"
+endif
 
 # HW MODEL
 HWMODEL_DIR = $(OUTPUT_DIR)
