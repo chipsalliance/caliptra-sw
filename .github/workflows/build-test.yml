@@ -107,6 +107,18 @@ jobs:
           (cd rom/dev && ./build.sh)
           sccache --show-stats
 
+      - name: Build with OpenSSL
+        run: |
+          for proj in caliptra-auth-manifest-app caliptra-builder caliptra-image-crypto caliptra-image-app; do
+            cargo build -p $proj --locked --no-default-features --features openssl
+          done
+
+      - name: Build with RustCrypto
+        run: |
+          for proj in caliptra-auth-manifest-app caliptra-builder caliptra-image-crypto caliptra-image-app; do
+            cargo build -p $proj --locked --no-default-features --features rustcrypto
+          done
+
       # Clippy needs to build crates as part of the check, so do it after the
       # build.
       - name: Clippy lint check

@@ -16,7 +16,9 @@ use std::path::Path;
 
 use anyhow::Context;
 
-use caliptra_image_gen::{ImageGeneratorCrypto, ImageGeneratorHasher};
+use caliptra_image_gen::{
+    from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
+};
 use caliptra_image_types::*;
 
 use openssl::{
@@ -28,7 +30,7 @@ use openssl::{
     sha::{Sha256, Sha384, Sha512},
 };
 
-use crate::{from_hw_format, sign_with_lms_key, to_hw_format, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
+use crate::{sign_with_lms_key, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
 
 #[derive(Default)]
 pub struct OsslCrypto {}

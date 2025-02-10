@@ -382,10 +382,12 @@ impl Dma {
                 .unwrap();
 
             // Check if FW is inficating that it is ready to receive the recovery image.
-            if ((addr & RECOVERY_STATUS_OFFSET) == RECOVERY_STATUS_OFFSET)
+            if addr
+                == axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET
+                    + RECOVERY_STATUS_OFFSET
                 && ((data & AWATING_RECOVERY_IMAGE) == AWATING_RECOVERY_IMAGE)
             {
-                self.status0.reg.write(Status0::PAYLOAD_AVAILABLE::CLEAR);
+                self.status0.reg.modify(Status0::PAYLOAD_AVAILABLE::CLEAR);
                 // Schedule the timer to indicate that the payload is available
                 self.op_payload_available_action =
                     Some(self.timer.schedule_poll_in(PAYLOAD_AVAILABLE_OP_TICKS));
@@ -426,7 +428,7 @@ impl Dma {
             self.op_complete();
         }
         if self.timer.fired(&mut self.op_payload_available_action) {
-            self.status0.reg.write(Status0::PAYLOAD_AVAILABLE::SET);
+            self.status0.reg.modify(Status0::PAYLOAD_AVAILABLE::SET);
         }
     }
 }

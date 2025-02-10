@@ -113,36 +113,25 @@ pub struct DmaWriteTransaction {
 }
 
 /// Dma Widget
-pub struct Dma {
-    dma: Cell<Option<AxiDmaReg>>,
-}
+/// Safety: only one instance of the DMA widget should be created.
+#[derive(Default)]
+pub struct Dma {}
 
 impl Dma {
-    /// Create a new DMA instance
-    ///
-    /// # Arguments
-    ///
-    /// * `dma` - DMA register block
-    pub fn new(dma: AxiDmaReg) -> Self {
-        Self {
-            dma: Cell::new(Some(dma)),
-        }
+    /// Safety: This should never be called in a nested manner to avoid
+    /// programming conflicts with the underlying DMA registers.
+    pub fn with_dma<T>(&self, f: impl FnOnce(RegisterBlock<RealMmioMut>) -> T) -> T {
+        // Safety: Caliptra is single-threaded and only one caller to with_dma
+        // is allowed at a time, so it is safe to create and consume the
+        // zero-sized AxiDmaReg here and create a new one each time.
+        // Since the Mmio interface is immutable, we can't generate a
+        // around mutable reference to a shared AxiDmaReg without using
+        // Cell, which bloats the code.
+        let mut dma = unsafe { AxiDmaReg::new() };
+        f(dma.regs_mut())
     }
 
-    pub fn with_dma<T>(
-        &self,
-        f: impl FnOnce(RegisterBlock<RealMmioMut>) -> T,
-    ) -> CaliptraResult<T> {
-        if let Some(mut dma) = self.dma.take() {
-            let result = f(dma.regs_mut());
-            self.dma.set(Some(dma));
-            Ok(result)
-        } else {
-            Err(CaliptraError::DRIVER_DMA_INTERNAL) // should never happen
-        }
-    }
-
-    pub fn flush(&self) -> CaliptraResult<()> {
+    pub fn flush(&self) {
         self.with_dma(|dma| {
             dma.ctrl().write(|c| c.flush(true));
             // Wait till we're not busy and have no errors
@@ -156,11 +145,11 @@ impl Dma {
         })
     }
 
-    pub fn set_block_size(&self, block_size: u32) -> CaliptraResult<()> {
+    pub fn set_block_size(&self, block_size: u32) {
         self.with_dma(|dma| dma.block_size().write(|f| f.size(block_size)))
     }
 
-    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction) -> CaliptraResult<()> {
+    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction) {
         self.with_dma(|dma| {
             let read_addr = read_transaction.read_addr;
             dma.src_addr_l().write(|_| read_addr.lo);
@@ -188,7 +177,7 @@ impl Dma {
         })
     }
 
-    fn setup_dma_write(&self, write_transaction: DmaWriteTransaction) -> CaliptraResult<()> {
+    fn setup_dma_write(&self, write_transaction: DmaWriteTransaction) {
         self.with_dma(|dma| {
             let write_addr = write_transaction.write_addr;
             dma.dst_addr_l().write(|_| write_addr.lo);
@@ -247,7 +236,7 @@ impl Dma {
                 }
             });
             Ok(())
-        })?
+        })
     }
 
     fn dma_write_fifo(&self, write_data: &[u8]) -> CaliptraResult<()> {
@@ -272,7 +261,7 @@ impl Dma {
                 }
             });
             Ok(())
-        })?
+        })
     }
 
     pub fn do_transaction(&self) -> CaliptraResult<()> {
@@ -295,7 +284,7 @@ impl Dma {
             }
 
             Ok(())
-        })?
+        })
     }
 
     /// Read a 32-bit word from the specified address
@@ -324,7 +313,7 @@ impl Dma {
     ///
     /// * CaliptraResult<()> - Success or failure
     pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
-        self.flush()?;
+        self.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
@@ -333,7 +322,7 @@ impl Dma {
             target: DmaReadTarget::AhbFifo,
         };
 
-        self.setup_dma_read(read_transaction)?;
+        self.setup_dma_read(read_transaction);
         self.do_transaction()?;
         self.dma_read_fifo(buffer)?;
         Ok(())
@@ -350,7 +339,7 @@ impl Dma {
     ///
     /// * `CaliptraResult<()>` - Success or error code
     pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) -> CaliptraResult<()> {
-        self.flush()?;
+        self.flush();
 
         let write_transaction = DmaWriteTransaction {
             write_addr,
@@ -359,7 +348,7 @@ impl Dma {
             origin: DmaWriteOrigin::AhbFifo,
         };
         self.dma_write_fifo(write_val.as_bytes())?;
-        self.setup_dma_write(write_transaction)?;
+        self.setup_dma_write(write_transaction);
         self.do_transaction()?;
         Ok(())
     }
@@ -385,7 +374,7 @@ impl Dma {
         fixed_addr: bool,
         block_size: u32,
     ) -> CaliptraResult<()> {
-        self.flush()?;
+        self.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
@@ -393,8 +382,8 @@ impl Dma {
             length: payload_len_bytes,
             target: DmaReadTarget::Mbox,
         };
-        self.setup_dma_read(read_transaction)?;
-        self.set_block_size(block_size)?;
+        self.setup_dma_read(read_transaction);
+        self.set_block_size(block_size);
         self.do_transaction()?;
         Ok(())
     }
@@ -404,7 +393,7 @@ impl Dma {
     /// # Returns
     /// true if payload is available, false otherwise
     ///
-    pub fn payload_available(&self) -> CaliptraResult<bool> {
+    pub fn payload_available(&self) -> bool {
         self.with_dma(|dma| dma.status0().read().payload_available())
     }
 }
@@ -501,10 +490,7 @@ impl<'a> DmaRecovery<'a> {
             )
         };
         let t = f(regs);
-        match mmio.last_error.take() {
-            Some(err) => Err(err),
-            None => Ok(t),
-        }
+        mmio.check_error(t)
     }
 
     /// Return a register block that can be used to read and
@@ -525,10 +511,7 @@ impl<'a> DmaRecovery<'a> {
             )
         };
         let t = f(regs);
-        match mmio.last_error.take() {
-            Some(err) => Err(err),
-            None => Ok(t),
-        }
+        mmio.check_error(t)
     }
 
     fn transfer_payload_to_mbox(
@@ -538,7 +521,7 @@ impl<'a> DmaRecovery<'a> {
         fixed_addr: bool,
         block_size: u32,
     ) -> CaliptraResult<()> {
-        self.dma.flush()?;
+        self.dma.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
@@ -546,8 +529,8 @@ impl<'a> DmaRecovery<'a> {
             length: payload_len_bytes,
             target: DmaReadTarget::Mbox,
         };
-        self.dma.setup_dma_read(read_transaction)?;
-        self.dma.set_block_size(block_size)?;
+        self.dma.setup_dma_read(read_transaction);
+        self.dma.set_block_size(block_size);
         self.dma.do_transaction()?;
         Ok(())
     }
@@ -559,7 +542,7 @@ impl<'a> DmaRecovery<'a> {
         write_addr: AxiAddr,
         fixed_addr: bool,
     ) -> CaliptraResult<()> {
-        self.dma.flush()?;
+        self.dma.flush();
 
         let write_transaction = DmaWriteTransaction {
             write_addr,
@@ -567,8 +550,8 @@ impl<'a> DmaRecovery<'a> {
             length: payload_len_bytes,
             origin: DmaWriteOrigin::Mbox,
         };
-        self.dma.setup_dma_write(write_transaction)?;
-        self.dma.set_block_size(block_size)?;
+        self.dma.setup_dma_write(write_transaction);
+        self.dma.set_block_size(block_size);
         self.dma.do_transaction()?;
         Ok(())
     }
@@ -602,17 +585,19 @@ impl<'a> DmaRecovery<'a> {
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
         cprintln!("[fwproc] Waiting for payload available signal...");
-        while !self.dma.payload_available()? {}
+        while !self.dma.payload_available() {}
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
             // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-            let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
+            //let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
             let indirect_fifo_ctrl_val1 = recovery.indirect_fifo_ctrl_1().read();
-            let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
-                | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+
+            // let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
+            //     | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+            let image_size_dwords = indirect_fifo_ctrl_val1;
 
             image_size_dwords * 4
         })?;
