@@ -18,7 +18,7 @@ use caliptra_common::mailbox_api::{
     ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
     QuotePcrsResp,
 };
-use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
+use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::FromBytes;
 
 pub struct IncrementPcrResetCounterCmd;

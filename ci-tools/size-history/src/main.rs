@@ -67,8 +67,12 @@ fn real_main() -> io::Result<()> {
 
     if !worktree.is_log_linear()? {
         println!("git history is not linear; attempting to squash PR");
-        let (Ok(pull_request_title), Ok(base_ref)) = (env::var("PR_TITLE"), env::var("PR_BASE_COMMIT")) else {
-            return Err(other_err("non-linear history not supported outside of a PR"));
+        let (Ok(pull_request_title), Ok(base_ref)) =
+            (env::var("PR_TITLE"), env::var("PR_BASE_COMMIT"))
+        else {
+            return Err(other_err(
+                "non-linear history not supported outside of a PR",
+            ));
         };
         let mut rebase_onto: String = base_ref;
         for merge_parents in worktree.merge_log()? {

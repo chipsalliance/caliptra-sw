@@ -171,7 +171,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         if !is_test_complete(&mut cpu.bus) {
-            return Err(std::io::Error::new(
+            Err(std::io::Error::new(
                 ErrorKind::Other,
                 "test did not complete",
             ))?;

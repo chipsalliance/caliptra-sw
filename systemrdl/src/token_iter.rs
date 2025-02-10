@@ -97,9 +97,7 @@ impl<'a> TokenIter<'a> {
                     continue;
                 }
                 None => {
-                    let Some(stack_entry) = self.iter_stack.pop() else {
-                        return None;
-                    };
+                    let stack_entry = self.iter_stack.pop()?;
                     // this file was included from another file; resume
                     // processing the original file.
                     self.lex = stack_entry.lex;
