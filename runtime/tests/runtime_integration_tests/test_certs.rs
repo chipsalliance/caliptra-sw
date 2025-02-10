@@ -486,8 +486,8 @@ pub fn test_all_measurement_apis() {
             DpeResult::Success,
         );
         let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {
-        panic!("Wrong response type!");
-    };
+            panic!("Wrong response type!");
+        };
 
         // Get DPE cert
         let dpe_cert_resp = get_dpe_leaf_cert(&mut hw);

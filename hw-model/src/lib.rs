@@ -92,14 +92,13 @@ pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 /// should use [`new`] instead.
 pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     let summary = params.summary();
-    DefaultHwModel::new_unbooted(params).map(|hw| {
+    DefaultHwModel::new_unbooted(params).inspect(|hw| {
         println!(
             "Using hardware-model {} trng={:?}",
             hw.type_name(),
             hw.trng_mode()
         );
         println!("{summary:#?}");
-        hw
     })
 }
 
@@ -193,7 +192,7 @@ pub struct InitParams<'a> {
     // overflows.
     pub stack_info: Option<StackInfo>,
 }
-impl<'a> Default for InitParams<'a> {
+impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
             .ok()
@@ -235,7 +234,7 @@ impl<'a> Default for InitParams<'a> {
     }
 }
 
-impl<'a> InitParams<'a> {
+impl InitParams<'_> {
     fn summary(&self) -> InitParamsSummary {
         InitParamsSummary {
             rom_sha384: sha2::Sha384::digest(self.rom).into(),
@@ -281,7 +280,7 @@ pub struct BootParams<'a> {
     pub mcu_fw_image: Option<&'a [u8]>,
 }
 
-impl<'a> Default for BootParams<'a> {
+impl Default for BootParams<'_> {
     fn default() -> Self {
         Self {
             fuses: Default::default(),
@@ -481,7 +480,7 @@ pub struct MailboxRecvTxn<'a, TModel: HwModel> {
     model: &'a mut TModel,
     pub req: MailboxRequest,
 }
-impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
+impl<Model: HwModel> MailboxRecvTxn<'_, Model> {
     pub fn respond_success(self) {
         self.complete(MboxStatusE::CmdComplete);
     }

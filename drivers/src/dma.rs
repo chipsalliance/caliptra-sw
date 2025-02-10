@@ -403,7 +403,7 @@ impl<'a> DmaMmio<'a> {
     }
 }
 
-impl<'a> Mmio for &DmaMmio<'a> {
+impl Mmio for &DmaMmio<'_> {
     #[inline(always)]
     unsafe fn read_volatile<T: ureg::Uint>(&self, src: *const T) -> T {
         // we only support 32-bit reads
@@ -418,7 +418,7 @@ impl<'a> Mmio for &DmaMmio<'a> {
     }
 }
 
-impl<'a> MmioMut for &DmaMmio<'a> {
+impl MmioMut for &DmaMmio<'_> {
     #[inline(always)]
     unsafe fn write_volatile<T: ureg::Uint>(&self, dst: *mut T, src: T) {
         // we only support 32-bit writes

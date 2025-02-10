@@ -15,11 +15,8 @@ Abstract:
 #[cfg(not(feature = "fake-rom"))]
 compile_error!("This file should NEVER be included except for the fake-rom feature");
 
-#[allow(dead_code)]
-#[path = "cold_reset/fw_processor.rs"]
-mod fw_processor;
-
 use crate::fht;
+use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
@@ -36,7 +33,6 @@ use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
-use fw_processor::FirmwareProcessor;
 
 const FAKE_LDEV_TBS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ldev_tbs.der"));
 const FAKE_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
@@ -210,7 +206,12 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
     env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ecc_ldevid_tbs.get_mut(..tbs.len()) else {
+    let Some(dst) = env
+        .persistent_data
+        .get_mut()
+        .ecc_ldevid_tbs
+        .get_mut(..tbs.len())
+    else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -230,7 +231,12 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
     env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ecc_fmcalias_tbs.get_mut(..tbs.len()) else {
+    let Some(dst) = env
+        .persistent_data
+        .get_mut()
+        .ecc_fmcalias_tbs
+        .get_mut(..tbs.len())
+    else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -249,7 +255,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) dma: &'a Dma,
 }
 
-impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
+impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;

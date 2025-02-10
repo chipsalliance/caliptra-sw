@@ -315,11 +315,12 @@ pub trait SocManager {
             .as_mut_bytes()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
 
-        let mut header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8]).unwrap();
+        let header = MailboxReqHeader::mut_from_bytes(header_bytes as &mut [u8]).unwrap();
         header.chksum = calc_checksum(R::ID.into(), payload_bytes);
 
-        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)? else {
-                return Err(CaliptraApiError::MailboxNoResponseData);
+        let Some(data) = SocManager::mailbox_exec(self, R::ID.into(), req.as_bytes(), resp_bytes)?
+        else {
+            return Err(CaliptraApiError::MailboxNoResponseData);
         };
 
         if data.len() < R::Resp::MIN_SIZE || data.len() > mem::size_of::<R::Resp>() {

@@ -12,26 +12,18 @@ Abstract:
 
 --*/
 
-use core::cmp::min;
-
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
 use caliptra_drivers::{
-    cprintln, hmac_kdf,
+    hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, Sha384},
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacData,
-    HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp,
-    Sha2_512_384, Trng,
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
+    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
-use dpe::{
-    response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE,
-};
-use zerocopy::IntoBytes;
-use zeroize::Zeroize;
+use dpe::{ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE};
 
 // Currently only can export CDI once, but in the future we may want to support multiple exported
 // CDI handles at the cost of using more KeyVault slots.
@@ -188,7 +180,7 @@ impl<'a> DpeHasher<'a> {
     }
 }
 
-impl<'a> Hasher for DpeHasher<'a> {
+impl Hasher for DpeHasher<'_> {
     fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
         self.op
             .update(bytes)
@@ -204,9 +196,12 @@ impl<'a> Hasher for DpeHasher<'a> {
     }
 }
 
-impl<'a> Crypto for DpeCrypto<'a> {
+impl Crypto for DpeCrypto<'_> {
     type Cdi = KeyId;
-    type Hasher<'b> = DpeHasher<'b> where Self: 'b;
+    type Hasher<'b>
+        = DpeHasher<'b>
+    where
+        Self: 'b;
     type PrivKey = KeyId;
 
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
@@ -248,7 +243,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         for slot in self.exported_cdi_slots.iter_mut() {
             match slot {
                 // Matching existing slot
-                Some((cached_cdi, handle)) if *cached_cdi == cdi => {
+                Some((cached_cdi, _handle)) if *cached_cdi == cdi => {
                     Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
                 }
                 // Empty slot

@@ -29,7 +29,7 @@ pub struct FieldWithAttributes {
 }
 
 pub struct DisplayToken<'a>(pub &'a Option<TokenTree>);
-impl<'a> Display for DisplayToken<'a> {
+impl Display for DisplayToken<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             Some(TokenTree::Ident(i)) => write!(f, "identifier {}", i),

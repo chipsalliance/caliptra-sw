@@ -28,6 +28,7 @@ fpga_realtime = []
 #     --profile=firmware \
 #     --features riscv
 riscv = ["caliptra-test-harness/riscv"]
+runtime = []
 
 [[bin]]
 name = "mbox_send_txn_drop"

@@ -28,7 +28,9 @@ caliptra-cfi-lib-git = { workspace = true, default-features = false, features = 
 caliptra-cfi-derive-git = { workspace = true, optional = true }
 
 [features]
+std = []
 emu = []
+riscv = []
 runtime = ["dep:dpe", "dep:caliptra-cfi-lib-git", "dep:caliptra-cfi-derive-git"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
@@ -45,4 +47,3 @@ caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-test.workspace = true
 openssl.workspace = true
-caliptra_common.workspace = true

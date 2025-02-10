@@ -12,7 +12,7 @@ pub struct InitDevIdCsrTbsEcc384Params<'a> {
     pub public_key: &'a [u8; 97usize],
     pub subject_sn: &'a [u8; 64usize],
 }
-impl<'a> InitDevIdCsrTbsEcc384Params<'a> {
+impl InitDevIdCsrTbsEcc384Params<'_> {
     pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 97usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;
