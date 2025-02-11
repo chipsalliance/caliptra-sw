@@ -306,14 +306,14 @@ This field provides the size of the *To Be Signed* portion of the Runtime Alias 
 
 This field provides the size of the *To Be Signed* portion of the Runtime Alias MLDSA certificate.
 
-### fw_hash_chain_max_svn
+### fw_key_ladder_max_svn
 
 This field informs firmware of the maximum FW SVN, which value was used
-to determine the length of FW's hash chain.
+to determine the length of FW's key ladder.
 
-### fw_hash_chain_kv_hdl
+### fw_key_ladder_kv_hdl
 
-This field provides the Handle into the Key Vault where FW's hash chain is stored.
+This field provides the Handle into the Key Vault where FW's key ladder is stored.
 
 ### reserved
 

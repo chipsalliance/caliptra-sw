@@ -7,9 +7,7 @@ Abstract:
     Regenerate the template by building caliptra-x509-build with the generate-templates flag.
 
 --"]
-
 // TODO generate when x509 libraries support MLDSA
-
 #[allow(dead_code)]
 pub struct RtAliasCertTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
@@ -22,7 +20,7 @@ pub struct RtAliasCertTbsMlDsa87Params<'a> {
     pub ueid: &'a [u8; 17usize],
     pub not_before: &'a [u8; 15usize],
     pub not_after: &'a [u8; 15usize],
-    pub tcb_info_rt_svn: &'a [u8; 1usize],
+    pub tcb_info_fw_svn: &'a [u8; 1usize],
 }
 #[allow(dead_code)]
 impl<'a> RtAliasCertTbsMlDsa87Params<'a> {
@@ -36,7 +34,7 @@ impl<'a> RtAliasCertTbsMlDsa87Params<'a> {
     pub const UEID_LEN: usize = 17usize;
     pub const NOT_BEFORE_LEN: usize = 15usize;
     pub const NOT_AFTER_LEN: usize = 15usize;
-    pub const TCB_INFO_RT_SVN_LEN: usize = 1usize;
+    pub const TCB_INFO_FW_SVN_LEN: usize = 1usize;
 }
 #[allow(dead_code)]
 pub struct RtAliasCertTbsMlDsa87 {
@@ -54,7 +52,7 @@ impl RtAliasCertTbsMlDsa87 {
     const UEID_OFFSET: usize = 2972usize;
     const NOT_BEFORE_OFFSET: usize = 157usize;
     const NOT_AFTER_OFFSET: usize = 174usize;
-    const TCB_INFO_RT_SVN_OFFSET: usize = 3006usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 3006usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
@@ -65,7 +63,7 @@ impl RtAliasCertTbsMlDsa87 {
     const UEID_LEN: usize = 17usize;
     const NOT_BEFORE_LEN: usize = 15usize;
     const NOT_AFTER_LEN: usize = 15usize;
-    const TCB_INFO_RT_SVN_LEN: usize = 1usize;
+    const TCB_INFO_FW_SVN_LEN: usize = 1usize;
     pub const TBS_TEMPLATE_LEN: usize = 3145usize;
     const TBS_TEMPLATE_PART_1: [u8; 322] = [
         48u8, 130u8, 2u8, 133u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
@@ -89,16 +87,16 @@ impl RtAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8,
         118u8, 48u8, 16u8, 6u8, 7u8, 42u8, 134u8, 72u8, 206u8, 61u8, 2u8, 1u8, 6u8, 5u8, 43u8,
-        129u8, 4u8, 0u8, 34u8, 4u8, 130u8, 10u8, 32u8];
+        129u8, 4u8, 0u8, 34u8, 4u8, 130u8, 10u8, 32u8,
+    ];
 
     const TBS_TEMPLATE_PART_2: [u8; 231] = [
-        163u8,
-        129u8, 228u8, 48u8, 129u8, 225u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8,
-        4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 2u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8,
-        15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8, 31u8, 6u8, 6u8, 103u8, 129u8,
-        5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 90u8, 6u8, 6u8,
-        103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 4u8, 80u8, 48u8, 78u8, 131u8, 2u8, 1u8, 95u8, 166u8,
+        163u8, 129u8, 228u8, 48u8, 129u8, 225u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8,
+        255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 2u8, 48u8, 14u8, 6u8, 3u8, 85u8,
+        29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8, 31u8, 6u8, 6u8, 103u8,
+        129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 90u8, 6u8,
+        6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 4u8, 80u8, 48u8, 78u8, 131u8, 2u8, 1u8, 95u8, 166u8,
         63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
@@ -111,11 +109,12 @@ impl RtAliasCertTbsMlDsa87 {
         95u8,
     ];
     pub fn new(params: &RtAliasCertTbsMlDsa87Params) -> Self {
-       let mut template = Self {
+        let mut template = Self {
             tbs: [0; Self::TBS_TEMPLATE_LEN],
         };
         template.tbs[..Self::PUBLIC_KEY_OFFSET].copy_from_slice(&Self::TBS_TEMPLATE_PART_1);
-        template.tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..].copy_from_slice(&Self::TBS_TEMPLATE_PART_2);
+        template.tbs[Self::PUBLIC_KEY_OFFSET + Self::PUBLIC_KEY_LEN..]
+            .copy_from_slice(&Self::TBS_TEMPLATE_PART_2);
 
         template.apply(params);
         template
@@ -174,9 +173,9 @@ impl RtAliasCertTbsMlDsa87 {
             &mut self.tbs,
             params.not_after,
         );
-        apply_slice::<{ Self::TCB_INFO_RT_SVN_OFFSET }, { Self::TCB_INFO_RT_SVN_LEN }>(
+        apply_slice::<{ Self::TCB_INFO_FW_SVN_OFFSET }, { Self::TCB_INFO_FW_SVN_LEN }>(
             &mut self.tbs,
-            params.tcb_info_rt_svn,
+            params.tcb_info_fw_svn,
         );
     }
 }

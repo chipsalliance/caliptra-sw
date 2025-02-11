@@ -46,6 +46,7 @@ mod exception;
 mod fht;
 mod flow;
 mod fuse;
+mod key_ladder;
 mod lock;
 mod pcr;
 mod rom_env;
