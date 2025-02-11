@@ -84,11 +84,15 @@ impl AxiRootBus {
             Self::TEST_REG_OFFSET => return Register::write(&mut self.reg, size, val),
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
                 let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
-                return Bus::write(&mut self.mci, size, addr, val);
+                return Bus::write(&mut self.recovery, size, addr, val);
             }
             Self::OTC_FC_OFFSET..=Self::OTC_FC_END => {
                 let addr = (addr - Self::OTC_FC_OFFSET) as RvAddr;
                 return Bus::write(&mut self.otp_fc, size, addr, val);
+            }
+            Self::SS_MCI_OFFSET..=Self::SS_MCI_END => {
+                let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
+                return Bus::write(&mut self.mci, size, addr, val);
             }
             _ => {}
         }
