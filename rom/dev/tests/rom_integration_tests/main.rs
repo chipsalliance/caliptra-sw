@@ -15,6 +15,7 @@ mod test_image_validation;
 mod test_mailbox_errors;
 mod test_panic_missing;
 mod test_rom_integrity;
+mod test_soc_integration;
 mod test_symbols;
 mod test_update_reset;
 mod test_version;
