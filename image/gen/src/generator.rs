@@ -245,12 +245,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGenratorExecutable,
     {
-        let r#type = ImageTocEntryType::Executable;
+        let image_type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 
         let entry = ImageTocEntry {
             id: id.into(),
-            r#type: r#type.into(),
+            image_type: image_type.into(),
             revision: *image.rev(),
             version: image.version(),
             svn: image.svn(),
