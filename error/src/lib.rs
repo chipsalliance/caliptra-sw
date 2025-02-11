@@ -682,6 +682,13 @@ impl CaliptraError {
     pub const KAT_ECC384_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90040005);
 
+    pub const KAT_MLDSA87_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040006);
+    pub const KAT_MLDSA87_SIGNATURE_FAILURE: CaliptraError = CaliptraError::new_const(0x90040007);
+    pub const KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040008);
+    pub const KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040009);
+
     pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
     pub const KAT_SHA2_512_384_ACC_DIGEST_FAILURE: CaliptraError =

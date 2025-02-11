@@ -789,8 +789,7 @@ pub struct FwInfoResp {
     pub rom_sha256_digest: [u32; 8],
     pub fmc_sha384_digest: [u32; 12],
     pub runtime_sha384_digest: [u32; 12],
-    // TODO: Decide what other information to report for general firmware
-    // status.
+    pub owner_pub_key_hash: [u32; 12],
 }
 
 // CAPABILITIES
@@ -1150,7 +1149,7 @@ pub fn mbox_write_fifo(
     mbox: &mbox::RegisterBlock<impl MmioMut>,
     buf: &[u8],
 ) -> core::result::Result<(), CaliptraApiError> {
-    const MAILBOX_SIZE: u32 = 128 * 1024;
+    const MAILBOX_SIZE: u32 = 256 * 1024;
 
     let Ok(input_len) = u32::try_from(buf.len()) else {
         return Err(CaliptraApiError::BufferTooLargeForMailbox);

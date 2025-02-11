@@ -155,6 +155,9 @@ pub extern "C" fn rom_entry() -> ! {
             // LMS Engine
             lms: &mut env.lms,
 
+            // MLDSA87 Engine
+            mldsa87: &mut env.mldsa87,
+
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
 

@@ -44,7 +44,7 @@ pub const SHA512_DIGEST_WORD_SIZE: usize = 16;
 pub const SHA512_DIGEST_BYTE_SIZE: usize = 64;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
-pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
+pub const IMAGE_BYTE_SIZE: usize = 256 * 1024;
 // LMS-SHA192-H15
 pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
 // LMOTS-SHA192-W4

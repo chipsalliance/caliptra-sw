@@ -169,6 +169,9 @@ pub mod fips_self_test_cmd {
             // LMS Engine
             lms: &mut env.lms,
 
+            // MLDSA87 Engine
+            mldsa87: &mut env.mldsa87,
+
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
 
