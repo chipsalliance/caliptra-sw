@@ -265,6 +265,54 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
 }
 
 #[test]
+fn test_change_locality() {
+    let args = RuntimeTestArgs {
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    model.set_axi_user(0x01);
+
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: DATA,
+        flags: DeriveContextFlags::CHANGE_LOCALITY
+            | DeriveContextFlags::MAKE_DEFAULT
+            | DeriveContextFlags::INPUT_ALLOW_X509,
+        tci_type: 0,
+        target_locality: 2,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_context_cmd),
+        DpeResult::Success,
+    )
+    .unwrap();
+
+    model.set_axi_user(0x02);
+
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: DATA,
+        flags: DeriveContextFlags::MAKE_DEFAULT,
+        tci_type: 0,
+        target_locality: 2,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_context_cmd),
+        DpeResult::Success,
+    )
+    .unwrap();
+}
+
+#[test]
 fn test_populate_idev_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut image_opts = ImageOptions {
