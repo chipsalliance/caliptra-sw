@@ -20,6 +20,7 @@ use caliptra_hw_model_types::{
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes, Ref, Unalign};
 
+use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use caliptra_registers::soc_ifc::regs::{
@@ -181,6 +182,8 @@ pub struct InitParams<'a> {
     // Information about the stack Caliptra is using. When set the emulator will check if the stack
     // overflows.
     pub stack_info: Option<StackInfo>,
+
+    pub soc_user: MailboxRequester,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -216,6 +219,7 @@ impl<'a> Default for InitParams<'a> {
             random_sram_puf: true,
             trace_path: None,
             stack_info: None,
+            soc_user: MailboxRequester::SocUser(1u32),
         }
     }
 }
