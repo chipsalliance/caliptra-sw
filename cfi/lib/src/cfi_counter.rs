@@ -19,8 +19,7 @@ References:
 use caliptra_error::CaliptraResult;
 
 use crate::cfi::{cfi_panic, CfiPanicInfo};
-use crate::xoshiro::Xoshiro128;
-use crate::CFI_STATE;
+use crate::with_cfi_state;
 use core::default::Default;
 
 /// CFI Integer
@@ -63,10 +62,6 @@ impl Default for CfiInt {
     }
 }
 
-fn prng() -> &'static Xoshiro128 {
-    unsafe { &CFI_STATE.prng }
-}
-
 /// CFI counter
 pub enum CfiCounter {}
 
@@ -74,7 +69,7 @@ impl CfiCounter {
     /// Reset counter
     #[inline(always)]
     pub fn reset(entropy_gen: &mut impl FnMut() -> CaliptraResult<[u32; 12]>) {
-        prng().mix_entropy(entropy_gen);
+        with_cfi_state(|cfi_state| cfi_state.prng.mix_entropy(entropy_gen));
         Self::reset_internal();
     }
 
@@ -159,7 +154,7 @@ impl CfiCounter {
 
     #[inline(never)]
     pub fn delay() {
-        let cycles = prng().next() % 256;
+        let cycles = with_cfi_state(|cfi_state| cfi_state.prng.next() % 256);
         let _real_cyc = 1 + cycles / 2;
         #[cfg(all(target_arch = "riscv32", feature = "cfi", feature = "cfi-counter"))]
         unsafe {
@@ -175,19 +170,14 @@ impl CfiCounter {
 
     /// Read counter value
     pub fn read() -> CfiInt {
-        unsafe {
-            CfiInt::from_raw(
-                core::ptr::read_volatile(&CFI_STATE.val as *const u32),
-                core::ptr::read_volatile(&CFI_STATE.mask as *const u32),
-            )
-        }
+        with_cfi_state(|cfi_state| CfiInt::from_raw(cfi_state.val.get(), cfi_state.mask.get()))
     }
 
     /// Write counter value
     fn write(val: CfiInt) {
-        unsafe {
-            core::ptr::write_volatile(&mut CFI_STATE.val as *mut u32, val.val);
-            core::ptr::write_volatile(&mut CFI_STATE.mask as *mut u32, val.masked_val);
-        }
+        with_cfi_state(|cfi_state| {
+            cfi_state.val.set(val.val);
+            cfi_state.mask.set(val.masked_val);
+        });
     }
 }
