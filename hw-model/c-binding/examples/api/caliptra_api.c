@@ -56,7 +56,7 @@ static int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct cali
 {
 
     // Check against max size
-    const uint32_t MBOX_SIZE = (128u * 1024u);
+    const uint32_t MBOX_SIZE = (256u * 1024u);
     if (buffer->len > MBOX_SIZE) {
         return -EINVAL;
     }
