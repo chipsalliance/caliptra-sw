@@ -1,3 +1,4 @@
+use crate::mailbox::MAX_MAILBOX_LEN;
 /*++
 
 Licensed under the Apache-2.0 license.
@@ -19,9 +20,6 @@ use caliptra_error::CaliptraError;
 use caliptra_registers::sha512_acc::enums::ShaCmdE;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
-
-/// Maximum mailbox capacity in Bytes.
-const MAX_MAILBOX_CAPACITY_BYTES: u32 = 256 << 10;
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 pub type Sha512Digest<'a> = &'a mut Array4x16;
@@ -179,8 +177,8 @@ impl Sha2_512_384AccOp<'_> {
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
-        if start_address >= MAX_MAILBOX_CAPACITY_BYTES
-            || (start_address + dlen) > MAX_MAILBOX_CAPACITY_BYTES
+        if start_address >= MAX_MAILBOX_LEN
+            || (start_address + dlen) > MAX_MAILBOX_LEN
         {
             return Err(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS);
         }

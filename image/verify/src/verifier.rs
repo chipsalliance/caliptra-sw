@@ -1148,6 +1148,31 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
             })?;
 
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+            let result = || -> CaliptraResult<()> {
+                // SHA 512
+                sha_acc_op
+                    .digest_512(0, 0, false, &mut digest)
+                    .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
+                if digest != SHA512_EXPECTED_DIGEST {
+                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;
+                }
+
+                Ok(())
+            }();
+
+            // If error, don't drop the operation since that will unlock the
+            // peripheral for SoC use, which we're not allowed to do if the
+            // KAT doesn't pass.
+            if result.is_err() {
+                caliptra_drivers::cprintln!("Droping operation");
+                core::mem::forget(sha_acc_op);
+            }
+            result?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         } else {
