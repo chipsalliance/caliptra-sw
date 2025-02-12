@@ -152,12 +152,28 @@ fn copy_file(dest: &mut File, src: &mut File) -> std::io::Result<()> {
 }
 
 fn log_uart_until<R: BufRead>(lines: &mut Lines<R>, needle: &str) -> std::io::Result<()> {
+    log_uart_until_helper(lines, needle, false)
+}
+
+fn log_uart_until_with_timeout<R: BufRead>(
+    lines: &mut Lines<R>,
+    needle: &str,
+) -> std::io::Result<()> {
+    log_uart_until_helper(lines, needle, true)
+}
+
+fn log_uart_until_helper<R: BufRead>(lines: &mut Lines<R>, needle: &str, check_timeout: bool) -> std::io::Result<()> {
     for line in lines.by_ref() {
         match line {
             Ok(line) => {
                 println!("UART: {}", line);
                 if line.contains(needle) {
                     return Ok(());
+                }
+            }
+            Err(e) if e.kind() == ErrorKind::TimedOut => {
+                if check_timeout {
+                    return Err(e);
                 }
             }
             Err(e) => {
@@ -301,10 +317,14 @@ fn main_impl() -> anyhow::Result<()> {
             }
         }
         Some(("serve", sub_matches)) => {
+            // Reuse the previous token if we never connect to GitHub.
+            // This avoids creating a bunch of offline runners if the FPGA fails to establish a
+            // connection.
+            let mut cached_token: Option<Vec<u8>> = None;
             let mut fpga = get_fpga_ftdi()?;
             let mut sd_mux = get_sd_mux()?;
             let sd_dev_path = get_sd_dev_path()?;
-            loop {
+            'outer: loop {
                 println!("Putting FPGA into reset");
                 fpga.set_reset(FpgaReset::Reset)?;
                 sd_mux.set_target(SdMuxTarget::Host)?;
@@ -323,8 +343,12 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
-                let (uart_rx, mut uart_tx) =
-                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B)?;
+                let fpga_timeout = Duration::from_secs(60);
+                let (uart_rx, mut uart_tx) = ftdi_uart::open_blocking(
+                    get_zcu104_path()?,
+                    ftdi_interface::INTERFACE_B,
+                    Some(fpga_timeout),
+                )?;
 
                 println!("Taking FPGA out of reset");
                 sd_mux.set_target(SdMuxTarget::Dut)?;
@@ -332,29 +356,62 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?;
 
                 let mut uart_lines = BufReader::new(uart_rx).lines();
-                log_uart_until(
+                // FPGA has `fpga_timeout: Duration` until we reset and try again.
+                match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "36668aa492b1c83cdd3ade8466a0153d --- Command input",
-                )?;
-
-                let command_args: Vec<_> =
-                    sub_matches.get_many::<OsString>("CMD").unwrap().collect();
-
-                println!("Executing command {:?} to retrieve jitconfig", command_args);
-                let output = std::process::Command::new(command_args[0])
-                    .args(&command_args[1..])
-                    .stderr(Stdio::inherit())
-                    .output()?;
-                if !output.status.success() {
-                    println!("Error retrieving jitconfig: stdout:");
-                    stdout().write_all(&output.stdout)?;
-                    continue;
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to enter start-up!");
+                        continue 'outer;
+                    }
+                    Err(e) => Err(e)?,
+                    _ => (),
                 }
 
+                if cached_token.is_none() {
+                    let command_args: Vec<_> =
+                        sub_matches.get_many::<OsString>("CMD").unwrap().collect();
+
+                    println!("Executing command {:?} to retrieve jitconfig", command_args);
+                    let output = std::process::Command::new(command_args[0])
+                        .args(&command_args[1..])
+                        .stderr(Stdio::inherit())
+                        .output()?;
+                    if !output.status.success() {
+                        println!("Error retrieving jitconfig: stdout:");
+                        stdout().write_all(&output.stdout)?;
+                        continue;
+                    }
+                    cached_token = Some(output.stdout);
+                }
+
+                // VCK-190 needs some extra time before we attempt a write to it.
+                std::thread::sleep(Duration::from_secs(3));
                 uart_tx.write_all(b"runner-jitconfig ")?;
-                uart_tx.write_all(&output.stdout)?;
+                uart_tx.write_all(
+                    &cached_token
+                        .clone()
+                        .expect("A token should always be cached before sending it over the UART"),
+                )?;
                 uart_tx.write_all(b"\n")?;
 
+                // FGPA has `fpga_timeout: Duration` until we reset and try again.
+                // The VCK-190 has a flaky serial connection from host => fpga. For now we use
+                // retries to address this.
+                match log_uart_until_with_timeout(&mut uart_lines, "Listening for Jobs") {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to connect to Github!");
+                        continue 'outer;
+                    }
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
+
+                cached_token = None;
+
+                // Once we have established a connection to GitHub we no longer use the timeout.
+                // Eventually we should add a health check to the FPGA in case it's stuck.
                 log_uart_until(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
