@@ -6,12 +6,14 @@ use crate::EtrngResponse;
 use crate::{HwModel, SocManager, TrngMode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusMmio;
+use caliptra_emu_bus::Event;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
 use std::io::Write;
+use std::mpsc;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -442,6 +444,14 @@ impl ModelVerilated {
     }
 
     fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        todo!()
+    }
+
+    fn events_from_caliptra(&mut self) -> Vec<Event> {
+        todo!()
+    }
+
+    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
 }

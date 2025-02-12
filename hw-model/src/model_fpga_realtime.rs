@@ -2,6 +2,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::marker::PhantomData;
+use std::mpsc;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use std::thread;
 use std::{env, str::FromStr};
 
 use bitfield::bitfield;
-use caliptra_emu_bus::{Bus, BusError, BusMmio};
+use caliptra_emu_bus::{Bus, BusError, BusMmio, Event};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
@@ -531,6 +532,14 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        todo!()
+    }
+
+    fn events_from_caliptra(&mut self) -> Vec<Event> {
+        todo!()
+    }
+
+    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
 }

@@ -860,8 +860,9 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
         let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
+        let mci_base_addr = soc_ifc.mci_base_addr().into();
         const FW_IMAGE_INDEX: u32 = 0x0;
-        let dma_recovery = DmaRecovery::new(rri_base_addr, dma);
-        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
+        let dma_recovery = DmaRecovery::new(rri_base_addr, mci_base_addr, dma);
+        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX, true)
     }
 }

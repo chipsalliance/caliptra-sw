@@ -62,6 +62,10 @@ pub struct RuntimeTestArgs<'a> {
     pub test_image_options: Option<ImageOptions>,
     pub init_params: Option<InitParams<'a>>,
     pub test_mfg_flags: Option<MfgFlags>,
+    // SoC manifest passed via the recovery interface
+    pub soc_manifest: Option<&'a [u8]>,
+    // MCU firmware image passed via the recovery interface
+    pub mcu_fw_image: Option<&'a [u8]>,
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
@@ -128,6 +132,8 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
+            soc_manifest: args.soc_manifest,
+            mcu_fw_image: args.mcu_fw_image,
             ..Default::default()
         },
     )
@@ -205,6 +211,8 @@ pub fn run_rt_test_pqc(
                 ..Default::default()
             },
             initial_dbg_manuf_service_reg: boot_flags,
+            soc_manifest: args.soc_manifest,
+            mcu_fw_image: args.mcu_fw_image,
             ..Default::default()
         },
     )
