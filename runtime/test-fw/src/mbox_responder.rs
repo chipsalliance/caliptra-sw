@@ -230,7 +230,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             // Computes a digest from the key ladder for a given target SVN.
             CommandId(OPCODE_READ_KEY_LADDER_DIGEST) => {
-                let target_svn = u32::read_from(read_request(&drivers.mbox)).unwrap();
+                let target_svn = u32::read_from_bytes(read_request(&drivers.mbox)).unwrap();
 
                 KeyLadder::derive_secret(drivers, target_svn, b"", KEY_ID_TMP)?;
 
