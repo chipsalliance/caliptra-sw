@@ -410,7 +410,7 @@ impl FirmwareProcessor {
         let manifest = &mut persistent_data.get_mut().manifest1;
         if active_mode {
             let mbox_sram = txn.raw_mailbox_contents();
-            let manifest_buf = manifest.as_bytes_mut();
+            let manifest_buf = manifest.as_mut_bytes();
             if mbox_sram.len() < manifest_buf.len() {
                 Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
             }

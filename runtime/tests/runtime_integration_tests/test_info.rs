@@ -102,7 +102,7 @@ fn test_fw_info() {
                 .unwrap()
                 .unwrap();
 
-            let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+            let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
             // Verify checksum and FIPS status
             assert!(caliptra_common::checksum::verify_checksum(

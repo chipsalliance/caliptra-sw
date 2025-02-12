@@ -560,7 +560,7 @@ fn test_check_rom_update_reset_status_reg() {
             hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
             let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-            let data_vault = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
+            let (data_vault, _) = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
             assert_eq!(
                 data_vault.rom_update_reset_status(),
                 u32::from(UpdateResetComplete)

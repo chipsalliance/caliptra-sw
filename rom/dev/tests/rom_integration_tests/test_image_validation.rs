@@ -40,7 +40,7 @@ use openssl::{
     x509::{X509Req, X509},
 };
 use std::str;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
 
@@ -936,13 +936,13 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
     // Modify the vendor public key.
     let lms_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
 
-    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+    let (lms_pub_key, _) = ImageLmsPublicKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_pqc_active_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     lms_pub_key.digest = [Default::default(); 6];
@@ -967,14 +967,14 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
 
     // Modify the vendor signature.
     image_bundle.manifest.preamble.vendor_pqc_active_pub_key = lms_pub_key_backup;
-    let lms_sig = ImageLmsSignature::mut_ref_from_prefix(
+    let (lms_sig, _) = ImageLmsSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     lms_sig.tree_path[0] = [Default::default(); 6];
@@ -1007,14 +1007,14 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     // Modify the owner public key.
     let lms_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
 
-    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+    let (lms_pub_key, _) = ImageLmsPublicKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     lms_pub_key.digest = [Default::default(); 6];
@@ -1039,14 +1039,14 @@ fn test_header_verify_owner_lms_sig_mismatch() {
 
     // Modify the owner signature.
     image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = lms_pub_key_backup;
-    let lms_sig = ImageLmsSignature::mut_ref_from_prefix(
+    let (lms_sig, _) = ImageLmsSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     lms_sig.tree_path[0] = [Default::default(); 6];
@@ -3045,13 +3045,13 @@ fn test_header_verify_vendor_mldsa_sig_zero() {
     // Modify the vendor public key.
     let mldsa_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
 
-    let mldsa_pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_pqc_active_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -3069,14 +3069,14 @@ fn test_header_verify_vendor_mldsa_sig_zero() {
 
     // Modify the vendor signature.
     image_bundle.manifest.preamble.vendor_pqc_active_pub_key = mldsa_pub_key_backup;
-    let mldsa_sig = ImageMldsaSignature::mut_ref_from_prefix(
+    let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     *mldsa_sig = Default::default();
@@ -3101,13 +3101,13 @@ fn test_header_verify_vendor_mldsa_sig_mismatch() {
     // Modify the vendor public key.
     let mldsa_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
 
-    let mldsa_pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_pqc_active_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -3125,14 +3125,14 @@ fn test_header_verify_vendor_mldsa_sig_mismatch() {
 
     // Modify the vendor signature.
     image_bundle.manifest.preamble.vendor_pqc_active_pub_key = mldsa_pub_key_backup;
-    let mldsa_sig = ImageMldsaSignature::mut_ref_from_prefix(
+    let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .vendor_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -3161,14 +3161,14 @@ fn test_header_verify_owner_mldsa_sig_zero() {
     // Modify the owner public key.
     let mldsa_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
 
-    let mldsa_pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -3186,14 +3186,14 @@ fn test_header_verify_owner_mldsa_sig_zero() {
 
     // Modify the owner signature.
     image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = mldsa_pub_key_backup;
-    let mldsa_sig = ImageMldsaSignature::mut_ref_from_prefix(
+    let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     *mldsa_sig = Default::default();
@@ -3218,14 +3218,14 @@ fn test_header_verify_owner_mldsa_sig_mismatch() {
     // Modify the owner public key.
     let mldsa_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
 
-    let mldsa_pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -3243,14 +3243,14 @@ fn test_header_verify_owner_mldsa_sig_mismatch() {
 
     // Modify the owner signature.
     image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = mldsa_pub_key_backup;
-    let mldsa_sig = ImageMldsaSignature::mut_ref_from_prefix(
+    let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
             .preamble
             .owner_sigs
             .pqc_sig
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 

@@ -485,7 +485,7 @@ pub fn test_all_measurement_apis() {
         };
         let resp = execute_dpe_cmd(
             &mut hw,
-            &mut Command::DeriveContext(derive_context_cmd),
+            &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
         );
         let Some(Response::DeriveContext(_derive_ctx_resp)) = resp else {

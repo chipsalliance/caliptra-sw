@@ -11,7 +11,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
-use zerocopy::{IntoBytes, KnownLayout, TryFromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
 use crate::{
@@ -46,14 +46,14 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
-#[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+#[derive(Clone, Immutable, IntoBytes, KnownLayout, TryFromBytes, Zeroize)]
 #[repr(C)]
 pub struct Ecc384IdevIdCsr {
     pub csr_len: u32,
     pub csr: [u8; ECC384_MAX_CSR_SIZE],
 }
 
-#[derive(Clone, FromBytes, AsBytes, Zeroize)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct Mldsa87IdevIdCsr {
     pub csr_len: u32,
@@ -133,7 +133,7 @@ pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
 
 /// Calipatra IDEVID CSR Envelope
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Zeroize)]
+#[derive(Clone, IntoBytes, Immutable, KnownLayout, TryFromBytes, Zeroize)]
 pub struct InitDevIdCsrEnvelope {
     /// Marker
     pub marker: u32,

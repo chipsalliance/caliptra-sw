@@ -20,7 +20,7 @@ impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = GetIdevCsrReq::ref_from_bytes(cmd_args) {
+        if let Ok(cmd) = GetIdevCsrReq::ref_from_bytes(cmd_args) {
             let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
 
             match csr_persistent_mem.get_csr_len() {
@@ -33,21 +33,24 @@ impl GetIdevCsrCmd {
                         .get()
                         .ok_or(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)?;
 
-                let mut resp = GetIdevCsrResp {
-                    data_size: len,
-                    ..Default::default()
-                };
-                // NOTE: This code will not panic.
-                //
-                // csr is guranteed to be the same size as `len`, and therefore
-                // `resp.data_size` by the `IDevIDCsr::get` API.
-                //
-                // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
-                // size of the buffer in `GetIdevIdCsrResp`
-                resp.data[..resp.data_size as usize].copy_from_slice(csr);
+                    let mut resp = GetIdevCsrResp {
+                        data_size: len,
+                        ..Default::default()
+                    };
+                    // NOTE: This code will not panic.
+                    //
+                    // csr is guranteed to be the same size as `len`, and therefore
+                    // `resp.data_size` by the `IDevIDCsr::get` API.
+                    //
+                    // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
+                    // size of the buffer in `GetIdevIdCsrResp`
+                    resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
-                Ok(MailboxResp::GetIdevCsr(resp))
+                    Ok(MailboxResp::GetIdevCsr(resp))
+                }
             }
+        } else {
+            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
     }
 }

@@ -192,7 +192,7 @@ pub struct AuthorizationManifest {
 #[cfg(test)]
 mod test {
     use crate::{AuthManifestPreamble, AUTH_MANIFEST_PREAMBLE_SIZE};
-    use zerocopy::AsBytes;
+    use zerocopy::IntoBytes;
 
     #[test]
     fn test_auth_preamble_size() {

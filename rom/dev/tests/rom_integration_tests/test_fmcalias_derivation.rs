@@ -701,7 +701,7 @@ fn test_fuse_log() {
 
     // Validate the ManifestFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
+    let (fuse_log_entry, _) =
         FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
@@ -721,7 +721,7 @@ fn test_fuse_log() {
 
     // Validate the FuseFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
+    let (fuse_log_entry, _) =
         FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFwSvn as u32);
     assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
@@ -784,7 +784,7 @@ fn test_fht_info() {
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::ref_from_prefix(data.as_bytes()).unwrap();
+        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
         // [TODO][CAP2] add mldsa equivalents
         assert_eq!(fht.ecc_ldevid_tbs_size, 552);
         assert_eq!(fht.ecc_fmcalias_tbs_size, 753);
@@ -834,7 +834,7 @@ fn test_check_rom_cold_boot_status_reg() {
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-        let data_vault = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
+        let (data_vault, _) = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
 
         assert_eq!(
             data_vault.rom_cold_boot_status(),
@@ -915,7 +915,7 @@ fn test_upload_single_measurement() {
         assert_eq!(pcr31.as_bytes(), expected_pcr);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
         assert_eq!(fht.meas_log_index, 1);
     }
 }

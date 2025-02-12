@@ -135,9 +135,11 @@ impl SetAuthManifestCmd {
         }
 
         // Verify vendor LMS signature.
-        let vendor_fw_lms_key =
+        let (vendor_fw_lms_key, _) =
             ImageLmsPublicKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID,
+                ))?;
 
         let candidate_key = Self::lms_verify(
             sha256,
@@ -195,9 +197,11 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        let owner_fw_lms_key =
+        let (owner_fw_lms_key, _) =
             ImageLmsPublicKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID,
+                ))?;
 
         let candidate_key = Self::lms_verify(
             sha256,

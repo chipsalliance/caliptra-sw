@@ -203,12 +203,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b1ce199063694f33ffb7dd4e0ee620741495c32833cde5aa08f02a0bf96f0c8"
 
 [[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
 name = "caliptra-api"
 version = "0.1.0"
 dependencies = [
@@ -218,7 +212,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-registers",
  "ureg",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -239,7 +233,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-lms-types",
  "memoffset 0.8.0",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -253,7 +247,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-lms-types",
  "memoffset 0.8.0",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -276,7 +270,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "toml 0.7.3",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -294,7 +288,7 @@ dependencies = [
  "hex",
  "nix 0.26.2",
  "once_cell",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -387,7 +381,7 @@ dependencies = [
  "openssl",
  "ufmt",
  "ureg",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -403,7 +397,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if 1.0.0",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -490,7 +484,7 @@ dependencies = [
  "sha3",
  "smlang",
  "tock-registers",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -525,7 +519,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "openssl",
  "ufmt",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -560,7 +554,7 @@ dependencies = [
  "sha2",
  "uio",
  "ureg",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -610,7 +604,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "toml 0.7.3",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -628,7 +622,7 @@ dependencies = [
  "rand",
  "sec1",
  "sha2",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -649,7 +643,7 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-types",
  "caliptra-lms-types",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -663,7 +657,7 @@ dependencies = [
  "fips204",
  "memoffset 0.8.0",
  "rand",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -673,7 +667,7 @@ dependencies = [
  "anyhow",
  "caliptra-image-types",
  "memoffset 0.8.0",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -686,7 +680,7 @@ dependencies = [
  "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -701,7 +695,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra_common",
  "memoffset 0.8.0",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -711,7 +705,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-lms-types",
  "ufmt",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -721,7 +715,7 @@ dependencies = [
  "arbitrary",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -775,7 +769,7 @@ dependencies = [
  "sha2",
  "ufmt",
  "x509-parser",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -791,7 +785,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "ufmt",
  "ureg",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -847,7 +841,7 @@ dependencies = [
  "ureg",
  "wycheproof",
  "x509-parser",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -864,7 +858,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -909,7 +903,7 @@ dependencies = [
  "rand",
  "regex",
  "ureg",
- "zerocopy 0.8.8",
+ "zerocopy",
 ]
 
 [[package]]
@@ -960,7 +954,7 @@ dependencies = [
  "caliptra-image-verify",
  "caliptra-registers",
  "ufmt",
- "zerocopy 0.8.8",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -1322,7 +1316,7 @@ dependencies = [
  "crypto",
  "platform",
  "ufmt",
- "zerocopy 0.6.6",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -2968,32 +2962,11 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "854e949ac82d619ee9a14c66a1b674ac730422372ccb759ce0c39cabcf2bf8e6"
-dependencies = [
- "byteorder",
- "zerocopy-derive 0.6.6",
-]
-
-[[package]]
-name = "zerocopy"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a4e33e6dce36f2adba29746927f8e848ba70989fdb61c772773bbdda8b5d6a7"
 dependencies = [
- "zerocopy-derive 0.8.8",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "125139de3f6b9d625c39e2efdd73d41bdac468ccd556556440e322be0e1bbd91"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.48",
+ "zerocopy-derive",
 ]
 
 [[package]]

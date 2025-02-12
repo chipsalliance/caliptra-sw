@@ -38,7 +38,7 @@ use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
     FmcAliasCertTbsMlDsa87Params,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 #[derive(Default)]

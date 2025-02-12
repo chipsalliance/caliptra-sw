@@ -14,7 +14,7 @@ Abstract:
 use caliptra_drivers::*;
 use core::mem::size_of;
 use core::usize;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::crypto::PubKey;
 

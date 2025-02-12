@@ -95,7 +95,9 @@ pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
 pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
-#[derive(IntoBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageMldsaPubKey(pub [u32; MLDSA87_PUB_KEY_WORD_SIZE]);
 
@@ -106,7 +108,9 @@ impl Default for ImageMldsaPubKey {
 }
 
 #[repr(C)]
-#[derive(IntoBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageMldsaPrivKey(pub [u32; MLDSA87_PRIV_KEY_WORD_SIZE]);
 
@@ -117,7 +121,9 @@ impl Default for ImageMldsaPrivKey {
 }
 
 #[repr(C)]
-#[derive(IntoBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePqcPubKey(pub [u8; PQC_PUB_KEY_BYTE_SIZE]);
 
@@ -129,7 +135,17 @@ impl Default for ImagePqcPubKey {
 
 #[repr(C)]
 #[derive(
-    KnownLayout, IntoBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    FromBytes,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    PartialEq,
+    Zeroize,
 )]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
@@ -145,7 +161,9 @@ pub type ImageLmsSignature =
 pub type ImageLmOTSSignature = LmotsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM>;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageMldsaSignature(pub [u32; MLDSA87_SIGNATURE_WORD_SIZE]);
 
@@ -155,27 +173,10 @@ impl Default for ImageMldsaSignature {
     }
 }
 
-// [TODO][CAP2] Remove this once ZeroCopy crate is updated to 0.8.13
-impl ImageMldsaSignature {
-    pub fn ref_from_prefix(bytes: &[u8]) -> Option<&Self> {
-        if bytes.len() >= size_of::<Self>() {
-            Some(unsafe { &*(bytes.as_ptr() as *const Self) })
-        } else {
-            None
-        }
-    }
-
-    pub fn mut_ref_from_prefix(bytes: &mut [u8]) -> Option<&mut Self> {
-        if bytes.len() >= size_of::<Self>() {
-            Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) })
-        } else {
-            None
-        }
-    }
-}
-
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePqcSignature(pub [u8; PQC_SIGNATURE_BYTE_SIZE]);
 
@@ -353,7 +354,7 @@ pub struct ImageVendorPubKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[derive(Clone, Copy, Debug, Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeyInfo {
     pub ecc_key_descriptor: ImageEccKeyDescriptor,
@@ -371,7 +372,7 @@ pub struct ImageVendorPrivKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[derive(IntoBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct OwnerPubKeyConfig {
     pub ecc_pub_key: ImageEccPubKey,
     #[zeroize(skip)]
@@ -406,7 +407,7 @@ pub struct ImageSignatures {
 
 /// Caliptra Image ECC Key Descriptor
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[derive(Clone, Copy, Default, Debug, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccKeyDescriptor {
     pub version: u16,
@@ -417,7 +418,7 @@ pub struct ImageEccKeyDescriptor {
 
 /// Caliptra Image LMS/MLDSA Key Descriptor
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
+#[derive(Clone, Copy, Debug, Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePqcKeyDescriptor {
     pub version: u16,

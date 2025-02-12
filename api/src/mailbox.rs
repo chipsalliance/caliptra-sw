@@ -1095,7 +1095,7 @@ impl Response for AuthorizeAndStashResp {}
 
 // MANUF_DEBUG_UNLOCK_REQ_TOKEN
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq, Default)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
 pub struct ManufDebugUnlockTokenReq {
     pub hdr: MailboxReqHeader,
     pub token: [u8; 16],
@@ -1107,7 +1107,7 @@ impl Request for ManufDebugUnlockTokenReq {
 
 // PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq, Default)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
 pub struct ProductionAuthDebugUnlockReq {
     pub hdr: MailboxReqHeader,
     pub vendor_id: u16,           // Vendor ID (2 bytes)
@@ -1126,7 +1126,7 @@ impl Request for ProductionAuthDebugUnlockReq {
 
 // PRODUCTION_AUTH_DEBUG_UNLOCK_CHALLENGE
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct ProductionAuthDebugUnlockChallenge {
     pub hdr: MailboxRespHeader,
     pub vendor_id: u16,                     // Vendor ID (2 bytes)
@@ -1155,7 +1155,7 @@ impl Response for ProductionAuthDebugUnlockChallenge {}
 
 // PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct ProductionAuthDebugUnlockToken {
     pub hdr: MailboxReqHeader,
     pub vendor_id: u16,                     // Vendor ID (2 bytes)

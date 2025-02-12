@@ -85,8 +85,9 @@ impl CertifyKeyExtendedCmd {
         };
 
         let mut dpe = &mut pdata.dpe;
-        let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..])
-            .ok_or(CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+        let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
+            CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
+        ))?;
         let locality = drivers.mbox.id();
         let resp = certify_key_cmd.execute(dpe, &mut env, locality);
 
