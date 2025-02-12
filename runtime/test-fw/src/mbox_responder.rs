@@ -18,7 +18,7 @@ use caliptra_runtime::{
     RtBootStatus, TciMeasurement, U8Bool, MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 const OPCODE_READ_RT_FW_JOURNEY: u32 = 0x1000_0000;
 const OPCODE_READ_MBOX_PAUSER_HASH: u32 = 0x2000_0000;
@@ -170,16 +170,22 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_CONTEXT_TAGS) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_context_tags = <[u32; MAX_HANDLES]>::read_from(input_bytes).unwrap();
+                let corrupted_context_tags =
+                    <[u32; MAX_HANDLES]>::read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().context_tags = corrupted_context_tags;
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_CORRUPT_CONTEXT_HAS_TAG) => {
                 let input_bytes = read_request(&drivers.mbox);
 
+                // NOTE: `read_from_bytes` is not used here to avoid an alignment exception.
                 let corrupted_context_has_tag =
-                    <[U8Bool; MAX_HANDLES]>::read_from(input_bytes).unwrap();
-                drivers.persistent_data.get_mut().context_has_tag = corrupted_context_has_tag;
+                    <[U8Bool; MAX_HANDLES]>::ref_from_bytes(input_bytes).unwrap();
+                drivers
+                    .persistent_data
+                    .get_mut()
+                    .context_has_tag
+                    .clone_from_slice(corrupted_context_has_tag);
                 write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_READ_DPE_INSTANCE) => {
@@ -191,7 +197,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
 
-                let corrupted_dpe = DpeInstance::read_from(input_bytes).unwrap();
+                let corrupted_dpe = DpeInstance::try_read_from_bytes(input_bytes).unwrap();
                 drivers.persistent_data.get_mut().dpe = corrupted_dpe;
                 write_response(&mut drivers.mbox, &[]);
             }
@@ -224,7 +230,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             }
             // Computes a digest from the key ladder for a given target SVN.
             CommandId(OPCODE_READ_KEY_LADDER_DIGEST) => {
-                let target_svn = u32::read_from(read_request(&drivers.mbox)).unwrap();
+                let target_svn = u32::read_from_bytes(read_request(&drivers.mbox)).unwrap();
 
                 KeyLadder::derive_secret(drivers, target_svn, b"", KEY_ID_TMP)?;
 

@@ -13,14 +13,14 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::Ecc384IdevIdCsr;
 
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = GetIdevCsrReq::read_from(cmd_args) {
+        if let Ok(cmd) = GetIdevCsrReq::ref_from_bytes(cmd_args) {
             let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
 
             match csr_persistent_mem.get_csr_len() {
@@ -43,7 +43,7 @@ impl GetIdevCsrCmd {
                     // `resp.data_size` by the `IDevIDCsr::get` API.
                     //
                     // A valid `IDevIDCsr` cannot be larger than `MAX_CSR_SIZE`, which is the max
-                    // size of the buffer in `GetIdevCsrResp`
+                    // size of the buffer in `GetIdevIdCsrResp`
                     resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                     Ok(MailboxResp::GetIdevCsr(resp))

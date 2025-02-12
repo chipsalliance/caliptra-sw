@@ -21,7 +21,7 @@ use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
 use core::cell::Cell;
 use core::ops::Add;
 use ureg::{Mmio, MmioMut, RealMmioMut};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::cprintln;
 
@@ -300,7 +300,7 @@ impl Dma {
     /// * `CaliptraResult<u32>` - Read value or error code
     pub fn read_dword(&self, read_addr: AxiAddr) -> CaliptraResult<u32> {
         let mut read_val: u32 = 0;
-        self.read_buffer(read_addr, read_val.as_bytes_mut())?;
+        self.read_buffer(read_addr, read_val.as_mut_bytes())?;
         Ok(read_val)
     }
 

@@ -23,7 +23,7 @@ use caliptra_cfi_lib::{
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::{offset_of, span_of};
-use zerocopy::AsBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 const ZERO_DIGEST: &ImageDigest384 = &[0u32; SHA384_DIGEST_WORD_SIZE];
 
@@ -230,14 +230,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let vendor_pqc_pub_key_idx_info = match pqc_key_type {
             FwVerificationPqcKeyType::LMS => {
                 // Read the LMS public key and signature from the preamble
-                let lms_pub_key = ImageLmsPublicKey::ref_from_prefix(
+                let (lms_pub_key, _) = ImageLmsPublicKey::ref_from_prefix(
                     preamble.vendor_pqc_active_pub_key.0.as_bytes(),
                 )
-                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID,
+                ))?;
 
-                let lms_sig =
+                let (lms_sig, _) =
                     ImageLmsSignature::ref_from_prefix(preamble.vendor_sigs.pqc_sig.0.as_bytes())
-                        .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_SIG_INVALID)?;
+                        .or(Err(
+                        CaliptraError::IMAGE_VERIFIER_ERR_LMS_VENDOR_SIG_INVALID,
+                    ))?;
 
                 vendor_pqc_info = PqcKeyInfo::Lms(lms_pub_key, lms_sig);
 
@@ -253,14 +257,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 }
             }
             FwVerificationPqcKeyType::MLDSA => {
-                let mldsa_pub_key = ImageMldsaPubKey::ref_from_prefix(
+                let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
                     preamble.vendor_pqc_active_pub_key.0.as_bytes(),
                 )
-                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_PUB_KEY_READ_FAILED)?;
+                .or(Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+                ))?;
 
-                let mldsa_sig =
+                let (mldsa_sig, _) =
                     ImageMldsaSignature::ref_from_prefix(preamble.vendor_sigs.pqc_sig.0.as_bytes())
-                        .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_SIG_READ_FAILED)?;
+                        .or(Err(
+                            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_VENDOR_SIG_READ_FAILED,
+                        ))?;
 
                 vendor_pqc_info = PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig);
 
@@ -285,26 +293,32 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let owner_pqc_info: PqcKeyInfo<'a> = match pqc_key_type {
             FwVerificationPqcKeyType::LMS => {
-                let lms_pub_key = ImageLmsPublicKey::ref_from_prefix(
+                let (lms_pub_key, _) = ImageLmsPublicKey::ref_from_prefix(
                     preamble.owner_pub_keys.pqc_pub_key.0.as_bytes(),
                 )
-                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID,
+                ))?;
 
-                let lms_sig =
+                let (lms_sig, _) =
                     ImageLmsSignature::ref_from_prefix(preamble.owner_sigs.pqc_sig.0.as_bytes())
-                        .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_SIG_INVALID)?;
+                        .or(Err(CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_SIG_INVALID))?;
 
                 PqcKeyInfo::Lms(lms_pub_key, lms_sig)
             }
             FwVerificationPqcKeyType::MLDSA => {
-                let mldsa_pub_key = ImageMldsaPubKey::ref_from_prefix(
+                let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
                     preamble.owner_pub_keys.pqc_pub_key.0.as_bytes(),
                 )
-                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED)?;
+                .or(Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+                ))?;
 
-                let mldsa_sig =
+                let (mldsa_sig, _) =
                     ImageMldsaSignature::ref_from_prefix(preamble.owner_sigs.pqc_sig.0.as_bytes())
-                        .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_SIG_READ_FAILED)?;
+                        .or(Err(
+                            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_SIG_READ_FAILED,
+                        ))?;
 
                 PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig)
             }

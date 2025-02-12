@@ -15,7 +15,7 @@ Abstract:
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{MailboxResp, PopulateIdevCertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
 
@@ -25,7 +25,7 @@ impl PopulateIDevIdCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<PopulateIdevCertReq>() {
             let mut cmd = PopulateIdevCertReq::default();
-            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+            cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
             let cert_size = cmd.cert_size as usize;
             if cert_size > cmd.cert.len() {

@@ -7,7 +7,7 @@ use caliptra_drivers::Ecc384PubKey;
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
 /// host) and the test binaries (running inside the hw-model).
 use core::fmt::Debug;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const DOE_TEST_IV: [u32; 4] = [0xc6b407a2, 0xd119a37d, 0xb7a5bdeb, 0x26214aed];
 
@@ -16,7 +16,7 @@ pub const DOE_TEST_HMAC_KEY: [u32; 12] = [
     0xc6879874, 0x0aa49a0f, 0x4e740e9c, 0x2c9f9aad,
 ];
 
-#[derive(AsBytes, Clone, Copy, Default, Eq, PartialEq, FromBytes)]
+#[derive(IntoBytes, KnownLayout, Immutable, Clone, Copy, Default, Eq, PartialEq, FromBytes)]
 #[repr(C)]
 pub struct DoeTestResults {
     /// HMAC result of the UDS as key, and b"Hello world!" as data.
