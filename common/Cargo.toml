@@ -17,6 +17,7 @@ caliptra-api.workspace = true
 caliptra-registers.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [features]
 default = ["std"]

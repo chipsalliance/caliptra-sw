@@ -124,25 +124,15 @@ pub trait SocManager {
             .fuse_field_entropy()
             .write(&fuses.field_entropy);
         self.soc_ifc()
-            .fuse_key_manifest_pk_hash()
-            .write(&fuses.key_manifest_pk_hash);
-        self.soc_ifc().fuse_key_manifest_pk_hash_mask().write(&[
-            fuses.key_manifest_pk_hash_mask.into(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]);
+            .fuse_vendor_pk_hash()
+            .write(&fuses.vendor_pk_hash);
+        self.soc_ifc()
+            .fuse_ecc_revocation()
+            .write(|w| w.ecc_revocation(fuses.fuse_ecc_revocation.into()));
         self.soc_ifc()
             .cptra_owner_pk_hash()
             .write(&fuses.owner_pk_hash);
-        self.soc_ifc()
-            .fuse_fmc_key_manifest_svn()
-            .write(|_| fuses.fmc_key_manifest_svn);
-        self.soc_ifc().fuse_runtime_svn().write(&fuses.runtime_svn);
+        self.soc_ifc().fuse_runtime_svn().write(&fuses.fw_svn);
         self.soc_ifc()
             .fuse_anti_rollback_disable()
             .write(|w| w.dis(fuses.anti_rollback_disable));
@@ -156,8 +146,15 @@ pub trait SocManager {
             .fuse_lms_revocation()
             .write(|_| fuses.fuse_lms_revocation);
         self.soc_ifc()
+            .fuse_mldsa_revocation()
+            .write(|_| fuses.fuse_mldsa_revocation.into());
+        self.soc_ifc()
             .fuse_soc_stepping_id()
             .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
+
+        self.soc_ifc()
+            .fuse_pqc_key_type()
+            .write(|w| w.key_type(fuses.fuse_pqc_key_type));
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
 

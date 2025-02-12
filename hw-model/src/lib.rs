@@ -43,7 +43,7 @@ mod output;
 mod rv32_builder;
 
 pub use api::mailbox::mbox_write_fifo;
-pub use api_types::{DeviceLifecycle, Fuses, SecurityState, U4};
+pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
 use output::ExitStatus;
@@ -155,6 +155,10 @@ pub struct InitParams<'a> {
 
     pub security_state: SecurityState,
 
+    pub dbg_manuf_service: DbgManufServiceRegReq,
+
+    pub active_mode: bool,
+
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
@@ -205,6 +209,8 @@ impl<'a> Default for InitParams<'a> {
             log_writer: Box::new(stdout()),
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+            dbg_manuf_service: Default::default(),
+            active_mode: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,
@@ -254,7 +260,6 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 
 pub struct BootParams<'a> {
     pub fuses: Fuses,
-    pub active_mode: bool,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
@@ -267,7 +272,6 @@ impl<'a> Default for BootParams<'a> {
     fn default() -> Self {
         Self {
             fuses: Default::default(),
-            active_mode: false,
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
@@ -509,6 +513,9 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
+/// The download firmware from recovery interface Opcode
+const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
+
 /// Stash Measurement Command Opcode.
 const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
@@ -610,7 +617,13 @@ pub trait HwModel: SocManager {
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
             self.cover_fw_mage(fw_image);
-            if boot_params.active_mode {
+            let active_mode = self.soc_ifc().cptra_hw_config().read().active_mode_en();
+            writeln!(
+                self.output().logger(),
+                "mode {}",
+                if active_mode { "active" } else { "passive" }
+            )?;
+            if active_mode {
                 self.upload_firmware_rri(fw_image)?;
             } else {
                 self.upload_firmware(fw_image)?;
@@ -634,11 +647,11 @@ pub trait HwModel: SocManager {
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
     }
 
-    /// The AXI bus from the SoC to Caliptra
+    /// The APB bus from the SoC to Caliptra
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
     /// microcontroller executing a few instructions
-    fn axi_bus(&mut self) -> Self::TBus<'_>;
+    fn apb_bus(&mut self) -> Self::TBus<'_>;
 
     /// Step execution ahead one clock cycle.
     fn step(&mut self);
@@ -667,7 +680,7 @@ pub trait HwModel: SocManager {
 
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
-    /// should come via a caliptra_top wire rather than an AXI register.
+    /// should come via a caliptra_top wire rather than an APB register.
     fn ready_for_fw(&self) -> bool;
 
     /// Initializes the fuse values and locks them in until the next reset. This
@@ -1024,7 +1037,10 @@ pub trait HwModel: SocManager {
     /// Upload fw image to RRI.
     fn upload_firmware_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware)?;
-        // TODO Add method to inform caliptra to start fetching from the RRI
+        let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
         Ok(())
     }
 
@@ -1153,21 +1169,21 @@ mod tests {
             .write(|w| w.lock(true));
 
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             0
         );
 
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             1
         );
 
         model
-            .axi_bus()
+            .apb_bus()
             .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
             .unwrap();
         assert_eq!(
-            model.axi_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
             4242
         );
     }

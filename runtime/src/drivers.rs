@@ -16,7 +16,7 @@ Abstract:
 
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
-
+use crate::recovery_flow::RecoveryFlow;
 use crate::{
     dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
     MAX_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL0_PAUSER_FLAG,
@@ -24,9 +24,11 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
+use caliptra_auth_man_types::AuthorizationManifest;
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+use caliptra_drivers::Dma;
 use caliptra_drivers::{
     cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
     CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
@@ -117,6 +119,7 @@ pub struct Drivers {
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
+    pub dma: Dma,
 }
 
 impl Drivers {
@@ -155,6 +158,7 @@ impl Drivers {
             cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
+            dma: Dma::default(),
         })
     }
 
@@ -171,6 +175,9 @@ impl Drivers {
             ResetReason::ColdReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::ColdReset);
                 Self::initialize_dpe(self)?;
+                if self.soc_ifc.active_mode() {
+                    RecoveryFlow::recovery_flow(self)?;
+                }
             }
             ResetReason::UpdateReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);

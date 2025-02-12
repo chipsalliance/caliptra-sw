@@ -115,7 +115,7 @@ impl From<DataStore> for HandOffDataHandle {
     }
 }
 
-const FHT_RESERVED_SIZE: usize = 1680;
+const FHT_RESERVED_SIZE: usize = 1664;
 
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
@@ -147,7 +147,10 @@ pub struct FirmwareHandoffTable {
     pub fmc_cdi_kv_hdl: HandOffDataHandle,
 
     /// Index of FMC Private Alias Key in the Key Vault.
-    pub fmc_priv_key_kv_hdl: HandOffDataHandle,
+    pub fmc_ecc_priv_key_kv_hdl: HandOffDataHandle,
+
+    /// Index of FMC Alias MLDSA key pair generation seed in the Key Vault.
+    pub fmc_mldsa_keypair_seed_kv_hdl: HandOffDataHandle,
 
     /// Index of RT CDI value in the Key Vault.
     pub rt_cdi_kv_hdl: HandOffDataHandle,
@@ -155,17 +158,29 @@ pub struct FirmwareHandoffTable {
     /// Index of RT Private Alias Key in the Key Vault.
     pub rt_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// LdevId TBS Address
-    pub ldevid_tbs_addr: u32,
+    /// ECC LdevId TBS Address
+    pub ecc_ldevid_tbs_addr: u32,
 
-    /// FmcAlias TBS Address
-    pub fmcalias_tbs_addr: u32,
+    /// ECC FmcAlias TBS Address
+    pub ecc_fmcalias_tbs_addr: u32,
 
-    /// LdevId TBS Size.
-    pub ldevid_tbs_size: u16,
+    /// ECC LdevId TBS Size
+    pub ecc_ldevid_tbs_size: u16,
 
-    /// FmcAlias TBS Size.
-    pub fmcalias_tbs_size: u16,
+    /// ECC FmcAlias TBS Size
+    pub ecc_fmcalias_tbs_size: u16,
+
+    /// MLDSA LdevId TBS Address
+    pub mldsa_ldevid_tbs_addr: u32,
+
+    /// MLDSA FmcAlias TBS Address
+    pub mldsa_fmcalias_tbs_addr: u32,
+
+    /// MLDSA LdevId TBS Size
+    pub mldsa_ldevid_tbs_size: u16,
+
+    /// MLDSA FmcAlias TBS Size
+    pub mldsa_fmcalias_tbs_size: u16,
 
     /// PCR log Address
     pub pcr_log_addr: u32,
@@ -197,14 +212,14 @@ pub struct FirmwareHandoffTable {
     /// Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
 
-    /// RtAlias TBS Size.
+    /// ECC RtAlias TBS Size
     pub rtalias_tbs_size: u16,
 
-    /// Maximum value RT FW SVN can take.
-    pub rt_hash_chain_max_svn: u16,
+    /// Maximum value FW SVN can take.
+    pub fw_key_ladder_max_svn: u16,
 
-    /// Index of RT hash chain value in the Key Vault.
-    pub rt_hash_chain_kv_hdl: HandOffDataHandle,
+    /// Index of FW key ladder value in the Key Vault.
+    pub fw_key_ladder_kv_hdl: HandOffDataHandle,
 
     /// Reserved for future use.
     pub reserved: [u8; FHT_RESERVED_SIZE],
@@ -219,13 +234,18 @@ impl Default for FirmwareHandoffTable {
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
-            fmc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            fmc_ecc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
+            fmc_mldsa_keypair_seed_kv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            ldevid_tbs_addr: 0,
-            fmcalias_tbs_addr: 0,
-            ldevid_tbs_size: 0,
-            fmcalias_tbs_size: 0,
+            ecc_ldevid_tbs_addr: 0,
+            ecc_fmcalias_tbs_addr: 0,
+            ecc_ldevid_tbs_size: 0,
+            ecc_fmcalias_tbs_size: 0,
+            mldsa_ldevid_tbs_addr: 0,
+            mldsa_fmcalias_tbs_addr: 0,
+            mldsa_ldevid_tbs_size: 0,
+            mldsa_fmcalias_tbs_size: 0,
             pcr_log_addr: 0,
             pcr_log_index: 0,
             meas_log_addr: 0,
@@ -237,8 +257,8 @@ impl Default for FirmwareHandoffTable {
             idev_dice_mldsa_pub_key_load_addr: 0,
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
-            rt_hash_chain_max_svn: 0,
-            rt_hash_chain_kv_hdl: HandOffDataHandle(0),
+            fw_key_ladder_max_svn: 0,
+            fw_key_ladder_kv_hdl: HandOffDataHandle(0),
             reserved: [0u8; FHT_RESERVED_SIZE],
         }
     }
@@ -258,8 +278,12 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     );
     crate::cprintln!("FMC CDI KV Handle: 0x{:08x}", fht.fmc_cdi_kv_hdl.0);
     crate::cprintln!(
-        "FMC Private Key KV Handle: 0x{:08x}",
-        fht.fmc_priv_key_kv_hdl.0
+        "FMC ECC Private Key KV Handle: 0x{:08x}",
+        fht.fmc_ecc_priv_key_kv_hdl.0
+    );
+    crate::cprintln!(
+        "FMC MLDSA Key Pair Generation Seed KV Handle: 0x{:08x}",
+        fht.fmc_mldsa_keypair_seed_kv_hdl.0
     );
     crate::cprintln!("RT CDI KV Handle: 0x{:08x}", fht.rt_cdi_kv_hdl.0);
     crate::cprintln!(
@@ -271,10 +295,10 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         "IdevId MLDSA Public Key Address: 0x{:08x}",
         fht.idev_dice_mldsa_pub_key_load_addr
     );
-    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
-    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
-    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
-    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ecc_ldevid_tbs_addr);
+    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ecc_ldevid_tbs_size);
+    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.ecc_fmcalias_tbs_addr);
+    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.ecc_fmcalias_tbs_size);
     crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
     crate::cprintln!("PCR log Index: {}", fht.pcr_log_index);
@@ -297,8 +321,8 @@ impl FirmwareHandoffTable {
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
-            && self.ldevid_tbs_addr != 0
-            && self.fmcalias_tbs_addr != 0
+            && self.ecc_ldevid_tbs_addr != 0
+            && self.ecc_fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
             && self.meas_log_addr != 0
             && self.fuse_log_addr != 0
@@ -306,7 +330,7 @@ impl FirmwareHandoffTable {
 
         if valid
             && reset_reason == ResetReason::ColdReset
-            && (self.ldevid_tbs_size == 0 || self.fmcalias_tbs_size == 0)
+            && (self.ecc_ldevid_tbs_size == 0 || self.ecc_fmcalias_tbs_size == 0)
         {
             valid = false;
         }
@@ -321,17 +345,31 @@ mod tests {
     use core::mem;
     const FHT_SIZE: usize = 2048;
     const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
+    const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
 
-    fn fmc_priv_key_store() -> HandOffDataHandle {
+    fn fmc_ecc_priv_key_store() -> HandOffDataHandle {
         HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_ECDSA_PRIV_KEY as u32)
     }
 
-    fn fmc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
-        let ds: DataStore = fht.fmc_priv_key_kv_hdl.try_into().unwrap();
+    fn fmc_ecc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_ecc_priv_key_kv_hdl.try_into().unwrap();
 
         match ds {
             DataStore::KeyVaultSlot(key_id) => key_id,
-            _ => panic!("Invalid FMC private key store"),
+            _ => panic!("Invalid FMC ECC private key store"),
+        }
+    }
+
+    fn fmc_mldsa_keypair_seed_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_MLDSA_KEYPAIR_SEED as u32)
+    }
+
+    fn fmc_mldsa_keypair_seed_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_mldsa_keypair_seed_kv_hdl.try_into().unwrap();
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => key_id,
+            _ => panic!("Invalid FMC key pair generation seed store"),
         }
     }
 
@@ -344,11 +382,11 @@ mod tests {
             && fht.manifest_load_addr != FHT_INVALID_ADDRESS
             // This is for Gen1 POR.
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
-            && fht.ldevid_tbs_size == 0
-            && fht.fmcalias_tbs_size == 0
+            && fht.ecc_ldevid_tbs_size == 0
+            && fht.ecc_fmcalias_tbs_size == 0
             && fht.rtalias_tbs_size == 0
-            && fht.ldevid_tbs_addr != 0
-            && fht.fmcalias_tbs_addr != 0
+            && fht.ecc_ldevid_tbs_addr != 0
+            && fht.ecc_fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0
             && fht.meas_log_addr != 0
             && fht.fuse_log_addr != 0;
@@ -358,19 +396,42 @@ mod tests {
     }
 
     #[test]
-    fn test_fmc_priv_key_store() {
+    fn test_fmc_ecc_priv_key_store() {
         let fht = crate::hand_off::FirmwareHandoffTable {
-            fmc_priv_key_kv_hdl: fmc_priv_key_store(),
+            fmc_ecc_priv_key_kv_hdl: fmc_ecc_priv_key_store(),
             ..Default::default()
         };
         // Check that the key is stored in the KeyVault.
-        assert_eq!(fht.fmc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
+        assert_eq!(fht.fmc_ecc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
         // Check the key slot is correct
         assert_eq!(
-            fht.fmc_priv_key_kv_hdl.reg_num(),
+            fht.fmc_ecc_priv_key_kv_hdl.reg_num(),
             KEY_ID_FMC_ECDSA_PRIV_KEY.into()
         );
 
-        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_ECDSA_PRIV_KEY);
+        assert_eq!(fmc_ecc_priv_key(&fht), KEY_ID_FMC_ECDSA_PRIV_KEY);
+    }
+
+    #[test]
+    fn test_fmc_mldsa_keypair_seed_store() {
+        let fht = crate::hand_off::FirmwareHandoffTable {
+            fmc_mldsa_keypair_seed_kv_hdl: fmc_mldsa_keypair_seed_store(),
+            ..Default::default()
+        };
+        // Check that the key is stored in the KeyVault.
+        assert_eq!(
+            fht.fmc_mldsa_keypair_seed_kv_hdl.vault(),
+            Vault::KeyVault as u32
+        );
+        // Check the key slot is correct
+        assert_eq!(
+            fht.fmc_mldsa_keypair_seed_kv_hdl.reg_num(),
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED.into()
+        );
+
+        assert_eq!(
+            fmc_mldsa_keypair_seed_key(&fht),
+            KEY_ID_FMC_MLDSA_KEYPAIR_SEED
+        );
     }
 }

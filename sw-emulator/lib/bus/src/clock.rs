@@ -180,7 +180,6 @@ impl Clock {
                     bus.update_reset();
                     break;
                 }
-                TimerAction::DmaAction => bus.handle_dma(),
                 TimerAction::Nmi { .. }
                 | TimerAction::SetNmiVec { .. }
                 | TimerAction::ExtInt { .. }
@@ -251,7 +250,6 @@ pub enum TimerAction {
     SetExtIntVec { addr: u32 },
     SetGlobalIntEn { en: bool },
     SetExtIntEn { en: bool },
-    DmaAction,
     Halt,
 }
 

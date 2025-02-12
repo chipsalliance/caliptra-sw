@@ -7,9 +7,10 @@ use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_common::RomBootStatus;
-use caliptra_drivers::CaliptraError;
+use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
 use caliptra_test::{
     bytes_to_be_words_48,
@@ -24,7 +25,12 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
+
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
 
 // Support testing against older versions of ROM in CI
 // More constants may need to be added here as the ROMs further diverge
@@ -91,27 +97,29 @@ fn retrieve_csr_test() {
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
-    let csr_der = mem::take(&mut txn.req.data);
+    let csr_envelop =
+        InitDevIdCsrEnvelope::read_from_prefix(&*mem::take(&mut txn.req.data)).unwrap();
     txn.respond_success();
 
-    let csr = openssl::x509::X509Req::from_der(&csr_der).unwrap();
-    let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
+    let ecc_csr_der = &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize];
+    let ecc_csr = openssl::x509::X509Req::from_der(ecc_csr_der).unwrap();
+    let ecc_csr_txt = String::from_utf8(ecc_csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
 
-    println!("csr: {}", csr_txt);
+    println!("ecc csr: {}", ecc_csr_txt);
 
     assert_eq!(
-        csr_txt.as_str(),
+        ecc_csr_txt.as_str(),
         include_str!("smoke_testdata/idevid_csr.txt")
     );
-    assert_eq!(csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
+    assert_eq!(ecc_csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
 
     assert!(
-        csr.verify(&csr.public_key().unwrap()).unwrap(),
-        "CSR's self signature failed to validate"
+        ecc_csr.verify(&ecc_csr.public_key().unwrap()).unwrap(),
+        "ECC CSR's self signature failed to validate"
     );
 }
 
@@ -177,8 +185,8 @@ fn smoke_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_svn: 9,
-            app_svn: 9,
+            fw_svn: 9,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         },
     )
@@ -189,10 +197,10 @@ fn smoke_test() {
     let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
     let fuses = Fuses {
-        key_manifest_pk_hash: vendor_pk_desc_hash_words,
+        vendor_pk_hash: vendor_pk_desc_hash_words,
         owner_pk_hash: owner_pk_hash_words,
-        fmc_key_manifest_svn: 0b1111111,
-        runtime_svn: [0x7F, 0, 0, 0], // Equals 7
+        fw_svn: [0x7F, 0, 0, 0], // Equals 7
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(
@@ -348,11 +356,11 @@ fn smoke_test() {
             owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
-            fmc_svn: image.manifest.fmc.svn,
+            cold_boot_fw_svn: image.manifest.header.svn,
             // This is from the SVN in the fuses (7 bits set)
-            fmc_fuse_svn: 7,
+            fw_fuse_svn: 7,
             lms_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
-            rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
+            pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         }),
         &expected_ldevid_key,
     );
@@ -589,9 +597,9 @@ fn smoke_test() {
         &firmware::APP,
         ImageOptions {
             fmc_version: 1,
-            fmc_svn: 10,
-            app_svn: 10,
             app_version: 2,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            fw_svn: 10,
             ..Default::default()
         },
     )
@@ -727,9 +735,7 @@ fn smoke_test() {
     }
 }
 
-//[CAP2][TODO] This test is failing in the CI. It is disabled until the issue is resolved.
-//#[test]
-#[allow(dead_code)]
+#[test]
 fn test_rt_wdt_timeout() {
     // There is too much jitter in the fpga_realtime TRNG response timing to hit
     // the window of time where the RT is running but hasn't yet reset the
@@ -813,83 +819,92 @@ fn test_rt_wdt_timeout() {
 
 #[test]
 fn test_fmc_wdt_timeout() {
-    const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
-
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-
-    // Boot in debug mode to capture timestamps by boot status.
-    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
-    let init_params = caliptra_hw_model::InitParams {
-        rom: &rom,
-        security_state,
-        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
-        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
-        ..Default::default()
-    };
-
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let mut hw = caliptra_hw_model::new(
-        init_params,
-        BootParams {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
+        const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-    // WDT started shortly before KATs are started.
-    hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
-    let wdt_start = hw.output().sink().now();
+        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
-    hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+        // Boot in debug mode to capture timestamps by boot status.
+        let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+        let init_params = caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+            etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
+            ..Default::default()
+        };
 
-    hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
-    let fmc_target = hw.output().sink().now();
+        let image =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
 
-    let fmc_wdt_timeout_cycles = fmc_target - wdt_start;
-    drop(hw);
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
 
-    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
-    let init_params = caliptra_hw_model::InitParams {
-        rom: &rom,
-        security_state,
-        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
-        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
-        ..Default::default()
-    };
+        let mut hw = caliptra_hw_model::new(
+            init_params,
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-    let boot_params = caliptra_hw_model::BootParams {
-        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
-        ..Default::default()
-    };
+        // WDT started shortly before KATs are started.
+        hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+        let wdt_start = hw.output().sink().now();
 
-    let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+        hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
 
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::FMC_GLOBAL_WDT_EXPIRED),
-    );
+        hw.step_until_boot_status(RTALIAS_BOOT_STATUS_BASE, true);
+        let fmc_target = hw.output().sink().now();
 
-    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
-    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
-    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
-    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
-    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+        let fmc_wdt_timeout_cycles = fmc_target - wdt_start;
+        drop(hw);
 
-    // no mcause if wdt times out
-    assert_eq!(mcause, 0);
-    // no mscause if wdt times out
-    assert_eq!(mscause, 0);
-    // mepc is a memory address so won't be 0
-    assert_ne!(mepc, 0);
-    // return address won't be 0
-    assert_ne!(ra, 0);
-    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
-    assert_eq!(error_internal_intr_r, 0b01000000);
+        let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
+        let init_params = caliptra_hw_model::InitParams {
+            rom: &rom,
+            security_state,
+            itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+            etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
+            ..Default::default()
+        };
+
+        let boot_params = caliptra_hw_model::BootParams {
+            wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+            ..Default::default()
+        };
+
+        let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
+
+        hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_fatal().read(),
+            u32::from(CaliptraError::FMC_GLOBAL_WDT_EXPIRED),
+        );
+
+        let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+        let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+        let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+        let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+        let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+        // no mcause if wdt times out
+        assert_eq!(mcause, 0);
+        // no mscause if wdt times out
+        assert_eq!(mscause, 0);
+        // mepc is a memory address so won't be 0
+        assert_ne!(mepc, 0);
+        // return address won't be 0
+        assert_ne!(ra, 0);
+        // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+        assert_eq!(error_internal_intr_r, 0b01000000);
+    }
 }

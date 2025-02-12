@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 #![cfg_attr(not(test), no_std)]
 
+use caliptra_image_types::FwVerificationPqcKeyType;
+
 // Rationale behind this choice
 //
 // * The constant should be easily recognizable in waveforms and debug logs
@@ -18,6 +20,11 @@ pub const DEFAULT_FIELD_ENTROPY: [u32; 8] = [
 pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
+
+pub const DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN: [u32; 4] =
+    [0xcfcecdcc, 0xcbcac9c8, 0xc7c6c5c4, 0xc3c2c1c0];
+
+pub const DEFAULT_PQC_KEY_TYPE: u32 = FwVerificationPqcKeyType::MLDSA as u32;
 
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -78,6 +85,49 @@ impl SecurityState {
     }
     pub fn set_device_lifecycle(&mut self, val: DeviceLifecycle) -> &mut Self {
         self.0 |= (val as u32) & 0x3;
+        self
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct DbgManufServiceRegReq(u32);
+impl From<u32> for DbgManufServiceRegReq {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+impl From<DbgManufServiceRegReq> for u32 {
+    fn from(value: DbgManufServiceRegReq) -> Self {
+        value.0
+    }
+}
+
+impl DbgManufServiceRegReq {
+    pub fn set_manuf_dbg_unlock_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 0;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
+        self
+    }
+    pub fn set_prod_dbg_unlock_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 1;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
+        self
+    }
+    pub fn set_uds_program_req(&mut self, val: bool) -> &mut Self {
+        let mask = 1 << 2;
+        if val {
+            self.0 |= mask;
+        } else {
+            self.0 &= !mask
+        };
         self
     }
 }
@@ -156,11 +206,10 @@ impl TryFrom<u32> for U4 {
 pub struct Fuses {
     pub uds_seed: [u32; 16],
     pub field_entropy: [u32; 8],
-    pub key_manifest_pk_hash: [u32; 12],
-    pub key_manifest_pk_hash_mask: U4,
+    pub vendor_pk_hash: [u32; 12],
+    pub fuse_ecc_revocation: U4,
     pub owner_pk_hash: [u32; 12],
-    pub fmc_key_manifest_svn: u32,
-    pub runtime_svn: [u32; 4],
+    pub fw_svn: [u32; 4],
     pub anti_rollback_disable: bool,
     pub idevid_cert_attr: [u32; 24],
     pub idevid_manuf_hsm_id: [u32; 4],
@@ -168,17 +217,18 @@ pub struct Fuses {
     pub fuse_lms_revocation: u32,
     pub fuse_mldsa_revocation: u32,
     pub soc_stepping_id: u16,
+    pub fuse_pqc_key_type: u32,
+    pub manuf_dbg_unlock_token: [u32; 4],
 }
 impl Default for Fuses {
     fn default() -> Self {
         Self {
             uds_seed: DEFAULT_UDS_SEED,
             field_entropy: DEFAULT_FIELD_ENTROPY,
-            key_manifest_pk_hash: Default::default(),
-            key_manifest_pk_hash_mask: Default::default(),
+            vendor_pk_hash: Default::default(),
+            fuse_ecc_revocation: Default::default(),
             owner_pk_hash: Default::default(),
-            fmc_key_manifest_svn: Default::default(),
-            runtime_svn: Default::default(),
+            fw_svn: Default::default(),
             anti_rollback_disable: Default::default(),
             idevid_cert_attr: Default::default(),
             idevid_manuf_hsm_id: Default::default(),
@@ -186,6 +236,8 @@ impl Default for Fuses {
             fuse_lms_revocation: Default::default(),
             fuse_mldsa_revocation: Default::default(),
             soc_stepping_id: Default::default(),
+            fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
+            manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN,
         }
     }
 }

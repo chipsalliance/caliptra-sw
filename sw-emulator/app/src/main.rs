@@ -39,6 +39,9 @@ use tock_registers::register_bitfields;
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
+/// Recovery register interface download Command Opcode
+const RI_DOWNLOAD_FIRMWARE: u32 = 0x5249_4644;
+
 /// The number of CPU clock cycles it takes to write the firmware to the mailbox.
 const FW_WRITE_TICKS: u64 = 1000;
 
@@ -162,6 +165,16 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(u64))
                 .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
         )
+        .arg(
+            arg!(--"active-mode" ... "Active mode: get image update via recovery register interface")
+                .required(false)
+                .action(ArgAction::SetTrue)
+        )
+        .arg(
+            arg!(--"pqc-key-type" <U32> "Type of PQC key validation: 1: MLDSA; 3: LMS")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -188,6 +201,7 @@ fn main() -> io::Result<()> {
         }
     };
     let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
+    let pqc_key_type = args.get_one::<u32>("pqc-key-type").unwrap();
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
@@ -267,6 +281,11 @@ fn main() -> io::Result<()> {
         },
     );
 
+    let active_mode = args.get_flag("active-mode");
+
+    // Clippy seems wrong about this clone not being necessary
+    #[allow(clippy::redundant_clone)]
+    let firmware_buffer = current_fw_buf.clone();
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
@@ -275,12 +294,20 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
-        ready_for_fw_cb: ReadyForFwCb::new(move |args| {
-            let firmware_buffer = current_fw_buf.clone();
-            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
-                upload_fw_to_mailbox(mailbox, firmware_buffer);
-            });
-        }),
+        ready_for_fw_cb: if active_mode {
+            ReadyForFwCb::new(move |args| {
+                args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
+                    issue_ri_download_fw_mbox_cmd(mailbox)
+                })
+            })
+        } else {
+            ReadyForFwCb::new(move |args| {
+                let firmware_buffer = firmware_buffer.clone();
+                args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
+                    upload_fw_to_mailbox(mailbox, firmware_buffer)
+                });
+            })
+        },
         security_state,
         upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut MailboxInternal| {
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
@@ -294,10 +321,16 @@ fn main() -> io::Result<()> {
                 download_idev_id_csr(mailbox, log_dir.clone(), cptra_dbg_manuf_service_reg);
             },
         ),
+        active_mode,
         ..Default::default()
     };
 
-    let root_bus = CaliptraRootBus::new(&clock, bus_args);
+    let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+    // Populate the RRI data
+    if active_mode {
+        root_bus.dma.axi.recovery.cms_data = Some(current_fw_buf);
+    }
+
     let soc_ifc = unsafe {
         caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
             0x3003_0000 as *mut u32,
@@ -311,7 +344,7 @@ fn main() -> io::Result<()> {
                 .try_into()
                 .expect("mfg_pk_hash must be 48 bytes"),
         );
-        soc_ifc.fuse_key_manifest_pk_hash().write(&mfg_pk_hash);
+        soc_ifc.fuse_vendor_pk_hash().write(&mfg_pk_hash);
     }
 
     if !owner_pk_hash.is_empty() {
@@ -387,6 +420,11 @@ fn main() -> io::Result<()> {
             .write(|_| (*wdt_timeout >> 32) as u32);
     }
 
+    // Populate the pqc_key_type fuse.
+    soc_ifc
+        .fuse_pqc_key_type()
+        .write(|w| w.key_type(*pqc_key_type));
+
     let cpu = Cpu::new(root_bus, clock);
 
     // Check if Optional GDB Port is passed
@@ -454,6 +492,22 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
     }
 
     // Set the execute register.
+    soc_mbox.execute().write(|w| w.execute(true));
+}
+
+fn issue_ri_download_fw_mbox_cmd(mailbox: &mut MailboxInternal) {
+    let soc_mbox = mailbox.as_external().regs();
+    // Write the cmd to mailbox.
+
+    assert!(!soc_mbox.lock().read().lock());
+
+    // Set command
+    soc_mbox.cmd().write(|_| RI_DOWNLOAD_FIRMWARE);
+
+    // No data to send so set len to 0
+    soc_mbox.dlen().write(|_| 0);
+
+    // Execute
     soc_mbox.execute().write(|w| w.execute(true));
 }
 

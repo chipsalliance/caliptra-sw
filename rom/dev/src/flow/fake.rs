@@ -27,13 +27,16 @@ use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
     keyids::KEY_ID_ROM_FMC_CDI,
-    memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
+    // [TODO][CAP2] add MLDSA
+    memory_layout::{
+        ECC_FMCALIAS_TBS_ORG, ECC_FMCALIAS_TBS_SIZE, ECC_LDEVID_TBS_ORG, ECC_LDEVID_TBS_SIZE,
+    },
     FirmwareHandoffTable,
 };
 use caliptra_drivers::cprintln;
 use caliptra_drivers::Lifecycle;
 use caliptra_drivers::LmsResult;
-use caliptra_drivers::VendorPubKeyRevocation;
+use caliptra_drivers::VendorEccPubKeyRevocation;
 use caliptra_drivers::*;
 use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
@@ -190,7 +193,7 @@ impl FakeRomFlow {
     }
 }
 
-// Used to derive the firmware's hash chain.
+// Used to derive the firmware's key ladder.
 fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
     env.hmac.hmac(
         &HmacKey::Array4x12(&Array4x12::default()),
@@ -212,8 +215,8 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
-    env.persistent_data.get_mut().fht.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ldevid_tbs.get_mut(..tbs.len()) else {
+    env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    let Some(dst) = env.persistent_data.get_mut().ecc_ldevid_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -232,8 +235,8 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
-    env.persistent_data.get_mut().fht.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().fmcalias_tbs.get_mut(..tbs.len()) else {
+    env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    let Some(dst) = env.persistent_data.get_mut().ecc_fmcalias_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -345,13 +348,18 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
         self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
     }
 
     /// Retrieve Vendor LMS Public Key Revocation Bitmask
     fn vendor_lms_pub_key_revocation(&self) -> u32 {
         self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
+    }
+
+    /// Retrieve Vendor MLDSA Public Key Revocation Bitmask
+    fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+        self.soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation()
     }
 
     /// Retrieve Owner Public Key Digest from fuses
@@ -390,8 +398,8 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
     }
 
     // Get Fuse FW Manifest SVN
-    fn runtime_fuse_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().runtime_fuse_svn()
+    fn fw_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().fw_fuse_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {
@@ -400,5 +408,12 @@ impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
 
     fn set_fw_extended_error(&mut self, err: u32) {
         self.soc_ifc.set_fw_extended_error(err);
+    }
+
+    fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType> {
+        let pqc_key_type =
+            FwVerificationPqcKeyType::from_u8(self.soc_ifc.fuse_bank().pqc_key_type() as u8)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+        Ok(pqc_key_type)
     }
 }

@@ -20,9 +20,9 @@ ROM_ORG          = 0x00000000;
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;
 DATA_ORG         = 0x50000000;
-STACK_ORG        = 0x50035800;
-ESTACK_ORG       = 0x5003F800;
-NSTACK_ORG       = 0x5003FC00;
+STACK_ORG        = 0x50030000;
+ESTACK_ORG       = 0x5003F400;
+NSTACK_ORG       = 0x5003F800;
 
 CFI_STATE_ORG      = 0x500003E4;
 
@@ -33,10 +33,10 @@ CFI_STATE_ORG      = 0x500003E4;
  */
 ROM_RELAXATION_PADDING = 8k;
 ROM_SIZE          = 96K;
-ICCM_SIZE         = 128K;
+ICCM_SIZE         = 256K;
 DCCM_SIZE         = 256K;
 DATA_SIZE         = 996;
-STACK_SIZE        = 40K;
+STACK_SIZE        = 61K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
 
@@ -67,7 +67,7 @@ SECTIONS
 	.rodata : ALIGN(4)
 	{
         _srodata = .;
-		
+
 		  *(.srodata .srodata.*);
     	*(.rodata .rodata.*);
 
@@ -79,13 +79,13 @@ SECTIONS
 	{
 		  _sidata = LOADADDR(.data);
 	    _sdata = .;
-		
+
 	    /* Must be called __global_pointer$ for linker relaxations to work. */
 	    PROVIDE(__global_pointer$ = . + 0x800);
-   
+
 		*(.sdata .sdata.* .sdata2 .sdata2.*);
 	    *(.data .data.*);
-	    
+
 		. = ALIGN(4);
 	    _edata = .;
 	} > DATA AT> ROM
@@ -95,7 +95,7 @@ SECTIONS
 		CALIPTRA_ROM_INFO = .;
 	} > ROM
 
-	.bss (NOLOAD) : ALIGN(4) 
+	.bss (NOLOAD) : ALIGN(4)
     {
 		_sbss = .;
 
@@ -103,14 +103,14 @@ SECTIONS
         *(.sbss*)
         *(COMMON)
         . = ALIGN(4);
-		
+
 		_ebss = .;
     } > DATA
 
     .stack (NOLOAD): ALIGN(4)
     {
     	_estack = .;
-		
+
         . = . + STACK_SIZE;
 
         . = ALIGN(4);
@@ -120,7 +120,7 @@ SECTIONS
 	.estack (NOLOAD): ALIGN(4)
     {
     	_eestack = .;
-		
+
         . = . + ESTACK_SIZE;
 
         . = ALIGN(4);
@@ -130,7 +130,7 @@ SECTIONS
     .nstack (NOLOAD): ALIGN(4)
     {
     	_enstack = .;
-		
+
         . = . + NSTACK_SIZE;
 
         . = ALIGN(4);
@@ -142,14 +142,14 @@ SECTIONS
     	KEEP(*(.got .got.*));
   	}
 
-  	.eh_frame (INFO) : 
-	{ 
+  	.eh_frame (INFO) :
+	{
 		KEEP(*(.eh_frame))
 	}
-	
+
   	.eh_frame_hdr (INFO) :
 	{
-		*(.eh_frame_hdr) 
+		*(.eh_frame_hdr)
 	}
 }
 

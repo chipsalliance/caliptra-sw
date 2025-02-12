@@ -16,6 +16,8 @@ TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
+# MLDSA (default): 1, LMS: 3.
+PQC_KEY_TYPE ?= 1
 
 default: build
 
@@ -68,19 +70,19 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--manifest-path ../../image/app/Cargo.toml \
 		-- \
 		create \
-		--pqc-key-type 1 \
+		--pqc-key-type $(PQC_KEY_TYPE) \
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 1 \
-		--pqc-pk-idx 3 \
+		--pqc-pk-idx 0 \
 		--fmc $(TARGET_DIR)/caliptra-rom-test-fmc \
 		--fmc-version 0 \
-		--fmc-svn 0 \
 		--fmc-rev $(GIT_REV) \
 		--rt $(TARGET_DIR)/caliptra-rom-test-rt \
 		--rt-version 0 \
-		--rt-svn 0 \
 		--rt-rev $(GIT_REV) \
+		--fw-svn 0 \
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
+		--print-hashes
 
 bloat: build
 	 cargo \
@@ -125,6 +127,20 @@ run: build-emu build-fw-image build-rom
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
+		--pqc-key-type $(PQC_KEY_TYPE) \
+
+run-active: build-emu build-fw-image build-rom
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
+		-p caliptra-emu \
+		-- \
+		--req-idevid-csr \
+		--idevid-key-id-algo sha1 \
+		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
+		--device-lifecycle unprovisioned \
+		--active-mode \
 
 run-update: build-emu build-fw-image build-rom
 		cargo \

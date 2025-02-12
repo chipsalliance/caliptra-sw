@@ -159,11 +159,6 @@ pub mod driver_tests {
         features: &["emu"],
     };
 
-    pub const DMA: FwId = FwId {
-        bin_name: "axi_dma_tests",
-        ..BASE_FWID
-    };
-
     pub const DOE: FwId = FwId {
         bin_name: "doe",
         ..BASE_FWID
@@ -380,6 +375,13 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
+    // Used to test updates between RT FW images.
+    pub const MBOX_WITHOUT_UART: FwId = FwId {
+        bin_name: "mbox",
+        features: &["riscv", "runtime"],
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
     pub const PERSISTENT_RT: FwId = FwId {
         bin_name: "persistent_rt",
         ..RUNTIME_TEST_FWID_BASE
@@ -414,7 +416,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
-    &driver_tests::DMA,
     &driver_tests::DOE,
     &driver_tests::ECC384,
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
@@ -453,6 +454,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::TEST_PMP_TESTS,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
+    &runtime_tests::MBOX_WITHOUT_UART,
     &runtime_tests::PERSISTENT_RT,
     &runtime_tests::MOCK_RT_INTERACTIVE,
 ];

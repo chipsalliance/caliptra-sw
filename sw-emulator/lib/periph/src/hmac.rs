@@ -116,6 +116,11 @@ const KEY_RW_TICKS: u64 = 100;
 /// LSFR Seed Size.
 const HMAC_LFSR_SEED_SIZE: usize = 48;
 
+const DEFAULT_CSR_KEY: [u32; HMAC_KEY_SIZE_DWORD_512] = [
+    0x14552AD, 0x19550757, 0x50C602DD, 0x85DE4E9B, 0x815CC9EF, 0xBA81A35, 0x7A05D7C0, 0x7F5EFAEB,
+    0xF76DD9D2, 0x9E38197F, 0x4052537, 0x25B568F4, 0x432665F1, 0xD11D02A7, 0xBFB9279F, 0xA2EB96D7,
+];
+
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
@@ -215,6 +220,9 @@ pub struct HmacSha {
 
     /// Tag write complete action
     op_tag_write_complete_action: Option<ActionHandle>,
+
+    /// CSR Key
+    csr_key: [u32; HMAC_KEY_SIZE_DWORD_512],
 }
 
 impl HmacSha {
@@ -268,6 +276,7 @@ impl HmacSha {
             op_key_read_complete_action: None,
             op_block_read_complete_action: None,
             op_tag_write_complete_action: None,
+            csr_key: DEFAULT_CSR_KEY,
         }
     }
 
@@ -343,6 +352,13 @@ impl HmacSha {
 
             let mode512 = self.control.reg.is_set(Control::MODE);
 
+            // If CSR mode is set, use the pre-defined key.
+            // Also reset the key_from_kv flag since the key is not read from the key-vault.
+            if self.control.reg.is_set(Control::CSR_MODE) {
+                self.key = self.csr_key;
+                self.key_from_kv = false;
+            }
+
             if self.control.reg.is_set(Control::INIT) {
                 if mode512 {
                     self.hmac =
@@ -379,8 +395,6 @@ impl HmacSha {
             // Zeroize the HMAC engine
             self.zeroize();
         }
-
-        // [TODO][CAP2] if CSR Mode is set, use a pre-defined key.
 
         Ok(())
     }

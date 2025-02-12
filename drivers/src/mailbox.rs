@@ -39,7 +39,7 @@ pub struct Mailbox {
     mbox: MboxCsr,
 }
 
-const MAX_MAILBOX_LEN: u32 = 128 * 1024;
+const MAX_MAILBOX_LEN: u32 = 256 * 1024;
 
 impl Mailbox {
     pub fn new(mbox: MboxCsr) -> Self {
@@ -83,6 +83,14 @@ impl Mailbox {
                 mbox: &mut self.mbox,
             }),
             _ => None,
+        }
+    }
+
+    // Fake mailbox transaction used when downloading firmware image from Recovery Interface.
+    pub fn fake_recv_txn(&mut self) -> MailboxRecvTxn {
+        MailboxRecvTxn {
+            state: MailboxOpState::Execute,
+            mbox: &mut self.mbox,
         }
     }
 

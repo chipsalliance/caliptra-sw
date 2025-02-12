@@ -46,6 +46,7 @@ mod exception;
 mod fht;
 mod flow;
 mod fuse;
+mod key_ladder;
 mod lock;
 mod pcr;
 mod rom_env;
@@ -95,6 +96,11 @@ pub extern "C" fn rom_entry() -> ! {
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
+
+    // UDS programming.
+    if let Err(err) = crate::flow::UdsProgrammingFlow::program_uds(&mut env) {
+        handle_fatal_error(err.into());
+    }
 
     if cfg!(feature = "fake-rom")
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
@@ -148,6 +154,9 @@ pub extern "C" fn rom_entry() -> ! {
 
             // LMS Engine
             lms: &mut env.lms,
+
+            // MLDSA87 Engine
+            mldsa87: &mut env.mldsa87,
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,

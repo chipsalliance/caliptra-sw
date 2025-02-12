@@ -27,8 +27,10 @@ pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
+pub mod key_ladder;
 mod pcr;
 mod populate_idev;
+mod recovery_flow;
 mod set_auth_manifest;
 mod stash_measurement;
 mod subject_alt_name;
@@ -61,6 +63,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use key_ladder::KeyLadder;
 pub use pcr::IncrementPcrResetCounterCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -228,7 +231,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_ECC_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

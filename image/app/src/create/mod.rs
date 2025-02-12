@@ -26,8 +26,10 @@ use caliptra_image_gen::*;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
+use hex::ToHex;
 use std::path::Path;
 use std::path::PathBuf;
+use zerocopy::AsBytes;
 
 use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};
@@ -90,10 +92,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("fmc-version")
         .with_context(|| "fmc-version arg not specified")?;
 
-    let fmc_svn: &u32 = args
-        .get_one::<u32>("fmc-svn")
-        .with_context(|| "fmc-svn arg not specified")?;
-
     let fmc_rev: &String = args
         .get_one::<String>("fmc-rev")
         .with_context(|| "fmc-rev arg not specified")?;
@@ -106,13 +104,13 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("rt-version")
         .with_context(|| "rt-version arg not specified")?;
 
-    let runtime_svn: &u32 = args
-        .get_one::<u32>("rt-svn")
-        .with_context(|| "rt-svn arg not specified")?;
-
     let runtime_rev: &String = args
         .get_one::<String>("rt-rev")
         .with_context(|| "rt-rev arg not specified")?;
+
+    let fw_svn: &u32 = args
+        .get_one::<u32>("fw-svn")
+        .with_context(|| "fw-svn arg not specified")?;
 
     let ecc_key_idx: &u32 = args
         .get_one::<u32>("ecc-pk-idx")
@@ -125,6 +123,8 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let out_path: &PathBuf = args
         .get_one::<PathBuf>("out")
         .with_context(|| "out arg not specified")?;
+
+    let print_hashes = args.get_flag("print-hashes");
 
     //YYYYMMDDHHMMSS - Zulu Time
     let mut own_from_date: [u8; 15] = [0u8; 15];
@@ -158,7 +158,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let fmc = ElfExecutable::open(
         fmc_path,
         *fmc_version,
-        *fmc_svn,
         fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 
@@ -166,7 +165,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime = ElfExecutable::open(
         runtime_path,
         *runtime_version,
-        *runtime_svn,
         runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 
@@ -174,11 +172,8 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .parent()
         .with_context(|| "Invalid parent path")?;
 
-    let pqc_key_type = if *pqc_key_type == 1 {
-        FwVerificationPqcKeyType::LMS
-    } else {
-        FwVerificationPqcKeyType::MLDSA
-    };
+    let pqc_key_type = FwVerificationPqcKeyType::from_u8(*pqc_key_type as u8)
+        .ok_or_else(|| anyhow!("Unsupported PQC key type: {}", pqc_key_type))?;
 
     let gen_config = ImageGeneratorConfig::<ElfExecutable> {
         pqc_key_type,
@@ -200,10 +195,17 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         )?,
         fmc,
         runtime,
+        fw_svn: *fw_svn,
     };
 
     let gen = ImageGenerator::new(Crypto::default());
     let image = gen.generate(&gen_config).unwrap();
+
+    if print_hashes {
+        let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
+        println!("Vendor PK hash: {}", vendor_pk_desc_hash);
+        println!("Owner PK hash: {}", owner_pk_hash);
+    }
 
     let out_file = std::fs::OpenOptions::new()
         .create(true)
@@ -379,4 +381,22 @@ fn owner_config(
     } else {
         Ok(None)
     }
+}
+
+// Returns the vendor public key descriptor and owner public key hashes from the image.
+pub fn image_pk_desc_hash(manifest: &ImageManifest) -> (String, String) {
+    let crypto = Crypto::default();
+    let vendor_pk_desc_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.vendor_pub_key_info.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
+    let owner_pk_hash = from_hw_format(
+        &crypto
+            .sha384_digest(manifest.preamble.owner_pub_keys.as_bytes())
+            .unwrap(),
+    )
+    .encode_hex();
+    (vendor_pk_desc_hash, owner_pk_hash)
 }

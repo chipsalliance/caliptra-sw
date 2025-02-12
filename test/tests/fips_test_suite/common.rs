@@ -6,6 +6,7 @@ use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::*,
     response::{
@@ -14,6 +15,11 @@ use dpe::{
     },
 };
 use zerocopy::{AsBytes, FromBytes};
+
+pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
+    FwVerificationPqcKeyType::LMS,
+    FwVerificationPqcKeyType::MLDSA,
+];
 
 pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
 pub const HOOK_CODE_OFFSET: u32 = 16;
@@ -33,9 +39,9 @@ pub struct HwExpVals {
     pub hw_revision: u32,
 }
 
-const HW_EXP_1_0_0: HwExpVals = HwExpVals { hw_revision: 0x1 };
+const HW_EXP_2_0_0: HwExpVals = HwExpVals { hw_revision: 0x2 };
 
-const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x11 };
+const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x2 };
 
 // ===  ROM  ===
 pub struct RomExpVals {
@@ -43,29 +49,14 @@ pub struct RomExpVals {
     pub capabilities: [u8; 16],
 }
 
-const ROM_EXP_1_0_1: RomExpVals = RomExpVals {
-    rom_version: 0x801, // 1.0.1
+const ROM_EXP_2_0_0: RomExpVals = RomExpVals {
+    rom_version: 0x1000, // 2.0.0
     capabilities: [
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1,
     ],
 };
 
-const ROM_EXP_1_0_3: RomExpVals = RomExpVals {
-    rom_version: 0x803, // 1.0.3
-    ..ROM_EXP_1_0_1
-};
-
-const ROM_EXP_1_1_0: RomExpVals = RomExpVals {
-    rom_version: 0x840, // 1.1.0
-    ..ROM_EXP_1_0_3
-};
-
-const ROM_EXP_1_2_0: RomExpVals = RomExpVals {
-    rom_version: 0x880, // 1.2.0
-    ..ROM_EXP_1_1_0
-};
-
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_2_0 };
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_0 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -73,17 +64,12 @@ pub struct RtExpVals {
     pub fw_version: u32,
 }
 
-const RT_EXP_1_0_0: RtExpVals = RtExpVals {
-    fmc_version: 0x800,      // 1.0.0
-    fw_version: 0x0100_0000, // 1.0.0
+const RT_EXP_2_0_0: RtExpVals = RtExpVals {
+    fmc_version: 0x1000,     // 2.0.0
+    fw_version: 0x0200_0000, // 2.0.0
 };
 
-const RT_EXP_1_1_0: RtExpVals = RtExpVals {
-    fmc_version: 0x840,      // 1.1.0
-    fw_version: 0x0101_0000, // 1.1.0
-};
-
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_1_0 };
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_0 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -94,7 +80,7 @@ impl HwExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_HW_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
-                "1_0_0" => HW_EXP_1_0_0,
+                "2_0_0" => HW_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected HW values ({})",
                     version
@@ -110,8 +96,7 @@ impl RomExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_ROM_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
-                "1_0_1" => ROM_EXP_1_0_1,
-                "1_0_3" => ROM_EXP_1_0_3,
+                "2_0_0" => ROM_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
@@ -127,7 +112,7 @@ impl RtExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_RT_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
-                "1_0_0" => RT_EXP_1_0_0,
+                "2_0_0" => RT_EXP_2_0_0,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
                     version

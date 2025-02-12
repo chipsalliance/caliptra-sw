@@ -7,10 +7,11 @@ use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::HwModel;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{AsBytes, FromBytes};
 
-const HW_REV_ID: u32 = 0x11; // TODO 2.0
+const HW_REV_ID: u32 = 0x02;
 
 #[test]
 fn test_fips_version() {
@@ -18,6 +19,7 @@ fn test_fips_version() {
         test_image_options: Some(ImageOptions {
             fmc_version: version::get_fmc_version(),
             app_version: version::get_runtime_version(),
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
             ..Default::default()
         }),
         ..Default::default()

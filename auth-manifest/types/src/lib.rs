@@ -24,6 +24,7 @@ use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 127;
+pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 7168;
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
@@ -186,4 +187,18 @@ pub struct AuthorizationManifest {
     pub preamble: AuthManifestPreamble,
 
     pub image_metadata_col: AuthManifestImageMetadataCollection,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{AuthManifestPreamble, AUTH_MANIFEST_PREAMBLE_SIZE};
+    use zerocopy::AsBytes;
+
+    #[test]
+    fn test_auth_preamble_size() {
+        assert_eq!(
+            AUTH_MANIFEST_PREAMBLE_SIZE,
+            AuthManifestPreamble::default().as_bytes().len()
+        );
+    }
 }

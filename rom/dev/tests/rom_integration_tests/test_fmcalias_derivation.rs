@@ -15,8 +15,7 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::memory_layout::*;
-use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault};
-use caliptra_drivers::{PcrId, RomPqcVerifyConfig};
+use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault, PcrId};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -127,281 +126,302 @@ fn check_measurement_log_entry(
 
 #[test]
 fn test_pcr_log() {
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let owner_pubkey_digest = gen
-        .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = Fuses {
-        anti_rollback_disable: true,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options);
+
+        let vendor_pubkey_digest = gen
+            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let owner_pubkey_digest = gen
+            .owner_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let fuses = Fuses {
+            anti_rollback_disable: true,
+            vendor_pk_hash: vendor_pubkey_digest,
+            owner_pk_hash: owner_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    const FMC_SVN: u32 = 1;
-    let image_options = ImageOptions {
-        vendor_config: VENDOR_CONFIG_KEY_1,
-        fmc_svn: FMC_SVN,
-        app_svn: FMC_SVN,
-        ..Default::default()
-    };
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        image_options,
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        const FW_SVN: u32 = 1;
+        let image_options = ImageOptions {
+            vendor_config: VENDOR_CONFIG_KEY_1,
+            fw_svn: FW_SVN,
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    let device_lifecycle = hw
-        .soc_ifc()
-        .cptra_security_state()
-        .read()
-        .device_lifecycle();
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+        let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+        let device_lifecycle = hw
+            .soc_ifc()
+            .cptra_security_state()
+            .read()
+            .device_lifecycle();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        0,
-        PcrLogEntryId::DeviceStatus,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[
-            device_lifecycle as u8,
-            debug_locked as u8,
-            anti_rollback_disable as u8,
-            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-            FMC_SVN as u8,
-            0_u8,
-            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
-            true as u8,
-        ],
-    );
+        let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        1,
-        PcrLogEntryId::VendorPubKeyInfoHash,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
-    );
+        let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        2,
-        PcrLogEntryId::OwnerPubKeyHash,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
-    );
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            0,
+            PcrLogEntryId::DeviceStatus,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            &[
+                device_lifecycle as u8,
+                debug_locked as u8,
+                anti_rollback_disable as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                FW_SVN as u8,
+                0_u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
+                *pqc_key_type as u8,
+                true as u8,
+            ],
+        );
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        3,
-        PcrLogEntryId::FmcTci,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
-    );
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            1,
+            PcrLogEntryId::VendorPubKeyInfoHash,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
+        );
+
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            2,
+            PcrLogEntryId::OwnerPubKeyHash,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+        );
+
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            3,
+            PcrLogEntryId::FmcTci,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
+        );
+    }
 }
 
 #[test]
 fn test_pcr_log_no_owner_key_digest_fuse() {
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options);
 
-    let owner_pubkey_digest = gen
-        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        let owner_pubkey_digest = gen
+            .owner_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let fuses = Fuses {
+            anti_rollback_disable: true,
+            vendor_pk_hash: gen
+                .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+                .unwrap(),
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    let fuses = Fuses {
-        anti_rollback_disable: true,
-        key_manifest_pk_hash: gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-            .unwrap(),
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+        let image_options = ImageOptions {
+            vendor_config: VENDOR_CONFIG_KEY_1,
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_options = ImageOptions {
-        vendor_config: VENDOR_CONFIG_KEY_1,
-        ..Default::default()
-    };
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        image_options,
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let device_lifecycle = hw
-        .soc_ifc()
-        .cptra_security_state()
-        .read()
-        .device_lifecycle();
+        let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+        let device_lifecycle = hw
+            .soc_ifc()
+            .cptra_security_state()
+            .read()
+            .device_lifecycle();
 
-    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+        let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        0,
-        PcrLogEntryId::DeviceStatus,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[
-            device_lifecycle as u8,
-            debug_locked as u8,
-            anti_rollback_disable as u8,
-            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-            0_u8,
-            0_u8,
-            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
-            false as u8,
-        ],
-    );
+        let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        2,
-        PcrLogEntryId::OwnerPubKeyHash,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
-    );
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            0,
+            PcrLogEntryId::DeviceStatus,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            &[
+                device_lifecycle as u8,
+                debug_locked as u8,
+                anti_rollback_disable as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                0_u8,
+                0_u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
+                *pqc_key_type as u8,
+                false as u8,
+            ],
+        );
+
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            2,
+            PcrLogEntryId::OwnerPubKeyHash,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+        );
+    }
 }
 
 #[test]
 fn test_pcr_log_fmc_fuse_svn() {
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let owner_pubkey_digest = gen
-        .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    const FMC_SVN: u32 = 3;
-    const FMC_FUSE_SVN: u32 = 2;
-
-    let fuses = Fuses {
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
-        fmc_key_manifest_svn: FMC_FUSE_SVN,
-        runtime_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options);
+
+        let vendor_pubkey_digest = gen
+            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let owner_pubkey_digest = gen
+            .owner_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        const FW_SVN: u32 = 3;
+        const FW_FUSE_SVN: u32 = 2;
+
+        let fuses = Fuses {
+            anti_rollback_disable: false,
+            vendor_pk_hash: vendor_pubkey_digest,
+            owner_pk_hash: owner_pubkey_digest,
+            fw_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_options = ImageOptions {
-        vendor_config: VENDOR_CONFIG_KEY_1,
-        fmc_svn: FMC_SVN,
-        app_svn: FMC_SVN,
-        ..Default::default()
-    };
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        image_options,
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_options = ImageOptions {
+            vendor_config: VENDOR_CONFIG_KEY_1,
+            fw_svn: FW_SVN,
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    let device_lifecycle = hw
-        .soc_ifc()
-        .cptra_security_state()
-        .read()
-        .device_lifecycle();
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+        let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+        let device_lifecycle = hw
+            .soc_ifc()
+            .cptra_security_state()
+            .read()
+            .device_lifecycle();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        0,
-        PcrLogEntryId::DeviceStatus,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[
-            device_lifecycle as u8,
-            debug_locked as u8,
-            anti_rollback_disable as u8,
-            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
-            FMC_SVN as u8,
-            FMC_FUSE_SVN as u8,
-            VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
-            RomPqcVerifyConfig::EcdsaAndLms as u8,
-            true as u8,
-        ],
-    );
+        let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+
+        let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+
+        check_pcr_log_entry(
+            &pcr_entry_arr,
+            0,
+            PcrLogEntryId::DeviceStatus,
+            PCR0_AND_PCR1_EXTENDED_ID,
+            &[
+                device_lifecycle as u8,
+                debug_locked as u8,
+                anti_rollback_disable as u8,
+                VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+                FW_SVN as u8,
+                FW_FUSE_SVN as u8,
+                VENDOR_CONFIG_KEY_1.pqc_key_idx as u8,
+                *pqc_key_type as u8,
+                true as u8,
+            ],
+        );
+    }
 }
 
 fn hash_pcr_log_entry(entry: &PcrLogEntry, pcr: &mut [u8; 48]) {
@@ -462,127 +482,133 @@ fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
 
 #[test]
 fn test_pcr_log_across_update_reset() {
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let owner_pubkey_digest = gen
-        .owner_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    const FMC_SVN: u32 = 2;
-    const FMC_FUSE_SVN: u32 = 1;
-
-    let fuses = Fuses {
-        anti_rollback_disable: false,
-        fmc_key_manifest_svn: FMC_FUSE_SVN,
-        runtime_svn: [1, 0, 0, 0],
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        owner_pk_hash: owner_pubkey_digest,
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options);
+
+        let vendor_pubkey_digest = gen
+            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let owner_pubkey_digest = gen
+            .owner_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        const FW_SVN: u32 = 2;
+
+        let fuses = Fuses {
+            anti_rollback_disable: false,
+            fw_svn: [1, 0, 0, 0],
+            vendor_pk_hash: vendor_pubkey_digest,
+            owner_pk_hash: owner_pubkey_digest,
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_options = ImageOptions {
-        vendor_config: VENDOR_CONFIG_KEY_1,
-        fmc_svn: FMC_SVN,
-        app_svn: FMC_SVN,
-        ..Default::default()
-    };
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        image_options,
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_options = ImageOptions {
+            vendor_config: VENDOR_CONFIG_KEY_1,
+            fw_svn: FW_SVN,
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    // Fetch and validate PCR values against the log.
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let pcrs = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
-    assert_eq!(pcrs.len(), PCR_COUNT * 48);
+        let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let mut pcr0_from_hw: [u8; 48] = pcrs[0..48].try_into().unwrap();
-    let mut pcr1_from_hw: [u8; 48] = pcrs[48..96].try_into().unwrap();
+        // Fetch and validate PCR values against the log.
 
-    helpers::change_dword_endianess(&mut pcr0_from_hw);
-    helpers::change_dword_endianess(&mut pcr1_from_hw);
+        let pcrs = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+        assert_eq!(pcrs.len(), PCR_COUNT * 48);
 
-    let pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
-    let pcr1_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId1);
+        let mut pcr0_from_hw: [u8; 48] = pcrs[0..48].try_into().unwrap();
+        let mut pcr1_from_hw: [u8; 48] = pcrs[48..96].try_into().unwrap();
 
-    assert_eq!(pcr0_from_log, pcr0_from_hw);
-    assert_eq!(pcr1_from_log, pcr1_from_hw);
+        helpers::change_dword_endianess(&mut pcr0_from_hw);
+        helpers::change_dword_endianess(&mut pcr1_from_hw);
 
-    // Ensure all other PCRs, except PCR0, PCR1 and PCR31, are empty.
-    for i in 2..(PCR_COUNT - 1) {
-        let offset = i * 48;
-        assert_eq!(pcrs[offset..offset + 48], [0; 48]);
+        let pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
+        let pcr1_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId1);
+
+        assert_eq!(pcr0_from_log, pcr0_from_hw);
+        assert_eq!(pcr1_from_log, pcr1_from_hw);
+
+        // Ensure all other PCRs, except PCR0, PCR1 and PCR31, are empty.
+        for i in 2..(PCR_COUNT - 1) {
+            let offset = i * 48;
+            assert_eq!(pcrs[offset..offset + 48], [0; 48]);
+        }
+
+        // Trigger an update reset.
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+        hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+        let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+        // Fetch and validate PCR values against the log. PCR0 should represent the
+        // latest boot, while PCR1 should represent the whole journey.
+
+        let pcrs_after_reset = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+        assert_eq!(pcrs_after_reset.len(), PCR_COUNT * 48);
+
+        let mut new_pcr0_from_hw: [u8; 48] = pcrs_after_reset[0..48].try_into().unwrap();
+        let mut new_pcr1_from_hw: [u8; 48] = pcrs_after_reset[48..96].try_into().unwrap();
+
+        helpers::change_dword_endianess(&mut new_pcr0_from_hw);
+        helpers::change_dword_endianess(&mut new_pcr1_from_hw);
+
+        let new_pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
+        let new_pcr1_from_log = hash_pcr_log_entries(&pcr1_from_log, &pcr_entry_arr, PcrId::PcrId1);
+
+        assert_eq!(new_pcr0_from_log, new_pcr0_from_hw);
+        assert_eq!(new_pcr1_from_log, new_pcr1_from_hw);
+
+        // Also ensure PCR locks are configured correctly.
+        let reset_checks = hw.mailbox_execute(0x1000_0007, &[]).unwrap().unwrap();
+        assert_eq!(reset_checks, [0; 4]);
+
+        let pcrs_after_clear = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+        assert_eq!(pcrs_after_clear, pcrs_after_reset);
     }
-
-    // Trigger an update reset.
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-    hw.step_until_boot_status(UpdateResetComplete.into(), true);
-
-    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-
-    // Fetch and validate PCR values against the log. PCR0 should represent the
-    // latest boot, while PCR1 should represent the whole journey.
-
-    let pcrs_after_reset = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
-    assert_eq!(pcrs_after_reset.len(), PCR_COUNT * 48);
-
-    let mut new_pcr0_from_hw: [u8; 48] = pcrs_after_reset[0..48].try_into().unwrap();
-    let mut new_pcr1_from_hw: [u8; 48] = pcrs_after_reset[48..96].try_into().unwrap();
-
-    helpers::change_dword_endianess(&mut new_pcr0_from_hw);
-    helpers::change_dword_endianess(&mut new_pcr1_from_hw);
-
-    let new_pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
-    let new_pcr1_from_log = hash_pcr_log_entries(&pcr1_from_log, &pcr_entry_arr, PcrId::PcrId1);
-
-    assert_eq!(new_pcr0_from_log, new_pcr0_from_hw);
-    assert_eq!(new_pcr1_from_log, new_pcr1_from_hw);
-
-    // Also ensure PCR locks are configured correctly.
-    let reset_checks = hw.mailbox_execute(0x1000_0007, &[]).unwrap().unwrap();
-    assert_eq!(reset_checks, [0; 4]);
-
-    let pcrs_after_clear = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
-    assert_eq!(pcrs_after_clear, pcrs_after_reset);
 }
 
 #[test]
 #[allow(deprecated)]
 fn test_fuse_log() {
-    const FMC_SVN: u32 = 4;
+    const FW_SVN: u32 = 4;
+    const FW_FUSE_SVN: u32 = 3;
 
     let fuses = Fuses {
         anti_rollback_disable: true,
-        fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
-        runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
+        fw_svn: [0x7, 0, 0, 0], // Value of FW_FUSE_SVN
+        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
 
@@ -603,12 +629,12 @@ fn test_fuse_log() {
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         owner_config: Some(OWNER_CONFIG),
-        fmc_svn: FMC_SVN,
         fmc_version: 0,
-        app_svn: FMC_SVN,
         app_version: 0,
         pqc_key_type: FwVerificationPqcKeyType::LMS,
+        fw_svn: FW_SVN,
     };
+
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap();
@@ -643,15 +669,15 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0,);
 
-    // Validate the ManifestFmcSvn
+    // Validate the ColdBootFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestFmcSvn as u32
+        FuseLogEntryId::ColdBootFwSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_SVN);
 
     // Validate the ManifestReserved0
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -671,17 +697,17 @@ fn test_fuse_log() {
         fuse_log_entry.entry_id,
         FuseLogEntryId::_DeprecatedFuseFmcSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
 
-    // Validate the ManifestRtSvn
+    // Validate the ManifestFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestRtSvn as u32
+        FuseLogEntryId::ManifestFwSvn as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], FW_SVN);
 
     // Validate the ManifestReserved1
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -693,12 +719,12 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], 0);
 
-    // Validate the FuseRtSvn
+    // Validate the FuseFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
-    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFwSvn as u32);
+    assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
 
     // Validate the VendorPqcPubKeyIndex
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -723,186 +749,140 @@ fn test_fuse_log() {
 
 #[test]
 fn test_fht_info() {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses: Fuses::default(),
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
+        };
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 552);
-    assert_eq!(fht.fmcalias_tbs_size, 753);
-    assert_eq!(fht.ldevid_tbs_addr, LDEVID_TBS_ORG);
-    assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
-    assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
-    assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
-    assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+
+        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        // [TODO][CAP2] add mldsa equivalents
+        assert_eq!(fht.ecc_ldevid_tbs_size, 552);
+        assert_eq!(fht.ecc_fmcalias_tbs_size, 753);
+        assert_eq!(fht.ecc_ldevid_tbs_addr, ECC_LDEVID_TBS_ORG);
+        assert_eq!(fht.ecc_fmcalias_tbs_addr, ECC_FMCALIAS_TBS_ORG);
+        assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
+        assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
+        assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
+    }
 }
 
 #[test]
 fn test_check_rom_cold_boot_status_reg() {
-    let fuses = Fuses {
-        ..Default::default()
-    };
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-    let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    assert_eq!(
-        data_vault.rom_cold_boot_status(),
-        u32::from(ColdResetComplete)
-    );
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+
+        let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
+        let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
+
+        assert_eq!(
+            data_vault.rom_cold_boot_status(),
+            u32::from(ColdResetComplete)
+        );
+    }
 }
 
 #[test]
 fn test_upload_single_measurement() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    // Upload measurement.
-    let measurement = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0xAB; 4],
-        context: [0xCD; 48],
-        svn: 0xEF01,
-    };
-
-    // Calc and update checksum
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &measurement.as_bytes()[4..],
-    );
-    let measurement = StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..measurement
-    };
-
-    hw.upload_measurement(measurement.as_bytes()).unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    // Check if the measurement was present in the measurement log.
-    let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-
-    assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
-    check_measurement_log_entry(&measurement_log, 0, &measurement);
-
-    // Get PCR31
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that the measurement was extended to PCR31.
-    let expected_pcr = hash_measurement_log_entries(&measurement_log);
-    assert_eq!(pcr31.as_bytes(), expected_pcr);
-
-    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.meas_log_index, 1);
-}
-
-#[test]
-fn test_upload_measurement_limit() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        BootParams {
-            fuses,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let mut measurement = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0u8; 4],
-        context: [0u8; 48],
-        svn: 0,
-    };
-
-    // Upload 8 measurements.
-    for idx in 0..8 {
-        measurement.measurement[0] = idx;
-        measurement.context[1] = idx;
-        measurement.svn = idx as u32;
+        // Upload measurement.
+        let measurement = StashMeasurementReq {
+            measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+            hdr: MailboxReqHeader { chksum: 0 },
+            metadata: [0xAB; 4],
+            context: [0xCD; 48],
+            svn: 0xEF01,
+        };
 
         // Calc and update checksum
         let checksum = caliptra_common::checksum::calc_checksum(
@@ -915,36 +895,119 @@ fn test_upload_measurement_limit() {
         };
 
         hw.upload_measurement(measurement.as_bytes()).unwrap();
-    }
 
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+
+        // Check if the measurement was present in the measurement log.
+        let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
+
+        assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
+        check_measurement_log_entry(&measurement_log, 0, &measurement);
+
+        // Get PCR31
+        let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+        // Check that the measurement was extended to PCR31.
+        let expected_pcr = hash_measurement_log_entries(&measurement_log);
+        assert_eq!(pcr31.as_bytes(), expected_pcr);
+
+        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        assert_eq!(fht.meas_log_index, 1);
+    }
+}
+
+#[test]
+fn test_upload_measurement_limit() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    // Check the measurement log.
-    let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-    assert_eq!(
-        measurement_log.len(),
-        MEASUREMENT_ENTRY_SIZE * MEASUREMENT_MAX_COUNT
-    );
-    for idx in 0..8 {
-        measurement.measurement[0] = idx;
-        measurement.context[1] = idx;
-        measurement.svn = idx as u32;
-        check_measurement_log_entry(&measurement_log, idx as usize, &measurement);
+        let mut measurement = StashMeasurementReq {
+            measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+            hdr: MailboxReqHeader { chksum: 0 },
+            metadata: [0u8; 4],
+            context: [0u8; 48],
+            svn: 0,
+        };
+
+        // Upload 8 measurements.
+        for idx in 0..8 {
+            measurement.measurement[0] = idx;
+            measurement.context[1] = idx;
+            measurement.svn = idx as u32;
+
+            // Calc and update checksum
+            let checksum = caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::STASH_MEASUREMENT),
+                &measurement.as_bytes()[4..],
+            );
+            let measurement = StashMeasurementReq {
+                hdr: MailboxReqHeader { chksum: checksum },
+                ..measurement
+            };
+
+            hw.upload_measurement(measurement.as_bytes()).unwrap();
+        }
+
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+
+        // Check the measurement log.
+        let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
+        assert_eq!(
+            measurement_log.len(),
+            MEASUREMENT_ENTRY_SIZE * MEASUREMENT_MAX_COUNT
+        );
+        for idx in 0..8 {
+            measurement.measurement[0] = idx;
+            measurement.context[1] = idx;
+            measurement.svn = idx as u32;
+            check_measurement_log_entry(&measurement_log, idx as usize, &measurement);
+        }
+
+        // Get PCR31
+        let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+        // Check that the measurement was extended to PCR31.
+        let expected_pcr = hash_measurement_log_entries(&measurement_log);
+        assert_eq!(pcr31.as_bytes(), expected_pcr);
+
+        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
     }
-
-    // Get PCR31
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that the measurement was extended to PCR31.
-    let expected_pcr = hash_measurement_log_entries(&measurement_log);
-    assert_eq!(pcr31.as_bytes(), expected_pcr);
-
-    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
 }
 
 #[test]
@@ -1012,42 +1075,51 @@ fn test_upload_measurement_limit_plus_one() {
 
 #[test]
 fn test_upload_no_measurement() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        BootParams {
-            fuses,
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        };
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
 
-    // Check whether the fake measurement was extended to PCR31.
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-    assert_eq!(pcr31.as_bytes(), [0u8; 48]);
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
 
-    // Check whether the fake measurement is in the measurement log.
-    let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-    assert_eq!(measurement_log.len(), 0);
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.meas_log_index, 0);
+        // Check whether the fake measurement was extended to PCR31.
+        let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+        assert_eq!(pcr31.as_bytes(), [0u8; 48]);
+
+        // Check whether the fake measurement is in the measurement log.
+        let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
+        assert_eq!(measurement_log.len(), 0);
+
+        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        assert_eq!(fht.meas_log_index, 0);
+    }
 }

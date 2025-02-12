@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::{
-    Ecc384, Hmac, Lms, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, Trng,
+    Ecc384, Hmac, Lms, Mldsa87, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, Trng,
 };
 
 pub struct KatsEnv<'a> {
@@ -31,4 +31,7 @@ pub struct KatsEnv<'a> {
 
     /// SHA Acc Lock State
     pub sha_acc_lock_state: ShaAccLockState,
+
+    /// MLDSA Engine
+    pub mldsa87: &'a mut Mldsa87,
 }

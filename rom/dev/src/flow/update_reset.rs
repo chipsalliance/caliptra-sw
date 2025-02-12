@@ -13,14 +13,15 @@ Abstract:
 --*/
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
+use crate::key_ladder;
 use crate::{cprintln, pcr, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
+use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
 use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
@@ -82,7 +83,7 @@ impl UpdateResetFlow {
 
             // Populate data vault
             let data_vault = &mut env.persistent_data.get_mut().data_vault;
-            Self::populate_data_vault(data_vault, info);
+            Self::populate_data_vault(data_vault, info, &mut env.hmac, &mut env.trng)?;
 
             // Extend PCR0 and PCR1
             pcr::extend_pcrs(
@@ -216,16 +217,32 @@ impl UpdateResetFlow {
     ///
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
-    fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
+    /// * `hmac` - HMAC helper
+    /// * `trng` - TRNG helper
+    fn populate_data_vault(
+        data_vault: &mut DataVault,
+        info: &ImageVerificationInfo,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
         data_vault.set_rt_tci(&info.runtime.digest.into());
 
-        let cur_min_svn = data_vault.rt_min_svn();
-        let new_min_svn = core::cmp::min(cur_min_svn, info.fw_svn);
+        let old_min_svn = data_vault.fw_min_svn();
+        let new_min_svn = core::cmp::min(old_min_svn, info.fw_svn);
 
-        data_vault.set_rt_svn(info.fw_svn);
-        data_vault.set_rt_min_svn(new_min_svn);
+        data_vault.set_fw_svn(info.fw_svn);
+        data_vault.set_fw_min_svn(new_min_svn);
         data_vault.set_rt_entry_point(info.runtime.entry_point);
 
         report_boot_status(UpdateResetPopulateDataVaultComplete.into());
+
+        // Extend the key ladder if the min-SVN is being decremented.
+        let decrement_by = old_min_svn - new_min_svn;
+        cprintln!("[update-reset] Extending key ladder by {}", decrement_by);
+
+        key_ladder::extend_key_ladder(hmac, trng, decrement_by)?;
+        report_boot_status(UpdateResetExtendKeyLadderComplete.into());
+
+        Ok(())
     }
 }

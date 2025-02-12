@@ -129,8 +129,8 @@ pub fn copy_ldevid_cert(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
-        .ldevid_tbs
-        .get(..persistent_data.fht.ldevid_tbs_size.into());
+        .ecc_ldevid_tbs
+        .get(..persistent_data.fht.ecc_ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data);
     cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
@@ -165,8 +165,8 @@ pub fn copy_fmc_alias_cert(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
-        .fmcalias_tbs
-        .get(..persistent_data.fht.fmcalias_tbs_size.into());
+        .ecc_fmcalias_tbs
+        .get(..persistent_data.fht.ecc_fmcalias_tbs_size.into());
     let sig = fmc_dice_sign(persistent_data);
     cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
@@ -188,7 +188,7 @@ pub fn copy_rt_alias_cert(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
-        .rtalias_tbs
+        .ecc_rtalias_tbs
         .get(..persistent_data.fht.rtalias_tbs_size.into());
     cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_sign, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)

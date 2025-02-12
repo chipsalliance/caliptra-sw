@@ -341,13 +341,13 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         let reg = csrng.regs().sw_cmd_sts().read();
 
         // Order matters. Check for errors first.
-        if reg.cmd_sts() || u32::from(csrng.regs().err_code().read()) != 0 {
+        if reg.cmd_sts() != 0 || u32::from(csrng.regs().err_code().read()) != 0 {
             // TODO: Somehow convey additional error information found in
             // the ERR_CODE register.
             return Err(err);
         }
 
-        if reg.cmd_rdy() {
+        if reg.cmd_rdy() && reg.cmd_ack() {
             return Ok(());
         }
     }

@@ -35,7 +35,7 @@ static int set_fuses()
     {
         fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
     }
-    memcpy(&fuses.key_manifest_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
+    memcpy(&fuses.vendor_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
     if ((status = caliptra_init_fuses(&fuses)) != 0)
     {
         printf("Failed to init fuses: %d\n", status);
@@ -68,7 +68,7 @@ var CALIPTRA_C_MODEL *C.struct_caliptra_model
 
 //export caliptra_write_u32
 func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
-	result := C.caliptra_model_axi_write_u32(CALIPTRA_C_MODEL, address, data)
+	result := C.caliptra_model_apb_write_u32(CALIPTRA_C_MODEL, address, data)
 
 	C.caliptra_model_step(CALIPTRA_C_MODEL)
 
@@ -77,7 +77,7 @@ func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
 
 //export caliptra_read_u32
 func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) C.int {
-	return C.caliptra_model_axi_read_u32(CALIPTRA_C_MODEL, address, data)
+	return C.caliptra_model_apb_read_u32(CALIPTRA_C_MODEL, address, data)
 }
 
 //export caliptra_wait

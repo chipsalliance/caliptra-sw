@@ -54,7 +54,8 @@ fn ecc384_key_gen(
             KEY_ID_TMP,
             KeyUsage::default()
                 .set_hmac_key_en()
-                .set_ecc_key_gen_seed_en(),
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en(),
         )
         .into(),
         HmacMode::Hmac384,
@@ -110,7 +111,8 @@ impl Hmac {
                 output,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_key_gen_seed_en()
+                    .set_mldsa_key_gen_seed_en(),
             )
             .into(),
             mode,

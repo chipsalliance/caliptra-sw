@@ -87,10 +87,8 @@ mod constants {
     pub const CPTRA_OWNER_PK_HASH_START: u32 = 0x140;
     pub const CPTRA_OWNER_PK_HASH_SIZE: usize = 48;
     pub const CPTRA_FUSE_PAUSER_LOCK_START: u32 = 0x10c;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_START: u32 = 0x260;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_SIZE: usize = 48;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_START: u32 = 0x290;
-    pub const FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE: usize = 32;
+    pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x260;
+    pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
     pub const FUSE_FMC_SVN_START: u32 = 0x2b4;
     pub const FUSE_RUNTIME_SVN_START: u32 = 0x2b8;
     pub const FUSE_RUNTIME_SVN_SIZE: usize = 16;
@@ -299,6 +297,38 @@ register_bitfields! [
         NOTIF_GEN_IN_TOGGLE_TRIG OFFSET(5) NUMBITS(1) [],
         RSVD OFFSET(6) NUMBITS(26) [],
     ],
+
+    /// SubSytem Debug Manufacturing Service Request Register
+    SsDbgManufServiceRegReq [
+        MANUF_DBG_UNLOCK_REQ OFFSET(0) NUMBITS(1) [],
+        PROD_DBG_UNLOCK_REQ OFFSET(1) NUMBITS(1) [],
+        UDS_PROGRAM_REQ OFFSET(2) NUMBITS(1) [],
+        RSVD OFFSET(3) NUMBITS(29) [],
+    ],
+
+    /// SubSytem Debug Manufacturing Service Response Register
+    SsDbgManufServiceRegRsp [
+        MANUF_DBG_UNLOCK_SUCCESS OFFSET(0) NUMBITS(1) [],
+        MANUF_DBG_UNLOCK_FAIL OFFSET(1) NUMBITS(1) [],
+        MANUF_DBG_UNLOCK_IN_PROGRESS OFFSET(2) NUMBITS(1) [],
+        PROD_DBG_UNLOCK_SUCCESS OFFSET(3) NUMBITS(1) [],
+        PROD_DBG_UNLOCK_FAIL OFFSET(4) NUMBITS(1) [],
+        PROD_DBG_UNLOCK_IN_PROGRESS OFFSET(5) NUMBITS(1) [],
+        UDS_PROGRAM_SUCCESS OFFSET(6) NUMBITS(1) [],
+        UDS_PROGRAM_FAIL OFFSET(7) NUMBITS(1) [],
+        UDS_PROGRAM_IN_PROGRESS OFFSET(8) NUMBITS(1) [],
+        RSVD OFFSET(9) NUMBITS(23) [],
+    ],
+
+    /// Hardware Configuration
+    HwConfig [
+        ITRNG_EN OFFSET(0) NUMBITS(1) [],
+        RSVD_EN OFFSET(1) NUMBITS(3) [],
+        LMS_ACC_EN OFFSET(4) NUMBITS(1) [],
+        ACTIVE_MODE_en OFFSET(5) NUMBITS(1) [],
+        FUSE_GRANULARITY_64BIT OFFSET(6) NUMBITS(1) [],
+        RSVD OFFSET(7) NUMBITS(25) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -370,8 +400,15 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().clear_secrets();
     }
 
+    // [TODO][CAP2] Rdl is not yet updated for UDS fuse controller 32/64 granularity bit (6)
     pub fn set_hw_config(&mut self, val: CptraHwConfigReadVal) {
-        self.regs.borrow_mut().cptra_hw_config = val.into();
+        self.regs.borrow_mut().cptra_hw_config = ReadWriteRegister {
+            reg: InMemoryRegister::<u32, HwConfig::Register>::new(val.into()),
+        };
+    }
+
+    pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {
+        self.regs.borrow_mut().fuse_uds_seed = *seed;
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -572,7 +609,7 @@ struct SocRegistersImpl {
     cptra_fw_rev_id: [u32; 2],
 
     #[register(offset = 0x00e0, write_fn = write_disabled)]
-    cptra_hw_config: u32,
+    cptra_hw_config: ReadWriteRegister<u32, HwConfig::Register>,
 
     #[register(offset = 0x00e4, write_fn = on_write_wdt_timer1_en)]
     cptra_wdt_timer1_en: ReadWriteRegister<u32, WdtEnable::Register>,
@@ -637,10 +674,10 @@ struct SocRegistersImpl {
     fuse_field_entropy: [u32; FUSE_FIELD_ENTROPY_SIZE / 4],
 
     #[register_array(offset = 0x0260)]
-    fuse_key_manifest_pk_hash: [u32; FUSE_KEY_MANIFEST_PK_HASH_SIZE / 4],
+    fuse_vendor_pk_hash: [u32; FUSE_VENDOR_PK_HASH_SIZE / 4],
 
-    #[register_array(offset = 0x0290)]
-    fuse_key_manifest_pk_hash_mask: [u32; FUSE_KEY_MANIFEST_PK_HASH_MASK_SIZE / 4],
+    #[register(offset = 0x0290)]
+    fuse_ecc_revocation: u32,
 
     #[register(offset = 0x02b4)]
     fuse_fmc_svn: u32,
@@ -668,6 +705,33 @@ struct SocRegistersImpl {
 
     #[register_array(offset = 0x34c)]
     fuse_manuf_dbg_unlock_token: [u32; FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE / 4],
+
+    #[register(offset = 0x35c)]
+    fuse_pqc_key_type: u32,
+
+    #[register(offset = 0x510)]
+    ss_recovery_ifc_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x514)]
+    ss_recovery_ifc_base_addr_h: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x518)]
+    ss_otp_fc_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x51c)]
+    ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x520)]
+    ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x524)]
+    ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x5c0)]
+    ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
+
+    #[register(offset = 0x5c4)]
+    ss_dbg_manuf_service_reg_rsp: ReadWriteRegister<u32, SsDbgManufServiceRegRsp::Register>,
 
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
@@ -791,6 +855,8 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
+    const CALIPTRA_HW_CONFIG_ACTIVE_MODE: u32 = 1 << 5;
+
     pub fn new(
         clock: &Clock,
         mailbox: MailboxInternal,
@@ -800,6 +866,11 @@ impl SocRegistersImpl {
     ) -> Self {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
+
+        let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
+        let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
+        // To make things easy the fuse bank is part of the fuse bank controller emulation
+        let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -827,9 +898,13 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x11), // TODO 2.0
+            cptra_hw_rev_id: ReadOnlyRegister::new(0x02), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: 0,
+            cptra_hw_config: ReadWriteRegister::new(if args.active_mode {
+                Self::CALIPTRA_HW_CONFIG_ACTIVE_MODE
+            } else {
+                0
+            }),
             cptra_wdt_timer1_en: ReadWriteRegister::new(0),
             cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
             cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
@@ -850,8 +925,8 @@ impl SocRegistersImpl {
             cptra_owner_pk_hash_lock: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
-            fuse_key_manifest_pk_hash: [0; 12],
-            fuse_key_manifest_pk_hash_mask: [0; 8],
+            fuse_vendor_pk_hash: [0; 12],
+            fuse_ecc_revocation: Default::default(),
             fuse_fmc_svn: Default::default(),
             fuse_runtime_svn: Default::default(),
             fuse_anti_rollback_disable: Default::default(),
@@ -861,6 +936,10 @@ impl SocRegistersImpl {
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 4],
+            ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
+            ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
+            ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
+            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -896,6 +975,11 @@ impl SocRegistersImpl {
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
+            fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
+            ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
+            ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
+            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
+            ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
         };
         regs
     }

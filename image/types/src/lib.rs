@@ -41,14 +41,16 @@ pub const SHA256_DIGEST_WORD_SIZE: usize = 8;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
 pub const SHA512_DIGEST_WORD_SIZE: usize = 16;
+pub const SHA512_DIGEST_BYTE_SIZE: usize = 64;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
-pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
+pub const IMAGE_BYTE_SIZE: usize = 256 * 1024;
 // LMS-SHA192-H15
 pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
 // LMOTS-SHA192-W4
 pub const IMAGE_LMS_OTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
+pub const LMS_PUB_KEY_BYTE_SIZE: usize = 48;
 pub const MLDSA87_PUB_KEY_BYTE_SIZE: usize = 2592;
 pub const MLDSA87_PUB_KEY_WORD_SIZE: usize = 648;
 pub const MLDSA87_PRIV_KEY_BYTE_SIZE: usize = 4896;
@@ -188,10 +190,10 @@ impl Default for ImagePqcSignature {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum FwVerificationPqcKeyType {
-    LMS = 1,
-    MLDSA = 2,
+    MLDSA = 1,
+    LMS = 3,
 }
 
 impl From<FwVerificationPqcKeyType> for u8 {
@@ -202,15 +204,15 @@ impl From<FwVerificationPqcKeyType> for u8 {
 
 impl Default for FwVerificationPqcKeyType {
     fn default() -> Self {
-        Self::LMS
+        Self::MLDSA
     }
 }
 
 impl FwVerificationPqcKeyType {
     pub fn from_u8(value: u8) -> Option<FwVerificationPqcKeyType> {
         match value {
-            1 => Some(FwVerificationPqcKeyType::LMS),
-            2 => Some(FwVerificationPqcKeyType::MLDSA),
+            1 => Some(FwVerificationPqcKeyType::MLDSA),
+            3 => Some(FwVerificationPqcKeyType::LMS),
             _ => None,
         }
     }
@@ -273,6 +275,8 @@ impl ImageBundle {
 }
 
 /// Calipatra Image Manifest
+///
+/// NOTE: only the header, fmc, and runtime portions of this struct are covered by signature.
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -485,10 +489,7 @@ pub struct OwnerSignedData {
     /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    /// Owner epoch, used to diversify stable SVN keys.
-    pub epoch: [u8; 2],
-
-    reserved: [u8; 8],
+    reserved: [u8; 10],
 }
 
 /// Caliptra Image header
@@ -518,6 +519,8 @@ pub struct ImageHeader {
 
     /// TOC Digest
     pub toc_digest: ImageDigest384,
+
+    pub svn: u32,
 
     /// Vendor Data
     pub vendor_data: VendorSignedData,
@@ -572,12 +575,8 @@ pub struct ImageTocEntry {
     // Firmware release number
     pub version: u32,
 
-    /// Security Version Number
-    /// Only read for Runtime entries. Not read for FMC.
-    pub svn: u32,
-
     /// Reserved field
-    pub reserved: u32,
+    pub reserved: [u32; 2],
 
     /// Entry Point
     pub load_addr: u32,

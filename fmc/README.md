@@ -306,14 +306,14 @@ This field provides the size of the *To Be Signed* portion of the Runtime Alias 
 
 This field provides the size of the *To Be Signed* portion of the Runtime Alias MLDSA certificate.
 
-### rt_hash_chain_max_svn
+### fw_key_ladder_max_svn
 
-This field informs firmware of the maximum RT SVN, which value was used
-to determine the length of RT FW's hash chain.
+This field informs firmware of the maximum FW SVN, which value was used
+to determine the length of FW's key ladder.
 
-### rt_hash_chain_kv_hdl
+### fw_key_ladder_kv_hdl
 
-This field provides the Handle into the Key Vault where RT's hash chain is stored.
+This field provides the Handle into the Key Vault where FW's key ladder is stored.
 
 ### reserved
 
@@ -380,7 +380,7 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 | 🔒Alias FMC Cert Signature S     |
 | 🔒Alias FMC Cert MLDSA Signature |
 | 🔒FMC Digest                     |
-| 🔒FMC SVN                        |
+| 🔒FW SVN                         |
 | 🔒Owner PK Hash                  |
 | 🔒Manufacturer Public Key Index  |
 
@@ -482,7 +482,7 @@ sequenceDiagram
 | 🔒Alias FMC Cert ECDSA Signature S |
 | 🔒Alias FMC Cert MLDSA Signature   |
 | 🔒FMC Digest                       |
-| 🔒FMC SVN                          |
+| 🔒FW SVN                           |
 | 🔒Owner PK Hash                    |
 | 🔒Manufacturer Public Key Index    |
 

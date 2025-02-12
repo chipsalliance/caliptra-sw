@@ -19,11 +19,50 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
-use rand::rngs::StdRng;
-use rand::Rng;
-use rand::SeedableRng;
+use rand::{CryptoRng, Rng, RngCore};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
+
+// RNG that only allows a single call, which returns the fixed seed.
+pub(crate) struct SeedOnlyRng {
+    seed: [u8; 32],
+    called: bool,
+}
+
+impl SeedOnlyRng {
+    pub(crate) fn new(seed: [u8; 32]) -> Self {
+        Self {
+            seed,
+            called: false,
+        }
+    }
+}
+
+impl RngCore for SeedOnlyRng {
+    fn next_u32(&mut self) -> u32 {
+        unimplemented!()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        unimplemented!()
+    }
+
+    fn fill_bytes(&mut self, out: &mut [u8]) {
+        if self.called {
+            panic!("Can only call fill_bytes once");
+        }
+        assert_eq!(out.len(), 32);
+        out.copy_from_slice(&self.seed[..32]);
+        self.called = true;
+    }
+
+    fn try_fill_bytes(&mut self, out: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(out);
+        Ok(())
+    }
+}
+
+impl CryptoRng for SeedOnlyRng {}
 
 /// ML_DSA87 Initialization Vector size
 const ML_DSA87_IV_SIZE: usize = 64;
@@ -144,7 +183,14 @@ pub struct Mldsa87 {
     #[register_array(offset = 0x0000_2000)]
     signature: [u32; ML_DSA87_SIGNATURE_SIZE / 4],
 
-    // Private Key In & Out (We don't want to use this)
+    // Private Key Out
+    #[register_array(offset = 0x0000_4000)]
+    privkey_out: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+
+    /// Private Key In
+    #[register_array(offset = 0x0000_6000)]
+    privkey_in: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+
     /// Key Vault Read Control
     #[register(offset = 0x0000_8000, write_fn = on_write_kv_rd_seed_ctrl)]
     kv_rd_seed_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
@@ -174,6 +220,9 @@ pub struct Mldsa87 {
 
     /// Seed read complete action
     op_seed_read_complete_action: Option<ActionHandle>,
+
+    /// Zeroize complete callback
+    op_zeroize_complete_action: Option<ActionHandle>,
 }
 
 impl Mldsa87 {
@@ -202,6 +251,8 @@ impl Mldsa87 {
             verify_res: Default::default(),
             pubkey: [0; ML_DSA87_PUBKEY_SIZE / 4],
             signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
+            privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
+            privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             kv_rd_seed_ctrl: ReadWriteRegister::new(0),
             kv_rd_seed_status: ReadOnlyRegister::new(0),
             error_global_intr: ReadOnlyRegister::new(0),
@@ -211,6 +262,7 @@ impl Mldsa87 {
             key_vault,
             op_complete_action: None,
             op_seed_read_complete_action: None,
+            op_zeroize_complete_action: None,
         }
     }
 
@@ -231,12 +283,18 @@ impl Mldsa87 {
         self.verify_res = Default::default();
         self.pubkey = [0; ML_DSA87_PUBKEY_SIZE / 4];
         self.signature = [0; ML_DSA87_SIGNATURE_SIZE / 4];
+        self.privkey_out = [0; ML_DSA87_PRIVKEY_SIZE / 4];
+        self.privkey_in = [0; ML_DSA87_PRIVKEY_SIZE / 4];
         self.kv_rd_seed_ctrl.reg.set(0);
         self.kv_rd_seed_status.reg.write(KvRdSeedStatus::READY::SET);
         self.private_key = [0; ML_DSA87_PRIVKEY_SIZE];
         // Stop actions
         self.op_complete_action = None;
         self.op_seed_read_complete_action = None;
+        self.op_zeroize_complete_action = None;
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::CLEAR);
     }
 
     /// On Write callback for `control` register
@@ -274,7 +332,10 @@ impl Mldsa87 {
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
-            self.zeroize();
+            // Reset the Ready status bit
+            self.status.reg.modify(Status::READY::CLEAR);
+
+            self.op_zeroize_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
         }
 
         Ok(())
@@ -312,49 +373,69 @@ impl Mldsa87 {
     }
 
     fn gen_key(&mut self) {
-        let seed_bytes = &bytes_from_words_be(&self.seed);
-        let mut rng = StdRng::from_seed(*seed_bytes);
-        let (pk, sk) = try_keygen_with_rng(&mut rng).unwrap();
-
-        self.pubkey = words_from_bytes_be(&pk.into_bytes());
-        self.private_key = sk.into_bytes();
+        // Reverse dword endianness.
+        let mut seed = bytes_from_words_be(&self.seed);
+        seed.reverse();
+        let mut rng = SeedOnlyRng::new(seed);
+        let (pubkey, privkey) = try_keygen_with_rng(&mut rng).unwrap();
+        let mut pubkey = pubkey.into_bytes();
+        // Convert to hardware format.
+        pubkey.reverse();
+        self.pubkey = words_from_bytes_be(&pubkey);
+        // Private key is in library format (reverse of normal format).
+        self.private_key = privkey.into_bytes();
+        if !self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
+            // privkey_out is in hardware format.
+            let mut privkey_out = self.private_key;
+            privkey_out.reverse();
+            self.privkey_out = words_from_bytes_be(&privkey_out);
+        }
     }
 
-    fn sign(&mut self) {
-        let sign_seed = &bytes_from_words_be(&self.sign_rnd);
-        let mut rng = StdRng::from_seed(*sign_seed);
-
-        let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
-
-        let message = &bytes_from_words_be(&self.msg);
+    fn sign(&mut self, caller_provided: bool) {
+        let secret_key = if caller_provided {
+            // Convert to library format.
+            let mut privkey = bytes_from_words_be(&self.privkey_in);
+            privkey.reverse();
+            PrivateKey::try_from_bytes(privkey).unwrap()
+        } else {
+            PrivateKey::try_from_bytes(self.private_key).unwrap()
+        };
+        let mut message = bytes_from_words_be(&self.msg);
+        message.reverse();
 
         // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
         let signature = secret_key
-            .try_sign_with_rng(&mut rng, message, &[])
+            .try_sign_with_seed(&[0u8; 32], &message, &[])
             .unwrap();
-        let signature_extended = {
+        let mut signature_extended = {
             let mut sig = [0; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
+        signature_extended.reverse();
         self.signature = words_from_bytes_be(&signature_extended);
     }
 
     fn verify(&mut self) {
-        let message = &bytes_from_words_be(&self.msg);
+        let mut message = bytes_from_words_be(&self.msg);
+        message.reverse();
 
         let public_key = {
-            let key_bytes = bytes_from_words_be(&self.pubkey);
+            let mut key_bytes = bytes_from_words_be(&self.pubkey);
+            key_bytes.reverse();
             PublicKey::try_from_bytes(key_bytes).unwrap()
         };
 
-        let signature = &bytes_from_words_be(&self.signature);
+        let mut signature = bytes_from_words_be(&self.signature);
+        signature.reverse();
 
-        let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
+        let success = public_key.verify(&message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
 
         if success {
-            self.verify_res
-                .copy_from_slice(&self.signature[..ML_DSA87_VERIFICATION_SIZE / 4]);
+            self.verify_res.copy_from_slice(
+                &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE / 4..],
+            );
         } else {
             self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
         }
@@ -364,13 +445,12 @@ impl Mldsa87 {
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::KEYGEN) => self.gen_key(),
             Some(Control::CTRL::Value::SIGNING) => {
-                self.sign();
-                todo!()
-            } // NOT used?
+                self.sign(true);
+            }
             Some(Control::CTRL::Value::VERIFYING) => self.verify(),
             Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
                 self.gen_key();
-                self.sign()
+                self.sign(false)
             }
             _ => panic!("Invalid value in ML-DSA Control"),
         }
@@ -384,7 +464,7 @@ impl Mldsa87 {
         let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
 
         let mut key_usage = KeyUsage::default();
-        key_usage.set_mldsa_seed(true);
+        key_usage.set_mldsa_key_gen_seed(true);
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
@@ -419,6 +499,9 @@ impl Mldsa87 {
         }
         if self.timer.fired(&mut self.op_seed_read_complete_action) {
             self.seed_read_complete();
+        }
+        if self.timer.fired(&mut self.op_zeroize_complete_action) {
+            self.zeroize();
         }
     }
 
@@ -522,11 +605,16 @@ mod tests {
 
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
-        let mut seed = rand::thread_rng().gen::<[u8; 32]>();
-        seed.to_big_endian(); // Change DWORDs to big-endian. TODO is this needed?
-        for i in (0..seed.len()).step_by(4) {
+        let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+        let mut seed_hw = seed_orig;
+        seed_hw.to_big_endian(); // Change DWORDs to big-endian.
+        for i in (0..seed_hw.len()).step_by(4) {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .write(
+                    RvSize::Word,
+                    OFFSET_SEED + i as RvAddr,
+                    make_word(i, &seed_hw),
+                )
                 .unwrap();
         }
 
@@ -548,11 +636,13 @@ mod tests {
 
         let public_key = bytes_from_words_be(&ml_dsa87.pubkey);
 
-        // Swap endianness again
-        seed.to_big_endian();
-        let mut rng = StdRng::from_seed(seed);
-        let (pk, _sk) = try_keygen_with_rng(&mut rng).unwrap();
-        assert_eq!(&public_key, &pk.into_bytes());
+        let mut seed_to_lib = seed_orig;
+        seed_to_lib.reverse();
+        let mut rng = SeedOnlyRng::new(seed_to_lib);
+        let (pk_from_lib, _sk) = try_keygen_with_rng(&mut rng).unwrap();
+        let mut pk_from_lib = pk_from_lib.into_bytes();
+        pk_from_lib.reverse();
+        assert_eq!(&public_key, &pk_from_lib);
     }
 
     #[test]
@@ -622,13 +712,21 @@ mod tests {
         // Swap endianness again to restore original endianness.
         seed.to_big_endian();
         msg.to_big_endian();
-        sign_rnd.to_big_endian();
-        let mut keygen_rng = StdRng::from_seed(seed);
-        let (_pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
-        let mut sign_rng = StdRng::from_seed(sign_rnd);
-        let test_signature = sk.try_sign_with_rng(&mut sign_rng, &msg, &[]).unwrap();
 
-        assert_eq!(&signature[..SIG_LEN], &test_signature);
+        // Reverse the seed and the msg to match the FIPS204 implementation.
+        seed.reverse();
+        msg.reverse();
+        let mut keygen_rng = SeedOnlyRng::new(seed);
+        let (_pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+        let test_signature = sk.try_sign_with_seed(&[0u8; 32], &msg, &[]).unwrap();
+        let mut signature_extended = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig
+        };
+        signature_extended.reverse();
+
+        assert_eq!(&signature[..SIG_LEN], &signature_extended[..SIG_LEN]);
     }
 
     #[test]
@@ -638,53 +736,64 @@ mod tests {
 
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
-        let mut msg: [u8; 64] = {
+        let msg_orig: [u8; 64] = {
             let part0 = rand::thread_rng().gen::<[u8; 32]>();
             let part1 = rand::thread_rng().gen::<[u8; 32]>();
             let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
             concat.as_slice().try_into().unwrap()
         };
 
-        let seed = rand::thread_rng().gen::<[u8; 32]>();
-        let mut keygen_rng = StdRng::from_seed(seed);
-        let (pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
-        let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-        let mut sign_rng = StdRng::from_seed(sign_rnd);
-        let test_signature = sk.try_sign_with_rng(&mut sign_rng, &msg, &[]).unwrap();
+        let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+        let mut seed_for_lib = seed_orig;
+        seed_for_lib.reverse();
+        let mut msg_for_lib = msg_orig;
+        msg_for_lib.reverse();
+        let mut keygen_rng = SeedOnlyRng::new(seed_for_lib);
+        let (pk_from_lib, sk_from_lib) = try_keygen_with_rng(&mut keygen_rng).unwrap();
+        let signature_from_lib = sk_from_lib
+            .try_sign_with_seed(&[0u8; 32], &msg_for_lib, &[])
+            .unwrap();
 
-        msg.to_big_endian(); // Change DWORDs to big-endian.
-        for i in (0..msg.len()).step_by(4) {
+        let mut msg_for_hw = msg_orig;
+        msg_for_hw.to_big_endian(); // Change DWORDs to big-endian.
+        for i in (0..msg_for_hw.len()).step_by(4) {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
+                .write(
+                    RvSize::Word,
+                    OFFSET_MSG + i as RvAddr,
+                    make_word(i, &msg_for_hw),
+                )
                 .unwrap();
         }
 
-        let mut pub_key = pk.into_bytes();
-        pub_key.to_big_endian();
-        for i in (0..pub_key.len()).step_by(4) {
+        let mut pk_for_hw = pk_from_lib.into_bytes();
+        pk_for_hw.reverse();
+        pk_for_hw.to_big_endian(); // Change DWORDs to big-endian.
+        for i in (0..pk_for_hw.len()).step_by(4) {
             ml_dsa87
                 .write(
                     RvSize::Word,
                     OFFSET_PK + i as RvAddr,
-                    make_word(i, &pub_key),
+                    make_word(i, &pk_for_hw),
                 )
                 .unwrap();
         }
 
         // Good signature
-        let mut signature = {
+        let sig_for_hw = {
             let mut sig = [0; SIG_LEN + 1];
-            sig[..SIG_LEN].copy_from_slice(&test_signature);
+            sig[..SIG_LEN].copy_from_slice(&signature_from_lib);
+            sig.reverse();
+            sig.to_big_endian();
             sig
         };
-        signature.to_big_endian();
 
-        for i in (0..signature.len()).step_by(4) {
+        for i in (0..sig_for_hw.len()).step_by(4) {
             ml_dsa87
                 .write(
                     RvSize::Word,
                     OFFSET_SIGNATURE + i as RvAddr,
-                    make_word(i, &signature),
+                    make_word(i, &sig_for_hw),
                 )
                 .unwrap();
         }
@@ -710,7 +819,16 @@ mod tests {
         }
 
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_eq!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        let sig_for_comp = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature_from_lib);
+            sig.reverse();
+            sig
+        };
+        assert_eq!(
+            result,
+            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
 
         // Bad signature
         let mut rng = rand::thread_rng();
@@ -751,7 +869,10 @@ mod tests {
         }
 
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
-        assert_ne!(result, &test_signature[..ML_DSA87_VERIFICATION_SIZE]);
+        assert_ne!(
+            result,
+            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE..]
+        );
     }
 
     #[test]
@@ -759,17 +880,21 @@ mod tests {
         // Test for getting the seed from the key-vault.
         for key_id in 0..KeyVault::KEY_COUNT {
             let clock = Clock::new();
-            let mut seed = rand::thread_rng().gen::<[u8; 32]>();
-            let mut keygen_rng = StdRng::from_seed(seed);
+            let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+            let mut seed_to_lib = seed_orig;
+            seed_to_lib.reverse();
+            let mut keygen_rng = SeedOnlyRng::new(seed_to_lib);
             let (pk, _sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
-            seed.to_big_endian(); // Change DWORDs to big-endian.
+            let pk_from_lib = pk.into_bytes();
 
+            let mut seed_to_hw = seed_orig;
+            seed_to_hw.to_big_endian(); // Change DWORDs to big-endian.
             let mut key_vault = KeyVault::new();
             let mut key_usage = KeyUsage::default();
-            key_usage.set_mldsa_seed(true);
+            key_usage.set_mldsa_key_gen_seed(true);
 
             key_vault
-                .write_key(key_id, &seed, u32::from(key_usage))
+                .write_key(key_id, &seed_to_hw, u32::from(key_usage))
                 .unwrap();
 
             let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
@@ -825,7 +950,9 @@ mod tests {
             }
 
             let public_key = bytes_from_words_be(&ml_dsa87.pubkey);
-            assert_eq!(&public_key, &pk.into_bytes());
+            let mut pub_key_comp = pk_from_lib;
+            pub_key_comp.reverse();
+            assert_eq!(&public_key, &pub_key_comp);
         }
     }
 }

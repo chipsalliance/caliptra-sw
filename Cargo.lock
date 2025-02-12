@@ -224,6 +224,9 @@ dependencies = [
 [[package]]
 name = "caliptra-api-types"
 version = "0.1.0"
+dependencies = [
+ "caliptra-image-types",
+]
 
 [[package]]
 name = "caliptra-auth-man-gen"
@@ -378,6 +381,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
+ "caliptra_common",
  "cfg-if 1.0.0",
  "dpe",
  "openssl",
@@ -482,6 +486,7 @@ dependencies = [
  "fips204",
  "lazy_static",
  "rand",
+ "sha2",
  "sha3",
  "smlang",
  "tock-registers",
@@ -834,6 +839,7 @@ dependencies = [
  "platform",
  "sha2",
  "ufmt",
+ "ureg",
  "wycheproof",
  "x509-parser",
  "zerocopy",
@@ -950,6 +956,7 @@ dependencies = [
  "caliptra-registers",
  "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -1386,9 +1393,9 @@ dependencies = [
 
 [[package]]
 name = "fips204"
-version = "0.4.3"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2f6698c48aedd28ff9060f0f9b9712bd465db780ddcfd0d64fd3da199577ca1"
+checksum = "c9fb5a367b9846933e271a3c2a992930743f82ae5e8cb7faa780715a80fa0b15"
 dependencies = [
  "rand_core",
  "sha2",
@@ -1772,6 +1779,14 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "mldsa_key_pair_gen"
+version = "0.1.0"
+dependencies = [
+ "fips204",
+ "rand",
+]
 
 [[package]]
 name = "nix"

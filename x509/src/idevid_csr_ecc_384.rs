@@ -8,15 +8,15 @@ File Name:
 
 Abstract:
 
-    Initial Device ID Certificate Signing Request related code.
+    ECC384 Initial Device ID Certificate Signing Request related code.
 
 --*/
 
 // Note: All the necessary code is auto generated
 #[cfg(feature = "generate_templates")]
-include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr_tbs.rs"));
+include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr_tbs_ecc_384.rs"));
 #[cfg(not(feature = "generate_templates"))]
-include! {"../build/init_dev_id_csr_tbs.rs"}
+include! {"../build/init_dev_id_csr_tbs_ecc_384.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
@@ -32,16 +32,16 @@ mod tests {
     use crate::test_util::tests::*;
     use crate::{Ecdsa384CsrBuilder, Ecdsa384Signature};
 
-    const TEST_UEID: &[u8] = &[0xAB; InitDevIdCsrTbs::UEID_LEN];
+    const TEST_UEID: &[u8] = &[0xAB; InitDevIdCsrTbsEcc384::UEID_LEN];
 
-    fn make_test_csr(subject_key: &Ecc384AsymKey) -> InitDevIdCsrTbs {
-        let params = InitDevIdCsrTbsParams {
+    fn make_test_csr(subject_key: &Ecc384AsymKey) -> InitDevIdCsrTbsEcc384 {
+        let params = InitDevIdCsrTbsEcc384Params {
             public_key: &subject_key.pub_key().try_into().unwrap(),
             subject_sn: &subject_key.hex_str().into_bytes().try_into().unwrap(),
             ueid: &TEST_UEID.try_into().unwrap(),
         };
 
-        InitDevIdCsrTbs::new(&params)
+        InitDevIdCsrTbsEcc384::new(&params)
     }
 
     #[test]
@@ -58,20 +58,20 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), InitDevIdCsrTbs::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), InitDevIdCsrTbsEcc384::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbs::PUBLIC_KEY_OFFSET
-                ..InitDevIdCsrTbs::PUBLIC_KEY_OFFSET + InitDevIdCsrTbs::PUBLIC_KEY_LEN],
+            &csr.tbs()[InitDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET
+                ..InitDevIdCsrTbsEcc384::PUBLIC_KEY_OFFSET + InitDevIdCsrTbsEcc384::PUBLIC_KEY_LEN],
             key.pub_key(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbs::SUBJECT_SN_OFFSET
-                ..InitDevIdCsrTbs::SUBJECT_SN_OFFSET + InitDevIdCsrTbs::SUBJECT_SN_LEN],
+            &csr.tbs()[InitDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET
+                ..InitDevIdCsrTbsEcc384::SUBJECT_SN_OFFSET + InitDevIdCsrTbsEcc384::SUBJECT_SN_LEN],
             key.hex_str().into_bytes(),
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsrTbs::UEID_OFFSET
-                ..InitDevIdCsrTbs::UEID_OFFSET + InitDevIdCsrTbs::UEID_LEN],
+            &csr.tbs()[InitDevIdCsrTbsEcc384::UEID_OFFSET
+                ..InitDevIdCsrTbsEcc384::UEID_OFFSET + InitDevIdCsrTbsEcc384::UEID_LEN],
             TEST_UEID,
         );
 
@@ -163,11 +163,13 @@ mod tests {
     #[test]
     #[cfg(feature = "generate_templates")]
     fn test_idevid_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/init_dev_id_csr_tbs.rs")).unwrap();
+        let manual_template = std::fs::read(std::path::Path::new(
+            "./build/init_dev_id_csr_tbs_ecc_384.rs",
+        ))
+        .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/init_dev_id_csr_tbs.rs"
+            "/init_dev_id_csr_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {

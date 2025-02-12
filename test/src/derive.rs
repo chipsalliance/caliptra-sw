@@ -14,9 +14,11 @@ use zerocopy::{transmute, AsBytes};
 
 #[cfg(test)]
 use caliptra_api_types::DeviceLifecycle;
+#[cfg(test)]
+use caliptra_image_types::FwVerificationPqcKeyType;
 
 use crate::{
-    crypto::{self, derive_ecdsa_key, hmac384_drbg_keygen, hmac384_kdf, hmac512, hmac512_kdf},
+    crypto::{self, derive_ecdsa_key, hmac384_drbg_keygen, hmac512, hmac512_kdf},
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
@@ -307,10 +309,10 @@ pub struct Pcr0Input {
     pub owner_pub_key_hash_from_fuses: bool,
     pub ecc_vendor_pub_key_index: u32,
     pub fmc_digest: [u32; 12],
-    pub fmc_svn: u32,
-    pub fmc_fuse_svn: u32,
+    pub cold_boot_fw_svn: u32,
+    pub fw_fuse_svn: u32,
     pub lms_vendor_pub_key_index: u32,
-    pub rom_verify_config: u32,
+    pub pqc_key_type: u32,
 }
 impl Pcr0Input {}
 
@@ -330,10 +332,10 @@ impl Pcr0 {
                 input.security_state.debug_locked() as u8,
                 input.fuse_anti_rollback_disable as u8,
                 input.ecc_vendor_pub_key_index as u8,
-                input.fmc_svn as u8,
-                input.fmc_fuse_svn as u8,
+                input.cold_boot_fw_svn as u8,
+                input.fw_fuse_svn as u8,
                 input.lms_vendor_pub_key_index as u8,
-                input.rom_verify_config as u8,
+                input.pqc_key_type as u8,
                 input.owner_pub_key_hash_from_fuses as u8,
             ],
         );
@@ -374,16 +376,16 @@ fn test_derive_pcr0() {
             0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
             0x1bb5034b, 0x587eea1f, 0xfcdd0e0f, 0x8e88d406, 0x3327a3fe,
         ],
-        fmc_svn: 5,
-        fmc_fuse_svn: 2,
+        cold_boot_fw_svn: 5,
+        fw_fuse_svn: 2,
         lms_vendor_pub_key_index: u32::MAX,
-        rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
+        pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            132444429, 987394663, 2275449643, 2729083116, 322701188, 1268620383, 68534608,
-            1944581982, 1207702945, 1427901733, 3489811836, 435454516
+            1597321057, 3306746665, 3870835391, 3103173150, 3318383838, 3407565263, 3776158384,
+            4231654246, 1759479765, 3561253448, 1491479508, 1619944441
         ])
     )
 }
@@ -457,10 +459,10 @@ impl FmcAliasKey {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RtAliasKey {
-    pub cdi: [u32; 12],
+    pub cdi: [u32; 16],
 
-    // The FMC alias private key as stored in the key-vault
-    pub priv_key: [u32; 12],
+    // The FMC alias ECC private key as stored in the key-vault
+    pub ecc_priv_key: [u32; 12],
 }
 impl RtAliasKey {
     pub fn derive(tci_input: &PcrRtCurrentInput, fmc_key: &FmcAliasKey) -> Self {
@@ -473,30 +475,30 @@ impl RtAliasKey {
             .as_bytes_mut()
             .copy_from_slice(&sha384(tci_input.manifest.as_bytes()));
 
-        let mut cdi: [u32; 12] = transmute!(hmac384_kdf(
-            &swap_word_bytes(&fmc_key.cdi).as_bytes()[..48],
-            b"rt_alias_cdi",
+        let mut cdi: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&fmc_key.cdi).as_bytes(),
+            b"alias_rt_cdi",
             Some(&tci),
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 12] = transmute!(hmac384_kdf(
-            &swap_word_bytes(&cdi).as_bytes()[..48],
-            b"rt_alias_keygen",
+        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
+            swap_word_bytes(&cdi).as_bytes(),
+            b"alias_rt_ecc_key",
             None
         ));
         swap_word_bytes_inplace(&mut priv_key_seed);
 
-        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
             &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
             swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
         ));
-        swap_word_bytes_inplace(&mut priv_key);
-        Self { priv_key, cdi }
+        swap_word_bytes_inplace(&mut ecc_priv_key);
+        Self { ecc_priv_key, cdi }
     }
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
-            swap_word_bytes(&self.priv_key)
+            swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),

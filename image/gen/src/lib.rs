@@ -16,6 +16,7 @@ mod generator;
 
 pub use generator::ImageGenerator;
 
+use anyhow::Context;
 use caliptra_image_types::*;
 use std::path::Path;
 
@@ -23,9 +24,6 @@ use std::path::Path;
 pub trait ImageGeneratorExecutable {
     /// Executable Version Number
     fn version(&self) -> u32;
-
-    /// Executable Security Version Number
-    fn svn(&self) -> u32;
 
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
@@ -92,10 +90,36 @@ pub trait ImageGeneratorCrypto {
     fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
 
     /// Read MLDSA Public Key from file
-    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey>;
+    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+    }
 
     /// Read MLDSA Private Key from file
-    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey>;
+    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
+    }
+}
+
+/// Convert the slice to hardware format
+pub fn to_hw_format<const NUM_WORDS: usize>(value: &[u8]) -> [u32; NUM_WORDS] {
+    let mut result = [0u32; NUM_WORDS];
+    for i in 0..result.len() {
+        result[i] = u32::from_be_bytes(value[i * 4..][..4].try_into().unwrap())
+    }
+    result
+}
+
+/// Convert the hardware format to byte array
+pub fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCALAR_BYTE_SIZE] {
+    let mut result = [0u8; ECC384_SCALAR_BYTE_SIZE];
+    for i in 0..value.len() {
+        *<&mut [u8; 4]>::try_from(&mut result[i * 4..][..4]).unwrap() = value[i].to_be_bytes();
+    }
+    result
 }
 
 /// Image Generator Vendor Configuration
@@ -132,8 +156,6 @@ pub struct ImageGeneratorOwnerConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
-
-    pub epoch: [u8; 2],
 }
 
 /// Image Generator Configuration
@@ -151,4 +173,6 @@ where
     pub fmc: T,
 
     pub runtime: T,
+
+    pub fw_svn: u32,
 }

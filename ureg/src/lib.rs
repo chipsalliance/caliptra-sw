@@ -22,7 +22,7 @@ pub enum UintType {
     U64,
 }
 
-pub trait Uint: Clone + Copy + private::Sealed {
+pub trait Uint: Clone + Copy + Default + TryInto<u32> + TryFrom<u32> + private::Sealed {
     const TYPE: UintType;
 }
 

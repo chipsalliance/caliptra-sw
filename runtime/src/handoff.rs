@@ -29,24 +29,24 @@ impl RtHandoff<'_> {
         }
     }
 
-    /// Retrieve runtime SVN.
-    pub fn rt_svn(&self) -> u32 {
-        self.data_vault.rt_svn()
+    /// Retrieve firmware SVN.
+    pub fn fw_svn(&self) -> u32 {
+        self.data_vault.fw_svn()
     }
 
-    /// Retrieve runtime minimum SVN.
-    pub fn rt_min_svn(&self) -> u32 {
-        self.data_vault.rt_min_svn()
+    /// Retrieve firmware minimum SVN.
+    pub fn fw_min_svn(&self) -> u32 {
+        self.data_vault.fw_min_svn()
     }
 
-    /// Retrieve FMC SVN.
-    pub fn fmc_svn(&self) -> u32 {
-        self.data_vault.fmc_svn()
+    /// Retrieve cold-boot firmware SVN.
+    pub fn cold_boot_fw_svn(&self) -> u32 {
+        self.data_vault.cold_boot_fw_svn()
     }
 
-    /// Retrieve the RT FW hash chain.
-    pub fn rt_hash_chain(&self) -> CaliptraResult<KeyId> {
-        self.read_as_kv(self.fht.rt_hash_chain_kv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_HASH_CHAIN_HANDOFF_FAILED)
+    /// Retrieve the FW key ladder.
+    pub fn fw_key_ladder(&self) -> CaliptraResult<KeyId> {
+        self.read_as_kv(self.fht.fw_key_ladder_kv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_KEY_LADDER_HANDOFF_FAILED)
     }
 }

@@ -112,17 +112,10 @@ impl std::fmt::Debug for FusesWrapper {
         f.debug_struct("Fuses")
             .field("uds_seed", &HexSlice(&self.0.uds_seed))
             .field("field_entropy", &HexSlice(&self.0.field_entropy))
-            .field(
-                "key_manifest_pk_hash",
-                &HexSlice(&self.0.key_manifest_pk_hash),
-            )
-            .field(
-                "key_manifest_pk_hash_mask",
-                &self.0.key_manifest_pk_hash_mask,
-            )
+            .field("vendor_pk_hash", &HexSlice(&self.0.vendor_pk_hash))
+            .field("fuse_ecc_revocation", &self.0.fuse_ecc_revocation)
             .field("owner_pk_hash", &HexSlice(&self.0.owner_pk_hash))
-            .field("fmc_key_manifest_svn", &self.0.fmc_key_manifest_svn)
-            .field("runtime_svn", &HexSlice(&self.0.runtime_svn))
+            .field("firmware_svn", &HexSlice(&self.0.fw_svn))
             .field("anti_rollback_disable", &self.0.anti_rollback_disable)
             .field("idevid_cert_attr", &HexSlice(&self.0.idevid_cert_attr))
             .field(
@@ -131,7 +124,9 @@ impl std::fmt::Debug for FusesWrapper {
             )
             .field("life_cycle", &self.0.life_cycle)
             .field("fuse_lms_revocation", &self.0.fuse_lms_revocation)
+            .field("fuse_mldsa_revocation", &self.0.fuse_mldsa_revocation)
             .field("soc_stepping_id", &self.0.soc_stepping_id)
+            .field("fuse_pqc_key_type", &self.0.fuse_pqc_key_type)
             .finish()
     }
 }

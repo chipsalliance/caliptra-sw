@@ -14,20 +14,26 @@ Abstract:
 --*/
 
 use super::dice::*;
-use super::x509::*;
 use crate::cprintln;
-use crate::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use crate::crypto::Crypto;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::keyids::KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED;
-use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
-use caliptra_common::RomBootStatus::*;
+use caliptra_common::{
+    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    keyids::{
+        KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
+        KEY_ID_ROM_FMC_CDI,
+    },
+    x509,
+    RomBootStatus::*,
+};
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zerocopy::AsBytes;
 use zeroize::Zeroize;
 
 /// Dice Local Device Identity (IDEVID) Layer
@@ -79,12 +85,15 @@ impl LocalDevIdLayer {
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let ecc_subj_sn = X509::subj_sn(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_sn = X509::subj_sn(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_sn =
+            x509::subj_sn(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
-        let ecc_subj_key_id = X509::subj_key_id(env, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
-        let mldsa_subj_key_id = X509::subj_key_id(env, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
+        let ecc_subj_key_id =
+            x509::subj_key_id(&mut env.sha256, &PubKey::Ecc(&ecc_key_pair.pub_key))?;
+        let mldsa_subj_key_id =
+            x509::subj_key_id(&mut env.sha256, &PubKey::Mldsa(&mldsa_key_pair.pub_key))?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -98,7 +107,8 @@ impl LocalDevIdLayer {
         };
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output)?;
+        Self::generate_cert_sig_ecc(env, input, &output)?;
+        Self::generate_cert_sig_mldsa(env, input, &output)?;
 
         cprintln!("[ldev] --");
         report_boot_status(LDevIdDerivationComplete.into());
@@ -170,14 +180,14 @@ impl LocalDevIdLayer {
         Ok((ecc_keypair, mldsa_keypair))
     }
 
-    /// Generate Local Device ID Certificate Signature
+    /// Generate ECC Local Device ID Certificate Signature
     ///
     /// # Arguments
     ///
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
-    fn generate_cert_sig(
+    fn generate_cert_sig_ecc(
         env: &mut RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
@@ -186,12 +196,12 @@ impl LocalDevIdLayer {
         let ecc_auth_pub_key = &input.ecc_auth_key_pair.pub_key;
         let ecc_pub_key = &output.ecc_subj_key_pair.pub_key;
 
-        let ecc_serial_number = X509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
+        let ecc_serial_number = x509::ecc_cert_sn(&mut env.sha256, ecc_pub_key);
         let ecc_serial_number = okref(&ecc_serial_number)?;
 
         // CSR `To Be Signed` Parameters
-        let ecc_tbs_params = LocalDevIdCertTbsParams {
-            ueid: &X509::ueid(&env.soc_ifc)?,
+        let ecc_tbs_params = LocalDevIdCertTbsEcc384Params {
+            ueid: &x509::ueid(&env.soc_ifc)?,
             subject_sn: &output.ecc_subj_sn,
             subject_key_id: &output.ecc_subj_key_id,
             issuer_sn: input.ecc_auth_sn,
@@ -203,7 +213,7 @@ impl LocalDevIdLayer {
         };
 
         // Generate the ECC `To Be Signed` portion of the CSR
-        let ecc_tbs = LocalDevIdCertTbs::new(&ecc_tbs_params);
+        let ecc_tbs = LocalDevIdCertTbsEcc384::new(&ecc_tbs_params);
 
         // Sign the `To Be Signed` portion
         cprintln!(
@@ -244,9 +254,77 @@ impl LocalDevIdLayer {
         data_vault.set_ldev_dice_ecc_pub_key(ecc_pub_key);
 
         //  Copy TBS to DCCM.
-        copy_tbs(ecc_tbs.tbs(), TbsType::LdevidTbs, env)?;
+        copy_tbs(ecc_tbs.tbs(), TbsType::EccLdevid, env)?;
+        Ok(())
+    }
 
-        // [CAP2][TODO] Generate the MLDSA TBS
+    /// Generate MLDSA Local Device ID Certificate Signature
+    ///
+    /// # Arguments
+    ///
+    /// * `env`    - ROM Environment
+    /// * `input`  - DICE Input
+    /// * `output` - DICE Output
+    fn generate_cert_sig_mldsa(
+        env: &mut RomEnv,
+        input: &DiceInput,
+        output: &DiceOutput,
+    ) -> CaliptraResult<()> {
+        let mldsa_auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
+        let mldsa_auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
+        let mldsa_pub_key = &output.mldsa_subj_key_pair.pub_key;
+
+        let mldsa_serial_number = x509::mldsa_cert_sn(&mut env.sha256, mldsa_pub_key);
+        let mldsa_serial_number = okref(&mldsa_serial_number)?;
+
+        // CSR `To Be Signed` Parameters
+        let mldsa_tbs_params = LocalDevIdCertTbsMlDsa87Params {
+            ueid: &x509::ueid(&env.soc_ifc)?,
+            subject_sn: &output.mldsa_subj_sn,
+            subject_key_id: &output.mldsa_subj_key_id,
+            issuer_sn: input.mldsa_auth_sn,
+            authority_key_id: input.mldsa_auth_key_id,
+            serial_number: mldsa_serial_number,
+            public_key: mldsa_pub_key.as_bytes().try_into().unwrap(),
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
+        };
+
+        // Generate the ECC `To Be Signed` portion of the CSR
+        let mldsa_tbs = LocalDevIdCertTbsMlDsa87::new(&mldsa_tbs_params);
+
+        // Sign the `To Be Signed` portion
+        cprintln!(
+            "[ldev] Signing Cert with MLDSA AUTHORITY.KEYID = {}",
+            mldsa_auth_priv_key as u8
+        );
+        let mut sig = Crypto::mldsa87_sign_and_verify(
+            env,
+            mldsa_auth_priv_key,
+            mldsa_auth_pub_key,
+            mldsa_tbs.tbs(),
+        );
+        let sig = okmutref(&mut sig)?;
+
+        // Clear the authority private key
+        env.key_vault
+            .erase_key(mldsa_auth_priv_key)
+            .map_err(|err| {
+                sig.zeroize();
+                err
+            })?;
+
+        let data_vault = &mut env.persistent_data.get_mut().data_vault;
+
+        // Save the Local Device ID cert signature in data vault.
+        data_vault.set_ldev_dice_mldsa_signature(sig);
+        sig.zeroize();
+
+        // Save the Local Device ID public key in data vault.
+        data_vault.set_ldev_dice_mldsa_pub_key(mldsa_pub_key);
+
+        //  Copy TBS to DCCM.
+        copy_tbs(mldsa_tbs.tbs(), TbsType::MldsaLdevid, env)?;
 
         report_boot_status(LDevIdCertSigGenerationComplete.into());
         Ok(())

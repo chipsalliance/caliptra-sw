@@ -21,7 +21,7 @@ use core::ops::Range;
 
 pub use verifier::ImageVerifier;
 
-pub const MAX_RUNTIME_SVN: u32 = 128;
+pub const MAX_FIRMWARE_SVN: u32 = 128;
 
 /// Image Verifification Executable Info
 #[derive(Default, Debug)]
@@ -54,7 +54,7 @@ pub struct ImageVerificationLogInfo {
     pub vendor_ecc_pub_key_idx: u32,
 
     /// Vendor ECC Public Key Revocation Fuse
-    pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+    pub fuse_vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
 
     // PQC (LMS or MLDSA) Vendor Public Key Index
     pub vendor_pqc_pub_key_idx: u32,
@@ -75,8 +75,8 @@ pub struct ImageVerificationInfo {
     /// Vendor PQC (LMS or MLDSA) public key index
     pub vendor_pqc_pub_key_idx: u32,
 
-    /// PQC Verification Configuration
-    pub pqc_verify_config: RomPqcVerifyConfig,
+    /// PQC Key Type
+    pub pqc_key_type: FwVerificationPqcKeyType,
 
     /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest384,
@@ -135,10 +135,13 @@ pub trait ImageVerificationEnv {
     fn vendor_pub_key_info_digest_fuses(&self) -> ImageDigest384;
 
     /// Get Vendor ECC Public Key Revocation list
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation;
 
     /// Get Vendor LMS Public Key Revocation list
     fn vendor_lms_pub_key_revocation(&self) -> u32;
+
+    /// Get Vendor MLDSA Public Key Revocation list
+    fn vendor_mldsa_pub_key_revocation(&self) -> u32;
 
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest384;
@@ -161,12 +164,15 @@ pub trait ImageVerificationEnv {
     // Save the fmc digest in the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest384;
 
-    // Get Runtime fuse SVN
-    fn runtime_fuse_svn(&self) -> u32;
+    // Get FW SVN fuse value
+    fn fw_fuse_svn(&self) -> u32;
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;
 
     // Set the extended error code
     fn set_fw_extended_error(&mut self, err: u32);
+
+    // Get the PQC Key Type from the fuse.
+    fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
 }

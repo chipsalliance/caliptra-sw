@@ -12,6 +12,7 @@
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
 
+#define EXTERNAL_PERIPH_BASE 0x30000000
 #define CALIPTRA_STATUS_NOT_READY (0)
 #define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)
 #define CALIPTRA_REG_LIMIT (CALIPTRA_REG_BASE + CALIPTRA_MAILBOX_MAX_SIZE - 1)
@@ -133,7 +134,7 @@ static inline uint32_t caliptra_read_status(void)
 {
     uint32_t status;
 
-    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+    caliptra_read_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
 
     return status;
 }
@@ -148,7 +149,7 @@ static inline uint32_t caliptra_read_status(void)
 int caliptra_bootfsm_go()
 {
     // Write BOOTFSM_GO Register
-    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
+    caliptra_write_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
 
     // TODO: Check registers/provide async completion mechanism
 
@@ -242,7 +243,7 @@ bool caliptra_ready_for_fuses(void)
 {
     uint32_t status;
 
-    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+    caliptra_read_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
 
     if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0) {
         return true;
@@ -277,11 +278,10 @@ int caliptra_init_fuses(const struct caliptra_fuses *fuses)
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, CALIPTRA_ARRAY_SIZE(fuses->uds_seed));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, CALIPTRA_ARRAY_SIZE(fuses->field_entropy));
-    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->key_manifest_pk_hash));
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK_0, fuses->key_manifest_pk_hash_mask);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_VENDOR_PK_HASH_0, fuses->vendor_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->vendor_pk_hash));
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ECC_REVOCATION, fuses->ecc_revocation);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_CPTRA_OWNER_PK_HASH_0, fuses->owner_pk_hash, CALIPTRA_ARRAY_SIZE(fuses->owner_pk_hash));
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
-    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->runtime_svn, CALIPTRA_ARRAY_SIZE(fuses->runtime_svn));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->fw_svn, CALIPTRA_ARRAY_SIZE(fuses->fw_svn));
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, CALIPTRA_ARRAY_SIZE(fuses->idevid_cert_attr));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, CALIPTRA_ARRAY_SIZE(fuses->idevid_manuf_hsm_id));
@@ -289,7 +289,7 @@ int caliptra_init_fuses(const struct caliptra_fuses *fuses)
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_SOC_STEPPING_ID, fuses->soc_stepping_id);
 
     // Write to Caliptra Fuse Done
-    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
+    caliptra_write_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
 
     // No longer ready for fuses
     if (caliptra_ready_for_fuses())
@@ -1250,20 +1250,20 @@ void caliptra_req_idev_csr_start()
 {
     uint32_t dbg_manuf_serv_req;
 
-    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+    caliptra_read_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
 
     // Write to Caliptra Fuse Done
-    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req | 0x01);
+    caliptra_write_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req | 0x01);
 }
 
 void caliptra_req_idev_csr_complete()
 {
     uint32_t dbg_manuf_serv_req;
 
-    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
+    caliptra_read_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, &dbg_manuf_serv_req);
 
     // Write to Caliptra Fuse Done
-    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
+    caliptra_write_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
 }
 
 
@@ -1271,7 +1271,7 @@ void caliptra_req_idev_csr_complete()
 bool caliptra_is_idevid_csr_ready() {
     uint32_t status;
 
-    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+    caliptra_read_u32(EXTERNAL_PERIPH_BASE + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
 
     if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_IDEVID_CSR_READY_MASK) != 0) {
         return true;

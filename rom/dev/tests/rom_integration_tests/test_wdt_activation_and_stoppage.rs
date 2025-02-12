@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::rom_tests::TEST_FMC_INTERACTIVE,
@@ -7,62 +8,75 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::{self, KatStarted};
-use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
+use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, SecurityState};
 
 #[test]
 fn test_wdt_activation_and_stoppage() {
-    let security_state = *SecurityState::default()
-        .set_debug_locked(true)
-        .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
-
-    // Build the image we are going to send to ROM to load
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let rom =
-        caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(
-        caliptra_hw_model::InitParams {
-            rom: &rom,
-            security_state,
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
             ..Default::default()
-        },
-        caliptra_hw_model::BootParams::default(),
-    )
-    .unwrap();
+        };
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    if cfg!(feature = "fpga_realtime") {
-        // timer1_restart is only high for a few cycles; the realtime model
-        // timing is too imprecise that sort of check.
-        hw.step_until(|m| m.ready_for_fw());
-    } else {
-        // Ensure we are starting to count from zero.
-        hw.step_until(|m| m.soc_ifc().cptra_wdt_timer1_ctrl().read().timer1_restart());
+        // Build the image we are going to send to ROM to load
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
+
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let rom = caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env())
+            .unwrap();
+        let mut hw = caliptra_hw_model::new(
+            caliptra_hw_model::InitParams {
+                rom: &rom,
+                security_state,
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        if cfg!(feature = "fpga_realtime") {
+            // timer1_restart is only high for a few cycles; the realtime model
+            // timing is too imprecise that sort of check.
+            hw.step_until(|m| m.ready_for_fw());
+        } else {
+            // Ensure we are starting to count from zero.
+            hw.step_until(|m| m.soc_ifc().cptra_wdt_timer1_ctrl().read().timer1_restart());
+        }
+
+        // Make sure the wdt1 timer is enabled.
+        assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+
+        // Upload the FW once ROM is at the right point
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        // Keep going until we jump to fake FMC
+        hw.step_until_output_contains("Running Caliptra FMC")
+            .unwrap();
+
+        // Make sure the wdt1 timer is enabled.
+        assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
     }
-
-    // Make sure the wdt1 timer is enabled.
-    assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
-
-    // Upload the FW once ROM is at the right point
-    hw.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
-    });
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    // Keep going until we jump to fake FMC
-    hw.step_until_output_contains("Running Caliptra FMC")
-        .unwrap();
-
-    // Make sure the wdt1 timer is enabled.
-    assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
 }
 
 #[test]

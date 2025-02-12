@@ -128,13 +128,18 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
     }
 
     /// Retrieve Vendor ECC Public Key Revocation Bitmask
-    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
         self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
     }
 
     /// Retrieve Vendor LMS Public Key Revocation Bitmask
     fn vendor_lms_pub_key_revocation(&self) -> u32 {
         self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
+    }
+
+    /// Retrieve Vendor MLDSA Public Key Revocation Bitmask
+    fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+        self.soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation()
     }
 
     /// Retrieve Owner Public Key Digest from fuses
@@ -172,9 +177,9 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
         self.data_vault.fmc_tci().into()
     }
 
-    // Get Runtime fuse SVN
-    fn runtime_fuse_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().runtime_fuse_svn()
+    // Get firmware fuse SVN
+    fn fw_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().fw_fuse_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {
@@ -183,5 +188,12 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
 
     fn set_fw_extended_error(&mut self, err: u32) {
         self.soc_ifc.set_fw_extended_error(err);
+    }
+
+    fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType> {
+        let pqc_key_type =
+            FwVerificationPqcKeyType::from_u8(self.soc_ifc.fuse_bank().pqc_key_type() as u8)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+        Ok(pqc_key_type)
     }
 }

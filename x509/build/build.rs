@@ -38,16 +38,16 @@ fn main() {
         let out_dir_os_str = env::var_os("OUT_DIR").unwrap();
         let out_dir = out_dir_os_str.to_str().unwrap();
 
-        gen_init_devid_csr(out_dir);
-        gen_local_devid_cert(out_dir);
-        gen_fmc_alias_cert(out_dir);
-        gen_rt_alias_cert(out_dir);
+        gen_init_devid_csr_ecc384(out_dir);
+        gen_local_devid_cert_ecc384(out_dir);
+        gen_fmc_alias_cert_ecc384(out_dir);
+        gen_rt_alias_cert_ecc384(out_dir);
     }
 }
 
 /// Generated Initial DeviceId Cert Signing request Template
 #[cfg(feature = "generate_templates")]
-fn gen_init_devid_csr(out_dir: &str) {
+fn gen_init_devid_csr_ecc384(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
@@ -55,12 +55,12 @@ fn gen_init_devid_csr(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 1.0 IDevID");
-    CodeGen::gen_code("InitDevIdCsrTbs", template, out_dir);
+    CodeGen::gen_code("InitDevIdCsrTbsEcc384", template, out_dir);
 }
 
 /// Generate Local DeviceId Certificate Template
 #[cfg(feature = "generate_templates")]
-fn gen_local_devid_cert(out_dir: &str) {
+fn gen_local_devid_cert_ecc384(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
@@ -68,12 +68,12 @@ fn gen_local_devid_cert(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra 1.0 LDevID", "Caliptra 1.0 IDevID");
-    CodeGen::gen_code("LocalDevIdCertTbs", template, out_dir);
+    CodeGen::gen_code("LocalDevIdCertTbsEcc384", template, out_dir);
 }
 
 /// Generate FMC Alias Certificate Template
 #[cfg(feature = "generate_templates")]
-fn gen_fmc_alias_cert(out_dir: &str) {
+fn gen_fmc_alias_cert_ecc384(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
@@ -99,12 +99,12 @@ fn gen_fmc_alias_cert(out_dir: &str) {
             }],
         );
     let template = bldr.tbs_template("Caliptra 1.0 FMC Alias", "Caliptra 1.0 LDevID");
-    CodeGen::gen_code("FmcAliasCertTbs", template, out_dir);
+    CodeGen::gen_code("FmcAliasCertTbsEcc384", template, out_dir);
 }
 
 /// Generate FMC Alias Certificate Template
 #[cfg(feature = "generate_templates")]
-fn gen_rt_alias_cert(out_dir: &str) {
+fn gen_rt_alias_cert_ecc384(out_dir: &str) {
     let mut usage = KeyUsage::default();
     // Add KeyCertSign to allow signing of other certs
     usage.set_key_cert_sign(true);
@@ -123,5 +123,5 @@ fn gen_rt_alias_cert(out_dir: &str) {
             },
         }]);
     let template = bldr.tbs_template("Caliptra 1.0 Rt Alias", "Caliptra 1.0 FMC Alias");
-    CodeGen::gen_code("RtAliasCertTbs", template, out_dir);
+    CodeGen::gen_code("RtAliasCertTbsEcc384", template, out_dir);
 }

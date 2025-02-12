@@ -21,7 +21,9 @@ use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use caliptra_x509::{
+    Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbsEcc384, LocalDevIdCertTbsEcc384,
+};
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
 
@@ -114,13 +116,13 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         r: sig.r.into(),
         s: sig.s.into(),
     };
-    let mut tbs: [u8; core::mem::size_of::<LocalDevIdCertTbs>()] =
-        [0u8; core::mem::size_of::<LocalDevIdCertTbs>()];
+    let mut tbs: [u8; core::mem::size_of::<LocalDevIdCertTbsEcc384>()] =
+        [0u8; core::mem::size_of::<LocalDevIdCertTbsEcc384>()];
     copy_tbs(&mut tbs, true);
 
     let mut cert: [u8; 1024] = [0u8; 1024];
     let builder = Ecdsa384CertBuilder::new(
-        &tbs[..core::mem::size_of::<LocalDevIdCertTbs>()],
+        &tbs[..core::mem::size_of::<LocalDevIdCertTbsEcc384>()],
         &ecdsa_sig,
     )
     .unwrap();
@@ -142,14 +144,16 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         s: sig.s.into(),
     };
 
-    let mut tbs: [u8; core::mem::size_of::<FmcAliasCertTbs>()] =
-        [0u8; core::mem::size_of::<FmcAliasCertTbs>()];
+    let mut tbs: [u8; core::mem::size_of::<FmcAliasCertTbsEcc384>()] =
+        [0u8; core::mem::size_of::<FmcAliasCertTbsEcc384>()];
     copy_tbs(&mut tbs, false);
 
     let mut cert: [u8; 1024] = [0u8; 1024];
-    let builder =
-        Ecdsa384CertBuilder::new(&tbs[..core::mem::size_of::<FmcAliasCertTbs>()], &ecdsa_sig)
-            .unwrap();
+    let builder = Ecdsa384CertBuilder::new(
+        &tbs[..core::mem::size_of::<FmcAliasCertTbsEcc384>()],
+        &ecdsa_sig,
+    )
+    .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
     cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
 
@@ -160,9 +164,9 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     // Copy the tbs from DCCM
     let src = if ldevid_tbs {
-        &persistent_data.get().ldevid_tbs
+        &persistent_data.get().ecc_ldevid_tbs
     } else {
-        &persistent_data.get().fmcalias_tbs
+        &persistent_data.get().ecc_fmcalias_tbs
     };
     tbs.copy_from_slice(&src[..tbs.len()]);
 }

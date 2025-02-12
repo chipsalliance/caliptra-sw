@@ -16,8 +16,6 @@ use caliptra_image_types::*;
 use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 use zerocopy::AsBytes;
 
 use crate::*;
@@ -61,12 +59,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Create FMC TOC & Content
         let id = ImageTocEntryId::Fmc;
         let offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
-        let (fmc_toc, fmc) = self.gen_image(&config.fmc, id, offset)?;
+        let (fmc_toc, fmc) = self.gen_image(config, id, offset)?;
 
         // Create Runtime TOC & Content
         let id = ImageTocEntryId::Runtime;
         let offset = offset + fmc_toc.size;
-        let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
+        let (runtime_toc, runtime) = self.gen_image(config, id, offset)?;
 
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
@@ -159,24 +157,35 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             result
         }
 
-        let mut rng = StdRng::from_seed([0u8; 32]);
-
         // Private key is received in hw format. Reverse the DWORD endianess for signing.
         let priv_key = {
-            let key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
+            let mut key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
                 from_hw_format::<MLDSA87_PRIV_KEY_BYTE_SIZE>(&priv_key.0);
+
+            // Reverse the private key bytes per the endianess needed by the FIPS204 library.
+            key_bytes.reverse();
+
             PrivateKey::try_from_bytes(key_bytes).unwrap()
         };
 
         // Digest is received in hw format. Reverse the DWORD endianess for signing.
-        let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
+        let mut digest: [u8; MLDSA87_MSG_BYTE_SIZE] =
+            from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
 
-        let signature = priv_key.try_sign_with_rng(&mut rng, &digest, &[]).unwrap();
-        let signature_extended = {
+        // Reverse the digest bytes per the endianess needed by the FIPS204 library.
+        digest.reverse();
+
+        let signature = priv_key
+            .try_sign_with_seed(&[0u8; 32], &digest, &[])
+            .unwrap();
+        let mut signature_extended = {
             let mut sig = [0u8; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
+
+        // Reverse the signature bytes per the endianess needed by the FIPS204 library.
+        signature_extended.reverse();
 
         // Return the signature in hw format.
         let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();
@@ -263,17 +272,19 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             pqc_key_descriptor: ImagePqcKeyDescriptor {
                 version: KEY_DESCRIPTOR_VERSION,
                 key_type: FwVerificationPqcKeyType::default() as u8,
-                key_hash_count: config.vendor_config.lms_key_count as u8,
+                key_hash_count: 0,
                 key_hash: ImagePqcKeyHashes::default(),
             },
         };
 
-        // Hash the ECC and LMS vendor public keys.
+        // Hash the ECC vendor public keys.
         for i in 0..config.vendor_config.ecc_key_count {
             let ecc_pub_key = config.vendor_config.pub_keys.ecc_pub_keys[i as usize];
             let ecc_pub_key_digest = self.crypto.sha384_digest(ecc_pub_key.as_bytes())?;
             vendor_pub_key_info.ecc_key_descriptor.key_hash[i as usize] = ecc_pub_key_digest;
         }
+
+        // Hash the LMS or MLDSA vendor public keys.
         if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
             for i in 0..config.vendor_config.lms_key_count {
                 vendor_pub_key_info.pqc_key_descriptor.key_hash[i as usize] =
@@ -282,6 +293,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                     )?;
             }
             vendor_pub_key_info.pqc_key_descriptor.key_type = FwVerificationPqcKeyType::LMS.into();
+            vendor_pub_key_info.pqc_key_descriptor.key_hash_count =
+                config.vendor_config.lms_key_count as u8;
         } else {
             for i in 0..config.vendor_config.mldsa_key_count {
                 vendor_pub_key_info.pqc_key_descriptor.key_hash[i as usize] =
@@ -291,6 +304,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             }
             vendor_pub_key_info.pqc_key_descriptor.key_type =
                 FwVerificationPqcKeyType::MLDSA.into();
+            vendor_pub_key_info.pqc_key_descriptor.key_hash_count =
+                config.vendor_config.mldsa_key_count as u8;
         }
 
         let mut preamble = ImagePreamble {
@@ -348,6 +363,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             flags: Self::DEFAULT_FLAGS,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
+            svn: config.fw_svn,
             ..Default::default()
         };
 
@@ -362,7 +378,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         if let Some(owner_config) = &config.owner_config {
             header.owner_data.owner_not_before = owner_config.not_before;
             header.owner_data.owner_not_after = owner_config.not_after;
-            header.owner_data.epoch = owner_config.epoch;
         }
 
         Ok(header)
@@ -408,13 +423,18 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     /// Generate image
     fn gen_image<E>(
         &self,
-        image: &E,
+        config: &ImageGeneratorConfig<E>,
         id: ImageTocEntryId,
         offset: u32,
     ) -> anyhow::Result<(ImageTocEntry, Vec<u8>)>
     where
         E: ImageGeneratorExecutable,
     {
+        let image = match id {
+            ImageTocEntryId::Fmc => &config.fmc,
+            ImageTocEntryId::Runtime => &config.runtime,
+        };
+
         let r#type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 
@@ -423,8 +443,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             r#type: r#type.into(),
             revision: *image.rev(),
             version: image.version(),
-            svn: image.svn(),
-            reserved: 0,
+            reserved: [0; 2],
             load_addr: image.load_addr(),
             entry_point: image.entry_point(),
             offset,

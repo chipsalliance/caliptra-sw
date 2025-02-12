@@ -22,7 +22,7 @@ use caliptra_cfi_lib::{
 };
 use caliptra_drivers::*;
 use caliptra_image_types::*;
-use memoffset::offset_of;
+use memoffset::{offset_of, span_of};
 use zerocopy::AsBytes;
 
 const ZERO_DIGEST: &ImageDigest384 = &[0u32; SHA384_DIGEST_WORD_SIZE];
@@ -37,7 +37,7 @@ enum PqcKeyInfo<'a> {
 struct HeaderInfo<'a> {
     vendor_ecc_pub_key_idx: u32,
     vendor_pqc_pub_key_idx: u32,
-    vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+    vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
     vendor_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_pqc_info: PqcKeyInfo<'a>,
     vendor_pqc_pub_key_revocation: u32,
@@ -104,9 +104,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)?;
         }
 
-        // Check the verification pqc key type.
+        // Check if the PQC key type is valid.
         let pqc_key_type = FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type)
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_FW_IMAGE_VERIFICATION_KEY_TYPE_INVALID)?;
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID)?;
+
+        // Check if the PQC key type matches the fuse value.
+        let pqc_key_type_fuse = self.env.pqc_key_type_fuse()?;
+        if pqc_key_type != pqc_key_type_fuse {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH)?;
+        }
 
         // Verify the preamble
         let preamble = &manifest.preamble;
@@ -128,11 +134,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify Runtime
         let runtime_info = self.verify_runtime(image_info.runtime)?;
 
-        // The FMC and RT FW images within the bundle each include an SVN, for
-        // backwards compatibility with 1.x. ROM only inspects the RT FW SVN.
-        let fw_svn = image_info.runtime.svn;
-
-        self.verify_svn(fw_svn)?;
+        self.verify_svn(manifest.header.svn)?;
 
         let effective_fuse_svn = self.effective_fuse_svn();
 
@@ -143,7 +145,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
-            fw_svn,
+            fw_svn: manifest.header.svn,
             effective_fuse_svn,
             log_info: ImageVerificationLogInfo {
                 vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
@@ -151,12 +153,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 fuse_vendor_pqc_pub_key_revocation: header_info.vendor_pqc_pub_key_revocation,
                 vendor_pqc_pub_key_idx: header_info.vendor_pqc_pub_key_idx,
                 fw_log_info: FirmwareSvnLogInfo {
-                    manifest_svn: fw_svn,
+                    manifest_svn: manifest.header.svn,
                     reserved: 0,
-                    fuse_svn: self.env.runtime_fuse_svn(),
+                    fuse_svn: self.env.fw_fuse_svn(),
                 },
             },
-            pqc_verify_config: manifest.pqc_key_type.into(),
+            pqc_key_type,
         };
 
         Ok(info)
@@ -166,14 +168,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// or equal to the fuse SVN.
     fn verify_svn(&mut self, fw_svn: u32) -> CaliptraResult<()> {
         if self.svn_check_required() {
-            if fw_svn > MAX_RUNTIME_SVN {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
+            if fw_svn > MAX_FIRMWARE_SVN {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            if cfi_launder(fw_svn) < self.env.runtime_fuse_svn() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
+            if cfi_launder(fw_svn) < self.env.fw_fuse_svn() {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE)?;
             } else {
-                cfi_assert_ge(fw_svn, self.env.runtime_fuse_svn());
+                cfi_assert_ge(fw_svn, self.env.fw_fuse_svn());
             }
         }
         Ok(())
@@ -189,7 +191,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             0_u32
         } else {
             cfi_assert!(!self.env.anti_rollback_disable());
-            self.env.runtime_fuse_svn()
+            self.env.fw_fuse_svn()
         }
     }
 
@@ -202,7 +204,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<HeaderInfo<'a>> {
         // Verify Vendor Public Key Info Digest
-        self.verify_vendor_pub_key_info_digest(&preamble.vendor_pub_key_info, pqc_key_type)?;
+        self.verify_vendor_pub_key_info_digest(preamble, pqc_key_type)?;
 
         // Verify Owner Public Key Info Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
@@ -240,13 +242,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 vendor_pqc_info = PqcKeyInfo::Lms(lms_pub_key, lms_sig);
 
                 // Verify the vendor LMS public key index and revocation status
-                let (vendor_pqc_pub_key_idx, vendor_lms_pub_key_revocation) =
-                    self.verify_vendor_lms_pk_idx(preamble, reason)?;
+                let key_revocation = self.env.vendor_lms_pub_key_revocation();
+                let vendor_pqc_pub_key_idx =
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
                     key_idx: vendor_pqc_pub_key_idx,
-                    key_revocation: vendor_lms_pub_key_revocation,
+                    key_revocation,
                 }
             }
             FwVerificationPqcKeyType::MLDSA => {
@@ -261,12 +264,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
                 vendor_pqc_info = PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig);
 
-                // [TODO][CAP2] Verify the vendor MLDSA public key index and revocation status
+                // Verify the vendor MLDSA public key index and revocation status
+                let key_revocation = self.env.vendor_mldsa_pub_key_revocation();
+                let vendor_pqc_pub_key_idx =
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
-                    key_idx: 0,
-                    key_revocation: 0,
+                    key_idx: vendor_pqc_pub_key_idx,
+                    key_revocation,
                 }
             }
         };
@@ -325,7 +331,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
-    ) -> CaliptraResult<(u32, VendorPubKeyRevocation)> {
+    ) -> CaliptraResult<(u32, VendorEccPubKeyRevocation)> {
         let key_idx = preamble.vendor_ecc_pub_key_idx;
         let revocation = self.env.vendor_ecc_pub_key_revocation();
         let key_hash_count = preamble
@@ -343,7 +349,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if key_idx == last_key_idx {
             cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
         } else {
-            let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
+            let key = VendorEccPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
             if cfi_launder(revocation).contains(cfi_launder(key)) {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED)?;
             } else {
@@ -367,14 +373,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok((key_idx, revocation))
     }
 
-    /// Verify Vendor LMS Public Key Index
-    fn verify_vendor_lms_pk_idx(
+    /// Verify Vendor PQC (LMS or MLDSA) Public Key Index
+    fn verify_vendor_pqc_pk_idx(
         &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
-    ) -> CaliptraResult<(u32, u32)> {
+        revocation: u32,
+    ) -> CaliptraResult<u32> {
         let key_idx = preamble.vendor_pqc_pub_key_idx;
-        let revocation = self.env.vendor_lms_pub_key_revocation();
         let key_hash_count = preamble
             .vendor_pub_key_info
             .pqc_key_descriptor
@@ -383,14 +389,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Check if the key index is within bounds.
         if key_idx > last_key_idx {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
         }
 
         // Check if key idx is the last key index. Last key index is never revoked.
         if key_idx == last_key_idx {
             cfi_assert_eq(cfi_launder(key_idx), last_key_idx);
         } else if (cfi_launder(revocation) & (0x01u32 << key_idx)) != 0 {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED)?;
         } else {
             cfi_assert_eq(revocation & (0x01u32 << key_idx), 0);
         }
@@ -408,13 +414,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
         }
 
-        Ok((key_idx, revocation))
+        Ok(key_idx)
     }
 
     /// Verify vendor public key info digest
     fn verify_vendor_pub_key_info_digest(
         &mut self,
-        pub_key_info: &ImageVendorPubKeyInfo,
+        preamble: &ImagePreamble,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
@@ -440,6 +446,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         } else {
             cfi_assert_ne(expected, ZERO_DIGEST);
         }
+
+        let pub_key_info = preamble.vendor_pub_key_info;
 
         // Validate the ECC key descriptor.
         if pub_key_info.ecc_key_descriptor.version != KEY_DESCRIPTOR_VERSION {
@@ -495,7 +503,91 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
         }
 
-        // [TODO] Verify active public key's digest from the descriptor hash list.
+        self.verify_active_ecc_pub_key_digest(preamble)?;
+        self.verify_active_pqc_pub_key_digest(preamble, pqc_key_type)?;
+
+        Ok(())
+    }
+
+    fn verify_active_ecc_pub_key_digest(&mut self, preamble: &ImagePreamble) -> CaliptraResult<()> {
+        let pub_key_info = preamble.vendor_pub_key_info;
+        let ecc_key_idx = preamble.vendor_ecc_pub_key_idx;
+
+        let expected = pub_key_info
+            .ecc_key_descriptor
+            .key_hash
+            .get(ecc_key_idx as usize)
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
+
+        let range = {
+            let offset = offset_of!(ImageManifest, preamble) as u32;
+            let span = span_of!(ImagePreamble, vendor_ecc_active_pub_key);
+            span.start as u32 + offset..span.end as u32 + offset
+        };
+
+        let actual = &self
+            .env
+            .sha384_digest(range.start, range.len() as u32)
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+            })?;
+
+        if cfi_launder(expected) != actual {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        }
+
+        Ok(())
+    }
+
+    fn verify_active_pqc_pub_key_digest(
+        &mut self,
+        preamble: &ImagePreamble,
+        pqc_key_type: FwVerificationPqcKeyType,
+    ) -> CaliptraResult<()> {
+        let pub_key_info = preamble.vendor_pub_key_info;
+        let pqc_key_idx = preamble.vendor_pqc_pub_key_idx;
+
+        let expected = pub_key_info
+            .pqc_key_descriptor
+            .key_hash
+            .get(pqc_key_idx as usize);
+
+        if expected.is_none()
+            || (pqc_key_type == FwVerificationPqcKeyType::LMS
+                && pqc_key_idx >= VENDOR_LMS_MAX_KEY_COUNT)
+            || (pqc_key_type == FwVerificationPqcKeyType::MLDSA
+                && pqc_key_idx >= VENDOR_MLDSA_MAX_KEY_COUNT)
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?
+        }
+
+        let expected = expected.unwrap();
+
+        let start = {
+            let offset = offset_of!(ImageManifest, preamble) as u32;
+            let span = span_of!(ImagePreamble, vendor_pqc_active_pub_key);
+            span.start as u32 + offset
+        };
+
+        let size = if pqc_key_type == FwVerificationPqcKeyType::MLDSA {
+            MLDSA87_PUB_KEY_BYTE_SIZE
+        } else {
+            LMS_PUB_KEY_BYTE_SIZE
+        } as u32;
+
+        let actual = &self.env.sha384_digest(start, size).map_err(|err| {
+            self.env.set_fw_extended_error(err.into());
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+        })?;
+
+        if cfi_launder(expected) != actual {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        }
 
         Ok(())
     }
@@ -765,17 +857,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
-                    let result = self
-                        .env
-                        .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)
-                        .map_err(|err| {
-                            self.env.set_fw_extended_error(err.into());
-                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE
-                        })?;
-
-                    if cfi_launder(result) != Mldsa87Result::Success {
-                        Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID)?;
-                    }
+                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, false)?;
                 } else {
                     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_DIGEST_MISSING)?;
                 }
@@ -802,17 +884,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
                 if let Some(digest_512) = digest_holder.digest_512 {
-                    let result = self
-                        .env
-                        .mldsa87_verify(digest_512, mldsa_pub_key, mldsa_sig)
-                        .map_err(|err| {
-                            self.env.set_fw_extended_error(err.into());
-                            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE
-                        })?;
-
-                    if cfi_launder(result) != Mldsa87Result::Success {
-                        Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID)?;
-                    }
+                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, true)?;
                 } else {
                     Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_DIGEST_MISSING)?;
                 }
@@ -868,6 +940,54 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             return Err(signature_invalid);
         } else {
             caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+        }
+
+        Ok(())
+    }
+
+    /// Verify MLDSA Signature
+    fn verify_mldsa_sig(
+        &mut self,
+        digest: &ImageDigest512,
+        mldsa_pub_key: &ImageMldsaPubKey,
+        mldsa_sig: &ImageMldsaSignature,
+        is_owner: bool,
+    ) -> CaliptraResult<()> {
+        let (verify_failure, signature_invalid) = if is_owner {
+            (
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE,
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID,
+            )
+        } else {
+            (
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE,
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID,
+            )
+        };
+
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            let fips_verify_failure = if is_owner {
+                caliptra_drivers::FipsTestHook::FW_LOAD_OWNER_MLDSA_VERIFY_FAILURE
+            } else {
+                caliptra_drivers::FipsTestHook::FW_LOAD_VENDOR_MLDSA_VERIFY_FAILURE
+            };
+            caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
+                fips_verify_failure,
+                caliptra_drivers::FipsTestHook::MLDSA_VERIFY_FAILURE,
+            )
+        };
+
+        let result = self
+            .env
+            .mldsa87_verify(digest, mldsa_pub_key, mldsa_sig)
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                verify_failure
+            })?;
+
+        if cfi_launder(result) != Mldsa87Result::Success {
+            Err(signature_invalid)?;
         }
 
         Ok(())
@@ -1234,14 +1354,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
@@ -1325,14 +1445,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
@@ -1411,14 +1531,14 @@ mod tests {
 
                     key_hash_count: 1,
                     reserved: 0,
-                    key_hash: ImageEccKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 4],
                 },
                 pqc_key_descriptor: ImagePqcKeyDescriptor {
                     version: KEY_DESCRIPTOR_VERSION,
 
                     key_type: FwVerificationPqcKeyType::LMS as u8,
                     key_hash_count: 1,
-                    key_hash: ImagePqcKeyHashes::default(),
+                    key_hash: [DUMMY_DATA; 32],
                 },
             },
             ..Default::default()
@@ -2134,7 +2254,6 @@ mod tests {
         let verify_info = ImageTocEntry {
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
-            svn: 1,
             size: 100,
             ..Default::default()
         };
@@ -2197,7 +2316,6 @@ mod tests {
         let verify_info = ImageTocEntry {
             load_addr: ICCM_ORG,
             entry_point: ICCM_ORG,
-            svn: 1,
             size: 100,
             ..Default::default()
         };
@@ -2216,10 +2334,11 @@ mod tests {
         verify_result: bool,
         verify_pqc_result: bool,
         vendor_pub_key_digest: ImageDigest384,
-        vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
-        vendor_lms_pub_key_revocation: u32,
+        vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
+        vendor_pqc_pub_key_revocation: u32,
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
+        pqc_key_type: FwVerificationPqcKeyType,
     }
 
     impl Default for TestEnv {
@@ -2231,10 +2350,11 @@ mod tests {
                 verify_result: false,
                 verify_pqc_result: false,
                 vendor_pub_key_digest: ImageDigest384::default(),
-                vendor_ecc_pub_key_revocation: VendorPubKeyRevocation::default(),
-                vendor_lms_pub_key_revocation: 0,
+                vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation::default(),
+                vendor_pqc_pub_key_revocation: 0,
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
+                pqc_key_type: FwVerificationPqcKeyType::MLDSA,
             }
         }
     }
@@ -2291,12 +2411,16 @@ mod tests {
             self.vendor_pub_key_digest
         }
 
-        fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+        fn vendor_ecc_pub_key_revocation(&self) -> VendorEccPubKeyRevocation {
             self.vendor_ecc_pub_key_revocation
         }
 
         fn vendor_lms_pub_key_revocation(&self) -> u32 {
-            self.vendor_lms_pub_key_revocation
+            self.vendor_pqc_pub_key_revocation
+        }
+
+        fn vendor_mldsa_pub_key_revocation(&self) -> u32 {
+            self.vendor_pqc_pub_key_revocation
         }
 
         fn owner_pub_key_digest_fuses(&self) -> ImageDigest384 {
@@ -2327,7 +2451,7 @@ mod tests {
             self.fmc_digest
         }
 
-        fn runtime_fuse_svn(&self) -> u32 {
+        fn fw_fuse_svn(&self) -> u32 {
             0
         }
 
@@ -2336,6 +2460,10 @@ mod tests {
                 start: ICCM_ORG,
                 end: ICCM_ORG + ICCM_SIZE,
             }
+        }
+
+        fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType> {
+            Ok(self.pqc_key_type)
         }
 
         fn set_fw_extended_error(&mut self, _err: u32) {}

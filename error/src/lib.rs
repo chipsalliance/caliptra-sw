@@ -117,6 +117,8 @@ impl CaliptraError {
     pub const DRIVER_MLDSA87_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00058003);
     pub const DRIVER_MLDSA87_SIGN_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x00058004);
+    pub const DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE: CaliptraError =
+        CaliptraError::new_const(0x00058005);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -218,9 +220,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0023);
     pub const IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED: CaliptraError =
         CaliptraError::new_const(0x000b0024);
-    // 0x000b0025 was IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
-    // 0x000b0026 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
-    // 0x000b0027 was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
+    // 0x000b0025 (deprecated) was IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
+    // 0x000b0026 (deprecated) was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
+    // 0x000b0027 (deprecated) was IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0028);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED: CaliptraError =
@@ -229,10 +231,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b002a);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED: CaliptraError =
         CaliptraError::new_const(0x000b002b);
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED: CaliptraError =
         CaliptraError::new_const(0x000b002c);
-    // 0x000b002d was IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
-    pub const IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE: CaliptraError =
+    // 0x000b002d (deprecated) was IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_MIN_SUPPORTED
+    pub const IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE: CaliptraError =
         CaliptraError::new_const(0x000b002e);
     pub const IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE: CaliptraError =
         CaliptraError::new_const(0x000b002f);
@@ -240,7 +242,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0030);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0031);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0032);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0033);
@@ -250,7 +252,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0036);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0038);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED: CaliptraError =
         CaliptraError::new_const(0x000b0003a);
     pub const IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO: CaliptraError =
         CaliptraError::new_const(0x000b003b);
@@ -280,7 +282,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0047);
     pub const IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT: CaliptraError =
         CaliptraError::new_const(0x000b0048);
-    pub const IMAGE_VERIFIER_ERR_FW_IMAGE_VERIFICATION_KEY_TYPE_INVALID: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0049);
     pub const IMAGE_VERIFIER_ERR_LMS_VENDOR_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b004a);
@@ -312,6 +314,14 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0057);
     pub const IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000b0058);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0059);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b005a);
+    pub const IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE: CaliptraError =
+        CaliptraError::new_const(0x000b005b);
+    pub const IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b005c);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -372,6 +382,7 @@ impl CaliptraError {
     pub const DRIVER_DMA_TRANSACTION_ERROR: CaliptraError = CaliptraError::new_const(0x0000f001);
     pub const DRIVER_DMA_FIFO_UNDERRUN: CaliptraError = CaliptraError::new_const(0x0000f002);
     pub const DRIVER_DMA_FIFO_OVERRUN: CaliptraError = CaliptraError::new_const(0x0000f003);
+    pub const DRIVER_DMA_FIFO_INVALID_SIZE: CaliptraError = CaliptraError::new_const(0x0000f004);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
@@ -434,10 +445,11 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E002A);
     pub const RUNTIME_CMD_BUSY_DURING_WARM_RESET: CaliptraError =
         CaliptraError::new_const(0x000E002B);
-    pub const RUNTIME_RT_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
-    pub const RUNTIME_RT_MIN_SVN_HANDOFF_FAILED: CaliptraError =
+    pub const RUNTIME_FW_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
+    pub const RUNTIME_FW_MIN_SVN_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E002D);
-    pub const RUNTIME_FMC_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002E);
+    pub const RUNTIME_COLD_BOOT_FW_SVN_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E002E);
     pub const RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E002F);
     pub const RUNTIME_LDEV_ID_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0030);
@@ -459,7 +471,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0039);
     pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003A);
-    pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
+    pub const RUNTIME_KEY_LADDER_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003B);
     /// PCR Runtime Errors
     pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003C);
@@ -510,6 +522,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0054);
     pub const RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID: CaliptraError =
         CaliptraError::new_const(0x000E0055);
+    pub const RUNTIME_KEY_LADDER_TARGET_SVN_TOO_LARGE: CaliptraError =
+        CaliptraError::new_const(0x000E0056);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -568,6 +582,9 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_RESERVED_PAUSER: CaliptraError = CaliptraError::new_const(0x01020009);
     pub const FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR: CaliptraError =
         CaliptraError::new_const(0x0102000A);
+    pub const FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE: CaliptraError =
+        CaliptraError::new_const(0x0102000B);
+    pub const FW_PROC_SVN_TOO_LARGE: CaliptraError = CaliptraError::new_const(0x0102000C);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -609,6 +626,13 @@ impl CaliptraError {
         CaliptraError::new_const(0x104005C);
     pub const ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
         CaliptraError::new_const(0x104005D);
+
+    /// ROM UDS Programming Errors
+    pub const ROM_UDS_PROG_ILLEGAL_LIFECYCLE_STATE: CaliptraError =
+        CaliptraError::new_const(0x01045000);
+    pub const ROM_UDS_PROG_IN_PASSIVE_MODE: CaliptraError = CaliptraError::new_const(0x01045001);
+    pub const ROM_UDS_PROG_INVALID_SEED_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x01045002);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
@@ -657,6 +681,13 @@ impl CaliptraError {
         CaliptraError::new_const(0x90040004);
     pub const KAT_ECC384_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90040005);
+
+    pub const KAT_MLDSA87_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040006);
+    pub const KAT_MLDSA87_SIGNATURE_FAILURE: CaliptraError = CaliptraError::new_const(0x90040007);
+    pub const KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040008);
+    pub const KAT_MLDSA87_KEY_PAIR_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040009);
 
     pub const KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);

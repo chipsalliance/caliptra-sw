@@ -813,11 +813,8 @@ mod tests {
         let mut seed = [0u8; 48];
         seed.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..seed.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .unwrap();
         }
 
         let mut nonce = [0u8; 48];
@@ -834,11 +831,8 @@ mod tests {
             );
         }
 
-        assert_eq!(
-            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
-                .ok(),
-            Some(())
-        );
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -890,11 +884,8 @@ mod tests {
             seed_ctrl
                 .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_SEED_CONTROL, seed_ctrl.get())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_SEED_CONTROL, seed_ctrl.get())
+                .unwrap();
 
             // Wait for ecc periph to retrieve the seed from key-vault.
             loop {
@@ -912,11 +903,8 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
+                .unwrap();
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -957,11 +945,8 @@ mod tests {
             let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
 
             for i in (0..seed.len()).step_by(4) {
-                assert_eq!(
-                    ecc.write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
-                        .ok(),
-                    Some(())
-                );
+                ecc.write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                    .unwrap();
             }
 
             // Instruct private key to be stored in the key-vault.
@@ -974,17 +959,11 @@ mod tests {
                     + KeyWriteControl::USAGE.val(u32::from(key_usage)),
             );
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_KEY_WRITE_CONTROL, key_write_ctrl.get())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_KEY_WRITE_CONTROL, key_write_ctrl.get())
+                .unwrap();
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
+                .unwrap();
 
             loop {
                 let key_write_status = InMemoryRegister::<u32, KeyWriteStatus::Register>::new(
@@ -1041,33 +1020,24 @@ mod tests {
         hash.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..hash.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
+                .unwrap();
         }
 
         let mut priv_key = PRIV_KEY;
         priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..PRIV_KEY.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(
-                    RvSize::Word,
-                    OFFSET_PRIV_KEY_IN + i as RvAddr,
-                    make_word(i, &priv_key)
-                )
-                .ok(),
-                Some(())
-            );
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PRIV_KEY_IN + i as RvAddr,
+                make_word(i, &priv_key),
+            )
+            .unwrap();
         }
 
-        assert_eq!(
-            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::SIGN.into())
-                .ok(),
-            Some(())
-        );
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::SIGN.into())
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -1113,11 +1083,8 @@ mod tests {
             hash.to_big_endian(); // Change DWORDs to big-endian.
 
             for i in (0..hash.len()).step_by(4) {
-                assert_eq!(
-                    ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
-                        .ok(),
-                    Some(())
-                );
+                ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
+                    .unwrap();
             }
 
             // Instruct private key to be read from key-vault.
@@ -1125,11 +1092,8 @@ mod tests {
             key_read_ctrl
                 .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
+                .unwrap();
 
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
@@ -1146,11 +1110,8 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::SIGN.into())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::SIGN.into())
+                .unwrap();
 
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
@@ -1195,11 +1156,8 @@ mod tests {
             hash.to_big_endian(); // Change DWORDs to big-endian.
 
             for i in (0..hash.len()).step_by(4) {
-                assert_eq!(
-                    ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
-                        .ok(),
-                    Some(())
-                );
+                ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
+                    .unwrap();
             }
 
             // Instruct private key to be read from key-vault.
@@ -1207,11 +1165,8 @@ mod tests {
             key_read_ctrl
                 .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
+                .unwrap();
 
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
@@ -1240,78 +1195,60 @@ mod tests {
 
         let hash = [0u8; 48];
         for i in (0..hash.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
-                    .ok(),
-                Some(())
-            );
+            ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
+                .unwrap();
         }
 
         let mut pub_key_x_reverse = PUB_KEY_X;
         pub_key_x_reverse.to_big_endian();
 
         for i in (0..pub_key_x_reverse.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(
-                    RvSize::Word,
-                    OFFSET_PUB_KEY_X + i as RvAddr,
-                    make_word(i, &pub_key_x_reverse)
-                )
-                .ok(),
-                Some(())
-            );
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PUB_KEY_X + i as RvAddr,
+                make_word(i, &pub_key_x_reverse),
+            )
+            .unwrap();
         }
 
         let mut pub_key_y_reverse = PUB_KEY_Y;
         pub_key_y_reverse.to_big_endian();
 
         for i in (0..pub_key_y_reverse.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(
-                    RvSize::Word,
-                    OFFSET_PUB_KEY_Y + i as RvAddr,
-                    make_word(i, &pub_key_y_reverse)
-                )
-                .ok(),
-                Some(())
-            );
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PUB_KEY_Y + i as RvAddr,
+                make_word(i, &pub_key_y_reverse),
+            )
+            .unwrap();
         }
 
         let mut sig_r_reverse = SIG_R;
         sig_r_reverse.to_big_endian();
 
         for i in (0..sig_r_reverse.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(
-                    RvSize::Word,
-                    OFFSET_SIG_R + i as RvAddr,
-                    make_word(i, &sig_r_reverse)
-                )
-                .ok(),
-                Some(())
-            );
+            ecc.write(
+                RvSize::Word,
+                OFFSET_SIG_R + i as RvAddr,
+                make_word(i, &sig_r_reverse),
+            )
+            .unwrap();
         }
 
         let mut sig_s_reverse = SIG_S;
         sig_s_reverse.to_big_endian();
 
         for i in (0..sig_s_reverse.len()).step_by(4) {
-            assert_eq!(
-                ecc.write(
-                    RvSize::Word,
-                    OFFSET_SIG_S + i as RvAddr,
-                    make_word(i, &sig_s_reverse)
-                )
-                .ok(),
-                Some(())
-            );
+            ecc.write(
+                RvSize::Word,
+                OFFSET_SIG_S + i as RvAddr,
+                make_word(i, &sig_s_reverse),
+            )
+            .unwrap();
         }
 
-        assert_eq!(
-            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::VERIFY.into())
-                .ok(),
-            Some(())
-        );
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::VERIFY.into())
+            .unwrap();
 
         loop {
             let status = InMemoryRegister::<u32, Status::Register>::new(
