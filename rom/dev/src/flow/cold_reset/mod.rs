@@ -14,7 +14,7 @@ Abstract:
 
 mod dice;
 mod fmc_alias;
-mod fw_processor;
+pub mod fw_processor;
 mod idev_id;
 mod ldev_id;
 mod x509;

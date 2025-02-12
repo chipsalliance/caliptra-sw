@@ -26,6 +26,7 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
+pub mod mci;
 pub mod otp_fc;
 mod recovery;
 
@@ -183,7 +184,12 @@ impl Dma {
 
     const DMA_CLOCKS_PER_WORD: u64 = 4;
 
-    pub fn new(clock: &Clock, mailbox: MailboxRam, soc_reg: SocRegistersInternal) -> Self {
+    pub fn new(
+        clock: &Clock,
+        mailbox: MailboxRam,
+        soc_reg: SocRegistersInternal,
+        prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
+    ) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
             capabilities: ReadOnlyRegister::new(Self::FIFO_SIZE as u32 - 1), // MAX FIFO DEPTH
@@ -202,7 +208,7 @@ impl Dma {
             op_complete_action: None,
             op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
-            axi: AxiRootBus::new(soc_reg),
+            axi: AxiRootBus::new(soc_reg, prod_dbg_unlock_keypairs),
             mailbox,
         }
     }
@@ -527,7 +533,7 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
         let soc_reg = SocRegistersInternal::new(&clock, mailbox_internal, iccm, &pic, args);
-        let mut dma = Dma::new(&clock, mbox_ram, soc_reg);
+        let mut dma = Dma::new(&clock, mbox_ram, soc_reg, vec![]);
 
         assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), 0xaabbccdd); // Initial test value
         let test_value = 0xdeadbeef;

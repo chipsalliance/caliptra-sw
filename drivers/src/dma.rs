@@ -228,11 +228,11 @@ impl Dma {
             }
 
             // Process all 4-byte chunks
-            let ptr = dma.read_data().ptr as *mut u8;
             read_data.chunks_mut(4).for_each(|word| {
-                // Reg only exports u32 writes but we need finer grained access
-                unsafe {
-                    ptr.copy_to_nonoverlapping(word.as_mut_ptr(), word.len());
+                let read = &dma.read_data().read().to_le_bytes();
+                // check needed so that the compiler doesn't generate a panic
+                if read.len() == word.len() {
+                    word.copy_from_slice(read);
                 }
             });
             Ok(())
@@ -244,6 +244,10 @@ impl Dma {
             let max_fifo_depth = dma.cap().read().fifo_max_depth();
             let current_fifo_depth = dma.status0().read().fifo_depth();
 
+            if write_data.len() % 4 != 0 {
+                Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE)?;
+            }
+
             if write_data.len() as u32 > max_fifo_depth - current_fifo_depth {
                 Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN)?;
             }
@@ -254,12 +258,10 @@ impl Dma {
             }
 
             write_data.chunks(4).for_each(|word| {
-                let ptr = dma.write_data().ptr as *mut u8;
-                // Reg only exports u32 writes but we need finer grained access
-                unsafe {
-                    ptr.copy_from_nonoverlapping(word.as_ptr(), word.len());
-                }
+                dma.write_data()
+                    .write(|_| u32::from_le_bytes(word.try_into().unwrap_or_default()));
             });
+
             Ok(())
         })
     }

@@ -16,6 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha2_512_384};
 use caliptra_kat::Sha384Kat;
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};

@@ -151,6 +151,9 @@ pub trait SocManager {
         self.soc_ifc()
             .fuse_soc_stepping_id()
             .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
+        self.soc_ifc()
+            .fuse_manuf_dbg_unlock_token()
+            .write(&fuses.manuf_dbg_unlock_token);
 
         self.soc_ifc()
             .fuse_pqc_key_type()
