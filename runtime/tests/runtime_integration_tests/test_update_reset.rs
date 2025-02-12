@@ -27,7 +27,7 @@ use dpe::{
     validation::ValidationError,
     DpeInstance, U8Bool, DPE_PROFILE, MAX_HANDLES,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
@@ -194,7 +194,7 @@ fn test_dpe_validation_deformed_structure() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating multiple normal connected components
     dpe.contexts[0].children = 0;
@@ -230,7 +230,7 @@ fn test_dpe_validation_deformed_structure() {
         .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
-    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(info.attestation_disabled, 1);
 }
 
@@ -249,7 +249,7 @@ fn test_dpe_validation_illegal_state() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE state by messing up parent-child links
     dpe.contexts[1].children = 0b1;
@@ -283,7 +283,7 @@ fn test_dpe_validation_illegal_state() {
         .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
-    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(info.attestation_disabled, 1);
 }
 
@@ -302,7 +302,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
+    let mut dpe = DpeInstance::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
 
     // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
     let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
@@ -342,7 +342,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
-    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(info.attestation_disabled, 1);
 }
 

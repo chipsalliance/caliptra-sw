@@ -13,11 +13,11 @@ Abstract:
 --*/
 
 use crate::{Array4x12, Ecc384PubKey, Ecc384Signature, Mldsa87PubKey, Mldsa87Signature};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize, Default)]
+#[derive(Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 pub struct ColdResetEntries {
     ldev_dice_ecc_sig: Ecc384Signature,
     ldev_dice_ecc_pk: Ecc384PubKey,
@@ -37,7 +37,7 @@ pub struct ColdResetEntries {
 }
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize, Default)]
+#[derive(Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 pub struct WarmResetEntries {
     rt_tci: Array4x12,
     fw_svn: u32,
@@ -48,7 +48,7 @@ pub struct WarmResetEntries {
 }
 
 #[repr(C)]
-#[derive(FromBytes, AsBytes, Zeroize, Default)]
+#[derive(Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 pub struct DataVault {
     cold_reset_entries: ColdResetEntries,
     warm_reset_entries: WarmResetEntries,

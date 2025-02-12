@@ -25,7 +25,7 @@ use caliptra_drivers::{
     Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 pub struct DpeCrypto<'a> {

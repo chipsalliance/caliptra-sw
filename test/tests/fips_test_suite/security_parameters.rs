@@ -157,7 +157,7 @@ pub fn attempt_ssp_access_fw_load() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
     let fw_image = fips_fw_image();
-    let manifest = ImageManifest::read_from_prefix(&*fw_image).unwrap();
+    let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
 
     let gen = ImageGenerator::new(Crypto::default());
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();
@@ -208,7 +208,7 @@ pub fn attempt_ssp_access_fw_load() {
 #[test]
 pub fn attempt_ssp_access_rt() {
     let fw_image = fips_fw_image();
-    let manifest = ImageManifest::read_from_prefix(&*fw_image).unwrap();
+    let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
 
     let gen = ImageGenerator::new(Crypto::default());
     let vendor_pubkey_digest = gen.vendor_pubkey_digest(&manifest.preamble).unwrap();

@@ -24,7 +24,7 @@ use caliptra_image_gen::ImageGenerator;
 use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_BYTE_SIZE};
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::helpers;
 
@@ -97,7 +97,7 @@ fn check_pcr_log_entry(
     pcr_data: &[u8],
 ) {
     let offset = pcr_entry_index * PCR_ENTRY_SIZE;
-    let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+    let (entry, _) = PcrLogEntry::ref_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
 
     assert_eq!(entry.id, entry_id as u16);
     assert_eq!(entry.pcr_ids, pcr_ids);
@@ -110,8 +110,8 @@ fn check_measurement_log_entry(
     measurement_req: &StashMeasurementReq,
 ) {
     let offset = measurement_entry_index * MEASUREMENT_ENTRY_SIZE;
-    let entry =
-        MeasurementLogEntry::read_from_prefix(measurement_entry_arr[offset..].as_bytes()).unwrap();
+    let (entry, _) =
+        MeasurementLogEntry::ref_from_prefix(measurement_entry_arr[offset..].as_bytes()).unwrap();
 
     assert_eq!(entry.pcr_entry.id, PcrLogEntryId::StashMeasurement as u16);
     assert_eq!(entry.pcr_entry.pcr_ids, PCR31_EXTENDED_ID);
@@ -445,14 +445,14 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
             break;
         }
 
-        let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+        let (entry, _) = PcrLogEntry::ref_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
         offset += PCR_ENTRY_SIZE;
 
         if (entry.pcr_ids & (1 << pcr_id as u8)) == 0 {
             continue;
         }
 
-        hash_pcr_log_entry(&entry, &mut pcr);
+        hash_pcr_log_entry(entry, &mut pcr);
     }
 
     pcr
@@ -469,8 +469,8 @@ fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
             break;
         }
 
-        let entry =
-            MeasurementLogEntry::read_from_prefix(measurement_entry_arr[offset..].as_bytes())
+        let (entry, _) =
+            MeasurementLogEntry::ref_from_prefix(measurement_entry_arr[offset..].as_bytes())
                 .unwrap();
         offset += MEASUREMENT_ENTRY_SIZE;
 
@@ -649,8 +649,8 @@ fn test_fuse_log() {
     let mut fuse_log_entry_offset = 0;
 
     // Check entry for VendorPubKeyIndex.
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
 
     assert_eq!(
         fuse_log_entry.entry_id,
@@ -661,8 +661,8 @@ fn test_fuse_log() {
 
     // Validate that the ID is VendorPubKeyRevocation
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::VendorEccPubKeyRevocation as u32
@@ -671,8 +671,8 @@ fn test_fuse_log() {
 
     // Validate the ColdBootFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::ColdBootFwSvn as u32
@@ -681,8 +681,8 @@ fn test_fuse_log() {
 
     // Validate the ManifestReserved0
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::ManifestReserved0 as u32
@@ -691,8 +691,8 @@ fn test_fuse_log() {
 
     // Validate the _DeprecatedFuseFmcSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::_DeprecatedFuseFmcSvn as u32
@@ -701,8 +701,8 @@ fn test_fuse_log() {
 
     // Validate the ManifestFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::ManifestFwSvn as u32
@@ -711,8 +711,8 @@ fn test_fuse_log() {
 
     // Validate the ManifestReserved1
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::ManifestReserved1 as u32
@@ -721,15 +721,15 @@ fn test_fuse_log() {
 
     // Validate the FuseFwSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFwSvn as u32);
     assert_eq!(fuse_log_entry.log_data[0], FW_FUSE_SVN);
 
     // Validate the VendorPqcPubKeyIndex
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::VendorPqcPubKeyIndex as u32
@@ -738,8 +738,8 @@ fn test_fuse_log() {
 
     // Validate that the ID is VendorPubKeyRevocation
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
-    let fuse_log_entry =
-        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    let (fuse_log_entry, _) =
+        FuseLogEntry::ref_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
         FuseLogEntryId::VendorPqcPubKeyRevocation as u32
@@ -784,7 +784,7 @@ fn test_fht_info() {
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
         // [TODO][CAP2] add mldsa equivalents
         assert_eq!(fht.ecc_ldevid_tbs_size, 552);
         assert_eq!(fht.ecc_fmcalias_tbs_size, 753);
@@ -834,7 +834,7 @@ fn test_check_rom_cold_boot_status_reg() {
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         let data_vault = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
-        let data_vault = DataVault::read_from_prefix(data_vault.as_bytes()).unwrap();
+        let (data_vault, _) = DataVault::ref_from_prefix(data_vault.as_bytes()).unwrap();
 
         assert_eq!(
             data_vault.rom_cold_boot_status(),
@@ -915,7 +915,7 @@ fn test_upload_single_measurement() {
         assert_eq!(pcr31.as_bytes(), expected_pcr);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
         assert_eq!(fht.meas_log_index, 1);
     }
 }
@@ -1005,7 +1005,7 @@ fn test_upload_measurement_limit() {
         assert_eq!(pcr31.as_bytes(), expected_pcr);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
         assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
     }
 }
@@ -1119,7 +1119,7 @@ fn test_upload_no_measurement() {
         assert_eq!(measurement_log.len(), 0);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+        let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
         assert_eq!(fht.meas_log_index, 0);
     }
 }

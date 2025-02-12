@@ -29,7 +29,7 @@ use clap::ArgMatches;
 use hex::ToHex;
 use std::path::Path;
 use std::path::PathBuf;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};

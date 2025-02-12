@@ -15,7 +15,7 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
-use zerocopy::FromBytes;
+use zerocopy::TryFromBytes;
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -93,7 +93,7 @@ pub fn get_csr_envelop(hw: &mut DefaultHwModel) -> Result<InitDevIdCsrEnvelope, 
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
-    let csr_envelop = InitDevIdCsrEnvelope::read_from_prefix(&*result).unwrap();
+    let (csr_envelop, _) = InitDevIdCsrEnvelope::try_read_from_prefix(&result).unwrap();
     Ok(csr_envelop)
 }
 

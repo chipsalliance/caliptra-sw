@@ -29,7 +29,7 @@ use caliptra_registers::{
     csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg, hmac::HmacReg, mbox::MboxCsr,
 };
 use caliptra_test_harness::test_suite;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 fn export_result_from_kv(ecc: &mut Ecc384, trng: &mut Trng, key_id: KeyId) -> Ecc384PubKey {
     ecc.key_pair(

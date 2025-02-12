@@ -78,7 +78,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::GetCertificateChain(get_cert_chain_cmd),
+        &mut Command::GetCertificateChain(&get_cert_chain_cmd),
         DpeResult::Success,
     );
     let Some(Response::GetCertificateChain(cert_chain)) = resp else {
@@ -99,7 +99,11 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         flags: SignFlags::empty(),
         digest: TEST_DIGEST,
     };
-    let resp = execute_dpe_cmd(&mut model, &mut Command::Sign(sign_cmd), DpeResult::Success);
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::Sign(&sign_cmd),
+        DpeResult::Success,
+    );
     let Some(Response::Sign(sign_resp)) = resp else {
         panic!("Wrong response type!");
     };
@@ -112,7 +116,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(certify_key_cmd),
+        &mut Command::CertifyKey(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -148,7 +152,11 @@ fn test_invoke_dpe_symmetric_sign() {
         flags: SignFlags::IS_SYMMETRIC,
         digest: TEST_DIGEST,
     };
-    let resp = execute_dpe_cmd(&mut model, &mut Command::Sign(sign_cmd), DpeResult::Success);
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::Sign(&sign_cmd),
+        DpeResult::Success,
+    );
     let Some(Response::Sign(sign_resp)) = resp else {
         panic!("Wrong response type!");
     };
@@ -171,7 +179,7 @@ fn test_dpe_header_error_code() {
     let init_ctx_cmd = InitCtxCmd::new_use_default();
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::InitCtx(init_ctx_cmd),
+        &mut Command::InitCtx(&init_ctx_cmd),
         DpeResult::DpeCmdFailure,
     );
     let Some(Response::Error(hdr)) = resp else {
@@ -199,7 +207,7 @@ fn test_invoke_dpe_certify_key_csr() {
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::CertifyKey(certify_key_cmd),
+        &mut Command::CertifyKey(&certify_key_cmd),
         DpeResult::Success,
     );
     let Some(Response::CertifyKey(certify_key_resp)) = resp else {
@@ -266,7 +274,7 @@ fn test_invoke_dpe_rotate_context() {
 
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::RotateCtx(rotate_ctx_cmd),
+        &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     );
     let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
@@ -282,7 +290,7 @@ fn test_invoke_dpe_rotate_context() {
 
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::RotateCtx(rotate_ctx_cmd),
+        &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
     );
     let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {

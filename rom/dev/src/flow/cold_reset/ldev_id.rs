@@ -33,7 +33,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::*;
 use caliptra_x509::*;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 /// Dice Local Device Identity (IDEVID) Layer

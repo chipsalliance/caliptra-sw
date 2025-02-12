@@ -43,7 +43,7 @@ use dpe::{
     response::DpeErrorCode,
 };
 use memoffset::offset_of;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 pub struct SetAuthManifestCmd;
@@ -135,9 +135,11 @@ impl SetAuthManifestCmd {
         }
 
         // Verify vendor LMS signature.
-        let vendor_fw_lms_key =
+        let (vendor_fw_lms_key, _) =
             ImageLmsPublicKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID,
+                ))?;
 
         let candidate_key = Self::lms_verify(
             sha256,
@@ -195,9 +197,11 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        let owner_fw_lms_key =
+        let (owner_fw_lms_key, _) =
             ImageLmsPublicKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID)?;
+                .or(Err(
+                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID,
+                ))?;
 
         let candidate_key = Self::lms_verify(
             sha256,
@@ -407,7 +411,7 @@ impl SetAuthManifestCmd {
         metadata_persistent.zeroize();
 
         // Copy the image metadata collection to the persistent data.
-        metadata_persistent.as_bytes_mut()[..buf.len()].copy_from_slice(buf);
+        metadata_persistent.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
 
         Ok(())
     }
@@ -471,8 +475,8 @@ impl SetAuthManifestCmd {
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {
             let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
-            AuthManifestPreamble::read_from(manifest_buf.get(..preamble_size).ok_or(err)?)
-                .ok_or(err)?
+            let bytes = manifest_buf.get(..preamble_size).ok_or(err)?;
+            AuthManifestPreamble::ref_from_bytes(bytes).map_err(|_| err)?
         };
 
         // Check if the preamble has the required marker.
@@ -488,7 +492,7 @@ impl SetAuthManifestCmd {
         let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -498,7 +502,7 @@ impl SetAuthManifestCmd {
 
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -510,7 +514,7 @@ impl SetAuthManifestCmd {
             manifest_buf
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
-            &auth_manifest_preamble,
+            auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,

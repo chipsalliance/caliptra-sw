@@ -29,7 +29,7 @@ use caliptra_drivers::{
     ShaAccLockState,
 };
 use caliptra_error::CaliptraError;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::rom_env::RomEnv;
 
@@ -76,7 +76,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ManufDebugUnlockTokenReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
@@ -157,7 +157,7 @@ fn handle_production_request(
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ProductionAuthDebugUnlockReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
     let payload_length = |length: [u8; 3]| {
         let mut len: usize = 0;
@@ -249,7 +249,7 @@ fn handle_production_token(
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut token = ProductionAuthDebugUnlockToken::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_bytes_mut())?;
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
 
     // Validate payload
     if payload_length(token.length)

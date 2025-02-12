@@ -16,7 +16,7 @@ use caliptra_image_types::*;
 use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::*;
 

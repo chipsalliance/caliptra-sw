@@ -12,7 +12,7 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::common::{
     run_rt_test, RuntimeTestArgs, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQC_KEY_TYPE,

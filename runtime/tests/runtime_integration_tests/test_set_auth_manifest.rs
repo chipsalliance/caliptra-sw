@@ -18,7 +18,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {

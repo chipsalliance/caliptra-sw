@@ -16,7 +16,7 @@ use openssl::{
     hash::{Hasher, MessageDigest},
     x509::X509,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_pcr_quote() {
@@ -51,7 +51,7 @@ fn test_pcr_quote() {
         .unwrap()
         .unwrap();
 
-    let resp = QuotePcrsResp::read_from(resp.as_slice()).unwrap();
+    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Compute the digest and compare to mailbox result
     let mut h = Hasher::new(MessageDigest::sha384()).unwrap();
@@ -100,7 +100,9 @@ pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
         .unwrap()
         .unwrap();
 
-    return QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs;
+    return QuotePcrsResp::read_from_bytes(resp.as_slice())
+        .unwrap()
+        .pcrs;
 }
 
 #[test]

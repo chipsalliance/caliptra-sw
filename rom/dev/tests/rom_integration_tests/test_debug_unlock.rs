@@ -16,7 +16,7 @@ use fips204::traits::{SerDes, Signer};
 use p384::ecdsa::VerifyingKey;
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_dbg_unlock_manuf_passive_mode() {
@@ -289,7 +289,7 @@ fn test_dbg_unlock_prod() {
         .unwrap()
         .unwrap();
 
-    let challenge = ProductionAuthDebugUnlockChallenge::read_from(resp.as_slice()).unwrap();
+    let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
     let mut sha384 = sha2::Sha384::new();
     sha384.update(challenge.challenge);
@@ -502,7 +502,7 @@ fn test_dbg_unlock_prod_invalid_token_challenage() {
         .unwrap()
         .unwrap();
 
-    let challenge = ProductionAuthDebugUnlockChallenge::read_from(resp.as_slice()).unwrap();
+    let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
     // Create an invalid token by using a different challenge than what was received
     let invalid_challenge = [0u8; 48];
@@ -624,7 +624,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
         .unwrap()
         .unwrap();
 
-    let challenge = ProductionAuthDebugUnlockChallenge::read_from(resp.as_slice()).unwrap();
+    let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
     let mut sha512 = sha2::Sha512::new();
     sha512.update(challenge.challenge);
@@ -771,7 +771,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         .unwrap()
         .unwrap();
 
-    let challenge = ProductionAuthDebugUnlockChallenge::read_from(resp.as_slice()).unwrap();
+    let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
     let token = ProductionAuthDebugUnlockToken {
         length: {

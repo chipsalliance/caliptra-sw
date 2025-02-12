@@ -6,7 +6,7 @@ use caliptra_builder::{
     FwId, ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub mod crypto;
 pub mod derive;
