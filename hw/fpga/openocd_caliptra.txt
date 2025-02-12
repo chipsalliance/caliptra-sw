@@ -2,15 +2,28 @@ adapter driver sysfsgpio
 adapter speed 1000
 
 # Find the gpiochip labeled with "zynqmp_gpio" and get the number
-regexp {.*gpiochip(\d*)/.*} [exec grep zynqmp_gpio {*}[glob /sys/class/gpio/*/label]] trash gpionum
+#regexp {.*gpiochip(\d*)/.*} [exec grep zynqmp_gpio {*}[glob /sys/class/gpio/*/label]] trash gpionum
+regexp {.*gpiochip(\d*)/.*} [exec grep -H pmc_gpio {*}[glob /sys/class/gpio/*/label]] trash gpionum
+puts stderr [glob /sys/class/gpio/*/label]
+puts stderr [exec grep pmc_gpio {*}[glob /sys/class/gpio/*/label]]
+puts stderr "gpionum: $gpionum"
+#set gpionum [expr {$gpionum + 26}]
+#set gpionum [expr {$gpionum + 32}]
+puts stderr "gpionum: $gpionum"
 
 # Define pin numbers for sysfsgpio
 # EMIO pins start at 78
-sysfsgpio tck_num [expr {$gpionum + 78}]
-sysfsgpio tdi_num [expr {$gpionum + 79}]
-sysfsgpio tms_num [expr {$gpionum + 80}]
-sysfsgpio trst_num [expr {$gpionum + 81}]
-sysfsgpio tdo_num [expr {$gpionum + 82}]
+#sysfsgpio tck_num [expr {$gpionum + 78}]
+#sysfsgpio tdi_num [expr {$gpionum + 79}]
+#sysfsgpio tms_num [expr {$gpionum + 80}]
+#sysfsgpio trst_num [expr {$gpionum + 81}]
+#sysfsgpio tdo_num [expr {$gpionum + 82}]
+
+sysfsgpio tck_num [expr {$gpionum + 0}]
+sysfsgpio tdi_num [expr {$gpionum + 1}]
+sysfsgpio tms_num [expr {$gpionum + 2}]
+sysfsgpio trst_num [expr {$gpionum + 3}]
+sysfsgpio tdo_num [expr {$gpionum + 4}]
 
 transport select jtag
 
