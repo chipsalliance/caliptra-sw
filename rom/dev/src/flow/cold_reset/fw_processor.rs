@@ -39,7 +39,7 @@ use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, Ima
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
-use zerocopy::{AsBytes, LayoutVerified};
+use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
@@ -252,7 +252,7 @@ impl FirmwareProcessor {
                 match CommandId::from(txn.cmd()) {
                     CommandId::VERSION => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
                         resp.populate_chksum();
@@ -260,7 +260,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::SELF_TEST_START => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         if self_test_in_progress {
                             // TODO: set non-fatal error register?
@@ -275,7 +275,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         if !self_test_in_progress {
                             // TODO: set non-fatal error register?
@@ -289,7 +289,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::SHUTDOWN => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         let mut resp = MailboxRespHeader::default();
                         resp.populate_chksum();
@@ -300,7 +300,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::CAPABILITIES => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
@@ -341,7 +341,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::GET_IDEV_ECC_CSR => {
                         let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
                         let mut resp = GetIdevCsrResp::default();
@@ -410,13 +410,13 @@ impl FirmwareProcessor {
         let manifest = &mut persistent_data.get_mut().manifest1;
         if active_mode {
             let mbox_sram = txn.raw_mailbox_contents();
-            let manifest_buf = manifest.as_bytes_mut();
+            let manifest_buf = manifest.as_mut_bytes();
             if mbox_sram.len() < manifest_buf.len() {
                 Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
             }
             manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
         } else {
-            txn.copy_request(manifest.as_bytes_mut())?;
+            txn.copy_request(manifest.as_mut_bytes())?;
         }
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
@@ -592,7 +592,8 @@ impl FirmwareProcessor {
                 let addr = (manifest.fmc.load_addr) as *mut u32;
                 core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
             };
-            txn.copy_request(fmc_dest.as_bytes_mut())?;
+
+            txn.copy_request(fmc_dest.as_mut_bytes())?;
         }
 
         cprintln!(
@@ -618,7 +619,8 @@ impl FirmwareProcessor {
                 let addr = (manifest.runtime.load_addr) as *mut u32;
                 core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
             };
-            txn.copy_request(runtime_dest.as_bytes_mut())?;
+
+            txn.copy_request(runtime_dest.as_mut_bytes())?;
         }
 
         report_boot_status(FwProcessorLoadImageComplete.into());
@@ -723,7 +725,7 @@ impl FirmwareProcessor {
     /// # Returns
     /// * `()` - Ok
     ///    Error code on failure.
-    fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
+    pub fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
         // NOTE: Currently ROM only supports commands with a fixed request size
         //       This check will need to be updated if any commands are added with a variable request size
         if txn.dlen() as usize != data.len() {
@@ -734,11 +736,9 @@ impl FirmwareProcessor {
         txn.copy_request(data)?;
 
         // Extract header out from the rest of the request
-        let req_hdr: &MailboxReqHeader = LayoutVerified::<&[u8], MailboxReqHeader>::new(
-            &data[..core::mem::size_of::<MailboxReqHeader>()],
-        )
-        .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
-        .into_ref();
+        let req_hdr =
+            MailboxReqHeader::ref_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
+                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Verify checksum
         if !caliptra_common::checksum::verify_checksum(
@@ -770,7 +770,7 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         let mut measurement = StashMeasurementReq::default();
-        Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
+        Self::copy_req_verify_chksum(txn, measurement.as_mut_bytes())?;
 
         // Extend measurement into PCR31.
         Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;

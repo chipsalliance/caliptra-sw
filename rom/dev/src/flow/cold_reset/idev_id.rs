@@ -33,7 +33,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::*;
 use caliptra_x509::*;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 /// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.

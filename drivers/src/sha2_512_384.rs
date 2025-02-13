@@ -59,13 +59,32 @@ impl Sha2_512_384 {
     /// # Returns
     ///
     /// * `Sha2DigestOp` - Object representing the digest operation
-    pub fn sha384_digest_init(&mut self) -> CaliptraResult<Sha2DigestOp<'_, 384>> {
+    pub fn sha384_digest_init(&mut self) -> CaliptraResult<Sha2DigestOp<'_, Sha384>> {
         let op = Sha2DigestOp {
             sha: self,
             state: Sha2DigestState::Init,
             buf: [0u8; SHA512_BLOCK_BYTE_SIZE],
             buf_idx: 0,
             data_size: 0,
+            _phantom: core::marker::PhantomData,
+        };
+
+        Ok(op)
+    }
+
+    /// Initialize multi step digest operation
+    ///
+    /// # Returns
+    ///
+    /// * `Sha2DigestOp` - Object representing the digest operation
+    pub fn sha512_digest_init(&mut self) -> CaliptraResult<Sha2DigestOp<'_, Sha512>> {
+        let op = Sha2DigestOp {
+            sha: self,
+            state: Sha2DigestState::Init,
+            buf: [0u8; SHA512_BLOCK_BYTE_SIZE],
+            buf_idx: 0,
+            data_size: 0,
+            _phantom: core::marker::PhantomData,
         };
 
         Ok(op)
@@ -79,7 +98,7 @@ impl Sha2_512_384 {
 
         // Check if the buffer is not large
         if buf.len() > SHA512_MAX_DATA_SIZE {
-            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+            return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
         let mut first = true;
@@ -96,7 +115,7 @@ impl Sha2_512_384 {
                         self.digest_partial_block(mode, slice, first, buf.len())?;
                         break;
                     } else {
-                        return Err(CaliptraError::DRIVER_SHA2_INVALID_SLICE);
+                        return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_SLICE);
                     }
                 }
                 _ => {
@@ -109,7 +128,7 @@ impl Sha2_512_384 {
                         bytes_remaining -= SHA512_BLOCK_BYTE_SIZE;
                         first = false;
                     } else {
-                        return Err(CaliptraError::DRIVER_SHA2_INVALID_SLICE);
+                        return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_SLICE);
                     }
                 }
             }
@@ -201,6 +220,19 @@ impl Sha2_512_384 {
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
+    /// Copy digest to buffer
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - Digest buffer
+    fn sha512_read_digest(&mut self) -> Array4x16 {
+        let sha = self.sha512.regs();
+        // digest_block() only waits until the peripheral is ready for the next
+        // command; the result register may not be valid yet
+        wait::until(|| sha.status().read().valid());
+        Array4x16::read_from_reg(sha.digest())
+    }
+
     /// Generate digest over PCRs + nonce
     ///
     /// # Arguments
@@ -233,14 +265,14 @@ impl Sha2_512_384 {
         if status_reg.read().valid() {
             Ok(reg.gen_pcr_hash_digest().truncate::<12>().read().into())
         } else {
-            Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
+            Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR)
         }
     }
 
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA512_BLOCK_BYTE_SIZE - 1) {
-            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+            return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
         // Wait on the PCR to be retrieved from the PCR vault.
@@ -254,14 +286,14 @@ impl Sha2_512_384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if SHA384_HASH_SIZE > total_bytes || total_bytes > block.len() {
-            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+            return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
         block[SHA384_HASH_SIZE..total_bytes].copy_from_slice(data);
 
         if let Some(slice) = block.get(..total_bytes) {
             self.digest_partial_block(ShaMode::Sha384, slice, true, total_bytes)?;
         } else {
-            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+            return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
         Ok(())
@@ -309,7 +341,7 @@ impl Sha2_512_384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
+            return Err(CaliptraError::DRIVER_SHA2_512_384_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;
@@ -387,7 +419,7 @@ enum Sha2DigestState {
 }
 
 /// Multi step SHA-384 digest operation
-pub struct Sha2DigestOp<'a, const HASH_SIZE: u16> {
+pub struct Sha2DigestOp<'a, V> {
     /// SHA-384 Engine
     sha: &'a mut Sha2_512_384,
 
@@ -402,9 +434,12 @@ pub struct Sha2DigestOp<'a, const HASH_SIZE: u16> {
 
     /// Data size
     data_size: usize,
+
+    /// Phantom data to use the type parameter
+    _phantom: core::marker::PhantomData<V>,
 }
 
-impl<'a, const HASH_SIZE: u16> Sha2DigestOp<'a, HASH_SIZE> {
+impl<'a, V> Sha2DigestOp<'a, V> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha2DigestState::Init
@@ -418,69 +453,115 @@ impl<'a, const HASH_SIZE: u16> Sha2DigestOp<'a, HASH_SIZE> {
     }
 }
 
-impl<'a> Sha2DigestOp<'a, 384> {
+impl<'a> Sha2DigestOpTrait<'a, Sha384> for Sha2DigestOp<'a, Sha384> {
+    type DigestType = Array4x12;
+
+    fn sha_mode() -> ShaMode {
+        ShaMode::Sha384
+    }
+
+    fn read_digest(sha: &mut Sha2_512_384) -> Self::DigestType {
+        sha.sha384_read_digest()
+    }
+
+    fn as_digest_op(&mut self) -> &mut Sha2DigestOp<'a, Sha384> {
+        self
+    }
+}
+
+impl<'a> Sha2DigestOpTrait<'a, Sha512> for Sha2DigestOp<'a, Sha512> {
+    type DigestType = Array4x16;
+
+    fn sha_mode() -> ShaMode {
+        ShaMode::Sha512
+    }
+
+    fn read_digest(sha: &mut Sha2_512_384) -> Self::DigestType {
+        sha.sha512_read_digest()
+    }
+
+    fn as_digest_op(&mut self) -> &mut Sha2DigestOp<'a, Sha512> {
+        self
+    }
+}
+
+/// Trait for SHA-2 digest operations
+pub trait Sha2DigestOpTrait<'a, V>: Sized {
+    /// The digest type for this SHA-2 variant
+    type DigestType;
+
+    ///
+    fn as_digest_op(&mut self) -> &mut Sha2DigestOp<'a, V>;
+
+    /// Get the SHA mode for this variant
+    fn sha_mode() -> ShaMode;
+
+    /// Read the digest from hardware
+    fn read_digest(sha: &mut Sha2_512_384) -> Self::DigestType;
+
     /// Update the digest with data
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - Data to used to update the digest
-    pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
-        if self.state == Sha2DigestState::Final {
-            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
+    fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
+        let this = self.as_digest_op();
+        if this.state == Sha2DigestState::Final {
+            return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR);
         }
 
-        if self.data_size + data.len() > SHA512_MAX_DATA_SIZE {
-            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+        if this.data_size + data.len() > SHA512_MAX_DATA_SIZE {
+            return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
         for byte in data {
-            self.data_size += 1;
+            this.data_size += 1;
 
             // PANIC-FREE: Following check optimizes the out of bounds
             // panic in indexing the `buf`
-            if self.buf_idx >= self.buf.len() {
-                return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
+            if this.buf_idx >= this.buf.len() {
+                return Err(CaliptraError::DRIVER_SHA2_512_384_INDEX_OUT_OF_BOUNDS);
             }
 
             // Copy the data to the buffer
-            self.buf[self.buf_idx] = *byte;
-            self.buf_idx += 1;
+            this.buf[this.buf_idx] = *byte;
+            this.buf_idx += 1;
 
             // If the buffer is full calculate the digest of accumulated data
-            if self.buf_idx == self.buf.len() {
-                self.sha
-                    .digest_block(ShaMode::Sha384, &self.buf, self.is_first(), false)?;
-                self.reset_buf_state();
+            if this.buf_idx == this.buf.len() {
+                this.sha
+                    .digest_block(Self::sha_mode(), &this.buf, this.is_first(), false)?;
+                this.reset_buf_state();
             }
         }
 
         Ok(())
     }
 
-    /// Finalize the digest operations
-    pub fn finalize(mut self, digest: &mut Array4x12) -> CaliptraResult<()> {
-        if self.state == Sha2DigestState::Final {
-            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
+    /// Finalize the digest operation
+    fn finalize(mut self, digest: &mut Self::DigestType) -> CaliptraResult<()> {
+        let this = self.as_digest_op();
+        if this.state == Sha2DigestState::Final {
+            return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR);
         }
 
-        if self.buf_idx > self.buf.len() {
-            return Err(CaliptraError::DRIVER_SHA2_INVALID_SLICE);
+        if this.buf_idx > this.buf.len() {
+            return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_SLICE);
         }
 
         // Calculate the digest of the final block
-        let buf = &self.buf[..self.buf_idx];
-        self.sha
-            .digest_partial_block(ShaMode::Sha384, buf, self.is_first(), self.data_size)?;
+        let buf = &this.buf[..this.buf_idx];
+        this.sha
+            .digest_partial_block(Self::sha_mode(), buf, this.is_first(), this.data_size)?;
 
-        // Set the state of the operation to final
-        self.state = Sha2DigestState::Final;
-
-        // Copy digest
-        *digest = self.sha.sha384_read_digest();
+        this.state = Sha2DigestState::Final;
+        *digest = Self::read_digest(this.sha);
 
         Ok(())
     }
 }
+
+/// SHA-384 variant implementation
+pub struct Sha384;
+
+/// SHA-512 variant implementation
+pub struct Sha512;
 
 /// SHA-384 key access error trait
 trait Sha384KeyAccessErr {
@@ -492,9 +573,9 @@ impl Sha384KeyAccessErr for KvAccessErr {
     /// Convert to read data operation error
     fn into_read_data_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_SHA384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_SHA384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_SHA384_READ_DATA_KV_UNKNOWN,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_SHA2_512_384_READ_DATA_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_SHA2_512_384_READ_DATA_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_SHA2_512_384_READ_DATA_KV_UNKNOWN,
         }
     }
 }

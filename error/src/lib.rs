@@ -39,17 +39,22 @@ impl CaliptraError {
     pub const DRIVER_SHA256_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00020004);
 
-    /// Driver Error: SHA384
-    pub const DRIVER_SHA384_READ_DATA_KV_READ: CaliptraError = CaliptraError::new_const(0x00030001);
-    pub const DRIVER_SHA384_READ_DATA_KV_WRITE: CaliptraError =
+    /// Driver Error: SHA2_512_384
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_READ: CaliptraError =
+        CaliptraError::new_const(0x00030001);
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_WRITE: CaliptraError =
         CaliptraError::new_const(0x00030002);
-    pub const DRIVER_SHA384_READ_DATA_KV_UNKNOWN: CaliptraError =
+    pub const DRIVER_SHA2_512_384_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x00030003);
-    pub const DRIVER_SHA384_INVALID_STATE_ERR: CaliptraError = CaliptraError::new_const(0x00030007);
-    pub const DRIVER_SHA384_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00030008);
-    pub const DRIVER_SHA384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00030009);
-    pub const DRIVER_SHA2_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
-    pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const DRIVER_SHA2_512_384_INVALID_STATE_ERR: CaliptraError =
+        CaliptraError::new_const(0x00030007);
+    pub const DRIVER_SHA2_512_384_MAX_DATA_ERR: CaliptraError =
+        CaliptraError::new_const(0x00030008);
+    pub const DRIVER_SHA2_512_384_INVALID_KEY_SIZE: CaliptraError =
+        CaliptraError::new_const(0x00030009);
+    pub const DRIVER_SHA2_512_384_INVALID_SLICE: CaliptraError =
+        CaliptraError::new_const(0x0003000A);
+    pub const DRIVER_SHA2_512_384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
     /// Driver Error: SHA2_512_384ACC
@@ -707,6 +712,30 @@ impl CaliptraError {
     // TODO: What base value is right for this?
     // FIPS Hooks
     pub const FIPS_HOOKS_INJECTED_ERROR: CaliptraError = CaliptraError::new_const(0x90100000);
+
+    // Debug unlock errors
+    pub const ROM_SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE: CaliptraError =
+        CaliptraError::new_const(0xa0000000);
+    pub const ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000001);
+    pub const ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN: CaliptraError =
+        CaliptraError::new_const(0xa0000002);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000003);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ: CaliptraError =
+        CaliptraError::new_const(0xa0000004);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL: CaliptraError =
+        CaliptraError::new_const(0xa0000005);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE: CaliptraError =
+        CaliptraError::new_const(0xa0000006);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD: CaliptraError =
+        CaliptraError::new_const(0xa0000007);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS: CaliptraError =
+        CaliptraError::new_const(0xa0000008);
+    pub const ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE: CaliptraError =
+        CaliptraError::new_const(0xa0000009);
+    pub const ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE: CaliptraError =
+        CaliptraError::new_const(0xa000000a);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

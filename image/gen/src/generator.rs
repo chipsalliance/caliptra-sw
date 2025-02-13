@@ -16,7 +16,7 @@ use caliptra_image_types::*;
 use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer};
 use memoffset::offset_of;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::*;
 
@@ -435,12 +435,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             ImageTocEntryId::Runtime => &config.runtime,
         };
 
-        let r#type = ImageTocEntryType::Executable;
+        let toc_type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 
         let entry = ImageTocEntry {
             id: id.into(),
-            r#type: r#type.into(),
+            toc_type: toc_type.into(),
             revision: *image.rev(),
             version: image.version(),
             reserved: [0; 2],

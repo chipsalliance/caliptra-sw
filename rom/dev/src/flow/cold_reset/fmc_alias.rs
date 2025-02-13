@@ -31,13 +31,14 @@ use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{dice, x509};
 use caliptra_drivers::{
-    okmutref, report_boot_status, Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle,
+    okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
+    HmacMode, KeyId, Lifecycle,
 };
 use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
     FmcAliasCertTbsMlDsa87Params,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 #[derive(Default)]

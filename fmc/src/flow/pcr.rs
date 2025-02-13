@@ -31,7 +31,7 @@ use caliptra_drivers::{
     CaliptraResult, PersistentData,
 };
 use caliptra_error::CaliptraError;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Extend common data into the RT current and journey PCRs
 ///
@@ -92,7 +92,7 @@ fn log_pcr(
         pcr_ids,
         ..Default::default()
     };
-    dst.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
+    dst.pcr_data.as_mut_bytes()[..data.len()].copy_from_slice(data);
     fht.pcr_log_index += 1;
 
     Ok(())

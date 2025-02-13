@@ -12,7 +12,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
-use zerocopy::{AsBytes, LayoutVerified};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
@@ -51,9 +51,7 @@ fn test_stash_measurement() {
         .expect("We should have received a response");
 
     let resp_hdr: &StashMeasurementResp =
-        LayoutVerified::<&[u8], StashMeasurementResp>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref();
+        StashMeasurementResp::ref_from_bytes(resp.as_bytes()).unwrap();
 
     assert_eq!(resp_hdr.dpe_result, 0);
 

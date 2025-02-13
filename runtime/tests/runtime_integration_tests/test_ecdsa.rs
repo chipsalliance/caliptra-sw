@@ -7,7 +7,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
-use zerocopy::{AsBytes, FromBytes, LayoutVerified};
+use zerocopy::{FromBytes, IntoBytes};
 
 // This file includes some tests from Wycheproof to testing specific common
 // ECDSA problems.
@@ -117,7 +117,7 @@ fn ecdsa_cmd_run_wycheproof() {
                     }
                     Ok(Some(resp)) => {
                         // Verify the checksum and FIPS status
-                        let resp_hdr = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+                        let resp_hdr = MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
                         assert_eq!(
                             resp_hdr.fips_status,
                             MailboxRespHeader::FIPS_STATUS_APPROVED
@@ -211,10 +211,7 @@ fn test_ecdsa_verify_cmd() {
         .unwrap()
         .expect("We should have received a response");
 
-    let resp_hdr: &MailboxRespHeader =
-        LayoutVerified::<&[u8], MailboxRespHeader>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref();
+    let resp_hdr: &MailboxRespHeader = MailboxRespHeader::ref_from_bytes(resp.as_bytes()).unwrap();
 
     assert_eq!(
         resp_hdr.fips_status,

@@ -23,7 +23,7 @@ use caliptra_image_types::{
 use caliptra_test::image_pk_desc_hash;
 
 use common::*;
-use zerocopy::AsBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]
@@ -1380,13 +1380,13 @@ fn fw_load_error_vendor_lms_signature_invalid() {
     let mut fw_image = build_fw_image(image_options);
 
     // Get a mutable reference to the LMS public key.
-    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+    let (lms_pub_key, _) = ImageLmsPublicKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .vendor_pqc_active_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -1411,13 +1411,13 @@ fn fw_load_error_vendor_mldsa_signature_invalid() {
     let mut fw_image = build_fw_image(image_options);
 
     // Get a mutable reference to the public key.
-    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .vendor_pqc_active_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -1488,14 +1488,14 @@ fn fw_load_error_owner_lms_signature_invalid() {
     let mut fw_image = build_fw_image(image_options);
 
     // Get a mutable reference to the LMS public key.
-    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+    let (lms_pub_key, _) = ImageLmsPublicKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -1520,14 +1520,14 @@ fn fw_load_error_owner_mldsa_signature_invalid() {
     let mut fw_image = build_fw_image(image_options);
 
     // Get a mutable reference to the public key.
-    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
 
@@ -1859,14 +1859,14 @@ fn fw_load_bad_owner_lms_pub_key() {
     let mut fw_image = build_fw_image(image_options);
 
     // Modify the pub key
-    let lms_pub_key = ImageLmsPublicKey::mut_ref_from_prefix(
+    let (lms_pub_key, _) = ImageLmsPublicKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     lms_pub_key.digest[0] = 0xDEADBEEF.into();
@@ -1886,14 +1886,14 @@ fn fw_load_bad_owner_mldsa_pub_key() {
     let mut fw_image = build_fw_image(image_options);
 
     // Modify the pub key
-    let pub_key = ImageMldsaPubKey::mut_ref_from_prefix(
+    let (pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         fw_image
             .manifest
             .preamble
             .owner_pub_keys
             .pqc_pub_key
             .0
-            .as_bytes_mut(),
+            .as_mut_bytes(),
     )
     .unwrap();
     *pub_key = ImageMldsaPubKey([0xDEADBEEF; MLDSA87_PUB_KEY_WORD_SIZE]);

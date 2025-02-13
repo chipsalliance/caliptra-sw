@@ -21,7 +21,7 @@ use crate::{
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::ecc::{EccReg, RegisterBlock};
 use core::cmp::Ordering;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 /// ECC-384 Coordinate
@@ -116,7 +116,19 @@ impl<'a> From<Ecc384PrivKeyOut<'a>> for Ecc384PrivKeyIn<'a> {
 
 /// ECC-384 Public Key
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    IntoBytes,
+    FromBytes,
+    Immutable,
+    KnownLayout,
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Zeroize,
+)]
 pub struct Ecc384PubKey {
     /// X coordinate
     pub x: Ecc384Scalar,
@@ -135,7 +147,19 @@ impl Ecc384PubKey {
 
 /// ECC-384 Signature
 #[repr(C)]
-#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Eq, PartialEq, Zeroize)]
+#[derive(
+    Debug,
+    Default,
+    IntoBytes,
+    FromBytes,
+    Immutable,
+    KnownLayout,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Zeroize,
+)]
 pub struct Ecc384Signature {
     /// Random point
     pub r: Ecc384Scalar,

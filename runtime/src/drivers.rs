@@ -30,10 +30,10 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cf
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::Dma;
 use caliptra_drivers::{
-    cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError,
-    CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
-    PcrId, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, SocIfc, Trng,
+    cprint, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384,
+    Ecc384PubKey, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank, PcrId, PersistentDataAccessor, Pic,
+    ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::{
@@ -68,7 +68,7 @@ use dpe::{
 
 use core::cmp::Ordering::{Equal, Greater};
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[derive(PartialEq, Clone)]
 pub enum PauserPrivileges {

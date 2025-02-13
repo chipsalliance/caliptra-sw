@@ -3,7 +3,7 @@
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 

@@ -207,13 +207,15 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 }
 
 /// Caliptra Root Bus Arguments
-pub struct CaliptraRootBusArgs {
+pub struct CaliptraRootBusArgs<'a> {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
     pub dbg_manuf_service_req: DbgManufServiceRegReq,
     pub active_mode: bool,
+    pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
+    pub debug_intent: bool,
 
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
@@ -229,7 +231,7 @@ pub struct CaliptraRootBusArgs {
     pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
 }
-impl Default for CaliptraRootBusArgs {
+impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
         Self {
             rom: Default::default(),
@@ -237,6 +239,8 @@ impl Default for CaliptraRootBusArgs {
             security_state: Default::default(),
             dbg_manuf_service_req: Default::default(),
             active_mode: false,
+            prod_dbg_unlock_keypairs: vec![],
+            debug_intent: false,
             tb_services_cb: Default::default(),
             ready_for_fw_cb: Default::default(),
             upload_update_fw: Default::default(),
@@ -314,11 +318,12 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 256 * 1024;
     pub const DCCM_SIZE: usize = 256 * 1024;
 
-    pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs<'_>) -> Self {
         let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
+        let prod_dbg_unlock_keypairs = std::mem::take(&mut args.prod_dbg_unlock_keypairs);
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
@@ -328,7 +333,12 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
-        let dma = Dma::new(clock, mailbox_ram.clone(), soc_reg.clone());
+        let dma = Dma::new(
+            clock,
+            mailbox_ram.clone(),
+            soc_reg.clone(),
+            prod_dbg_unlock_keypairs,
+        );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
 

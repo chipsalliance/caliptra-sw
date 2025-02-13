@@ -16,7 +16,7 @@ use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use caliptra_drivers::memory_layout::ICCM_RANGE;
 
@@ -104,8 +104,9 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
             .as_bytes()
             .try_into()
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
-        let pub_key = Mldsa87PubKey::read_from(pub_key_bytes.as_bytes())
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        let pub_key = Mldsa87PubKey::read_from_bytes(pub_key_bytes.as_bytes()).or(Err(
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
+        ))?;
 
         // Signature is received in hw format from the image. No conversion needed.
         let sig_bytes: [u8; MLDSA87_SIGNATURE_BYTE_SIZE] = sig
@@ -113,8 +114,9 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
             .as_bytes()
             .try_into()
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
-        let sig = Mldsa87Signature::read_from(sig_bytes.as_bytes())
-            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        let sig = Mldsa87Signature::read_from_bytes(sig_bytes.as_bytes()).or(Err(
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
+        ))?;
 
         // digest is received in hw format. No conversion needed.
         let msg = digest.into();

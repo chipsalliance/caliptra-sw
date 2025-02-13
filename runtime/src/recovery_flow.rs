@@ -26,7 +26,7 @@ use core::{
     cell::{Cell, RefCell},
 };
 use ureg::{Mmio, MmioMut, Uint, UintType};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 pub enum RecoveryFlow {}
 
@@ -43,7 +43,7 @@ impl RecoveryFlow {
 
         // // download SoC manifest
         let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
-        let Some(manifest) = AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
+        let Ok((manifest, _)) = AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         };
         // [TODO][CAP2]: authenticate SoC manifest using keys available through Caliptra Image

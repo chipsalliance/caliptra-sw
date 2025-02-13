@@ -25,7 +25,7 @@ use caliptra_x509::{
     Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbsEcc384, LocalDevIdCertTbsEcc384,
 };
 use ureg::RealMmioMut;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));

@@ -25,7 +25,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{IntoBytes, TryFromBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
@@ -97,8 +97,8 @@ fn retrieve_csr_test() {
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
-    let csr_envelop =
-        InitDevIdCsrEnvelope::read_from_prefix(&*mem::take(&mut txn.req.data)).unwrap();
+    let (csr_envelop, _) =
+        InitDevIdCsrEnvelope::try_read_from_prefix(&mem::take(&mut txn.req.data)).unwrap();
     txn.respond_success();
 
     let ecc_csr_der = &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize];

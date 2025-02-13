@@ -13,11 +13,11 @@ Abstract:
 
 use crate::pcr_bank::{PcrBank, PcrId};
 use core::ops::{Index, IndexMut};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 #[repr(C, align(4))]
-#[derive(AsBytes, FromBytes, Zeroize)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct PcrResetCounter {
     counter: [u32; PcrBank::ALL_PCR_IDS.len()],
 }
