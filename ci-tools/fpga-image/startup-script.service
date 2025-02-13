@@ -3,7 +3,7 @@
 After=serial-getty.target
 After=network-online.target
 Wants=network-online.target
-Conflicts=serial-getty@ttyPS0.service
+Conflicts=serial-getty@ttyAMA0.service
 
 [Service]
 Type=idle
@@ -11,7 +11,7 @@ Restart=no
 StandardInput=tty-force
 StandardOutput=tty-force
 StandardError=tty-force
-TTYPath=/dev/ttyPS0
+TTYPath=/dev/ttyAMA0
 User=root
 WorkingDirectory=/home/runner
 ExecStart=/usr/bin/startup-script.sh
