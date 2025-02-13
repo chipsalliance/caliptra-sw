@@ -17,7 +17,8 @@ rm -rf release
 mkdir -p $WORKSPACE_DIR
 
 # Generate ROM and Image Bundle Binary
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle.bin
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle-lms.bin --pqc-key-type 3
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle-mldsa.bin --pqc-key-type 1
 # Copy ROM ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom.elf
 # Copy FMC ELF
@@ -26,7 +27,8 @@ cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/ca
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/caliptra-runtime.elf
 
 # Generate rom-with-log
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log.bin
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log-lms.bin --pqc-key-type 3
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log-mldsa.bin --pqc-key-type 1
 
 # Copy ROM-with-log ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
@@ -71,7 +73,9 @@ echo -e "Content:" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTL: caliptra-rtl/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tROM Bin: caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tROM ELF: caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "\tImage Bundle Bin: image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tImage Bundle Bins:" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\t\tLMS: image-bundle-lms.bin" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\t\tMLDSA: image-bundle-mldsa.bin" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFMC ELF: caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTFW ELF: caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFake ROM Bin: fake-caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
