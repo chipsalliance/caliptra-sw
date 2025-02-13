@@ -1049,7 +1049,7 @@ int run_tests(const test_info* info)
 
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
-    run_test(rt_test_all_commands, info, "Test all Runtime commmands");
+    run_test(rt_test_all_commands, info, "Test all Runtime commands");
     run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
