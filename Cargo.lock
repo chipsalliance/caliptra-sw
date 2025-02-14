@@ -707,6 +707,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-lms-types",
+ "caliptra-registers",
  "ufmt",
  "zerocopy",
 ]
