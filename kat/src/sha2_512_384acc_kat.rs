@@ -71,7 +71,7 @@ impl Sha2_512_384AccKat {
             // peripheral for SoC use, which we're not allowed to do if the
             // KAT doesn't pass.
             if result.is_err() {
-                caliptra_drivers::cprintln!("Droping operation");
+                caliptra_drivers::cprintln!("Dropping operation");
                 core::mem::forget(sha_acc_op);
             }
             result?;
