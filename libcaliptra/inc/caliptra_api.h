@@ -40,8 +40,25 @@ bool caliptra_ready_for_fuses(void);
 //          STILL_READY_FOR_FUSES   - Flow status still indicates ready for fuses after writing fuse done
 int caliptra_init_fuses(const struct caliptra_fuses *fuses);
 
-// Query if ROM is ready for firmware
-bool caliptra_ready_for_firmware(void);
+/**
+ * caliptra_ready_for_firmware
+ *
+ * Waits until Caliptra hardware is ready for firmware upload or until
+ * Caliptra reports an error
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_ready_for_firmware(void);
+
+/**
+ * caliptra_ready_for_runtime
+ *
+ * Waits until Caliptra hardware is ready for runtime commands or until
+ * Caliptra reports an error
+ *
+ * @return int 0 if ready, Caliptra error otherwise
+ */
+uint32_t caliptra_ready_for_runtime(void);
 
 // Read the value of the caliptra FW non-fatal error code
 // returns: Caliptra error code (see error/src/lib.rs)
@@ -182,6 +199,9 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 
 // Get IDev CSR
 int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
+
+// Sign with Exported Ecdsa
+int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
 
 // Self test start
 int caliptra_self_test_start(bool async);

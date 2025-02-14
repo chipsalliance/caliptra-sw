@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::SocManager;
+use caliptra_api::{mailbox::SignWithExportedEcdsaReq, SocManager};
 use caliptra_builder::{
     build_firmware_elf,
     firmware::{APP_WITH_UART, FMC_WITH_UART},
@@ -252,6 +252,54 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
 }
 
 #[test]
+fn test_change_locality() {
+    let args = RuntimeTestArgs {
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    model.set_apb_pauser(0x01);
+
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: DATA,
+        flags: DeriveContextFlags::CHANGE_LOCALITY
+            | DeriveContextFlags::MAKE_DEFAULT
+            | DeriveContextFlags::INPUT_ALLOW_X509,
+        tci_type: 0,
+        target_locality: 2,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_context_cmd),
+        DpeResult::Success,
+    )
+    .unwrap();
+
+    model.set_apb_pauser(0x02);
+
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: DATA,
+        flags: DeriveContextFlags::MAKE_DEFAULT,
+        tci_type: 0,
+        target_locality: 2,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_context_cmd),
+        DpeResult::Success,
+    )
+    .unwrap();
+}
+
+#[test]
 fn test_populate_idev_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
@@ -310,6 +358,66 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
         &mut model,
         CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
         resp,
+    );
+}
+
+#[test]
+fn test_sign_with_exported_ecdsa_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::SIGN_WITH_EXPORTED_ECDSA),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
+fn test_export_cdi_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let get_cert_chain_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&get_cert_chain_cmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
 }
 

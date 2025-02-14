@@ -327,20 +327,27 @@ uint32_t caliptra_read_fw_fatal_error()
 /**
  * caliptra_ready_for_firmware
  *
- * Reports if the Caliptra hardware is ready for firmware upload
+ * Waits until Caliptra hardware is ready for firmware upload or until
+ * Caliptra reports an error
  *
  * @return bool True if ready, false otherwise
  */
-bool caliptra_ready_for_firmware(void)
+uint32_t caliptra_ready_for_firmware(void)
 {
     uint32_t status;
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
         status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
         {
             ready = true;
         }
@@ -350,7 +357,7 @@ bool caliptra_ready_for_firmware(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
 }
 
 /**
@@ -364,13 +371,19 @@ bool caliptra_ready_for_firmware(void)
 uint32_t caliptra_ready_for_runtime(void)
 {
     uint32_t status;
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
         status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK)
         {
             ready = true;
         }
@@ -380,7 +393,7 @@ uint32_t caliptra_ready_for_runtime(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
 }
 
 /*
@@ -1211,6 +1224,19 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     caliptra_checksum checksum = 0;
 
     CREATE_PARCEL(p, OP_GET_IDEV_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Sign with Exported
+int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_SIGN_WITH_EXPORTED_ECDSA, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

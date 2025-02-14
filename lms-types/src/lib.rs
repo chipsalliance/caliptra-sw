@@ -1,10 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg_attr(all(not(test), not(fuzzing)), no_std)]
-
-use core::mem::size_of;
+#![cfg_attr(all(not(feature = "std"), not(test), not(fuzzing)), no_std)]
 
 use caliptra_cfi_derive::Launder;
+use core::mem::size_of;
+#[cfg(feature = "std")]
+use core::mem::size_of_val;
+#[cfg(feature = "std")]
+use serde::de::{self, Deserialize, Deserializer, Expected, MapAccess, Visitor};
 use zerocopy::{
     BigEndian, FromBytes, Immutable, IntoBytes, KnownLayout, LittleEndian, Unaligned, U32,
 };
@@ -53,6 +56,20 @@ impl LmsAlgorithmType {
     pub const LmsSha256N24H25: Self = Self::new(14);
 }
 
+// Manually implement serde::Deserialize. This has to be done manually because
+// the zerocopy type `U32` does not support it and implementations of a trait
+// have to be done in the crate the object is defined in. This is true for all
+// of the other manual implementations in this file as well.
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for LmsAlgorithmType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(LmsAlgorithmType::new(u32::deserialize(deserializer)?))
+    }
+}
+
 #[repr(transparent)]
 #[derive(
     IntoBytes,
@@ -87,6 +104,16 @@ impl LmotsAlgorithmType {
     pub const LmotsSha256N24W8: Self = Self::new(8);
 }
 
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for LmotsAlgorithmType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(LmotsAlgorithmType::new(u32::deserialize(deserializer)?))
+    }
+}
+
 #[derive(
     Copy, Clone, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Launder,
 )]
@@ -117,6 +144,106 @@ static_assert!(
             + size_of::<[u8; 16]>()
             + size_of::<[U32<LittleEndian>; 1]>())
 );
+
+#[cfg(feature = "std")]
+struct ExpectedDigestOrSeed<const N: usize>;
+
+#[cfg(feature = "std")]
+impl<const N: usize> Expected for ExpectedDigestOrSeed<N> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(
+            formatter,
+            "Expected an array of {} bytes",
+            size_of::<[U32<LittleEndian>; N]>()
+        )
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, const N: usize> Deserialize<'de> for LmsPublicKey<N> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(serde_derive::Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            TreeType,
+            Otstype,
+            Id,
+            Digest,
+        }
+        struct FieldVisitor<const N: usize>;
+
+        impl<'de, const N: usize> Visitor<'de> for FieldVisitor<N> {
+            type Value = LmsPublicKey<N>;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(format!("struct LmsPublicKey<{}>", N).as_str())
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut tree_type = None;
+                let mut otstype = None;
+                let mut id = None;
+                let mut digest = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::TreeType => {
+                            if tree_type.is_some() {
+                                return Err(de::Error::duplicate_field("tree_type"));
+                            }
+                            tree_type = Some(map.next_value()?);
+                        }
+                        Field::Otstype => {
+                            if otstype.is_some() {
+                                return Err(de::Error::duplicate_field("otstype"));
+                            }
+                            otstype = Some(map.next_value()?);
+                        }
+                        Field::Id => {
+                            if id.is_some() {
+                                return Err(de::Error::duplicate_field("id"));
+                            }
+                            id = Some(map.next_value()?);
+                        }
+                        Field::Digest => {
+                            if digest.is_some() {
+                                return Err(de::Error::duplicate_field("digest"));
+                            }
+                            let mut d = [Default::default(); N];
+                            let digest_bytes: Vec<u8> = map.next_value()?;
+                            if digest_bytes.len() != size_of_val(&d) {
+                                return Err(de::Error::invalid_length(
+                                    digest_bytes.len(),
+                                    &ExpectedDigestOrSeed::<N>,
+                                ));
+                            }
+                            d.as_mut_bytes().copy_from_slice(&digest_bytes);
+                            digest = Some(d);
+                        }
+                    }
+                }
+                let tree_type = tree_type.ok_or_else(|| de::Error::missing_field("tree_type"))?;
+                let otstype = otstype.ok_or_else(|| de::Error::missing_field("otstype"))?;
+                let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
+                let digest = digest.ok_or_else(|| de::Error::missing_field("digest"))?;
+                Ok(LmsPublicKey {
+                    tree_type,
+                    otstype,
+                    id,
+                    digest,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["tree_type", "otstype", "id", "digest"];
+        deserializer.deserialize_struct("LmsPublicKey", FIELDS, FieldVisitor)
+    }
+}
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
@@ -221,6 +348,92 @@ static_assert!(
             + size_of::<LmsIdentifier>()
             + size_of::<[U32<LittleEndian>; 1]>())
 );
+
+#[cfg(feature = "std")]
+impl<'de, const N: usize> Deserialize<'de> for LmsPrivateKey<N> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(serde_derive::Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            TreeType,
+            Otstype,
+            Id,
+            Seed,
+        }
+        struct FieldVisitor<const N: usize>;
+
+        impl<'de, const N: usize> Visitor<'de> for FieldVisitor<N> {
+            type Value = LmsPrivateKey<N>;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(format!("struct LmsPrivateKey<{}>", N).as_str())
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut tree_type = None;
+                let mut otstype = None;
+                let mut id = None;
+                let mut seed = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::TreeType => {
+                            if tree_type.is_some() {
+                                return Err(de::Error::duplicate_field("tree_type"));
+                            }
+                            tree_type = Some(map.next_value()?);
+                        }
+                        Field::Otstype => {
+                            if otstype.is_some() {
+                                return Err(de::Error::duplicate_field("otstype"));
+                            }
+                            otstype = Some(map.next_value()?);
+                        }
+                        Field::Id => {
+                            if id.is_some() {
+                                return Err(de::Error::duplicate_field("id"));
+                            }
+                            id = Some(map.next_value()?);
+                        }
+                        Field::Seed => {
+                            if seed.is_some() {
+                                return Err(de::Error::duplicate_field("seed"));
+                            }
+                            let mut s = [Default::default(); N];
+                            let seed_bytes: Vec<u8> = map.next_value()?;
+                            if seed_bytes.len() != size_of_val(&s) {
+                                return Err(de::Error::invalid_length(
+                                    seed_bytes.len(),
+                                    &ExpectedDigestOrSeed::<N>,
+                                ));
+                            }
+                            s.as_mut_bytes().copy_from_slice(&seed_bytes);
+                            seed = Some(s);
+                        }
+                    }
+                }
+                let tree_type = tree_type.ok_or_else(|| de::Error::missing_field("tree_type"))?;
+                let otstype = otstype.ok_or_else(|| de::Error::missing_field("otstype"))?;
+                let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
+                let seed = seed.ok_or_else(|| de::Error::missing_field("seed"))?;
+                Ok(LmsPrivateKey {
+                    tree_type,
+                    otstype,
+                    id,
+                    seed,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["tree_type", "otstype", "id", "seed"];
+        deserializer.deserialize_struct("LmsPrivateKey", FIELDS, FieldVisitor)
+    }
+}
 
 /// Converts a byte array to word arrays as used in the LMS types. Intended for
 /// use at compile-time or in tests / host utilities; not optimized for use in

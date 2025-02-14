@@ -57,6 +57,9 @@ impl CommandId {
 
     // The get FMC Alias CSR command.
     pub const GET_FMC_ALIAS_CSR: Self = Self(0x464D_4352); // "FMCR"
+
+    // The sign with exported ecdsa command.
+    pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
 }
 
 impl From<u32> for CommandId {
@@ -157,6 +160,7 @@ pub enum MailboxResp {
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
+    SignWithExportedEcdsa(SignWithExportedEcdsaResp),
 }
 
 impl MailboxResp {
@@ -179,6 +183,7 @@ impl MailboxResp {
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
+            MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -201,6 +206,7 @@ impl MailboxResp {
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -259,6 +265,7 @@ pub enum MailboxReq {
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
+    SignWithExportedEcdsa(SignWithExportedEcdsaReq),
 }
 
 impl MailboxReq {
@@ -284,6 +291,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
+            MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -309,6 +317,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -334,6 +343,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
+            MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
         }
     }
 
@@ -1050,6 +1060,66 @@ impl GetFmcAliasCsrResp {
     pub const DATA_MAX_SIZE: usize = 512;
 }
 impl ResponseVarSize for GetFmcAliasCsrResp {}
+
+// SIGN_WITH_EXPORTED_ECDSA
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedEcdsaReq {
+    pub hdr: MailboxReqHeader,
+    pub exported_cdi_handle: [u8; Self::EXPORTED_CDI_MAX_SIZE],
+    pub tbs: [u8; Self::MAX_DIGEST_SIZE],
+}
+
+impl Default for SignWithExportedEcdsaReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            exported_cdi_handle: [0u8; Self::EXPORTED_CDI_MAX_SIZE],
+            tbs: [0u8; Self::MAX_DIGEST_SIZE],
+        }
+    }
+}
+
+impl SignWithExportedEcdsaReq {
+    pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
+    pub const MAX_DIGEST_SIZE: usize = 48;
+}
+
+impl Request for SignWithExportedEcdsaReq {
+    const ID: CommandId = CommandId::SIGN_WITH_EXPORTED_ECDSA;
+    type Resp = SignWithExportedEcdsaResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedEcdsaResp {
+    pub hdr: MailboxRespHeader,
+    pub derived_pubkey_x: [u8; Self::X_SIZE],
+    pub derived_pubkey_y: [u8; Self::Y_SIZE],
+    pub signature_r: [u8; Self::R_SIZE],
+    pub signature_s: [u8; Self::S_SIZE],
+}
+
+impl SignWithExportedEcdsaResp {
+    pub const X_SIZE: usize = 48;
+    pub const Y_SIZE: usize = 48;
+    pub const R_SIZE: usize = 48;
+    pub const S_SIZE: usize = 48;
+}
+
+impl ResponseVarSize for SignWithExportedEcdsaResp {}
+
+impl Default for SignWithExportedEcdsaResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            signature_r: [0u8; Self::R_SIZE],
+            signature_s: [0u8; Self::S_SIZE],
+            derived_pubkey_x: [0u8; Self::X_SIZE],
+            derived_pubkey_y: [0u8; Self::Y_SIZE],
+        }
+    }
+}
 
 #[repr(u32)]
 #[derive(Debug, PartialEq, Eq)]
