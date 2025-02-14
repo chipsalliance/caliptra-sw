@@ -347,7 +347,9 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             return Err(err);
         }
 
-        if reg.cmd_rdy() && reg.cmd_ack() {
+        // TODO: if the hardware is fixed to make the ack flag sticky, we should
+        // check that as well before exiting the loop.
+        if reg.cmd_rdy() {
             return Ok(());
         }
     }
