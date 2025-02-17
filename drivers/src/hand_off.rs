@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::bounded_address::RomAddr;
-use crate::soc_ifc;
-use crate::{memory_layout, Ecc384PubKey, Ecc384Signature, KeyId, ResetReason};
+use crate::{persistent, soc_ifc};
+use crate::{Ecc384PubKey, Ecc384Signature, KeyId, ResetReason};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
 use caliptra_image_types::RomInfo;
@@ -120,8 +120,7 @@ const FHT_RESERVED_SIZE: usize = 1664;
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
 /// to pass parameters and configuration information from one firmware layer to the next.
-const _: () = assert!(size_of::<FirmwareHandoffTable>() == 2048);
-const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
+const _: () = assert!(size_of::<FirmwareHandoffTable>() == persistent::FHT_SIZE as usize);
 #[repr(C)]
 #[derive(Clone, Debug, IntoBytes, TryFromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct FirmwareHandoffTable {
