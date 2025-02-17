@@ -24,15 +24,9 @@ use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_common::keyids::KEY_ID_ROM_FMC_CDI;
+use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
-use caliptra_common::{
-    keyids::KEY_ID_ROM_FMC_CDI,
-    // [TODO][CAP2] add MLDSA
-    memory_layout::{
-        ECC_FMCALIAS_TBS_ORG, ECC_FMCALIAS_TBS_SIZE, ECC_LDEVID_TBS_ORG, ECC_LDEVID_TBS_SIZE,
-    },
-    FirmwareHandoffTable,
-};
 use caliptra_drivers::cprintln;
 use caliptra_drivers::Lifecycle;
 use caliptra_drivers::LmsResult;

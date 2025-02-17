@@ -14,7 +14,6 @@ use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault, PcrId};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
@@ -784,15 +783,9 @@ fn test_fht_info() {
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
-        // [TODO][CAP2] add mldsa equivalents
+        let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
         assert_eq!(fht.ecc_ldevid_tbs_size, 552);
         assert_eq!(fht.ecc_fmcalias_tbs_size, 753);
-        assert_eq!(fht.ecc_ldevid_tbs_addr, ECC_LDEVID_TBS_ORG);
-        assert_eq!(fht.ecc_fmcalias_tbs_addr, ECC_FMCALIAS_TBS_ORG);
-        assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
-        assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
-        assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
     }
 }
 

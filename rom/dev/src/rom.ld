@@ -29,7 +29,7 @@ CFI_STATE_ORG      = 0x500003E4;
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are
  * applied. To prevent legitimate overflows, caliptra_builder::elf2rom() will
- * ensure that the sections fit within the true 48k ROM size.
+ * ensure that the sections fit within the true 96k ROM size.
  */
 ROM_RELAXATION_PADDING = 8k;
 ROM_SIZE          = 96K;
