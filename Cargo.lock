@@ -571,6 +571,7 @@ dependencies = [
  "caliptra-api",
  "caliptra-cfi-lib",
  "caliptra-emu-bus",
+ "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model",
  "cbindgen",

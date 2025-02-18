@@ -9,6 +9,7 @@ typedef struct test_info {
   struct caliptra_buffer rom;
   struct caliptra_buffer image_bundle;
   struct caliptra_fuses fuses;
+  uint32_t apb_pauser;
 } test_info;
 
 #ifdef __cplusplus
