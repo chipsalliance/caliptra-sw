@@ -565,6 +565,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-api",
  "caliptra-emu-bus",
+ "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model",
  "cbindgen",
