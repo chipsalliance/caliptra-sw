@@ -110,6 +110,7 @@ func getHWModel() *C.struct_caliptra_model {
 
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
+	params.soc_user = 1
 
 	status := C.caliptra_model_init_default(params, &CaliptraCModel)
 	if status != 0 {
