@@ -27,12 +27,10 @@ static const uint16_t itrng_entropy_low_threshold = 0x1;
 static const uint16_t itrng_entropy_high_threshold = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
-// Arbitrary example only - values must be customized/tuned for the SoC
-static const uint32_t apb_pauser = 0x1;
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
-void hwmod_init(struct caliptra_buffer rom);
+void hwmod_init(struct caliptra_buffer rom, const test_info *info);
 
 #ifdef ENABLE_DEBUG
 // Exists for testbench only - not part of interface for actual implementation
@@ -57,7 +55,7 @@ static void caliptra_wait_for_csr_ready(void)
      }
 }
 
-/* 
+/*
  * caliptra_verify_signature
  *
  * Uses OpenSSL to verify that the signature returned by `SignWithExportedEcdsa`
@@ -211,6 +209,11 @@ int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
 {
     int status;
 
+    if (!info) {
+        printf("Failed to boot Caliptra, test_info is null\n");
+        return INVALID_PARAMS;
+    }
+
     // Initialize FSM GO
     caliptra_bootfsm_go();
 
@@ -227,14 +230,14 @@ int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
                                      itrng_entropy_repetition_count);
 
     // Set up our PAUSER value for the mailbox regs
-    status = caliptra_mbox_pauser_set_and_lock(apb_pauser);
+    status = caliptra_mbox_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set MBOX pauser Failed: 0x%x\n", status);
         return status;
     }
 
     // Set up our PAUSER value for the fuse regs
-    status = caliptra_fuse_pauser_set_and_lock(apb_pauser);
+    status = caliptra_fuse_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set FUSE pauser Failed: 0x%x\n", status);
         return status;
@@ -1045,7 +1048,7 @@ int run_tests(const test_info* info)
 {
     global_test_result = 0;
 
-    hwmod_init(info->rom);
+    hwmod_init(info->rom, info);
 
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
