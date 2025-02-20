@@ -22,11 +22,11 @@ use crate::{
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
-use caliptra_emu_bus::{Clock, Ram, Rom};
+use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc, sync::mpsc};
 use tock_registers::registers::InMemoryRegister;
 
 /// Default Deobfuscation engine key
@@ -254,6 +254,8 @@ impl Default for CaliptraRootBusArgs<'_> {
 }
 
 #[derive(Bus)]
+#[incoming_event_fn(incoming_event)]
+#[register_outgoing_events_fn(register_outgoing_events)]
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
@@ -371,6 +373,52 @@ impl CaliptraRootBus {
             sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
+    }
+
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.rom.incoming_event(event.clone());
+        self.doe.incoming_event(event.clone());
+        self.doe.incoming_event(event.clone());
+        self.ecc384.incoming_event(event.clone());
+        self.hmac.incoming_event(event.clone());
+        self.key_vault.incoming_event(event.clone());
+        self.sha512.incoming_event(event.clone());
+        self.sha256.incoming_event(event.clone());
+        self.ml_dsa87.incoming_event(event.clone());
+        self.iccm.incoming_event(event.clone());
+        self.dccm.incoming_event(event.clone());
+        self.uart.incoming_event(event.clone());
+        self.ctrl.incoming_event(event.clone());
+        self.soc_reg.incoming_event(event.clone());
+        self.mailbox_sram.incoming_event(event.clone());
+        self.mailbox.incoming_event(event.clone());
+        self.sha512_acc.incoming_event(event.clone());
+        self.dma.incoming_event(event.clone());
+        self.csrng.incoming_event(event.clone());
+        self.pic_regs.incoming_event(event);
+    }
+
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.rom.register_outgoing_events(sender.clone());
+        self.doe.register_outgoing_events(sender.clone());
+        self.doe.register_outgoing_events(sender.clone());
+        self.ecc384.register_outgoing_events(sender.clone());
+        self.hmac.register_outgoing_events(sender.clone());
+        self.key_vault.register_outgoing_events(sender.clone());
+        self.sha512.register_outgoing_events(sender.clone());
+        self.sha256.register_outgoing_events(sender.clone());
+        self.ml_dsa87.register_outgoing_events(sender.clone());
+        self.iccm.register_outgoing_events(sender.clone());
+        self.dccm.register_outgoing_events(sender.clone());
+        self.uart.register_outgoing_events(sender.clone());
+        self.ctrl.register_outgoing_events(sender.clone());
+        self.soc_reg.register_outgoing_events(sender.clone());
+        self.mailbox_sram.register_outgoing_events(sender.clone());
+        self.mailbox.register_outgoing_events(sender.clone());
+        self.sha512_acc.register_outgoing_events(sender.clone());
+        self.dma.register_outgoing_events(sender.clone());
+        self.csrng.register_outgoing_events(sender.clone());
+        self.pic_regs.register_outgoing_events(sender);
     }
 }
 

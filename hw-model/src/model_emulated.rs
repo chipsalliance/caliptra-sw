@@ -7,8 +7,10 @@ use std::hash::Hasher;
 use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::mpsc;
 
 use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::Event;
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, InstrTracer};
@@ -67,6 +69,10 @@ pub struct ModelEmulated {
     _rom_image_tag: u64,
     iccm_image_tag: Option<u64>,
     trng_mode: TrngMode,
+
+    events_to_caliptra: mpsc::Sender<Event>,
+    events_from_caliptra: mpsc::Receiver<Event>,
+    collected_events_from_caliptra: Vec<Event>,
 }
 
 #[cfg(feature = "coverage")]
@@ -194,12 +200,13 @@ impl HwModel for ModelEmulated {
             dccm_dest.copy_from_slice(params.dccm);
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
-        let cpu = {
+        let (events_to_caliptra, events_from_caliptra, cpu) = {
             let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
             }
-            cpu
+            let (events_to_caliptra, events_from_caliptra) = cpu.register_events();
+            (events_to_caliptra, events_from_caliptra, cpu)
         };
 
         let mut hasher = DefaultHasher::new();
@@ -217,6 +224,9 @@ impl HwModel for ModelEmulated {
             _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
+            events_to_caliptra,
+            events_from_caliptra,
+            collected_events_from_caliptra: vec![],
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -243,6 +253,8 @@ impl HwModel for ModelEmulated {
         if self.cpu_enabled.get() {
             self.cpu.step(self.trace_fn.as_deref_mut());
         }
+        let events = self.events_from_caliptra.try_iter().collect::<Vec<_>>();
+        self.collected_events_from_caliptra.extend(events);
     }
 
     fn output(&mut self) -> &mut Output {
@@ -305,8 +317,41 @@ impl HwModel for ModelEmulated {
     }
 
     // [TODO][CAP2] Should it be statically provisioned?
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        self.cpu.bus.bus.dma.axi.recovery.cms_data = Some(Rc::new(firmware.to_vec()));
+    fn put_firmware_in_rri(
+        &mut self,
+        firmware: &[u8],
+        soc_manifest: Option<&[u8]>,
+        mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        self.cpu.bus.bus.dma.axi.recovery.cms_data = vec![firmware.to_vec()];
+        if let Some(soc_manifest) = soc_manifest {
+            self.cpu
+                .bus
+                .bus
+                .dma
+                .axi
+                .recovery
+                .cms_data
+                .push(soc_manifest.to_vec());
+            if let Some(mcu_fw) = mcu_firmware {
+                self.cpu
+                    .bus
+                    .bus
+                    .dma
+                    .axi
+                    .recovery
+                    .cms_data
+                    .push(mcu_fw.to_vec());
+            }
+        }
         Ok(())
+    }
+
+    fn events_from_caliptra(&mut self) -> Vec<Event> {
+        self.collected_events_from_caliptra.drain(..).collect()
+    }
+
+    fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
+        self.events_to_caliptra.clone()
     }
 }
