@@ -3,7 +3,7 @@ name: FPGA Build
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "fpga-2.0-ci-dirty"]
   # Disabled in main-2.x until FPGA CI works again.
   # pull_request:
   workflow_call:
@@ -101,13 +101,184 @@ jobs:
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
-  build_test_binaries:
-    runs-on: [e2-standard-16]
-    timeout-minutes: 60
+  # build_test_binaries:
+  #   runs-on: [e2-standard-16]
+  #   timeout-minutes: 60
+  #
+  #   env:
+  #     # Change this to a new random value if you suspect the cache is corrupted
+  #     CACHE_BUSTER: 9ff0db888988
+  #
+  #   steps:
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v3
+  #       with:
+  #         submodules: 'true'
+  #
+  #     - name: Restore sysroot from cache
+  #       uses: actions/cache/restore@v3
+  #       id: restore_sysroot_cache
+  #       with:
+  #         path: /tmp/caliptra-fpga-sysroot.tar
+  #         key: sysroot-v9-${{ env.CACHE_BUSTER }}
+  #
+  #     - name: Extract sysroot
+  #       if: "steps.restore_sysroot_cache.outputs.cache-hit"
+  #       run: |
+  #         sudo tar xvf /tmp/caliptra-fpga-sysroot.tar
+  #
+  #     - name: Install sysroot pre-requisites
+  #       if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+  #       run: |
+  #         sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+  #
+  #     - name: build sysroot
+  #       # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
+  #       # it is missing xilinx-provided kernel headers needed to build kernel modules
+  #       if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+  #       run: |
+  #         sudo mkdir /tmp/caliptra-fpga-sysroot
+  #         sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
+  #         sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
+  #
+  #         # Remove unnecesary files
+  #         sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
+  #         sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
+  #         sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
+  #         sudo find /tmp/caliptra-fpga-sysroot/ \( -type c -or -type b -or -type p -or -type s \) -exec rm -f {} \;
+  #
+  #         sudo tar cvf /tmp/caliptra-fpga-sysroot.tar /tmp/caliptra-fpga-sysroot
+  #
+  #     - name: Save FPGA sysroot to cache
+  #       if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+  #       uses: actions/cache/save@v3
+  #       with:
+  #         path: /tmp/caliptra-fpga-sysroot.tar
+  #         key: sysroot-v9-${{ env.CACHE_BUSTER }}
+  #
+  #     - name: Install cross compiler
+  #       run: |
+  #         sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
+  #         rustup target add aarch64-unknown-linux-gnu
+  #
+  #     - name: Build test binaries
+  #       run: |
+  #         export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+  #         export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+  #         if [ "${{ inputs.rom-version }}" != "latest" ]; then
+  #           export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+  #         fi
+  #
+  #         if [ "${{ inputs.workflow_call }}" ]; then
+  #           FEATURES=fpga_realtime,${{ inputs.extra-features }}
+  #         else
+  #           FEATURES=fpga_realtime,itrng
+  #         fi
+  #         if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+  #           FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
+  #         fi
+  #         cargo nextest archive \
+  #           --features=${FEATURES} \
+  #           --release \
+  #           --target=aarch64-unknown-linux-gnu \
+  #           --archive-file=/tmp/caliptra-test-binaries.tar.zst
+  #
+  #         mkdir /tmp/caliptra-test-binaries/
+  #         tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
+  #         mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
+  #
+  #     - name: 'Upload test binaries artifact'
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+  #         path: /tmp/caliptra-test-binaries.sqsh
+  #         retention-days: 1
+  #
+  #     - name: Build test firmware
+  #       run: |
+  #         mkdir /tmp/caliptra-test-firmware
+  #
+  #         FEATURES=""
+  #         if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+  #           FEATURES=hw-${{ inputs.hw-version }}
+  #         fi
+  #         cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+  #
+  #     - name: 'Upload test firmware artifact'
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+  #         path: /tmp/caliptra-test-firmware
+  #         retention-days: 1
 
-    env:
-      # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+  # build_kernel_modules:
+  #   runs-on: ubuntu-22.04
+  #   needs: check_cache
+  #   if: "!needs.check_cache.outputs.kmod_cache_hit"
+  #   steps:
+  #     - name: Install sysroot pre-requisites
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+  #
+  #     - name: Setup xilinx sysroot
+  #       run: |
+  #         echo I am ${USER}
+  #
+  #         # NOTE: I would prefer to use
+  #         # iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-sysroot.tar.xz,
+  #         # but it has source for kernel version 5.15.0-1014-xilinx-zynqmp
+  #         # instead of 5.15.0-1015-xilinx-zynqmp used by the pre-built kernel.
+  #         curl -o /tmp/sysroot.tar.gz https://people.canonical.com/~platform/images/xilinx/zcu-ubuntu-22.04/iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-rootfs.tar.gz
+  #         SYSROOT="${GITHUB_WORKSPACE}/sysroot"
+  #         mkdir "${SYSROOT}"
+  #         sudo tar xf /tmp/sysroot.tar.gz -C "${SYSROOT}"
+  #         ls -l "${SYSROOT}"
+  #         sudo cp -L --remove-destination /etc/resolv.conf "${SYSROOT}/etc/"
+  #         sudo chroot "${SYSROOT}" mount -t proc proc /proc
+  #         sudo chroot "${SYSROOT}" mount -t devtmpfs devtmpfs /dev
+  #         sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
+  #         sudo mkdir "${SYSROOT}/home/${USER}"
+  #         sudo chown "${USER}" "${SYSROOT}/home/${USER}"
+  #         #sudo chroot "${SYSROOT}" apt-get update
+  #         #sudo chroot "${SYSROOT}" apt-get -y install build-essential
+  #
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v3
+  #       with:
+  #         path: sysroot/home/runner/caliptra-sw
+  #
+  #     - name: Build modules
+  #       run: |
+  #         SYSROOT="${GITHUB_WORKSPACE}/sysroot"
+  #         KERNEL=5.15.0-1015-xilinx-zynqmp
+  #         sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
+  #         sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
+  #         sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
+  #         sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
+  #
+  #         mkdir /tmp/caliptra-fpga-kmod
+  #         cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
+  #         cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
+  #
+  #     - name: Save kernel modules to cache
+  #       uses: actions/cache/save@v3
+  #       with:
+  #         path: /tmp/caliptra-fpga-kmod/
+  #         key: ${{ needs.check_cache.outputs.kmod_cache_key }}
+  #
+  #     - name: 'Upload kernel module artifacts'
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
+  #         path: /tmp/caliptra-fpga-kmod/
+  #         retention-days: 1
+
+  build_bitstream:
+    runs-on: [n2d-highmem-32, fpga-tools]
+    timeout-minutes: 15
+    needs: check_cache
+    if: "!needs.check_cache.outputs.rtl_cache_hit"
 
     steps:
       - name: Checkout repo
@@ -115,208 +286,27 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Restore sysroot from cache
-        uses: actions/cache/restore@v3
-        id: restore_sysroot_cache
-        with:
-          path: /tmp/caliptra-fpga-sysroot.tar
-          key: sysroot-v9-${{ env.CACHE_BUSTER }}
-
-      - name: Extract sysroot
-        if: "steps.restore_sysroot_cache.outputs.cache-hit"
+      - name: Mount FPGA tools
         run: |
-          sudo tar xvf /tmp/caliptra-fpga-sysroot.tar
+          # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
+          sudo mkdir /fpga-tools
+          sudo mount UUID=be18f242-fb8d-4d99-971e-a8ae390ad620 /fpga-tools/
 
-      - name: Install sysroot pre-requisites
-        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+      - name: Build FPGA bitstream
         run: |
-          sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
-
-      - name: build sysroot
-        # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
-        # it is missing xilinx-provided kernel headers needed to build kernel modules
-        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
-        run: |
-          sudo mkdir /tmp/caliptra-fpga-sysroot
-          sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
-          sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
-
-          # Remove unnecesary files
-          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
-          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
-          sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
-          sudo find /tmp/caliptra-fpga-sysroot/ \( -type c -or -type b -or -type p -or -type s \) -exec rm -f {} \;
-
-          sudo tar cvf /tmp/caliptra-fpga-sysroot.tar /tmp/caliptra-fpga-sysroot
-
-      - name: Save FPGA sysroot to cache
-        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
-        uses: actions/cache/save@v3
-        with:
-          path: /tmp/caliptra-fpga-sysroot.tar
-          key: sysroot-v9-${{ env.CACHE_BUSTER }}
-
-      - name: Install cross compiler
-        run: |
-          sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
-          rustup target add aarch64-unknown-linux-gnu
-
-      - name: Build test binaries
-        run: |
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
-          if [ "${{ inputs.rom-version }}" != "latest" ]; then
-            export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+          cd hw/fpga
+          mkdir caliptra_build
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
+          if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
+            echo "Output file was not found; failing script"
+            exit 1
           fi
 
-          if [ "${{ inputs.workflow_call }}" ]; then
-            FEATURES=fpga_realtime,${{ inputs.extra-features }}
-          else
-            FEATURES=fpga_realtime,itrng
-          fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
-          fi
-          cargo nextest archive \
-            --features=${FEATURES} \
-            --release \
-            --target=aarch64-unknown-linux-gnu \
-            --archive-file=/tmp/caliptra-test-binaries.tar.zst
-
-          mkdir /tmp/caliptra-test-binaries/
-          tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
-          mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
-
-      - name: 'Upload test binaries artifact'
+      - name: 'Upload FPGA bitstream artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-binaries.sqsh
-          retention-days: 1
-
-      - name: Build test firmware
-        run: |
-          mkdir /tmp/caliptra-test-firmware
-
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
-
-      - name: 'Upload test firmware artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-firmware
-          retention-days: 1
-
-  build_kernel_modules:
-    runs-on: ubuntu-22.04
-    needs: check_cache
-    if: "!needs.check_cache.outputs.kmod_cache_hit"
-    steps:
-      - name: Install sysroot pre-requisites
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
-
-      - name: Setup xilinx sysroot
-        run: |
-          echo I am ${USER}
-
-          # NOTE: I would prefer to use
-          # iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-sysroot.tar.xz,
-          # but it has source for kernel version 5.15.0-1014-xilinx-zynqmp
-          # instead of 5.15.0-1015-xilinx-zynqmp used by the pre-built kernel.
-          curl -o /tmp/sysroot.tar.gz https://people.canonical.com/~platform/images/xilinx/zcu-ubuntu-22.04/iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-rootfs.tar.gz
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          mkdir "${SYSROOT}"
-          sudo tar xf /tmp/sysroot.tar.gz -C "${SYSROOT}"
-          ls -l "${SYSROOT}"
-          sudo cp -L --remove-destination /etc/resolv.conf "${SYSROOT}/etc/"
-          sudo chroot "${SYSROOT}" mount -t proc proc /proc
-          sudo chroot "${SYSROOT}" mount -t devtmpfs devtmpfs /dev
-          sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
-          sudo mkdir "${SYSROOT}/home/${USER}"
-          sudo chown "${USER}" "${SYSROOT}/home/${USER}"
-          #sudo chroot "${SYSROOT}" apt-get update
-          #sudo chroot "${SYSROOT}" apt-get -y install build-essential
-
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          path: sysroot/home/runner/caliptra-sw
-
-      - name: Build modules
-        run: |
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          KERNEL=5.15.0-1015-xilinx-zynqmp
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
-
-          mkdir /tmp/caliptra-fpga-kmod
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
-
-      - name: Save kernel modules to cache
-        uses: actions/cache/save@v3
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ needs.check_cache.outputs.kmod_cache_key }}
-
-      - name: 'Upload kernel module artifacts'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
-
-  # build_bitstream:
-  #   runs-on: [e2-standard-8, fpga-tools]
-  #   timeout-minutes: 180
-  #   needs: check_cache
-  #   if: "!needs.check_cache.outputs.rtl_cache_hit"
-
-  #   steps:
-  #     - name: Checkout repo
-  #       uses: actions/checkout@v3
-  #       with:
-  #         submodules: 'true'
-
-  #     - name: Mount FPGA tools
-  #       run: |
-  #         # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
-  #         sudo mkdir /fpga-tools
-  #         sudo mount UUID=be18f242-fb8d-4d99-971e-a8ae390ad620 /fpga-tools/
-
-  #     - name: Build FPGA bitstream
-  #       run: |
-  #         cd hw/fpga
-  #         mkdir caliptra_build
-  #         if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
-  #           ITRNG=FALSE
-  #         else
-  #           ITRNG=TRUE
-  #         fi
-  #         if [ "${{ inputs.workflow_call }}" ]; then
-  #           RTL_VERSION="${{ inputs.hw-version }}"
-  #         else
-  #           RTL_VERSION="latest"
-  #         fi
-  #         /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
-  #         if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
-  #           echo "Output file was not found; failing script"
-  #           exit 1
-  #         fi
-
-  #     - name: 'Upload FPGA bitstream artifact'
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-  #         path: hw/fpga/caliptra_build/caliptra_fpga.bin
+          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
+          path: hw/fpga/caliptra_build/caliptra_fpga.bin
 
   # cache_fpga_bitstream_artifact:
   #   runs-on: ubuntu-22.04
