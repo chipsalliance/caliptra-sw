@@ -625,7 +625,7 @@ pub trait HwModel: SocManager {
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
             self.cover_fw_mage(fw_image);
-            let active_mode = self.soc_ifc().cptra_hw_config().read().active_mode_en();
+            let active_mode = self.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
             writeln!(
                 self.output().logger(),
                 "mode {}",

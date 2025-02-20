@@ -515,7 +515,7 @@ impl SocIfc {
             .regs()
             .cptra_hw_config()
             .read()
-            .active_mode_en()
+            .subsystem_mode_en()
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {

@@ -15,28 +15,42 @@ limitations under the License.*_<BR>
 
 # **Caliptra FPGA Guide** #
 FPGA provides a fast environment for software development and testing that uses Caliptra RTL.
-The Zynq's Programmable Logic is programmed with the Caliptra RTL and FPGA specific SoC wrapper logic including a connection to the Processing System AXI bus.
+The FPGA's Programmable Logic is programmed with the Caliptra RTL and FPGA specific SoC wrapper logic including a connection to the Processing System AXI bus.
 The Processing System ARM cores then act as the SoC Security Processor with memory mapped access to Caliptra's public register space.
 
 ![](./images/fpga_module_diagram.svg)
 
 ### Requirements: ###
  - Vivado
-   - Version v2022.2
+   - Version v2022.2 or 2024.2
+ - PetaLinux Tools
+   - Version must match Vivado
  - FPGA
-   - [ZCU104 Development Board](https://www.xilinx.com/products/boards-and-kits/zcu104.html)
+   - [VCK190](https://www.xilinx.com/products/boards-and-kits/vck190.html)
+   - VMK180 will be supported soon.
 
-### ZCU104 ###
+### Versal ###
 #### Processing system one time setup: ####
-1. Install ZCU104 SD card image
+1. Download VCK190 SD card image and install to a microSD card.
+   - Insert the SD card into the slot on top of the board. The slot below the board is for the System Controller.
    - https://ubuntu.com/download/amd-xilinx
-1. Configure SW6 to boot from SD1.
-   - Mode SW6[4:1]: OFF, OFF, OFF, ON
-     ![](./images/zynq_boot_switch.jpg)
-1. Install rustup using Unix directions: https://rustup.rs/#
+1. Configure SW1 to boot from SD1: [Image](./images/versal_boot_switch.jpg)
+   - Mode SW1[4:1]: OFF, OFF, OFF, ON
+1. Boot from the SD card. (Suggest using the serial port for initial setup)
+   - Initial credentials
+     - User: ubuntu Pass: ubuntu
+   - Install software dependencies - *Do not update the system*
+     ```shell
+     sudo apt update
+     sudo apt install make gcc
+     ```
+   - Install rustup using Unix directions: https://rustup.rs/#
+   - Consider assigning a hostname for SSH access.
 
 #### Serial port configuration: ####
-Serial port settings for connection over USB.
+The USB Type-C connecter J207 provides UART and JTAG access to the board. The first UART connection should be for the PS.
+
+Serial port settings:
  - Speed: 115200
  - Data bits: 8
  - Stop bits: 1
@@ -47,14 +61,15 @@ Serial port settings for connection over USB.
 The FPGA build process uses Vivado's batch mode to procedurally create the Vivado project using fpga_configuration.tcl.
 This script provides a number of configuration options for features that can be enabled using "-tclargs OPTION=VALUE OPTION=VALUE"
 
-| Option    | Purpose
-| ------    | -------
-| BUILD     | Automatically start building the FPGA.
-| GUI       | Open the Vivado GUI.
-| JTAG      | Assign JTAG signals to Zynq PS GPIO.
-| ITRNG     | Enable Caliptra's ITRNG.
-| CG_EN     | Removes FPGA optimizations and allows clock gating.
-| HW_LATEST | Use hw/latest instead of hw/1.0.
+| Option      | Purpose
+| ------      | -------
+| BUILD       | Automatically start building the FPGA.
+| GUI         | Open the Vivado GUI.
+| JTAG        | Assign JTAG signals to PS GPIO.
+| ITRNG       | Enable Caliptra's ITRNG.
+| CG_EN       | Removes FPGA optimizations and allows clock gating.
+| RTL_VERSION | RTL directory under hw/. latest or 1.0.
+| BOARD       | VCK190 or VMK180 (TODO: VMK180 not fully enabled)
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
@@ -67,60 +82,43 @@ This script provides a number of configuration options for features that can be 
     - Run Synthesis: `launch_runs synth_1`
     - [Optional] Set Up Debug signals on Synthesized Design
     - Run Implementation: `launch_runs impl_1`
-    - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
+    - Generate Device Image: `write_device_image $outputDir/caliptra_fpga`
+    - Export hardware: `write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa`
 
-### Loading and execution Steps: ###
-[setup_fpga.sh](setup_fpga.sh) performs platform setup that is needed after each boot.
- - Disables CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
- - Reduces fan speed by setting the GPIO pin connected to the fan controller FULLSPD pin to output.
-   - https://support.xilinx.com/s/question/0D52E00006iHuopSAC/zcu104-fan-running-at-max-speed?language=en_US
- - Builds and installs the rom_backdoor and io_module kernel modules.
- - Sets the clock for the FPGA logic.
- - Installs the provided FPGA image.
+### Build boot.bin: ###
+ - Source PetaLinux tools from the PetaLinux installation directory.
+   `source settings.sh`
+ - Run steps from [create_boot_bin.sh](create_boot_bin.sh) to create a BOOT.BIN
+   - `./create_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
+ - Copy petalinux_project/images/linux/BOOT.BIN to the boot partition as boot1900.bin
+   - If the Ubuntu image is booted, it will mount the boot partition at /boot/firmware/
+   - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
 
+### Running Caliptra tests from the FPGA: ###
 ```shell
-sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
+# Install dependencies
+sudo apt update
+sudo apt install make gcc
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Clone this repo
+git clone https://github.com/chipsalliance/caliptra-sw.git
+git submodule init
+git submodule update
+# Compile and install the kernel module
+sudo ./hw/fpga/setup_fpga.sh
 
-CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
+CPTRA_UIO_NUM=0 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
 ```
 
 ### Processing System - Programmable Logic interfaces ###
-#### AXI Memory Map ####
- - SoC adapter for driving caliptra-top signals
-   - 0x80000000 - Generic Input Wires
-   - 0x80000008 - Generic Output Wires
-   - 0x80000010-0x8000002C - Deobfuscation key (256 bit)
-   - 0x80000030 - Control
-     - `[0] -> cptra_pwrgood`
-     - `[1] -> cptra_rst_b`
-     - `[3:2] -> device_lifecycle`
-     - `[4] -> debug_locked`
-   - 0x80000034 - Status
-     - `[0] <- cptra_error_fatal`
-     - `[1] <- cptra_error_non_fatal`
-     - `[2] <- ready_for_fuses`
-     - `[3] <- ready_for_fw`
-     - `[4] <- ready_for_runtime`
-   - 0x80000038 - PAUSER
-     - `[31:0] -> PAUSER to Caliptra APB`
-   - 0x80001000 - Log FIFO data. Reads pop data from FIFO.
-     - `[7:0] -> Next log character`
-     - `[8] -> Log character valid`
-   - 0x80001004 - Log FIFO register
-     - `[0] -> Log FIFO empty`
-     - `[1] -> Log FIFO full (probably overrun)`
-   - 0x80001008 - ITRNG FIFO data. Write loads data to FIFO.
-     - `[31:0] -> 32 bits of random data to be fed to itrng_data 4 bits at a time`
-   - 0x8000100C - ITRNG FIFO status.
-     - `[0] -> ITRNG FIFO empty`
-     - `[1] -> ITRNG FIFO full`
-     - `[2] -> ITRNG FIFO reset`
- - ROM Backdoor - 32K
-   - `0x82000000 - 0x82007FFF`
- - Caliptra SoC register interface
-   - `0x90000000`
-#### Interrupts ####
- - 89 - Log FIFO half full.
+[FPGA Wrapper Registers](fpga_wrapper_regs.md)
+
+#### Versal Memory Map ####
+| IP/Peripheral                       | Address size | Start address | End address |
+| :---------------------------------- | :----------- | :------------ | :---------- |
+| ROM Backdoor                        | 96 KiB       | 0xB000_0000   | 0xB001_7FFF |
+| FPGA Wrapper Registers              | 8 KiB        | 0xA401_0000   | 0xA401_1FFF |
+| Caliptra                            | 1 MiB        | 0xA410_0000   | 0xA41F_FFFF |
 
 ### JTAG debug
 Requirements:
