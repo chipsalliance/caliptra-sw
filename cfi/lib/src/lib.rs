@@ -27,6 +27,7 @@ pub struct CfiState {
 }
 
 #[cfg(feature = "cfi-test")]
+#[link_name = "CFI_STATE_ORG"]
 static mut CFI_STATE: CfiState = CfiState {
     val: 0,
     mask: 0,
