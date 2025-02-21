@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      CACHE_BUSTER: 79cee50b6134
+      CACHE_BUSTER: cfb3f0bf2dc0
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: 'true'
-  
+
       - name: Compute cache-keys
         id: cache_key
         run: |

@@ -22,8 +22,8 @@ jobs:
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
       SCCACHE_GHA_CACHE_TO: sccache-verilator-10000
       SCCACHE_GHA_CACHE_FROM: sccache-verilator-
-      # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 3962471045e8
+      # Change this to a new random value if you suspect the cache is corrupted or when changing Rust versions
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 3eb5996f3705
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"

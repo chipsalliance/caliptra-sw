@@ -23,7 +23,7 @@ jobs:
 
     env:
       NEXTEST_VERSION: 0.9.63
-      CACHE_BUSTER: f7c64774f17c
+      CACHE_BUSTER: 87b18c6e6499
 
     steps:
       - name: Restore cargo-nextest binary
@@ -94,4 +94,3 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
-

@@ -28,8 +28,8 @@ jobs:
     timeout-minutes: 90
 
     env:
-      # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 6542f37bb328
+      # Change this to a new random value if you suspect the cache is corrupted or when changing Rust versions
+      CACHE_BUSTER: 084f06d205fa
 
     steps:
       - name: Checkout repo

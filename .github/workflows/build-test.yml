@@ -21,8 +21,8 @@ jobs:
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
       # CPTRA_COVERAGE_PATH: /tmp
 
-      # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
+      # Change this to a new random value if you suspect the cache is corrupted or when changing Rust versions
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 311cf84c928a
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
@@ -167,8 +167,8 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)         
-         
+          (cd rom/dev && make run)
+
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
           git submodule update --init
@@ -180,4 +180,3 @@ jobs:
       - name: DPE Verification Tests
         run: |
           (cd test/dpe_verification && make run)
-          
