@@ -14,6 +14,7 @@ Abstract:
 
 use core::num::NonZeroU32;
 
+use crate::Array4x12;
 use crate::*;
 #[cfg(all(not(test), not(feature = "no-cfi")))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -22,10 +23,13 @@ use caliptra_cfi_lib::{
 };
 use caliptra_drivers::*;
 use caliptra_image_types::*;
+use caliptra_registers::sha512_acc::Sha512AccCsr;
 use memoffset::{offset_of, span_of};
 use zerocopy::AsBytes;
 
 const ZERO_DIGEST: &ImageDigest384 = &[0u32; SHA384_DIGEST_WORD_SIZE];
+
+// type Sha384Digest<'a> = &'a mut Array4x12;
 
 /// PQC public key and signature
 enum PqcKeyInfo<'a> {
@@ -57,6 +61,33 @@ struct TocInfo<'a> {
 struct ImageInfo<'a> {
     fmc: &'a ImageTocEntry,
     runtime: &'a ImageTocEntry,
+}
+
+fn sha384_acc_verify(
+    start_address: u32,
+    dlen: u32,
+    digest_failure: CaliptraError,
+) -> CaliptraResult<ImageDigest384> {
+    let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+    let mut digest = Array4x12::default();
+
+    if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+        let result = sha_acc_op
+            .digest_384(dlen, start_address, false, &mut digest)
+            .map_err(|_| digest_failure);
+
+        // If error, don't drop the operation since that will unlock the
+        // peripheral for SoC use, which we're not allowed to do if the
+        // KAT doesn't pass.
+        if result.is_err() {
+            core::mem::forget(sha_acc_op);
+        }
+        result?;
+    } else {
+        Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+    };
+
+    Ok(digest.0)
 }
 
 /// Image Verifier
@@ -1126,38 +1157,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
-            })?;
-
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
-            let result = || -> CaliptraResult<()> {
-                // SHA 512
-                sha_acc_op
-                    .digest_512(0, 0, false, &mut digest)
-                    .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
-                if digest != SHA512_EXPECTED_DIGEST {
-                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;
-                }
-
-                Ok(())
-            }();
-
-            // If error, don't drop the operation since that will unlock the
-            // peripheral for SoC use, which we're not allowed to do if the
-            // KAT doesn't pass.
-            if result.is_err() {
-                caliptra_drivers::cprintln!("Droping operation");
-                core::mem::forget(sha_acc_op);
-            }
-            result?;
-        } else {
-            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-        };
+        let actual = sha384_acc_verify(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;

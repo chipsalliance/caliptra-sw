@@ -699,6 +699,7 @@ dependencies = [
  "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-image-types",
+ "caliptra-registers",
  "caliptra_common",
  "memoffset 0.8.0",
  "zerocopy",

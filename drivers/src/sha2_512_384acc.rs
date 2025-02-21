@@ -177,9 +177,7 @@ impl Sha2_512_384AccOp<'_> {
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
-        if start_address >= MAX_MAILBOX_LEN
-            || (start_address + dlen) > MAX_MAILBOX_LEN
-        {
+        if start_address >= MAX_MAILBOX_LEN || (start_address + dlen) > MAX_MAILBOX_LEN {
             return Err(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS);
         }
 

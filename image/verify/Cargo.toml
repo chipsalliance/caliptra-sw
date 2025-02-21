@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 bitflags.workspace = true
 caliptra-drivers.workspace = true
+caliptra-registers.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 memoffset.workspace = true
 zerocopy.workspace = true
