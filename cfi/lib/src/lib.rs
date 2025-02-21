@@ -27,12 +27,14 @@ pub struct CfiState {
 }
 
 #[cfg(feature = "cfi-test")]
-#[link_name = "CFI_STATE_ORG"]
-static mut CFI_STATE: CfiState = CfiState {
-    val: 0,
-    mask: 0,
-    prng: Xoshiro128::new_unseeded(),
-};
+extern "C" {
+    #[link_name = "CFI_STATE_ORG"]
+    static mut CFI_STATE: CfiState = CfiState {
+        val: 0,
+        mask: 0,
+        prng: Xoshiro128::new_unseeded(),
+    };
+}
 
 #[cfg(not(feature = "cfi-test"))]
 extern "C" {

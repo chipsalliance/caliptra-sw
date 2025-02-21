@@ -220,7 +220,6 @@ pub fn cfi_panic(info: CfiPanicInfo) -> ! {
 
         #[cfg(not(feature = "cfi-test"))]
         {
-            #[no_mangle]
             extern "C" {
                 fn cfi_panic_handler(code: u32) -> !;
             }

@@ -9,7 +9,12 @@
 
 static const uint32_t RT_READY_FOR_COMMANDS = 0x600;
 
-static struct caliptra_buffer read_file_or_die(const char* path)
+void cfi_panic_handler(void)
+{
+    exit(-ENOENT);
+}
+
+static struct caliptra_buffer read_file_or_die(const char *path)
 {
     // Open File in Read Only Mode
     FILE *fp = fopen(path, "r");
