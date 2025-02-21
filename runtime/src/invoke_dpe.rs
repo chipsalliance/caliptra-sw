@@ -27,7 +27,7 @@ use dpe::{
     response::{Response, ResponseHdr},
     DpeInstance, U8Bool, MAX_HANDLES,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -145,27 +145,35 @@ impl InvokeDpeCmd {
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
+            let mut invoke_resp = InvokeDpeResp {
+                hdr: MailboxRespHeader::default(),
+                data_size: 0,
+                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
+            };
+
             // If DPE command failed, populate header with error code, but
             // don't fail the mailbox command.
-            let resp_struct = match resp {
-                Ok(r) => r,
-                Err(e) => {
+            match resp {
+                Ok(ref r) => {
+                    let resp_bytes = r.as_bytes();
+                    let data_size = resp_bytes.len();
+                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+                    invoke_resp.data_size = data_size as u32;
+                }
+                Err(ref e) => {
                     // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    Response::Error(ResponseHdr::new(e))
+                    let r = ResponseHdr::try_mut_from_bytes(
+                        &mut invoke_resp.data[..core::mem::size_of::<ResponseHdr>()],
+                    )
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
+                    *r = ResponseHdr::new(*e);
+                    let data_size = r.as_bytes().len();
+                    invoke_resp.data_size = data_size as u32;
                 }
             };
-
-            let resp_bytes = resp_struct.as_bytes();
-            let data_size = resp_bytes.len();
-            let mut invoke_resp = InvokeDpeResp {
-                hdr: MailboxRespHeader::default(),
-                data_size: data_size as u32,
-                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
-            };
-            invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
 
             Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
         } else {
