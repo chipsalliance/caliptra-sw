@@ -29,8 +29,6 @@ use zerocopy::AsBytes;
 
 const ZERO_DIGEST: &ImageDigest384 = &[0u32; SHA384_DIGEST_WORD_SIZE];
 
-// type Sha384Digest<'a> = &'a mut Array4x12;
-
 /// PQC public key and signature
 enum PqcKeyInfo<'a> {
     Lms(&'a ImageLmsPublicKey, &'a ImageLmsSignature),
