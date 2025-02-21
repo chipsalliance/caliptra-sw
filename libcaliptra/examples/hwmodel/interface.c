@@ -19,6 +19,10 @@ struct caliptra_model *model = NULL;
 
 static struct caliptra_model_init_params init_params;
 
+// These are needed if CFI is enabled.
+void cfi_panic_handler(void) {}
+
+uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
 
 // ONLY for testing. Not part of actual libcaliptra interface
 void testbench_reinit(void)

@@ -9,12 +9,13 @@
 
 static const uint32_t RT_READY_FOR_COMMANDS = 0x600;
 
+// These are needed if CFI is enabled.
 void cfi_panic_handler(void)
 {
     exit(-ENOENT);
 }
 
-uint8_t CFI_STATE_ORG[256]; // leave some extra room
+uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
 
 static struct caliptra_buffer read_file_or_die(const char *path)
 {
