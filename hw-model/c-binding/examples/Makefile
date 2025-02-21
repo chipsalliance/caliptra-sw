@@ -19,7 +19,7 @@ TARGET = $(OUT)/smoke_test
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/latest/rtl/src/soc_ifc/rtl
 BUILDER_PATH = ../../../builder
 CALIPTRA_MODEL_PATH = ../out
-CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH)
+CFLAGS += -flto -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH)
 
 SOURCE += api/caliptra_api.c
 SOURCE += smoke_test.c
@@ -37,6 +37,7 @@ $(OUT)/%.o: $(SOURCE)
 	$(CC) ${CFLAGS} -g -c $< -o $@
 
 $(TARGET): $(OUT)/debug/libcaliptra_hw_model_c_binding.a $(OBJS)
+	$(CC) --version
 	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-L$(OUT)/debug -lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lrt -lm
 
 clean:
