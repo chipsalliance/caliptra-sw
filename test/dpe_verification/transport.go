@@ -44,7 +44,7 @@ static int set_fuses()
 }
 
 // This is  needed if CFI is enabled.
-__attribute__((aligned(4))) static uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
+__attribute__((aligned(4))) uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
 */
 import "C"
 
