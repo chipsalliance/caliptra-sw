@@ -43,7 +43,6 @@ static int set_fuses()
     }
     return status;
 }
-
 */
 import "C"
 
@@ -110,6 +109,16 @@ func getHWModel() *C.struct_caliptra_model {
 
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
+
+	// use a dummy value for iccm and dccm because they have to be non-nil
+	iccm := C.CBytes([]byte{0})
+	defer C.free(iccm)
+	params.iccm.data = (*C.uchar)(iccm)
+	params.iccm.len = C.uintptr_t(0)
+	dccm := C.CBytes([]byte{0})
+	defer C.free(dccm)
+	params.dccm.data = (*C.uchar)(dccm)
+	params.dccm.len = C.uintptr_t(0)
 
 	status := C.caliptra_model_init_default(params, &CaliptraCModel)
 	if status != 0 {
