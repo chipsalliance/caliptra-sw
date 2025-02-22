@@ -12,22 +12,18 @@ Abstract:
 
 --*/
 
-use bitflags::bitflags;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
     MailboxRespHeader,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCmd, Command, CommandExecution},
+    commands::{CertifyKeyCmd, CommandExecution},
     response::Response,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::{
-    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges, MAX_CERT_CHAIN_SIZE,
-    PL0_PAUSER_FLAG,
-};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
@@ -81,7 +77,7 @@ impl CertifyKeyExtendedCmd {
             ),
         };
 
-        let mut dpe = &mut pdata.dpe;
+        let dpe = &mut pdata.dpe;
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..]).or(Err(
             CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
         ))?;

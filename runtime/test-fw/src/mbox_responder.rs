@@ -57,7 +57,7 @@ const BANNER: &str = r#"
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-fn rt_entry() -> () {
+fn rt_entry() {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
@@ -78,7 +78,6 @@ fn rt_entry() -> () {
     if let Err(e) = handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
-    return;
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {

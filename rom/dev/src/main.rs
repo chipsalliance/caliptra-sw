@@ -153,7 +153,7 @@ pub extern "C" fn rom_entry() -> ! {
             // Hmac-512/384 Engine
             hmac: &mut env.hmac,
 
-            /// Cryptographically Secure Random Number Generator
+            // Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
 
             // LMS Engine
@@ -162,13 +162,13 @@ pub extern "C" fn rom_entry() -> ! {
             // MLDSA87 Engine
             mldsa87: &mut env.mldsa87,
 
-            /// Ecc384 Engine
+            // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            /// SHA Acc lock state.
-            /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            /// On an Update Reset, it is expected to be unlocked.
-            /// Not having it unlocked will result in a fatal error.
+            // SHA Acc lock state.
+            // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+            // On an Update Reset, it is expected to be unlocked.
+            // Not having it unlocked will result in a fatal error.
             sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
                 ShaAccLockState::NotAcquired
             } else {

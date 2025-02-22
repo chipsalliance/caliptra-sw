@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use core::usize;
-
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, wait, Array4x12, Array4x16, Array4x8};
@@ -439,7 +437,7 @@ pub struct Sha2DigestOp<'a, V> {
     _phantom: core::marker::PhantomData<V>,
 }
 
-impl<'a, V> Sha2DigestOp<'a, V> {
+impl<V> Sha2DigestOp<'_, V> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha2DigestState::Init
@@ -490,7 +488,7 @@ pub trait Sha2DigestOpTrait<'a, V>: Sized {
     /// The digest type for this SHA-2 variant
     type DigestType;
 
-    ///
+    /// Get as Digest Op
     fn as_digest_op(&mut self) -> &mut Sha2DigestOp<'a, V>;
 
     /// Get the SHA mode for this variant

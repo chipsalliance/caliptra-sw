@@ -27,7 +27,7 @@ SOURCE += smoke_test.c
 OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 
 all: $(TARGET)
-$(OUT)/caliptra_model.h:
+$(OUT)/debug/libcaliptra_hw_model_c_binding.a:
 	cargo --config="$(EXTRA_CARGO_CONFIG)" build
 	mkdir -p $(OUT)/debug
 	cp ../../../target/debug/libcaliptra_hw_model_c_binding.a $(OUT)/debug/
@@ -36,11 +36,11 @@ $(OUT)/%.o: $(SOURCE)
 	$(MKDIR)
 	$(CC) ${CFLAGS} -g -c $< -o $@
 
-$(TARGET): $(OUT)/caliptra_model.h $(OBJS)
+$(TARGET): $(OUT)/debug/libcaliptra_hw_model_c_binding.a $(OBJS)
 	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-L$(OUT)/debug -lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lrt -lm
 
 clean:
-	$(RM) -rf $(OUT)
+	$(RM) -rf $(OUT) $(OBJS)
 
 run: $(TARGET)
 	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom-with-log $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin

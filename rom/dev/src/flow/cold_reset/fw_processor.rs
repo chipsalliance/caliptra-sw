@@ -77,7 +77,7 @@ impl FirmwareProcessor {
             // Hmac-512/384 Engine
             hmac: &mut env.hmac,
 
-            /// Cryptographically Secure Random Number Generator
+            // Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
 
             // LMS Engine
@@ -86,10 +86,10 @@ impl FirmwareProcessor {
             // Mldsa87 Engine
             mldsa87: &mut env.mldsa87,
 
-            /// Ecc384 Engine
+            // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            /// SHA Acc lock state
+            // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.

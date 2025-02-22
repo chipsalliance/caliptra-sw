@@ -210,7 +210,12 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
     env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ecc_ldevid_tbs.get_mut(..tbs.len()) else {
+    let Some(dst) = env
+        .persistent_data
+        .get_mut()
+        .ecc_ldevid_tbs
+        .get_mut(..tbs.len())
+    else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -230,7 +235,12 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
     env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let Some(dst) = env.persistent_data.get_mut().ecc_fmcalias_tbs.get_mut(..tbs.len()) else {
+    let Some(dst) = env
+        .persistent_data
+        .get_mut()
+        .ecc_fmcalias_tbs
+        .get_mut(..tbs.len())
+    else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
     dst.copy_from_slice(tbs);
@@ -248,7 +258,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub image: &'b [u8],
 }
 
-impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {
+impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;

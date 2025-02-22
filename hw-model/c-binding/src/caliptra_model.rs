@@ -1,12 +1,24 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::soc_mgr::SocManager;
+use caliptra_cfi_lib::CfiState;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SecurityState};
 use std::ffi::*;
 use std::slice;
 
 use caliptra_emu_types::RvSize;
+
+// These are needed if CFI is enabled.
+#[no_mangle]
+pub extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    std::process::exit(code as i32);
+}
+
+#[allow(unused)]
+#[no_mangle]
+static mut CFI_STATE_ORG: [u8; std::mem::size_of::<CfiState>()] =
+    [0; std::mem::size_of::<CfiState>()];
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -151,7 +163,7 @@ pub unsafe extern "C" fn caliptra_model_output_peek(model: *mut caliptra_model) 
     assert!(!model.is_null());
     let peek_str = (*{ model as *mut DefaultHwModel }).output().peek();
     caliptra_buffer {
-        data: peek_str.as_ptr() as *const u8,
+        data: peek_str.as_ptr(),
         len: peek_str.len(),
     }
 }

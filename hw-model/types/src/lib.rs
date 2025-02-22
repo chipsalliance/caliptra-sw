@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api_types::{self, Fuses, SecurityState};
+use caliptra_api_types::{self};
 use std::array;
 
 pub use caliptra_api_types::DeviceLifecycle;
@@ -30,15 +30,6 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
 pub const DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN: [u32; 4] =
     [0xcfcecdcc, 0xcbcac9c8, 0xc7c6c5c4, 0xc3c2c1c0];
 
-struct SecurityStateWrapper(SecurityState);
-impl std::fmt::Debug for SecurityStateWrapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SecurityState")
-            .field("debug_locked", &self.0.debug_locked())
-            .field("device_lifecycle", &self.0.device_lifecycle())
-            .finish()
-    }
-}
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum U4 {
     #[default]
@@ -109,33 +100,8 @@ impl TryFrom<u32> for U4 {
     }
 }
 
-struct FusesWrapper(Fuses);
-impl std::fmt::Debug for FusesWrapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Fuses")
-            .field("uds_seed", &HexSlice(&self.0.uds_seed))
-            .field("field_entropy", &HexSlice(&self.0.field_entropy))
-            .field("vendor_pk_hash", &HexSlice(&self.0.vendor_pk_hash))
-            .field("fuse_ecc_revocation", &self.0.fuse_ecc_revocation)
-            .field("owner_pk_hash", &HexSlice(&self.0.owner_pk_hash))
-            .field("firmware_svn", &HexSlice(&self.0.fw_svn))
-            .field("anti_rollback_disable", &self.0.anti_rollback_disable)
-            .field("idevid_cert_attr", &HexSlice(&self.0.idevid_cert_attr))
-            .field(
-                "idevid_manuf_hsm_id",
-                &HexSlice(&self.0.idevid_manuf_hsm_id),
-            )
-            .field("life_cycle", &self.0.life_cycle)
-            .field("fuse_lms_revocation", &self.0.fuse_lms_revocation)
-            .field("fuse_mldsa_revocation", &self.0.fuse_mldsa_revocation)
-            .field("soc_stepping_id", &self.0.soc_stepping_id)
-            .field("fuse_pqc_key_type", &self.0.fuse_pqc_key_type)
-            .finish()
-    }
-}
-
 pub struct HexSlice<'a, T: std::fmt::LowerHex + PartialEq>(pub &'a [T]);
-impl<'a, T: std::fmt::LowerHex + PartialEq> std::fmt::Debug for HexSlice<'a, T> {
+impl<T: std::fmt::LowerHex + PartialEq> std::fmt::Debug for HexSlice<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let width = std::mem::size_of::<T>() * 2 + 2;
         if self.0.len() > 1 && self.0.iter().all(|item| item == &self.0[0]) {
@@ -155,7 +121,7 @@ impl<'a, T: std::fmt::LowerHex + PartialEq> std::fmt::Debug for HexSlice<'a, T> 
 }
 
 pub struct HexBytes<'a>(pub &'a [u8]);
-impl<'a> std::fmt::Debug for HexBytes<'a> {
+impl std::fmt::Debug for HexBytes<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "\"")?;
         for val in self.0.iter() {

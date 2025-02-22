@@ -23,6 +23,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 /// Describes a Caliptra stack memory region
+#[allow(dead_code)] // Stack start never checked
 pub struct StackRange(u32, u32);
 impl StackRange {
     /// **Note:** `stack_start` MUST be greater than `stack_end`. Caliptra's stack grows
@@ -746,7 +747,9 @@ impl<TBus: Bus> Cpu<TBus> {
         if self.write_csr_machine(Csr::MEIHAP, meihap.0).is_err() {
             return StepAction::Fatal;
         }
-        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else { return StepAction::Fatal; };
+        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else {
+            return StepAction::Fatal;
+        };
         const MACHINE_EXTERNAL_INT: u32 = 0x8000_000B;
         let ret = self.handle_trap(self.read_pc(), MACHINE_EXTERNAL_INT, 0, next_pc);
         match ret {
@@ -1814,7 +1817,7 @@ mod tests {
     #[test]
     fn test_coverage() {
         // represent program as an array of 16-bit and 32-bit instructions
-        let instructions = vec![
+        let instructions = [
             Instr::Compressed(0x1234),
             Instr::Compressed(0xABCD),
             Instr::General(0xDEADBEEF),
