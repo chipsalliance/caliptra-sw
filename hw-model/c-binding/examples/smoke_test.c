@@ -9,14 +9,6 @@
 
 static const uint32_t RT_READY_FOR_COMMANDS = 0x600;
 
-// These are needed if CFI is enabled.
-void cfi_panic_handler(void)
-{
-    exit(-ENOENT);
-}
-
-uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
-
 static struct caliptra_buffer read_file_or_die(const char *path)
 {
     // Open File in Read Only Mode
@@ -60,11 +52,6 @@ static void display_usage(void)
 
 int main(int argc, char *argv[])
 {
-    for (int i = 0; i < 256; i++)
-    {
-	CFI_STATE_ORG[i] = 0;
-    }
-
     // Process Input Arguments
     int opt;
     const char *rom_path = NULL;

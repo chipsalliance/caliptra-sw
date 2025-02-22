@@ -564,6 +564,7 @@ name = "caliptra-hw-model-c-binding"
 version = "0.1.0"
 dependencies = [
  "caliptra-api",
+ "caliptra-cfi-lib",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "caliptra-hw-model",

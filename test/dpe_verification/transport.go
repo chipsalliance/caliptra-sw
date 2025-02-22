@@ -42,9 +42,6 @@ static int set_fuses()
     }
     return status;
 }
-
-// This is  needed if CFI is enabled.
-__attribute__((aligned(4))) uint8_t CFI_STATE_ORG[256] = {0}; // leave some extra room
 */
 import "C"
 
@@ -67,12 +64,6 @@ type CptraModel struct {
 // The libcaliptra API requires this to be global since the register read/write
 // APIs need to be callable from C
 var CALIPTRA_C_MODEL *C.struct_caliptra_model
-
-// This is  needed if CFI is enabled.
-//export cfi_panic_handler
-func cfi_panic_handler() {
-	os.Exit(-1)
-}
 
 //export caliptra_write_u32
 func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
