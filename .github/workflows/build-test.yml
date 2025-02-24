@@ -119,6 +119,13 @@ jobs:
             cargo build -p $proj --locked --no-default-features --features rustcrypto
           done
 
+      - name: Build hw-model with fpga_realtime, itrng, coverage
+        run: |
+          for feature in fpga_realtime itrng coverage; do
+            echo "Building with $feature"
+            cargo build --locked --features $feature
+          done
+
       # Clippy needs to build crates as part of the check, so do it after the
       # build.
       - name: Clippy lint check
@@ -167,8 +174,8 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)         
-         
+          (cd rom/dev && make run)
+
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
           git submodule update --init
@@ -180,4 +187,3 @@ jobs:
       - name: DPE Verification Tests
         run: |
           (cd test/dpe_verification && make run)
-          

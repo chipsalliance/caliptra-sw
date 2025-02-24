@@ -71,17 +71,17 @@ fn main() {
         // Set up the PAUSER as valid for the mailbox (using index 0)
         model
             .soc_ifc()
-            .cptra_mbox_valid_pauser()
+            .cptra_mbox_valid_axi_user()
             .at(0)
             .write(|_| 0x1);
         model
             .soc_ifc()
-            .cptra_mbox_pauser_lock()
+            .cptra_mbox_axi_user_lock()
             .at(0)
             .write(|w| w.lock(true));
 
         // Set the PAUSER to something invalid
-        model.set_apb_pauser(0x2);
+        model.set_axi_user(0x2);
 
         // The accesses below trigger sigbus
         assert!(!model.soc_mbox().lock().read().lock());
@@ -89,7 +89,7 @@ fn main() {
         assert!(!model.soc_mbox().lock().read().lock());
 
         // Set the PAUSER back to valid
-        model.set_apb_pauser(0x1);
+        model.set_axi_user(0x1);
 
         // Should read 0 the first time still for lock available
         assert!(!model.soc_mbox().lock().read().lock());
