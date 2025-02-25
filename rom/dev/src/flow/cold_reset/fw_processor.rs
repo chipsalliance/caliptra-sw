@@ -153,6 +153,10 @@ impl FirmwareProcessor {
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
+        unsafe {
+            ManuallyDrop::drop(&mut txn);
+        }
+
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
         // Update FW version registers
