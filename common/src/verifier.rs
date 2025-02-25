@@ -30,6 +30,7 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub data_vault: &'a DataVault,
     pub pcr_bank: &'a mut PcrBank,
     pub image: &'b [u8],
+    pub dma: &'a Dma,
 }
 
 impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
