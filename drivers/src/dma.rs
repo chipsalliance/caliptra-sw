@@ -246,9 +246,7 @@ impl Dma {
     ///
     /// This function will block until the DMA transaction is completed successfully.
     fn wait_for_dma_complete(&self) {
-        self.with_dma(|dma| {
-            while dma.status0().read().busy() {}
-        });
+        self.with_dma(|dma| while dma.status0().read().busy() {});
     }
 
     /// Read data from the DMA FIFO
@@ -605,7 +603,9 @@ impl<'a> DmaRecovery<'a> {
             )?;
 
             // Read RECOVERY_CTRL Byte[2] (3rd byte) for 'Activate Recovery Image' (0xF) command.
-            while get_byte_from_dword!(recovery.recovery_ctrl().read(), 2) != Self::ACTIVATE_RECOVERY_IMAGE_CMD {}
+            while get_byte_from_dword!(recovery.recovery_ctrl().read(), 2)
+                != Self::ACTIVATE_RECOVERY_IMAGE_CMD
+            {}
 
             // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
             self.set_device_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE);
@@ -617,9 +617,9 @@ impl<'a> DmaRecovery<'a> {
     pub fn set_device_recovery_status(&self, status: u8) {
         let _ = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            recovery
-                .recovery_status()
-                .modify(|recovery_status_val| (recovery_status_val & 0xFFFFFFF0) | (status & 0xF) as u32);
+            recovery.recovery_status().modify(|recovery_status_val| {
+                (recovery_status_val & 0xFFFFFFF0) | (status & 0xF) as u32
+            });
         });
     }
 }
