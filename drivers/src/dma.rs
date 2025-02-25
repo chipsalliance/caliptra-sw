@@ -22,12 +22,6 @@ use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 use zerocopy::IntoBytes;
 
-macro_rules! get_byte_from_dword {
-    ($dword:expr, $byte_pos:expr) => {
-        (($dword >> (8 * $byte_pos)) & 0xFF) as u8
-    };
-}
-
 pub enum DmaReadTarget {
     Mbox(u32),
     AhbFifo,
@@ -446,20 +440,17 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
     const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
-    const PROT_CAP2_FLASHLESS_BOOT_BIT: u32 = 27;
+    const PROT_CAP2_FLASHLESS_BOOT_BIT: u32 = 11;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
     const READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
 
     const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
-    const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u8 = 0x2;
-    pub const RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR: u8 = 0xD;
-    pub const RECOVERY_STATUS_SUCCESSFUL: u8 = 0x3;
+    const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
+    pub const RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR: u32 = 0xD;
+    pub const RECOVERY_STATUS_SUCCESSFUL: u32 = 0x3;
 
-    const RESET_BYTE_0_2_3_MASK: u32 = 0xFF00;
-    const RESET_BYTE_0_MASK: u32 = 0xFFFFFF00;
-    const FW_IMG_INDEX_BIT_POS: u32 = 4;
-    const ACTIVATE_RECOVERY_IMAGE_CMD: u8 = 0xF;
+    const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
     #[inline(always)]
     pub fn new(base: AxiAddr, dma: &'a Dma) -> Self {
@@ -555,25 +546,24 @@ impl<'a> DmaRecovery<'a> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // Set PROT_CAP2 Bit27 to 1 ('Flashless boot').
+            // Set PROT_CAP2.AGENT_CAPS Bit11 to 1 ('Flashless boot').
             recovery
                 .prot_cap_2()
-                .modify(|val| val | (1 << Self::PROT_CAP2_FLASHLESS_BOOT_BIT));
+                .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_BIT));
 
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
             // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
             recovery.device_status_0().modify(|val| {
-                (val & Self::RESET_BYTE_0_2_3_MASK)
-                    | (Self::FLASHLESS_STREAMING_BOOT_VALUE << 16)
-                    | Self::READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
+                val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
+                    .dev_status(Self::READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
             });
 
             // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
             // Set Byte0 Bit[7:4] to recovery image index
             recovery.recovery_status().modify(|recovery_status_val| {
-                (recovery_status_val & Self::RESET_BYTE_0_MASK)
-                    | (fw_image_index << Self::FW_IMG_INDEX_BIT_POS)
-                    | Self::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE
+                recovery_status_val
+                    .rec_img_index(fw_image_index)
+                    .dev_rec_status(Self::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE)
             });
         })?;
 
@@ -585,11 +575,10 @@ impl<'a> DmaRecovery<'a> {
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
             // Read the image size from INDIRECT_FIFO_CTRL0:Byte[2:3] & INDIRECT_FIFO_CTRL1:Byte[0:1]. Image size in DWORDs.
-            let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
-            let indirect_fifo_ctrl_val1 = recovery.indirect_fifo_ctrl_1().read();
+            let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
+            let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
 
-            let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
-                | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
+            let image_size_dwords = image_size_msb << 16 | image_size_lsb;
 
             // Transfer the image from the recovery interface to the mailbox sram.
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
@@ -603,7 +592,7 @@ impl<'a> DmaRecovery<'a> {
             )?;
 
             // Read RECOVERY_CTRL Byte[2] (3rd byte) for 'Activate Recovery Image' (0xF) command.
-            while get_byte_from_dword!(recovery.recovery_ctrl().read(), 2)
+            while recovery.recovery_ctrl().read().activate_rec_img()
                 != Self::ACTIVATE_RECOVERY_IMAGE_CMD
             {}
 
@@ -614,12 +603,12 @@ impl<'a> DmaRecovery<'a> {
         })?
     }
 
-    pub fn set_device_recovery_status(&self, status: u8) {
+    pub fn set_device_recovery_status(&self, status: u32) {
         let _ = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            recovery.recovery_status().modify(|recovery_status_val| {
-                (recovery_status_val & 0xFFFFFFF0) | (status & 0xF) as u32
-            });
+            recovery
+                .recovery_status()
+                .modify(|recovery_status_val| recovery_status_val.dev_rec_status(status));
         });
     }
 }
