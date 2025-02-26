@@ -80,6 +80,7 @@ resource "google_project_service" "enabled_apis" {
 
 resource "google_secret_manager_secret" "github_webhook" {
   secret_id = "caliptra-gce-ci-github-webhook-secret-txt"
+  project = var.project_id
   replication {
     automatic = true
   }
@@ -87,6 +88,7 @@ resource "google_secret_manager_secret" "github_webhook" {
 }
 resource "google_secret_manager_secret" "github_private_key" {
   secret_id = "caliptra-gce-ci-github-private-key-pem"
+  project = var.project_id
   replication {
     automatic = true
   }
@@ -328,7 +330,7 @@ resource "google_pubsub_subscription_iam_binding" "hw_runner_requests" {
 
 resource "google_project_iam_binding" "project_artifactregister_reader" {
   project = var.project_id
-  role    = "roles/artifactregistry.reader"
+  role    = "roles/artifactregistry.createOnPushWriter"
   members = [
     "serviceAccount:${google_service_account.vm_creator.email}",
     "serviceAccount:${google_service_account.vm_maintenance_scheduler.email}",
