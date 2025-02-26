@@ -38,11 +38,14 @@ impl RecoveryFlow {
         const MCU_FIRMWARE_INDEX: u32 = 2;
 
         let dma = &drivers.dma;
-        let dma_recovery =
-            DmaRecovery::new(drivers.soc_ifc.recovery_interface_base_addr().into(), dma);
+        let dma_recovery = DmaRecovery::new(
+            drivers.soc_ifc.recovery_interface_base_addr().into(),
+            drivers.soc_ifc.mci_base_addr().into(),
+            dma,
+        );
 
         // // download SoC manifest
-        let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)?;
+        let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)?;
         let Ok((manifest, _)) = AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         };
@@ -55,11 +58,18 @@ impl RecoveryFlow {
             .auth_manifest_image_metadata_col = manifest.image_metadata_col;
         // [TODO][CAP2]: capture measurement of Soc manifest?
         // [TODO][CAP2]: this should be writing to MCU SRAM directly via AXI
-        let _mcu_size_bytes = dma_recovery.download_image_to_mbox(MCU_FIRMWARE_INDEX)?;
+        let _mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
         // [TODO][CAP2]: instruct Caliptra HW to read MCU SRAM and generate the hash (using HW SHA accelerator and AXI mastering capabilities to do this)
         // [TODO][CAP2]: use this hash and verify it against the hash in the SOC manifest
         // [TODO][CAP2]: after verifying/authorizing the image and if it passes, it will set EXEC/GO bit into the register as specified in the previous command. This register write will also assert a Caliptra interface wire
-        // [TODO][CAP2]: set recovery flow is completed
+
+        // notify MCU that it can boot
+        // TODO: get the correct value for this
+        dma_recovery.set_mci_flow_status(123);
+
+        // we're done with recovery
+        dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL)?;
+
         Ok(())
     }
 }
