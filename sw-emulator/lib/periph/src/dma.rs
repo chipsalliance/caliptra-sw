@@ -191,7 +191,10 @@ impl Dma {
     // [TODO][CAP2] DMA transactions need to be a multiple of this
     const AXI_DATA_WIDTH: usize = 4;
 
-    const DMA_CLOCKS_PER_WORD: u64 = 4;
+    // How many cycles it takes for a DMA transfer, per word
+    const DMA_CYCLES_PER_WORD: u64 = 1;
+    // Minimum number of cycles for a DMA transfer.
+    const DMA_CYCLES_MIN: u64 = 16;
 
     pub fn new(
         clock: &Clock,
@@ -249,8 +252,10 @@ impl Dma {
             }
 
             self.op_complete_action = Some(
-                self.timer
-                    .schedule_poll_in(Self::DMA_CLOCKS_PER_WORD * self.byte_count.reg.get() as u64),
+                self.timer.schedule_poll_in(
+                    (Self::DMA_CYCLES_PER_WORD * self.byte_count.reg.get() as u64 / 4)
+                        .max(Self::DMA_CYCLES_MIN),
+                ),
             );
             self.status0
                 .reg
