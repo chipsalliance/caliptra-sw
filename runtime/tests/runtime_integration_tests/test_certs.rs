@@ -376,9 +376,7 @@ fn cold_reset(
 //      2. Stash measurement at runtime
 //      3. DPE derive context (at runtime)
 // Confirm the resulting DPE leaf cert is identical in all three cases
-
-// [TODO][CAP2]: This test is failing for both key types. Re-enable when fixed.
-// #[test]
+#[test]
 #[allow(dead_code)]
 pub fn test_all_measurement_apis() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
@@ -411,7 +409,6 @@ pub fn test_all_measurement_apis() {
                 ..Default::default()
             },
             BootParams {
-                fw_image: Some(&fw_image),
                 fuses,
                 ..Default::default()
             },
