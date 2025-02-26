@@ -529,7 +529,7 @@ impl HwModel for ModelFpgaRealtime {
         }
     }
 
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+    fn put_firmware_in_rri(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         todo!()
     }
 }
