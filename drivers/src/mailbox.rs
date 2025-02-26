@@ -504,8 +504,12 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Does not take ownership of self, unlike complete()
     pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
-        // No state transition is needed if this is a recovery transaction.
+        // If this is a recovery transaction, we need to release the lock that was acquired for the
+        // DMA engine to write data to the mailbox sram. No state transition is needed if this is
+        // a recovery transaction.
         if self.recovery_transaction {
+            let mbox = self.mbox.regs_mut();
+            mbox.unlock().write(|w| w.unlock(true));
             return Ok(());
         }
 
@@ -540,14 +544,6 @@ impl MailboxRecvTxn<'_> {
 
 impl Drop for MailboxRecvTxn<'_> {
     fn drop(&mut self) {
-        // If this is a recovery transaction, we need to release the lock that was acquired for the
-        // DMA engine to write data to the mailbox sram.
-        if self.recovery_transaction {
-            let mbox = self.mbox.regs_mut();
-            mbox.unlock().write(|w| w.unlock(true));
-            return;
-        }
-
         if self.state != MailboxOpState::Idle {
             // Execute -> Idle (releases lock)
             let _ = self.complete(false);

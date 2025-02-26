@@ -42,7 +42,7 @@ use core::mem::{size_of, ManuallyDrop};
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
-//const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
 
 #[derive(Debug, Default, Zeroize)]
 pub struct FwProcInfo {
@@ -153,9 +153,6 @@ impl FirmwareProcessor {
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
-        unsafe {
-            ManuallyDrop::drop(&mut txn);
-        }
 
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
@@ -219,9 +216,9 @@ impl FirmwareProcessor {
                 report_fw_error_non_fatal(0);
 
                 // Drop all commands for invalid PAUSER
-                // if txn.id() == RESERVED_PAUSER {
-                //     return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
-                // }
+                if txn.id() == RESERVED_PAUSER {
+                    return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
+                }
 
                 cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
 
@@ -456,6 +453,7 @@ impl FirmwareProcessor {
             ecc384: venv.ecc384,
             mldsa87: venv.mldsa87,
             image: venv.image,
+            dma: venv.dma,
         };
 
         // Random delay for CFI glitch protection.
