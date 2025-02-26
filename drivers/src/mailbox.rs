@@ -81,16 +81,22 @@ impl Mailbox {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn {
                 state: MailboxOpState::Execute,
                 mbox: &mut self.mbox,
+                recovery_transaction: false,
             }),
             _ => None,
         }
     }
 
     // Fake mailbox transaction used when downloading firmware image from Recovery Interface.
-    pub fn fake_recv_txn(&mut self) -> MailboxRecvTxn {
+    pub fn recovery_recv_txn(&mut self) -> MailboxRecvTxn {
+        // Acquire the lock as the DMA engine will be writing to the mailbox sram.
+        let mbox = self.mbox.regs();
+        while mbox.lock().read().lock() {}
+
         MailboxRecvTxn {
             state: MailboxOpState::Execute,
             mbox: &mut self.mbox,
+            recovery_transaction: true,
         }
     }
 
@@ -292,6 +298,7 @@ impl<'a> MailboxRecvPeek<'a> {
         MailboxRecvTxn {
             state: MailboxOpState::Execute,
             mbox: self.mbox,
+            recovery_transaction: false,
         }
     }
 }
@@ -356,6 +363,8 @@ pub struct MailboxRecvTxn<'a> {
     state: MailboxOpState,
 
     mbox: &'a mut MboxCsr,
+
+    recovery_transaction: bool,
 }
 
 impl MailboxRecvTxn<'_> {
@@ -495,6 +504,15 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Does not take ownership of self, unlike complete()
     pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+        // If this is a recovery transaction, we need to release the lock that was acquired for the
+        // DMA engine to write data to the mailbox sram. No state transition is needed if this is
+        // a recovery transaction.
+        if self.recovery_transaction {
+            let mbox = self.mbox.regs_mut();
+            mbox.unlock().write(|w| w.unlock(true));
+            return Ok(());
+        }
+
         if self.state != MailboxOpState::Execute && self.state != MailboxOpState::RdyForData {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }

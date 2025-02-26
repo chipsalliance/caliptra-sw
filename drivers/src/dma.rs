@@ -18,15 +18,12 @@ use caliptra_registers::axi_dma::{
     AxiDmaReg, RegisterBlock,
 };
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
-use core::cell::Cell;
-use core::ops::Add;
+use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 use zerocopy::IntoBytes;
 
-use crate::cprintln;
-
 pub enum DmaReadTarget {
-    Mbox,
+    Mbox(u32),
     AhbFifo,
     AxiWr(AxiAddr),
 }
@@ -100,7 +97,7 @@ pub struct DmaReadTransaction {
 }
 
 pub enum DmaWriteOrigin {
-    Mbox,
+    Mbox(u32),
     AhbFifo,
     AxiRd(AxiAddr),
 }
@@ -145,24 +142,31 @@ impl Dma {
         })
     }
 
-    pub fn set_block_size(&self, block_size: u32) {
-        self.with_dma(|dma| dma.block_size().write(|f| f.size(block_size)))
-    }
-
-    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction) {
+    pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction, block_size: u32) {
         self.with_dma(|dma| {
             let read_addr = read_transaction.read_addr;
             dma.src_addr_l().write(|_| read_addr.lo);
             dma.src_addr_h().write(|_| read_addr.hi);
 
-            if let DmaReadTarget::AxiWr(target_addr) = read_transaction.target {
-                dma.dst_addr_l().write(|_| target_addr.lo);
-                dma.dst_addr_h().write(|_| target_addr.hi);
+            let mut target_addr_lo: u32 = 0;
+            let mut target_addr_hi: u32 = 0;
+            match read_transaction.target {
+                DmaReadTarget::AxiWr(target_addr) => {
+                    target_addr_lo = target_addr.lo;
+                    target_addr_hi = target_addr.hi;
+                }
+                DmaReadTarget::Mbox(offset) => {
+                    target_addr_lo = offset;
+                    target_addr_hi = 0;
+                }
+                _ => {}
             }
+            dma.dst_addr_l().write(|_| target_addr_lo);
+            dma.dst_addr_h().write(|_| target_addr_hi);
 
             dma.ctrl().modify(|c| {
                 c.rd_route(|_| match read_transaction.target {
-                    DmaReadTarget::Mbox => RdRouteE::Mbox,
+                    DmaReadTarget::Mbox(_) => RdRouteE::Mbox,
                     DmaReadTarget::AhbFifo => RdRouteE::AhbFifo,
                     DmaReadTarget::AxiWr(_) => RdRouteE::AxiWr,
                 })
@@ -171,26 +175,45 @@ impl Dma {
                     DmaReadTarget::AxiWr(_) => WrRouteE::AxiRd,
                     _ => WrRouteE::Disable,
                 })
+                .wr_fixed(false)
             });
 
+            // Set the number of bytes to read.
             dma.byte_count().write(|_| read_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
+            // Start the DMA transaction.
+            dma.ctrl().modify(|c| c.go(true));
         })
     }
 
-    fn setup_dma_write(&self, write_transaction: DmaWriteTransaction) {
+    fn setup_dma_write(&self, write_transaction: DmaWriteTransaction, block_size: u32) {
         self.with_dma(|dma| {
             let write_addr = write_transaction.write_addr;
             dma.dst_addr_l().write(|_| write_addr.lo);
             dma.dst_addr_h().write(|_| write_addr.hi);
 
-            if let DmaWriteOrigin::AxiRd(origin_addr) = write_transaction.origin {
-                dma.dst_addr_l().write(|_| origin_addr.lo);
-                dma.dst_addr_h().write(|_| origin_addr.hi);
+            let mut source_addr_lo: u32 = 0;
+            let mut source_addr_hi: u32 = 0;
+            match write_transaction.origin {
+                DmaWriteOrigin::AxiRd(origin_addr) => {
+                    source_addr_lo = origin_addr.lo;
+                    source_addr_hi = origin_addr.hi;
+                }
+                DmaWriteOrigin::Mbox(offset) => {
+                    source_addr_lo = offset;
+                    source_addr_hi = 0;
+                }
+                _ => {}
             }
+            dma.src_addr_l().write(|_| source_addr_lo);
+            dma.src_addr_h().write(|_| source_addr_hi);
 
             dma.ctrl().modify(|c| {
                 c.wr_route(|_| match write_transaction.origin {
-                    DmaWriteOrigin::Mbox => WrRouteE::Mbox,
+                    DmaWriteOrigin::Mbox(_) => WrRouteE::Mbox,
                     DmaWriteOrigin::AhbFifo => WrRouteE::AhbFifo,
                     DmaWriteOrigin::AxiRd(_) => WrRouteE::AxiRd,
                 })
@@ -199,10 +222,25 @@ impl Dma {
                     DmaWriteOrigin::AxiRd(_) => RdRouteE::AxiWr,
                     _ => RdRouteE::Disable,
                 })
+                .rd_fixed(false)
             });
 
+            // Set the number of bytes to write.
             dma.byte_count().write(|_| write_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
+            // Start the DMA transaction.
+            dma.ctrl().modify(|c| c.go(true));
         })
+    }
+
+    /// Wait for the DMA transaction to complete
+    ///
+    /// This function will block until the DMA transaction is completed successfully.
+    fn wait_for_dma_complete(&self) {
+        self.with_dma(|dma| while dma.status0().read().busy() {});
     }
 
     /// Read data from the DMA FIFO
@@ -214,14 +252,8 @@ impl Dma {
     /// # Returns
     ///
     /// * `CaliptraResult<()>` - Success or error code
-    pub fn dma_read_fifo(&self, read_data: &mut [u8]) -> CaliptraResult<()> {
+    fn dma_read_fifo(&self, read_data: &mut [u8]) -> CaliptraResult<()> {
         self.with_dma(|dma| {
-            let status = dma.status0().read();
-
-            if read_data.len() > status.fifo_depth() as usize {
-                return Err(CaliptraError::DRIVER_DMA_FIFO_UNDERRUN);
-            }
-
             // Only multiple of 4 bytes are allowed
             if read_data.len() % core::mem::size_of::<u32>() != 0 {
                 return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
@@ -229,6 +261,9 @@ impl Dma {
 
             // Process all 4-byte chunks
             read_data.chunks_mut(4).for_each(|word| {
+                // Wait until the FIFO has data. fifo_depth is in DWORDs.
+                while dma.status0().read().fifo_depth() == 0 {}
+
                 let read = &dma.read_data().read().to_le_bytes();
                 // check needed so that the compiler doesn't generate a panic
                 if read.len() == word.len() {
@@ -241,49 +276,19 @@ impl Dma {
 
     fn dma_write_fifo(&self, write_data: &[u8]) -> CaliptraResult<()> {
         self.with_dma(|dma| {
-            let max_fifo_depth = dma.cap().read().fifo_max_depth();
-            let current_fifo_depth = dma.status0().read().fifo_depth();
-
             if write_data.len() % 4 != 0 {
                 Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE)?;
             }
 
-            if write_data.len() as u32 > max_fifo_depth - current_fifo_depth {
-                Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN)?;
-            }
-
             // Process all 4-byte chunks
-            if write_data.len() as u32 > max_fifo_depth - current_fifo_depth {
-                return Err(CaliptraError::DRIVER_DMA_FIFO_OVERRUN);
-            }
-
+            let max_fifo_depth = dma.cap().read().fifo_max_depth();
             write_data.chunks(4).for_each(|word| {
+                // Wait until the FIFO has space. fifo_depth is in DWORDs.
+                while max_fifo_depth == dma.status0().read().fifo_depth() {}
+
                 dma.write_data()
                     .write(|_| u32::from_le_bytes(word.try_into().unwrap_or_default()));
             });
-
-            Ok(())
-        })
-    }
-
-    pub fn do_transaction(&self) -> CaliptraResult<()> {
-        self.with_dma(|dma| {
-            let status0 = dma.status0().read();
-            if status0.busy() {
-                Err(CaliptraError::DRIVER_DMA_TRANSACTION_ALREADY_BUSY)?;
-            }
-
-            if status0.error() {
-                Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR)?;
-            }
-
-            dma.ctrl().modify(|c| c.go(true));
-
-            while dma.status0().read().busy() {
-                if dma.status0().read().error() {
-                    Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR)?;
-                }
-            }
 
             Ok(())
         })
@@ -324,9 +329,9 @@ impl Dma {
             target: DmaReadTarget::AhbFifo,
         };
 
-        self.setup_dma_read(read_transaction);
-        self.do_transaction()?;
+        self.setup_dma_read(read_transaction, 0);
         self.dma_read_fifo(buffer)?;
+        self.wait_for_dma_complete();
         Ok(())
     }
 
@@ -349,44 +354,9 @@ impl Dma {
             length: core::mem::size_of::<u32>() as u32,
             origin: DmaWriteOrigin::AhbFifo,
         };
+        self.setup_dma_write(write_transaction, 0);
         self.dma_write_fifo(write_val.as_bytes())?;
-        self.setup_dma_write(write_transaction);
-        self.do_transaction()?;
-        Ok(())
-    }
-
-    /// Transfer payload to mailbox
-    ///
-    /// The mailbox lock needs to be acquired before this can be called
-    ///
-    /// # Arguments
-    ///
-    /// * `read_addr` - Source address to read from
-    /// * `payload_len_bytes` - Length of the payload in bytes
-    /// * `fixed_addr` - Whether to use a fixed address for reading
-    /// * `block_size` - Size of each block transfer
-    ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult<()>` - Success or error code
-    pub fn transfer_payload_to_mbox(
-        &self,
-        read_addr: AxiAddr,
-        payload_len_bytes: u32,
-        fixed_addr: bool,
-        block_size: u32,
-    ) -> CaliptraResult<()> {
-        self.flush();
-
-        let read_transaction = DmaReadTransaction {
-            read_addr,
-            fixed_addr,
-            length: payload_len_bytes,
-            target: DmaReadTarget::Mbox,
-        };
-        self.setup_dma_read(read_transaction);
-        self.set_block_size(block_size);
-        self.do_transaction()?;
+        self.wait_for_dma_complete();
         Ok(())
     }
 
@@ -468,6 +438,19 @@ pub struct DmaRecovery<'a> {
 
 impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
+    const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
+    const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+    const PROT_CAP2_FLASHLESS_BOOT_BIT: u32 = 11;
+
+    const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
+    const READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
+
+    const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
+    const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
+    pub const RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR: u32 = 0xD;
+    pub const RECOVERY_STATUS_SUCCESSFUL: u32 = 0x3;
+
+    const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
     #[inline(always)]
     pub fn new(base: AxiAddr, dma: &'a Dma) -> Self {
@@ -522,6 +505,7 @@ impl<'a> DmaRecovery<'a> {
         payload_len_bytes: u32,
         fixed_addr: bool,
         block_size: u32,
+        offset: u32,
     ) -> CaliptraResult<()> {
         self.dma.flush();
 
@@ -529,11 +513,10 @@ impl<'a> DmaRecovery<'a> {
             read_addr,
             fixed_addr,
             length: payload_len_bytes,
-            target: DmaReadTarget::Mbox,
+            target: DmaReadTarget::Mbox(offset),
         };
-        self.dma.setup_dma_read(read_transaction);
-        self.dma.set_block_size(block_size);
-        self.dma.do_transaction()?;
+        self.dma.setup_dma_read(read_transaction, block_size);
+        self.dma.wait_for_dma_complete();
         Ok(())
     }
 
@@ -543,6 +526,7 @@ impl<'a> DmaRecovery<'a> {
         block_size: u32,
         write_addr: AxiAddr,
         fixed_addr: bool,
+        offset: u32,
     ) -> CaliptraResult<()> {
         self.dma.flush();
 
@@ -550,63 +534,81 @@ impl<'a> DmaRecovery<'a> {
             write_addr,
             fixed_addr,
             length: payload_len_bytes,
-            origin: DmaWriteOrigin::Mbox,
+            origin: DmaWriteOrigin::Mbox(offset),
         };
-        self.dma.setup_dma_write(write_transaction);
-        self.dma.set_block_size(block_size);
-        self.dma.do_transaction()?;
+        self.dma.setup_dma_write(write_transaction, block_size);
+        self.dma.wait_for_dma_complete();
         Ok(())
     }
 
     // Downloads an image from the recovery interface to the mailbox SRAM.
     pub fn download_image_to_mbox(&self, fw_image_index: u32) -> CaliptraResult<u32> {
-        const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
-        const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
-
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // Set PROT_CAP:Byte11 Bit3 (i.e. DWORD2:Bit27) to 1 ('Flashless boot').
-            recovery.prot_cap_0().modify(|val| val | (1 << 27));
+            // Set PROT_CAP2.AGENT_CAPS Bit11 to 1 ('Flashless boot').
+            recovery
+                .prot_cap_2()
+                .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_BIT));
 
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
-            // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 = 0 Flashless/Streaming Boot (FSB)).
-            recovery
-                .device_status_0()
-                .modify(|val| (val & 0xFF00FF00) | (0x12 << 16) | 0x03);
+            // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
+            recovery.device_status_0().modify(|val| {
+                val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
+                    .dev_status(Self::READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
+            });
 
-            // Set RECOVERY_STATUS:Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image') &
-            // Byte0 Bit[7:4] to 0 (Recovery image index).
-            // [TODO][CAP2] the spec says this register is read-only, but there is no other way to select an image index?
+            // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
+            // Set Byte0 Bit[7:4] to recovery image index
             recovery.recovery_status().modify(|recovery_status_val| {
-                // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
-                // Set Byte0 Bit[7:4] to recovery image index
-                (recovery_status_val & 0xFFFFFF00) | (fw_image_index << 4) | 0x1
+                recovery_status_val
+                    .rec_img_index(fw_image_index)
+                    .dev_rec_status(Self::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE)
             });
         })?;
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
-        cprintln!("[fwproc] Waiting for payload available signal...");
         while !self.dma.payload_available() {}
-        let image_size_bytes = self.with_regs_mut(|regs_mut| {
+        self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
-            // Read the image size from INDIRECT_FIFO_CTRL:Byte[2:5]. Image size in DWORDs.
-            //let indirect_fifo_ctrl_val0 = recovery.indirect_fifo_ctrl_0().read();
-            let indirect_fifo_ctrl_val1 = recovery.indirect_fifo_ctrl_1().read();
+            // Read the image size from INDIRECT_FIFO_CTRL0:Byte[2:3] & INDIRECT_FIFO_CTRL1:Byte[0:1]. Image size in DWORDs.
+            let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
+            let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
 
-            // let image_size_dwords = ((indirect_fifo_ctrl_val0 >> 16) & 0xFFFF)
-            //     | ((indirect_fifo_ctrl_val1 & 0xFFFF) << 16);
-            let image_size_dwords = indirect_fifo_ctrl_val1;
+            let image_size_dwords = image_size_msb << 16 | image_size_lsb;
 
-            image_size_dwords * 4
-        })?;
+            // Transfer the image from the recovery interface to the mailbox sram.
+            let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
+            let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
+            self.transfer_payload_to_mbox(
+                addr,
+                image_size_bytes,
+                true,
+                Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+                0,
+            )?;
 
-        // Transfer the image from the recovery interface to the mailbox SRAM.
-        let addr = self.base + INDIRECT_FIFO_DATA_OFFSET;
-        self.transfer_payload_to_mbox(addr, image_size_bytes, true, RECOVERY_DMA_BLOCK_SIZE_BYTES)?;
-        Ok(image_size_bytes)
+            // Read RECOVERY_CTRL Byte[2] (3rd byte) for 'Activate Recovery Image' (0xF) command.
+            while recovery.recovery_ctrl().read().activate_rec_img()
+                != Self::ACTIVATE_RECOVERY_IMAGE_CMD
+            {}
+
+            // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
+            self.set_device_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE);
+
+            Ok(image_size_bytes)
+        })?
+    }
+
+    pub fn set_device_recovery_status(&self, status: u32) {
+        let _ = self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery
+                .recovery_status()
+                .modify(|recovery_status_val| recovery_status_val.dev_rec_status(status));
+        });
     }
 }

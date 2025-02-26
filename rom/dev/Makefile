@@ -141,6 +141,7 @@ run-active: build-emu build-fw-image build-rom
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 		--active-mode \
+		--pqc-key-type $(PQC_KEY_TYPE) \
 
 run-update: build-emu build-fw-image build-rom
 		cargo \
