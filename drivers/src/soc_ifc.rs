@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
@@ -383,7 +384,8 @@ impl From<u32> for MfgFlags {
 }
 
 /// Reset Reason
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Launder)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
 pub enum ResetReason {
     /// Cold Reset
     ColdReset,
