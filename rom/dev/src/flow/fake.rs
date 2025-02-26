@@ -246,6 +246,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) ecc384: &'a mut Ecc384,
     pub(crate) mldsa87: &'a mut Mldsa87,
     pub image: &'b [u8],
+    pub(crate) dma: &'a Dma,
 }
 
 impl<'a, 'b> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a, 'b> {

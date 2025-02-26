@@ -6,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::{env, str::FromStr};
+use std::{env, slice, str::FromStr};
 
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError, BusMmio};
@@ -32,6 +32,7 @@ pub enum OpenOcdError {
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
+const ROM_MAPPING: usize = 2;
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
@@ -151,7 +152,7 @@ impl ModelFpgaRealtime {
                 };
                 if trngfifosts.trng_fifo_full() == 0 {
                     let mut itrng_dw = 0;
-                    for i in (0..8).rev() {
+                    for i in 0..8 {
                         match itrng_nibbles.next() {
                             Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
                             None => return,
@@ -367,6 +368,7 @@ impl HwModel for ModelFpgaRealtime {
             .map_mapping(FPGA_WRAPPER_MAPPING)
             .map_err(fmt_uio_error)? as *mut u32;
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let rom = dev.map_mapping(ROM_MAPPING).map_err(fmt_uio_error)? as *mut u8;
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
@@ -436,12 +438,9 @@ impl HwModel for ModelFpgaRealtime {
         }
 
         // Write ROM image over backdoor
-        let mut rom_driver = std::fs::OpenOptions::new()
-            .write(true)
-            .open("/dev/caliptra-rom-backdoor")
-            .unwrap();
-        rom_driver.write_all(params.rom)?;
-        rom_driver.sync_all()?;
+        writeln!(m.output().logger(), "Writing ROM")?;
+        let rom_slice = unsafe { slice::from_raw_parts_mut(rom, params.rom.len()) };
+        rom_slice.copy_from_slice(params.rom);
 
         // Sometimes there's garbage in here; clean it out
         m.clear_log_fifo();
@@ -530,7 +529,7 @@ impl HwModel for ModelFpgaRealtime {
         }
     }
 
-    fn put_firmware_in_rri(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+    fn put_firmware_in_rri(&mut self, _firmware: &[u8]) -> Result<(), ModelError> {
         todo!()
     }
 }
@@ -590,6 +589,7 @@ impl Drop for ModelFpgaRealtime {
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
         self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
+        self.unmap_mapping(self.mmio, ROM_MAPPING);
 
         // Close openocd
         match &mut self.openocd {
@@ -608,7 +608,7 @@ impl<'a> FpgaRealtimeBus<'a> {
         let addr = addr as usize;
         unsafe {
             match addr {
-                0x3002_0000..=0x3003_ffff => Some(self.mmio.add((addr - 0x3002_0000) / 4)),
+                0x3002_0000..=0x3003_ffff => Some(self.mmio.add((addr - 0x3000_0000) / 4)),
                 _ => None,
             }
         }

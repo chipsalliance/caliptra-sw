@@ -72,11 +72,18 @@ register_bitfields! [
         COMPOSITE_TEMP OFFSET(16) NUMBITS(8) [],
     ],
 
-    /// Indirect FIFO Control
-    IndirectCtrl [
+    /// Indirect FIFO Control 0
+    IndirectCtrl0 [
         CMS OFFSET(0) NUMBITS(8),
         RESET OFFSET(8) NUMBITS(1),
+        IMAGE_SIZE_MSB OFFSET(16) NUMBITS(16),
     ],
+
+    /// Indirect FIFO Control 1
+    IndirectCtrl1 [
+        IMAGE_SIZE_LSB OFFSET(0) NUMBITS(16),
+    ],
+
 
     /// Indirect FIFO Status
     IndirectStatus [
@@ -131,17 +138,17 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x38)]
     pub device_reset: ReadWriteRegister<u32>,
     #[register(offset = 0x3c)]
-    pub recovery_ctrl: ReadWriteRegister<u32>,
+    pub recovery_ctrl: ReadWriteRegister<u32, RecoveryControl::Register>,
     #[register(offset = 0x40)]
     pub recovery_status: ReadWriteRegister<u32>,
     #[register(offset = 0x44)]
     pub hw_status: ReadWriteRegister<u32>,
 
     // Indirect FIFO registers
-    #[register(offset = 0x48, write_fn = indirect_fifo_ctrl_0_write)]
-    pub indirect_fifo_ctrl_0: ReadWriteRegister<u32, IndirectCtrl::Register>,
+    #[register(offset = 0x48, read_fn = indirect_fifo_ctrl_0_read, write_fn = indirect_fifo_ctrl_0_write)]
+    pub indirect_fifo_ctrl_0: ReadWriteRegister<u32, IndirectCtrl0::Register>,
     #[register(offset = 0x4c, read_fn = indirect_fifo_ctrl_1_read)]
-    pub indirect_fifo_ctrl_1: ReadWriteRegister<u32>,
+    pub indirect_fifo_ctrl_1: ReadWriteRegister<u32, IndirectCtrl1::Register>,
     #[register(offset = 0x50)]
     pub indirect_fifo_status_0: ReadOnlyRegister<u32, IndirectStatus::Register>,
     #[register(offset = 0x54)]
@@ -189,7 +196,9 @@ impl RecoveryRegisterInterface {
             device_status_0: ReadWriteRegister::new(0),
             device_status_1: ReadWriteRegister::new(0),
             device_reset: ReadWriteRegister::new(0),
-            recovery_ctrl: ReadWriteRegister::new(0),
+            recovery_ctrl: ReadWriteRegister::new(
+                RecoveryControl::ACTIVATE_RECOVERY_IMAGE::Activate.into(),
+            ),
             recovery_status: ReadWriteRegister::new(0),
             hw_status: ReadWriteRegister::new(0),
 
@@ -220,7 +229,7 @@ impl RecoveryRegisterInterface {
             Some(x) => x,
         };
 
-        let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl::CMS);
+        let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl0::CMS);
         if cms != 0 {
             println!("CMS {cms} not supported");
             return Ok(0xffff_ffff);
@@ -254,10 +263,10 @@ impl RecoveryRegisterInterface {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
-        let load: ReadWriteRegister<u32, IndirectCtrl::Register> = ReadWriteRegister::new(val);
-        if load.reg.is_set(IndirectCtrl::RESET) {
+        let load: ReadWriteRegister<u32, IndirectCtrl0::Register> = ReadWriteRegister::new(val);
+        if load.reg.is_set(IndirectCtrl0::RESET) {
             if let Some(image) = &self.cms_data {
-                let cms = load.reg.read(IndirectCtrl::CMS);
+                let cms = load.reg.read(IndirectCtrl0::CMS);
                 if cms != 0 {
                     self.indirect_fifo_status_0
                         .reg
@@ -283,15 +292,33 @@ impl RecoveryRegisterInterface {
         Ok(())
     }
 
+    pub fn indirect_fifo_ctrl_0_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
+        if size != RvSize::Word {
+            Err(BusError::LoadAccessFault)?
+        }
+
+        let msb_size = match &self.cms_data {
+            Some(d) => ((d.as_ref().len() / mem::size_of::<u32>()) >> 16) as u32,
+            None => 0,
+        };
+
+        self.indirect_fifo_ctrl_0
+            .reg
+            .modify(IndirectCtrl0::IMAGE_SIZE_MSB.val(msb_size));
+
+        Ok(self.indirect_fifo_ctrl_0.reg.get())
+    }
+
     pub fn indirect_fifo_ctrl_1_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
         if size != RvSize::Word {
             Err(BusError::LoadAccessFault)?
         }
 
-        match &self.cms_data {
-            Some(d) => Ok((d.as_ref().len() / mem::size_of::<u32>()) as u32),
-            None => Ok(0),
-        }
+        let lsb_size = match &self.cms_data {
+            Some(d) => ((d.as_ref().len() / mem::size_of::<u32>()) & 0xffff) as u32,
+            None => 0,
+        };
+        Ok(lsb_size)
     }
 }
 

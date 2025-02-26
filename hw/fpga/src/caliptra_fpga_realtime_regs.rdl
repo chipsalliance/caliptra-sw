@@ -56,7 +56,7 @@ regfile interface_regs {
         field { sw=r; hw=rw; } cptra_error_non_fatal = 1'b0;
 
         field { sw=r; hw=rw; } ready_for_fuses = 1'b0;
-        field { sw=r; hw=rw; } ready_for_fw_push = 1'b0;
+        field { sw=r; hw=rw; } ready_for_mb_processing = 1'b0;
         field { sw=r; hw=rw; } ready_for_runtime = 1'b0;
 
         field { sw=r; hw=rw; } mailbox_data_avail = 1'b0;
@@ -83,6 +83,13 @@ regfile interface_regs {
 
         field {} cycle_count[32] = 32'b0;
     } cycle_count;
+
+    reg {
+        default sw=r;
+        default hw=rw;
+
+        field {} fpga_version[32] = 32'b0;
+    } fpga_version;
 };
 
 regfile fifo_regs {
@@ -111,6 +118,6 @@ addrmap caliptra_fpga_realtime_regs {
     default regwidth = 32;
     default accesswidth = 32;
 
-    interface_regs interface_regs @ 0x0000;
-    fifo_regs fifo_regs @ 0x1000;
+    interface_regs interface_regs @ 0xA4010000;
+    fifo_regs fifo_regs @ 0xA4011000;
 };

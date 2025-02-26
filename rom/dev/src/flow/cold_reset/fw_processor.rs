@@ -126,6 +126,7 @@ impl FirmwareProcessor {
             data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
+            dma: &mut env.dma,
         };
 
         // Verify the image
@@ -152,6 +153,7 @@ impl FirmwareProcessor {
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
+
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
         // Update FW version registers
@@ -372,13 +374,22 @@ impl FirmwareProcessor {
                             txn.complete(false)?;
                             Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
                         }
+                        // Complete the command indicating success.
+                        cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
+                        txn.complete(true)?;
+
+                        // Create a transaction to facilitate the download of the firmware image
+                        // from the recovery interface. This dummy transaction is necessary to
+                        // obtain and subsequently release the lock required to gain exclusive
+                        // access to the mailbox sram by the DMA engine, enabling it to write the
+                        // firmware image into the mailbox sram.
+                        let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
 
                         // Download the firmware image from the recovery interface.
                         let image_size_bytes =
                             Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
-                        let txn = ManuallyDrop::new(mbox.fake_recv_txn());
                         cprintln!(
-                            "[fwproc] Received Image from Recovery Interface of size {} bytes",
+                            "[fwproc] Received image from the Recovery Interface of size {} bytes",
                             image_size_bytes
                         );
                         report_boot_status(FwProcessorDownloadImageComplete.into());
@@ -442,6 +453,7 @@ impl FirmwareProcessor {
             ecc384: venv.ecc384,
             mldsa87: venv.mldsa87,
             image: venv.image,
+            dma: venv.dma,
         };
 
         // Random delay for CFI glitch protection.
@@ -450,8 +462,30 @@ impl FirmwareProcessor {
         CfiCounter::delay();
         CfiCounter::delay();
 
+        let dma = venv.dma;
+        let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
+        let active_mode = venv.soc_ifc.active_mode();
+
         let mut verifier = ImageVerifier::new(venv);
-        let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
+        let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset);
+
+        // If running in active mode, set the recovery status.
+        if active_mode {
+            let status = if info.is_err() {
+                DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR
+            } else {
+                DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
+            };
+
+            cprintln!("[fwproc] Setting device recovery status to {}", status);
+            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, dma);
+            dma_recovery.set_device_recovery_status(status);
+        }
+
+        let info = match info {
+            Ok(value) => value,
+            Err(e) => Err(e)?,
+        };
 
         cprintln!(
             "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",

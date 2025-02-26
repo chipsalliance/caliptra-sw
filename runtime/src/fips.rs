@@ -120,6 +120,7 @@ pub mod fips_self_test_cmd {
             data_vault: &env.persistent_data.get().data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: env.mbox.raw_mailbox_contents(),
+            dma: &env.dma,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
