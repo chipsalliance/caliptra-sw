@@ -3,6 +3,7 @@
 // TODO not(fuzzing), attribute not found
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use core::mem::size_of;
 #[cfg(feature = "std")]
@@ -115,10 +116,9 @@ impl<'de> Deserialize<'de> for LmotsAlgorithmType {
     }
 }
 
-#[derive(
-    Copy, Clone, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Launder,
-)]
+#[derive(Copy, Clone, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
     pub tree_type: LmsAlgorithmType,
@@ -288,10 +288,9 @@ static_assert!(
             + size_of::<[[U32<LittleEndian>; 1]; 1]>())
 );
 
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(
-    Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes, PartialEq, Eq, Launder,
-)]
+#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
     pub q: U32<BigEndian>,
