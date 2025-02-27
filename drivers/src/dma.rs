@@ -17,6 +17,7 @@ use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg, RegisterBlock,
 };
+use caliptra_registers::caliptra_otp_ctrl::RegisterBlock as FuseCtrlRegisterBlock;
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
@@ -610,5 +611,57 @@ impl<'a> DmaRecovery<'a> {
                 .recovery_status()
                 .modify(|recovery_status_val| recovery_status_val.dev_rec_status(status));
         });
+    }
+}
+
+pub struct DmaOtpCtrl<'a> {
+    base: AxiAddr,
+    dma: &'a Dma,
+}
+
+impl<'a> DmaOtpCtrl<'a> {
+    #[inline(always)]
+    pub fn new(base: AxiAddr, dma: &'a Dma) -> Self {
+        Self { base, dma }
+    }
+
+    /// Returns a register block that can be used to read
+    /// registers from this peripheral, but cannot write.
+    #[inline(always)]
+    pub fn with_regs<T, F>(&self, f: F) -> CaliptraResult<T>
+    where
+        F: FnOnce(FuseCtrlRegisterBlock<&DmaMmio>) -> T,
+    {
+        let mmio = DmaMmio::new(self.base, self.dma);
+        // SAFETY: we aren't referencing memory directly
+        let regs = unsafe {
+            FuseCtrlRegisterBlock::new_with_mmio(
+                // substract the recovery offset since all recovery registers are relative to it
+                core::ptr::null_mut::<u32>(),
+                &mmio,
+            )
+        };
+        let t = f(regs);
+        mmio.check_error(t)
+    }
+
+    /// Return a register block that can be used to read and
+    /// write this peripheral's registers.
+    #[inline(always)]
+    pub fn with_regs_mut<T, F>(&self, f: F) -> CaliptraResult<T>
+    where
+        F: FnOnce(FuseCtrlRegisterBlock<&DmaMmio>) -> T,
+    {
+        let mmio = DmaMmio::new(self.base, self.dma);
+        // SAFETY: we aren't referencing memory directly
+        let regs = unsafe {
+            FuseCtrlRegisterBlock::new_with_mmio(
+                // substract the recovery offset since all recovery registers are relative to it
+                core::ptr::null_mut::<u32>(),
+                &mmio,
+            )
+        };
+        let t = f(regs);
+        mmio.check_error(t)
     }
 }
