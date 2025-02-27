@@ -464,6 +464,8 @@ impl CaliptraError {
     pub const RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC: CaliptraError =
         CaliptraError::new_const(0x000E0055);
 
+    pub const RUNTIME_FMC_NOT_COMPATIBLE: CaliptraError = CaliptraError::new_const(0x000E0058);
+
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0002);

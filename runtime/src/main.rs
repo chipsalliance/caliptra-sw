@@ -22,7 +22,7 @@ use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use caliptra_runtime::Drivers;
+use caliptra_runtime::{compatibility, Drivers};
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -83,10 +83,18 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
+    let fht = &drivers.persistent_data.get().fht;
+    if !fht.is_valid() {
         cprintln!("[rt] Runtime can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
+
+    // Test if RT version is compatible with the FMC version
+    if !compatibility::is_fmc_compatible(&fht) {
+        cprintln!("[rt] Runtime is not compatible with FMC");
+        handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_FMC_NOT_COMPATIBLE.into());
+    }
+
     cprintln!("[rt] Runtime listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
