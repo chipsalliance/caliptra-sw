@@ -464,6 +464,7 @@ impl FirmwareProcessor {
 
         let dma = venv.dma;
         let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
+        let mci_base_addr = venv.soc_ifc.mci_base_addr().into();
         let active_mode = venv.soc_ifc.active_mode();
 
         let mut verifier = ImageVerifier::new(venv);
@@ -474,12 +475,13 @@ impl FirmwareProcessor {
             let status = if info.is_err() {
                 DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR
             } else {
-                DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
+                // we still have to do the SoC and MCU images
+                DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE
             };
 
-            cprintln!("[fwproc] Setting device recovery status to {}", status);
-            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, dma);
-            dma_recovery.set_device_recovery_status(status);
+            cprintln!("[fwproc] Setting device recovery status to 0x{:x}", status);
+            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
+            dma_recovery.set_recovery_status(status)?;
         }
 
         let info = match info {
@@ -894,8 +896,9 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
         let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
+        let mci_base_addr = soc_ifc.mci_base_addr().into();
         const FW_IMAGE_INDEX: u32 = 0x0;
-        let dma_recovery = DmaRecovery::new(rri_base_addr, dma);
-        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
+        let dma_recovery = DmaRecovery::new(rri_base_addr, mci_base_addr, dma);
+        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX, true)
     }
 }

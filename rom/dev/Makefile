@@ -39,6 +39,17 @@ build-emu:
 		--no-default-features \
 		--features "emu no-cfi"
 
+build-fmc:
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
+		--profile firmware \
+		--manifest-path ../../fmc/Cargo.toml \
+		--target=riscv32imc-unknown-none-elf \
+		--no-default-features \
+		--features emu,riscv \
+		--bin caliptra-fmc
+
 build-test-fmc:
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
@@ -48,6 +59,17 @@ build-test-fmc:
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		--features emu
+
+build-rt:
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
+		--profile firmware \
+		--manifest-path ../../runtime/Cargo.toml \
+		--target=riscv32imc-unknown-none-elf \
+		--no-default-features \
+		--features emu,riscv \
+		--bin caliptra-runtime
 
 build-test-rt:
 	cargo \
@@ -63,7 +85,7 @@ gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
 	$(shell cp $(CURRENT_DIR)/tools/keys.toml $(TARGET_DIR))
 
-build-fw-image: gen-certs build-test-fmc build-test-rt
+build-fw-test-image: gen-certs build-test-fmc build-test-rt
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -82,6 +104,27 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--rt-rev $(GIT_REV) \
 		--fw-svn 0 \
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
+		--print-hashes
+
+build-fw-image: gen-certs build-fmc build-rt
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
+		--manifest-path ../../image/app/Cargo.toml \
+		-- \
+		create \
+		--pqc-key-type $(PQC_KEY_TYPE) \
+		--key-config $(TARGET_DIR)/keys.toml \
+		--ecc-pk-idx 1 \
+		--pqc-pk-idx 0 \
+		--fmc $(TARGET_DIR)/caliptra-fmc \
+		--fmc-version 0 \
+		--fmc-rev $(GIT_REV) \
+		--rt $(TARGET_DIR)/caliptra-runtime \
+		--rt-version 0 \
+		--rt-rev $(GIT_REV) \
+		--fw-svn 0 \
+		--out $(TARGET_DIR)/caliptra-fw \
 		--print-hashes
 
 bloat: build
@@ -116,7 +159,7 @@ build-rom:
 		--rom-with-log $(TARGET_DIR)/caliptra-rom.bin \
 		--fw /dev/null
 
-run: build-emu build-fw-image build-rom
+run: build-emu build-fw-test-image build-rom
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -143,7 +186,7 @@ run-active: build-emu build-fw-image build-rom
 		--active-mode \
 		--pqc-key-type $(PQC_KEY_TYPE) \
 
-run-update: build-emu build-fw-image build-rom
+run-update: build-emu build-fw-test-image build-rom
 		cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -184,4 +227,3 @@ hexdump: build-rom
 
 clean:
 	cargo clean
-

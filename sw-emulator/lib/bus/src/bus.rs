@@ -12,7 +12,24 @@ Abstract:
 
 --*/
 
-use crate::{RvAddr, RvData, RvSize};
+use crate::Event;
+
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::{rc::Rc, sync::mpsc};
+
+#[allow(unused)]
+pub trait EventListener {
+    fn incoming_event(&mut self, _event: Rc<Event>) {
+        // By default, do nothing
+    }
+}
+
+#[allow(unused)]
+pub trait EventSender {
+    fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
+        // By default, do nothing
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BusError {
@@ -72,6 +89,14 @@ pub trait Bus {
     }
 
     fn update_reset(&mut self) {
+        // By default, do nothing
+    }
+
+    fn incoming_event(&mut self, _event: Rc<Event>) {
+        // By default, do nothing
+    }
+
+    fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
         // By default, do nothing
     }
 }

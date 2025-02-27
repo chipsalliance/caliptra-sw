@@ -12,11 +12,10 @@ Abstract:
     fields of a struct.
 
 --*/
-use std::collections::HashMap;
 
 use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
-
 use quote::{format_ident, quote};
+use std::collections::HashMap;
 
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
@@ -28,9 +27,11 @@ use crate::util::token_iter::{
 pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mut iter = input.into_iter();
     let struct_attrs = skip_to_struct_with_attributes(&mut iter);
-    let poll_fn = get_poll_fn(&struct_attrs);
-    let warm_reset_fn = get_warm_reset_fn(&struct_attrs);
-    let update_reset_fn = get_update_reset_fn(&struct_attrs);
+    let poll_fn = get_fn(&struct_attrs, "poll_fn");
+    let warm_reset_fn = get_fn(&struct_attrs, "warm_reset_fn");
+    let update_reset_fn = get_fn(&struct_attrs, "update_reset_fn");
+    let incoming_event_fn = get_fn(&struct_attrs, "incoming_event_fn");
+    let register_outgoing_events_fn = get_fn(&struct_attrs, "register_outgoing_events_fn");
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
@@ -68,6 +69,22 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+    let self_incoming_event_tokens = if let Some(incoming_event_fn) = &incoming_event_fn {
+        let incoming_event_fn = Ident::new(incoming_event_fn, Span::call_site());
+        quote! {
+            Self::#incoming_event_fn(self, event);
+        }
+    } else {
+        quote! {}
+    };
+    let self_register_outgoing_events_tokens =
+        if let Some(register_outgoing_events_fn) = &register_outgoing_events_fn {
+            let register_outgoing_events_fn =
+                Ident::new(register_outgoing_events_fn, Span::call_site());
+            quote! { Self::#register_outgoing_events_fn(self, sender); }
+        } else {
+            quote! {}
+        };
 
     let field_idents: Vec<_> = peripheral_fields
         .iter()
@@ -98,48 +115,23 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
                 #(self.#field_idents.update_reset();)*
                 #self_update_reset_tokens
             }
-
-        }
-    }
-}
-
-fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
-    for attr in struct_attrs {
-        let mut iter = attr.stream().into_iter();
-        if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "poll_fn" {
-                if let Some(TokenTree::Group(group)) = iter.next() {
-                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
-                        return Some(ident.to_string());
-                    }
-                }
+            fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                #(self.#field_idents.incoming_event(event.clone());)*
+                #self_incoming_event_tokens
+            }
+            fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
+                #(self.#field_idents.register_outgoing_events(sender.clone());)*
+                #self_register_outgoing_events_tokens
             }
         }
     }
-    None
 }
 
-fn get_warm_reset_fn(struct_attrs: &[Group]) -> Option<String> {
+fn get_fn(struct_attrs: &[Group], name: &str) -> Option<String> {
     for attr in struct_attrs {
         let mut iter = attr.stream().into_iter();
         if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "warm_reset_fn" {
-                if let Some(TokenTree::Group(group)) = iter.next() {
-                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
-                        return Some(ident.to_string());
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn get_update_reset_fn(struct_attrs: &[Group]) -> Option<String> {
-    for attr in struct_attrs {
-        let mut iter = attr.stream().into_iter();
-        if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident == "update_reset_fn" {
+            if ident == name {
                 if let Some(TokenTree::Group(group)) = iter.next() {
                     if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
                         return Some(ident.to_string());
@@ -795,6 +787,28 @@ mod tests {
                         self.i2c2.update_reset();
                         self.spi0.update_reset();
                     }
+                    fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                        self.rom.incoming_event(event.clone());
+                        self.sram.incoming_event(event.clone());
+                        self.dram.incoming_event(event.clone());
+                        self.uart0.incoming_event(event.clone());
+                        self.uart1.incoming_event(event.clone());
+                        self.i2c0.incoming_event(event.clone());
+                        self.i2c1.incoming_event(event.clone());
+                        self.i2c2.incoming_event(event.clone());
+                        self.spi0.incoming_event(event.clone());
+                    }
+                    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
+                        self.rom.register_outgoing_events(sender.clone());
+                        self.sram.register_outgoing_events(sender.clone());
+                        self.dram.register_outgoing_events(sender.clone());
+                        self.uart0.register_outgoing_events(sender.clone());
+                        self.uart1.register_outgoing_events(sender.clone());
+                        self.i2c0.register_outgoing_events(sender.clone());
+                        self.i2c1.register_outgoing_events(sender.clone());
+                        self.i2c2.register_outgoing_events(sender.clone());
+                        self.spi0.register_outgoing_events(sender.clone());
+                    }
                 }
             }.to_string()
         );
@@ -820,6 +834,10 @@ mod tests {
                     fn warm_reset(&mut self) {
                     }
                     fn update_reset(&mut self) {
+                    }
+                    fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+                    }
+                    fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
                     }
                 }
             }.to_string()
