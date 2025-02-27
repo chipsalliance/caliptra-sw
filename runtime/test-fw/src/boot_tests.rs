@@ -18,9 +18,7 @@ Abstract:
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_test_harness::{runtime_handlers, test_suite};
 
-fn test_boot() {
-    assert!(true);
-}
+fn test_boot() {}
 
 test_suite! {
     test_boot,

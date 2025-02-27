@@ -78,7 +78,7 @@ pub fn run_test(
         .unwrap();
     let image_bytes = image.to_bytes().unwrap();
 
-    let boot_params = boot_params.unwrap_or(BootParams::default());
+    let boot_params = boot_params.unwrap_or_default();
 
     // Use image in boot_params if provided
     // Otherwise, add our newly built image

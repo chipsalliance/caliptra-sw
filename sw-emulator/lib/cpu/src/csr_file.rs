@@ -87,7 +87,6 @@ impl Csr {
     ///
     /// * `val` - Reset value
     /// * `mask` - Write Mask
-    ///'
     pub fn new(default_val: RvData, mask: RvData) -> Self {
         Self {
             val: default_val,

@@ -13,20 +13,11 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_auth_man_types::{
-    AuthManifestImageMetadataCollection, AuthManifestPreamble, AuthorizationManifest,
-    AUTH_MANIFEST_PREAMBLE_SIZE,
-};
-use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_drivers::{AxiAddr, Dma, DmaReadTarget, DmaReadTransaction, DmaRecovery};
+use caliptra_auth_man_types::AuthorizationManifest;
+use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_drivers::DmaRecovery;
 use caliptra_kat::{CaliptraError, CaliptraResult};
-use caliptra_registers::i3ccsr::RegisterBlock;
-use core::{
-    any::TypeId,
-    cell::{Cell, RefCell},
-};
-use ureg::{Mmio, MmioMut, Uint, UintType};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 pub enum RecoveryFlow {}
 
@@ -46,7 +37,9 @@ impl RecoveryFlow {
 
         // // download SoC manifest
         let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)?;
-        let Ok((manifest, _)) = AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents()) else {
+        let Ok((manifest, _)) =
+            AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents())
+        else {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
         };
         // [TODO][CAP2]: authenticate SoC manifest using keys available through Caliptra Image

@@ -14,7 +14,7 @@ pub struct InitDevIdCsrTbsMlDsa87Params<'a> {
 }
 
 #[allow(dead_code)]
-impl<'a> InitDevIdCsrTbsMlDsa87Params<'a> {
+impl InitDevIdCsrTbsMlDsa87Params<'_> {
     pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;

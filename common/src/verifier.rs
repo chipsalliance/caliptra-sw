@@ -33,7 +33,7 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub dma: &'a Dma,
 }
 
-impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
+impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;

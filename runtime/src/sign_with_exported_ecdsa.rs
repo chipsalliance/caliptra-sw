@@ -6,13 +6,13 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 
 use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
+    MailboxResp, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{Crypto, Digest, EcdsaPub, EcdsaSig};
 use dpe::{DPE_PROFILE, MAX_EXPORTED_CDI_SIZE};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 pub struct SignWithExportedEcdsaCmd;
 impl SignWithExportedEcdsaCmd {
@@ -90,32 +90,27 @@ impl SignWithExportedEcdsaCmd {
             Self::ecdsa_sign(&mut crypto, &digest, &cmd.exported_cdi_handle)?;
 
         let mut resp = SignWithExportedEcdsaResp::default();
-        let mut bytes_written = 0;
 
         if r.len() <= resp.signature_r.len() {
             resp.signature_r[..r.len()].copy_from_slice(r.bytes());
-            bytes_written += r.len()
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if s.len() <= resp.signature_s.len() {
             resp.signature_s[..s.len()].copy_from_slice(s.bytes());
-            bytes_written += s.len()
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if x.len() <= resp.derived_pubkey_x.len() {
             resp.derived_pubkey_x[..x.len()].copy_from_slice(x.bytes());
-            bytes_written += x.len()
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
 
         if y.len() <= resp.derived_pubkey_y.len() {
             resp.derived_pubkey_y[..y.len()].copy_from_slice(y.bytes());
-            bytes_written += y.len()
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }

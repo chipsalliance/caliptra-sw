@@ -136,7 +136,7 @@ fn test_invalid_manifest_size() {
 fn test_invalid_pqc_key_type() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    for pqc_key_type in 0..std::u8::MAX {
+    for pqc_key_type in 0..u8::MAX {
         if pqc_key_type == FwVerificationPqcKeyType::LMS as u8
             || pqc_key_type == FwVerificationPqcKeyType::MLDSA as u8
         {
@@ -496,7 +496,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         const LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 1;
-        const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_MAX_KEY_COUNT as usize] = [
+        static VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_MAX_KEY_COUNT as usize] = [
             VENDOR_CONFIG_KEY_0,
             VENDOR_CONFIG_KEY_1,
             VENDOR_CONFIG_KEY_2,
