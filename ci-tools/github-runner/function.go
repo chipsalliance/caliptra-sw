@@ -63,6 +63,7 @@ func handleCleanup(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLaunch(w http.ResponseWriter, r *http.Request) {
+    log.Printf("Entered launch handler\n")
 	if r.Method != "POST" {
 		http.Error(w, "Must be POST", http.StatusBadRequest)
 		return
