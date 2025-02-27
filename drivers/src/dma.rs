@@ -651,14 +651,6 @@ impl<'a> DmaRecovery<'a> {
                 .prot_cap_2()
                 .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_BIT));
 
-            // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
-            // Set Byte0 Bit[7:4] to recovery image index
-            recovery.recovery_status().modify(|recovery_status_val| {
-                recovery_status_val
-                    .rec_img_index(fw_image_index)
-                    .dev_rec_status(Self::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE)
-            });
-
             if caliptra_fw {
                 // the first image is our own firmware, so we needd to set up to receive it
                 // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
@@ -675,6 +667,14 @@ impl<'a> DmaRecovery<'a> {
                     .device_status_0()
                     .modify(|val| val.dev_status(Self::RECOVERY_STATUS_RUNNING_RECOVERY_IMAGE));
             }
+
+            // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
+            // Set Byte0 Bit[7:4] to recovery image index
+            recovery.recovery_status().modify(|recovery_status_val| {
+                recovery_status_val
+                    .rec_img_index(fw_image_index)
+                    .dev_rec_status(Self::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE)
+            });
         })?;
 
         // Loop on the 'payload_available' signal for the recovery image details to be available.
