@@ -128,16 +128,14 @@ impl Dma {
         f(dma.regs_mut())
     }
 
+    // This only resets the FIFO and the state machine.
     pub fn flush(&self) {
         self.with_dma(|dma| {
             dma.ctrl().write(|c| c.flush(true));
-            // Wait till we're not busy and have no errors
-            // TODO this assumes the peripheral does not clear that status0 state
-            // in one cycle. Maybe it can be removed if the assumption proves false
 
             while {
                 let status0 = dma.status0().read();
-                status0.busy() || status0.error()
+                status0.busy() // Busy goes to zero only on success.
             } {}
         })
     }
@@ -164,6 +162,12 @@ impl Dma {
             dma.dst_addr_l().write(|_| target_addr_lo);
             dma.dst_addr_h().write(|_| target_addr_hi);
 
+            // Set the number of bytes to read.
+            dma.byte_count().write(|_| read_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
             dma.ctrl().modify(|c| {
                 c.rd_route(|_| match read_transaction.target {
                     DmaReadTarget::Mbox(_) => RdRouteE::Mbox,
@@ -178,13 +182,8 @@ impl Dma {
                 .wr_fixed(false)
             });
 
-            // Set the number of bytes to read.
-            dma.byte_count().write(|_| read_transaction.length);
-
-            // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
-
             // Start the DMA transaction.
+            // [TODO][CAP2][DMA] Squash this with line 171.
             dma.ctrl().modify(|c| c.go(true));
         })
     }
@@ -211,6 +210,12 @@ impl Dma {
             dma.src_addr_l().write(|_| source_addr_lo);
             dma.src_addr_h().write(|_| source_addr_hi);
 
+            // Set the number of bytes to write.
+            dma.byte_count().write(|_| write_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
             dma.ctrl().modify(|c| {
                 c.wr_route(|_| match write_transaction.origin {
                     DmaWriteOrigin::Mbox(_) => WrRouteE::Mbox,
@@ -225,13 +230,8 @@ impl Dma {
                 .rd_fixed(false)
             });
 
-            // Set the number of bytes to write.
-            dma.byte_count().write(|_| write_transaction.length);
-
-            // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
-
             // Start the DMA transaction.
+            // [TODO][CAP2][DMA] Squash this with line 171.
             dma.ctrl().modify(|c| c.go(true));
         })
     }
@@ -284,6 +284,7 @@ impl Dma {
             let max_fifo_depth = dma.cap().read().fifo_max_depth();
             write_data.chunks(4).for_each(|word| {
                 // Wait until the FIFO has space. fifo_depth is in DWORDs.
+                // [TODO][CAP2][DMA] Review with Caleb.
                 while max_fifo_depth == dma.status0().read().fifo_depth() {}
 
                 dma.write_data()
@@ -320,7 +321,7 @@ impl Dma {
     ///
     /// * CaliptraResult<()> - Success or failure
     pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
-        self.flush();
+        // [TODO][CAP2][DMA] self.flush(); // Not needed.
 
         let read_transaction = DmaReadTransaction {
             read_addr,
@@ -346,7 +347,7 @@ impl Dma {
     ///
     /// * `CaliptraResult<()>` - Success or error code
     pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) -> CaliptraResult<()> {
-        self.flush();
+        // [TODO][CAP2][DMA] self.flush(); // Not needed
 
         let write_transaction = DmaWriteTransaction {
             write_addr,
