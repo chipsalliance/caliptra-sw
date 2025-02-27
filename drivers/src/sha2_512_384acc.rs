@@ -217,6 +217,11 @@ impl Sha2_512_384AccOp<'_> {
         maintain_data_endianess: bool,
         digest: Sha384Digest,
     ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
         self.digest_generic(
             dlen,
             start_address,

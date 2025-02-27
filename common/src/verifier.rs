@@ -80,6 +80,26 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         Ok(digest.0)
     }
 
+    fn sha512_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest512> {
+        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+        let mut digest = Array4x16::default();
+
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+            sha_acc_op
+                .digest_512(len, offset, false, &mut digest)
+                .map_err(|_| digest_failure)?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
+        Ok(digest.0)
+    }
+
     /// ECC-384 Verification routine
     fn ecc384_verify(
         &mut self,

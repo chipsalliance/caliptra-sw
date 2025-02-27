@@ -116,6 +116,14 @@ pub trait ImageVerificationEnv {
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384>;
 
+    /// Calculate SHA-512 Digest with accelerator
+    fn sha512_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest512>;
+
     /// Perform ECC-384 Verification
     fn ecc384_verify(
         &mut self,
