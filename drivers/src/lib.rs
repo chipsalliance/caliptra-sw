@@ -61,7 +61,7 @@ pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
-    AxiAddr, Dma, DmaReadTarget, DmaReadTransaction, DmaRecovery, DmaWriteOrigin,
+    AxiAddr, Dma, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery, DmaWriteOrigin,
     DmaWriteTransaction,
 };
 pub use doe::DeobfuscationEngine;
