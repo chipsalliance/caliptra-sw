@@ -17,12 +17,14 @@ use crate::Event;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{rc::Rc, sync::mpsc};
 
+#[allow(unused)]
 pub trait EventListener {
     fn incoming_event(&mut self, _event: Rc<Event>) {
         // By default, do nothing
     }
 }
 
+#[allow(unused)]
 pub trait EventSender {
     fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
         // By default, do nothing

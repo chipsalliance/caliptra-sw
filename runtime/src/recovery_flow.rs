@@ -65,7 +65,7 @@ impl RecoveryFlow {
 
         // notify MCU that it can boot
         // TODO: get the correct value for this
-        dma_recovery.set_mci_flow_status(123);
+        dma_recovery.set_mci_flow_status(123)?;
 
         // we're done with recovery
         dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL)?;
