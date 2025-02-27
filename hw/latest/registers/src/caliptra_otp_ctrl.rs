@@ -2566,8 +2566,8 @@ pub mod meta {
         ureg::ReadOnlyReg32<crate::caliptra_otp_ctrl::regs::ErrCodeRegTReadVal>;
     pub type ErrCodeRfErrCode8 =
         ureg::ReadOnlyReg32<crate::caliptra_otp_ctrl::regs::ErrCodeRegTReadVal>;
-    pub type DaiWdataRfDirectAccessWdata0 = ureg::ReadOnlyReg32<u32>;
-    pub type DaiWdataRfDirectAccessWdata1 = ureg::ReadOnlyReg32<u32>;
+    pub type DaiWdataRfDirectAccessWdata0 = ureg::WriteOnlyReg32<0, u32>;
+    pub type DaiWdataRfDirectAccessWdata1 = ureg::WriteOnlyReg32<0, u32>;
     pub type DaiRdataRfDirectAccessRdata0 = ureg::ReadOnlyReg32<u32>;
     pub type DaiRdataRfDirectAccessRdata1 = ureg::ReadOnlyReg32<u32>;
     pub type VendorTestDigestDigest0 = ureg::ReadOnlyReg32<u32>;
