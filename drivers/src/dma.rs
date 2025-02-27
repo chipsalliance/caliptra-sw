@@ -129,16 +129,15 @@ impl Dma {
         f(dma.regs_mut())
     }
 
+    // This function is used to flush the DMA FIFO and state machine.
+    // It does not clear the DMA registers.
     pub fn flush(&self) {
         self.with_dma(|dma| {
             dma.ctrl().write(|c| c.flush(true));
-            // Wait till we're not busy and have no errors
-            // TODO this assumes the peripheral does not clear that status0 state
-            // in one cycle. Maybe it can be removed if the assumption proves false
 
             while {
                 let status0 = dma.status0().read();
-                status0.busy() || status0.error()
+                status0.busy()
             } {}
         })
     }
@@ -165,6 +164,12 @@ impl Dma {
             dma.dst_addr_l().write(|_| target_addr_lo);
             dma.dst_addr_h().write(|_| target_addr_hi);
 
+            // Set the number of bytes to read.
+            dma.byte_count().write(|_| read_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
             dma.ctrl().modify(|c| {
                 c.rd_route(|_| match read_transaction.target {
                     DmaReadTarget::Mbox(_) => RdRouteE::Mbox,
@@ -180,16 +185,8 @@ impl Dma {
                     DmaReadTarget::AxiWr(_, fixed) => fixed,
                     _ => false,
                 })
+                .go(true)
             });
-
-            // Set the number of bytes to read.
-            dma.byte_count().write(|_| read_transaction.length);
-
-            // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
-
-            // Start the DMA transaction.
-            dma.ctrl().modify(|c| c.go(true));
         })
     }
 
@@ -215,6 +212,12 @@ impl Dma {
             dma.src_addr_l().write(|_| source_addr_lo);
             dma.src_addr_h().write(|_| source_addr_hi);
 
+            // Set the number of bytes to write.
+            dma.byte_count().write(|_| write_transaction.length);
+
+            // Set the block size.
+            dma.block_size().write(|f| f.size(block_size));
+
             dma.ctrl().modify(|c| {
                 c.wr_route(|_| match write_transaction.origin {
                     DmaWriteOrigin::Mbox(_) => WrRouteE::Mbox,
@@ -227,16 +230,8 @@ impl Dma {
                     _ => RdRouteE::Disable,
                 })
                 .rd_fixed(false)
+                .go(true)
             });
-
-            // Set the number of bytes to write.
-            dma.byte_count().write(|_| write_transaction.length);
-
-            // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
-
-            // Start the DMA transaction.
-            dma.ctrl().modify(|c| c.go(true));
         })
     }
 
@@ -324,8 +319,6 @@ impl Dma {
     ///
     /// * CaliptraResult<()> - Success or failure
     pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
-        self.flush();
-
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr: false,
@@ -350,8 +343,6 @@ impl Dma {
     ///
     /// * `CaliptraResult<()>` - Success or error code
     pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) -> CaliptraResult<()> {
-        self.flush();
-
         let write_transaction = DmaWriteTransaction {
             write_addr,
             fixed_addr: false,
@@ -445,7 +436,7 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
     const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
-    const PROT_CAP2_FLASHLESS_BOOT_BIT: u32 = 11;
+    const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const MCU_SRAM_OFFSET: u64 = 0x20_0000;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
@@ -649,7 +640,7 @@ impl<'a> DmaRecovery<'a> {
             // Set PROT_CAP2.AGENT_CAPS Bit11 to 1 ('Flashless boot').
             recovery
                 .prot_cap_2()
-                .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_BIT));
+                .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_VALUE));
 
             if caliptra_fw {
                 // the first image is our own firmware, so we needd to set up to receive it
