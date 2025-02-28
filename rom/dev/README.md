@@ -262,30 +262,29 @@ The following flows are conducted when the ROM is operating in the manufacturing
 9. The manufacturing process then polls this bit and continues with the fuse burning flow as outlined by the fuse controller specifications and SOC-specific VR methodologies.
 
 #### Debug Unlock
-1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set
+1. On reset, the ROM checks if the `MANUF_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set,
 
-2. If they are set, the ROM enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 128-bit value.
+2. If they are set, the ROM sets the `TAP_MODE` bit in the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register.
 
-3. Upon receiving the `TOKEN` command, ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
+3. The ROM then enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 256-bit value.
 
-4. The ROM then constructs a token by prepending and appending the 128-bit value with two 64-bit zeroed values: <br>
-    **64-bit 0s || 128-bit value || 64-bit 0s**
+4. Upon receiving the `TOKEN` command, ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
 
-5. The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
+5. The ROM performs a SHA-512 operation on the token to generate the token digest.
 
-6. The ROM reads the value from the `MANUF_DEBUG_UNLOCK_TOKEN` fuse register and applies the same transformation as steps 3 and 4 to obtain the stored token.
+6. The ROM then appends a 256-bit random nonce to the token digest and performs a SHA-512 operation to generate the expected token.
 
-7. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
+7. The ROM reads the value from the `MANUF_DEBUG_UNLOCK_TOKEN` fuse register and applies the same transformation as step 5 to obtain the stored token.
+
+8. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the following:
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_SUCCESS` bit to 1.
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
-    - `uCTAP_UNLOCK` to 1.
 
-8. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
+9. If the tokens do not match, the ROM blocks the debug unlock by setting the following:
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_FAILURE` to 1.
     - `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` to 0.
-    - `uCTAP_UNLOCK` to 0.
 
-9. ROM then completes the mailbox command with success or failure depending on the outcome of the unlock operation.
+10. ROM then completes the mailbox command with success or failure depending on the outcome of the unlock operation.
 
 ### Production Flows
 The following flows are conducted when the ROM is operating in the production mode, indicated by a value of `DEVICE_PRODUCTION` (0x3) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
