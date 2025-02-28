@@ -12,3 +12,6 @@
 [submodule "hw/latest/i3c-core-rtl"]
 	path = hw/latest/i3c-core-rtl
 	url = https://github.com/chipsalliance/i3c-core.git
+[submodule "hw/latest/caliptra-ss"]
+	path = hw/latest/caliptra-ss
+	url = https://github.com/chipsalliance/caliptra-ss.git

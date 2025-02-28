@@ -868,6 +868,7 @@ pub mod meta {
 pub mod aes;
 pub mod aes_clp;
 pub mod axi_dma;
+pub mod caliptra_otp_ctrl;
 pub mod csrng;
 pub mod doe;
 pub mod dv;

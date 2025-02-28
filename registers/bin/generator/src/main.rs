@@ -47,6 +47,8 @@ static CALIPTRA_INTEGRATION_RDL_FILE: &str = "src/integration/rtl/caliptra_reg.r
 
 static I3C_CORE_RDL_FILES: &[&str] = &["src/rdl/registers.rdl"];
 
+static OTP_CTRL_RDL_FILES: &[&str] = &["src/fuse_ctrl/data/otp_ctrl.rdl"];
+
 static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/mldsa_top/rtl/mldsa_reg.rdl"];
 
 static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
@@ -151,6 +153,14 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
     rdl_files.append(&mut i3c_core_rdl_files);
+
+    let otp_ctrl_rdl_dir = rtl_dir.join("hw").join("latest").join("caliptra-ss");
+    let mut otp_ctrl_rdl_files: Vec<PathBuf> = OTP_CTRL_RDL_FILES
+        .iter()
+        .map(|p| otp_ctrl_rdl_dir.join(p))
+        .filter(|p| p.exists())
+        .collect();
+    rdl_files.append(&mut otp_ctrl_rdl_files);
 
     let integration_rdl_file = rtl_dir.join(CALIPTRA_INTEGRATION_RDL_FILE);
     if integration_rdl_file.exists() {
