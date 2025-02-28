@@ -113,6 +113,7 @@ pub mod fips_self_test_cmd {
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
+            sha2_512_384_acc: &mut env.sha2_512_384_acc,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,

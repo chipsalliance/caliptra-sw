@@ -503,13 +503,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
-            })?;
+        let actual = &self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
@@ -539,13 +537,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             span.start as u32 + offset..span.end as u32 + offset
         };
 
-        let actual = &self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
-            })?;
+        let actual = &self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH)?;
@@ -592,10 +588,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             LMS_PUB_KEY_BYTE_SIZE
         } as u32;
 
-        let actual = &self.env.sha384_digest(start, size).map_err(|err| {
-            self.env.set_fw_extended_error(err.into());
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
-        })?;
+        let actual = &self.env.sha384_acc_digest(
+            start,
+            size,
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH)?;
@@ -622,13 +619,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE
-            })?;
+        let actual = &self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE,
+        )?;
 
         let fuses_digest = &self.env.owner_pub_key_digest_fuses();
 
@@ -674,26 +669,22 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         };
 
         // Vendor header digest is calculated up to the owner_data field.
-        let vendor_digest_384 = self
-            .env
-            .sha384_digest(range.start, vendor_header_len as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-            })?;
+        let vendor_digest_384 = self.env.sha384_acc_digest(
+            range.start,
+            vendor_header_len as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+        )?;
 
         let mut vendor_digest_holder = ImageDigestHolder {
             digest_384: &vendor_digest_384,
             digest_512: None,
         };
 
-        let owner_digest_384 = self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-            })?;
+        let owner_digest_384 = self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+        )?;
 
         let mut owner_digest_holder = ImageDigestHolder {
             digest_384: &owner_digest_384,
@@ -705,22 +696,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Update vendor_digest_holder and owner_digest_holder with SHA512 digests if MLDSA validation i required.
         if let PqcKeyInfo::Mldsa(_, _) = info.vendor_pqc_info {
-            vendor_digest_512 = self
-                .env
-                .sha512_digest(range.start, vendor_header_len as u32)
-                .map_err(|err| {
-                    self.env.set_fw_extended_error(err.into());
-                    CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-                })?;
+            vendor_digest_512 = self.env.sha512_acc_digest(
+                range.start,
+                vendor_header_len as u32,
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+            )?;
             vendor_digest_holder.digest_512 = Some(&vendor_digest_512);
 
-            owner_digest_512 = self
-                .env
-                .sha512_digest(range.start, range.len() as u32)
-                .map_err(|err| {
-                    self.env.set_fw_extended_error(err.into());
-                    CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-                })?;
+            owner_digest_512 = self.env.sha512_acc_digest(
+                range.start,
+                range.len() as u32,
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+            )?;
             owner_digest_holder.digest_512 = Some(&owner_digest_512);
         }
 
@@ -1031,13 +1018,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE
-            })?;
+        let actual = self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(*verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
@@ -1140,13 +1125,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
-            })?;
+        let actual = self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
@@ -1210,13 +1193,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self
-            .env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE
-            })?;
+        let actual = self.env.sha384_acc_digest(
+            range.start,
+            range.len() as u32,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
+        )?;
 
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
@@ -2379,6 +2360,24 @@ mod tests {
         }
 
         fn sha512_digest(&mut self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest512> {
+            Ok(self.digest_512)
+        }
+
+        fn sha384_acc_digest(
+            &mut self,
+            _offset: u32,
+            _len: u32,
+            _digest_failure: CaliptraError,
+        ) -> CaliptraResult<ImageDigest384> {
+            Ok(self.digest_384)
+        }
+
+        fn sha512_acc_digest(
+            &mut self,
+            _offset: u32,
+            _len: u32,
+            _digest_failure: CaliptraError,
+        ) -> CaliptraResult<ImageDigest512> {
             Ok(self.digest_512)
         }
 
