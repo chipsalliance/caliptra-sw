@@ -18,11 +18,11 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Lifecycle};
 
 const STATUS_REG_OFFSET: u64 = 0x10;
-const DIRECT_ACCESS_WDATA_0_REG_OFFSET: u64 = 0x44;
-const DIRECT_ACCESS_WDATA_1_REG_OFFSET: u64 = 0x48;
-const DIRECT_ACCESS_ADDRESS_REG_OFFSET: u64 = 0x40;
-const DIRECT_ACCESS_CMD_REG_OFFSET: u64 = 0x3C;
-const DAI_IDLE_BIT: u32 = 1 << 14;
+const DIRECT_ACCESS_WDATA_0_REG_OFFSET: u64 = 0x60;
+const DIRECT_ACCESS_WDATA_1_REG_OFFSET: u64 = 0x64;
+const DIRECT_ACCESS_ADDRESS_REG_OFFSET: u64 = 0x5C;
+const DIRECT_ACCESS_CMD_REG_OFFSET: u64 = 0x58;
+const DAI_IDLE_BIT: u32 = 1 << 21;
 const DIRECT_ACCESS_CMD_WRITE: u32 = 0x2;
 const DIRECT_ACCESS_CMD_DIGEST: u32 = 0x4;
 
@@ -33,8 +33,6 @@ impl UdsProgrammingFlow {
     #[inline(never)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn program_uds(env: &mut RomEnv) -> CaliptraResult<()> {
-        cprintln!("[uds] ++");
-
         // Check if UDS programming is requested.
         if !env.soc_ifc.uds_program_req() {
             return Ok(());
@@ -55,6 +53,7 @@ impl UdsProgrammingFlow {
         }
 
         // Update the UDS programming state.
+        cprintln!("[uds] Updating the UDS programming state");
         env.soc_ifc
             .set_uds_programming_flow_state(true /* in_progress */);
 
@@ -85,13 +84,15 @@ impl UdsProgrammingFlow {
                 while {
                     let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
                     (status_value & DAI_IDLE_BIT) == 0
-                } {
-                    // [TODO][CAP2] Handle errors.
-                }
+                } {}
 
                 // Write the UDS seed to the DIRECT_ACCESS_WDATA_0 register
                 // and the DIRECT_ACCESS_WDATA_1 register (for 64-bit granularity).
                 let wdata_0 = seed[seed_index];
+                cprintln!(
+                    "[uds] Writing the UDS seed to the DIRECT_ACCESS_WDATA_0: {:x} register, wdata_0: {:#x}",
+                    direct_access_wdata_0_reg_addr, wdata_0
+                );
                 env.dma
                     .write_dword(AxiAddr::from(direct_access_wdata_0_reg_addr), wdata_0)?;
                 if uds_fuse_row_granularity_64 {
@@ -100,6 +101,10 @@ impl UdsProgrammingFlow {
                     }
                     // 64-bit granularity
                     let wdata_1 = seed[seed_index + 1];
+                    cprintln!(
+                        "[uds] Writing the UDS seed to the DIRECT_ACCESS_WDATA_1: {:x} register, wdata_1: {:#x}",
+                        direct_access_wdata_1_reg_addr, wdata_1
+                    );
                     env.dma
                         .write_dword(AxiAddr::from(direct_access_wdata_1_reg_addr), wdata_1)?;
                     seed_index += 2;
@@ -109,12 +114,16 @@ impl UdsProgrammingFlow {
                 }
 
                 // Write the lower 32 bits of the UDS Seed programming destination address to the DIRECT_ACCESS_ADDRESS register.
+                cprintln!("[uds] Writing the lower 32 bits of the UDS Seed programming destination address: {:x} to the DIRECT_ACCESS_ADDRESS register: {:x}",
+                    uds_seed_dest_address, direct_access_address_reg_addr);
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_address_reg_addr),
                     uds_seed_dest_address,
                 )?;
 
                 // Trigger the UDS seed write command
+                cprintln!("[uds] Triggering the UDS seed write command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
+                    direct_access_cmd_reg_addr, DIRECT_ACCESS_CMD_WRITE);
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_cmd_reg_addr),
                     DIRECT_ACCESS_CMD_WRITE,
@@ -133,18 +142,19 @@ impl UdsProgrammingFlow {
             while {
                 let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
                 (status_value & DAI_IDLE_BIT) == 0
-            } {
-                // [TODO][CAP2] Handle errors.
-            }
+            } {}
 
             // Write the lower 32 bits of the UDS Seed programming base address to the DIRECT_ACCESS_ADDRESS register.
-            cprintln!("[uds] Triggering the partition digest operation");
+            cprintln!("[uds] Triggering the partition digest operation, direct_access_address_reg_addr: {:x}, uds_seed_dest_address: {:#x}",
+                direct_access_address_reg_addr, env.soc_ifc.uds_seed_dest_base_addr_low());
             env.dma.write_dword(
                 AxiAddr::from(direct_access_address_reg_addr),
                 env.soc_ifc.uds_seed_dest_base_addr_low(),
             )?;
 
             // Trigger the digest calculation command
+            cprintln!("[uds] Triggering the digest calculation command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
+                direct_access_cmd_reg_addr, DIRECT_ACCESS_CMD_DIGEST);
             env.dma.write_dword(
                 AxiAddr::from(direct_access_cmd_reg_addr),
                 DIRECT_ACCESS_CMD_DIGEST,
@@ -154,17 +164,17 @@ impl UdsProgrammingFlow {
             while {
                 let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
                 (status_value & DAI_IDLE_BIT) == 0
-            } {
-                // [TODO][CAP2] Handle errors.
-            }
+            } {}
 
             Ok(())
         })();
 
         // Set the UDS programming result.
+        cprintln!("[uds] Setting the UDS programming result");
         env.soc_ifc.set_uds_programming_flow_status(result.is_ok());
 
         // Update the UDS programming state.
+        cprintln!("[uds] Updating the UDS programming state");
         env.soc_ifc
             .set_uds_programming_flow_state(false /* in_progress */);
 

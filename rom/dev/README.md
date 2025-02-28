@@ -237,17 +237,16 @@ The following flows are conducted when the ROM is operating in the manufacturing
 #### UDS Provisioning
 1. On reset, the ROM checks if the `UDS_PROGRAM_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register is set. If the bit is set, ROM initiates the UDS seed programming flow by setting the `UDS_PROGRAM_IN_PROGRESS` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register. If the flow fails at some point past reading the REQ bits, the flow will be aborted and an error returned.
 
-2. ROM then retrieves a 512-bit value from the iTRNG, the UDS Seed programming base address from the `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_L` and `SS_UDS_SEED_PROGRAMMING_BASE_ADDR_H` registers and the Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
+2. ROM then retrieves a 512-bit value from the iTRNG, the UDS Seed programming base address from the `SS_UDS_SEED_BASE_ADDR_L` and `SS_UDS_SEED_BASE_ADDR_H` registers and the Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
 3. ROM then retrieves the UDS granularity from the `CPTRA_HW_CONFIG` register Bit6 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.
 
 4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
-    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit (Bit 14) of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
+    1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit (Bit-21) of the Fuse Controller, located at offset 0x10 from the Fuse Controller's base address.
     2. If the granularity is 32-bit, the ROM writes the next word from the UDS seed to the `DIRECT_ACCESS_WDATA_0` register. If the granularity is 64-bit, the ROM writes the next two words to `the DIRECT_ACCESS_WDATA_0` and `DIRECT_ACCESS_WDATA_1` registers, located at offsets 0x44 and 0x48 respectively from the Fuse Controller's base address.
     3. The ROM writes the lower 32 bits of the UDS Seed programming base address to the `DIRECT_ACCESS_ADDRESS` register at offset 0x40.
     4. The ROM triggers the UDS seed write command by writing 0x2 to the `DIRECT_ACCESS_CMD` register at offset 0x3C.
-    5. [OPEN] Handle DAI error.
-    6. The ROM increments the `DIRECT_ACCESS_ADDRESS` register by 4 for 32-bit granularity or 8 for 64-bit granularity and repeats the process for the remaining words of the UDS seed.
+    5. The ROM increments the `DIRECT_ACCESS_ADDRESS` register by 4 for 32-bit granularity or 8 for 64-bit granularity and repeats the process for the remaining words of the UDS seed.
 
 5. The ROM continuously polls the Fuse Controller's `STATUS` register until the DAI state returns to idle.
 
