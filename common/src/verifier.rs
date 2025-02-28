@@ -44,7 +44,6 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
-
         Ok(self.sha2_512_384.sha384_digest(data)?.0)
     }
 
