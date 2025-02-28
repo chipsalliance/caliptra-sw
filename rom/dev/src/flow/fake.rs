@@ -248,6 +248,7 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha2_512_384: &'a mut Sha2_512_384,
+    pub(crate) sha2_512_384_acc: &'a mut Sha2_512_384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
@@ -287,10 +288,12 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
-        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
         let mut digest = Array4x12::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
             sha_acc_op
                 .digest_384(len, offset, false, &mut digest)
                 .map_err(|_| digest_failure)?;
@@ -307,10 +310,12 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
-        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
         let mut digest = Array4x16::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
             sha_acc_op
                 .digest_512(len, offset, false, &mut digest)
                 .map_err(|_| digest_failure)?;

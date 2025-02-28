@@ -15,7 +15,6 @@ Abstract:
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
-use caliptra_registers::sha512_acc::Sha512AccCsr;
 use core::ops::Range;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -25,6 +24,7 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub sha256: &'a mut Sha256,
     pub sha2_512_384: &'a mut Sha2_512_384,
+    pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub mldsa87: &'a mut Mldsa87,
@@ -66,10 +66,12 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
-        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
         let mut digest = Array4x12::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
             sha_acc_op
                 .digest_384(len, offset, false, &mut digest)
                 .map_err(|_| digest_failure)?;
@@ -86,10 +88,12 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
-        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
         let mut digest = Array4x16::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(ShaAccLockState::NotAcquired)? {
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
             sha_acc_op
                 .digest_512(len, offset, false, &mut digest)
                 .map_err(|_| digest_failure)?;

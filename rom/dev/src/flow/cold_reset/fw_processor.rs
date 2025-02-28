@@ -120,6 +120,7 @@ impl FirmwareProcessor {
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
+            sha2_512_384_acc: &mut env.sha2_512_384_acc,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             mldsa87: &mut env.mldsa87,
@@ -448,6 +449,7 @@ impl FirmwareProcessor {
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
             sha2_512_384: venv.sha2_512_384,
+            sha2_512_384_acc: venv.sha2_512_384_acc,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,

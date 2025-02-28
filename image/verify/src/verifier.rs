@@ -696,13 +696,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Update vendor_digest_holder and owner_digest_holder with SHA512 digests if MLDSA validation i required.
         if let PqcKeyInfo::Mldsa(_, _) = info.vendor_pqc_info {
-            // vendor_digest_512 = self
-            //     .env
-            //     .sha512_digest(range.start, vendor_header_len as u32)
-            //     .map_err(|err| {
-            //         self.env.set_fw_extended_error(err.into());
-            //         CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-            //     })?;
             vendor_digest_512 = self.env.sha512_acc_digest(
                 range.start,
                 vendor_header_len as u32,
@@ -710,13 +703,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )?;
             vendor_digest_holder.digest_512 = Some(&vendor_digest_512);
 
-            // owner_digest_512 = self
-            //     .env
-            //     .sha512_digest(range.start, range.len() as u32)
-            //     .map_err(|err| {
-            //         self.env.set_fw_extended_error(err.into());
-            //         CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
-            //     })?;
             owner_digest_512 = self.env.sha512_acc_digest(
                 range.start,
                 range.len() as u32,
