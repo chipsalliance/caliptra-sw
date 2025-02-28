@@ -325,22 +325,40 @@ uint32_t caliptra_read_fw_fatal_error()
 }
 
 /**
- * caliptra_ready_for_firmware
+ * caliptra_is_ready_for_firmware
  *
- * Reports if the Caliptra hardware is ready for firmware upload
+ * Checks if Caliptra hardware is ready for firmware upload
  *
  * @return bool True if ready, false otherwise
  */
-bool caliptra_ready_for_firmware(void)
+uint32_t caliptra_is_ready_for_firmware(void)
 {
-    uint32_t status;
+    uint32_t status = caliptra_read_status();
+    return (status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK;
+}
+
+/**
+ * caliptra_ready_for_firmware
+ *
+ * Waits until Caliptra hardware is ready for firmware upload or until
+ * Caliptra reports an error
+ *
+ * @return int 0 if ready, Caliptra error otherwise
+ */
+uint32_t caliptra_ready_for_firmware(void)
+{
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
-        status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if (caliptra_is_ready_for_firmware())
         {
             ready = true;
         }
@@ -350,7 +368,20 @@ bool caliptra_ready_for_firmware(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
+}
+
+/**
+ * caliptra_is_ready_for_runtime
+ *
+ * Checks if Caliptra hardware is ready for runtime commands
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_runtime(void)
+{
+    uint32_t status = caliptra_read_status();
+    return (status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK;
 }
 
 /**
@@ -363,14 +394,18 @@ bool caliptra_ready_for_firmware(void)
  */
 uint32_t caliptra_ready_for_runtime(void)
 {
-    uint32_t status;
+    uint32_t fatal_error;
     bool ready = false;
 
     do
     {
-        status = caliptra_read_status();
+        fatal_error = caliptra_read_fw_fatal_error();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if (fatal_error != 0)
+        {
+            return fatal_error;
+        }
+        else if (caliptra_is_ready_for_runtime())
         {
             ready = true;
         }
@@ -380,7 +415,7 @@ uint32_t caliptra_ready_for_runtime(void)
         }
     } while (ready == false);
 
-    return true;
+    return 0;
 }
 
 /*

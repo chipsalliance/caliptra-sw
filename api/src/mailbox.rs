@@ -472,7 +472,7 @@ pub struct GetIdevInfoResp {
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetLdevCertReq {
-    header: MailboxReqHeader,
+    pub header: MailboxReqHeader,
 }
 
 impl Request for GetLdevCertReq {
@@ -506,7 +506,7 @@ impl Default for GetLdevCertResp {
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetRtAliasCertReq {
-    header: MailboxReqHeader,
+    pub header: MailboxReqHeader,
 }
 impl Request for GetRtAliasCertReq {
     const ID: CommandId = CommandId::GET_RT_ALIAS_CERT;
@@ -734,7 +734,7 @@ impl Default for InvokeDpeResp {
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetFmcAliasCertReq {
-    header: MailboxReqHeader,
+    pub header: MailboxReqHeader,
 }
 impl Request for GetFmcAliasCertReq {
     const ID: CommandId = CommandId::GET_FMC_ALIAS_CERT;

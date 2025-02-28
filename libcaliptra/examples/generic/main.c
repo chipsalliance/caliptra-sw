@@ -34,6 +34,10 @@ static void set_fuses(test_info* info)
         fuses->owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
         fuses->key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
     }
+
+#if !defined(SKIP_LMS_VERIFY)
+    fuses->lms_verify = true;
+#endif
 }
 
 static struct caliptra_buffer read_file_or_exit(const char* path)
@@ -79,6 +83,10 @@ int main(int argc, char *argv[])
         .image_bundle = read_file_or_exit(FW_PATH),
         .fuses = {{0}},
     };
+    struct caliptra_image_manifest *manifest =
+        (struct caliptra_image_manifest *)info.image_bundle.data;
+    if (manifest->header.flags & 1)
+        info.apb_pauser = manifest->header.pl0_pauser;
     set_fuses(&info);
 
     return run_tests(&info);

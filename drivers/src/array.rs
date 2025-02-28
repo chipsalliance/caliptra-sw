@@ -13,6 +13,7 @@ Abstract:
 
 --*/
 
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use core::mem::MaybeUninit;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -28,18 +29,9 @@ macro_rules! static_assert {
 /// cryptographic hardware, and provides From traits for converting to/from byte arrays.
 #[repr(transparent)]
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    IntoBytes,
-    FromBytes,
-    Immutable,
-    KnownLayout,
-    PartialEq,
-    Eq,
-    Launder,
-    Zeroize,
+    Debug, Clone, Copy, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Zeroize,
 )]
+#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {

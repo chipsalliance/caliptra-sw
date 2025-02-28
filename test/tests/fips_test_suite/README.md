@@ -14,8 +14,8 @@ cargo test --test fips_test_suite
 
 | Option Name               | Description                                                                                            |
 | :------------------------ | :----------------------------------------------------------------------------------------------------- |
-| FIPS_TEST_ROM_BIN         | Path to the the ROM binary to use (only applies to tests that do not build their own ROM)
-| FIPS_TEST_FW_BIN          | Path to the the FW image to use (only applies to tests that do not build their own FW)
+| FIPS_TEST_ROM_BIN         | Path to the ROM binary to use (only applies to tests that do not build their own ROM)
+| FIPS_TEST_FW_BIN          | Path to the FW image to use (only applies to tests that do not build their own FW)
 | FIPS_TEST_HW_EXP_VERSION  | HW release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
 | FIPS_TEST_ROM_EXP_VERSION | ROM release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
 | FIPS_TEST_RT_EXP_VERSION  | Runtime release version used to determine expected values (see test\tests\fips_test_suite\common.rs)
@@ -76,4 +76,4 @@ Test hooks are needed to meet the following FIPS 140-3 test requirements:
 | key_pair_consistency_error | TE10.35.04 | Enable hook to corrupt key pair during generation  <br>Trigger the keypair generation (Just boot and allow DICE flow to start?)  <br>Verify the correct error for key pair inconsistency is generated |
 | fw_load_blank_pub_keys  <br>fw_load_blank_pub_key_hashes | TE10.37.09 | Clear the public keys/hashes from the FW image  <br>Start the FW load  <br>Verify the correct error is returned |
 | fips_self_test_rom  <br>fips_self_test_rt | TE10.53.02 | Execute FIPS self test command  <br>Verify the output is correct and the self tests pass |
-| jtag_locked |     | Verfify JTAG access is prevented when in debug locked mode |
+| jtag_locked |     | Verify JTAG access is prevented when in debug locked mode |

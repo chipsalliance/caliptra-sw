@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+// Package dpe provides APIs to interact with the Caliptra model.
 package dpe
 
 /*
@@ -57,42 +58,43 @@ import (
 	"github.com/chipsalliance/caliptra-dpe/verification/client"
 )
 
+// CptraModel is a struct for the Caliptra model
 type CptraModel struct {
 	currentLocality uint32
 	client.Transport
 }
 
-// The libcaliptra API requires this to be global since the register read/write
+// CaliptraCModel is a global variable required by the libcaliptra API since the register read/write
 // APIs need to be callable from C
-var CALIPTRA_C_MODEL *C.struct_caliptra_model
+var CaliptraCModel *C.struct_caliptra_model
 
 //export caliptra_write_u32
 func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
-	result := C.caliptra_model_apb_write_u32(CALIPTRA_C_MODEL, address, data)
+	result := C.caliptra_model_apb_write_u32(CaliptraCModel, address, data)
 
-	C.caliptra_model_step(CALIPTRA_C_MODEL)
+	C.caliptra_model_step(CaliptraCModel)
 
 	return result
 }
 
 //export caliptra_read_u32
 func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) C.int {
-	return C.caliptra_model_apb_read_u32(CALIPTRA_C_MODEL, address, data)
+	return C.caliptra_model_apb_read_u32(CaliptraCModel, address, data)
 }
 
 //export caliptra_wait
 func caliptra_wait() {
-	C.caliptra_model_step(CALIPTRA_C_MODEL)
+	C.caliptra_model_step(CaliptraCModel)
 }
 
-// Emulator can be started and stopped.
+// HasPowerControl indicates whether the Emulator can be started and stopped.
 func (s *CptraModel) HasPowerControl() bool {
 	return true
 }
 
 func getHWModel() *C.struct_caliptra_model {
-	if CALIPTRA_C_MODEL != nil {
-		return CALIPTRA_C_MODEL
+	if CaliptraCModel != nil {
+		return CaliptraCModel
 	}
 
 	romPath := os.Getenv("ROM_PATH")
@@ -108,16 +110,17 @@ func getHWModel() *C.struct_caliptra_model {
 
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
+	params.soc_user = 1
 
-	status := C.caliptra_model_init_default(params, &CALIPTRA_C_MODEL)
+	status := C.caliptra_model_init_default(params, &CaliptraCModel)
 	if status != 0 {
 		panic("Failed to initialize caliptra model")
 	}
 
-	return CALIPTRA_C_MODEL
+	return CaliptraCModel
 }
 
-// Start the Emulator.
+// PowerOn starts the Emulator.
 func (s *CptraModel) PowerOn() error {
 	model := getHWModel()
 	if model == nil {
@@ -150,14 +153,15 @@ func (s *CptraModel) PowerOn() error {
 	return nil
 }
 
-// Kill the emulator in a way that it can cleanup before closing.
+// PowerOff kills the emulator in a way that it can cleanup before closing.
 func (s *CptraModel) PowerOff() error {
-	C.caliptra_model_destroy(CALIPTRA_C_MODEL)
-	CALIPTRA_C_MODEL = nil
+	C.caliptra_model_destroy(CaliptraCModel)
+	CaliptraCModel = nil
 
 	return nil
 }
 
+// SendCmd sends a DPE command.
 func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	var req C.struct_caliptra_invoke_dpe_req
 	var resp C.struct_caliptra_invoke_dpe_resp
@@ -188,6 +192,7 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	return selectedBytes, nil
 }
 
+// GetSupport returns the support vector.
 func (s *CptraModel) GetSupport() *client.Support {
 	// Expected support vector
 	return &client.Support{
@@ -200,54 +205,65 @@ func (s *CptraModel) GetSupport() *client.Support {
 		InternalInfo:        true,
 		InternalDice:        true,
 		RetainParentContext: true,
-		CdiExport: true,
+		CdiExport:           true,
 	}
 }
 
+// GetSupportedLocalities returns the supported localities.
 func (s *CptraModel) GetSupportedLocalities() []uint32 {
 	// TODO: Make this configurable, since it will be SoC specific
 	return []uint32{0, 1}
 }
 
+// HasLocalityControl indicates whether locality control is supported.
 func (s *CptraModel) HasLocalityControl() bool {
 	// TODO: Hook this up to HwModel
 	return false
 }
 
+// SetLocality sets the current locality.
 func (s *CptraModel) SetLocality(locality uint32) {
 	// TODO: Hook this up to HwModel
 	s.currentLocality = locality
 }
 
+// GetLocality returns the current locality.
 func (s *CptraModel) GetLocality() uint32 {
 	return s.currentLocality
 }
 
+// GetMaxTciNodes returns the maximum number of TCI nodes supported by the model.
 func (s *CptraModel) GetMaxTciNodes() uint32 {
 	return 24
 }
 
+// GetProfileMajorVersion returns the major version of the DPE profile.
 func (s *CptraModel) GetProfileMajorVersion() uint16 {
 	return 0
 }
 
+// GetProfileMinorVersion returns the minor version of the DPE profile.
 func (s *CptraModel) GetProfileMinorVersion() uint16 {
 	return 12
 }
 
+// GetProfileVendorID returns the vendor ID of the DPE profile.
 func (s *CptraModel) GetProfileVendorID() uint32 {
 	return binary.BigEndian.Uint32([]byte{'C', 'T', 'R', 'A'})
 }
 
+// GetProfileVendorSku returns the vendor SKU of the DPE profile.
 func (s *CptraModel) GetProfileVendorSku() uint32 {
 	return binary.BigEndian.Uint32([]byte{'C', 'T', 'R', 'A'})
 }
 
+// GetIsInitialized returns whether the model is initialized.
 func (s *CptraModel) GetIsInitialized() bool {
 	// Always auto initialized
 	return true
 }
 
+// SetIsInitialized is a no-op as the model is always initialized.
 func (s *CptraModel) SetIsInitialized(isInitialized bool) {
 	// no-op. Always initialized
 }

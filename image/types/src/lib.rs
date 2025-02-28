@@ -15,15 +15,16 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use caliptra_error::{CaliptraError, CaliptraResult};
-use core::mem::size_of;
-use core::ops::Range;
-use zeroize::Zeroize;
-
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPrivateKey, LmsPublicKey, LmsSignature,
 };
+use core::mem::size_of;
+use core::ops::Range;
 use memoffset::{offset_of, span_of};
+#[cfg(feature = "std")]
+use serde_derive::Deserialize;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zeroize::Zeroize;
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
@@ -66,6 +67,7 @@ pub type ImageEccPrivKey = ImageScalar;
     Zeroize,
 )]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageEccPubKey {
     /// X Coordinate
     pub x: ImageScalar,
@@ -92,6 +94,7 @@ pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
     Zeroize,
 )]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageEccSignature {
     /// Random point
     pub r: ImageScalar,
@@ -221,6 +224,7 @@ impl ImageManifest {
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
     #[zeroize(skip)]
@@ -229,6 +233,7 @@ pub struct ImageVendorPubKeys {
 
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
     #[zeroize(skip)]
@@ -238,6 +243,7 @@ pub struct ImageVendorPrivKeys {
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
     #[zeroize(skip)]
@@ -246,6 +252,7 @@ pub struct ImageOwnerPubKeys {
 
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
     #[zeroize(skip)]
@@ -297,7 +304,7 @@ pub struct VendorSignedData {
     /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    pub reserved: [u8; 10],
 }
 
 #[repr(C)]
@@ -313,7 +320,7 @@ pub struct OwnerSignedData {
     /// Owner epoch, used to diversify stable SVN keys.
     pub epoch: [u8; 2],
 
-    reserved: [u8; 8],
+    pub reserved: [u8; 8],
 }
 
 /// Caliptra Image header
@@ -389,7 +396,7 @@ pub struct ImageTocEntry {
     pub id: u32,
 
     /// Type
-    pub r#type: u32,
+    pub image_type: u32,
 
     /// Commit revision
     pub revision: ImageRevision,

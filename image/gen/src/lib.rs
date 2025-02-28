@@ -17,6 +17,7 @@ mod generator;
 pub use generator::ImageGenerator;
 
 use caliptra_image_types::*;
+use serde_derive::Deserialize;
 use std::path::Path;
 
 /// Image Generator Executable
@@ -90,7 +91,7 @@ pub trait ImageGeneratorCrypto {
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct ImageGeneratorVendorConfig {
     pub pub_keys: ImageVendorPubKeys,
 
@@ -108,7 +109,7 @@ pub struct ImageGeneratorVendorConfig {
 }
 
 /// Image Generator Owner Configuration
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct ImageGeneratorOwnerConfig {
     pub pub_keys: ImageOwnerPubKeys,
 
