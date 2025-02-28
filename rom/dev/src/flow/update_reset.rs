@@ -15,7 +15,6 @@ Abstract:
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::key_ladder;
 use crate::{cprintln, pcr, rom_env::RomEnv};
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;

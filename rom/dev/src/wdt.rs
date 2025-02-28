@@ -16,7 +16,6 @@ Environment:
 
 --*/
 
-#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::WdtTimeout;
 use caliptra_drivers::SocIfc;
