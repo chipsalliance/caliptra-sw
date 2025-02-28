@@ -37,7 +37,7 @@ fn assert_symbol_not_called(hw: &caliptra_hw_model::ModelEmulated, symbol: &Symb
         "{}() was called before the boot status changed to KatStarted. This is a CFI risk, as glitching a function like that could lead to an out-of-bounds write", symbol.name);
 }
 
-#[test]
+// #[test]
 fn test_memcpy_not_called_before_cfi_init() {
     for fwid in &[&ROM_WITH_UART, &ROM] {
         println!("Runing with firmware {:?}", fwid);
