@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x16, AxiAddr};
+use crate::{cprintln, Array4x16, AxiAddr};
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -90,13 +90,16 @@ impl SocIfc {
 
     /// Subsystem debug unlock requested
     pub fn ss_debug_unlock_req(&self) -> CaliptraResult<bool> {
+        cprintln!("ss_debug_intent: {}", self.ss_debug_intent());
         if !self.ss_debug_intent() {
+            cprintln!("Subsystem debug intent not set");
             return Ok(false);
         }
 
         let soc_ifc_regs = self.soc_ifc.regs();
         let lifecycle = self.lifecycle();
         let dbg_req = soc_ifc_regs.ss_dbg_manuf_service_reg_req().read();
+        cprintln!("Subsystem debug unlock request: {:#x}", u32::from(dbg_req));
         let (manuf, prod) = (
             dbg_req.manuf_dbg_unlock_req(),
             dbg_req.prod_dbg_unlock_req(),
@@ -400,6 +403,11 @@ impl SocIfc {
 
     pub fn wdt1_timeout_cycle_count(&self) -> u64 {
         let soc_ifc_regs = self.soc_ifc.regs();
+        cprintln!(
+            "WDT1 timeout period (index 0): {:#x}, (index 1): {:#x}",
+            soc_ifc_regs.cptra_wdt_timer1_timeout_period().at(0).read(),
+            soc_ifc_regs.cptra_wdt_timer1_timeout_period().at(1).read()
+        );
         soc_ifc_regs.cptra_wdt_cfg().at(0).read() as u64
             | ((soc_ifc_regs.cptra_wdt_cfg().at(1).read() as u64) << 32)
     }
