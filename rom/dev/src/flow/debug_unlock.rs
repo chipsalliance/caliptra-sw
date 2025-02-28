@@ -40,6 +40,7 @@ use crate::rom_env::RomEnv;
 /// * `env` - ROM Environment
 pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     if !env.soc_ifc.ss_debug_unlock_req()? {
+        cprintln!("[state] debug unlock not requested");
         return Ok(());
     }
 
