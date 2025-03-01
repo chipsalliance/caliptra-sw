@@ -276,7 +276,7 @@ jobs:
 
   build_bitstream:
     #runs-on: [n2d-highmem-32, fpga-tools]
-    runs-on: [e2-standard-16, fpga-tools]
+    runs-on: [e2-standard-2, fpga-tools]
     timeout-minutes: 15
     needs: check_cache
     if: "!needs.check_cache.outputs.rtl_cache_hit"
