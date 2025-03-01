@@ -157,6 +157,7 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 	}
 
 	script := strings.ReplaceAll(launchStartupScript, "${JITCONFIG}", runner.JitConfig)
+    log.Printf("startup script: %v\n", script)
 
 	return createInstanceAndStart(ctx, instances, &computepb.InsertInstanceRequest{
 		Project: gcpProject,

@@ -188,6 +188,7 @@ func createInstanceAndStart(ctx context.Context, instances *compute.InstancesCli
 		instanceDelete(ctx, instances, req.InstanceResource.GetName())
 		return err
 	}
+    log.Printf("Finished createInstanceAndStart without any errors.\n")
 	return nil
 }
 

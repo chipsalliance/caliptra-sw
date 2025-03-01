@@ -290,6 +290,7 @@ jobs:
       - name: Mount FPGA tools
         run: |
           # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
+          echo "Starting work"
           sudo mkdir /fpga-tools
           sudo mount UUID=be18f242-fb8d-4d99-971e-a8ae390ad620 /fpga-tools/
 
