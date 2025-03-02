@@ -28,7 +28,7 @@ register_bitfields! {
     pub Status [
         DAI_ERROR OFFSET(7) NUMBITS(1) [],
         /// Data Access Interface Idle Status
-        DAI_IDLE OFFSET(14) NUMBITS(1) [
+        DAI_IDLE OFFSET(21) NUMBITS(1) [
             Busy = 0,
             Idle = 1
         ]
@@ -172,16 +172,16 @@ pub struct FuseController {
     #[register(offset = 0x10, read_fn = read_status)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
-    #[register(offset = 0x3c, write_fn = write_cmd)]
+    #[register(offset = 0x58, write_fn = write_cmd)]
     direct_access_cmd: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x40, write_fn = write_address)]
+    #[register(offset = 0x5c, write_fn = write_address)]
     direct_access_address: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x44, write_fn = write_wdata0)]
+    #[register(offset = 0x60, write_fn = write_wdata0)]
     direct_access_wdata_0: WriteOnlyRegister<u32>,
 
-    #[register(offset = 0x48, write_fn = write_wdata1)]
+    #[register(offset = 0x64, write_fn = write_wdata1)]
     direct_access_wdata_1: WriteOnlyRegister<u32>,
 
     state_machine: StateMachine<Context>,
@@ -192,7 +192,7 @@ impl FuseController {
     pub const FUSE_BANK_OFFSET: u64 = 0x800;
 
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
-        // [TODO][DAP2] get actual granularity from soc_reg HWCFG
+        // [TODO][CAP2] get actual granularity from soc_reg HWCFG
         let granularity = Granularity::Bits32;
 
         Self {
