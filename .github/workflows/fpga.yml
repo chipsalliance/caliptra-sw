@@ -39,67 +39,67 @@ on:
 
 
 jobs:
-  check_cache:
-    runs-on: ubuntu-22.04
-
-    env:
-      CACHE_BUSTER: 79cee50b6134
-
-    outputs:
-      rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
-      kmod_cache_key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-      rtl_cache_hit: ${{ steps.restore_rtl_cache.outputs.cache-hit }}
-      kmod_cache_hit: ${{ steps.restore_kmod_cache.outputs.cache-hit }}
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-  
-      - name: Compute cache-keys
-        id: cache_key
-        run: |
-          # Compute the key from the tree hash of the fpga directory and the rtl
-          # root directory.
-          if [ "${{ inputs.workflow_call }}" ]; then
-            RTL_VERSION="${{ inputs.hw-version }}"
-          else
-            RTL_VERSION="latest"
-          fi
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-
-      - name: Restore FPGA bitstream from cache
-        uses: actions/cache/restore@v3
-        id: restore_rtl_cache
-        with:
-          path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
-          key: ${{ steps.cache_key.outputs.rtl_cache_key }}
-
-      - name: Restore kernel modules from cache
-        uses: actions/cache/restore@v3
-        id: restore_kmod_cache
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-
-      - name: 'Upload FPGA bitstream artifact'
-        if: steps.restore_rtl_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
-          retention-days: 7
-
-      - name: 'Upload kernel module artifacts'
-        if: steps.restore_kmod_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
+  # check_cache:
+  #   runs-on: ubuntu-22.04
+  #
+  #   env:
+  #     CACHE_BUSTER: lkjasdf
+  #
+  #   outputs:
+  #     rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
+  #     kmod_cache_key: ${{ steps.cache_key.outputs.kmod_cache_key}}
+  #     rtl_cache_hit: ${{ steps.restore_rtl_cache.outputs.cache-hit }}
+  #     kmod_cache_hit: ${{ steps.restore_kmod_cache.outputs.cache-hit }}
+  #
+  #   steps:
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v3
+  #       with:
+  #         submodules: 'true'
+  #
+  #     - name: Compute cache-keys
+  #       id: cache_key
+  #       run: |
+  #         # Compute the key from the tree hash of the fpga directory and the rtl
+  #         # root directory.
+  #         if [ "${{ inputs.workflow_call }}" ]; then
+  #           RTL_VERSION="${{ inputs.hw-version }}"
+  #         else
+  #           RTL_VERSION="latest"
+  #         fi
+  #         echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+  #
+  #         echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+  #
+  #     - name: Restore FPGA bitstream from cache
+  #       uses: actions/cache/restore@v3
+  #       id: restore_rtl_cache
+  #       with:
+  #         path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
+  #         key: ${{ steps.cache_key.outputs.rtl_cache_key }}
+  #
+  #     - name: Restore kernel modules from cache
+  #       uses: actions/cache/restore@v3
+  #       id: restore_kmod_cache
+  #       with:
+  #         path: /tmp/caliptra-fpga-kmod/
+  #         key: ${{ steps.cache_key.outputs.kmod_cache_key}}
+  #
+  #     - name: 'Upload FPGA bitstream artifact'
+  #       if: steps.restore_rtl_cache.outputs.cache-hit
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
+  #         path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
+  #         retention-days: 7
+  #
+  #     - name: 'Upload kernel module artifacts'
+  #       if: steps.restore_kmod_cache.outputs.cache-hit
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
+  #         path: /tmp/caliptra-fpga-kmod/
+  #         retention-days: 1
 
   # build_test_binaries:
   #   runs-on: [e2-standard-16]
@@ -278,8 +278,6 @@ jobs:
     #runs-on: [n2d-highmem-32, fpga-tools]
     runs-on: [e2-standard-2, fpga-tools]
     timeout-minutes: 15
-    needs: check_cache
-    if: "!needs.check_cache.outputs.rtl_cache_hit"
 
     steps:
       - name: Checkout repo
