@@ -5,7 +5,7 @@ on:
   push:
     branches: ["main", "fpga-2.0-ci-dirty"]
   # Disabled in main-2.x until FPGA CI works again.
-  # pull_request:
+  pull_request:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -276,7 +276,7 @@ jobs:
 
   build_bitstream:
     #runs-on: [n2d-highmem-32, fpga-tools]
-    runs-on: [e2-standard-2, fpga-tools]
+    runs-on: fpga-tools
     timeout-minutes: 15
 
     steps:
