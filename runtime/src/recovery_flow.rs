@@ -12,12 +12,10 @@ Abstract:
 
 --*/
 
-use crate::Drivers;
-use caliptra_auth_man_types::AuthorizationManifest;
+use crate::{set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_drivers::DmaRecovery;
-use caliptra_kat::{CaliptraError, CaliptraResult};
-use zerocopy::FromBytes;
+use caliptra_kat::CaliptraResult;
 
 pub enum RecoveryFlow {}
 
@@ -28,40 +26,40 @@ impl RecoveryFlow {
         const SOC_MANIFEST_INDEX: u32 = 1;
         const MCU_FIRMWARE_INDEX: u32 = 2;
 
-        let dma = &drivers.dma;
-        let dma_recovery = DmaRecovery::new(
-            drivers.soc_ifc.recovery_interface_base_addr().into(),
-            drivers.soc_ifc.mci_base_addr().into(),
-            dma,
-        );
+        // use different scopes since we need to borrow drivers mutably and immutably
+        {
+            let dma = &drivers.dma;
+            let dma_recovery = DmaRecovery::new(
+                drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.mci_base_addr().into(),
+                dma,
+            );
 
-        // // download SoC manifest
-        let _soc_size_bytes = dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)?;
-        let Ok((manifest, _)) =
-            AuthorizationManifest::read_from_prefix(drivers.mbox.raw_mailbox_contents())
-        else {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
-        };
-        // [TODO][CAP2]: authenticate SoC manifest using keys available through Caliptra Image
-        // TODO: switch to ref_from method when we upgrade zerocopy
-        // [TODO][CAP2]: replace this copy with set_manifest
-        drivers
-            .persistent_data
-            .get_mut()
-            .auth_manifest_image_metadata_col = manifest.image_metadata_col;
-        // [TODO][CAP2]: capture measurement of Soc manifest?
-        // [TODO][CAP2]: this should be writing to MCU SRAM directly via AXI
-        let _mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
-        // [TODO][CAP2]: instruct Caliptra HW to read MCU SRAM and generate the hash (using HW SHA accelerator and AXI mastering capabilities to do this)
-        // [TODO][CAP2]: use this hash and verify it against the hash in the SOC manifest
-        // [TODO][CAP2]: after verifying/authorizing the image and if it passes, it will set EXEC/GO bit into the register as specified in the previous command. This register write will also assert a Caliptra interface wire
+            // download SoC manifest
+            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)?;
+        }
 
-        // notify MCU that it can boot
-        // TODO: get the correct value for this
-        dma_recovery.set_mci_flow_status(123)?;
+        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
 
-        // we're done with recovery
-        dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL)?;
+        {
+            let dma = &drivers.dma;
+            let dma_recovery = DmaRecovery::new(
+                drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.mci_base_addr().into(),
+                dma,
+            );
+            let _mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
+            // [TODO][CAP2]: instruct Caliptra HW to read MCU SRAM and generate the hash (using HW SHA accelerator and AXI mastering capabilities to do this)
+            // [TODO][CAP2]: use this hash and verify it against the hash in the SOC manifest
+            // [TODO][CAP2]: after verifying/authorizing the image and if it passes, it will set EXEC/GO bit into the register as specified in the previous command. This register write will also assert a Caliptra interface wire
+
+            // notify MCU that it can boot
+            // TODO: get the correct value for this
+            dma_recovery.set_mci_flow_status(123)?;
+
+            // we're done with recovery
+            dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+        }
 
         Ok(())
     }
