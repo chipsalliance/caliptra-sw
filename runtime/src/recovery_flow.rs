@@ -15,7 +15,7 @@ Abstract:
 use crate::{set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_drivers::DmaRecovery;
-use caliptra_kat::CaliptraResult;
+use caliptra_kat::{CaliptraError, CaliptraResult};
 
 pub enum RecoveryFlow {}
 
@@ -26,8 +26,12 @@ impl RecoveryFlow {
         const SOC_MANIFEST_INDEX: u32 = 1;
         const MCU_FIRMWARE_INDEX: u32 = 2;
 
+        // we need to hold the mailbox lock since we are downloading to it
+        if drivers.mbox.lock() {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
         // use different scopes since we need to borrow drivers mutably and immutably
-        {
+        let result = {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -36,8 +40,10 @@ impl RecoveryFlow {
             );
 
             // download SoC manifest
-            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)?;
-        }
+            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)
+        };
+        drivers.mbox.unlock();
+        result?;
 
         SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
 
