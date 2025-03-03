@@ -63,7 +63,7 @@ func handleCleanup(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLaunch(w http.ResponseWriter, r *http.Request) {
-    log.Printf("Entered launch handler: v3\n")
+    log.Printf("Entered launch handler: v4\n")
 	if r.Method != "POST" {
 		http.Error(w, "Must be POST", http.StatusBadRequest)
 		return
@@ -75,7 +75,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
-	secretToken, err := os.ReadFile("/etc/secrets/caliptra-gce-ci-github-webhook-secret-txt/latest")
+    secretToken, err := os.ReadFile("/etc/secrets/caliptra-gce-ci-github-webhook-secret-txt/latest")
 	if err != nil {
 		log.Printf("Error reading webhook secret: %v\n", err)
 		http.Error(w, "", http.StatusInternalServerError)
