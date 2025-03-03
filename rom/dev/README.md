@@ -90,7 +90,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be 0x434D414E (‘CMAN’ in ASCII)|
+| Firmware Manifest Marker | 4 | Magic Number marking the start of the package manifest. The value must be the bytes, in order,`43 4D 41 4E` (`CMAN` in ASCII) |
 | Firmware Manifest Size | 4 | Size of the full manifest structure |
 | Manufacturer ECC Public Key 1 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
 | Manufacturer ECC Public Key 2 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |

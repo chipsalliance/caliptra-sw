@@ -9,7 +9,7 @@ The Caliptra SOC manifest has two main components:
 
 | Field | Size (bytes) | Description|
 |-------|--------------|------------|
-| Manifest Marker | 4 | Magic Number marking the start of the manifest. The value must be 0x41544D4E (‘ATMN’ in ASCII)|
+| Manifest Marker | 4 | Magic Number marking the start of the manifest. The value must be the bytes, in order, `4E 4D 54 41` (`NMTA` in ASCII) |
 | Manifest Size | 4 | Size of the full manifest structure |
 | Version | 4 | Manifest version |
 | Flags | 4 | Feature flags.<br />**Bit0:** - Vendor Signature Required. If set, the vendor public keys will be used to verify the signatures signed with the <br />vendor private key. Otherwise, vendor signatures will not be used for verification.<br />**Bit1-Bit31:** Reserved  |
