@@ -46,6 +46,10 @@
 * Click Install
 
 Prod app is https://github.com/organizations/chipsalliance/settings/apps/caliptra-gha-runners-on-gcp
+
+* Enable Runner Group Repo access
+
+  * In "Actions > Runner Groups / Default" check the "Allow public repositories" bit. If this is not set runners will sit and do nothing.
  
 # Setup application-default permissions
 
