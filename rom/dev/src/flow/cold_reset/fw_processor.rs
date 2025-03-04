@@ -110,11 +110,7 @@ impl FirmwareProcessor {
         };
 
         // Load the manifest into DCCM.
-        let manifest = Self::load_manifest(
-            &mut env.persistent_data,
-            &mut txn,
-            env.soc_ifc.active_mode(),
-        );
+        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
         let mut venv = FirmwareImageVerificationEnv {
@@ -150,7 +146,7 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn, env.soc_ifc.active_mode())?;
+        Self::load_image(manifest, &mut txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -417,19 +413,14 @@ impl FirmwareProcessor {
     fn load_manifest(
         persistent_data: &mut PersistentDataAccessor,
         txn: &mut MailboxRecvTxn,
-        active_mode: bool,
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
-        if active_mode {
-            let mbox_sram = txn.raw_mailbox_contents();
-            let manifest_buf = manifest.as_mut_bytes();
-            if mbox_sram.len() < manifest_buf.len() {
-                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
-            }
-            manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
-        } else {
-            txn.copy_request(manifest.as_mut_bytes())?;
+        let mbox_sram = txn.raw_mailbox_contents();
+        let manifest_buf = manifest.as_mut_bytes();
+        if mbox_sram.len() < manifest_buf.len() {
+            Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
+        manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -602,37 +593,24 @@ impl FirmwareProcessor {
     // Inlined to reduce ROM size
     #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_image(
-        manifest: &ImageManifest,
-        txn: &mut MailboxRecvTxn,
-        active_mode: bool,
-    ) -> CaliptraResult<()> {
+    fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[fwproc] Load FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
 
-        if active_mode {
-            let mbox_sram = txn.raw_mailbox_contents();
-            let fmc_dest = unsafe {
-                let addr = (manifest.fmc.load_addr) as *mut u8;
-                core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
-            };
-            let start = size_of::<ImageManifest>();
-            let end = start + fmc_dest.len();
-            if start > end || mbox_sram.len() < end {
-                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
-            }
-            fmc_dest.copy_from_slice(&mbox_sram[start..end]);
-        } else {
-            let fmc_dest = unsafe {
-                let addr = (manifest.fmc.load_addr) as *mut u32;
-                core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
-            };
-
-            txn.copy_request(fmc_dest.as_mut_bytes())?;
+        let mbox_sram = txn.raw_mailbox_contents();
+        let fmc_dest = unsafe {
+            let addr = (manifest.fmc.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
+        };
+        let start = size_of::<ImageManifest>();
+        let end = start + fmc_dest.len();
+        if start > end || mbox_sram.len() < end {
+            Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
+        fmc_dest.copy_from_slice(&mbox_sram[start..end]);
 
         cprintln!(
             "[fwproc] Load Runtime at address 0x{:08x} len {}",
@@ -640,26 +618,17 @@ impl FirmwareProcessor {
             manifest.runtime.size
         );
 
-        if active_mode {
-            let mbox_sram = txn.raw_mailbox_contents();
-            let runtime_dest = unsafe {
-                let addr = (manifest.runtime.load_addr) as *mut u8;
-                core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
-            };
-            let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
-            let end = start + runtime_dest.len();
-            if start > end || mbox_sram.len() < end {
-                Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
-            }
-            runtime_dest.copy_from_slice(&mbox_sram[start..end]);
-        } else {
-            let runtime_dest = unsafe {
-                let addr = (manifest.runtime.load_addr) as *mut u32;
-                core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
-            };
-
-            txn.copy_request(runtime_dest.as_mut_bytes())?;
+        let mbox_sram = txn.raw_mailbox_contents();
+        let runtime_dest = unsafe {
+            let addr = (manifest.runtime.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
+        };
+        let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let end = start + runtime_dest.len();
+        if start > end || mbox_sram.len() < end {
+            Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
+        runtime_dest.copy_from_slice(&mbox_sram[start..end]);
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
