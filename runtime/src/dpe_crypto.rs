@@ -239,23 +239,31 @@ impl<'a> Crypto for DpeCrypto<'a> {
     ) -> Result<ExportedCdiHandle, CryptoError> {
         let mut exported_cdi_handle = [0; MAX_EXPORTED_CDI_SIZE];
         self.rand_bytes(&mut exported_cdi_handle)?;
-        let cdi = self.derive_cdi_inner(algs, measurement, info, KEY_ID_EXPORTED_DPE_CDI)?;
 
-        for slot in self.exported_cdi_slots.iter_mut() {
+        // Currently we only use one slot for export CDIs.
+        let cdi_slot = KEY_ID_EXPORTED_DPE_CDI;
+        // Copy the CDI slots to work around the borrow checker.
+        let mut slots_clone = *self.exported_cdi_slots;
+
+        for slot in slots_clone.iter_mut() {
             match slot {
                 // Matching existing slot
-                Some((cached_cdi, handle)) if *cached_cdi == cdi => {
+                Some((cached_cdi, handle)) if *cached_cdi == cdi_slot => {
                     Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
                 }
                 // Empty slot
                 None => {
+                    let cdi = self.derive_cdi_inner(algs, measurement, info, cdi_slot)?;
                     *slot = Some((cdi, exported_cdi_handle));
+                    // We need to update `self.exported_cdi_slots` with our mutation.
+                    *self.exported_cdi_slots = slots_clone;
                     return Ok(exported_cdi_handle);
                 }
                 // Used slot for a different CDI.
                 _ => (),
             }
         }
+        // Never found an available slot.
         Err(CryptoError::ExportedCdiHandleLimitExceeded)
     }
 

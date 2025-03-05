@@ -1263,6 +1263,21 @@ int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_r
     return pack_and_execute_command(&p, async);
 }
 
+// Revoke Exported CDI Handle
+int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_handle_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_REVOKE_EXPORTED_CDI_HANDLE, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Self test start
 int caliptra_self_test_start(bool async)
 {

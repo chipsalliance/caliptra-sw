@@ -928,6 +928,8 @@ When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for
 
 Command Code: `0x5357_4545` ("SWEE")
 
+**Note**: This command is only available in the locality of the PL0 PAUSER. 
+
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
 | **Name**             | **Type** | **Description**
@@ -945,6 +947,24 @@ Command Code: `0x5357_4545` ("SWEE")
 | signature_s        | u8[48]   | The S BigNum of an ECDSA signature.                                        |
 
 The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+### REVOKE\_EXPORTED\_CDI\_HANDLE
+
+Command Code: `5256_4348` ("RVCH")
+
+**Note**: This command is only available in the locality of the PL0 PAUSER. 
+
+*Table: `REVOKE_EXPORTED_CDI_HANDLE` input arguments*
+
+| **Name**             | **Type** | **Description**
+| --------             | -------- | ---------------
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
+
+The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle` 
+has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 ## Checksum
 
@@ -1091,6 +1111,7 @@ Caliptra DPE supports the following commands:
 * GetProfile
 * InitializeContext
 * DeriveContext
+    * **Note**: The "export-cdi" flag is only available in the locality of the PL0 PAUSER. 
 * CertifyKey
   * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
     X.509 is only available to PL0 PAUSERs.
