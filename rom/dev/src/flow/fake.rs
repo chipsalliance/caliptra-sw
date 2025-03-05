@@ -32,6 +32,7 @@ use caliptra_drivers::*;
 use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
+use caliptra_registers::sha512_acc::Sha512AccCsr;
 use core::ops::Range;
 
 const FAKE_LDEV_TBS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ldev_tbs.der"));
@@ -247,6 +248,7 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha2_512_384: &'a mut Sha2_512_384,
+    pub(crate) sha2_512_384_acc: &'a mut Sha2_512_384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
@@ -278,6 +280,50 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
             .get(..len as usize)
             .ok_or(err)?;
         Ok(self.sha2_512_384.sha512_digest(data)?.0)
+    }
+
+    fn sha384_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest384> {
+        let mut digest = Array4x12::default();
+
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
+            sha_acc_op
+                .digest_384(len, offset, false, &mut digest)
+                .map_err(|_| digest_failure)?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
+        Ok(digest.0)
+    }
+
+    fn sha512_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest512> {
+        let mut digest = Array4x16::default();
+
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
+            sha_acc_op
+                .digest_512(len, offset, false, &mut digest)
+                .map_err(|_| digest_failure)?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
+        Ok(digest.0)
     }
 
     /// ECC-384 Verification routine

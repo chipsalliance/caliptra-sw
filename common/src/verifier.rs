@@ -24,6 +24,7 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub sha256: &'a mut Sha256,
     pub sha2_512_384: &'a mut Sha2_512_384,
+    pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub mldsa87: &'a mut Mldsa87,
@@ -56,6 +57,50 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             .get(..len as usize)
             .ok_or(err)?;
         Ok(self.sha2_512_384.sha512_digest(data)?.0)
+    }
+
+    fn sha384_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest384> {
+        let mut digest = Array4x12::default();
+
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
+            sha_acc_op
+                .digest_384(len, offset, false, &mut digest)
+                .map_err(|_| digest_failure)?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
+        Ok(digest.0)
+    }
+
+    fn sha512_acc_digest(
+        &mut self,
+        offset: u32,
+        len: u32,
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest512> {
+        let mut digest = Array4x16::default();
+
+        if let Some(mut sha_acc_op) = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+        {
+            sha_acc_op
+                .digest_512(len, offset, false, &mut digest)
+                .map_err(|_| digest_failure)?;
+        } else {
+            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        };
+
+        Ok(digest.0)
     }
 
     /// ECC-384 Verification routine
