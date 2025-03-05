@@ -43,10 +43,10 @@ impl TrngExt {
                 return Err(CaliptraError::DRIVER_TRNG_EXT_TIMEOUT);
             }
         }
-        let a = regs.cptra_trng_data().at(0).read().into();
-        let b = regs.cptra_trng_data().at(1).read().into();
-        let c = regs.cptra_trng_data().at(2).read().into();
-        let d = regs.cptra_trng_data().at(3).read().into();
+        let a = regs.cptra_trng_data().at(0).read();
+        let b = regs.cptra_trng_data().at(1).read();
+        let c = regs.cptra_trng_data().at(2).read();
+        let d = regs.cptra_trng_data().at(3).read();
         regs.cptra_trng_status().write(|w| w.data_req(false));
         Ok((a, b, c, d))
     }

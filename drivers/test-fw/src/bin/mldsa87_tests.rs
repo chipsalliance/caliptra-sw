@@ -677,7 +677,7 @@ fn test_gen_key_pair() {
         )
         .unwrap()
     };
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || trng.generate4();
 
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
