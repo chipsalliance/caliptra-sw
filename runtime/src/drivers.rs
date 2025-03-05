@@ -241,7 +241,7 @@ impl Drivers {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to DPE validation failure");
+                    cprintln!("Disabled attest: DPE valid fail");
                     // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
                     drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
