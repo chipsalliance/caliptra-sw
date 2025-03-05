@@ -1490,7 +1490,7 @@ mod tests {
     }
 
     #[test]
-    fn test_preamble_vendor_pubkey_digest() {
+    fn test_preamble_vendor_pubkey_info_digest() {
         let preamble = ImagePreamble::default();
         let test_env = TestEnv {
             lifecycle: Lifecycle::Production,

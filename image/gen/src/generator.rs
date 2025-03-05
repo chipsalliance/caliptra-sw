@@ -415,7 +415,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     }
 
     /// Calculate vendor public key descriptor digest.
-    pub fn vendor_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest384> {
+    pub fn vendor_pubkey_info_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest384> {
         self.crypto
             .sha384_digest(preamble.vendor_pub_key_info.as_bytes())
     }
