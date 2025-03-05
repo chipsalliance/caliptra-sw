@@ -30,6 +30,7 @@ pub mod info;
 mod invoke_dpe;
 mod pcr;
 mod populate_idev;
+mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
 mod stash_measurement;
@@ -48,6 +49,7 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -232,6 +234,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
+            RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
         }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
