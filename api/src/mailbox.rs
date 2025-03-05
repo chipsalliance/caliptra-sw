@@ -93,6 +93,9 @@ impl CommandId {
     // The sign with exported ecdsa command.
     pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
 
+    // The revoke exported CDI handle command.
+    pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
+
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
@@ -212,6 +215,7 @@ pub enum MailboxResp {
     GetIdevMldsaCsr(GetIdevMldsaCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
+    RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
     CmImport(CmImportResp),
     CmStatus(CmStatusResp),
     CmShaInit(CmShaInitResp),
@@ -243,6 +247,7 @@ impl MailboxResp {
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
+            MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
@@ -274,6 +279,7 @@ impl MailboxResp {
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
@@ -339,6 +345,7 @@ pub enum MailboxReq {
     SetAuthManifest(SetAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
+    RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
     CmImport(CmImportReq),
     CmShaInit(CmShaInitReq),
     CmShaUpdate(CmShaUpdateReq),
@@ -372,6 +379,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
+            MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
             MailboxReq::CmImport(req) => req.as_bytes_partial(),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
@@ -405,6 +413,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmImport(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
@@ -438,6 +447,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
+            MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
             MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
@@ -1186,6 +1196,39 @@ impl Default for SignWithExportedEcdsaResp {
             derived_pubkey_y: [0u8; Self::Y_SIZE],
         }
     }
+}
+
+// REVOKE_EXPORTED_CDI_HANDLE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct RevokeExportedCdiHandleReq {
+    pub hdr: MailboxReqHeader,
+    pub exported_cdi_handle: [u8; Self::EXPORTED_CDI_MAX_SIZE],
+}
+
+impl Default for RevokeExportedCdiHandleReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            exported_cdi_handle: [0u8; Self::EXPORTED_CDI_MAX_SIZE],
+        }
+    }
+}
+
+impl RevokeExportedCdiHandleReq {
+    pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
+}
+
+impl Request for RevokeExportedCdiHandleReq {
+    const ID: CommandId = CommandId::REVOKE_EXPORTED_CDI_HANDLE;
+    type Resp = RevokeExportedCdiHandleResp;
+}
+impl Response for RevokeExportedCdiHandleResp {}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct RevokeExportedCdiHandleResp {
+    pub hdr: MailboxRespHeader,
 }
 
 #[repr(u32)]
