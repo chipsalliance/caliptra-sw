@@ -221,6 +221,9 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
 // Sign with Exported Ecdsa
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
 
+// Revoke Exported CDI Handle
+int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_handle_req *req, bool async);
+
 // Self test start
 int caliptra_self_test_start(bool async);
 

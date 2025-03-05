@@ -64,7 +64,7 @@ static void caliptra_wait_for_csr_ready(void)
  *
  * @return bool True if the signature passes verification, false otherwise
  */
-static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
+static bool caliptra_verify_ecdsa_signature_helper(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
 {
     bool status = true;
 
@@ -199,10 +199,95 @@ cleanup:
     return status;
 }
 
+static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp)
+{
+    struct caliptra_sign_with_exported_ecdsa_req sign_req = { 0 };
+    struct caliptra_sign_with_exported_ecdsa_resp sign_resp = { 0 };
+
+    // SHA384 of a 48 bytes of 0s
+    uint8_t tbs[] = {
+        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe,
+        0x22, 0xe4, 0x1c, 0x40, 0x0e, 0xea, 0x91, 0xb9, 0x71, 0xd9,
+        0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
+        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51,
+        0x28, 0xc9, 0xdf, 0x4e, 0xfa, 0xf6, 0xf8, 0xa7
+    };
+
+    memcpy(&sign_req.exported_cdi_handle, dpe_resp->exported_cdi_handle, sizeof(dpe_resp->exported_cdi_handle));
+    memcpy(&sign_req.tbs, &tbs, sizeof(tbs));
+
+    int status = caliptra_sign_with_exported_ecdsa(&sign_req, &sign_resp, false);
+
+    if (status) {
+        printf("Sign with exported Ecdsa failed: 0x%x\n", status);
+        return false;
+    }
+
+    return caliptra_verify_ecdsa_signature_helper(dpe_resp, &sign_resp, tbs, sizeof(tbs));
+}
+
 void dump_caliptra_error_codes()
 {
     printf("Caliptra FW error non-fatal code is 0x%x\n", caliptra_read_fw_non_fatal_error());
     printf("Caliptra FW error fatal code is 0x%x\n", caliptra_read_fw_fatal_error());
+}
+
+static int derive_context(struct dpe_derive_context_response *out, int flags) 
+{
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
+    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
+    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
+
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
+    derive_context_cmd.cmd_hdr.profile = 0x4;
+    derive_context_cmd.flags = flags;
+
+    memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
+    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
+
+    int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    } else {
+        memcpy(out, &dpe_resp.derive_context_resp, sizeof(struct dpe_derive_context_response));
+        printf("DPE Command: OK\n");
+    }
+
+    return 0;
+}
+
+static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_response *out, int flags) 
+{
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
+    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
+    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
+
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
+    derive_context_cmd.cmd_hdr.profile = 0x4;
+    derive_context_cmd.flags = flags;
+
+    memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
+    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
+
+    int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    } else {
+        memcpy(out, &dpe_resp.derive_context_exported_cdi_resp, sizeof(struct dpe_derive_context_exported_cdi_response));
+        printf("DPE Command: OK\n");
+    }
+
+    return 0;
 }
 
 int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
@@ -854,12 +939,50 @@ int rom_test_devid_csr(const test_info* info)
 // Verify signing with an exported cdi
 int sign_with_exported_ecdsa_cdi(const test_info* info)
 {
-    int failure = 0;
+    struct dpe_derive_context_exported_cdi_response exported_resp = { 0 };
+
+    int status = boot_to_ready_for_fw(info, false);
+
+    if (status) {
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    status = caliptra_upload_fw(&info->image_bundle, false);
+
+    if (status) {
+        printf("FW Load Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+        printf("Failed to export CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
+        printf("Sign with exported Ecdsa: OK\n");
+    } else {
+        printf("Error invalid signature.\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+// Test exported cdi with a new measurement
+int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
+{
+    struct dpe_derive_context_response derive_resp = { 0 };
+    struct dpe_derive_context_exported_cdi_response exported_resp = { 0 };
+    struct caliptra_revoke_exported_cdi_handle_req revoke_req = { 0 };
+
     int status = boot_to_ready_for_fw(info, false);
 
     if (status){
         dump_caliptra_error_codes();
-        failure = 1;
+        return 1;
     }
 
     status = caliptra_upload_fw(&info->image_bundle, false);
@@ -868,61 +991,52 @@ int sign_with_exported_ecdsa_cdi(const test_info* info)
     {
         printf("FW Load Failed: 0x%x\n", status);
         dump_caliptra_error_codes();
-        failure = 1;
-    }
-
-    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
-    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
-    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
-    derive_context_cmd.cmd_hdr.profile = 0x4;
-    derive_context_cmd.flags = DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE;
-
-    struct caliptra_invoke_dpe_req dpe_req = { 0 };
-    dpe_req.derive_context_cmd = derive_context_cmd;
-    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
-
-    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
-    status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
-
-    if (status) {
-        printf("DPE Command failed: 0x%x\n", status);
-        dump_caliptra_error_codes();
-        failure = 1;
-    } else {
-        printf("DPE Command: OK\n");
-    }
-
-    struct dpe_derive_context_exported_cdi_response* exported_resp = &dpe_resp.derive_context_exported_cdi_resp;
-
-    // SHA384 of a 48 bytes of 0s
-    uint8_t tbs[] = {
-        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe,
-        0x22, 0xe4, 0x1c, 0x40, 0x0e, 0xea, 0x91, 0xb9, 0x71, 0xd9,
-        0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
-        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51,
-        0x28, 0xc9, 0xdf, 0x4e, 0xfa, 0xf6, 0xf8, 0xa7
-    };
-
-    struct caliptra_sign_with_exported_ecdsa_req sign_req = { 0 };
-    memcpy(&sign_req.exported_cdi_handle, exported_resp->exported_cdi_handle, sizeof(uint8_t) * 32);
-    memcpy(&sign_req.tbs, &tbs, sizeof(uint8_t) * 48);
-
-    struct caliptra_sign_with_exported_ecdsa_resp sign_resp = { 0 };
-    status = caliptra_sign_with_exported_ecdsa(&sign_req, &sign_resp, false);
-
-    if (status) {
-        printf("Sign with exported Ecdsa failed: 0x%x\n", status);
         return 1;
     }
 
-    if (caliptra_verify_ecdsa_signature(exported_resp, &sign_resp, tbs, sizeof(tbs))) {
+    // Create first export cdi and certificate
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+        printf("Failed to export first CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
         printf("Sign with exported Ecdsa: OK\n");
     } else {
         printf("Error invalid signature.\n");
-        failure = 1;
+        return 1;
     }
 
-    return failure;
+    // Add new measurement.
+    if(derive_context(&derive_resp, DPE_DERIVE_CONTEXT_FLAG_RECURSIVE)) {
+        printf("Failed to add new measurement.\n");
+        return 1;
+    }
+
+    // Revoke existing exported CDI 
+    memcpy(&revoke_req.exported_cdi_handle, exported_resp.exported_cdi_handle, sizeof(revoke_req.exported_cdi_handle));
+
+    if (caliptra_revoke_exported_cdi_handle(&revoke_req, false)) {
+        printf("Error Revoke Exported CDI Handle.\n");
+        return 1;
+    } else {
+        printf("Revoke Exported CDI Handle: OK\n");
+    }
+
+    // Create new exported cdi handle and certificate
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+        printf("Failed to export new CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
+        printf("Sign with exported Ecdsa: OK\n");
+    } else {
+        printf("Error invalid signature.\n");
+        return 1;
+    }
+
+    return 0;
 }
 
 // Issue FW load commands repeatedly
@@ -1056,6 +1170,7 @@ int run_tests(const test_info* info)
     run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
+    run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");
