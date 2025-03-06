@@ -51,13 +51,19 @@ pub const MBOX_SIZE: u32 = 256 * 1024;
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
-pub const DATA_SIZE: u32 = 66 * 1024;
-pub const STACK_SIZE: u32 = 93 * 1024;
+pub const STACK_SIZE: u32 = 97 * 1024;
 pub const ROM_STACK_SIZE: u32 = 62 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const ROM_ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
 pub const ROM_NSTACK_SIZE: u32 = 1024;
+// This is mostly used for relaxation ptrs and is basically padding otherwise.
+pub const DATA_SIZE: u32 = DCCM_SIZE
+    - NSTACK_SIZE
+    - ROM_ESTACK_SIZE
+    - STACK_SIZE
+    - size_of::<PersistentData>() as u32
+    - (PERSISTENT_DATA_ORG - DCCM_ORG);
 
 pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {
     start: ICCM_ORG,
@@ -77,6 +83,8 @@ fn mem_layout_test_persistent_data() {
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_data() {
     assert_eq!((STACK_ORG - DATA_ORG), DATA_SIZE);
+    // we must leave room for 0x800 bytes for the relaxation pointers
+    assert!(DATA_SIZE >= 2 * 1024);
 }
 
 #[test]
