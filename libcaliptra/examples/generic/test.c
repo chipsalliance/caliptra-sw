@@ -14,6 +14,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/bn.h>
+#include <openssl/crypto.h>
 #include <openssl/ec.h>
 #include <openssl/ecdsa.h>
 #include <openssl/evp.h>
@@ -159,7 +160,6 @@ static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_c
     point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
     if (point == NULL) {
         printf("Error creating EC point.\n");
-        EC_KEY_free(ecdsa_key);
         status = false;
         goto cleanup;
     }
@@ -189,7 +189,7 @@ cleanup:
     EC_KEY_free(ecdsa_key);
     BN_clear_free(y);
     BN_clear_free(x);
-    free(dersig);
+    OPENSSL_free(dersig);
     ECDSA_SIG_free(signature);
     EC_KEY_free(ec_pub_key);
     EVP_PKEY_free(pkey);
