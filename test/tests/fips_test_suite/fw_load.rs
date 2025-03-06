@@ -124,8 +124,8 @@ fn image_to_bytes_no_error_check(image_bundle: &ImageBundle) -> Vec<u8> {
 fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
     let gen = ImageGenerator::new(Crypto::default());
 
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&fw_image.manifest.preamble)
+    let vendor_pubkey_info_digest = gen
+        .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
         .unwrap();
 
     let owner_pubkey_digest = gen
@@ -133,7 +133,7 @@ fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
         .unwrap();
 
     Fuses {
-        vendor_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_info_digest,
         owner_pk_hash: owner_pubkey_digest,
         fuse_pqc_key_type: fw_image.manifest.pqc_key_type as u32,
         ..Default::default()
@@ -1205,13 +1205,13 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
 
         // Set fuses
         let gen = ImageGenerator::new(Crypto::default());
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&fw_image.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
             .unwrap();
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -1238,13 +1238,13 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
 
         // Set fuses
         let gen = ImageGenerator::new(Crypto::default());
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&fw_image.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
             .unwrap();
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fw_svn: [0xffff_ffff, 0x7fff_ffff, 0, 0], // fuse svn = 63
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
