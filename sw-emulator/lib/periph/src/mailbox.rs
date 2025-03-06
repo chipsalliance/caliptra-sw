@@ -191,7 +191,7 @@ pub enum MailboxRequester {
 impl From<u32> for MailboxRequester {
     fn from(value: u32) -> Self {
         match value {
-            0 => MailboxRequester::Caliptra,
+            0xFFFF_FFFF => MailboxRequester::Caliptra,
             _ => MailboxRequester::SocUser(value),
         }
     }
@@ -200,7 +200,7 @@ impl From<u32> for MailboxRequester {
 impl From<MailboxRequester> for u32 {
     fn from(val: MailboxRequester) -> Self {
         match val {
-            MailboxRequester::Caliptra => 0,
+            MailboxRequester::Caliptra => 0xFFFF_FFFF,
             MailboxRequester::SocUser(pauser) => pauser,
         }
     }
@@ -661,7 +661,7 @@ mod tests {
         // Confirm it is locked
         assert!(uc_regs.lock().read().lock());
 
-        assert_eq!(uc_regs.user().read(), 0);
+        assert_eq!(uc_regs.user().read(), 0xFFFF_FFFF);
 
         // Write command
         uc_regs.cmd().write(|_| 0x55);
