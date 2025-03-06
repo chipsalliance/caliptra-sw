@@ -133,8 +133,8 @@ fn test_pcr_log() {
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let owner_pubkey_digest = gen
@@ -143,7 +143,7 @@ fn test_pcr_log() {
 
         let fuses = Fuses {
             anti_rollback_disable: true,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             owner_pk_hash: owner_pubkey_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
@@ -216,7 +216,7 @@ fn test_pcr_log() {
             1,
             PcrLogEntryId::VendorPubKeyInfoHash,
             PCR0_AND_PCR1_EXTENDED_ID,
-            swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
+            swap_word_bytes(&vendor_pubkey_info_digest).as_bytes(),
         );
 
         check_pcr_log_entry(
@@ -254,7 +254,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         let fuses = Fuses {
             anti_rollback_disable: true,
             vendor_pk_hash: gen
-                .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+                .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
                 .unwrap(),
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
@@ -340,8 +340,8 @@ fn test_pcr_log_fmc_fuse_svn() {
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let owner_pubkey_digest = gen
@@ -353,7 +353,7 @@ fn test_pcr_log_fmc_fuse_svn() {
 
         let fuses = Fuses {
             anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             owner_pk_hash: owner_pubkey_digest,
             fw_svn: [0x3, 0, 0, 0], // TODO: add tooling to make this more ergonomic.
             fuse_pqc_key_type: *pqc_key_type as u32,
@@ -489,8 +489,8 @@ fn test_pcr_log_across_update_reset() {
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let owner_pubkey_digest = gen
@@ -502,7 +502,7 @@ fn test_pcr_log_across_update_reset() {
         let fuses = Fuses {
             anti_rollback_disable: false,
             fw_svn: [1, 0, 0, 0],
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             owner_pk_hash: owner_pubkey_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
