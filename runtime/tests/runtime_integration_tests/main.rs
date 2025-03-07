@@ -5,6 +5,7 @@ mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
 mod test_certs;
+mod test_cryptographic_mailbox;
 mod test_disable;
 mod test_ecdsa;
 mod test_fips;
