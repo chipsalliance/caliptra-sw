@@ -1221,13 +1221,9 @@ impl Request for ManufDebugUnlockTokenReq {
 #[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
 pub struct ProductionAuthDebugUnlockReq {
     pub hdr: MailboxReqHeader,
-    pub vendor_id: u16,           // Vendor ID (2 bytes)
-    pub object_data_type: u8,     // Object Data Type (1 byte)
-    pub _reserved_1: u8,          // Reserved (1 byte)
-    pub length: [u8; 3],          // Length (3 bytes, should be ensured as 3 DWORDs)
-    pub _reserved_2: u8,          // Reserved (1 byte)
-    pub unlock_category: [u8; 3], // Unlock Category (3 bytes, Bits[0:3] - Debug unlock Level)
-    pub _reserved_3: u8,          // Reserved (1 byte)
+    pub length: u32,            // Length (in DWORs)
+    pub unlock_category: u8,    // Unlock Category (Debug unlock Level 1-8)
+    pub reserved: [u8; 3],      // Reserved (1 byte)
 }
 
 impl Request for ProductionAuthDebugUnlockReq {
@@ -1240,11 +1236,7 @@ impl Request for ProductionAuthDebugUnlockReq {
 #[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct ProductionAuthDebugUnlockChallenge {
     pub hdr: MailboxRespHeader,
-    pub vendor_id: u16,                     // Vendor ID (2 bytes)
-    pub object_data_type: u8,               // Object Data Type (1 byte)
-    pub _reserved_1: u8,                    // Reserved (1 byte)
-    pub length: [u8; 3], // Length (3 bytes, should be ensured as 8 (TODO?) DWORDs)
-    pub _reserved_2: u8, // Reserved (1 byte)
+    pub length: u32, // Length (in DWORs)
     pub unique_device_identifier: [u8; 32], // Device identifier of the Caliptra Device
     pub challenge: [u8; 48], // Random number
 }
@@ -1252,11 +1244,7 @@ impl Default for ProductionAuthDebugUnlockChallenge {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            vendor_id: Default::default(),
-            object_data_type: Default::default(),
-            _reserved_1: Default::default(),
-            length: Default::default(),
-            _reserved_2: Default::default(),
+            length: 0,
             unique_device_identifier: Default::default(),
             challenge: [0; 48],
         }
@@ -1269,32 +1257,27 @@ impl Response for ProductionAuthDebugUnlockChallenge {}
 #[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct ProductionAuthDebugUnlockToken {
     pub hdr: MailboxReqHeader,
-    pub vendor_id: u16,                     // Vendor ID (2 bytes)
-    pub object_data_type: u8,               // Object Data Type (1 byte)
-    pub _reserved_1: u8,                    // Reserved (1 byte)
-    pub length: [u8; 3],                    // Length (3 bytes, should be ensured as 0x754)
-    pub _reserved_2: u8,                    // Reserved (1 byte)
+    pub length: u32,                        // Length (in DWORs)
     pub unique_device_identifier: [u8; 32], // Device identifier of the Caliptra Device
-    pub unlock_category: [u8; 3], // Unlock Category (3 bytes, Bits[0:3] - Debug unlock Level)
-    pub _reserved_3: u8,          // Reserved (1 byte)
-    pub challenge: [u8; 48],      // Random number
-    pub ecc_public_key: [u8; 96], // ECC public key
-    pub mldsa_public_key: [u8; 2592], // MLDSA public key
-    pub ecc_signature: [u8; 96], // ECC P-384 signature of the Message hashed using SHA2-384. R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
-    pub mldsa_signature: [u8; 4628], // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte).
+    // Unlock Category (2 bytes)
+    // Byte 0: '0' - Uninitialized; '1' - Allow, '2' - Deny debug unlock
+    // Byte 1 - Debug unlock Level (1-8)
+    pub unlock_category: [u8; 2], 
+    pub reserved: [u8; 2],              // Reserved
+    pub challenge: [u8; 48],            // Random number
+    pub ecc_public_key: [u8; 96],       // ECC public key
+    pub mldsa_public_key: [u8; 2592],   // MLDSA public key
+    pub ecc_signature: [u8; 96],        // ECC P-384 signature of the Message hashed using SHA2-384. R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
+    pub mldsa_signature: [u8; 4628],    // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte).
 }
 impl Default for ProductionAuthDebugUnlockToken {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            vendor_id: Default::default(),
-            object_data_type: Default::default(),
-            _reserved_1: Default::default(),
+            reserved: Default::default(),
             length: Default::default(),
-            _reserved_2: Default::default(),
             unique_device_identifier: Default::default(),
             unlock_category: Default::default(),
-            _reserved_3: Default::default(),
             challenge: [0; 48],
             ecc_public_key: [0; 96],
             mldsa_public_key: [0; 2592],
