@@ -109,14 +109,14 @@ _start:
     //
 
     // Zero ICCM
-    la a0, ICCM_ORG         // dest
-    la a1, ICCM_SIZE        // len 
-    call _zero_mem256
+    // la a0, ICCM_ORG         // dest
+    // la a1, ICCM_SIZE        // len 
+    // call _zero_mem256
 
     // Zero DCCM
-    la a0, DCCM_ORG         // dest
-    la a1, DCCM_SIZE        // len 
-    call _zero_mem256
+    // la a0, DCCM_ORG         // dest
+    // la a1, DCCM_SIZE        // len 
+    // call _zero_mem256
 
 post_ecc_init:
 

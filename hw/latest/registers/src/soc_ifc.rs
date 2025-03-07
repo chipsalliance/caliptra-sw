@@ -1035,7 +1035,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn fuse_manuf_dbg_unlock_token(
         &self,
-    ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseManufDbgUnlockToken, &TMmio>> {
+    ) -> ureg::Array<16, ureg::RegRef<crate::soc_ifc::meta::FuseManufDbgUnlockToken, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x34c / core::mem::size_of::<u32>()),

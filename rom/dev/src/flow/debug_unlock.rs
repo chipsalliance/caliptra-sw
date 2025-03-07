@@ -62,9 +62,8 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
 fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_manuf] ++");
 
-        // Set tap mailbox available.
-        cprintln!("[dbg_manuf] Setting tap mailbox available");
-        env.soc_ifc.set_tap_mailbox_available();
+    // Set tap mailbox available.
+    env.soc_ifc.set_tap_mailbox_available();
 
     let mbox = &mut env.mbox;
     let txn = loop {
@@ -83,96 +82,100 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ManufDebugUnlockTokenReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+    let request_bytes = request.as_mut_bytes();
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes)?;
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
     let result: CaliptraResult<()> = (|| {
-
-        cprintln!("Debug Unlock Token:");
+        cprintln!("Debug Unlock Token  (from mailbox):");
         for i in 0..request.token.len() {
             cprint!("{:x}", request.token[i]);
         }
         cprintln!("");
 
-        // Hash the token.
+        // Hash the token. token_digest is in hardware format.
         let token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
         cprintln!("Debug Unlock Token Digest (from mailbox):");
         for i in 0..token_digest.0.len() {
-            cprint!("{:x}", token_digest.0[i]);
+            cprint!("{:x} ", token_digest.0[i]);
         }
         cprintln!("");
 
         // Generate a 256-bit random nonce.
-        let nonce: [u8; 32] = env.trng.generate()?.as_bytes()[..32].try_into().unwrap();
-        cprintln!("Nonce:");
-        for i in 0..nonce.len() {
-            cprint!("{:x}", nonce[i]);
-        }
-        cprintln!("");
+        // [TODO][CAP2] Review with hardware team for using TRNG to generate nonce.
+        //let nonce: [u8; 32] = env.trng.generate()?.as_bytes()[..32].try_into().unwrap();
+        let nonce: [u8; 32] = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32,
+        ];
 
         // Append the nonce to the token digest and perform a SHA-512 operation to generate the expected token.
-        let input_token = {
-            let mut token: [u8; 64] = [0; 64];
-            token[8..][..16].copy_from_slice(&token_digest.0[..].as_bytes());
-            token[32..].copy_from_slice(&nonce);
-            env.sha2_512_384.sha512_digest(&token)?
-        };
+        let input_token_digest = {
+            let mut token: [u8; 96] = [0; 96];
+            // Change the endianess of the digest since it was received in hardware format.
+            let token_digest: [u8; 64] = token_digest.into();
+            token[..64].copy_from_slice(&token_digest.as_bytes());
+            token[64..].copy_from_slice(&nonce);
 
-        cprintln!("(Debug Unlock Token Digest (from mailbox) + Nonce) Digest:");
-        for i in 0..input_token.0.len() {
-            cprint!("{:x}", input_token.0[i]);
-        }
-        cprintln!("");
-
-        // Perform the same transformation to the token in the fuse.
-        let fuse_token = {
-            let mut token: [u8; 64] = [0; 64];
-            let fuse = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
-
-            cprintln!("Fuse Debug Unlock Token (from manuf_dbg_unlock_token):");
-            for i in 0..fuse.0.len() {
-                cprint!("{:x}", fuse.0[i]);
+            cprintln!("Data to sha512:");
+            for i in 0..token.len() {
+                cprint!("{:x} ", token[i]);
             }
             cprintln!("");
 
-            token[8..][..16].copy_from_slice(fuse.as_bytes());
-            token[32..].copy_from_slice(&nonce);
             env.sha2_512_384.sha512_digest(&token)?
         };
 
-        cprintln!("(Fuse Debug Unlock Token (from manuf_dbg_unlock_token) + Nonce) Digest:");
-        for i in 0..fuse_token.0.len() {
-            cprint!("{:x}", fuse_token.0[i]);
-        }
-        cprintln!("");
+        // Perform the same transformation to the token in the fuse.
+        let fuse_token_digest = {
+            let mut token: [u8; 96] = [0; 96];
+            let fuse = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
+            cprintln!("Debug Unlock Token Digest (from fuse):");
+            for i in 0..fuse.0.len() {
+                cprint!("{:x} ", fuse.0[i]);
+            }
+            cprintln!("");
+
+            // Append the token hash from the fuse to the nonce and perform a SHA-512 operation to generate the expected token.
+            token[..64].copy_from_slice(&fuse.as_bytes());
+            token[64..].copy_from_slice(&nonce);
+
+            cprintln!("Data to sha512:");
+            for i in 0..token.len() {
+                cprint!("{:x} ", token[i]);
+            }
+            cprintln!("");
+            env.sha2_512_384.sha512_digest(&token)?
+        };
 
         // Compare the two tokens.
-        // if cfi_launder(input_token) != fuse_token {
-        //     Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
-        // } else {
-        //     caliptra_cfi_lib::cfi_assert_eq_12_words(
-        //         &input_token.0[..12].try_into().unwrap(),
-        //         &fuse_token.0[..12].try_into().unwrap(),
-        //     );
-        // }
+        if cfi_launder(input_token_digest) != fuse_token_digest {
+            Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
+                &input_token_digest.0[..12].try_into().unwrap(),
+                &fuse_token_digest.0[..12].try_into().unwrap(),
+            );
+        }
         Ok(())
     })();
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    let resp = MailboxRespHeader::default();
+    txn.send_response(resp.as_bytes())?;
     match result {
         Ok(()) => {
             cprintln!("Debug unlock successful");
             env.soc_ifc.finish_ss_dbg_unlock(true);
-            let resp = MailboxRespHeader::default();
-            txn.send_response(resp.as_bytes())?;
         }
         Err(_) => {
             cprintln!("Debug unlock failed");
             env.soc_ifc.finish_ss_dbg_unlock(false);
         }
     }
-    cprintln!("[dbg_manuf] ++");
+    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+
+    cprintln!("[dbg_manuf] --");
     result
 }
 

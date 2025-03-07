@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, Array4x4};
+use crate::{Array4x12, Array4x16};
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use zerocopy::IntoBytes;
@@ -301,9 +301,9 @@ impl FuseBank<'_> {
     /// # Returns
     ///     manufactoring debug unlock token
     ///
-    pub fn manuf_dbg_unlock_token(&self) -> Array4x4 {
+    pub fn manuf_dbg_unlock_token(&self) -> Array4x16 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        Array4x4::read_from_reg(soc_ifc_regs.fuse_manuf_dbg_unlock_token())
+        Array4x16::read_from_reg(soc_ifc_regs.fuse_manuf_dbg_unlock_token())
     }
 }
 

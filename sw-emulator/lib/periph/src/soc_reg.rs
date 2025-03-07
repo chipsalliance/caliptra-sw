@@ -98,7 +98,7 @@ mod constants {
     pub const FUSE_IDEVID_MANUF_HSM_ID_START: u32 = 0x32c;
     pub const FUSE_IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
     pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_START: u32 = 0x34c;
-    pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE: usize = 16;
+    pub const FUSE_MANUF_DBG_UNLOCK_TOKEN_SIZE: usize = 64;
     pub const INTERNAL_OBF_KEY_SIZE: usize = 32;
     pub const INTERNAL_ICCM_LOCK_START: u32 = 0x620;
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
@@ -959,7 +959,7 @@ impl SocRegistersImpl {
             fuse_lms_revocation: Default::default(),
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
-            fuse_manuf_dbg_unlock_token: [0; 4],
+            fuse_manuf_dbg_unlock_token: [0; 16],
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
