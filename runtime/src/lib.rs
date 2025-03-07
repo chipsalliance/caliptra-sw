@@ -294,14 +294,14 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     setup_mailbox_wfi(drivers);
     caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
     loop {
+        if drivers.is_shutdown {
+            return Err(CaliptraError::RUNTIME_SHUTDOWN);
+        }
+
         enter_idle(drivers);
 
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
-
-        if drivers.is_shutdown {
-            return Err(CaliptraError::RUNTIME_SHUTDOWN);
-        }
 
         // The hardware will set this interrupt high when the mbox_fsm_ps
         // transitions to state MBOX_EXECUTE_UC (same state as mbox.is_cmd_ready()),
