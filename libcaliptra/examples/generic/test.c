@@ -29,6 +29,9 @@ static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint32_t axi_pauser = 0x1;
 
+#define CSR_REQ_RESP_LEN 9000 // This needs to be large enough to hold InitDevIdCsrEnvelope
+#define ECC_CSR_ENVELOPE_OFFSET 12 // See InitDevIdCsrEnvelope
+
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
 void hwmod_init(struct caliptra_buffer rom);
@@ -847,7 +850,7 @@ int rom_test_devid_csr(const test_info *info)
     int failure = 0;
 
     struct caliptra_buffer caliptra_idevid_csr_buf = {0};
-    caliptra_idevid_csr_buf.len = IDEV_CSR_LEN;
+    caliptra_idevid_csr_buf.len = CSR_REQ_RESP_LEN;
     // Allocte a buffer to hold the IDEV CSR using malloc
     caliptra_idevid_csr_buf.data = malloc(caliptra_idevid_csr_buf.len);
 
@@ -882,8 +885,9 @@ int rom_test_devid_csr(const test_info *info)
         printf("IDEV CSR retrieved\n");
     }
 
-    // Compare the retrieved IDEV CSR with the expected IDEV CSR
-    if (memcmp(caliptra_idevid_csr_buf.data, idev_csr_bytes, caliptra_idevid_csr_buf.len) != 0)
+    // Compare the retrieved ECC IDEV CSR with the expected ECC IDEV CSR.
+    // The ECC IDEV CSR inside InitDevIdCsrEnvelope starts at offset 12
+    if (memcmp(&caliptra_idevid_csr_buf.data[ECC_CSR_ENVELOPE_OFFSET], ecc_idev_csr_bytes, ECC_IDEV_CSR_LEN) != 0)
     {
         printf("IDEV CSR does not match\n");
 #ifdef ENABLE_DEBUG
@@ -913,7 +917,7 @@ int rom_test_devid_csr(const test_info *info)
     }
     else
     {
-        if (memcmp(csr_resp.data, idev_csr_bytes, csr_resp.data_size) != 0)
+        if (memcmp(csr_resp.data, ecc_idev_csr_bytes, csr_resp.data_size) != 0)
         {
             printf("IDEV CSR does not match\n");
             failure = 1;
@@ -1144,12 +1148,12 @@ int run_tests(const test_info *info)
 
     hwmod_init(info->rom);
 
-    // [CAP2][TODO][FIX] run_test(legacy_boot_test, info, "Legacy boot test");
+    run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
-    // [CAP2][TODO][FIX] run_test(rt_test_all_commands, info, "Test all Runtime commmands");
-    // [CAP2][TODO][FIX] run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
-    // [CAP2][TODO][FIX] run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
-    // [CAP2][TODO][FIX] run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
+    run_test(rt_test_all_commands, info, "Test all Runtime commmands");
+    run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
+    run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
+    run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
 
     if (global_test_result)
     {
