@@ -68,7 +68,7 @@ extern "C" {
 
 #[no_mangle]
 pub extern "C" fn rom_entry() -> ! {
-    cprintln!("{} : 3/3/2025 : Debug Unlock", BANNER);
+    cprintln!("{}", BANNER);
 
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
         Ok(env) => env,

@@ -90,16 +90,13 @@ impl SocIfc {
 
     /// Subsystem debug unlock requested
     pub fn ss_debug_unlock_req(&self) -> CaliptraResult<bool> {
-        cprintln!("ss_debug_intent: {}", self.ss_debug_intent());
         if !self.ss_debug_intent() {
-            cprintln!("Subsystem debug intent not set");
             return Ok(false);
         }
 
         let soc_ifc_regs = self.soc_ifc.regs();
         let lifecycle = self.lifecycle();
         let dbg_req = soc_ifc_regs.ss_dbg_manuf_service_reg_req().read();
-        cprintln!("Subsystem debug unlock request: {:#x}", u32::from(dbg_req));
         let (manuf, prod) = (
             dbg_req.manuf_dbg_unlock_req(),
             dbg_req.prod_dbg_unlock_req(),
