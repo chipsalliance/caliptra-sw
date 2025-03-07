@@ -17,6 +17,8 @@ cfg-if.workspace = true
 zerocopy.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
+ufmt.workspace = true
+
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
@@ -48,6 +50,11 @@ required-features = ["riscv"]
 [[bin]]
 name = "sha384"
 path = "src/bin/sha384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "sha512"
+path = "src/bin/sha512_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
