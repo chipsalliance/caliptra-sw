@@ -440,15 +440,15 @@ impl<'a> DmaRecovery<'a> {
     const MCU_SRAM_OFFSET: u64 = 0x20_0000;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
-    const READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
 
     pub const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
     const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
     pub const RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR: u32 = 0xD;
     pub const RECOVERY_STATUS_SUCCESSFUL: u32 = 0x3;
-    const RECOVERY_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
 
-    const DEVICE_RECOVERY_STATUS_PENDING: u32 = 0x4;
+    const DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
+    const DEVICE_STATUS_PENDING: u32 = 0x4;
+    const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
 
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
@@ -586,7 +586,7 @@ impl<'a> DmaRecovery<'a> {
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
     }
 
@@ -596,7 +596,7 @@ impl<'a> DmaRecovery<'a> {
             // Set device status to recovery pending to request activation
             recovery
                 .device_status_0()
-                .modify(|val| val.dev_status(Self::DEVICE_RECOVERY_STATUS_PENDING));
+                .modify(|val| val.dev_status(Self::DEVICE_STATUS_PENDING));
 
             // Read RECOVERY_CTRL Byte[2] (3rd byte) for 'Activate Recovery Image' (0xF) command.
             while recovery.recovery_ctrl().read().activate_rec_img()
@@ -623,7 +623,7 @@ impl<'a> DmaRecovery<'a> {
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
     }
 
@@ -648,7 +648,7 @@ impl<'a> DmaRecovery<'a> {
                 // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
                 recovery.device_status_0().modify(|val| {
                     val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
-                        .dev_status(Self::READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
+                        .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
                 });
             } else {
                 // if this is our own firmware, then we must now be running the recovery image,
@@ -656,7 +656,7 @@ impl<'a> DmaRecovery<'a> {
                 // Set DEVICE_STATUS:Byte0 to 0x5 ('Running recovery image').
                 recovery
                     .device_status_0()
-                    .modify(|val| val.dev_status(Self::RECOVERY_STATUS_RUNNING_RECOVERY_IMAGE));
+                    .modify(|val| val.dev_status(Self::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE));
             }
 
             // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
@@ -692,12 +692,14 @@ impl<'a> DmaRecovery<'a> {
         Ok(image_size_bytes)
     }
 
-    pub fn set_recovery_status(&self, status: u32) -> CaliptraResult<()> {
+    pub fn set_recovery_status(&self, status: u32, image_idx: u32) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            recovery
-                .recovery_status()
-                .modify(|recovery_status_val| recovery_status_val.dev_rec_status(status));
+            recovery.recovery_status().modify(|recovery_status_val| {
+                recovery_status_val
+                    .rec_img_index(image_idx)
+                    .dev_rec_status(status)
+            });
         })
     }
 
