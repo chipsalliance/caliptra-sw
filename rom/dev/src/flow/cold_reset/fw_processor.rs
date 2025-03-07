@@ -465,16 +465,23 @@ impl FirmwareProcessor {
 
         // If running in active mode, set the recovery status.
         if active_mode {
-            let status = if info.is_err() {
-                DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR
+            let (status, next_image_idx) = if info.is_err() {
+                (DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR, 0)
             } else {
                 // we still have to do the SoC and MCU images
-                DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE
+                // we pre-emptively set the next image index to 1 so that the recovery interface
+                // will receive the right index so that no matter what order the recovery registers
+                // are read, we will send the right image next
+                (DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE, 1)
             };
 
-            cprintln!("[fwproc] Setting device recovery status to 0x{:x}", status);
+            cprintln!(
+                "[fwproc] Setting device recovery status to 0x{:x}, image index 0x{:x}",
+                status,
+                next_image_idx
+            );
             let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
-            dma_recovery.set_recovery_status(status)?;
+            dma_recovery.set_recovery_status(status, next_image_idx)?;
         }
 
         let info = match info {

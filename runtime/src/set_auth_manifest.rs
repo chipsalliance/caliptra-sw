@@ -35,6 +35,11 @@ use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
+pub(crate) enum AuthManifestSource<'a> {
+    Mailbox,
+    Slice(&'a [u8]),
+}
+
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
     fn sha384_digest(
@@ -450,6 +455,18 @@ impl SetAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
+        Self::set_auth_manifest(drivers, AuthManifestSource::Slice(manifest_buf))?;
+        Ok(MailboxResp::default())
+    }
+
+    pub(crate) fn set_auth_manifest(
+        drivers: &mut Drivers,
+        manifest_src: AuthManifestSource,
+    ) -> CaliptraResult<()> {
+        let manifest_buf = match manifest_src {
+            AuthManifestSource::Mailbox => drivers.mbox.raw_mailbox_contents(),
+            AuthManifestSource::Slice(buf) => buf,
+        };
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {
             let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
@@ -496,8 +513,7 @@ impl SetAuthManifestCmd {
             &mut drivers.ecc384,
             &mut drivers.sha256,
         )?;
-
-        Ok(MailboxResp::default())
+        Ok(())
     }
 }
 
