@@ -17,8 +17,6 @@ cfg-if.workspace = true
 zerocopy.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
-ufmt.workspace = true
-
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
