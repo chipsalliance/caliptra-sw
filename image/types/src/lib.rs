@@ -132,8 +132,8 @@ impl<'de> serde::Deserialize<'de> for ImageMldsaPubKey {
                 A: serde::de::SeqAccess<'de>,
             {
                 let mut arr = [0u32; MLDSA87_PUB_KEY_WORD_SIZE];
-                for i in 0..MLDSA87_PUB_KEY_WORD_SIZE {
-                    arr[i] = seq
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_PUB_KEY_WORD_SIZE) {
+                    *item = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
                 }
@@ -181,8 +181,8 @@ impl<'de> serde::Deserialize<'de> for ImageMldsaPrivKey {
                 A: serde::de::SeqAccess<'de>,
             {
                 let mut arr = [0u32; MLDSA87_PRIV_KEY_WORD_SIZE];
-                for i in 0..MLDSA87_PRIV_KEY_WORD_SIZE {
-                    arr[i] = seq
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_PRIV_KEY_WORD_SIZE) {
+                    *item = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
                 }
@@ -227,8 +227,8 @@ impl<'de> serde::Deserialize<'de> for ImagePqcPubKey {
                 A: serde::de::SeqAccess<'de>,
             {
                 let mut arr = [0u8; PQC_PUB_KEY_BYTE_SIZE];
-                for i in 0..PQC_PUB_KEY_BYTE_SIZE {
-                    arr[i] = seq
+                for (i, item) in arr.iter_mut().enumerate().take(PQC_PUB_KEY_BYTE_SIZE) {
+                    *item = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
                 }
@@ -304,8 +304,8 @@ impl<'de> serde::Deserialize<'de> for ImageMldsaSignature {
                 A: serde::de::SeqAccess<'de>,
             {
                 let mut arr = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
-                for i in 0..MLDSA87_SIGNATURE_WORD_SIZE {
-                    arr[i] = seq
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_SIGNATURE_WORD_SIZE) {
+                    *item = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
                 }
@@ -350,8 +350,8 @@ impl<'de> serde::Deserialize<'de> for ImagePqcSignature {
                 A: serde::de::SeqAccess<'de>,
             {
                 let mut arr = [0u8; PQC_SIGNATURE_BYTE_SIZE];
-                for i in 0..PQC_SIGNATURE_BYTE_SIZE {
-                    arr[i] = seq
+                for (i, item) in arr.iter_mut().enumerate().take(PQC_SIGNATURE_BYTE_SIZE) {
+                    *item = seq
                         .next_element()?
                         .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
                 }
