@@ -41,14 +41,32 @@ bool caliptra_ready_for_fuses(void);
 int caliptra_init_fuses(const struct caliptra_fuses *fuses);
 
 /**
+ * caliptra_is_ready_for_firmware
+ *
+ * Checks if Caliptra hardware is ready for firmware upload
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_firmware(void);
+
+/**
  * caliptra_ready_for_firmware
  *
  * Waits until Caliptra hardware is ready for firmware upload or until
  * Caliptra reports an error
  *
- * @return bool True if ready, false otherwise
+ * @return int 0 if ready, Caliptra error otherwise
  */
 uint32_t caliptra_ready_for_firmware(void);
+
+/**
+ * caliptra_is_ready_for_runtime
+ *
+ * Checks if Caliptra hardware is ready for runtime commands
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_runtime(void);
 
 /**
  * caliptra_ready_for_runtime

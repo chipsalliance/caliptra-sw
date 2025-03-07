@@ -2,7 +2,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 
 /**
  * libcaliptra_error

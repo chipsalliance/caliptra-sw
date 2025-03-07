@@ -64,6 +64,19 @@ struct image_owner_signatures {
     struct image_lms_signature lms_signature;
 };
 
+struct image_vendor_data {
+    uint8_t not_before[15];
+    uint8_t not_after[15];
+    uint8_t reserved[8];
+};
+
+struct image_owner_data {
+    uint8_t not_before[15];
+    uint8_t not_after[15];
+    uint8_t epoch[2];
+    uint8_t reserved[8];
+};
+
 struct caliptra_preamble {
     struct image_vendor_pubkeys    vendor_pub_keys;
     uint32_t                       vendor_ecc_key_index;
@@ -71,15 +84,19 @@ struct caliptra_preamble {
     struct image_vendor_signatures vendor_sigs;
     struct image_owner_pubkeys     owner_pub_keys;
     struct image_owner_signatures  owner_sigs;
-    uint32_t                       reserved[2]; 
+    uint32_t                       reserved[2];
 };
 
 struct caliptra_header {
-    uint32_t header;
     uint64_t revision;
+    uint32_t vendor_ecc_pub_key_id;
+    uint32_t vendor_lms_pub_key_id;
     uint32_t flags;
     uint32_t toc_entry_count;
+    uint32_t pl0_pauser;
     uint8_t  toc_digest[48];
+    struct image_vendor_data vendor_data;
+    struct image_owner_data owner_data;
 };
 
 struct caliptra_toc {

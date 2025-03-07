@@ -19,7 +19,7 @@ use zeroize::Zeroize;
 #[repr(C, align(4))]
 #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Zeroize)]
 pub struct PcrResetCounter {
-    counter: [u32; PcrBank::ALL_PCR_IDS.len()],
+    pub counter: [u32; PcrBank::ALL_PCR_IDS.len()],
 }
 
 impl Default for PcrResetCounter {
