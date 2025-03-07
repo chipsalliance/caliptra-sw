@@ -187,7 +187,7 @@ fn test_pqc_key_type_mismatch() {
 }
 
 #[test]
-fn test_preamble_zero_vendor_pubkey_digest() {
+fn test_preamble_zero_vendor_pubkey_info_digest() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -217,7 +217,7 @@ fn test_preamble_zero_vendor_pubkey_digest() {
 }
 
 #[test]
-fn test_preamble_vendor_pubkey_digest_mismatch() {
+fn test_preamble_vendor_pubkey_info_digest_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -255,13 +255,13 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
         };
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options.clone());
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -291,13 +291,13 @@ fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
 
     let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+    let vendor_pubkey_info_digest = gen
+        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_info_digest,
         ..Default::default()
     };
 
@@ -322,13 +322,13 @@ fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
 
     let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+    let vendor_pubkey_info_digest = gen
+        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_info_digest,
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
@@ -354,13 +354,13 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
         };
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options.clone());
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -393,13 +393,13 @@ fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
 
     let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+    let vendor_pubkey_info_digest = gen
+        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_info_digest,
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         ..Default::default()
     };
@@ -430,13 +430,13 @@ fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
 
     let gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+    let vendor_pubkey_info_digest = gen
+        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
     let fuses = caliptra_hw_model::Fuses {
         life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_digest,
+        vendor_pk_hash: vendor_pubkey_info_digest,
         ..Default::default()
     };
 
@@ -2276,14 +2276,14 @@ fn test_runtime_svn_greater_than_max() {
         };
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -2318,15 +2318,15 @@ fn test_runtime_svn_less_than_fuse_svn() {
         };
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
-        let vendor_pubkey_digest = gen
-            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let fuse_svn: [u32; 4] = [0xffff_ffff, 0x7fff_ffff, 0, 0]; // fuse svn = 63
         let fuses = caliptra_hw_model::Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_digest,
+            vendor_pk_hash: vendor_pubkey_info_digest,
             fw_svn: fuse_svn,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()

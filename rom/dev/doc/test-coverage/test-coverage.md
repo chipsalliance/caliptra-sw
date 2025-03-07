@@ -3,8 +3,8 @@ Test Scenario| Test Name | ROM Error Code
 -----|---|---
  Check if manifest.marker is set to 0x4E414D43 	| **test_invalid_manifest_marker** | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
  Check if manifest.size is set to ImageManifest size 	| **test_invalid_manifest_size** | 	 IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH
- Check if vendor public key digest is not zero in the fuse_vendor_pk_hash fuse 	| **test_preamble_zero_vendor_pubkey_digest** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
- Check if the vendor public key hash from fuse matches the hash of the vendor public keys in the Preamble 	| **test_preamble_vendor_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
+ Check if vendor public key digest is not zero in the fuse_vendor_pk_hash fuse 	| **test_preamble_zero_vendor_pubkey_info_digest** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
+ Check if the vendor public key hash from fuse matches the hash of the vendor public keys in the Preamble 	| **test_preamble_vendor_pubkey_info_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
  Check if the owner public key hash from fuse_owner_pk_hash fuse is not zero and matches the hash of the owner public key in the Preamble 	| **test_preamble_owner_pubkey_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
  Check revoking of key idx 0/1/2 <br> * Check that last key (idx = 3) is not revocable 	| **test_preamble_vendor_ecc_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
  Check revoking of key idx 0/1/2 ..30<br> * Check if last key (idx = 31) is not revocable 	| **test_preamble_vendor_lms_pubkey_revocation** | 	 IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED 
