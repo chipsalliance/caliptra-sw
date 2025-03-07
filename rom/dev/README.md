@@ -264,44 +264,42 @@ The following flows are conducted when the ROM is operating in the manufacturing
 #### Debug Unlock
 1. On reset, the ROM checks if the `MANUF_DBG_UNLOCK_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register and the `DEBUG_INTENT` bit in `SS_DEBUG_INTENT` register are set.
 
-2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register, then enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 256-bit value.
+2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` & `MANUF_DBG_UNLOCK_IN_PROGRESS` bits in the `SS_DBG_MANUF_SERVICE_REG_RSP` register, then enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 256-bit value.
 
-3. Upon receiving the `TOKEN` command, ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 1.
+3. The ROM performs a SHA-512 operation on the token to generate the input token digest.
 
-4. The ROM performs a SHA-512 operation on the token to generate the input token digest.
+4. The ROM compares the `FUSE_MANUF_DBG_UNLOCK_TOKEN` fuse register with the input token digest.
 
-5. The ROM compares the `FUSE_MANUF_DBG_UNLOCK_TOKEN` fuse register with the input token digest.
+5. The ROM completes the mailbox command.
 
-6. The ROM completes the mailbox command.
+6. If the input token digest and fuse token digests match, the ROM authorizes the debug unlock by setting the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_SUCCESS` bit to 1.
 
-7. If the input token digest and fuse token digests match, the ROM authorizes the debug unlock by setting the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_SUCCESS` bit to 1.
+7. If the token digests do not match, the ROM blocks the debug unlock by setting the the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_FAIL` bit to 1.
 
-8. If the token digests do not match, the ROM blocks the debug unlock by setting the the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_FAIL` bit to 1.
-
-9. The ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 0.
+8. The ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` and `TAP_MAILBOX_AVAILABLE` bits to 0.
 
 
 ### Production Flows
 The following flows are conducted when the ROM is operating in the production mode, indicated by a value of `DEVICE_PRODUCTION` (0x3) in the `CPTRA_SECURITY_STATE` register `device_lifecycle` bits.
 
 #### Debug Unlock
-1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `CPTRA_DBG_MANUF_SERVICE_REQ_REG` register and the `DEBUG_INTENT_STRAP` register are set.
+1. On reset, the ROM checks if the `PROD_DEBUG_UNLOCK_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register and the `DEBUG_INTENT` in `SS_DEBUG_INTENT` register are set.
 
-1.1 ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
+2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` & `PROD_DBG_UNLOCK_IN_PROGRESS` bits in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
 
-2. If they are set, the ROM enters a polling loop, awaiting a `AUTH_DEBUG_UNLOCK_REQ` command on the mailbox. The payload for this command is of the following format:
+3. ROM enters a polling loop, awaiting a `AUTH_DEBUG_UNLOCK_REQ` command (Id: 0x50445552) on the mailbox. The payload for this command is of the following format:
 
 | Field            | Size (bytes) | Description                                        |
 |------------------|--------------|----------------------------------------------------|
 | Length           | 4            | Length of the message in DWORDs. This should be 2. |
-| Unlock Category  | 1            | Debug unlock Level (Number 1-8).                   |
+| Unlock Level     | 1            | Debug unlock Level (Number 1-8).                   |
 | Reserved         | 3            | Reserved field.                                    |
 
-2.1 On failure, ROM does the following:
-      - `PROD_DEBUG_UNLOCK_FAILURE` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
-      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+3. On failure, ROM does the following:
+      - `PROD_DBG_UNLOCK_FAIL` bit in `SS_DBG_MANUF_SERVICE_REG_RSP` register to 1.
+      - `PROD_DBG_UNLOCK_IN_PROGRESS` bit in `SS_DBG_MANUF_SERVICE_REG_RSP` register to 0.
 
-3. The ROM validates the payload and on successful validation sends the following payload via the `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command:
+4. The ROM validates the payload and on successful validation sends the following payload as the response:
 
 | Field                    | Size (bytes) | Description                                        |
 |--------------------------|--------------|----------------------------------------------------|
@@ -309,44 +307,41 @@ The following flows are conducted when the ROM is operating in the production mo
 | Unique Device Identifier | 32           | Device identifier of the Caliptra Device. (TODO - Figure out where to read this from) |
 | Challenge                | 48           | Random number.                                     |
 
-3.1 On failure, ROM does the following:
-      - `PROD_DEBUG_UNLOCK_FAILURE` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
-      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+5. On failure, ROM sets the registers outlined in step 3.
 
-4. In reponse to this mailbox command, the SOC sends the following payload via the `AUTH_DEBUG_UNLOCK_TOKEN` mailbox command:
+6. The SOC then sends the following payload via the `AUTH_DEBUG_UNLOCK_TOKEN` mailbox command (0x50445554):
 
 | Field                    | Size (bytes) | Description                                                                           |
 |--------------------------|--------------|---------------------------------------------------------------------------------------|
 | Length                   | 4            | Length of the message in DWORDs. This should be 0x753.                                |
 | Unique Device Identifier | 32           | Device identifier sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.      |
-| Unlock Category          | 2            | **Byte: 0** - 0 - Unit; 1 - Allow, 2- Deny debug unlock. <br> **Byte 1** - Debug unlock Level (Number 1-8).             |
-| Reserved                 | 2            | Reserved field.                                                                       |
+| Unlock Level             | 1            | Debug unlock Level (Number 1-8).                                                      |
+| Reserved                 | 3            | Reserved field.                                                                       |
 | Challenge                | 48           | Random number sent in `AUTH_DEBUG_UNLOCK_CHALLENGE` mailbox command payload.          |
 | ECC Public Key           | 96           | ECC P-384 public key used to verify the Message Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian)                         |
 | MLDSA Public Key         | 2592         | MLDSA-87 public key used to verify the Message Signature.                             |
 | ECC Signature            |  96          | ECC P-384 signature of the Message hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes).                                                                                   |
 | MLDSA Signature          | 4628         | MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte). |
 
-3. On receiving this payload, ROM performs the following validations:
-    - ROM sets the `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register `MANUF_DEBUG_UNLOCK_IN_PROGRESS` bit to 1.
+7. On receiving this payload, ROM performs the following validations:
     - Ensures the value in the `Length` field matches the size of the payload.
-    - Confirms that the `Debug unlock level` does not exceed the value specified in the `NUM_OF_DEBUG_AUTH_PK_HASHES` register.
+    - Confirms that the `Debug unlock level` does not exceed the value specified in the `SS_NUM_OF_PROD_DEBUG_UNLOCK_AUTH_PK_HASHES` register.
     - Calculates the address of the public key hash fuse as follows: <br>
-        **DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( (Debug Unlock Level - 1) * SHA2-512 hash size (64 bytes) )**
-    - Retrieves the SHA2-512 hash (64 bytes) from the calculated address using DMA assist.
-    - Computes the SHA2-512 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
-    - Compares the retrieved and computed hashes and also checks the debug unlock level from payload 1. It the comparison fails, the ROM blocks the debug unlock by setting the following:<br>
-      - `PROD_DEBUG_UNLOCK_FAILURE` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
-      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+        **SS_PROD_DEBUG_UNLOCK_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( (Debug Unlock Level - 1) * SHA2-512 hash size (48 bytes) )**
+    - Retrieves the SHA2-384 hash (48 bytes) from the calculated address using DMA assist.
+    - Computes the SHA2-384 hash of the message formed by concatenating the ECC and MLDSA public keys in the payload.
+    - Compares the retrieved and computed hashes. It the comparison fails, the ROM blocks the debug unlock request by setting the registers outlined in step 3.
     - Upon hash comparison failure, the ROM exits the payload validation flow and completes the mailbox command.
 
-4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the `Challenge`, `Device Identifier`, `Reserved` and `Unlock Category` fields within the payload. Should the validation fail, the ROM blocks the debug unlock by executing the steps outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
+4. The ROM proceeds with payload validation by verifying the ECC and MLDSA signatures over the `Challenge`, `Device Identifier`, `Reserved` and `Unlock Category` fields within the payload. Should the validation fail, the ROM blocks the debug unlock by setting the registers outlined in item 3. Conversely, if the signature validation succeeds, the ROM authorizes the debug unlock by configuring the following settings:
 
-      - `PROD_DEBUG_UNLOCK_SUCCESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 1.
-      - Setting the Debug unlock level in the `CALIPTRA_SOC_DEBUG_UNLOCK_LEVEL` register (Write it as one hot encoded (1 << (Level -1)))
-      - `PROD_DEBUG_UNLOCK_IN_PROGRESS` bit in `CPTRA_DBG_MANUF_SERVICE_RSP_REG` register to 0.
+      - `PROD_DBG_UNLOCK_SUCCESS` bit in `SS_DBG_MANUF_SERVICE_REG_RSP` register to 1.
+      - Setting the Debug unlock level in the `SS_SOC_DBG_UNLOCK_LEVEL` register (Write it as one hot encoded (1 << (Level -1)))
+      - `PROD_DBG_UNLOCK_IN_PROGRESS` bit in `SS_DBG_MANUF_SERVICE_REG_RSP` register to 0.
 
 5. ROM then completes the mailbox command with success.
+
+6. The ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `PROD_DBG_UNLOCK_IN_PROGRESS` and `TAP_MAILBOX_AVAILABLE` bits to 0.
 
 ### Known Answer Test (KAT)
 

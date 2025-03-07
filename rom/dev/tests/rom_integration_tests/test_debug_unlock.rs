@@ -267,21 +267,15 @@ fn test_dbg_unlock_prod() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 1u8;
 
     // [TODO][CAP2] With wrong len mbox err 0 gets returned which is not right
     let request = ProductionAuthDebugUnlockReq {
         length: {
             let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
-        unlock_category,
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -305,7 +299,7 @@ fn test_dbg_unlock_prod() {
     let mut sha384 = sha2::Sha384::new();
     sha384.update(challenge.challenge);
     sha384.update(challenge.unique_device_identifier);
-    sha384.update(unlock_category);
+    sha384.update([unlock_level]);
     let sha384_digest = sha384.finalize();
     let (ecc_signature, _id) = signing_ecc_key
         .sign_prehash_recoverable(sha384_digest.as_slice())
@@ -316,7 +310,7 @@ fn test_dbg_unlock_prod() {
     let mut sha512 = sha2::Sha512::new();
     sha512.update(challenge.challenge);
     sha512.update(challenge.unique_device_identifier);
-    sha512.update(unlock_category);
+    sha512.update([unlock_level]);
     let mut sha512_digest = sha512.finalize();
     let msg = {
         let msg: &mut [u8] = sha512_digest.as_mut_slice();
@@ -332,12 +326,10 @@ fn test_dbg_unlock_prod() {
         length: {
             let req_len =
                 size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
         unique_device_identifier: challenge.unique_device_identifier,
-        unlock_category,
+        unlock_level,
         challenge: challenge.challenge,
         ecc_public_key: ecc_pub_key_bytes,
         mldsa_public_key: mldsa_pub_key_reversed,
@@ -409,20 +401,11 @@ fn test_dbg_unlock_prod_invalid_length() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 2u8;
 
     let request = ProductionAuthDebugUnlockReq {
-        length: {
-            // Set an incorrect length
-            let wrong_len = 123u32;
-            let wrong_len_bytes = wrong_len.to_le_bytes();
-            wrong_len_bytes[..3].try_into().unwrap()
-        },
-        unlock_category,
+        length: 123u32, // Set an incorrect length
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -481,20 +464,14 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 3u8;
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
             let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
-        unlock_category,
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -522,12 +499,10 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         length: {
             let req_len =
                 size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
         unique_device_identifier: challenge.unique_device_identifier,
-        unlock_category,
+        unlock_level,
         challenge: invalid_challenge, // Use invalid challenge
         ecc_public_key: ecc_pub_key_bytes,
         mldsa_public_key: mldsa_pub_key_bytes,
@@ -602,21 +577,15 @@ fn test_dbg_unlock_prod_invalid_signature() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 4u8;
 
     // [TODO][CAP2] With wrong len mbox err 0 gets returned which is not right
     let request = ProductionAuthDebugUnlockReq {
         length: {
             let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
-        unlock_category,
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -640,7 +609,6 @@ fn test_dbg_unlock_prod_invalid_signature() {
     let mut sha512 = sha2::Sha512::new();
     sha512.update(challenge.challenge);
     sha512.update(challenge.unique_device_identifier);
-    sha512.update(unlock_category);
     let mut sha512_digest = sha512.finalize();
     let msg = {
         let msg: &mut [u8] = sha512_digest.as_mut_slice();
@@ -656,12 +624,10 @@ fn test_dbg_unlock_prod_invalid_signature() {
         length: {
             let req_len =
                 size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
         unique_device_identifier: challenge.unique_device_identifier,
-        unlock_category,
+        unlock_level,
         challenge: challenge.challenge,
         ecc_public_key: ecc_pub_key_bytes,
         mldsa_public_key: mldsa_pub_key_reversed,
@@ -750,20 +716,14 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 5u8;
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
             let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
-        unlock_category,
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -788,12 +748,10 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         length: {
             let req_len =
                 size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
         unique_device_identifier: challenge.unique_device_identifier,
-        unlock_category,
+        unlock_level,
         challenge: challenge.challenge,
         // Use the different public keys that weren't registered with the hardware
         ecc_public_key: different_ecc_pub_key_bytes,
@@ -864,20 +822,14 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     )
     .unwrap();
 
-    let unlock_category = {
-        let unlock: u32 = 0;
-        let unlock_bytes = unlock.to_le_bytes();
-        unlock_bytes[..3].try_into().unwrap()
-    };
+    let unlock_level = 6u8;
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
             let req_len = size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
-            let struct_len = (req_len / size_of::<u32>()) as u32;
-            let struct_len_bytes = struct_len.to_le_bytes();
-            struct_len_bytes[..3].try_into().unwrap()
+            (req_len / size_of::<u32>()) as u32
         },
-        unlock_category,
+        unlock_level,
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
