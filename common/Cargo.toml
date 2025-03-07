@@ -18,6 +18,7 @@ caliptra-registers.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true
+riscv.workspace = true
 
 [features]
 default = ["std"]
