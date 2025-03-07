@@ -64,6 +64,8 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Set tap mailbox available.
     env.soc_ifc.set_tap_mailbox_available();
+    // Set tap mailbox available.
+    env.soc_ifc.set_tap_mailbox_available();
 
     let mbox = &mut env.mbox;
     let txn = loop {
@@ -83,7 +85,8 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
     let mut request = ManufDebugUnlockTokenReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+    let request_bytes = request.as_mut_bytes();
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes)?;
 
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
