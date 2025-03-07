@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
+use caliptra_common::{cfi_check, crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac_kdf, sha2_512_384::Sha2DigestOpTrait, Array4x12, HmacData, HmacKey, HmacMode, HmacTag,
     KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
@@ -143,11 +143,7 @@ impl Hmac {
         data: &[u8],
     ) -> CaliptraResult<Array4x12> {
         let keypair_result = ecc384_key_gen(drivers, input, label, KEY_ID_TMP);
-        if cfi_launder(keypair_result.is_ok()) {
-            cfi_assert!(keypair_result.is_ok());
-        } else {
-            cfi_assert!(keypair_result.is_err());
-        }
+        cfi_check!(keypair_result);
         let mut keypair = keypair_result?;
 
         let mut pubkey_digest = Array4x12::default();

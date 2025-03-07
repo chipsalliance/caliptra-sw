@@ -22,6 +22,7 @@ use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::FmcBootStatus;
 use crate::HandOff;
+use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
@@ -295,20 +296,12 @@ impl RtAliasLayer {
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
         let result = Crypto::ecc384_key_gen(env, cdi, b"alias_rt_ecc_key", ecc_priv_key);
-        if cfi_launder(result.is_ok()) {
-            cfi_assert!(result.is_ok());
-        } else {
-            cfi_assert!(result.is_err());
-        }
+        cfi_check!(result);
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
         let result = Crypto::mldsa_key_gen(env, cdi, b"alias_rt_mldsa_key", mldsa_keypair_seed);
-        if cfi_launder(result.is_ok()) {
-            cfi_assert!(result.is_ok());
-        } else {
-            cfi_assert!(result.is_err());
-        }
+        cfi_check!(result);
         let mldsa_keypair = result?;
 
         Ok((ecc_keypair, mldsa_keypair))

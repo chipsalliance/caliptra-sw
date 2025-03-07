@@ -66,7 +66,7 @@ fn test_op1() {
 
 fn test_kat() {
     // Init CFI
-    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
 
     assert_eq!(
         Sha1Kat::default().execute(&mut Sha1::default()).is_ok(),

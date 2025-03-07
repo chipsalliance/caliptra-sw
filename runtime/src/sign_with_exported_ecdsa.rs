@@ -5,6 +5,7 @@ use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 
+use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{
     MailboxResp, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
@@ -38,13 +39,7 @@ impl SignWithExportedEcdsaCmd {
             b"Exported ECC",
         );
 
-        if cfi_launder(key_pair.is_ok()) {
-            #[cfg(not(feature = "no-cfi"))]
-            cfi_assert!(key_pair.is_ok());
-        } else {
-            #[cfg(not(feature = "no-cfi"))]
-            cfi_assert!(key_pair.is_err());
-        }
+        cfi_check!(key_pair);
         let (priv_key, pub_key) = key_pair
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
 

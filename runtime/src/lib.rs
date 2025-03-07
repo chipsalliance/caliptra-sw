@@ -43,6 +43,7 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -272,11 +273,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
             let result = DisableAttestationCmd::execute(drivers);
-            if cfi_launder(result.is_ok()) {
-                cfi_assert!(result.is_ok());
-            } else {
-                cfi_assert!(result.is_err());
-            }
+            cfi_check!(result);
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to cmd busy during warm reset");
@@ -330,13 +327,9 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                 caliptra_common::WdtTimeout::default(),
             );
             caliptra_drivers::report_fw_error_non_fatal(0);
-            let commmand_result = handle_command(drivers);
-            if cfi_launder(commmand_result.is_ok()) {
-                cfi_assert!(commmand_result.is_ok());
-            } else {
-                cfi_assert!(commmand_result.is_err());
-            }
-            match commmand_result {
+            let command_result = handle_command(drivers);
+            cfi_check!(command_result);
+            match command_result {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
                 }
