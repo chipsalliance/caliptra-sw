@@ -1373,16 +1373,6 @@ impl CaliptraError {
             "Runtime Error: Key ladder target SVN too large"
         ),
         (
-            RUNTIME_GET_FMC_CSR_UNPROVISIONED,
-            0x000E005B,
-            "Runtime Error: Get FMC CSR unprovisioned"
-        ),
-        (
-            RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC,
-            0x000E005C,
-            "Runtime Error: Get FMC CSR unsupported FMC"
-        ),
-        (
             RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED,
             0x000E0057,
             "Runtime Error: Sign with exported ECDSA key derivation failed"
@@ -1401,6 +1391,26 @@ impl CaliptraError {
             RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE,
             0x000E005A,
             "Runtime Error: Sign with exported ECDSA invalid signature"
+        ),
+        (
+            RUNTIME_GET_FMC_CSR_UNPROVISIONED,
+            0x000E005B,
+            "Runtime Error: Get FMC CSR unprovisioned"
+        ),
+        (
+            RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC,
+            0x000E005C,
+            "Runtime Error: Get FMC CSR unsupported FMC"
+        ),
+        (
+            RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+            0x000E005D,
+            "Runtime Error: Invalid combination of key usage and size"
+        ),
+        (
+            RUNTIME_CMB_KEY_USAGE_STORAGE_FULL,
+            0x000E005E,
+            "Runtime Error: Key usage storage full"
         ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
