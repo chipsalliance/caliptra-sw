@@ -53,6 +53,7 @@ enum mailbox_command {
     OP_CAPABILITIES                = 0x43415053, // "CAPS"
     OP_GET_IDEV_CSR                = 0x49444352, // "IDCR"
     OP_SIGN_WITH_EXPORTED_ECDSA    = 0x53574545, // "SWEE"
+    OP_REVOKE_EXPORTED_CDI_HANDLE  = 0x52564348, // "RVCH"
 };
 
 struct parcel {
