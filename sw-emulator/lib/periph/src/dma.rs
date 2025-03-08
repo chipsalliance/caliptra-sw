@@ -12,7 +12,7 @@ File contains DMA peripheral implementation.
 
 --*/
 
-use crate::{MailboxRam, SocRegistersInternal};
+use crate::{MailboxRam, Sha512Accelerator, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
@@ -157,7 +157,7 @@ pub struct Dma {
     op_payload_available_action: Option<ActionHandle>,
 
     /// FIFO
-    fifo: VecDeque<u8>,
+    fifo: VecDeque<u32>,
 
     /// Axi Bus
     pub axi: AxiRootBus,
@@ -171,11 +171,14 @@ pub struct Dma {
     pending_axi_to_mailbox: bool,
 }
 
+#[derive(Debug)]
 struct ReadXfer {
     pub src: AxiAddr,
     pub fixed: bool,
     pub len: usize,
 }
+
+#[derive(Debug)]
 
 struct WriteXfer {
     pub dest: AxiAddr,
@@ -186,7 +189,7 @@ struct WriteXfer {
 impl Dma {
     const NAME: u32 = 0x6776_8068; // CLPD
 
-    const FIFO_SIZE: usize = 0x1000;
+    const FIFO_SIZE: usize = 0x400;
 
     // [TODO][CAP2] DMA transactions need to be a multiple of this
     const AXI_DATA_WIDTH: usize = 4;
@@ -200,6 +203,7 @@ impl Dma {
         clock: &Clock,
         mailbox: MailboxRam,
         soc_reg: SocRegistersInternal,
+        sha512_acc: Sha512Accelerator,
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
     ) -> Self {
         Self {
@@ -220,7 +224,7 @@ impl Dma {
             op_complete_action: None,
             op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
-            axi: AxiRootBus::new(soc_reg, prod_dbg_unlock_keypairs),
+            axi: AxiRootBus::new(soc_reg, sha512_acc, prod_dbg_unlock_keypairs),
             mailbox,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
@@ -278,32 +282,26 @@ impl Dma {
         let status0 = ReadWriteRegister::new(self.status0.reg.get());
         status0
             .reg
-            .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32));
+            .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32 * 4));
         Ok(status0.reg.get())
     }
 
     pub fn on_write_data(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
-        let bytes = &val.to_le_bytes();
-        bytes[..size as usize]
-            .iter()
-            .for_each(|b| self.fifo.push_back(*b));
-        Ok(())
+        match size {
+            RvSize::Word => {
+                self.fifo.push_back(val);
+                Ok(())
+            }
+            _ => Err(BusError::StoreAccessFault),
+        }
     }
 
     pub fn on_read_data(&mut self, size: RvSize) -> Result<RvData, BusError> {
-        let range = 0..size as usize;
-        let bytes: RvData = range.fold(0, |mut acc, b| {
-            acc |= (self.fifo.pop_front().unwrap_or(
-                // self.status0
-                //     .reg
-                //     .write(Status0::DMA_FSM_PRESENT_STATE::ERROR);
-                // TODO write status in interrupt
-                0,
-            ) as RvData)
-                << (8 * b);
-            acc
-        });
-        Ok(bytes)
+        match size {
+            // TODO write status in interrupt if empty
+            RvSize::Word => Ok(self.fifo.pop_front().unwrap_or(0)),
+            _ => Err(BusError::LoadAccessFault),
+        }
     }
 
     fn read_xfer(&self) -> ReadXfer {
@@ -341,10 +339,10 @@ impl Dma {
         true
     }
 
-    fn write_mailbox(&mut self, block: &[u8]) {
+    fn write_mailbox(&mut self, block: &[u32]) {
         let mbox_ram = self.mailbox.borrow_mut();
-        for i in (0..block.len()).step_by(Self::AXI_DATA_WIDTH) {
-            let data = u32::from_le_bytes(block[i..i + Self::AXI_DATA_WIDTH].try_into().unwrap());
+        for i in (0..block.len() * 4).step_by(Self::AXI_DATA_WIDTH) {
+            let data = block[i / 4];
             mbox_ram
                 .write(Self::AXI_DATA_WIDTH.into(), i as RvAddr, data as RvData)
                 .unwrap();
@@ -368,15 +366,15 @@ impl Dma {
         true
     }
 
-    fn write_fifo_block(&mut self, block: &[u8]) {
-        for i in (0..block.len()).step_by(Self::AXI_DATA_WIDTH) {
+    fn write_fifo_block(&mut self, block: &[u32]) {
+        for i in (0..block.len() * 4).step_by(Self::AXI_DATA_WIDTH) {
             let cur_fifo_depth = self.status0.reg.read(Status0::FIFO_DEPTH);
-            if cur_fifo_depth + 4 >= Self::FIFO_SIZE as u32 {
+            if cur_fifo_depth >= Self::FIFO_SIZE as u32 {
                 self.status0.reg.write(Status0::ERROR::SET);
                 // TODO set interrupt bits
                 return;
             }
-            self.fifo.extend(&block[i..i + Self::AXI_DATA_WIDTH]);
+            self.fifo.push_back(block[i / 4]);
         }
     }
 
@@ -399,20 +397,20 @@ impl Dma {
         true
     }
 
-    fn read_axi_block(&mut self, read_xfer: ReadXfer) -> Vec<u8> {
+    fn read_axi_block(&mut self, read_xfer: ReadXfer) -> Vec<u32> {
         let mut block = vec![];
         for i in (0..read_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let src = read_xfer.src + if read_xfer.fixed { 0 } else { i as AxiAddr };
             let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), src).unwrap();
-            block.extend(data.to_le_bytes());
+            block.push(data);
         }
         block
     }
 
-    fn write_axi_block(&mut self, block: &[u8], write_xfer: WriteXfer) {
+    fn write_axi_block(&mut self, block: &[u32], write_xfer: WriteXfer) {
         for i in (0..write_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let dest = write_xfer.dest + if write_xfer.fixed { 0 } else { i as AxiAddr };
-            let data = u32::from_le_bytes(block[i..i + Self::AXI_DATA_WIDTH].try_into().unwrap());
+            let data = block[i / 4];
             self.axi
                 .write(Self::AXI_DATA_WIDTH.into(), dest, data)
                 .unwrap();
@@ -441,21 +439,13 @@ impl Dma {
         let xfer = self.write_xfer();
         for i in (0..xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let addr = xfer.dest + if xfer.fixed { 0 } else { i as AxiAddr };
-            let data = {
-                let mut bytes = [0u8; Self::AXI_DATA_WIDTH];
-                for byte in bytes.iter_mut() {
-                    match self.fifo.pop_front() {
-                        Some(b) => {
-                            *byte = b;
-                        }
-                        None => {
-                            self.status0.reg.write(Status0::ERROR::SET);
-                            // TODO set interrupt bits
-                            return true;
-                        }
-                    }
+            let data = match self.fifo.pop_front() {
+                Some(b) => b,
+                None => {
+                    self.status0.reg.write(Status0::ERROR::SET);
+                    // TODO set interrupt bits
+                    return true;
                 }
-                u32::from_le_bytes(bytes)
             };
             self.axi
                 .write(Self::AXI_DATA_WIDTH.into(), addr, data)
@@ -640,7 +630,13 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
         let soc_reg = SocRegistersInternal::new(&clock, mailbox_internal, iccm, &pic, args);
-        let mut dma = Dma::new(&clock, mbox_ram, soc_reg, vec![]);
+        let mut dma = Dma::new(
+            &clock,
+            mbox_ram.clone(),
+            soc_reg,
+            Sha512Accelerator::new(&clock, mbox_ram.clone()),
+            vec![],
+        );
 
         assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), 0xaabbccdd); // Initial test value
         let test_value = 0xdeadbeef;
