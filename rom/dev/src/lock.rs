@@ -12,12 +12,15 @@ Abstract:
 
 --*/
 
+use crate::{cprintln, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
-use caliptra_common::pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT};
-use caliptra_drivers::ResetReason;
-
-use crate::{cprintln, rom_env::RomEnv};
+use caliptra_common::{
+    lock_datavault_region,
+    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT},
+};
+use caliptra_drivers::{ColdResetEntries, ResetReason, WarmResetEntries};
+use core::mem::size_of;
 
 /// Lock registers
 ///
@@ -32,8 +35,7 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
         lock_cold_reset_reg(env);
         lock_common_reg_set(env);
     } else {
-        // For both UpdateReset and WarmReset, we lock the comm
-        // set of registers
+        // For both UpdateReset and WarmReset, we lock the common set of registers.
         lock_common_reg_set(env);
     }
 
@@ -52,8 +54,10 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-fn lock_cold_reset_reg(_env: &mut RomEnv) {
-    // [TODO][CAP2] Lock the cold reset entries via PMP.
+pub fn lock_cold_reset_reg(env: &mut RomEnv) {
+    let base_addr =
+        &env.persistent_data.get_mut().data_vault.cold_reset_entries as *const _ as usize;
+    lock_datavault_region(base_addr, size_of::<ColdResetEntries>(), true);
 }
 
 /// Lock all common registers across all reset types
@@ -62,6 +66,8 @@ fn lock_cold_reset_reg(_env: &mut RomEnv) {
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-fn lock_common_reg_set(_env: &mut RomEnv) {
-    // [TODO][CAP2] Lock the warm reset entries via PMP.
+fn lock_common_reg_set(env: &mut RomEnv) {
+    let base_addr =
+        &env.persistent_data.get_mut().data_vault.warm_reset_entries as *const _ as usize;
+    lock_datavault_region(base_addr, size_of::<WarmResetEntries>(), false);
 }

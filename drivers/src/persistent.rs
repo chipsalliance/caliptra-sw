@@ -258,6 +258,7 @@ pub struct PersistentData {
     pub manifest2: ImageManifest,
     reserved1: [u8; MAN2_SIZE as usize - size_of::<ImageManifest>()],
 
+    #[zeroize(skip)]
     pub data_vault: DataVault,
     reserved1_1: [u8; DATAVAULT_MAX_SIZE as usize - size_of::<DataVault>()],
 
