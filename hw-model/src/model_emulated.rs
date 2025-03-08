@@ -10,7 +10,9 @@ use std::rc::Rc;
 use std::sync::mpsc;
 
 use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::Device;
 use caliptra_emu_bus::Event;
+use caliptra_emu_bus::EventData;
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, InstrTracer};
@@ -253,8 +255,33 @@ impl HwModel for ModelEmulated {
         if self.cpu_enabled.get() {
             self.cpu.step(self.trace_fn.as_deref_mut());
         }
-        let events = self.events_from_caliptra.try_iter().collect::<Vec<_>>();
-        self.collected_events_from_caliptra.extend(events);
+
+        for event in self.events_from_caliptra.try_iter() {
+            self.collected_events_from_caliptra.push(event.clone());
+            // brute force respond to AXI DMA MCU SRAM read
+            if let (Device::MCU, EventData::MemoryRead { start_addr, len }) =
+                (event.dest, event.event)
+            {
+                let addr = start_addr as usize;
+                let Some(mcu_firmware) = self.cpu.bus.bus.dma.axi.recovery.cms_data.get_mut(2)
+                else {
+                    continue;
+                };
+                let Some(dest) = mcu_firmware.get_mut(addr..addr + len as usize) else {
+                    continue;
+                };
+                self.events_to_caliptra
+                    .send(Event {
+                        src: Device::MCU,
+                        dest: Device::CaliptraCore,
+                        event: EventData::MemoryReadResponse {
+                            start_addr,
+                            data: dest.to_vec(),
+                        },
+                    })
+                    .unwrap();
+            }
+        }
     }
 
     fn output(&mut self) -> &mut Output {

@@ -1147,6 +1147,16 @@ impl From<u32> for ImageHashSource {
     }
 }
 
+impl From<ImageHashSource> for u32 {
+    fn from(val: ImageHashSource) -> Self {
+        match val {
+            ImageHashSource::InRequest => 1,
+            ImageHashSource::ShaAcc => 2,
+            _ => 0,
+        }
+    }
+}
+
 bitflags::bitflags! {
     pub struct AuthAndStashFlags : u32 {
         const SKIP_STASH = 0x1;

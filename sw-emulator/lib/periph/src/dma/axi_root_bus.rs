@@ -12,9 +12,10 @@ Abstract:
 
 --*/
 
-use crate::dma::otp_fc::FuseController;
 use crate::dma::recovery::RecoveryRegisterInterface;
+use crate::helpers::words_from_bytes_be_vec;
 use crate::SocRegistersInternal;
+use crate::{dma::otp_fc::FuseController, Sha512Accelerator};
 use caliptra_emu_bus::{
     Bus,
     BusError::{self, LoadAccessFault, StoreAccessFault},
@@ -33,13 +34,15 @@ pub struct AxiRootBus {
 
     pub recovery: RecoveryRegisterInterface,
     event_sender: Option<mpsc::Sender<Event>>,
-    pub dma_result: Option<Vec<u8>>,
+    pub dma_result: Option<Vec<u32>>,
     pub otp_fc: FuseController,
-
     pub mci: Mci,
+    sha512_acc: Sha512Accelerator,
 }
 
 impl AxiRootBus {
+    const SHA512_ACC_OFFSET: AxiAddr = 0x3002_1000;
+    const SHA512_ACC_END: AxiAddr = 0x3002_10ff;
     const TEST_REG_OFFSET: AxiAddr = 0xaa00;
     // ROM and Runtime code should not depend on the exact values of these.
     pub const RECOVERY_REGISTER_INTERFACE_OFFSET: AxiAddr =
@@ -56,6 +59,7 @@ impl AxiRootBus {
 
     pub fn new(
         soc_reg: SocRegistersInternal,
+        sha512_acc: Sha512Accelerator,
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
     ) -> Self {
         Self {
@@ -63,6 +67,7 @@ impl AxiRootBus {
             recovery: RecoveryRegisterInterface::new(),
             otp_fc: FuseController::new(soc_reg),
             mci: Mci::new(prod_dbg_unlock_keypairs),
+            sha512_acc,
             event_sender: None,
             dma_result: None,
         }
@@ -79,6 +84,7 @@ impl AxiRootBus {
         }
         match addr {
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
+                let addr = addr - Self::MCU_SRAM_OFFSET;
                 if let Some(sender) = self.event_sender.as_mut() {
                     sender
                         .send(Event::new(
@@ -120,6 +126,11 @@ impl AxiRootBus {
 
     pub fn write(&mut self, size: RvSize, addr: AxiAddr, val: RvData) -> Result<(), BusError> {
         match addr {
+            Self::SHA512_ACC_OFFSET..=Self::SHA512_ACC_END => self.sha512_acc.write(
+                size,
+                ((addr - Self::SHA512_ACC_OFFSET) & 0xffff_ffff) as u32,
+                val,
+            ),
             Self::TEST_REG_OFFSET => Register::write(&mut self.reg, size, val),
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
                 let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
@@ -133,7 +144,7 @@ impl AxiRootBus {
                             Device::MCU,
                             EventData::MemoryWrite {
                                 start_addr: (addr - Self::MCU_SRAM_OFFSET) as u32,
-                                data: val.to_le_bytes().to_vec(),
+                                data: val.to_be_bytes().to_vec(),
                             },
                         ))
                         .unwrap();
@@ -161,7 +172,7 @@ impl AxiRootBus {
         {
             // we only access read responses from the MCU
             if event.src == Device::MCU {
-                self.dma_result = Some(data.clone());
+                self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
             }
         }
     }

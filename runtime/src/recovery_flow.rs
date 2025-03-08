@@ -12,9 +12,16 @@ Abstract:
 
 --*/
 
-use crate::{set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd};
+use crate::{
+    authorize_and_stash::AuthorizeAndStashCmd, set_auth_manifest::AuthManifestSource, Drivers,
+    SetAuthManifestCmd, IMAGE_AUTHORIZED,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_drivers::DmaRecovery;
+use caliptra_common::{
+    cprintln,
+    mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
+};
+use caliptra_drivers::{printer::HexBytes, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 
 pub enum RecoveryFlow {}
@@ -47,6 +54,31 @@ impl RecoveryFlow {
 
         SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
 
+        let digest = {
+            let dma = &drivers.dma;
+            let dma_recovery = DmaRecovery::new(
+                drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.mci_base_addr().into(),
+                dma,
+            );
+            cprintln!("[rt] Uploading MCU firmware");
+            let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
+            cprintln!("[rt] Calculating MCU digest");
+            dma_recovery.sha384_mcu_sram(&mut drivers.sha2_512_384_acc, mcu_size_bytes)?
+        };
+
+        let digest: [u8; 48] = digest.into();
+        cprintln!("[rt] Verifying MCU digest: {}", HexBytes(&digest));
+        // verify the digest
+        let auth_and_stash_req = AuthorizeAndStashReq {
+            fw_id: [2, 0, 0, 0],
+            measurement: digest,
+            source: ImageHashSource::InRequest.into(),
+            ..Default::default()
+        };
+
+        let auth_result = AuthorizeAndStashCmd::authorize_and_stash(drivers, &auth_and_stash_req)?;
+
         {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
@@ -54,13 +86,17 @@ impl RecoveryFlow {
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
-            let _mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
-            // [TODO][CAP2]: instruct Caliptra HW to read MCU SRAM and generate the hash (using HW SHA accelerator and AXI mastering capabilities to do this)
-            // [TODO][CAP2]: use this hash and verify it against the hash in the SOC manifest
-            // [TODO][CAP2]: after verifying/authorizing the image and if it passes, it will set EXEC/GO bit into the register as specified in the previous command. This register write will also assert a Caliptra interface wire
+
+            if auth_result != IMAGE_AUTHORIZED {
+                dma_recovery.set_recovery_status(
+                    DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
+                    0,
+                )?;
+                return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
+            }
 
             // notify MCU that it can boot
-            // TODO: get the correct value for this
+            // [TODO][CAP2]: get the correct value for this
             dma_recovery.set_mci_flow_status(123)?;
 
             // we're done with recovery
