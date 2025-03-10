@@ -52,7 +52,8 @@ register_bitfields! [
             VERIFY = 0b11,
         ],
         ZEROIZE OFFSET(2) NUMBITS(1) [],
-        PCR_SIGN OFFSET(3) NUMBITS(1) []
+        PCR_SIGN OFFSET(3) NUMBITS(1) [],
+        DH_SHAREDKEY OFFSET(4) NUMBITS(1) [],
     ],
 
     /// Status Register Fields
@@ -180,6 +181,10 @@ pub struct AsymEcc384 {
     #[register_array(offset = 0x0000_0500)]
     nonce: [u32; ECC384_NONCE_SIZE / 4],
 
+    /// DH Shared Key
+    #[register_array(offset = 0x0000_05C0, write_fn = write_access_fault)]
+    dh_shared_key: [u32; ECC384_COORD_SIZE / 4],
+
     /// Key Read Control Register
     #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
     key_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
@@ -267,6 +272,7 @@ impl AsymEcc384 {
             verify_r: Default::default(),
             iv: Default::default(),
             nonce: Default::default(),
+            dh_shared_key: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             seed_read_ctrl: ReadWriteRegister::new(0),
@@ -316,6 +322,15 @@ impl AsymEcc384 {
                 self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
             }
             _ => {}
+        }
+
+        if self.control.reg.is_set(Control::DH_SHAREDKEY) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+
+            self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
@@ -483,6 +498,10 @@ impl AsymEcc384 {
             }
             Some(Control::CTRL::Value::VERIFY) => self.verify(),
             _ => {}
+        }
+
+        if self.control.reg.is_set(Control::DH_SHAREDKEY) {
+            self.generate_dh_shared_key();
         }
 
         self.status
@@ -672,6 +691,39 @@ impl AsymEcc384 {
         self.iv.as_mut().fill(0);
         self.nonce.as_mut().fill(0);
         self.priv_key_in.as_mut().fill(0);
+        self.dh_shared_key.as_mut().fill(0);
+    }
+
+    /// Generate Diffie-Hellman shared key
+    fn generate_dh_shared_key(&mut self) {
+        let shared_key = Ecc384::compute_shared_secret(
+            &bytes_from_words_le(&self.priv_key_in),
+            &Ecc384PubKey {
+                x: bytes_from_words_le(&self.pub_key_x),
+                y: bytes_from_words_le(&self.pub_key_y),
+            },
+        );
+        // Handle the shared key based on control register settings
+        if self
+            .key_write_ctrl
+            .reg
+            .is_set(KeyWriteControl::KEY_WRITE_EN)
+        {
+            // If key write is enabled, prepare for writing to key vault
+            self.key_write_status.reg.modify(
+                KeyWriteStatus::READY::CLEAR
+                    + KeyWriteStatus::VALID::CLEAR
+                    + KeyWriteStatus::ERROR::CLEAR,
+            );
+            self.priv_key_in = words_from_bytes_le(&shared_key);
+            self.op_key_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+        } else if self.key_read_ctrl.reg.is_set(KeyReadControl::KEY_READ_EN) {
+            // If key read is enabled, store in priv_key_in but don't schedule write operation
+            self.priv_key_in = words_from_bytes_le(&shared_key);
+        } else {
+            // Normal case: store in dh_shared_key register
+            self.dh_shared_key = words_from_bytes_le(&shared_key);
+        }
     }
 }
 
@@ -738,6 +790,13 @@ mod tests {
         0x78, 0x5, 0x40, 0x6, 0xd7, 0x52, 0xd0, 0xe1, 0xdf, 0x94, 0xfb, 0xfa, 0x95, 0xd7, 0x8f,
         0xb, 0x3f, 0x8e, 0x81, 0xb9, 0x11, 0x9c, 0x2b, 0xe0, 0x8, 0xbf, 0x6d, 0x6f, 0x4e, 0x41,
         0x85, 0xf8, 0x7d,
+    ];
+
+    const SHARED_SECRET: [u8; 48] = [
+        0xcf, 0x45, 0xb5, 0x72, 0x47, 0x40, 0x59, 0xc5, 0x0a, 0x3d, 0xc1, 0xd1, 0x0b, 0xcf, 0x72,
+        0xab, 0xc8, 0x9e, 0x06, 0x16, 0x60, 0x50, 0xc4, 0x2e, 0x6f, 0x63, 0x1f, 0x71, 0xb7, 0xaf,
+        0x17, 0xf8, 0x66, 0x45, 0x31, 0x81, 0x1a, 0x3e, 0xf4, 0x1c, 0x93, 0xb1, 0x97, 0x3c, 0x24,
+        0x6c, 0x50, 0xb6,
     ];
 
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
@@ -1266,5 +1325,273 @@ mod tests {
         sig_s_reverse.to_little_endian();
 
         assert_eq!(&sig_s_reverse, &SIG_R);
+    }
+
+    #[test]
+    fn test_dh_shared_key() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+        let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
+
+        // Set private key
+        let mut priv_key = PRIV_KEY;
+        priv_key.to_big_endian(); // Change DWORDs to big-endian.
+
+        for i in (0..PRIV_KEY.len()).step_by(4) {
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PRIV_KEY_IN + i as RvAddr,
+                make_word(i, &priv_key),
+            )
+            .unwrap();
+        }
+
+        // Set public key (this would be the other party's public key)
+        let mut pub_key_x_reverse = PUB_KEY_X;
+        pub_key_x_reverse.to_big_endian();
+
+        for i in (0..pub_key_x_reverse.len()).step_by(4) {
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PUB_KEY_X + i as RvAddr,
+                make_word(i, &pub_key_x_reverse),
+            )
+            .unwrap();
+        }
+
+        let mut pub_key_y_reverse = PUB_KEY_Y;
+        pub_key_y_reverse.to_big_endian();
+
+        for i in (0..pub_key_y_reverse.len()).step_by(4) {
+            ecc.write(
+                RvSize::Word,
+                OFFSET_PUB_KEY_Y + i as RvAddr,
+                make_word(i, &pub_key_y_reverse),
+            )
+            .unwrap();
+        }
+
+        // Set DH_SHAREDKEY bit in control register
+        ecc.write(
+            RvSize::Word,
+            OFFSET_CONTROL,
+            Control::DH_SHAREDKEY::SET.value,
+        )
+        .unwrap();
+
+        // Wait for operation to complete
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut ecc);
+        }
+
+        // Verify shared key is not all zeros
+        let shared_key = bytes_from_words_le(&ecc.dh_shared_key);
+        assert_eq!(shared_key, SHARED_SECRET);
+    }
+
+    #[test]
+    fn test_dh_shared_key_kv_store() {
+        // Test for storing the generated shared key in the key-vault
+        for key_id in 0..KeyVault::KEY_COUNT {
+            let clock = Clock::new();
+            let key_vault = KeyVault::new();
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
+
+            // Set private key
+            let mut priv_key = PRIV_KEY;
+            priv_key.to_big_endian(); // Change DWORDs to big-endian.
+
+            for i in (0..PRIV_KEY.len()).step_by(4) {
+                ecc.write(
+                    RvSize::Word,
+                    OFFSET_PRIV_KEY_IN + i as RvAddr,
+                    make_word(i, &priv_key),
+                )
+                .unwrap();
+            }
+
+            // Set public key (this would be the other party's public key)
+            let mut pub_key_x_reverse = PUB_KEY_X;
+            pub_key_x_reverse.to_big_endian();
+
+            for i in (0..pub_key_x_reverse.len()).step_by(4) {
+                ecc.write(
+                    RvSize::Word,
+                    OFFSET_PUB_KEY_X + i as RvAddr,
+                    make_word(i, &pub_key_x_reverse),
+                )
+                .unwrap();
+            }
+
+            let mut pub_key_y_reverse = PUB_KEY_Y;
+            pub_key_y_reverse.to_big_endian();
+
+            for i in (0..pub_key_y_reverse.len()).step_by(4) {
+                ecc.write(
+                    RvSize::Word,
+                    OFFSET_PUB_KEY_Y + i as RvAddr,
+                    make_word(i, &pub_key_y_reverse),
+                )
+                .unwrap();
+            }
+
+            // Instruct shared key to be stored in the key-vault
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true); // Using ECC key usage for shared secret
+            let key_write_ctrl = InMemoryRegister::<u32, KeyWriteControl::Register>::new(0);
+            key_write_ctrl.modify(
+                KeyWriteControl::KEY_ID.val(key_id)
+                    + KeyWriteControl::KEY_WRITE_EN.val(1)
+                    + KeyWriteControl::USAGE.val(u32::from(key_usage)),
+            );
+
+            ecc.write(RvSize::Word, OFFSET_KEY_WRITE_CONTROL, key_write_ctrl.get())
+                .unwrap();
+
+            // Set DH_SHAREDKEY bit in control register
+            ecc.write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::DH_SHAREDKEY::SET.value,
+            )
+            .unwrap();
+
+            // Wait for key write to complete
+            loop {
+                let key_write_status = InMemoryRegister::<u32, KeyWriteStatus::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_KEY_WRITE_STATUS).unwrap(),
+                );
+                if key_write_status.is_set(KeyWriteStatus::VALID) {
+                    assert_eq!(
+                        key_write_status.read(KeyWriteStatus::ERROR),
+                        KeyWriteStatus::ERROR::KV_SUCCESS.value
+                    );
+                    break;
+                }
+                clock.increment_and_process_timer_actions(1, &mut ecc);
+            }
+
+            // Wait for ECDH operation to complete
+            loop {
+                let status = InMemoryRegister::<u32, Status::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                );
+                if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                    break;
+                }
+                clock.increment_and_process_timer_actions(1, &mut ecc);
+            }
+
+            // Verify key was stored in key vault
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
+            let shared_key = ecc.key_vault.read_key(key_id, key_usage).unwrap();
+
+            // Verify shared key in kv
+            assert_eq!(shared_key[..48], SHARED_SECRET);
+        }
+    }
+
+    #[test]
+    fn test_dh_shared_key_kv_privkey() {
+        // Test for getting the private key from the key-vault for ECDH
+        for key_id in 0..KeyVault::KEY_COUNT {
+            let clock = Clock::new();
+            let mut priv_key = PRIV_KEY;
+            priv_key.to_big_endian(); // Change DWORDs to big-endian.
+
+            let mut key_vault = KeyVault::new();
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
+            key_vault
+                .write_key(key_id, &priv_key, u32::from(key_usage))
+                .unwrap();
+
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+            let mut ecc = AsymEcc384::new(&clock, key_vault, sha512);
+
+            // Set public key (this would be the other party's public key)
+            let mut pub_key_x_reverse = PUB_KEY_X;
+            pub_key_x_reverse.to_big_endian();
+
+            for i in (0..pub_key_x_reverse.len()).step_by(4) {
+                ecc.write(
+                    RvSize::Word,
+                    OFFSET_PUB_KEY_X + i as RvAddr,
+                    make_word(i, &pub_key_x_reverse),
+                )
+                .unwrap();
+            }
+
+            let mut pub_key_y_reverse = PUB_KEY_Y;
+            pub_key_y_reverse.to_big_endian();
+
+            for i in (0..pub_key_y_reverse.len()).step_by(4) {
+                ecc.write(
+                    RvSize::Word,
+                    OFFSET_PUB_KEY_Y + i as RvAddr,
+                    make_word(i, &pub_key_y_reverse),
+                )
+                .unwrap();
+            }
+
+            // Instruct private key to be read from key-vault
+            let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+            key_read_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
+
+            ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
+                .unwrap();
+
+            // Wait for ecc periph to retrieve the private key from the key-vault
+            loop {
+                let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_KEY_READ_STATUS).unwrap(),
+                );
+                if key_read_status.is_set(KeyReadStatus::VALID) {
+                    assert_eq!(
+                        key_read_status.read(KeyReadStatus::ERROR),
+                        KeyReadStatus::ERROR::KV_SUCCESS.value
+                    );
+                    break;
+                }
+                clock.increment_and_process_timer_actions(1, &mut ecc);
+            }
+
+            // Set DH_SHAREDKEY bit in control register
+            ecc.write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                Control::DH_SHAREDKEY::SET.value,
+            )
+            .unwrap();
+
+            // Wait for ECDH operation to complete
+            loop {
+                let status = InMemoryRegister::<u32, Status::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                );
+                if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                    break;
+                }
+                clock.increment_and_process_timer_actions(1, &mut ecc);
+            }
+
+            // Verify shared key is not all zeros
+            let shared_key = bytes_from_words_le(&ecc.dh_shared_key);
+            assert_eq!(shared_key[..48], SHARED_SECRET);
+        }
     }
 }
