@@ -287,6 +287,9 @@ Relevant registers:
 * CPTRA\_FW\_ERROR\_NON\_FATAL: Status code of mailbox command. Any result
   other than `SUCCESS` signifies a mailbox command failure.
 
+Mailbox user 0xFFFF_FFFF is reserved for Caliptra internal use. All mailbox
+commands from that user will fail.
+
 ### CALIPTRA\_FW\_LOAD
 
 The `CALIPTRA_FW_LOAD` command is handled by both ROM and Runtime Firmware.
@@ -1005,7 +1008,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) 
+| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB)
 
 ### GET_IMAGE_LOAD_ADDRESS
 
@@ -2015,7 +2018,7 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | tcg-dice-MultiTcbInfo\*        | FWIDs        | [0] "Journey" TCI Value                                             |
 |                                |              | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext. |
 |                                | Type         | 4-byte TYPE field of TCI node                                       |
-|                                | VendorInfo   | Locality of the caller (analog for PAUSER)                          |
+|                                | VendorInfo   | Locality of the caller (analog for Mailbox User). 0xFFFFFFFF for any measurements performed by Caliptra. |
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.
