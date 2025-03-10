@@ -18,6 +18,8 @@ GIT_REV = $(shell git rev-parse HEAD)
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
 # MLDSA (default): 1, LMS: 3.
 PQC_KEY_TYPE ?= 1
+# Device lifecycle state: unprovisioned, manufacturing, production
+DEVICE_LIFECYCLE ?= production
 
 default: build
 
@@ -169,8 +171,11 @@ run: build-emu build-fw-test-image build-rom
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
-		--device-lifecycle unprovisioned \
+		--device-lifecycle $(DEVICE_LIFECYCLE) \
 		--pqc-key-type $(PQC_KEY_TYPE) \
+		$(if $(filter production manufacturing,$(DEVICE_LIFECYCLE)),--mfg-pk-hash \
+			$$(dd if=$(TARGET_DIR)/caliptra-rom-test-fw bs=1 skip=12 count=1736 status=none | sha384sum | cut -d' ' -f1),)
+# See image/types/src/lib.rs ImageManifest for offsets and lenghts of vendor_pub_key_info
 
 run-active: build-emu build-fw-image build-rom
 	cargo \
@@ -182,9 +187,13 @@ run-active: build-emu build-fw-image build-rom
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
-		--device-lifecycle unprovisioned \
+		--device-lifecycle $(DEVICE_LIFECYCLE) \
 		--active-mode \
 		--pqc-key-type $(PQC_KEY_TYPE) \
+		$(if $(filter production manufacturing,$(DEVICE_LIFECYCLE)),--mfg-pk-hash \
+			$$(dd if=$(TARGET_DIR)/caliptra-rom-test-fw bs=1 skip=12 count=1736 status=none | sha384sum | cut -d' ' -f1),)
+# See image/types/src/lib.rs ImageManifest for offsets and lenghts of vendor_pub_key_info
+
 
 run-update: build-emu build-fw-test-image build-rom
 		cargo \
