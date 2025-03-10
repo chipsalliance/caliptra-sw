@@ -12,13 +12,16 @@ Abstract:
 
 --*/
 
-use crate::cprintln;
+use crate::{cprintln, Array4x12, Sha2_512_384Acc, ShaAccLockState};
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_registers::axi_dma::{
-    enums::{RdRouteE, WrRouteE},
-    AxiDmaReg, RegisterBlock,
-};
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
+use caliptra_registers::{
+    axi_dma::{
+        enums::{RdRouteE, WrRouteE},
+        AxiDmaReg, RegisterBlock,
+    },
+    sha512_acc::Sha512AccCsr,
+};
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 use zerocopy::IntoBytes;
@@ -438,6 +441,7 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const MCU_SRAM_OFFSET: u64 = 0x20_0000;
+    const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
 
@@ -531,16 +535,17 @@ impl<'a> DmaRecovery<'a> {
         read_addr: AxiAddr,
         payload_len_bytes: u32,
         write_addr: AxiAddr,
-        fixed_addr: bool,
+        read_fixed_addr: bool,
         block_size: u32,
+        write_fixed_addr: bool,
     ) -> CaliptraResult<()> {
         self.dma.flush();
 
         let read_transaction = DmaReadTransaction {
             read_addr,
-            fixed_addr,
+            fixed_addr: read_fixed_addr,
             length: payload_len_bytes,
-            target: DmaReadTarget::AxiWr(write_addr, false),
+            target: DmaReadTarget::AxiWr(write_addr, write_fixed_addr),
         };
         self.dma.setup_dma_read(read_transaction, block_size);
         self.dma.wait_for_dma_complete();
@@ -613,13 +618,13 @@ impl<'a> DmaRecovery<'a> {
     ) -> CaliptraResult<u32> {
         let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
         let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
-        cprintln!("[dma-recovery] Uploading image to MCU SRAM");
         self.transfer_payload_to_axi(
             addr,
             image_size_bytes,
             self.mci_base + Self::MCU_SRAM_OFFSET,
             true,
             Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+            false,
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
@@ -709,5 +714,34 @@ impl<'a> DmaRecovery<'a> {
         // Safety: 0x24 is the offset for the MCI flow status register
         unsafe { mmio.write_volatile(0x24 as *mut u32, status) };
         mmio.check_error(())
+    }
+
+    pub fn sha384_mcu_sram(
+        &self,
+        sha512_acc: &mut Sha2_512_384Acc,
+        length: u32,
+    ) -> CaliptraResult<Array4x12> {
+        let mut digest = Array4x12::default();
+
+        let mut acc_op = sha512_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+            .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+
+        acc_op.stream_start_384(length, true)?;
+
+        let write_addr = Sha512AccCsr::PTR as u64 + Self::SHA_ACC_DATA_IN_OFFSET;
+
+        // stream the data in to the SHA accelerator
+        self.transfer_payload_to_axi(
+            self.mci_base + Self::MCU_SRAM_OFFSET,
+            length,
+            write_addr.into(),
+            false,
+            Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+            true,
+        )?;
+
+        acc_op.stream_finish_384(&mut digest)?;
+        Ok(digest)
     }
 }
