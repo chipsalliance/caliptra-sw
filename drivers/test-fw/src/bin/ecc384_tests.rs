@@ -492,7 +492,7 @@ fn test_kat() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || trng.generate4();
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(

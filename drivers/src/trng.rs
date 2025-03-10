@@ -84,4 +84,32 @@ impl Trng {
             },
         }
     }
+
+    pub fn generate4(&mut self) -> CaliptraResult<(u32, u32, u32, u32)> {
+        extern "C" {
+            fn cfi_panic_handler(code: u32) -> !;
+        }
+
+        match self {
+            Self::Internal(csrng) => {
+                let a = csrng.generate12()?;
+                Ok((a[0], a[1], a[2], a[3]))
+            }
+            Self::External(trng_ext) => trng_ext.generate4(),
+            Self::MfgMode() => {
+                unsafe {
+                    let soc_ifc = SocIfcReg::new();
+                    if soc_ifc.regs().cptra_security_state().read().debug_locked() {
+                        cfi_panic_handler(
+                            CaliptraError::ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK.into(),
+                        )
+                    }
+                }
+                Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef))
+            }
+            _ => unsafe {
+                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+            },
+        }
+    }
 }
