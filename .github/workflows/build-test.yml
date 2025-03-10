@@ -174,7 +174,9 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)
+          (cd rom/dev && DEVICE_LIFECYCLE=unprovisioned make run)
+          (cd rom/dev && DEVICE_LIFECYCLE=manufacturing make run)
+          (cd rom/dev && DEVICE_LIFECYCLE=production make run)
 
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
