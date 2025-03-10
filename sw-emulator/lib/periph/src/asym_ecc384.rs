@@ -52,7 +52,8 @@ register_bitfields! [
             VERIFY = 0b11,
         ],
         ZEROIZE OFFSET(2) NUMBITS(1) [],
-        PCR_SIGN OFFSET(3) NUMBITS(1) []
+        PCR_SIGN OFFSET(3) NUMBITS(1) [],
+        DH_SHAREDKEY OFFSET(4) NUMBITS(1) [],
     ],
 
     /// Status Register Fields
@@ -180,6 +181,10 @@ pub struct AsymEcc384 {
     #[register_array(offset = 0x0000_0500)]
     nonce: [u32; ECC384_NONCE_SIZE / 4],
 
+    /// DH Shared Key
+    #[register_array(offset = 0x0000_05C0, write_fn = write_access_fault)]
+    dh_shared_key: [u32; ECC384_COORD_SIZE / 4],
+
     /// Key Read Control Register
     #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
     key_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
@@ -267,6 +272,7 @@ impl AsymEcc384 {
             verify_r: Default::default(),
             iv: Default::default(),
             nonce: Default::default(),
+            dh_shared_key: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             seed_read_ctrl: ReadWriteRegister::new(0),
@@ -316,6 +322,15 @@ impl AsymEcc384 {
                 self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
             }
             _ => {}
+        }
+
+        if self.control.reg.is_set(Control::DH_SHAREDKEY) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+
+            self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
@@ -483,6 +498,10 @@ impl AsymEcc384 {
             }
             Some(Control::CTRL::Value::VERIFY) => self.verify(),
             _ => {}
+        }
+
+        if self.control.reg.is_set(Control::DH_SHAREDKEY) {
+            self.generate_dh_shared_key();
         }
 
         self.status
@@ -672,6 +691,19 @@ impl AsymEcc384 {
         self.iv.as_mut().fill(0);
         self.nonce.as_mut().fill(0);
         self.priv_key_in.as_mut().fill(0);
+        self.dh_shared_key.as_mut().fill(0);
+    }
+
+    /// Generate Diffie-Hellman shared key
+    fn generate_dh_shared_key(&mut self) {
+        let shared_key = Ecc384::compute_shared_secret(
+            &bytes_from_words_le(&self.priv_key_in),
+            &Ecc384PubKey {
+                x: bytes_from_words_le(&self.pub_key_x),
+                y: bytes_from_words_le(&self.pub_key_y),
+            },
+        );
+        self.dh_shared_key = words_from_bytes_le(&shared_key);
     }
 }
 
