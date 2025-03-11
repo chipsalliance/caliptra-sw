@@ -11,6 +11,7 @@ Abstract:
     Alias RT DICE Layer & PCR extension
 
 --*/
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use caliptra_common::x509;
