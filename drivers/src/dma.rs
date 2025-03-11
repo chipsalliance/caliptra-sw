@@ -680,11 +680,8 @@ impl<'a> DmaRecovery<'a> {
 
             // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
 
-            // Read the image size from INDIRECT_FIFO_CTRL0:Byte[2:3] & INDIRECT_FIFO_CTRL1:Byte[0:1]. Image size in DWORDs.
-            let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
-            let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
-
-            let image_size_dwords = image_size_msb << 16 | image_size_lsb;
+            // Read the image size from INDIRECT_FIFO_CTRL1. Image size in DWORDs.
+            let image_size_dwords: u32 = recovery.indirect_fifo_ctrl_1().read().into();
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
             Ok::<u32, CaliptraError>(image_size_bytes)
         })??;

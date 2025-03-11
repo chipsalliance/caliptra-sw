@@ -79,14 +79,7 @@ register_bitfields! [
     IndirectCtrl0 [
         CMS OFFSET(0) NUMBITS(8),
         RESET OFFSET(8) NUMBITS(1),
-        IMAGE_SIZE_MSB OFFSET(16) NUMBITS(16),
     ],
-
-    /// Indirect FIFO Control 1
-    IndirectCtrl1 [
-        IMAGE_SIZE_LSB OFFSET(0) NUMBITS(16),
-    ],
-
 
     /// Indirect FIFO Status
     pub IndirectStatus [
@@ -150,10 +143,10 @@ pub struct RecoveryRegisterInterface {
     pub hw_status: ReadWriteRegister<u32>,
 
     // Indirect FIFO registers
-    #[register(offset = 0x48, read_fn = indirect_fifo_ctrl_0_read, write_fn = indirect_fifo_ctrl_0_write)]
+    #[register(offset = 0x48, write_fn = indirect_fifo_ctrl_0_write)]
     pub indirect_fifo_ctrl_0: ReadWriteRegister<u32, IndirectCtrl0::Register>,
-    #[register(offset = 0x4c, read_fn = indirect_fifo_ctrl_1_read)]
-    pub indirect_fifo_ctrl_1: ReadWriteRegister<u32, IndirectCtrl1::Register>,
+    #[register(offset = 0x4c, read_fn = indirect_fifo_ctrl_image_size_read)]
+    pub indirect_fifo_ctrl_image_size: ReadWriteRegister<u32>,
     #[register(offset = 0x50)]
     pub indirect_fifo_status_0: ReadOnlyRegister<u32, IndirectStatus::Register>,
     #[register(offset = 0x54)]
@@ -210,7 +203,7 @@ impl RecoveryRegisterInterface {
 
             // Indirect FIFO registers
             indirect_fifo_ctrl_0: ReadWriteRegister::new(0),
-            indirect_fifo_ctrl_1: ReadWriteRegister::new(0),
+            indirect_fifo_ctrl_image_size: ReadWriteRegister::new(0),
             indirect_fifo_status_0: ReadOnlyRegister::new(0x1), // EMPTY=1
             indirect_fifo_status_1: ReadOnlyRegister::new(0),
             indirect_fifo_status_2: ReadOnlyRegister::new(0),
@@ -289,12 +282,7 @@ impl RecoveryRegisterInterface {
                     self.indirect_fifo_ctrl_0
                         .reg
                         .modify(IndirectCtrl0::RESET::CLEAR);
-                    self.indirect_fifo_ctrl_0
-                        .reg
-                        .modify(IndirectCtrl0::IMAGE_SIZE_MSB.val(len_dwords >> 16));
-                    self.indirect_fifo_ctrl_1
-                        .reg
-                        .modify(IndirectCtrl1::IMAGE_SIZE_LSB.val(len_dwords & 0xffff));
+                    self.indirect_fifo_ctrl_image_size.reg.set(len_dwords);
                     self.indirect_fifo_status_0
                         .reg
                         .set(IndirectStatus::REGION_TYPE::CodeSpaceRecovery.value);
@@ -318,35 +306,16 @@ impl RecoveryRegisterInterface {
         Ok(())
     }
 
-    pub fn indirect_fifo_ctrl_0_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
-        if size != RvSize::Word {
-            Err(BusError::LoadAccessFault)?
-        }
-        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
-
-        let msb_size = match self.cms_data.get(image_index) {
-            Some(d) => ((d.len() / std::mem::size_of::<u32>()) >> 16) as u32,
-            None => 0,
-        };
-
-        self.indirect_fifo_ctrl_0
-            .reg
-            .modify(IndirectCtrl0::IMAGE_SIZE_MSB.val(msb_size));
-
-        Ok(self.indirect_fifo_ctrl_0.reg.get())
-    }
-
-    pub fn indirect_fifo_ctrl_1_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
+    pub fn indirect_fifo_ctrl_image_size_read(&mut self, size: RvSize) -> Result<RvData, BusError> {
         if size != RvSize::Word {
             Err(BusError::LoadAccessFault)?
         }
 
-        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
-        let lsb_size = match self.cms_data.get(image_index) {
-            Some(d) => ((d.len() / std::mem::size_of::<u32>()) & 0xffff) as u32,
+        let image_index = (((self.recovery_status.reg.get()) >> 4) & 0xf) as usize;
+        Ok(match self.cms_data.get(image_index) {
+            Some(d) => (d.len() / std::mem::size_of::<u32>()) as u32,
             None => 0,
-        };
-        Ok(lsb_size)
+        })
     }
 
     pub fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
