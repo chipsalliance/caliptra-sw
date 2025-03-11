@@ -14,6 +14,7 @@ Abstract:
 #[macro_use]
 extern crate arrayref;
 
+mod aes_clp;
 mod asym_ecc384;
 mod csrng;
 pub mod dma;
@@ -32,6 +33,8 @@ mod sha512_acc;
 pub mod soc_reg;
 mod uart;
 
+pub use aes_clp::AesClp as Aes;
+pub use aes_clp::AesClp;
 pub use asym_ecc384::AsymEcc384;
 pub use csrng::Csrng;
 pub use dma::Dma;
