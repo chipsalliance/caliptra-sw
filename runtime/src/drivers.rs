@@ -46,6 +46,7 @@ use caliptra_registers::{
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::dpe_instance::DpeInstanceFlags;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
@@ -415,6 +416,7 @@ impl Drivers {
             DPE_SUPPORT,
             u32::from_be_bytes(*b"RTJM"),
             rt_journey_measurement,
+            DpeInstanceFlags::empty(),
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
