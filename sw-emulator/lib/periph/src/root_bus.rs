@@ -18,8 +18,8 @@ use crate::{
     iccm::Iccm,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
-    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
+    AesClp, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
+    MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
@@ -269,6 +269,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1001_0000, mask = 0x0000_07ff)]
     pub hmac: HmacSha,
 
+    #[peripheral(offset = 0x1001_1800, mask = 0x0000_07ff)]
+    pub aes: AesClp,
+
     #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
     pub key_vault: KeyVault,
 
@@ -349,6 +352,7 @@ impl CaliptraRootBus {
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
             hmac: HmacSha::new(clock, key_vault.clone()),
+            aes: AesClp::new(),
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
@@ -381,6 +385,7 @@ impl CaliptraRootBus {
         self.doe.incoming_event(event.clone());
         self.ecc384.incoming_event(event.clone());
         self.hmac.incoming_event(event.clone());
+        self.aes.incoming_event(event.clone());
         self.key_vault.incoming_event(event.clone());
         self.sha512.incoming_event(event.clone());
         self.sha256.incoming_event(event.clone());
@@ -404,6 +409,7 @@ impl CaliptraRootBus {
         self.doe.register_outgoing_events(sender.clone());
         self.ecc384.register_outgoing_events(sender.clone());
         self.hmac.register_outgoing_events(sender.clone());
+        self.aes.register_outgoing_events(sender.clone());
         self.key_vault.register_outgoing_events(sender.clone());
         self.sha512.register_outgoing_events(sender.clone());
         self.sha256.register_outgoing_events(sender.clone());
