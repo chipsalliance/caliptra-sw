@@ -50,8 +50,8 @@ pub struct WarmResetEntries {
 #[repr(C)]
 #[derive(Default, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 pub struct DataVault {
-    cold_reset_entries: ColdResetEntries,
-    warm_reset_entries: WarmResetEntries,
+    pub cold_reset_entries: ColdResetEntries,
+    pub warm_reset_entries: WarmResetEntries,
 }
 
 impl DataVault {
