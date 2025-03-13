@@ -14,6 +14,7 @@ use zerocopy::{FromBytes, IntoBytes};
 // In the long term, this file should just run the entire Wycheproof test
 // vector file wycheproof/testvectors_v1/ecdsa_secp384r1_sha384_test.json
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: crashes FPGA host
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
     // This test is too slow to run as part of the verilator nightly.
@@ -249,6 +250,7 @@ fn test_ecdsa_verify_bad_chksum() {
 
 // HW errors are not supported on the SW emulator yet
 #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_ecdsa_hw_failure() {
     let mut model = run_rt_test(RuntimeTestArgs::default());

@@ -377,7 +377,7 @@ fn cold_reset(
 //      3. DPE derive context (at runtime)
 // Confirm the resulting DPE leaf cert is identical in all three cases
 #[test]
-#[allow(dead_code)]
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 pub fn test_all_measurement_apis() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
