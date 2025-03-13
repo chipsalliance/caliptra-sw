@@ -27,6 +27,7 @@ use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::Dma;
 use caliptra_drivers::{
@@ -227,11 +228,7 @@ impl Drivers {
         if let Err(e) = validation_result {
             // If SRAM Dpe Instance validation fails, disable attestation
             let result = DisableAttestationCmd::execute(drivers);
-            if cfi_launder(result.is_ok()) {
-                cfi_assert!(result.is_ok());
-            } else {
-                cfi_assert!(result.is_err());
-            }
+            cfi_check!(result);
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to DPE validation failure");
@@ -250,18 +247,10 @@ impl Drivers {
             let _pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             // check that DPE used context limits are not exceeded
             let dpe_context_threshold_exceeded = drivers.is_dpe_context_threshold_exceeded();
-            if cfi_launder(dpe_context_threshold_exceeded.is_ok()) {
-                cfi_assert!(dpe_context_threshold_exceeded.is_ok());
-            } else {
-                cfi_assert!(dpe_context_threshold_exceeded.is_err());
-            }
+            cfi_check!(dpe_context_threshold_exceeded);
             if let Err(e) = dpe_context_threshold_exceeded {
                 let result = DisableAttestationCmd::execute(drivers);
-                if cfi_launder(result.is_ok()) {
-                    cfi_assert!(result.is_ok());
-                } else {
-                    cfi_assert!(result.is_err());
-                }
+                cfi_check!(result);
                 match result {
                     Ok(_) => {
                         cprintln!(
@@ -303,11 +292,7 @@ impl Drivers {
         if latest_pcr != latest_tci {
             // If latest pcr validation fails, disable attestation
             let result = DisableAttestationCmd::execute(drivers);
-            if cfi_launder(result.is_ok()) {
-                cfi_assert!(result.is_ok());
-            } else {
-                cfi_assert!(result.is_err());
-            }
+            cfi_check!(result);
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
