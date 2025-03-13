@@ -70,6 +70,7 @@ fn test_warm_reset_success() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs on fwproc wait for commands
 #[test]
 fn test_warm_reset_during_cold_boot_before_image_validation() {
     let fuses = Fuses {

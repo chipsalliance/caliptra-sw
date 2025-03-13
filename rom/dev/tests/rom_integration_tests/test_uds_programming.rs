@@ -16,6 +16,7 @@ use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DbgManufServiceRegReq, DeviceLifecycle, HwModel, SecurityState};
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
 fn test_uds_programming_no_active_mode() {
     let security_state =
@@ -44,6 +45,7 @@ fn test_uds_programming_no_active_mode() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
 fn test_uds_programming_active_mode() {
     let security_state =

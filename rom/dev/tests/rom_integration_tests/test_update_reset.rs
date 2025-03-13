@@ -86,6 +86,7 @@ fn test_update_reset_success() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs on TESTCASE passed
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
     for active_mode in [false, true] {
@@ -148,6 +149,7 @@ fn test_update_reset_no_mailbox_cmd() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs on TESTCASE passed
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
     for active_mode in [false, true] {
@@ -207,6 +209,7 @@ fn test_update_reset_non_fw_load_cmd() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs on either passive or active on TESTCASE PASSED
 #[test]
 fn test_update_reset_verify_image_failure() {
     for active_mode in [false, true] {

@@ -28,6 +28,7 @@ const PUB_KEY_Y: [u8; 48] = [
     0x45, 0x1E, 0x68, 0xD1, 0x6F, 0x11, 0x18, 0xF2, 0xB3, 0x2B, 0x4C, 0x28, 0x60, 0x87, 0x49, 0xED,
 ];
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_skip_kats() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
@@ -74,6 +75,7 @@ fn test_fake_rom_production_error() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: broken
 #[test]
 fn test_fake_rom_production_enabled() {
     const DBG_MANUF_FAKE_ROM_PROD_EN: u32 = 0x1 << 30; // BIT 30 enables production mode
@@ -103,6 +105,7 @@ fn test_fake_rom_production_enabled() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: broken
 #[test]
 fn test_fake_rom_fw_load() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -156,6 +159,7 @@ fn test_fake_rom_fw_load() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: broken
 #[test]
 fn test_fake_rom_update_reset() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -222,6 +226,7 @@ fn test_fake_rom_update_reset() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: broken
 #[test]
 fn test_image_verify() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {

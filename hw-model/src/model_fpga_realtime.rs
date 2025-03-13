@@ -363,7 +363,8 @@ impl HwModel for ModelFpgaRealtime {
     {
         let output = Output::new(params.log_writer);
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
-        let dev = UioDevice::new(uio_num)?;
+        // This locks the device, and so acts as a test mutex so that only one test can run at a time.
+        let dev = UioDevice::blocking_new(uio_num)?;
 
         let wrapper = dev
             .map_mapping(FPGA_WRAPPER_MAPPING)
@@ -598,6 +599,7 @@ impl Drop for ModelFpgaRealtime {
         // TODO: Find a safer abstraction for UIO mappings.
         self.realtime_thread_exit_flag
             .store(true, Ordering::Relaxed);
+        eprintln!("Joining realtime thread");
         self.realtime_thread.take().unwrap().join().unwrap();
 
         // Unmap UIO memory space so that the file lock is released
@@ -610,6 +612,7 @@ impl Drop for ModelFpgaRealtime {
             Some(ref mut cmd) => cmd.kill().expect("Failed to close openocd"),
             _ => (),
         }
+        eprintln!("Dropping hw model");
     }
 }
 
