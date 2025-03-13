@@ -60,7 +60,6 @@ fn test_unimplemented_cmds() {
 #[test]
 // Changing PAUSER not supported on sw emulator
 #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 fn test_reserved_pauser() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 

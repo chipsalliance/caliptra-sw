@@ -3,7 +3,6 @@ use crate::helpers;
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_hand_off() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {

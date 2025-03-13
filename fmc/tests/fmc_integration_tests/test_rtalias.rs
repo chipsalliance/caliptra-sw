@@ -35,7 +35,6 @@ const PCR_ENTRY_SIZE: usize = core::mem::size_of::<PcrLogEntry>();
 
 const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId::PcrId3 as u8);
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_boot_status_reporting() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -79,7 +78,6 @@ fn test_boot_status_reporting() {
     }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_fht_info() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -121,7 +119,6 @@ fn test_fht_info() {
     }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_pcr_log() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
