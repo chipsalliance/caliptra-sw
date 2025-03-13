@@ -5,9 +5,9 @@
 # NOTE: Only the first keys in the vendor config are populated. The keys are
 # copied from image/fake-keys/src/lib.rs.
 
-fmc_version = 0x880
+fmc_version = 0x881
 fmc_svn = 0x0
-app_version = 0x1020000
+app_version = 0x1020001
 app_svn = 0x0
 
 [vendor_config]
