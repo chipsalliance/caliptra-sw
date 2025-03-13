@@ -150,7 +150,7 @@ pub struct AsymEcc384 {
     priv_key_out: [u32; ECC384_COORD_SIZE / 4],
 
     /// Private Key In
-    #[register_array(offset = 0x0000_0580, read_fn = read_access_fault)]
+    #[register_array(offset = 0x0000_0580, item_size = 4, len = 12, read_fn = read_access_fault, write_fn = write_priv_key_in)]
     priv_key_in: [u32; ECC384_COORD_SIZE / 4],
 
     /// Public Key X coordinate
@@ -216,6 +216,9 @@ pub struct AsymEcc384 {
     /// Error Internal Intr register
     #[register(offset = 0x0000_0814)]
     error_internal_intr: ReadOnlyRegister<u32>,
+
+    /// Tracks whether priv_key_in was set internally
+    priv_key_in_set_internally: bool,
 
     /// Key Vault
     key_vault: KeyVault,
@@ -288,6 +291,7 @@ impl AsymEcc384 {
             op_key_write_complete_action: None,
             error_global_intr: ReadOnlyRegister::new(0),
             error_internal_intr: ReadOnlyRegister::new(0),
+            priv_key_in_set_internally: false,
         }
     }
 
@@ -463,6 +467,30 @@ impl AsymEcc384 {
         Err(BusError::StoreAccessFault)
     }
 
+    /// Custom write handler for priv_key_in register
+    pub fn write_priv_key_in(
+        &mut self,
+        size: RvSize,
+        index: usize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Reset the internal flag when written directly
+        self.priv_key_in_set_internally = false;
+
+        // Update the register value
+        if index < self.priv_key_in.len() {
+            self.priv_key_in[index] = val;
+            Ok(())
+        } else {
+            Err(BusError::StoreAccessFault)
+        }
+    }
+
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
@@ -533,6 +561,7 @@ impl AsymEcc384 {
             self.priv_key_in = words_from_bytes_le(
                 &<[u8; ECC384_COORD_SIZE]>::try_from(&key[..ECC384_COORD_SIZE]).unwrap(),
             );
+            self.priv_key_in_set_internally = true;
         }
 
         self.key_read_status.reg.modify(
@@ -596,6 +625,9 @@ impl AsymEcc384 {
             }
             None => KeyWriteStatus::ERROR::KV_SUCCESS.value,
         };
+
+        // Reset the internal flag
+        self.priv_key_in_set_internally = false;
 
         self.key_write_status.reg.modify(
             KeyWriteStatus::READY::SET
@@ -716,10 +748,12 @@ impl AsymEcc384 {
                     + KeyWriteStatus::ERROR::CLEAR,
             );
             self.priv_key_in = words_from_bytes_le(&shared_key);
+            self.priv_key_in_set_internally = true;
             self.op_key_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        } else if self.key_read_ctrl.reg.is_set(KeyReadControl::KEY_READ_EN) {
+        } else if self.priv_key_in_set_internally {
             // If key read is enabled, store in priv_key_in but don't schedule write operation
             self.priv_key_in = words_from_bytes_le(&shared_key);
+            self.priv_key_in_set_internally = true;
         } else {
             // Normal case: store in dh_shared_key register
             self.dh_shared_key = words_from_bytes_le(&shared_key);
@@ -1589,8 +1623,8 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
-            // Verify shared key is not all zeros
-            let shared_key = bytes_from_words_le(&ecc.dh_shared_key);
+            // In case the priv key comes from KV we don't output the shared secret
+            let shared_key = bytes_from_words_le(&ecc.priv_key_in);
             assert_eq!(shared_key[..48], SHARED_SECRET);
         }
     }

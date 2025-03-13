@@ -543,7 +543,7 @@ fn test_ecdh() {
     assert_eq!(shared_secret, expected_shared_secret);
 }
 
-fn test_ecdh_with_key_vault_read() {
+fn test_ecdh_with_key_vault() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -576,21 +576,23 @@ fn test_ecdh_with_key_vault_read() {
         y: Ecc384Scalar::from(PUB_KEY_Y),
     };
 
-    // Expected shared secret
-    let expected_shared_secret = Ecc384Scalar::from(ECDH_SHARED_SECRET);
-
-    // Compute shared secret using private key from key vault
+    // Step 2: Compute shared secret using private key from key vault and store in key vault slot 4
     let key_in = KeyReadArgs::new(KeyId::KeyId3);
-    let mut shared_secret = Array4x12::default();
-    let result = ecc.ecdh(
-        &Ecc384PrivKeyIn::from(key_in),
-        &bob_pub_key,
-        &mut trng,
-        Ecc384PrivKeyOut::from(&mut shared_secret),
-    );
+    let key_out_shared = KeyWriteArgs {
+        id: KeyId::KeyId4,
+        usage: KeyUsage::default().set_ecc_private_key_en(),
+    };
 
-    assert!(result.is_ok());
-    assert_eq!(shared_secret, expected_shared_secret);
+    let _result = ecc
+        .ecdh(
+            &Ecc384PrivKeyIn::from(key_in),
+            &bob_pub_key,
+            &mut trng,
+            Ecc384PrivKeyOut::from(key_out_shared),
+        )
+        .unwrap();
+
+    // Is there a way to test we have a valid key inside keyvault
 }
 
 test_suite! {
@@ -605,5 +607,5 @@ test_suite! {
     test_kv_seed_from_kv_msg_from_input,
     test_no_private_key_usage,
     test_ecdh,
-    test_ecdh_with_key_vault_read,
+    test_ecdh_with_key_vault,
 }
