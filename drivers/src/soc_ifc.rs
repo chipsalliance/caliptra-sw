@@ -37,6 +37,10 @@ pub fn report_boot_status(val: u32) {
     if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
+    // TODO: remove this when debug unlock is fixed
+    if cfg!(feature = "fpga_realtime") {
+        soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
+    }
 }
 
 pub fn reset_reason() -> ResetReason {

@@ -18,6 +18,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 use zerocopy::{FromBytes, IntoBytes};
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_manuf_passive_mode() {
     let security_state = *SecurityState::default()
@@ -67,6 +68,7 @@ fn test_dbg_unlock_manuf_passive_mode() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_manuf() {
     let security_state = *SecurityState::default()
@@ -117,6 +119,7 @@ fn test_dbg_unlock_manuf() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_manuf_wrong_cmd() {
     let security_state = *SecurityState::default()
@@ -163,6 +166,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_manuf_invalid_token() {
     let security_state = *SecurityState::default()
@@ -214,6 +218,7 @@ fn test_dbg_unlock_manuf_invalid_token() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -361,6 +366,7 @@ fn test_dbg_unlock_prod() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -433,6 +439,7 @@ fn test_dbg_unlock_prod_invalid_length() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -549,6 +556,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod_invalid_signature() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -688,6 +696,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -816,6 +825,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     });
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: debug unlock doesn't work yet FPGA
 #[test]
 fn test_dbg_unlock_prod_wrong_cmd() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());

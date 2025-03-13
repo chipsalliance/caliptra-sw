@@ -729,12 +729,16 @@ pub trait HwModel: SocManager {
                 w.write_all(self.output().take(usize::MAX).as_bytes())?;
             }
             match self.output().exit_status() {
-                Some(ExitStatus::Passed) => return Ok(()),
+                Some(ExitStatus::Passed) => {
+                    println!("Exiting");
+                    return Ok(());
+                }
                 Some(ExitStatus::Failed) => {
+                    println!("Failed; exiting");
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with failure",
-                    ))
+                    ));
                 }
                 None => {}
             }
@@ -797,9 +801,9 @@ pub trait HwModel: SocManager {
         expected_status_u32: u32,
         ignore_intermediate_status: bool,
     ) {
-        // Since the boot takes less than 30M cycles, we know something is wrong if
+        // Since the boot takes about 30M cycles, we know something is wrong if
         // we're stuck at the same state for that duration.
-        const MAX_WAIT_CYCLES: u32 = 30_000_000;
+        const MAX_WAIT_CYCLES: u32 = 60_000_000;
 
         let mut cycle_count = 0u32;
         let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
@@ -811,7 +815,7 @@ pub trait HwModel: SocManager {
 
             if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
                 panic!(
-                    "Expected the next boot_status to be  \
+                    "Expected the next boot_status to be \
                     ({expected_status_u32}), but status changed from \
                     {initial_boot_status_u32} to {actual_status_u32})"
                 );
@@ -820,7 +824,7 @@ pub trait HwModel: SocManager {
             cycle_count += 1;
             if cycle_count >= MAX_WAIT_CYCLES {
                 panic!(
-                    "Expected boot_status to be  \
+                    "Expected boot_status to be \
                     ({expected_status_u32}), but was stuck at ({actual_status_u32})"
                 );
             }

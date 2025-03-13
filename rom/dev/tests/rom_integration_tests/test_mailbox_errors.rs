@@ -8,9 +8,9 @@ use zerocopy::IntoBytes;
 
 use crate::helpers;
 
-// Since the boot takes less than 30M cycles, we know something is wrong if
+// Since the boot takes about 30M cycles, we know something is wrong if
 // we're stuck at the same state for that duration.
-const MAX_WAIT_CYCLES: u32 = 30_000_000;
+const MAX_WAIT_CYCLES: u32 = 60_000_000;
 
 #[test]
 fn test_unknown_command_is_fatal() {

@@ -8,7 +8,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433cfd6710c9986c576a25ca913c39d66a6474107b406f34f91d4a8923395241"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "cipher",
  "cpufeatures",
 ]
@@ -287,7 +287,7 @@ dependencies = [
  "elf",
  "hex",
  "memoffset 0.8.0",
- "nix 0.26.2",
+ "nix",
  "once_cell",
  "serde",
  "serde_derive",
@@ -357,7 +357,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -381,7 +381,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
- "cfg-if 1.0.0",
+ "cfg-if",
  "dpe",
  "openssl",
  "ufmt",
@@ -401,7 +401,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
- "cfg-if 1.0.0",
+ "cfg-if",
  "zerocopy",
 ]
 
@@ -522,7 +522,7 @@ dependencies = [
  "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
  "openssl",
  "ufmt",
  "zerocopy",
@@ -556,7 +556,7 @@ dependencies = [
  "caliptra-test-harness-types",
  "caliptra-verilated",
  "libc",
- "nix 0.26.2",
+ "nix",
  "rand",
  "sha2",
  "uio",
@@ -624,7 +624,7 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-types",
  "caliptra-lms-types",
- "cfg-if 1.0.0",
+ "cfg-if",
  "ecdsa",
  "openssl",
  "p384",
@@ -775,7 +775,7 @@ dependencies = [
  "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
  "elf",
  "fips204",
  "hex",
@@ -799,7 +799,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
  "ufmt",
  "ureg",
  "zerocopy",
@@ -812,7 +812,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-image-types",
- "cfg-if 1.0.0",
+ "cfg-if",
  "ufmt",
 ]
 
@@ -847,7 +847,7 @@ dependencies = [
  "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
  "cms",
  "crypto",
  "dpe",
@@ -874,7 +874,7 @@ dependencies = [
  "caliptra-runtime",
  "caliptra-test-harness",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
  "ufmt",
  "zerocopy",
 ]
@@ -929,7 +929,7 @@ name = "caliptra-test-harness"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -970,7 +970,7 @@ dependencies = [
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra_common",
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -1037,12 +1037,6 @@ checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "cfg-if"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "cfg-if"
@@ -1278,7 +1272,7 @@ version = "5.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "907076dfda823b0b36d2a1bb5f90c96660a5bbcd7729e10727f07858f22c4edc"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "hashbrown",
  "lock_api",
  "once_cell",
@@ -1379,7 +1373,7 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-cfi-derive-git",
  "caliptra-cfi-lib-git",
- "cfg-if 1.0.0",
+ "cfg-if",
  "constant_time_eq",
  "crypto",
  "platform",
@@ -1591,7 +1585,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba4fddc6f9d12cbef29e395d9a6b48c128f513c8a2ded7048c97ed5c484e53e7"
 dependencies = [
  "bitflags 1.3.2",
- "cfg-if 1.0.0",
+ "cfg-if",
  "log",
  "managed",
  "num-traits",
@@ -1625,7 +1619,7 @@ version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "libc",
  "wasi",
 ]
@@ -1733,7 +1727,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -1814,7 +1808,7 @@ version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -1863,25 +1857,12 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "becb657d662f1cd2ef38c7ad480ec6b8cf9e96b27adb543e594f9cf0f2e6065c"
-dependencies = [
- "bitflags 1.3.2",
- "cc",
- "cfg-if 0.1.10",
- "libc",
- "void",
-]
-
-[[package]]
-name = "nix"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
 dependencies = [
  "bitflags 1.3.2",
- "cfg-if 1.0.0",
+ "cfg-if",
  "libc",
  "memoffset 0.7.1",
  "pin-utils",
@@ -1956,7 +1937,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15c9d69dd87a29568d4d017cfe8ec518706046a05184e5aea92d0af890b803c8"
 dependencies = [
  "bitflags 2.4.0",
- "cfg-if 1.0.0",
+ "cfg-if",
  "foreign-types",
  "libc",
  "once_cell",
@@ -2031,7 +2012,7 @@ version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f00c865fe7cabf650081affecd3871070f26767e7b2070a3ffae14c654b447"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "libc",
  "redox_syscall",
  "smallvec",
@@ -2086,7 +2067,7 @@ name = "platform"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
- "cfg-if 1.0.0",
+ "cfg-if",
  "ufmt",
 ]
 
@@ -2363,7 +2344,7 @@ version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "cpufeatures",
  "digest",
 ]
@@ -2485,7 +2466,7 @@ version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9fbec84f381d5795b08656e4912bec604d162bff9291d6189a78f4c8ab87998"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "fastrand",
  "redox_syscall",
  "rustix",
@@ -2657,13 +2638,13 @@ source = "git+https://github.com/korran/ufmt.git?rev=1d0743c1ffffc68bc05ca8eeb81
 
 [[package]]
 name = "uio"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5073b92c4a389c020d930424896f62c431b8cd858920519647aa1b1de5968fd1"
+checksum = "fe6429670644060fac2d02d8d284c7f9369a1e71948a654d7f064dbba07fb508"
 dependencies = [
  "fs2",
  "libc",
- "nix 0.11.1",
+ "nix",
 ]
 
 [[package]]
@@ -2736,12 +2717,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
-name = "void"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
-
-[[package]]
 name = "wasi"
 version = "0.11.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2753,7 +2728,7 @@ version = "0.2.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31f8dcbc21f30d9b8f2ea926ecb58f6b91192c17e9d33594b3df58b2007ca53b"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
  "wasm-bindgen-macro",
 ]
 

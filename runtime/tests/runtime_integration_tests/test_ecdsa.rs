@@ -15,6 +15,7 @@ use zerocopy::{FromBytes, IntoBytes};
 // In the long term, this file should just run the entire Wycheproof test
 // vector file wycheproof/testvectors_v1/ecdsa_secp384r1_sha384_test.json
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
     // This test is too slow to run as part of the verilator nightly.
@@ -110,7 +111,15 @@ fn ecdsa_cmd_run_wycheproof() {
             );
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
-                    Err(_) | Ok(None) => {
+                    Err(err) => {
+                        panic!("Valid test {} should not have failed {:?}", test.tc_id, err);
+                        wyche_fail.push(WycheproofResults {
+                            id: test.tc_id,
+                            comment: test.comment.to_string(),
+                        });
+                    }
+                    Ok(None) => {
+                        panic!("Valid test {} should not have failed Ok(None)", test.tc_id);
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
@@ -129,6 +138,7 @@ fn ecdsa_cmd_run_wycheproof() {
                 },
                 wycheproof::TestResult::Invalid => {
                     if resp.is_ok() {
+                        panic!("Invalid test {} should have failed", test.tc_id);
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
@@ -148,6 +158,7 @@ fn ecdsa_cmd_run_wycheproof() {
     }
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_ecdsa_verify_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());

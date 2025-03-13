@@ -25,18 +25,24 @@ fn generate_csr_envelop(
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
+    eprintln!("downloading");
+
     // Download the CSR Envelope from the mailbox.
     let csr_envelop = helpers::get_csr_envelop(hw).unwrap();
 
     // Wait for uploading firmware.
+    eprintln!("Waiting to upload firmware");
     hw.step_until(|m| {
         m.soc_ifc()
             .cptra_flow_status()
             .read()
             .ready_for_mb_processing()
     });
+    eprintln!("upload firmware");
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
+
+    eprintln!("spinning on boot status");
 
     hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
@@ -49,6 +55,7 @@ fn generate_csr_envelop(
             &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize]
         );
     }
+    eprintln!("All good");
     csr_envelop
 }
 
