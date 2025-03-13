@@ -6,6 +6,7 @@ use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{HwModel, ShaAccMode};
+use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -79,9 +80,11 @@ fn ecdsa_cmd_run_wycheproof() {
                 id: test.tc_id,
                 comment: test.comment.to_string(),
             });
-            model
-                .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
-                .unwrap();
+            let _ =
+                caliptra_image_crypto::OsslCrypto::default().sha384_digest(&test.msg.as_slice());
+            // model
+            //     .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
+            //     .unwrap();
 
             let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
                 hdr: MailboxReqHeader { chksum: 0 },
@@ -110,7 +113,15 @@ fn ecdsa_cmd_run_wycheproof() {
             );
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
-                    Err(_) | Ok(None) => {
+                    Err(err) => {
+                        panic!("Valid test {} should not have failed {:?}", test.tc_id, err);
+                        wyche_fail.push(WycheproofResults {
+                            id: test.tc_id,
+                            comment: test.comment.to_string(),
+                        });
+                    }
+                    Ok(None) => {
+                        panic!("Valid test {} should not have failed Ok(None)", test.tc_id);
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
@@ -129,6 +140,7 @@ fn ecdsa_cmd_run_wycheproof() {
                 },
                 wycheproof::TestResult::Invalid => {
                     if resp.is_ok() {
+                        panic!("Invalid test {} should have failed", test.tc_id);
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
