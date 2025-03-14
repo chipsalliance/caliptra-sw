@@ -14,7 +14,7 @@ Abstract:
 
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 
-use crate::cryptographic_mailbox::KeyUsage;
+use crate::cryptographic_mailbox::CmStorage;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
@@ -111,7 +111,7 @@ pub struct Drivers {
     pub exported_cdi_slots: ExportedCdiHandles,
     pub dma: Dma,
 
-    pub cryptographic_usage_data: KeyUsage,
+    pub cryptographic_usage_data: CmStorage,
 }
 
 impl Drivers {
@@ -152,7 +152,7 @@ impl Drivers {
             dmtf_device_info: None,
             exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
             dma: Dma::default(),
-            cryptographic_usage_data: KeyUsage::default(),
+            cryptographic_usage_data: CmStorage::default(),
         })
     }
 

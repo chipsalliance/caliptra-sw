@@ -28,15 +28,16 @@ pub const KEY_USAGE_MAX: usize = 256;
 // We have 24 bits for the key ID.
 const MAX_KEY_ID: u32 = 0xffffff;
 
+/// Holds data for the cryptographic mailbox system.
 #[derive(Default)]
-pub struct KeyUsage {
+pub struct CmStorage {
     counters: ArrayVec<KeyUsageInfo, KEY_USAGE_MAX>,
 }
 
-impl KeyUsage {
+impl CmStorage {
     /// Inserts a new counter (with 0 usage) and returns the new key id.
     pub fn add_counter(&mut self) -> CaliptraResult<[u8; 3]> {
-        if self.counters.len() >= KEY_USAGE_MAX {
+        if self.counters.is_full() {
             return Err(CaliptraError::RUNTIME_CMB_KEY_USAGE_STORAGE_FULL);
         }
         let mut key_id =
@@ -68,8 +69,6 @@ struct KeyUsageInfo {
     #[allow(unused)]
     counter: u64,
 }
-
-impl KeyUsage {}
 
 const UNENCRYPTED_CMK_SIZE_BYTES: usize = 80;
 
@@ -133,25 +132,26 @@ impl Commands {
 
         let _raw_key = &cmd.input[..cmd.input_size as usize];
         // [TODO][CAP2]: we need to generate our internal key to encrypt the CMK
-        let mut unencrypted_cmk = UnencryptedCmk {
+        let _unencrypted_cmk = UnencryptedCmk {
             version: 1,
             length: cmd.input_size as u16,
             key_usage: key_usage as u32 as u8,
-            id: [0u8; 3],
+            id: if matches!(key_usage, CmKeyUsage::AES) {
+                drivers.cryptographic_usage_data.add_counter()?
+            } else {
+                [0u8; 3]
+            },
             usage_counter: 0,
             key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
         };
 
         // keep track of counters for AES
-        if matches!(key_usage, CmKeyUsage::AES) {
-            unencrypted_cmk.id = drivers.cryptographic_usage_data.add_counter()?;
-        }
 
         let encrypted_cmk = EncryptedCmk {
             domain: 0,
             domain_metadata: [0u8; 16],
             iv: [0u8; 12],
-            ciphertext: transmute!(unencrypted_cmk),
+            ciphertext: [0xffu8; UNENCRYPTED_CMK_SIZE_BYTES], // TODO: actually do the encryption once we have the AES driver
             gcm_tag: [0u8; 16],
         };
         let cmk = transmute!(encrypted_cmk);
