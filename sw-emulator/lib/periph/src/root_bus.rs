@@ -343,6 +343,7 @@ impl CaliptraRootBus {
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
+        let ml_dsa87 = Mldsa87::new(clock, key_vault.clone(), sha512.clone());
 
         Self {
             rom,
@@ -352,7 +353,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87: Mldsa87::new(clock, key_vault.clone()),
+            ml_dsa87,
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

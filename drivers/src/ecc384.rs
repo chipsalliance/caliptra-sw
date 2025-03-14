@@ -401,7 +401,8 @@ impl Ecc384 {
         Ok(pub_key)
     }
 
-    /// Sign the PCR digest with PCR signing private key.
+    /// Sign the PCR digest with PCR signing private key in keyvault slot 7 (KV7).
+    /// KV7 contains the Alias FMC ECC private key.
     ///
     /// # Arguments
     ///
@@ -409,7 +410,7 @@ impl Ecc384 {
     ///
     /// # Returns
     ///
-    /// * `Ecc384Signature` - Generate signature
+    /// * `Ecc384Signature` - Generated signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Ecc384Signature> {
         let ecc = self.ecc.regs_mut();
