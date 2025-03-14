@@ -501,6 +501,100 @@ fn test_kat() {
     );
 }
 
+const ECDH_SHARED_SECRET: [u8; 48] = [
+    0x72, 0xb5, 0x45, 0xcf, 0xc5, 0x59, 0x40, 0x47, 0xd1, 0xc1, 0x3d, 0x0a, 0xab, 0x72, 0xcf, 0x0b,
+    0x16, 0x06, 0x9e, 0xc8, 0x2e, 0xc4, 0x50, 0x60, 0x71, 0x1f, 0x63, 0x6f, 0xf8, 0x17, 0xaf, 0xb7,
+    0x81, 0x31, 0x45, 0x66, 0x1c, 0xf4, 0x3e, 0x1a, 0x3c, 0x97, 0xb1, 0x93, 0xb6, 0x50, 0x6c, 0x24,
+];
+
+fn test_ecdh() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    // Alice's private key
+    let alice_priv_key = Ecc384Scalar::from(PRIV_KEY);
+    // Bob's public key
+    let bob_pub_key = Ecc384PubKey {
+        x: Ecc384Scalar::from(PUB_KEY_X),
+        y: Ecc384Scalar::from(PUB_KEY_Y),
+    };
+
+    // Expected shared secret
+    let expected_shared_secret = Ecc384Scalar::from(ECDH_SHARED_SECRET);
+
+    // Compute shared secret
+    let mut shared_secret = Array4x12::default();
+    let result = ecc.ecdh(
+        &Ecc384PrivKeyIn::from(&alice_priv_key),
+        &bob_pub_key,
+        &mut trng,
+        Ecc384PrivKeyOut::from(&mut shared_secret),
+    );
+
+    assert!(result.is_ok());
+    assert_eq!(shared_secret, expected_shared_secret);
+}
+
+fn test_ecdh_with_key_vault() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    // Step 1: Generate a key pair and store private key in key vault slot 3
+    let seed = [0u8; 48];
+    let key_out = KeyWriteArgs {
+        id: KeyId::KeyId3,
+        usage: KeyUsage::default().set_ecc_private_key_en(),
+    };
+
+    let result = ecc.key_pair(
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
+        Ecc384PrivKeyOut::from(key_out),
+    );
+    assert!(result.is_ok());
+
+    // Bob's public key
+    let bob_pub_key = Ecc384PubKey {
+        x: Ecc384Scalar::from(PUB_KEY_X),
+        y: Ecc384Scalar::from(PUB_KEY_Y),
+    };
+
+    // Step 2: Compute shared secret using private key from key vault and store in key vault slot 4
+    let key_in = KeyReadArgs::new(KeyId::KeyId3);
+    let key_out_shared = KeyWriteArgs {
+        id: KeyId::KeyId4,
+        usage: KeyUsage::default().set_ecc_private_key_en(),
+    };
+
+    let _result = ecc
+        .ecdh(
+            &Ecc384PrivKeyIn::from(key_in),
+            &bob_pub_key,
+            &mut trng,
+            Ecc384PrivKeyOut::from(key_out_shared),
+        )
+        .unwrap();
+
+    // Is there a way to test we have a valid key inside keyvault
+}
+
 test_suite! {
     test_kat,
     test_gen_key_pair,
@@ -512,4 +606,6 @@ test_suite! {
     test_kv_seed_from_input_msg_from_input,
     test_kv_seed_from_kv_msg_from_input,
     test_no_private_key_usage,
+    test_ecdh,
+    test_ecdh_with_key_vault,
 }
