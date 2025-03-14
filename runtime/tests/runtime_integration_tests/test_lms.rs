@@ -5,9 +5,10 @@ use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
+use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType, LmsPublicKey, LmsSignature};
 use caliptra_runtime::RtBootStatus;
+use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 
 // Constants from fixed LMS param set
@@ -771,6 +772,8 @@ fn execute_lms_cmd<T: HwModel>(
     let pub_key = <LmsPublicKey<LMS_N>>::read_from_bytes(pub_key_bytes).unwrap();
     let signature = <LmsSignature<LMS_N, LMS_P, LMS_H>>::read_from_bytes(signature_bytes).unwrap();
 
+    let hash = sha384(message);
+
     let mut cmd = MailboxReq::LmsVerify(LmsVerifyReq {
         hdr: MailboxReqHeader { chksum: 0 },
         pub_key_tree_type: u32::from(pub_key.tree_type.0),
@@ -781,14 +784,10 @@ fn execute_lms_cmd<T: HwModel>(
         signature_ots: (*(signature.ots.as_bytes())).try_into().unwrap(),
         signature_tree_type: u32::from(signature.tree_type.0),
         signature_tree_path: (*(signature.tree_path.as_bytes())).try_into().unwrap(),
+        hash,
     });
 
     cmd.populate_chksum().unwrap();
-
-    // Stream message to SHA ACC
-    model
-        .compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream)
-        .unwrap();
 
     // Send LMS verify command
     let resp = model

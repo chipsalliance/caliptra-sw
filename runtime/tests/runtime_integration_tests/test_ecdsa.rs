@@ -5,8 +5,9 @@ use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{HwModel, ShaAccMode};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
+use openssl::sha::sha384;
 use zerocopy::{FromBytes, IntoBytes};
 
 // This file includes some tests from Wycheproof to testing specific common
@@ -78,9 +79,8 @@ fn ecdsa_cmd_run_wycheproof() {
                 id: test.tc_id,
                 comment: test.comment.to_string(),
             });
-            model
-                .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
-                .unwrap();
+            // TODO: change this to use the SHA mailbox command when it is available
+            let hash = sha384(test.msg.as_slice());
 
             let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
                 hdr: MailboxReqHeader { chksum: 0 },
@@ -100,6 +100,7 @@ fn ecdsa_cmd_run_wycheproof() {
                     .as_bytes()
                     .try_into()
                     .unwrap(),
+                hash,
                 // Do tests on mailbox
             });
             cmd.populate_chksum().unwrap();
@@ -168,10 +169,7 @@ fn test_ecdsa_verify_cmd() {
         0x66, 0x02, 0x2a, 0x37, 0xac, 0x28, 0xf1, 0xbd,
     ];
 
-    // Stream to SHA ACC
-    model
-        .compute_sha512_acc_digest(msg, ShaAccMode::Sha384Stream)
-        .unwrap();
+    let hash = sha384(msg);
 
     // ECDSAVS NIST test vector
     let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
@@ -200,6 +198,7 @@ fn test_ecdsa_verify_cmd() {
             0xfe, 0xa8, 0x01, 0x1b, 0xae, 0x71, 0x95, 0x9a, 0x10, 0x94, 0x7b, 0x6e, 0xa3, 0x3f,
             0x77, 0xe1, 0x28, 0xd3, 0xc6, 0xae,
         ],
+        hash,
     });
     cmd.populate_chksum().unwrap();
 
@@ -232,6 +231,7 @@ fn test_ecdsa_verify_bad_chksum() {
         pub_key_y: [0u8; 48],
         signature_r: [0u8; 48],
         signature_s: [0u8; 48],
+        hash: [0u8; 48],
     });
 
     let resp = model
@@ -259,6 +259,7 @@ fn test_ecdsa_hw_failure() {
         pub_key_y: [0u8; 48],
         signature_r: [0xa5u8; 48],
         signature_s: [0xa5u8; 48],
+        hash: [0x55u8; 48],
     });
     cmd.populate_chksum().unwrap();
 

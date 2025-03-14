@@ -20,6 +20,7 @@ v2.0:
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
 * `QUOTE_PCRS` now returns a SHA512 of the PCRs instead of a SHA384.
+* `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY`require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra.
 
 ## Spec Opens
 
@@ -470,13 +471,12 @@ Command Code: `0x4345_5252` ("CERR")
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
-Verifies an ECDSA P-384 signature. The hash to be verified is taken from
-Caliptra's SHA384 accelerator peripheral.
+Verifies an ECDSA P-384 signature. The hash to be verified is taken from the input (new in 2.0).
 
 In the event of an invalid signature, the mailbox command will report CMD_FAILURE
 and the cause will be logged as a non-fatal error.
 
-Command Code: `0x5349_4756` ("SIGV")
+Command Code: `0x4543_5632` ("ECV2")
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` input arguments*
 
@@ -487,6 +487,7 @@ Command Code: `0x5349_4756` ("SIGV")
 | pub\_key\_y  | u8[48]   | Y portion of ECDSA verification key.
 | signature\_r | u8[48]   | R portion of signature to verify.
 | signature\_s | u8[48]   | S portion of signature to verify.
+| hash         | u8[48]   | SHA384 digest to verify.
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` output arguments*
 
@@ -497,8 +498,7 @@ Command Code: `0x5349_4756` ("SIGV")
 
 ### LMS\_SIGNATURE\_VERIFY (new in 1.1)
 
-Verifies an LMS signature. The hash to be verified is taken from
-Caliptra's SHA384 accelerator peripheral.
+Verifies an LMS signature. The hash to be verified is taken from the input (new in 2.0).
 
 In the event of an invalid signature, the mailbox command will report CMD_FAILURE
 and the cause will be logged as a non-fatal error.
@@ -513,7 +513,7 @@ The supported parameter set is limited to those used for the caliptra image sign
 | w                     | 4         | Width (in bits) of the Winternitz coefficient
 | h                     | 15        | Height of the tree
 
-Command Code: `0x4C4D_5356` ("LMSV")
+Command Code: `0x4C4D_5632` ("LMV2")
 
 *Table: `LMS_SIGNATURE_VERIFY` input arguments*
 
@@ -528,6 +528,7 @@ Command Code: `0x4C4D_5356` ("LMSV")
 | signature\_ots        | u8[1252] | LM-OTS signature
 | signature\_tree\_type | u8[4]    | LMS signature Algorithm type. Must equal 12.
 | signature\_tree\_path | u8[360]  | Path through the tree from the leaf associated with the LM-OTS signature to the root
+| hash                  | u8[48]   | SHA384 digest to verify.
 
 *Table: `LMS_SIGNATURE_VERIFY` output arguments*
 

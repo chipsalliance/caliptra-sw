@@ -96,15 +96,16 @@ struct caliptra_get_rt_alias_cert_resp {
     uint8_t data[1024];
 };
 
-struct caliptra_ecdsa_verify_req {
+struct caliptra_ecdsa_verify_v2_req {
     struct caliptra_req_header hdr;
     uint8_t pub_key_x[48];
     uint8_t pub_key_y[48];
     uint8_t signature_r[48];
     uint8_t signature_s[48];
+    uint8_t hash[48];
 };
 
-struct caliptra_lms_verify_req {
+struct caliptra_lms_verify_v2_req {
     struct caliptra_req_header hdr;
     uint32_t pub_key_tree_type;
     uint32_t pub_key_ots_type;
@@ -114,6 +115,7 @@ struct caliptra_lms_verify_req {
     uint8_t signature_ots[1252];
     uint32_t signature_tree_type;
     uint8_t signature_tree_path[360];
+    uint8_t hash[48];
 };
 
 struct caliptra_stash_measurement_req {

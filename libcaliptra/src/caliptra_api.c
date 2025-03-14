@@ -1029,7 +1029,7 @@ int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, boo
 }
 
 // ECDSA384 Verify
-int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async)
+int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool async)
 {
     if (!req)
     {
@@ -1044,7 +1044,7 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async)
 }
 
 // LMS Verify
-int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async)
+int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async)
 {
     if (!req)
     {
