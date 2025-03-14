@@ -186,12 +186,20 @@ impl FakeRomFlow {
 
 // Used to derive the firmware's key ladder.
 fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
+    let fake_key = Array4x16::from([0x1234_5678u32; 16]);
     env.hmac.hmac(
-        &HmacKey::Array4x12(&Array4x12::default()),
+        &HmacKey::Array4x16(&fake_key),
         &HmacData::Slice(b""),
         &mut env.trng,
-        KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
-        HmacMode::Hmac384,
+        KeyWriteArgs::new(
+            KEY_ID_ROM_FMC_CDI,
+            KeyUsage::default()
+                .set_hmac_key_en()
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en(),
+        )
+        .into(),
+        HmacMode::Hmac512,
     )
 }
 
