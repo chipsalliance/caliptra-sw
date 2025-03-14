@@ -79,6 +79,7 @@ fn ecdsa_cmd_run_wycheproof() {
                 id: test.tc_id,
                 comment: test.comment.to_string(),
             });
+            // TODO: change this to use the SHA mailbox command when it is available
             let hash = sha384(test.msg.as_slice());
 
             let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
