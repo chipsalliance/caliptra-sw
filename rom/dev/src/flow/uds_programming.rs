@@ -91,7 +91,8 @@ impl UdsProgrammingFlow {
                 let wdata_0 = seed[seed_index];
                 cprintln!(
                     "[uds] Writing the UDS seed to the DIRECT_ACCESS_WDATA_0: {:x} register, wdata_0: {:#x}",
-                    direct_access_wdata_0_reg_addr, wdata_0
+                    direct_access_wdata_0_reg_addr,
+                    wdata_0
                 );
                 env.dma
                     .write_dword(AxiAddr::from(direct_access_wdata_0_reg_addr), wdata_0)?;
@@ -103,7 +104,8 @@ impl UdsProgrammingFlow {
                     let wdata_1 = seed[seed_index + 1];
                     cprintln!(
                         "[uds] Writing the UDS seed to the DIRECT_ACCESS_WDATA_1: {:x} register, wdata_1: {:#x}",
-                        direct_access_wdata_1_reg_addr, wdata_1
+                        direct_access_wdata_1_reg_addr,
+                        wdata_1
                     );
                     env.dma
                         .write_dword(AxiAddr::from(direct_access_wdata_1_reg_addr), wdata_1)?;
@@ -114,16 +116,22 @@ impl UdsProgrammingFlow {
                 }
 
                 // Write the lower 32 bits of the UDS Seed programming destination address to the DIRECT_ACCESS_ADDRESS register.
-                cprintln!("[uds] Writing the lower 32 bits of the UDS Seed programming destination address: {:x} to the DIRECT_ACCESS_ADDRESS register: {:x}",
-                    uds_seed_dest_address, direct_access_address_reg_addr);
+                cprintln!(
+                    "[uds] Writing the lower 32 bits of the UDS Seed programming destination address: {:x} to the DIRECT_ACCESS_ADDRESS register: {:x}",
+                    uds_seed_dest_address,
+                    direct_access_address_reg_addr
+                );
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_address_reg_addr),
                     uds_seed_dest_address,
                 )?;
 
                 // Trigger the UDS seed write command
-                cprintln!("[uds] Triggering the UDS seed write command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
-                    direct_access_cmd_reg_addr, DIRECT_ACCESS_CMD_WRITE);
+                cprintln!(
+                    "[uds] Triggering the UDS seed write command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
+                    direct_access_cmd_reg_addr,
+                    DIRECT_ACCESS_CMD_WRITE
+                );
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_cmd_reg_addr),
                     DIRECT_ACCESS_CMD_WRITE,
@@ -145,16 +153,22 @@ impl UdsProgrammingFlow {
             } {}
 
             // Write the lower 32 bits of the UDS Seed programming base address to the DIRECT_ACCESS_ADDRESS register.
-            cprintln!("[uds] Triggering the partition digest operation, direct_access_address_reg_addr: {:x}, uds_seed_dest_address: {:#x}",
-                direct_access_address_reg_addr, env.soc_ifc.uds_seed_dest_base_addr_low());
+            cprintln!(
+                "[uds] Triggering the partition digest operation, direct_access_address_reg_addr: {:x}, uds_seed_dest_address: {:#x}",
+                direct_access_address_reg_addr,
+                env.soc_ifc.uds_seed_dest_base_addr_low()
+            );
             env.dma.write_dword(
                 AxiAddr::from(direct_access_address_reg_addr),
                 env.soc_ifc.uds_seed_dest_base_addr_low(),
             )?;
 
             // Trigger the digest calculation command
-            cprintln!("[uds] Triggering the digest calculation command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
-                direct_access_cmd_reg_addr, DIRECT_ACCESS_CMD_DIGEST);
+            cprintln!(
+                "[uds] Triggering the digest calculation command, direct_access_cmd_reg_addr: {:x}, command: {:#x}",
+                direct_access_cmd_reg_addr,
+                DIRECT_ACCESS_CMD_DIGEST
+            );
             env.dma.write_dword(
                 AxiAddr::from(direct_access_cmd_reg_addr),
                 DIRECT_ACCESS_CMD_DIGEST,

@@ -2,10 +2,10 @@
 use crate::common;
 
 use caliptra_api::SocManager;
+use caliptra_builder::ImageOptions;
 use caliptra_builder::firmware::{
     APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS,
 };
-use caliptra_builder::ImageOptions;
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
@@ -63,20 +63,20 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
         fw_svn: 0,
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest
     if toc_digest == TocDigest::Update {
-        image_bundle.manifest.header.toc_digest = gen
+        image_bundle.manifest.header.toc_digest = r#gen
             .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
             .unwrap();
     }
 
     if hdr_digest == HdrDigest::Update {
-        let vendor_header_digest_384 = gen
+        let vendor_header_digest_384 = r#gen
             .vendor_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
-        let vendor_header_digest_512 = gen
+        let vendor_header_digest_512 = r#gen
             .vendor_header_digest_512(&image_bundle.manifest.header)
             .unwrap();
         let vendor_header_digest_holder = ImageDigestHolder {
@@ -84,10 +84,10 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
             digest_512: Some(&vendor_header_digest_512),
         };
 
-        let owner_header_digest_384 = gen
+        let owner_header_digest_384 = r#gen
             .owner_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
-        let owner_header_digest_512 = gen
+        let owner_header_digest_512 = r#gen
             .owner_header_digest_512(&image_bundle.manifest.header)
             .unwrap();
         let owner_header_digest_holder = ImageDigestHolder {
@@ -96,7 +96,7 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
         };
 
         // Update preamble
-        image_bundle.manifest.preamble = gen
+        image_bundle.manifest.preamble = r#gen
             .gen_preamble(
                 &config,
                 image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
@@ -122,13 +122,13 @@ fn image_to_bytes_no_error_check(image_bundle: &ImageBundle) -> Vec<u8> {
 // Returns a fuse struct with safe values for boot
 // (Mainly needed for manufacturing or production security states)
 fn safe_fuses(fw_image: &ImageBundle) -> Fuses {
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
 
-    let vendor_pubkey_info_digest = gen
+    let vendor_pubkey_info_digest = r#gen
         .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
         .unwrap();
 
-    let owner_pubkey_digest = gen
+    let owner_pubkey_digest = r#gen
         .owner_pubkey_digest(&fw_image.manifest.preamble)
         .unwrap();
 
@@ -1204,8 +1204,8 @@ fn fw_load_error_runtime_svn_greater_than_max_supported() {
         let fw_image = build_fw_image(image_options);
 
         // Set fuses
-        let gen = ImageGenerator::new(Crypto::default());
-        let vendor_pubkey_info_digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
             .unwrap();
         let fuses = caliptra_hw_model::Fuses {
@@ -1237,8 +1237,8 @@ fn fw_load_error_runtime_svn_less_than_fuse() {
         let fw_image = build_fw_image(image_options);
 
         // Set fuses
-        let gen = ImageGenerator::new(Crypto::default());
-        let vendor_pubkey_info_digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&fw_image.manifest.preamble)
             .unwrap();
         let fuses = caliptra_hw_model::Fuses {

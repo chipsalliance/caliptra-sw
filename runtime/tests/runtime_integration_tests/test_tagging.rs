@@ -1,15 +1,15 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
+use crate::common::{DpeResult, RuntimeTestArgs, assert_error, execute_dpe_cmd, run_rt_test};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::HwModel;
 use dpe::{
+    DPE_PROFILE,
     commands::{Command, DeriveContextCmd, DeriveContextFlags, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
 };
 use zerocopy::FromBytes;
 

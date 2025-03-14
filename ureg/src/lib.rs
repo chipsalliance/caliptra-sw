@@ -173,7 +173,9 @@ pub trait Mmio: Sized {
     /// `dst.add(LEN)`, and that dst.add(LEN) does not wrap around the address
     /// space.
     unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
-        read_volatile_slice(self, dst, src, LEN);
+        unsafe {
+            read_volatile_slice(self, dst, src, LEN);
+        }
     }
 }
 
@@ -199,7 +201,9 @@ pub trait MmioMut: Mmio {
         dst: *mut T,
         src: *const [T; LEN],
     ) {
-        write_volatile_slice(self, dst, &*src);
+        unsafe {
+            write_volatile_slice(self, dst, &*src);
+        }
     }
 }
 
@@ -214,12 +218,12 @@ impl Mmio for RealMmio<'_> {
     ///
     /// Same as [`core::ptr::read_volatile`].
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
-        core::ptr::read_volatile(src)
+        unsafe { core::ptr::read_volatile(src) }
     }
 
     #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
-        opt_riscv::read_volatile_array::<LEN, T>(dst, src)
+        unsafe { opt_riscv::read_volatile_array::<LEN, T>(dst, src) }
     }
 }
 
@@ -235,12 +239,12 @@ impl Mmio for RealMmioMut<'_> {
     /// Same as [`core::ptr::read_volatile`].
     #[inline(always)]
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
-        core::ptr::read_volatile(src)
+        unsafe { core::ptr::read_volatile(src) }
     }
 
     #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
-        opt_riscv::read_volatile_array::<LEN, T>(dst, src)
+        unsafe { opt_riscv::read_volatile_array::<LEN, T>(dst, src) }
     }
 }
 impl MmioMut for RealMmioMut<'_> {
@@ -251,7 +255,9 @@ impl MmioMut for RealMmioMut<'_> {
     /// Same as [`core::ptr::write_volatile`].
     #[inline(always)]
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
-        core::ptr::write_volatile(dst, src);
+        unsafe {
+            core::ptr::write_volatile(dst, src);
+        }
     }
 
     #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
@@ -260,22 +266,22 @@ impl MmioMut for RealMmioMut<'_> {
         dst: *mut T,
         src: *const [T; LEN],
     ) {
-        opt_riscv::write_volatile_array::<LEN, T>(dst, src)
+        unsafe { opt_riscv::write_volatile_array::<LEN, T>(dst, src) }
     }
 }
 impl<TMmio: Mmio> Mmio for &TMmio {
     #[inline(always)]
     unsafe fn read_volatile<T: Uint>(&self, src: *const T) -> T {
-        (*self).read_volatile(src)
+        unsafe { (*self).read_volatile(src) }
     }
     unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
-        (*self).read_volatile_array::<LEN, T>(dst, src)
+        unsafe { (*self).read_volatile_array::<LEN, T>(dst, src) }
     }
 }
 impl<TMmio: MmioMut> MmioMut for &TMmio {
     #[inline(always)]
     unsafe fn write_volatile<T: Uint>(&self, dst: *mut T, src: T) {
-        (*self).write_volatile(dst, src)
+        unsafe { (*self).write_volatile(dst, src) }
     }
     #[inline(always)]
     unsafe fn write_volatile_array<const LEN: usize, T: Uint>(
@@ -283,7 +289,7 @@ impl<TMmio: MmioMut> MmioMut for &TMmio {
         dst: *mut T,
         src: *const [T; LEN],
     ) {
-        (*self).write_volatile_array::<LEN, T>(dst, src)
+        unsafe { (*self).write_volatile_array::<LEN, T>(dst, src) }
     }
 }
 pub trait FromMmioPtr {
@@ -804,25 +810,25 @@ unsafe fn read_volatile_slice<T: Uint, TMmio: Mmio>(
     src: *mut T,
     len: usize,
 ) {
-    for i in 0..len {
-        dst.add(i).write(mmio.read_volatile(src.add(i)));
+    unsafe {
+        for i in 0..len {
+            dst.add(i).write(mmio.read_volatile(src.add(i)));
+        }
     }
 }
 
 #[inline(never)]
 unsafe fn write_volatile_slice<T: Uint, TMmio: MmioMut>(mmio: &TMmio, dest: *mut T, val: &[T]) {
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..val.len() {
-        mmio.write_volatile(dest.add(i), val[i]);
+    unsafe {
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..val.len() {
+            mmio.write_volatile(dest.add(i), val[i]);
+        }
     }
 }
 
-impl<
-        const LEN: usize,
-        TRaw: Uint,
-        TReg: WritableReg<WriteVal = TRaw, Raw = TRaw>,
-        TMmio: MmioMut,
-    > Array<LEN, RegRef<TReg, TMmio>>
+impl<const LEN: usize, TRaw: Uint, TReg: WritableReg<WriteVal = TRaw, Raw = TRaw>, TMmio: MmioMut>
+    Array<LEN, RegRef<TReg, TMmio>>
 {
     /// Writes the entire contents of the array to the underlying registers
     ///
@@ -865,7 +871,9 @@ impl<
     /// [`core::ptr::read`] are met for every element of the `val array`, and that
     /// `val.add(1)` does not wrap around the address space.
     pub unsafe fn write_ptr(&self, val: *const [TRaw; LEN]) {
-        self.mmio.write_volatile_array(self.ptr, val);
+        unsafe {
+            self.mmio.write_volatile_array(self.ptr, val);
+        }
     }
 }
 
@@ -986,7 +994,7 @@ mod tests {
             ControlRegWriteVal((self.0 & !0x1) | u32::from(val))
         }
         pub fn pull(self, f: impl FnOnce(PullSelector) -> Pull) -> ControlRegWriteVal {
-            ControlRegWriteVal((self.0 & !(0x3 << 1)) | (f(PullSelector()) as u32) << 1)
+            ControlRegWriteVal((self.0 & !(0x3 << 1)) | ((f(PullSelector()) as u32) << 1))
         }
     }
     impl From<u32> for ControlRegWriteVal {

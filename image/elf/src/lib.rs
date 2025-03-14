@@ -12,12 +12,12 @@ Abstract:
 
 --*/
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use caliptra_image_gen::ImageGeneratorExecutable;
 use caliptra_image_types::ImageRevision;
+use elf::ElfBytes;
 use elf::abi::PT_LOAD;
 use elf::endian::AnyEndian;
-use elf::ElfBytes;
 use std::path::PathBuf;
 
 /// ELF Executable
@@ -37,7 +37,9 @@ fn load_into_image(
     section_data: &[u8],
 ) -> anyhow::Result<()> {
     if section_addr < image_base_addr {
-        bail!("Section address 0x{section_addr:08x} is below image base address 0x{image_base_addr:08x}");
+        bail!(
+            "Section address 0x{section_addr:08x} is below image base address 0x{image_base_addr:08x}"
+        );
     }
     let section_offset = usize::try_from(section_addr - image_base_addr).unwrap();
     image.resize(

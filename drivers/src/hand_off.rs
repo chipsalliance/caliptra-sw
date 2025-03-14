@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::bounded_address::RomAddr;
-use crate::{persistent, soc_ifc};
 use crate::{Ecc384PubKey, Ecc384Signature, KeyId, ResetReason};
+use crate::{persistent, soc_ifc};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
 use caliptra_image_types::RomInfo;

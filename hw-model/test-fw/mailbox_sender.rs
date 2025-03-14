@@ -42,7 +42,7 @@ const RESPONSES: [Response; 3] = [
     },
 ];
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
     let soc_ifc = soc_ifc.regs_mut();

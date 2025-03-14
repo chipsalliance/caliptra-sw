@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     CaliptraResult, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, PcrBank, PersistentDataAccessor,
-    Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    Sha1, Sha2_512_384, Sha2_512_384Acc, Sha256, SocIfc, Trng,
 };
 use caliptra_registers::{
     csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -76,27 +76,29 @@ impl FmcEnv {
     ///
     ///
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )?;
+        unsafe {
+            let trng = Trng::new(
+                CsrngReg::new(),
+                EntropySrcReg::new(),
+                SocIfcTrngReg::new(),
+                &SocIfcReg::new(),
+            )?;
 
-        Ok(Self {
-            sha1: Sha1::default(),
-            sha256: Sha256::new(Sha256Reg::new()),
-            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
-            sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac: Hmac::new(HmacReg::new()),
-            ecc384: Ecc384::new(EccReg::new()),
-            key_vault: KeyVault::new(KvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
-            mbox: Mailbox::new(MboxCsr::new()),
-            pcr_bank: PcrBank::new(PvReg::new()),
-            trng,
-            persistent_data: PersistentDataAccessor::new(),
-            mldsa: Mldsa87::new(MldsaReg::new()),
-        })
+            Ok(Self {
+                sha1: Sha1::default(),
+                sha256: Sha256::new(Sha256Reg::new()),
+                sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
+                sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+                hmac: Hmac::new(HmacReg::new()),
+                ecc384: Ecc384::new(EccReg::new()),
+                key_vault: KeyVault::new(KvReg::new()),
+                soc_ifc: SocIfc::new(SocIfcReg::new()),
+                mbox: Mailbox::new(MboxCsr::new()),
+                pcr_bank: PcrBank::new(PvReg::new()),
+                trng,
+                persistent_data: PersistentDataAccessor::new(),
+                mldsa: Mldsa87::new(MldsaReg::new()),
+            })
+        }
     }
 }

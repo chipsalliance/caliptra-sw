@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 use caliptra_drivers::{
-    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac, KeyVault, Mailbox,
-    Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc,
+    Ecc384, Hmac, KeyVault, Mailbox, Sha2_512_384, Sha2_512_384Acc, Sha256, SocIfc, cprintln,
+    report_fw_error_fatal, report_fw_error_non_fatal,
 };
 
 #[allow(clippy::empty_loop)]

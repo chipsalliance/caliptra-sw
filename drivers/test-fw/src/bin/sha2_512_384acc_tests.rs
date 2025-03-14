@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    memory_layout, Array4x12, Array4x16, Mailbox, Sha2_512_384Acc, ShaAccLockState,
+    Array4x12, Array4x16, Mailbox, Sha2_512_384Acc, ShaAccLockState, memory_layout,
 };
 use caliptra_kat::Sha2_512_384AccKat;
 use caliptra_registers::mbox::MboxCsr;

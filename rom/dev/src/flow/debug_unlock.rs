@@ -12,21 +12,21 @@ Abstract:
 
 --*/
 
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::{ManuallyDrop, size_of};
 
-use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::CaliptraResult;
+use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use caliptra_api::mailbox::{
     MailboxReqHeader, MailboxRespHeader, ManufDebugUnlockTokenReq,
     ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
     ProductionAuthDebugUnlockToken,
 };
-use caliptra_cfi_lib::{cfi_launder, CfiCounter};
+use caliptra_cfi_lib::{CfiCounter, cfi_launder};
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
-    sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Ecc384PubKey, Ecc384Result,
-    Ecc384Scalar, Ecc384Signature, Lifecycle, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
-    ShaAccLockState,
+    Array4x12, Array4x16, AxiAddr, Ecc384PubKey, Ecc384Result, Ecc384Scalar, Ecc384Signature,
+    Lifecycle, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, ShaAccLockState,
+    sha2_512_384::Sha2DigestOpTrait,
 };
 use caliptra_error::CaliptraError;
 use zerocopy::IntoBytes;

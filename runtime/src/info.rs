@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{handoff::RtHandoff, Drivers};
+use crate::{Drivers, handoff::RtHandoff};
 use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraResult;
 

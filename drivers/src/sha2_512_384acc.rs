@@ -14,14 +14,14 @@ Abstract:
     File contains API for SHA2 512/384 accelerator operations
 
 --*/
-use crate::wait;
 use crate::CaliptraResult;
+use crate::wait;
 use crate::{Array4x12, Array4x16};
 
 use caliptra_error::CaliptraError;
+use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_registers::sha512_acc::enums::ShaCmdE;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
-use caliptra_registers::sha512_acc::Sha512AccCsr;
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 pub type Sha512Digest<'a> = &'a mut Array4x16;
@@ -108,8 +108,10 @@ impl Sha2_512_384Acc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha512_acc = Sha512AccCsr::new();
-        sha512_acc.regs_mut().control().write(|w| w.zeroize(true));
+        unsafe {
+            let mut sha512_acc = Sha512AccCsr::new();
+            sha512_acc.regs_mut().control().write(|w| w.zeroize(true));
+        }
     }
 
     /// Lock the accelerator.
@@ -123,10 +125,12 @@ impl Sha2_512_384Acc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn lock() {
-        let sha512_acc = Sha512AccCsr::new();
-        while sha512_acc.regs().lock().read().lock()
-            && sha512_acc.regs().status().read().soc_has_lock()
-        {}
+        unsafe {
+            let sha512_acc = Sha512AccCsr::new();
+            while sha512_acc.regs().lock().read().lock()
+                && sha512_acc.regs().status().read().soc_has_lock()
+            {}
+        }
     }
 
     /// Try to acquire the accelerator lock.
@@ -140,8 +144,10 @@ impl Sha2_512_384Acc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn try_lock() {
-        let sha512_acc = Sha512AccCsr::new();
-        sha512_acc.regs().lock().read().lock();
+        unsafe {
+            let sha512_acc = Sha512AccCsr::new();
+            sha512_acc.regs().lock().read().lock();
+        }
     }
 }
 

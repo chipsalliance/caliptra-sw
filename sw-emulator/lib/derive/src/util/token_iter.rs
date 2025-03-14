@@ -283,7 +283,7 @@ mod tests {
 
     use super::*;
 
-    fn tokens(s: &str) -> impl Iterator<Item = TokenTree> {
+    fn tokens(s: &str) -> impl Iterator<Item = TokenTree> + use<> {
         TokenStream::from_str(s).unwrap().into_iter()
     }
 

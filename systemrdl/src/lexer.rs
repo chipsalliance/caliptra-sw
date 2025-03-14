@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 use std::str::{Chars, FromStr};
 
-use crate::{token::Token, Bits};
+use crate::{Bits, token::Token};
 
 pub type Span = std::ops::Range<usize>;
 
@@ -66,7 +66,7 @@ impl<'a> Iterator for Lexer<'a> {
                 Some('"') => loop {
                     match iter.next() {
                         Some('"') => {
-                            break Some(Token::StringLiteral(str_between(&self.iter, &iter)))
+                            break Some(Token::StringLiteral(str_between(&self.iter, &iter)));
                         }
                         Some('\\') => match iter.next() {
                             Some(_) => continue,

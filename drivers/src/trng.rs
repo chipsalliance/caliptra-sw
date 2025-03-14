@@ -7,7 +7,7 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
+use crate::{Array4x12, Csrng, MfgFlags, trng_ext::TrngExt};
 
 #[repr(u32)]
 pub enum Trng {
@@ -53,15 +53,17 @@ impl Trng {
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> Self {
-        if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
-            Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
-        } else {
-            Self::External(TrngExt::new(soc_ifc_trng))
+        unsafe {
+            if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+                Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
+            } else {
+                Self::External(TrngExt::new(soc_ifc_trng))
+            }
         }
     }
 
     pub fn generate(&mut self) -> CaliptraResult<Array4x12> {
-        extern "C" {
+        unsafe extern "C" {
             fn cfi_panic_handler(code: u32) -> !;
         }
 
@@ -86,7 +88,7 @@ impl Trng {
     }
 
     pub fn generate4(&mut self) -> CaliptraResult<(u32, u32, u32, u32)> {
-        extern "C" {
+        unsafe extern "C" {
             fn cfi_panic_handler(code: u32) -> !;
         }
 

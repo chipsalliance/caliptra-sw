@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::DataStore::KeyVaultSlot;
-use caliptra_drivers::{hand_off::DataStore, DataVault, FirmwareHandoffTable, KeyId};
+use caliptra_drivers::{DataVault, FirmwareHandoffTable, KeyId, hand_off::DataStore};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 pub struct RtHandoff<'a> {

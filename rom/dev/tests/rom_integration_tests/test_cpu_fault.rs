@@ -3,7 +3,7 @@
 use caliptra_api::SocManager;
 use caliptra_builder::firmware;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
-use elf::{endian::LittleEndian, ElfBytes};
+use elf::{ElfBytes, endian::LittleEndian};
 
 #[test]
 fn test_cpu_fault() {

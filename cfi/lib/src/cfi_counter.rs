@@ -18,9 +18,9 @@ References:
 
 use caliptra_error::CaliptraResult;
 
-use crate::cfi::{cfi_panic, CfiPanicInfo};
-use crate::xoshiro::Xoshiro128;
 use crate::CFI_STATE;
+use crate::cfi::{CfiPanicInfo, cfi_panic};
+use crate::xoshiro::Xoshiro128;
 use core::default::Default;
 
 /// CFI Integer

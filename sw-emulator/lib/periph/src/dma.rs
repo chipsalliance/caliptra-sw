@@ -515,25 +515,30 @@ impl Dma {
         if self.timer.fired(&mut self.op_payload_available_action) {
             self.status0.reg.modify(Status0::PAYLOAD_AVAILABLE::SET);
         }
-        if let Some(dma_data) = self.axi.dma_result.take() {
-            if let Some(write_xfer) = self.pending_axi_to_axi.take() {
-                self.write_axi_block(&dma_data, write_xfer);
-                self.set_status_complete();
-            } else if self.pending_axi_to_fifo {
-                self.write_fifo_block(&dma_data);
-                self.set_status_complete();
-                self.pending_axi_to_fifo = false;
-            } else if self.pending_axi_to_mailbox {
-                self.write_mailbox(&dma_data);
-                self.set_status_complete();
-                self.pending_axi_to_mailbox = false;
+        match self.axi.dma_result.take() {
+            Some(dma_data) => {
+                if let Some(write_xfer) = self.pending_axi_to_axi.take() {
+                    self.write_axi_block(&dma_data, write_xfer);
+                    self.set_status_complete();
+                } else if self.pending_axi_to_fifo {
+                    self.write_fifo_block(&dma_data);
+                    self.set_status_complete();
+                    self.pending_axi_to_fifo = false;
+                } else if self.pending_axi_to_mailbox {
+                    self.write_mailbox(&dma_data);
+                    self.set_status_complete();
+                    self.pending_axi_to_mailbox = false;
+                }
             }
-        } else if self.pending_axi_to_axi.is_some()
-            || self.pending_axi_to_fifo
-            || self.pending_axi_to_mailbox
-        {
-            // check again next cycle
-            self.timer.schedule_poll_in(1);
+            _ => {
+                if self.pending_axi_to_axi.is_some()
+                    || self.pending_axi_to_fifo
+                    || self.pending_axi_to_mailbox
+                {
+                    // check again next cycle
+                    self.timer.schedule_poll_in(1);
+                }
+            }
         }
     }
 

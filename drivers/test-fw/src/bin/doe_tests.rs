@@ -16,10 +16,10 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
+    Array4x4, Array4x12, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
     HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
 };
-use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
+use caliptra_drivers_test_bin::{DOE_TEST_HMAC_KEY, DOE_TEST_IV, DoeTestResults};
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_registers::ecc::EccReg;

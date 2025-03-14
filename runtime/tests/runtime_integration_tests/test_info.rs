@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::PQC_KEY_TYPE;
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_common::{
     capabilities::Capabilities,

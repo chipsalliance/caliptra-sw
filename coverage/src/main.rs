@@ -4,11 +4,11 @@ use bit_vec::BitVec;
 use caliptra_builder::build_firmware_elf;
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::firmware::FMC_WITH_UART;
+use caliptra_coverage::CPTRA_COVERAGE_PATH;
+use caliptra_coverage::CoverageMap;
 use caliptra_coverage::calculator;
 use caliptra_coverage::collect_instr_pcs;
 use caliptra_coverage::get_bitvec_paths;
-use caliptra_coverage::CoverageMap;
-use caliptra_coverage::CPTRA_COVERAGE_PATH;
 
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_coverage::get_tag_from_fw_id;

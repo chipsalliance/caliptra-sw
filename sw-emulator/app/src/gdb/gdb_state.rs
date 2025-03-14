@@ -16,7 +16,7 @@ use super::gdb_target::GdbTarget;
 use gdbstub::common::Signal;
 use gdbstub::conn::{Connection, ConnectionExt};
 use gdbstub::stub::SingleThreadStopReason;
-use gdbstub::stub::{run_blocking, DisconnectReason, GdbStub, GdbStubError};
+use gdbstub::stub::{DisconnectReason, GdbStub, GdbStubError, run_blocking};
 use gdbstub::target::Target;
 use std::net::TcpListener;
 

@@ -20,7 +20,7 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
 use caliptra_image_crypto::RustCrypto as Crypto;
 use clap::ArgMatches;
-use clap::{arg, value_parser, Command};
+use clap::{Command, arg, value_parser};
 use std::io::Write;
 use std::path::PathBuf;
 use zerocopy::IntoBytes;
@@ -29,33 +29,35 @@ mod config;
 
 /// Entry point
 fn main() {
-    let sub_cmds = vec![Command::new("create-auth-man")
-        .about("Create a new authorization manifest")
-        .arg(
-            arg!(--"version" <U32> "Manifest Version Number")
-                .required(true)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
-            arg!(--"flags" <U32> "Manifest Flags")
-                .required(true)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
-            arg!(--"key-dir" <FILE> "Key files directory path")
-                .required(true)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"config" <FILE> "Manifest configuration file")
-                .required(true)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"out" <FILE> "Output file")
-                .required(true)
-                .value_parser(value_parser!(PathBuf)),
-        )];
+    let sub_cmds = vec![
+        Command::new("create-auth-man")
+            .about("Create a new authorization manifest")
+            .arg(
+                arg!(--"version" <U32> "Manifest Version Number")
+                    .required(true)
+                    .value_parser(value_parser!(u32)),
+            )
+            .arg(
+                arg!(--"flags" <U32> "Manifest Flags")
+                    .required(true)
+                    .value_parser(value_parser!(u32)),
+            )
+            .arg(
+                arg!(--"key-dir" <FILE> "Key files directory path")
+                    .required(true)
+                    .value_parser(value_parser!(PathBuf)),
+            )
+            .arg(
+                arg!(--"config" <FILE> "Manifest configuration file")
+                    .required(true)
+                    .value_parser(value_parser!(PathBuf)),
+            )
+            .arg(
+                arg!(--"out" <FILE> "Output file")
+                    .required(true)
+                    .value_parser(value_parser!(PathBuf)),
+            ),
+    ];
 
     let cmd = Command::new("caliptra-auth-man-app")
         .arg_required_else_help(true)
@@ -119,8 +121,8 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         image_metadata_list: config::image_metadata_config_from_file(&config.image_metadata_list)?,
     };
 
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    let manifest = gen.generate(&gen_config).unwrap();
+    let r#gen = AuthManifestGenerator::new(Crypto::default());
+    let manifest = r#gen.generate(&gen_config).unwrap();
 
     let mut out_file = std::fs::OpenOptions::new()
         .create(true)

@@ -14,14 +14,15 @@ Abstract:
 #![allow(dead_code)]
 
 use crate::{
-    array::{Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8},
+    CaliptraError, CaliptraResult, KeyReadArgs, Trng,
+    array::{Array4x8, Array4x16, Array4x648, Array4x1157, Array4x1224},
     kv_access::{KvAccess, KvAccessErr},
-    wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
+    wait,
 };
+use caliptra_cfi_derive::Launder;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_derive::Launder;
-use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_8_words, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 
 #[must_use]

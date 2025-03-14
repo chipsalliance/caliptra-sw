@@ -17,7 +17,7 @@ use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
-use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
+use fips204::ml_dsa_87::{PK_LEN, PrivateKey, PublicKey, SIG_LEN, SK_LEN, try_keygen_with_rng};
 use fips204::traits::{SerDes, Signer, Verifier};
 use rand::{CryptoRng, Rng, RngCore};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -437,7 +437,7 @@ impl Mldsa87 {
                 &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE / 4..],
             );
         } else {
-            self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
+            self.verify_res = rand::thread_rng().r#gen::<[u32; 16]>();
         }
     }
 
@@ -605,7 +605,7 @@ mod tests {
 
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
-        let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+        let seed_orig = rand::thread_rng().r#gen::<[u8; 32]>();
         let mut seed_hw = seed_orig;
         seed_hw.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..seed_hw.len()).step_by(4) {
@@ -652,7 +652,7 @@ mod tests {
 
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
-        let mut seed = rand::thread_rng().gen::<[u8; 32]>();
+        let mut seed = rand::thread_rng().r#gen::<[u8; 32]>();
         seed.to_big_endian(); // Change DWORDs to big-endian.
         for i in (0..seed.len()).step_by(4) {
             ml_dsa87
@@ -661,8 +661,8 @@ mod tests {
         }
 
         let mut msg: [u8; 64] = {
-            let part0 = rand::thread_rng().gen::<[u8; 32]>();
-            let part1 = rand::thread_rng().gen::<[u8; 32]>();
+            let part0 = rand::thread_rng().r#gen::<[u8; 32]>();
+            let part1 = rand::thread_rng().r#gen::<[u8; 32]>();
             let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
             concat.as_slice().try_into().unwrap()
         };
@@ -674,7 +674,7 @@ mod tests {
                 .unwrap();
         }
 
-        let mut sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
+        let mut sign_rnd = rand::thread_rng().r#gen::<[u8; 32]>();
         sign_rnd.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..sign_rnd.len()).step_by(4) {
@@ -737,13 +737,13 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
 
         let msg_orig: [u8; 64] = {
-            let part0 = rand::thread_rng().gen::<[u8; 32]>();
-            let part1 = rand::thread_rng().gen::<[u8; 32]>();
+            let part0 = rand::thread_rng().r#gen::<[u8; 32]>();
+            let part1 = rand::thread_rng().r#gen::<[u8; 32]>();
             let concat: Vec<u8> = part0.iter().chain(part1.iter()).copied().collect();
             concat.as_slice().try_into().unwrap()
         };
 
-        let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+        let seed_orig = rand::thread_rng().r#gen::<[u8; 32]>();
         let mut seed_for_lib = seed_orig;
         seed_for_lib.reverse();
         let mut msg_for_lib = msg_orig;
@@ -880,7 +880,7 @@ mod tests {
         // Test for getting the seed from the key-vault.
         for key_id in 0..KeyVault::KEY_COUNT {
             let clock = Clock::new();
-            let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
+            let seed_orig = rand::thread_rng().r#gen::<[u8; 32]>();
             let mut seed_to_lib = seed_orig;
             seed_to_lib.reverse();
             let mut keygen_rng = SeedOnlyRng::new(seed_to_lib);

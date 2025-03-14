@@ -18,10 +18,10 @@ use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
 use caliptra_drivers::{
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
+    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2_512_384, Sha2DigestOp, Trng,
     hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, Sha384},
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
 use dpe::{ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE};

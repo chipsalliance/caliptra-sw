@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{handoff::RtHandoff, Drivers, Hmac};
+use crate::{Drivers, Hmac, handoff::RtHandoff};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::{CaliptraResult, HmacMode, KeyId};

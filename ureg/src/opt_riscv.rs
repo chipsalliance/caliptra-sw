@@ -7,7 +7,7 @@ pub unsafe fn read_volatile_array<const LEN: usize, T: Uint>(dst: *mut T, src: *
     match (T::TYPE, LEN) {
         (UintType::U32, 12) => copy_12words(dst as *mut u32, src as *const u32),
         (UintType::U32, 16) => copy_16words(dst as *mut u32, src as *const u32),
-        _ => super::read_volatile_slice(&RealMmio::default(), dst, src, LEN),
+        _ => unsafe { super::read_volatile_slice(&RealMmio::default(), dst, src, LEN) },
     }
 }
 
@@ -16,89 +16,93 @@ pub unsafe fn write_volatile_array<const LEN: usize, T: Uint>(dst: *mut T, src: 
     match (T::TYPE, LEN) {
         (UintType::U32, 12) => copy_12words(dst as *mut u32, src as *const u32),
         (UintType::U32, 16) => copy_16words(dst as *mut u32, src as *const u32),
-        _ => super::write_volatile_slice(&RealMmioMut::default(), dst, &*src),
+        _ => unsafe { super::write_volatile_slice(&RealMmioMut::default(), dst, &*src) },
     }
 }
 
 #[inline(never)]
-unsafe fn copy_16words(dest: *mut u32, val: *const u32) {
-    core::arch::asm!(
-        "lw {tmp0}, 0({s})",
-        "lw {tmp1}, 4({s})",
-        "lw {tmp2}, 8({s})",
-        "lw {tmp3}, 12({s})",
-        "sw {tmp0}, 0({d})",
-        "sw {tmp1}, 4({d})",
-        "sw {tmp2}, 8({d})",
-        "sw {tmp3}, 12({d})",
-        "lw {tmp0}, 16({s})",
-        "lw {tmp1}, 20({s})",
-        "lw {tmp2}, 24({s})",
-        "lw {tmp3}, 28({s})",
-        "sw {tmp0}, 16({d})",
-        "sw {tmp1}, 20({d})",
-        "sw {tmp2}, 24({d})",
-        "sw {tmp3}, 28({d})",
-        "lw {tmp0}, 32({s})",
-        "lw {tmp1}, 36({s})",
-        "lw {tmp2}, 40({s})",
-        "lw {tmp3}, 44({s})",
-        "sw {tmp0}, 32({d})",
-        "sw {tmp1}, 36({d})",
-        "sw {tmp2}, 40({d})",
-        "sw {tmp3}, 44({d})",
-        "lw {tmp0}, 48({s})",
-        "lw {tmp1}, 52({s})",
-        "lw {tmp2}, 56({s})",
-        "lw {tmp3}, 60({s})",
-        "sw {tmp0}, 48({d})",
-        "sw {tmp1}, 52({d})",
-        "sw {tmp2}, 56({d})",
-        "sw {tmp3}, 60({d})",
+fn copy_16words(dest: *mut u32, val: *const u32) {
+    unsafe {
+        core::arch::asm!(
+            "lw {tmp0}, 0({s})",
+            "lw {tmp1}, 4({s})",
+            "lw {tmp2}, 8({s})",
+            "lw {tmp3}, 12({s})",
+            "sw {tmp0}, 0({d})",
+            "sw {tmp1}, 4({d})",
+            "sw {tmp2}, 8({d})",
+            "sw {tmp3}, 12({d})",
+            "lw {tmp0}, 16({s})",
+            "lw {tmp1}, 20({s})",
+            "lw {tmp2}, 24({s})",
+            "lw {tmp3}, 28({s})",
+            "sw {tmp0}, 16({d})",
+            "sw {tmp1}, 20({d})",
+            "sw {tmp2}, 24({d})",
+            "sw {tmp3}, 28({d})",
+            "lw {tmp0}, 32({s})",
+            "lw {tmp1}, 36({s})",
+            "lw {tmp2}, 40({s})",
+            "lw {tmp3}, 44({s})",
+            "sw {tmp0}, 32({d})",
+            "sw {tmp1}, 36({d})",
+            "sw {tmp2}, 40({d})",
+            "sw {tmp3}, 44({d})",
+            "lw {tmp0}, 48({s})",
+            "lw {tmp1}, 52({s})",
+            "lw {tmp2}, 56({s})",
+            "lw {tmp3}, 60({s})",
+            "sw {tmp0}, 48({d})",
+            "sw {tmp1}, 52({d})",
+            "sw {tmp2}, 56({d})",
+            "sw {tmp3}, 60({d})",
 
-        s = in(reg) val,
-        d = in(reg) dest,
-        tmp0 = out(reg) _,
-        tmp1 = out(reg) _,
-        tmp2 = out(reg) _,
-        tmp3 = out(reg) _,
-    );
+            s = in(reg) val,
+            d = in(reg) dest,
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _,
+            tmp2 = out(reg) _,
+            tmp3 = out(reg) _,
+        );
+    }
 }
 
 #[inline(never)]
-unsafe fn copy_12words(dest: *mut u32, val: *const u32) {
-    core::arch::asm!(
-        "lw {tmp0}, 0({s})",
-        "lw {tmp1}, 4({s})",
-        "lw {tmp2}, 8({s})",
-        "lw {tmp3}, 12({s})",
-        "sw {tmp0}, 0({d})",
-        "sw {tmp1}, 4({d})",
-        "sw {tmp2}, 8({d})",
-        "sw {tmp3}, 12({d})",
-        "lw {tmp0}, 16({s})",
-        "lw {tmp1}, 20({s})",
-        "lw {tmp2}, 24({s})",
-        "lw {tmp3}, 28({s})",
-        "sw {tmp0}, 16({d})",
-        "sw {tmp1}, 20({d})",
-        "sw {tmp2}, 24({d})",
-        "sw {tmp3}, 28({d})",
-        "lw {tmp0}, 32({s})",
-        "lw {tmp1}, 36({s})",
-        "lw {tmp2}, 40({s})",
-        "lw {tmp3}, 44({s})",
-        "sw {tmp0}, 32({d})",
-        "sw {tmp1}, 36({d})",
-        "sw {tmp2}, 40({d})",
-        "sw {tmp3}, 44({d})",
-        s = in(reg) val,
-        d = in(reg) dest,
-        tmp0 = out(reg) _,
-        tmp1 = out(reg) _,
-        tmp2 = out(reg) _,
-        tmp3 = out(reg) _,
-    );
+fn copy_12words(dest: *mut u32, val: *const u32) {
+    unsafe {
+        core::arch::asm!(
+            "lw {tmp0}, 0({s})",
+            "lw {tmp1}, 4({s})",
+            "lw {tmp2}, 8({s})",
+            "lw {tmp3}, 12({s})",
+            "sw {tmp0}, 0({d})",
+            "sw {tmp1}, 4({d})",
+            "sw {tmp2}, 8({d})",
+            "sw {tmp3}, 12({d})",
+            "lw {tmp0}, 16({s})",
+            "lw {tmp1}, 20({s})",
+            "lw {tmp2}, 24({s})",
+            "lw {tmp3}, 28({s})",
+            "sw {tmp0}, 16({d})",
+            "sw {tmp1}, 20({d})",
+            "sw {tmp2}, 24({d})",
+            "sw {tmp3}, 28({d})",
+            "lw {tmp0}, 32({s})",
+            "lw {tmp1}, 36({s})",
+            "lw {tmp2}, 40({s})",
+            "lw {tmp3}, 44({s})",
+            "sw {tmp0}, 32({d})",
+            "sw {tmp1}, 36({d})",
+            "sw {tmp2}, 40({d})",
+            "sw {tmp3}, 44({d})",
+            s = in(reg) val,
+            d = in(reg) dest,
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _,
+            tmp2 = out(reg) _,
+            tmp3 = out(reg) _,
+        );
+    }
 }
 
 #[cfg(test)]
@@ -146,11 +150,15 @@ mod test {
         };
         assert_eq!(
             dest,
-            [0x55, 0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f, 0x55,]
+            [
+                0x55, 0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f, 0x55,
+            ]
         );
         assert_eq!(
             src,
-            [0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f,]
+            [
+                0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f,
+            ]
         );
     }
 
@@ -269,7 +277,9 @@ mod test {
         unsafe { write_volatile_array::<12, u8>(dest.as_mut_ptr().add(1), &src) };
         assert_eq!(
             dest,
-            [0x55, 0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f, 0x55,]
+            [
+                0x55, 0xe3, 0xc3, 0x63, 0xe7, 0x00, 0x87, 0x50, 0xdf, 0xda, 0xff, 0x76, 0x7f, 0x55,
+            ]
         )
     }
 

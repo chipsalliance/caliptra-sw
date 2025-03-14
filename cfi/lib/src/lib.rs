@@ -34,7 +34,7 @@ static mut CFI_STATE: CfiState = CfiState {
 };
 
 #[cfg(not(feature = "cfi-test"))]
-extern "C" {
+unsafe extern "C" {
     #[link_name = "CFI_STATE_ORG"]
     static mut CFI_STATE: CfiState;
 }

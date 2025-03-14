@@ -3,7 +3,7 @@ Licensed under the Apache-2.0 license.
 --*/
 use std::{error::Error, fmt::Display};
 
-use crate::{token::Token, value::PropertyType, ComponentType, Value};
+use crate::{ComponentType, Value, token::Token, value::PropertyType};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RdlError<'a> {

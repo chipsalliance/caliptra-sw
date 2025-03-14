@@ -10,9 +10,9 @@ use crate::RegisterField;
 use crate::RegisterSubBlock;
 use crate::RegisterType;
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -112,7 +112,10 @@ impl Display for ValidationError {
                 variant_name0,
                 variant_name1,
             } => {
-                write!(f, "Duplicate enum variants with value {variant_value}: {block_name}::{enum_name}::{{{variant_name0},{variant_name1}}}")
+                write!(
+                    f,
+                    "Duplicate enum variants with value {variant_value}: {block_name}::{enum_name}::{{{variant_name0},{variant_name1}}}"
+                )
             }
         }
     }
@@ -652,7 +655,7 @@ impl RegisterBlock {
             let mut new_type = (*reg_type).clone();
             let reg_names: Vec<&str> = regs.iter().map(|r| r.name.as_str()).collect();
             if new_type.name.is_none() {
-                new_type.name = compute_common_name(&reg_names).map(Into::into);
+                new_type.name = compute_common_name(&reg_names);
             }
             if new_type.name.is_none() {
                 new_type.name = Some(format!("Field{:016x}", hash_u64(&new_type)));

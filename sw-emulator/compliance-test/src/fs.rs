@@ -167,9 +167,10 @@ mod tests {
         assert!(result.is_err());
         let err = result.err().unwrap();
         assert_eq!(err.kind(), ErrorKind::NotFound);
-        assert!(err
-            .to_string()
-            .contains(&format!("while reading from file {:?}", tmp_file.path())));
+        assert!(
+            err.to_string()
+                .contains(&format!("while reading from file {:?}", tmp_file.path()))
+        );
     }
 
     #[test]
@@ -181,9 +182,10 @@ mod tests {
         assert!(result.is_err());
         let err = result.err().unwrap();
         assert_eq!(err.kind(), ErrorKind::NotFound);
-        assert!(err
-            .to_string()
-            .contains(&format!("while writing to file {:?}", file_path)));
+        assert!(
+            err.to_string()
+                .contains(&format!("while writing to file {:?}", file_path))
+        );
     }
 
     #[test]
@@ -198,9 +200,11 @@ mod tests {
         let paths: Vec<PathBuf> = temp_files.iter().map(|t| t.path().to_path_buf()).collect();
 
         assert!(paths.iter().all(|p| !p.exists()));
-        assert!([&paths[2], &paths[3]]
-            .iter()
-            .all(|p| p.to_str().unwrap().ends_with(".o")));
+        assert!(
+            [&paths[2], &paths[3]]
+                .iter()
+                .all(|p| p.to_str().unwrap().ends_with(".o"))
+        );
         assert_ne!(&paths[0], &paths[1]);
         assert_ne!(&paths[2], &paths[3]);
         write(&paths[0], "Hello").unwrap();
@@ -236,13 +240,17 @@ mod tests {
         write(path.join("file0.txt"), "Hello").unwrap();
         write(path.join("file1.txt"), "world!").unwrap();
 
-        assert!([&path, &path.join("file0.txt"), &path.join("file1.txt")]
-            .iter()
-            .all(|p| p.exists()));
+        assert!(
+            [&path, &path.join("file0.txt"), &path.join("file1.txt")]
+                .iter()
+                .all(|p| p.exists())
+        );
         drop(dir);
-        assert!([&path, &path.join("file0.txt"), &path.join("file1.txt")]
-            .iter()
-            .all(|p| !p.exists()));
+        assert!(
+            [&path, &path.join("file0.txt"), &path.join("file1.txt")]
+                .iter()
+                .all(|p| !p.exists())
+        );
     }
 
     #[cfg(target_family = "unix")]

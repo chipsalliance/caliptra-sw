@@ -4,21 +4,21 @@ use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
 #[cfg(feature = "runtime")]
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AuthManifestImageMetadata,
+    AuthManifestImageMetadataCollection,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
+use dpe::{DpeInstance, MAX_HANDLES, U8Bool};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
 use crate::{
+    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey,
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey,
 };
 
 #[cfg(feature = "runtime")]
@@ -98,7 +98,7 @@ impl Default for Mldsa87IdevIdCsr {
 }
 
 macro_rules! impl_idevid_csr {
-    ($type:ty, $size:expr) => {
+    ($type:ty, $size:expr_2021) => {
         impl $type {
             /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
             /// the CSR generation flag was not enabled.
@@ -484,24 +484,28 @@ impl PersistentDataAccessor {
 
 #[inline(always)]
 unsafe fn ref_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a T {
-    // LTO should be able to optimize out the assertions to maintain panic_is_missing
+    unsafe {
+        // LTO should be able to optimize out the assertions to maintain panic_is_missing
 
-    // dereferencing zero is undefined behavior
-    assert!(addr != 0);
-    assert!(addr as usize % core::mem::align_of::<T>() == 0);
-    assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
-    &*(addr as *const T)
+        // dereferencing zero is undefined behavior
+        assert!(addr != 0);
+        assert!(addr as usize % core::mem::align_of::<T>() == 0);
+        assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
+        &*(addr as *const T)
+    }
 }
 
 #[inline(always)]
 unsafe fn ref_mut_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a mut T {
-    // LTO should be able to optimize out the assertions to maintain panic_is_missing
+    unsafe {
+        // LTO should be able to optimize out the assertions to maintain panic_is_missing
 
-    // dereferencing zero is undefined behavior
-    assert!(addr != 0);
-    assert!(addr as usize % core::mem::align_of::<T>() == 0);
-    assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
-    &mut *(addr as *mut T)
+        // dereferencing zero is undefined behavior
+        assert!(addr != 0);
+        assert!(addr as usize % core::mem::align_of::<T>() == 0);
+        assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
+        &mut *(addr as *mut T)
+    }
 }
 
 #[cfg(test)]

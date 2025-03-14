@@ -14,8 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array::Array4x32, wait, Array4x12, Array4x16, CaliptraError, CaliptraResult, KeyReadArgs,
-    KeyWriteArgs, Trng,
+    Array4x12, Array4x16, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
+    array::Array4x32, wait,
 };
 
 #[cfg(not(feature = "no-cfi"))]
@@ -338,8 +338,10 @@ impl Hmac {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut hmac = HmacReg::new();
-        Self::zeroize_regs(&mut hmac);
+        unsafe {
+            let mut hmac = HmacReg::new();
+            Self::zeroize_regs(&mut hmac);
+        }
     }
 
     ///

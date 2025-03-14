@@ -2,27 +2,27 @@
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{ImageOptions, firmware};
+use caliptra_common::RomBootStatus;
 use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
-use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{RandomEtrngResponses, RandomNibbles};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{PcrRtCurrentInput, RtAliasKey};
+use caliptra_test::{RedactOpts, UnwrapSingle, derive, redact_cert, run_test};
 use caliptra_test::{
     bytes_to_be_words_48,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
-use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
-use openssl::sha::{sha384, Sha384};
-use rand::rngs::StdRng;
+use openssl::sha::{Sha384, sha384};
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use regex::Regex;
 use std::mem;
 use zerocopy::{IntoBytes, TryFromBytes};
@@ -149,9 +149,11 @@ fn test_golden_idevid_pubkey_matches_generated() {
             2638089882, 3209973098
         ]
     );
-    assert!(generated_idevid
-        .derive_public_key()
-        .public_eq(&idevid_pubkey));
+    assert!(
+        generated_idevid
+            .derive_public_key()
+            .public_eq(&idevid_pubkey)
+    );
 }
 
 #[test]
@@ -168,9 +170,11 @@ fn test_golden_ldevid_pubkey_matches_generated() {
             1993163061, 3092908117
         ]
     );
-    assert!(generated_ldevid
-        .derive_public_key()
-        .public_eq(&ldevid_pubkey));
+    assert!(
+        generated_ldevid
+            .derive_public_key()
+            .public_eq(&ldevid_pubkey)
+    );
 }
 
 #[test]
@@ -277,9 +281,11 @@ fn smoke_test() {
     // logic in the ROM that derives LDevID has changed. Ensure this is
     // intentional, and then make the same change to
     // caliptra_test::LDevId::derive().
-    assert!(expected_ldevid_key
-        .derive_public_key()
-        .public_eq(&ldev_pubkey));
+    assert!(
+        expected_ldevid_key
+            .derive_public_key()
+            .public_eq(&ldev_pubkey)
+    );
 
     println!("ldev-cert: {}", ldev_cert_txt);
 
@@ -370,9 +376,11 @@ fn smoke_test() {
     // logic in the ROM that update PCR0 has changed. Ensure this is
     // intentional, and then make the same change to
     // caliptra_test::Pcr0Input::derive_pcr0().
-    assert!(expected_fmc_alias_key
-        .derive_public_key()
-        .public_eq(&fmc_alias_cert.public_key().unwrap()));
+    assert!(
+        expected_fmc_alias_key
+            .derive_public_key()
+            .public_eq(&fmc_alias_cert.public_key().unwrap())
+    );
 
     assert!(
         fmc_alias_cert.verify(&ldev_pubkey).unwrap(),
@@ -480,9 +488,11 @@ fn smoke_test() {
     // If a firmware change causes this assertion to fail, it is likely that the
     // logic in the FMC that derives the CDI. Ensure this is intentional, and
     // then make the same change to caliptra_test::RtAliasKey::derive().
-    assert!(expected_rt_alias_key
-        .derive_public_key()
-        .public_eq(&rt_alias_cert.public_key().unwrap()));
+    assert!(
+        expected_rt_alias_key
+            .derive_public_key()
+            .public_eq(&rt_alias_cert.public_key().unwrap())
+    );
 
     println!("rt-alias cert: {rt_alias_cert_txt}");
 
@@ -584,11 +594,12 @@ fn smoke_test() {
         );
     }
 
-    assert!(!hw
-        .soc_ifc()
-        .cptra_hw_error_non_fatal()
-        .read()
-        .mbox_ecc_unc());
+    assert!(
+        !hw.soc_ifc()
+            .cptra_hw_error_non_fatal()
+            .read()
+            .mbox_ecc_unc()
+    );
 
     // Hitlessly update to the no-uart runtime firmware
 
@@ -632,10 +643,12 @@ fn smoke_test() {
     assert_ne!(rt_alias_cert2_resp, rt_alias_cert_resp);
 
     // The new rt-alias key must be different than the old one
-    assert!(!rt_alias_cert2
-        .public_key()
-        .unwrap()
-        .public_eq(&rt_alias_cert.public_key().unwrap()));
+    assert!(
+        !rt_alias_cert2
+            .public_key()
+            .unwrap()
+            .public_eq(&rt_alias_cert.public_key().unwrap())
+    );
 
     // Check that the new rt-alias cert was signed correctly
     assert!(

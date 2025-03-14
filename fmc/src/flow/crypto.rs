@@ -13,9 +13,9 @@ use caliptra_common::{
     keyids::KEY_ID_TMP,
 };
 use caliptra_drivers::{
-    okmutref, okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
-    Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
-    Mldsa87Seed,
+    Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result,
+    Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mldsa87Seed, okmutref,
+    okref,
 };
 use caliptra_x509::Ecdsa384Signature;
 use zeroize::Zeroize;

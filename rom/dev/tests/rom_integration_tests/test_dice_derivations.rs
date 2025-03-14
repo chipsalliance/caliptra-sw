@@ -1,12 +1,12 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware;
-use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
-use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_builder::firmware;
+use caliptra_builder::firmware::APP_WITH_UART;
+use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
 use caliptra_common::RomBootStatus::*;
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::BootParams;
 use caliptra_hw_model::Fuses;
 use caliptra_hw_model::HwModel;

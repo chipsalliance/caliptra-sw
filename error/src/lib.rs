@@ -26,7 +26,7 @@ pub struct CaliptraError(pub NonZeroU32);
 /// constant definitions for each error code.
 #[macro_export]
 macro_rules! define_error_constants {
-    ($(($name:ident, $value:expr, $doc:expr)),* $(,)?) => {
+    ($(($name:ident, $value:expr_2021, $doc:expr_2021)),* $(,)?) => {
         $(
             #[doc = $doc]
             pub const $name: CaliptraError = CaliptraError::new_const($value);

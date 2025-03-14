@@ -67,15 +67,18 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     ) -> CaliptraResult<ImageDigest384> {
         let mut digest = Array4x12::default();
 
-        if let Some(mut sha_acc_op) = self
+        match self
             .sha2_512_384_acc
             .try_start_operation(ShaAccLockState::NotAcquired)?
         {
-            sha_acc_op
-                .digest_384(len, offset, false, &mut digest)
-                .map_err(|_| digest_failure)?;
-        } else {
-            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+            Some(mut sha_acc_op) => {
+                sha_acc_op
+                    .digest_384(len, offset, false, &mut digest)
+                    .map_err(|_| digest_failure)?;
+            }
+            _ => {
+                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+            }
         };
 
         Ok(digest.0)
@@ -89,15 +92,18 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     ) -> CaliptraResult<ImageDigest512> {
         let mut digest = Array4x16::default();
 
-        if let Some(mut sha_acc_op) = self
+        match self
             .sha2_512_384_acc
             .try_start_operation(ShaAccLockState::NotAcquired)?
         {
-            sha_acc_op
-                .digest_512(len, offset, false, &mut digest)
-                .map_err(|_| digest_failure)?;
-        } else {
-            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+            Some(mut sha_acc_op) => {
+                sha_acc_op
+                    .digest_512(len, offset, false, &mut digest)
+                    .map_err(|_| digest_failure)?;
+            }
+            _ => {
+                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+            }
         };
 
         Ok(digest.0)

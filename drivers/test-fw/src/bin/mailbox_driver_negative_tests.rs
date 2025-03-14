@@ -22,7 +22,7 @@ fn mbox_fsm_error() -> bool {
     mbox.regs().status().read().mbox_fsm_ps().mbox_error()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     // 0 byte request
     // The SoC will try to corrupt the CMD opcode and the Dlen field.

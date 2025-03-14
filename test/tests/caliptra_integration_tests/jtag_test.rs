@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{firmware, get_elf_path, ImageOptions};
+use caliptra_builder::{ImageOptions, firmware, get_elf_path};
 
 use caliptra_api_types::DeviceLifecycle;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};

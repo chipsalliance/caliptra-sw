@@ -17,7 +17,7 @@ use x509_parser::{
 };
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
+use crate::common::{RuntimeTestArgs, TEST_LABEL, assert_error, run_rt_test};
 
 #[test]
 fn test_dmtf_other_name_validation_fail() {

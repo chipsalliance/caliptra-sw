@@ -3,9 +3,9 @@
 use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
+    ImageOptions,
     firmware::rom_tests::TEST_FMC_INTERACTIVE,
     firmware::{self, APP_WITH_UART},
-    ImageOptions,
 };
 use caliptra_common::RomBootStatus::{self, KatStarted};
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, SecurityState};
@@ -138,11 +138,7 @@ fn test_rom_wdt_timeout() {
 
     println!(
         "WDT Expiry mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
-        mcause,
-        mscause,
-        mepc,
-        ra,
-        error_internal_intr_r,
+        mcause, mscause, mepc, ra, error_internal_intr_r,
     );
 
     // no mcause if wdt times out

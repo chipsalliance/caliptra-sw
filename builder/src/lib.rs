@@ -30,7 +30,7 @@ pub mod firmware;
 mod sha256;
 pub mod version;
 
-pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
+pub use elf_symbols::{Symbol, SymbolBind, SymbolType, SymbolVisibility, elf_symbols};
 use once_cell::sync::Lazy;
 
 pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
@@ -309,7 +309,9 @@ impl<'a> CargoInvocation<'a> {
 // CALIPTRA_PREBUILT_FW_DIR environment variable is set.
 pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     if !crate::firmware::REGISTERED_FW.contains(&id) {
-        return Err(other_err(format!("FwId has not been registered. Make sure it has been added to the REGISTERED_FW array: {id:?}")));
+        return Err(other_err(format!(
+            "FwId has not been registered. Make sure it has been added to the REGISTERED_FW array: {id:?}"
+        )));
     }
 
     if let Some(fw_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
@@ -483,8 +485,8 @@ pub fn build_and_sign_image(
 ) -> anyhow::Result<ImageBundle> {
     let fmc_elf = build_firmware_elf(fmc)?;
     let app_elf = build_firmware_elf(app)?;
-    let gen = ImageGenerator::new(Crypto::default());
-    let image = gen.generate(&ImageGeneratorConfig {
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let image = r#gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(&fmc_elf, opts.fmc_version as u32, image_revision()?)?,
         runtime: ElfExecutable::new(&app_elf, opts.app_version, image_revision()?)?,
         fw_svn: opts.fw_svn,
@@ -592,8 +594,11 @@ mod test {
             ]
         );
         assert_eq!(
-            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc30800", false).unwrap_err().to_string(),
-            "Unable to decode git commit \"d6a462a63a9cf2dafa5bbc6cf78b1fccc30800\": Invalid string length");
+            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc30800", false)
+                .unwrap_err()
+                .to_string(),
+            "Unable to decode git commit \"d6a462a63a9cf2dafa5bbc6cf78b1fccc30800\": Invalid string length"
+        );
         assert!(image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009g", true).is_err());
     }
 
@@ -730,10 +735,12 @@ mod test {
                     features: &["pc-load-letter"],
                 },
             ];
-            assert!(cargo_invocations_from_fwids(&fwids)
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate FwId"));
+            assert!(
+                cargo_invocations_from_fwids(&fwids)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("Duplicate FwId")
+            );
         }
     }
 

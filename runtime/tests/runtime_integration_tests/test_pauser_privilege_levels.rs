@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::PQC_KEY_TYPE;
-use caliptra_api::{mailbox::SignWithExportedEcdsaReq, SocManager};
+use caliptra_api::{SocManager, mailbox::SignWithExportedEcdsaReq};
 use caliptra_builder::{
-    build_firmware_elf,
+    ImageOptions, build_firmware_elf,
     firmware::{APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
 };
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
@@ -18,23 +17,23 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageDigestHolder};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD, RtBootStatus,
 };
 
 use dpe::{
+    DPE_PROFILE,
     commands::{
         CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
         RotateCtxCmd, RotateCtxFlags,
     },
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
 };
 use zerocopy::IntoBytes;
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
-    TEST_LABEL,
+    DpeResult, RuntimeTestArgs, TEST_LABEL, assert_error, execute_dpe_cmd, run_rt_test,
+    run_rt_test_pqc,
 };
 
 const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
@@ -648,8 +647,8 @@ fn test_pl0_unset_in_header() {
     };
     let ecc_index = opts.vendor_config.ecc_key_idx;
     let lms_index = opts.vendor_config.pqc_key_idx;
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_header_digest_384 = gen
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let vendor_header_digest_384 = r#gen
         .vendor_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
     let vendor_header_digest_holder = ImageDigestHolder {
@@ -657,7 +656,7 @@ fn test_pl0_unset_in_header() {
         digest_512: None,
     };
 
-    let owner_header_digest_384 = gen
+    let owner_header_digest_384 = r#gen
         .owner_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
     let owner_header_digest_holder = ImageDigestHolder {
@@ -667,7 +666,7 @@ fn test_pl0_unset_in_header() {
 
     let fmc_elf = build_firmware_elf(&FMC_WITH_UART).unwrap();
     let app_elf = build_firmware_elf(&APP_WITH_UART).unwrap();
-    let preamble = gen
+    let preamble = r#gen
         .gen_preamble(
             &ImageGeneratorConfig {
                 fmc: ElfExecutable::new(

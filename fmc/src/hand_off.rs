@@ -15,9 +15,9 @@ use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
-use caliptra_drivers::{cprintln, memory_layout, Array4x12, Ecc384Signature, KeyId};
+use caliptra_common::{DataStore::*, handle_fatal_error};
+use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId, cprintln, memory_layout};
 use caliptra_drivers::{Ecc384PubKey, Mldsa87PubKey};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -125,7 +125,7 @@ impl HandOff {
     /// Transfer control to the runtime firmware.
     pub fn to_rt(env: &FmcEnv) -> ! {
         // Function is defined in start.S
-        extern "C" {
+        unsafe extern "C" {
             fn transfer_control(entry: u32) -> !;
         }
 

@@ -17,15 +17,15 @@ use core::mem::size_of;
 
 use crate::Drivers;
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER, AuthManifestFlags,
+    AuthManifestImageMetadata, AuthManifestImageMetadataCollection, AuthManifestPreamble,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
 use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
-    HashValue, Lms, Sha256, Sha2_512_384,
+    HashValue, Lms, Sha2_512_384, Sha256,
 };
 use caliptra_image_types::{
     ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,

@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::array::Array4xN;
-use crate::{wait, CaliptraResult, KeyId, KeyUsage, PcrId};
+use crate::{CaliptraResult, KeyId, KeyUsage, PcrId, wait};
 use caliptra_registers::enums::KvErrorE;
 use caliptra_registers::regs::{KvReadCtrlRegWriteVal, KvStatusRegReadVal, KvWriteCtrlRegWriteVal};
 use ureg::{Mmio, MmioMut};

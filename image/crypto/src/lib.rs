@@ -14,7 +14,7 @@ Abstract:
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 
 use caliptra_image_types::*;
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
@@ -443,7 +443,7 @@ mod tests {
     use ::openssl::rand::rand_bytes;
     use caliptra_lms_types::bytes_to_words_6;
     #[cfg(feature = "rustcrypto")]
-    use rand::{rngs::OsRng, RngCore};
+    use rand::{RngCore, rngs::OsRng};
     use zerocopy::{LittleEndian, U32};
 
     #[test]
