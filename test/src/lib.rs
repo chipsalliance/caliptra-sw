@@ -2,8 +2,8 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
     FwId, ImageOptions,
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use zerocopy::IntoBytes;
@@ -16,7 +16,7 @@ pub mod x509;
 
 use caliptra_image_types::ImageManifest;
 use openssl::sha::sha384;
-pub use redact::{redact_cert, RedactOpts};
+pub use redact::{RedactOpts, redact_cert};
 pub use unwrap_single::UnwrapSingle;
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;

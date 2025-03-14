@@ -17,7 +17,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 

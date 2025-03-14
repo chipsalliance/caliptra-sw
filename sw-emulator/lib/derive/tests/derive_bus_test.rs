@@ -3,8 +3,8 @@
 use std::fmt::Write;
 
 use caliptra_emu_bus::{
-    testing::{FakeBus, Log},
     Bus, BusError, Ram,
+    testing::{FakeBus, Log},
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
@@ -463,7 +463,10 @@ fn test_write_dispatch() {
     bus.write(RvSize::Word, 0xcafe_f0e4, 0x6965_617f).unwrap();
     bus.write(RvSize::HalfWord, 0xcafe_f0e4, 0xc8aa).unwrap();
 
-    assert_eq!(bus.log.take(), "reg_action1 write Word 0xbaf3e991; reg_action1 write Word 0x6965617f; reg_action1 write HalfWord 0x0000c8aa; ");
+    assert_eq!(
+        bus.log.take(),
+        "reg_action1 write Word 0xbaf3e991; reg_action1 write Word 0x6965617f; reg_action1 write HalfWord 0x0000c8aa; "
+    );
 
     bus.write(RvSize::Word, 0xcafe_f0e8, 0xb01d_face).unwrap();
     assert_eq!(bus.log.take(), "reg_action2 write Word 0xb01dface; ");

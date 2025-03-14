@@ -15,8 +15,8 @@ Abstract:
 use crate::cprintln;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
-    enums::{RdRouteE, WrRouteE},
     AxiDmaReg, RegisterBlock,
+    enums::{RdRouteE, WrRouteE},
 };
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
@@ -75,7 +75,7 @@ impl From<u64> for AxiAddr {
 }
 impl From<AxiAddr> for u64 {
     fn from(addr: AxiAddr) -> Self {
-        (addr.hi as u64) << 32 | (addr.lo as u64)
+        ((addr.hi as u64) << 32) | (addr.lo as u64)
     }
 }
 
@@ -684,7 +684,7 @@ impl<'a> DmaRecovery<'a> {
             let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
             let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
 
-            let image_size_dwords = image_size_msb << 16 | image_size_lsb;
+            let image_size_dwords = (image_size_msb << 16) | image_size_lsb;
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
             Ok::<u32, CaliptraError>(image_size_bytes)
         })??;

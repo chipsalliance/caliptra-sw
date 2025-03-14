@@ -3,10 +3,10 @@
 use std::mem;
 
 use caliptra_api::SocManager;
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{ImageOptions, firmware};
 use caliptra_common::{
-    memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
+    memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
 };
 use caliptra_drivers::InitDevIdCsrEnvelope;
 use caliptra_hw_model::{

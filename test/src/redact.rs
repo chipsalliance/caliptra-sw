@@ -2,7 +2,7 @@
 
 use openssl::nid::Nid;
 
-use crate::{crypto::pubkey_ecdsa_der, UnwrapSingle};
+use crate::{UnwrapSingle, crypto::pubkey_ecdsa_der};
 
 fn replace(bytes: &mut [u8], search: &[u8], replace: &[u8]) {
     assert_eq!(search.len(), replace.len());
@@ -107,6 +107,8 @@ fn test_redact() {
     redact(&mut value, &[3, 4, 5]);
     assert_eq!(
         value,
-        vec![1_u8, 2, 0x44, 0x44, 0x44, 6, 7, 1, 2, 0x44, 0x44, 0x44, 6, 7]
+        vec![
+            1_u8, 2, 0x44, 0x44, 0x44, 6, 7, 1, 2, 0x44, 0x44, 0x44, 6, 7
+        ]
     )
 }

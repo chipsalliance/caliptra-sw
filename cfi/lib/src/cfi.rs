@@ -220,7 +220,7 @@ pub fn cfi_panic(info: CfiPanicInfo) -> ! {
 
         #[cfg(not(feature = "cfi-test"))]
         {
-            extern "C" {
+            unsafe extern "C" {
                 fn cfi_panic_handler(code: u32) -> !;
             }
             unsafe {
@@ -296,7 +296,7 @@ pub fn cfi_assert_bool(cond: bool) {
 
 #[macro_export]
 macro_rules! cfi_assert {
-    ($cond: expr) => {
+    ($cond: expr_2021) => {
         cfi_assert_bool($cond)
     };
 }

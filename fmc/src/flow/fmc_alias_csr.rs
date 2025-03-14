@@ -1,9 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use crate::HandOff;
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
-use crate::HandOff;
 use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::crypto::MlDsaKeyPair;
 use caliptra_common::crypto::PubKey;

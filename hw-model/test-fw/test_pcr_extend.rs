@@ -16,14 +16,14 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     caliptra_drivers::ExitCtrl::exit(1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     println!("[test_pcr_extend] CFI Panic code=0x{:08X}", code);
     caliptra_drivers::report_fw_error_fatal(0xdead2);
     caliptra_drivers::ExitCtrl::exit(u32::MAX)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     // Init CFI
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));

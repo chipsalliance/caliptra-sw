@@ -270,18 +270,22 @@ fn test_uninitialized_mbox_read() {
     model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| MBOX_ADDR);
     model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| 1024);
 
-    assert!(!model
-        .soc_ifc()
-        .cptra_hw_error_non_fatal()
-        .read()
-        .mbox_ecc_unc());
+    assert!(
+        !model
+            .soc_ifc()
+            .cptra_hw_error_non_fatal()
+            .read()
+            .mbox_ecc_unc()
+    );
     // NOTE: CPU execution will continue after the ECC error
     model.step_until_exit_success().unwrap();
-    assert!(model
-        .soc_ifc()
-        .cptra_hw_error_non_fatal()
-        .read()
-        .mbox_ecc_unc());
+    assert!(
+        model
+            .soc_ifc()
+            .cptra_hw_error_non_fatal()
+            .read()
+            .mbox_ecc_unc()
+    );
 }
 
 #[test]
@@ -299,7 +303,7 @@ fn test_pcr_extend() {
 fn test_mbox_pauser_sigbus() {
     fn find_binary_path() -> Option<&'static str> {
         // Use this path when running on github.
-        const TEST_BIN_PATH_SQUASHFS:&str = "/tmp/caliptra-test-binaries/target/aarch64-unknown-linux-gnu/release/fpga_realtime_mbox_pauser";
+        const TEST_BIN_PATH_SQUASHFS: &str = "/tmp/caliptra-test-binaries/target/aarch64-unknown-linux-gnu/release/fpga_realtime_mbox_pauser";
 
         const TEST_BIN_PATH: &str = env!("CARGO_BIN_EXE_fpga_realtime_mbox_pauser");
         if std::path::Path::new(TEST_BIN_PATH_SQUASHFS).exists() {

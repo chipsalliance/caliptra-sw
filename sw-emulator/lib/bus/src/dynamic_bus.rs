@@ -58,9 +58,16 @@ impl DynamicBus {
             if dev_addr.end() >= cur_dev_addr.start() && dev_addr.start() <= cur_dev_addr.end() {
                 return Err(std::io::Error::new(
                     ErrorKind::AddrInUse,
-                    format!("Address space for device {} ({:#010x}-{:#010x}) collides with device {} ({:#010x}-{:#010x})",
-                    dev.name, dev.mmap_range.start(), dev.mmap_range.end(),
-                    cur_dev.name, cur_dev.mmap_range.start(), cur_dev.mmap_range.end())));
+                    format!(
+                        "Address space for device {} ({:#010x}-{:#010x}) collides with device {} ({:#010x}-{:#010x})",
+                        dev.name,
+                        dev.mmap_range.start(),
+                        dev.mmap_range.end(),
+                        cur_dev.name,
+                        cur_dev.mmap_range.start(),
+                        cur_dev.mmap_range.end()
+                    ),
+                ));
             }
             // Found the position to insert the device
             if dev_addr.start() < cur_dev_addr.start() {
@@ -99,7 +106,7 @@ impl Bus for DynamicBus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{testing::FakeBus, BusError, Ram, Rom};
+    use crate::{BusError, Ram, Rom, testing::FakeBus};
     use caliptra_emu_types::RvSize;
 
     #[test]
@@ -174,11 +181,17 @@ mod test {
 
         let rom = Rom::new(vec![1]);
         let err = bus.attach_dev("ROM3", 1..=1, Box::new(rom)).err().unwrap();
-        assert_eq!(err.to_string(), "Address space for device ROM3 (0x00000001-0x00000001) collides with device ROM0 (0x00000001-0x00000002)");
+        assert_eq!(
+            err.to_string(),
+            "Address space for device ROM3 (0x00000001-0x00000001) collides with device ROM0 (0x00000001-0x00000002)"
+        );
 
         let rom = Rom::new(vec![1]);
         let err = bus.attach_dev("ROM4", 2..=2, Box::new(rom)).err().unwrap();
-        assert_eq!(err.to_string(), "Address space for device ROM4 (0x00000002-0x00000002) collides with device ROM0 (0x00000001-0x00000002)");
+        assert_eq!(
+            err.to_string(),
+            "Address space for device ROM4 (0x00000002-0x00000002) collides with device ROM0 (0x00000001-0x00000002)"
+        );
 
         let addrs: Vec<RvAddr> = bus
             .devs

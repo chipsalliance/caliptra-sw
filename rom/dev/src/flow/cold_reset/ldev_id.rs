@@ -16,20 +16,20 @@ Abstract:
 use super::dice::*;
 use crate::cprintln;
 use crate::crypto::Crypto;
-use crate::flow::cold_reset::{copy_tbs, TbsType};
+use crate::flow::cold_reset::{TbsType, copy_tbs};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
+    RomBootStatus::*,
     crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
     keyids::{
         KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
         KEY_ID_ROM_FMC_CDI,
     },
     x509,
-    RomBootStatus::*,
 };
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -229,10 +229,11 @@ impl LocalDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        env.key_vault.erase_key(ecc_auth_priv_key).map_err(|err| {
-            sig.zeroize();
-            err
-        })?;
+        env.key_vault
+            .erase_key(ecc_auth_priv_key)
+            .inspect_err(|_| {
+                sig.zeroize();
+            })?;
 
         let _pub_x: [u8; 48] = (&ecc_pub_key.x).into();
         let _pub_y: [u8; 48] = (&ecc_pub_key.y).into();
@@ -309,9 +310,8 @@ impl LocalDevIdLayer {
         // Clear the authority private key
         env.key_vault
             .erase_key(mldsa_auth_priv_key)
-            .map_err(|err| {
+            .inspect_err(|_| {
                 sig.zeroize();
-                err
             })?;
 
         let data_vault = &mut env.persistent_data.get_mut().data_vault;

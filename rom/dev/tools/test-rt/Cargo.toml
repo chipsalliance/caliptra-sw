@@ -3,7 +3,7 @@
 [package]
 name = "caliptra-rom-test-rt"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 caliptra-cpu.workspace = true

@@ -54,7 +54,7 @@ mod soc_ifc;
 mod trng;
 mod trng_ext;
 
-pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use array::{Array4x4, Array4x5, Array4x8, Array4x12, Array4x16, Array4xN};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
@@ -80,8 +80,8 @@ pub use hmac_kdf::hmac_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
-    get_lmots_parameters, get_lms_parameters, HashValue, Lms, LmsResult, Sha192Digest,
-    Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
+    D_INTR, D_LEAF, D_MESG, D_PBLC, HashValue, Lms, LmsResult, Sha192Digest, Sha256Digest,
+    get_lmots_parameters, get_lms_parameters,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use mldsa87::{
@@ -92,20 +92,20 @@ pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
-pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 pub use persistent::AuthManifestImageMetadataList;
+pub use persistent::fmc_alias_csr::FmcAliasCsr;
 pub use persistent::{
-    Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
-    PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_CSR_SIZE,
-    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE, PCR_LOG_MAX_COUNT,
+    ECC384_MAX_CSR_SIZE, Ecc384IdevIdCsr, FUSE_LOG_MAX_COUNT, FuseLogArray, InitDevIdCsrEnvelope,
+    MEASUREMENT_MAX_COUNT, MLDSA87_MAX_CSR_SIZE, Mldsa87IdevIdCsr, PCR_LOG_MAX_COUNT, PcrLogArray,
+    PersistentData, PersistentDataAccessor, StashMeasurementArray,
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
-pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
-pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
+pub use sha2_512_384::{Sha2_512_384, Sha2DigestOp, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
-pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
+pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
+pub use soc_ifc::{Lifecycle, MfgFlags, ResetReason, SocIfc, report_boot_status};
 pub use trng::Trng;
 
 #[allow(unused_imports)]

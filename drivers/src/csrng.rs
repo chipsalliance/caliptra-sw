@@ -21,9 +21,9 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
-use crate::{wait, CaliptraError, CaliptraResult};
+use crate::{CaliptraError, CaliptraResult, wait};
 use caliptra_registers::csrng::CsrngReg;
-use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
+use caliptra_registers::entropy_src::{self, EntropySrcReg, regs::AlertFailCountsReadVal};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use core::mem::MaybeUninit;

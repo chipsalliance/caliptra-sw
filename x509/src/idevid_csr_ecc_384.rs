@@ -151,7 +151,7 @@ mod tests {
             .iter()
             .find(|ext| {
                 if let ParsedExtension::UnsupportedExtension { oid } = ext.parsed_extension() {
-                    oid == &oid!(2.23.133 .5 .4 .4)
+                    oid == &oid!(2.23.133.5.4.4)
                 } else {
                     false
                 }

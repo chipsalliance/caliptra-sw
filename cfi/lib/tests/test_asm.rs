@@ -7,8 +7,8 @@
 // riscv64gc-unknown-linux-gnu"
 
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 use std::time::Duration;
 
 use caliptra_error::CaliptraError;
@@ -17,7 +17,7 @@ thread_local! {
     static CFI_PANIC_CALLED: RefCell<Arc<AtomicU32>> = RefCell::new(Arc::new(0.into()));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     // This function cannot return or panic, so the only way we have to detect
     // this call is to set a thread-local variable that can be checked from

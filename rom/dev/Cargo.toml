@@ -3,8 +3,7 @@
 [package]
 name = "caliptra-rom"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.70"
+edition = "2024"
 
 [dependencies]
 caliptra-api.workspace = true

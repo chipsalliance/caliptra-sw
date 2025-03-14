@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{version, ImageOptions};
+use caliptra_builder::{ImageOptions, version};
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,

@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_hw_model::{mmio::Rv32GenMmio, HwModel, InitParams};
+use caliptra_hw_model::{HwModel, InitParams, mmio::Rv32GenMmio};
 use nix::sys::signal;
 use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet};
 use std::process::exit;

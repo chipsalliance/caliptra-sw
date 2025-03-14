@@ -10,7 +10,7 @@ use openssl::{
     pkey::{PKey, Public},
     sha::{sha256, sha384},
 };
-use zerocopy::{transmute, IntoBytes};
+use zerocopy::{IntoBytes, transmute};
 
 #[cfg(test)]
 use caliptra_api_types::DeviceLifecycle;

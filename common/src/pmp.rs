@@ -11,7 +11,7 @@ Abstract:
     PMP support routine for locking the DataVault.
 
 --*/
-use riscv::register::{pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0, Permission, Range};
+use riscv::register::{Permission, Range, pmpaddr0, pmpaddr1, pmpaddr2, pmpaddr3, pmpcfg0};
 
 /// Lock the DataVault region using PMP configuration.
 ///

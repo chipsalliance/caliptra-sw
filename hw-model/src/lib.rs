@@ -12,12 +12,12 @@ use std::sync::mpsc;
 use std::{
     error::Error,
     fmt::Display,
-    io::{stdout, ErrorKind, Write},
+    io::{ErrorKind, Write, stdout},
 };
 
 use caliptra_hw_model_types::{
-    ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
-    DEFAULT_CPTRA_OBF_KEY,
+    DEFAULT_CPTRA_OBF_KEY, ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice,
+    RandomEtrngResponses, RandomNibbles,
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes, Ref, Unalign};
 
@@ -27,7 +27,7 @@ use caliptra_registers::soc_ifc::regs::{
     CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
 };
 
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use sha2::Digest;
 
 pub mod mmio;
@@ -560,7 +560,10 @@ pub trait HwModel: SocManager {
         let hw_rev_id = hw.soc_ifc().cptra_hw_rev_id().read();
         println!(
             "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
-            hw.type_name(), hw.trng_mode(),  hw_rev_id.cptra_generation(), hw_rev_id.soc_stepping_id()
+            hw.type_name(),
+            hw.trng_mode(),
+            hw_rev_id.cptra_generation(),
+            hw_rev_id.soc_stepping_id()
         );
         println!("{init_params_summary:#?}");
 
@@ -737,7 +740,7 @@ pub trait HwModel: SocManager {
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with failure",
-                    ))
+                    ));
                 }
                 None => {}
             }
@@ -753,7 +756,7 @@ pub trait HwModel: SocManager {
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with success when failure was expected",
-                    ))
+                    ));
                 }
                 None => {}
             }
@@ -1137,7 +1140,7 @@ pub trait HwModel: SocManager {
 #[cfg(test)]
 mod tests {
     use crate::{
-        mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
+        BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode, mmio::Rv32GenMmio,
     };
     use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_api::soc_mgr::SocManager;
@@ -1494,7 +1497,10 @@ mod tests {
         assert_eq!(
             model.mailbox_exec(0x1000_0000, &message[..8], resp_data.as_mut_bytes()),
             Ok(Some(
-                [0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf].as_slice()
+                [
+                    0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf
+                ]
+                .as_slice()
             )),
         );
 

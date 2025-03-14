@@ -29,7 +29,7 @@ fn mbox_fsm_error() -> bool {
     mbox.regs().status().read().mbox_fsm_ps().mbox_error()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     let mut mbox = Mailbox::new(unsafe { MboxCsr::new() });
 

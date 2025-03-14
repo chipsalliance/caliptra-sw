@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_emu_types::{emu_enum, RvAddr, RvData, RvException};
+use caliptra_emu_types::{RvAddr, RvData, RvException, emu_enum};
 
 emu_enum!(
     /// RISCV general purpose registers

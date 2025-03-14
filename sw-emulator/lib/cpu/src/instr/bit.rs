@@ -115,11 +115,7 @@ impl<TBus: Bus> Cpu<TBus> {
             (RvInstr32OpImmFunct7::Orc, 5) if instr.funct5() == 0b0_0111 => {
                 let reg_bytes = reg.to_le_bytes();
                 Some(u32::from_le_bytes(core::array::from_fn(|i| {
-                    if reg_bytes[i] != 0 {
-                        0xff
-                    } else {
-                        0x00
-                    }
+                    if reg_bytes[i] != 0 { 0xff } else { 0x00 }
                 })))
             }
             // Single-Bit Invert Immediate, bseti

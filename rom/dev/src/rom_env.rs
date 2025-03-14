@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    PersistentDataAccessor, Sha1, Sha2_512_384, Sha2_512_384Acc, Sha256, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
@@ -79,30 +79,32 @@ pub struct RomEnv {
 
 impl RomEnv {
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )?;
+        unsafe {
+            let trng = Trng::new(
+                CsrngReg::new(),
+                EntropySrcReg::new(),
+                SocIfcTrngReg::new(),
+                &SocIfcReg::new(),
+            )?;
 
-        Ok(Self {
-            doe: DeobfuscationEngine::new(DoeReg::new()),
-            sha1: Sha1::default(),
-            sha256: Sha256::new(Sha256Reg::new()),
-            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
-            sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac: Hmac::new(HmacReg::new()),
-            ecc384: Ecc384::new(EccReg::new()),
-            lms: Lms::default(),
-            key_vault: KeyVault::new(KvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
-            mbox: Mailbox::new(MboxCsr::new()),
-            pcr_bank: PcrBank::new(PvReg::new()),
-            trng,
-            persistent_data: PersistentDataAccessor::new(),
-            mldsa87: Mldsa87::new(MldsaReg::new()),
-            dma: Dma::default(),
-        })
+            Ok(Self {
+                doe: DeobfuscationEngine::new(DoeReg::new()),
+                sha1: Sha1::default(),
+                sha256: Sha256::new(Sha256Reg::new()),
+                sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
+                sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+                hmac: Hmac::new(HmacReg::new()),
+                ecc384: Ecc384::new(EccReg::new()),
+                lms: Lms::default(),
+                key_vault: KeyVault::new(KvReg::new()),
+                soc_ifc: SocIfc::new(SocIfcReg::new()),
+                mbox: Mailbox::new(MboxCsr::new()),
+                pcr_bank: PcrBank::new(PvReg::new()),
+                trng,
+                persistent_data: PersistentDataAccessor::new(),
+                mldsa87: Mldsa87::new(MldsaReg::new()),
+                dma: Dma::default(),
+            })
+        }
     }
 }

@@ -3,10 +3,10 @@ Licensed under the Apache-2.0 license.
 --*/
 
 use crate::{
-    scope::{lookup_parameter_of_type, ParameterScope},
+    Bits, RdlError, Result,
+    scope::{ParameterScope, lookup_parameter_of_type},
     token::Token,
     token_iter::TokenIter,
-    Bits, RdlError, Result,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -407,7 +407,7 @@ impl PropertyType {
                     return Err(RdlError::UnexpectedPropertyType {
                         expected_type: PropertyType::Boolean,
                         value: self.parse_or_lookup(tokens, parameters)?,
-                    })
+                    });
                 }
             }
             let a = to_bit(self.parse_or_lookup(tokens, parameters)?, parameters)?;
@@ -422,7 +422,7 @@ impl PropertyType {
                     return Err(RdlError::UnexpectedPropertyType {
                         expected_type: PropertyType::Boolean,
                         value: self.parse_or_lookup(tokens, parameters)?,
-                    })
+                    });
                 }
             }
             let a = to_bool(self.parse_or_lookup(tokens, parameters)?, parameters)?;

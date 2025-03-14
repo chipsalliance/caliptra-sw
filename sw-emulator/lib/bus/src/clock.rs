@@ -78,7 +78,7 @@ impl Timer {
     /// None and the function will return true. Otherwise (or if action is None),
     /// the function will return false.
     pub fn fired(&self, action: &mut Option<ActionHandle>) -> bool {
-        let has_fired = if let Some(ref action) = action {
+        let has_fired = if let &mut Some(ref action) = action {
             debug_assert_eq!(
                 action.0.id.timer_ptr,
                 Rc::as_ptr(&self.clock),

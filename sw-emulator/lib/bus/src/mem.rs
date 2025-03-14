@@ -307,7 +307,7 @@ impl Mem {
     fn write_half_word(&mut self, addr: usize, data: RvData) -> Result<(), MemError> {
         if addr < self.data.len() && addr + 1 < self.data.len() {
             self.data[addr] = (data & 0xff) as u8;
-            self.data[addr + 1] = (data >> 8 & 0xff) as u8;
+            self.data[addr + 1] = ((data >> 8) & 0xff) as u8;
             Ok(())
         } else {
             Err(MemError::WriteAccessFault)
@@ -328,9 +328,9 @@ impl Mem {
     fn write_word(&mut self, addr: usize, data: RvData) -> Result<(), MemError> {
         if addr < self.data.len() && addr + 3 < self.data.len() {
             self.data[addr] = (data & 0xff) as u8;
-            self.data[addr + 1] = (data >> 8 & 0xff) as u8;
-            self.data[addr + 2] = (data >> 16 & 0xff) as u8;
-            self.data[addr + 3] = (data >> 24 & 0xff) as u8;
+            self.data[addr + 1] = ((data >> 8) & 0xff) as u8;
+            self.data[addr + 2] = ((data >> 16) & 0xff) as u8;
+            self.data[addr + 3] = ((data >> 24) & 0xff) as u8;
             Ok(())
         } else {
             Err(MemError::WriteAccessFault)

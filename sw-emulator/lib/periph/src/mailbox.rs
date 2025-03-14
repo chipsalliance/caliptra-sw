@@ -19,7 +19,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{cell::RefCell, rc::Rc};
 use tock_registers::interfaces::Writeable;
-use tock_registers::{register_bitfields, LocalRegisterCopy};
+use tock_registers::{LocalRegisterCopy, register_bitfields};
 
 /// Maximum mailbox capacity.
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 256 << 10;

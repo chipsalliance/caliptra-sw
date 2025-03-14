@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use crate::helpers;
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{ImageOptions, firmware};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 
 #[test]

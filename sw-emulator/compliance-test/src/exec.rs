@@ -105,9 +105,10 @@ mod tests {
         assert!(result.is_err());
         let err = result.err().unwrap();
         assert_eq!(err.kind(), ErrorKind::NotFound);
-        assert!(err
-            .to_string()
-            .contains("while running command [\"/tmp/pvoruxpa5dbnjv5sj5t15omn\"]"));
+        assert!(
+            err.to_string()
+                .contains("while running command [\"/tmp/pvoruxpa5dbnjv5sj5t15omn\"]")
+        );
     }
 
     #[cfg(target_family = "unix")]

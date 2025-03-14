@@ -32,8 +32,8 @@ pub use kats_env::KatsEnv;
 pub use lms_kat::LmsKat;
 pub use mldsa87_kat::Mldsa87Kat;
 pub use sha1_kat::Sha1Kat;
-pub use sha256_kat::Sha256Kat;
 pub use sha2_512_384acc_kat::Sha2_512_384AccKat;
+pub use sha256_kat::Sha256Kat;
 pub use sha384_kat::Sha384Kat;
 pub use sha512_kat::Sha512Kat;
 

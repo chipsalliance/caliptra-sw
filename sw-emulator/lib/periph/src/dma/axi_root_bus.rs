@@ -12,9 +12,9 @@ Abstract:
 
 --*/
 
+use crate::SocRegistersInternal;
 use crate::dma::otp_fc::FuseController;
 use crate::dma::recovery::RecoveryRegisterInterface;
-use crate::SocRegistersInternal;
 use caliptra_emu_bus::{
     Bus,
     BusError::{self, LoadAccessFault, StoreAccessFault},

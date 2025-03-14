@@ -56,15 +56,17 @@ impl FipsTestHook {
     /// This function interrupts normal flow and halts operation of the ROM or FW
     /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
     pub unsafe fn halt_if_hook_set(hook_cmd: u8) {
-        if get_fips_test_hook_code() == hook_cmd {
-            // Report that we've reached this point
-            set_fips_test_hook_code(FipsTestHook::COMPLETE);
+        unsafe {
+            if get_fips_test_hook_code() == hook_cmd {
+                // Report that we've reached this point
+                set_fips_test_hook_code(FipsTestHook::COMPLETE);
 
-            // Wait for the CONTINUE command
-            while get_fips_test_hook_code() != FipsTestHook::CONTINUE {}
+                // Wait for the CONTINUE command
+                while get_fips_test_hook_code() != FipsTestHook::CONTINUE {}
 
-            // Write COMPLETE
-            set_fips_test_hook_code(FipsTestHook::COMPLETE);
+                // Write COMPLETE
+                set_fips_test_hook_code(FipsTestHook::COMPLETE);
+            }
         }
     }
 
@@ -73,19 +75,21 @@ impl FipsTestHook {
     /// This function returns an intentionally corrupted version of the data provided
     /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
     pub unsafe fn corrupt_data_if_hook_set<T: core::marker::Copy>(hook_cmd: u8, data: &T) -> T {
-        if get_fips_test_hook_code() == hook_cmd {
-            let mut mut_data = *data;
-            let ptr_t = &mut mut_data as *mut T;
-            let mut_u8 = ptr_t as *mut u8;
-            let byte_0 = unsafe { &mut *mut_u8 };
+        unsafe {
+            if get_fips_test_hook_code() == hook_cmd {
+                let mut mut_data = *data;
+                let ptr_t = &mut mut_data as *mut T;
+                let mut_u8 = ptr_t as *mut u8;
+                let byte_0 = &mut *mut_u8;
 
-            // Corrupt (invert) the first byte
-            *byte_0 = !*byte_0;
+                // Corrupt (invert) the first byte
+                *byte_0 = !*byte_0;
 
-            return mut_data;
+                return mut_data;
+            }
+
+            *data
         }
-
-        *data
     }
 
     /// # Safety
@@ -93,8 +97,10 @@ impl FipsTestHook {
     /// This function enables a different test hook to allow for basic state machines
     /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
     pub unsafe fn update_hook_cmd_if_hook_set(hook_cmd: u8, new_hook_cmd: u8) {
-        if get_fips_test_hook_code() == hook_cmd {
-            set_fips_test_hook_code(new_hook_cmd);
+        unsafe {
+            if get_fips_test_hook_code() == hook_cmd {
+                set_fips_test_hook_code(new_hook_cmd);
+            }
         }
     }
 
@@ -102,7 +108,7 @@ impl FipsTestHook {
     ///
     /// This function calls other unsafe functions to check the test hook code
     pub unsafe fn hook_cmd_is_set(hook_cmd: u8) -> bool {
-        get_fips_test_hook_code() == hook_cmd
+        unsafe { get_fips_test_hook_code() == hook_cmd }
     }
 
     /// # Safety
@@ -110,10 +116,12 @@ impl FipsTestHook {
     /// This function checks the current hook code and returns the
     /// FIPS_HOOKS_INJECTED_ERROR if enabled
     pub unsafe fn error_if_hook_set(hook_cmd: u8) -> CaliptraResult<()> {
-        if get_fips_test_hook_code() == hook_cmd {
-            Err(caliptra_error::CaliptraError::FIPS_HOOKS_INJECTED_ERROR)
-        } else {
-            Ok(())
+        unsafe {
+            if get_fips_test_hook_code() == hook_cmd {
+                Err(caliptra_error::CaliptraError::FIPS_HOOKS_INJECTED_ERROR)
+            } else {
+                Ok(())
+            }
         }
     }
 }

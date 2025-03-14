@@ -5,11 +5,13 @@ use std::cell::Cell;
 use crate::rv32_builder::Rv32Builder;
 
 unsafe fn transmute_to_u32<T>(src: &T) -> u32 {
-    match std::mem::size_of::<T>() {
-        1 => std::mem::transmute_copy::<T, u8>(src).into(),
-        2 => std::mem::transmute_copy::<T, u16>(src).into(),
-        4 => std::mem::transmute_copy::<T, u32>(src),
-        _ => panic!("Unsupported write size"),
+    unsafe {
+        match std::mem::size_of::<T>() {
+            1 => std::mem::transmute_copy::<T, u8>(src).into(),
+            2 => std::mem::transmute_copy::<T, u16>(src).into(),
+            4 => std::mem::transmute_copy::<T, u32>(src),
+            _ => panic!("Unsupported write size"),
+        }
     }
 }
 
@@ -44,11 +46,13 @@ impl ureg::MmioMut for Rv32GenMmio {
     /// As the pointer isn't written to, this Mmio implementation isn't actually
     /// unsafe for POD types like u8/u16/u32.
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
-        self.builder.set(
-            self.builder
-                .take()
-                .store(dst as u32, transmute_to_u32(&src)),
-        );
+        unsafe {
+            self.builder.set(
+                self.builder
+                    .take()
+                    .store(dst as u32, transmute_to_u32(&src)),
+            );
+        }
     }
 }
 

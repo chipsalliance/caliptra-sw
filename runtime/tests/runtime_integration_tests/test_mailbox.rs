@@ -5,7 +5,7 @@ use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
 use zerocopy::IntoBytes;
 
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, assert_error, run_rt_test};
 
 /// When a successful command runs after a failed command, ensure the error
 /// register is cleared.

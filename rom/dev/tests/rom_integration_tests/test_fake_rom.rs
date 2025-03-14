@@ -2,13 +2,13 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{
-        rom_tests::{FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART},
-        APP_WITH_UART, ROM_FAKE_WITH_UART,
-    },
     ImageOptions,
+    firmware::{
+        APP_WITH_UART, ROM_FAKE_WITH_UART,
+        rom_tests::{FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART},
+    },
 };
-use caliptra_common::{mailbox_api::CommandId, RomBootStatus::*};
+use caliptra_common::{RomBootStatus::*, mailbox_api::CommandId};
 use caliptra_drivers::{Array4x12, CaliptraError};
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,

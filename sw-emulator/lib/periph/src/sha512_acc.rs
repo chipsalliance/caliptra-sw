@@ -636,7 +636,7 @@ impl StateMachineContext for Context {
 
 #[cfg(test)]
 mod tests {
-    use crate::{sha512_acc::*, MailboxRam};
+    use crate::{MailboxRam, sha512_acc::*};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;

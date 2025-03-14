@@ -175,8 +175,8 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test_rr_op, test_rr_src12_eq_dest, test_rr_src1_eq_dest, test_rr_src2_eq_dest,
-        test_rr_zerodest, test_rr_zerosrc1, test_rr_zerosrc12, test_rr_zerosrc2,
+        test_rr_op, test_rr_src1_eq_dest, test_rr_src2_eq_dest, test_rr_src12_eq_dest,
+        test_rr_zerodest, test_rr_zerosrc1, test_rr_zerosrc2, test_rr_zerosrc12,
     };
 
     // ---------------------------------------------------------------------------------------------

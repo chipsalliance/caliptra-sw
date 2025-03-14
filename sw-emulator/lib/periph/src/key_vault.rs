@@ -18,7 +18,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
 use std::rc::Rc;
-use tock_registers::{register_bitfields, LocalRegisterCopy};
+use tock_registers::{LocalRegisterCopy, register_bitfields};
 
 pub mod constants {
     #![allow(unused)]
@@ -927,9 +927,11 @@ mod tests {
                 Some(())
             );
 
-            assert!(vault
-                .write_key(key_id, expected, u32::from(key_usage))
-                .is_ok());
+            assert!(
+                vault
+                    .write_key(key_id, expected, u32::from(key_usage))
+                    .is_ok()
+            );
 
             // Block read access to the key.
             val_reg.write(KV_CONTROL::USE_LOCK.val(1));

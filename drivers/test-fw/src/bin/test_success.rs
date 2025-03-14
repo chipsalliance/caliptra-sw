@@ -11,7 +11,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn main() {
     let mut soc_ifc = unsafe { caliptra_registers::soc_ifc::SocIfcReg::new() };
     soc_ifc

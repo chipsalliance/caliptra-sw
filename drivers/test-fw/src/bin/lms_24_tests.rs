@@ -15,11 +15,11 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256};
+use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256, get_lms_parameters};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
-    bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
-    LmsPublicKey, LmsSignature,
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsPublicKey,
+    LmsSignature, bytes_to_words_6,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;

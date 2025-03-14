@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{set_auth_manifest::AuthManifestSource, Drivers, SetAuthManifestCmd};
+use crate::{Drivers, SetAuthManifestCmd, set_auth_manifest::AuthManifestSource};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_drivers::DmaRecovery;
 use caliptra_kat::{CaliptraError, CaliptraResult};

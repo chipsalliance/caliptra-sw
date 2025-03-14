@@ -2,8 +2,8 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{APP_ZEROS, FMC_ZEROS},
     ImageOptions,
+    firmware::{APP_ZEROS, FMC_ZEROS},
 };
 use caliptra_drivers::memory_layout::ICCM_ORG;
 use caliptra_error::CaliptraError;

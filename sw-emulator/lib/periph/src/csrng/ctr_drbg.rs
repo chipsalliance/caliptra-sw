@@ -118,9 +118,9 @@ fn block_increment(block: &mut Block) {
 }
 
 fn block_encrypt(key: &Key, block: &Block) -> Block {
+    use aes::Aes256Enc;
     use aes::cipher::generic_array::GenericArray;
     use aes::cipher::{BlockEncrypt, KeyInit};
-    use aes::Aes256Enc;
 
     let cipher = Aes256Enc::new_from_slice(key).expect("construct AES-256");
     let mut output_block = GenericArray::clone_from_slice(block);
