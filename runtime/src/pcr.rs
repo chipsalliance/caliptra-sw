@@ -52,7 +52,13 @@ impl GetPcrQuoteCmd {
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
-        let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+
+        // Ecc384 signature
+        let ecc_signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+
+        // Mldsa signature
+        let mldsa_signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
         let mut pcrs = [[0u8; 48]; 32];
@@ -66,8 +72,9 @@ impl GetPcrQuoteCmd {
             pcrs,
             reset_ctrs: drivers.persistent_data.get().pcr_reset.all_counters(),
             digest: pcr_hash.into(),
-            signature_r: signature.r.into(),
-            signature_s: signature.s.into(),
+            ecc_signature_r: ecc_signature.r.into(),
+            ecc_signature_s: ecc_signature.s.into(),
+            mldsa_signature: mldsa_signature.into(),
         }))
     }
 }

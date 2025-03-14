@@ -59,15 +59,15 @@ fn test_pcr_quote() {
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
     let digest: [u8; 48] = res.as_bytes().try_into().unwrap();
-    assert_eq!(resp.digest, digest);
+    assert_eq!(resp.digest[0..48], digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
     // See if incrementing the reset counter worked
     assert_eq!(pcr7_reset_counter, 1);
 
     // verify signature
-    let big_r = BigNum::from_slice(&resp.signature_r).unwrap();
-    let big_s = BigNum::from_slice(&resp.signature_s).unwrap();
+    let big_r = BigNum::from_slice(&resp.ecc_signature_r).unwrap();
+    let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
     let fmc_resp = get_fmc_alias_cert(&mut model);
