@@ -9,10 +9,10 @@ use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
 use crypto::MAX_EXPORTED_CDI_SIZE;
 use dpe::{
+    DPE_PROFILE,
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     response::Response,
-    DPE_PROFILE,
 };
 use openssl::{
     bn::BigNum,
@@ -23,7 +23,7 @@ use openssl::{
 };
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST};
+use crate::common::{DpeResult, RuntimeTestArgs, TEST_DIGEST, execute_dpe_cmd, run_rt_test};
 
 #[test]
 fn test_sign_with_exported_cdi() {

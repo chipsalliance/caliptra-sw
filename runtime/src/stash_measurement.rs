@@ -12,12 +12,12 @@ Abstract:
 
 --*/
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges};
+use crate::{CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges, dpe_crypto::DpeCrypto};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
+use caliptra_drivers::{CaliptraError, CaliptraResult, pcr_log::PCR_ID_STASH_MEASUREMENT};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,

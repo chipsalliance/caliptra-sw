@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, assert_error, run_rt_test};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, LmsVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,

@@ -15,11 +15,11 @@ Abstract:
 use core::mem::size_of;
 use core::slice;
 
-use caliptra_drivers::{memory_layout, CaliptraResult};
+use caliptra_drivers::{CaliptraResult, memory_layout};
 use caliptra_error::CaliptraError;
 use caliptra_registers::mbox::{
-    enums::{MboxFsmE, MboxStatusE},
     MboxCsr,
+    enums::{MboxFsmE, MboxStatusE},
 };
 use zerocopy::{FromBytes, IntoBytes, Unalign};
 

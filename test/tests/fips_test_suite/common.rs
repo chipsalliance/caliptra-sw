@@ -2,7 +2,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::{version, ImageOptions};
+use caliptra_builder::{ImageOptions, version};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
@@ -135,7 +135,9 @@ pub fn fips_test_init_model(init_params: Option<InitParams>) -> DefaultHwModel {
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]
     if init_params.rom != <&[u8]>::default() {
-        panic!("FIPS_TEST_SUITE ERROR: ROM cannot be provided/changed when immutable_ROM feature is set")
+        panic!(
+            "FIPS_TEST_SUITE ERROR: ROM cannot be provided/changed when immutable_ROM feature is set"
+        )
     }
 
     // If rom was not provided, build it or get it from the specified path

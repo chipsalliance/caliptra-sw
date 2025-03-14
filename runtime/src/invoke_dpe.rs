@@ -17,10 +17,10 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
+    DpeInstance, MAX_HANDLES, U8Bool,
     commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
     context::ContextState,
     response::{Response, ResponseHdr},
-    DpeInstance, U8Bool, MAX_HANDLES,
 };
 use zerocopy::IntoBytes;
 

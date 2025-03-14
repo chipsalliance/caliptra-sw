@@ -17,8 +17,8 @@ File contains test cases for LMS signature verification using SHA256/192.
 
 use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
-    bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
-    LmsPublicKey, LmsSignature,
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsPublicKey,
+    LmsSignature, bytes_to_words_6,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;

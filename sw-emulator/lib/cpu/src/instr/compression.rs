@@ -27,7 +27,7 @@ const OP_MASK_7: u16 = 0xec03;
 const OP_MASK_9: u16 = 0xfc63;
 
 macro_rules! static_assert {
-    ($expression:expr) => {
+    ($expression:expr_2021) => {
         const _: () = assert!($expression);
     };
 }
@@ -353,7 +353,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
 mod rv16 {
 
     use crate::xreg_file::XReg;
-    use bitfield::{bitfield, BitRangeMut};
+    use bitfield::{BitRangeMut, bitfield};
 
     fn bit_range(val: u16, msb: usize, lsb: usize) -> u16 {
         bitfield::BitRange::bit_range(&val, msb, lsb)

@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
-use caliptra_api::mailbox::{
-    CmImportReq, CmImportResp, CmKeyUsage, CmStatusResp, MailboxReq, CMK_SIZE_BYTES,
-};
+use crate::common::{RuntimeTestArgs, assert_error, run_rt_test};
 use caliptra_api::SocManager;
+use caliptra_api::mailbox::{
+    CMK_SIZE_BYTES, CmImportReq, CmImportResp, CmKeyUsage, CmStatusResp, MailboxReq,
+};
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;

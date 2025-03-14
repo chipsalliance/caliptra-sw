@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_common::mailbox_api::{CommandId, FwInfoResp, MailboxReqHeader, MailboxRespHeader};
 use caliptra_hw_model::HwModel;
@@ -22,8 +22,8 @@ use openssl::{
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
-    TEST_LABEL,
+    DpeResult, RuntimeTestArgs, TEST_DIGEST, TEST_LABEL, execute_dpe_cmd, get_rt_alias_cert,
+    run_rt_test,
 };
 
 #[test]
@@ -167,7 +167,9 @@ fn test_attestation_disabled_flag_after_update_reset() {
     let dpe_leaf_cert: X509 =
         X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
 
-    assert!(!dpe_leaf_cert
-        .verify(&rt_cert.public_key().unwrap())
-        .unwrap());
+    assert!(
+        !dpe_leaf_cert
+            .verify(&rt_cert.public_key().unwrap())
+            .unwrap()
+    );
 }

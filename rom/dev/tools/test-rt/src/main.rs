@@ -34,14 +34,14 @@ const BANNER: &str = r#"
                |_|
 "#;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rt_entry() -> ! {
     cprintln!("{}", BANNER);
 
     caliptra_drivers::ExitCtrl::exit(0)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
@@ -57,7 +57,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {

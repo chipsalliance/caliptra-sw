@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::exec::exec;
 use crate::fs::{self, TempDir, TempFile};
-use crate::{into_io_error, TestInfo};
+use crate::{TestInfo, into_io_error};
 use std::path::PathBuf;
 use std::process::Command;
 

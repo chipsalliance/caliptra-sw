@@ -2,11 +2,11 @@
 
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{
-    execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
-    run_rt_test_pqc, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    DpeResult, RuntimeTestArgs, TEST_LABEL, execute_dpe_cmd, generate_test_x509_cert,
+    get_fmc_alias_cert, get_rt_alias_cert, run_rt_test, run_rt_test_pqc,
 };
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, GetLdevCertResp,
     GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
@@ -28,7 +28,7 @@ use openssl::{
     pkey::PKey,
     stack::Stack,
     x509::{
-        store::X509StoreBuilder, verify::X509VerifyFlags, X509StoreContext, X509VerifyResult, X509,
+        X509, X509StoreContext, X509VerifyResult, store::X509StoreBuilder, verify::X509VerifyFlags,
     },
 };
 use zerocopy::{FromBytes, IntoBytes};
@@ -204,9 +204,11 @@ fn test_ldev_cert() {
     let idev_y = &BigNum::from_slice(&idev_resp.idev_pub_y).unwrap();
 
     let idev_ec_key = EcKey::from_public_key_affine_coordinates(&group, idev_x, idev_y).unwrap();
-    assert!(ldev_cert
-        .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
-        .unwrap());
+    assert!(
+        ldev_cert
+            .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
+            .unwrap()
+    );
 }
 
 #[test]
@@ -276,9 +278,11 @@ fn test_dpe_leaf_cert() {
         X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
 
     // Check that DPE Leaf Cert is signed by RT alias pub key and that subject/issuer names match
-    assert!(dpe_leaf_cert
-        .verify(&rt_cert.public_key().unwrap())
-        .unwrap());
+    assert!(
+        dpe_leaf_cert
+            .verify(&rt_cert.public_key().unwrap())
+            .unwrap()
+    );
     assert_eq!(
         dpe_leaf_cert
             .issuer_name()

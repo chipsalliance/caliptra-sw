@@ -14,14 +14,14 @@ Abstract:
 
 mod config;
 
-use anyhow::anyhow;
 use anyhow::Context;
-use caliptra_image_crypto::lms_priv_key_from_pem;
-use caliptra_image_crypto::lms_pub_key_from_pem;
+use anyhow::anyhow;
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
 use caliptra_image_crypto::RustCrypto as Crypto;
+use caliptra_image_crypto::lms_priv_key_from_pem;
+use caliptra_image_crypto::lms_pub_key_from_pem;
 use caliptra_image_gen::*;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
@@ -198,8 +198,8 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         fw_svn: *fw_svn,
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
-    let image = gen.generate(&gen_config).unwrap();
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let image = r#gen.generate(&gen_config).unwrap();
 
     if print_hashes {
         let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);

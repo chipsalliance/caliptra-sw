@@ -17,8 +17,8 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    hmac_kdf, Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac,
-    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    Array4x12, Array4x16, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
+    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng, hmac_kdf,
 };
 use caliptra_kat::{Hmac384KdfKat, Hmac512KdfKat};
 use caliptra_registers::csrng::CsrngReg;
@@ -762,9 +762,11 @@ fn test_kat_384() {
     let mut entropy_gen = || trng.generate4();
     CfiCounter::reset(&mut entropy_gen);
 
-    assert!(Hmac384KdfKat::default()
-        .execute(&mut hmac384, &mut trng)
-        .is_ok());
+    assert!(
+        Hmac384KdfKat::default()
+            .execute(&mut hmac384, &mut trng)
+            .is_ok()
+    );
 }
 
 fn test_kat_512() {
@@ -779,9 +781,11 @@ fn test_kat_512() {
         .unwrap()
     };
 
-    assert!(Hmac512KdfKat::default()
-        .execute(&mut hmac, &mut trng)
-        .is_ok());
+    assert!(
+        Hmac512KdfKat::default()
+            .execute(&mut hmac, &mut trng)
+            .is_ok()
+    );
 }
 
 fn test_hmac0_512() {

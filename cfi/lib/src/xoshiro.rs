@@ -19,7 +19,7 @@ use core::cell::Cell;
 
 use caliptra_error::CaliptraResult;
 
-use crate::{cfi_panic, CfiPanicInfo};
+use crate::{CfiPanicInfo, cfi_panic};
 
 /// Provides an implementation of the xoshiro128** algorithm. This implementation is used
 /// on 32-bit when no seed is specified and an instance of the base Random class is constructed.

@@ -176,7 +176,7 @@ pub struct CsrFile {
 
 /// Initalise a CSR read/write function in the CSR table
 macro_rules! csr_fn {
-    ($csrs:ident, $index:expr, $read_fn:path, $write_fn:path) => {
+    ($csrs:ident, $index:expr_2021, $read_fn:path, $write_fn:path) => {
         // Because this is used in a constant expression, and write_fn is considered mutable,
         // a constructor can't be const. Therefore, we do it manually.
         $csrs[($index) as usize] = CsrFn {
@@ -203,7 +203,7 @@ macro_rules! csr_fn_block {
 
 /// Initalise the default value and mask of a CSR
 macro_rules! csr_val {
-    ($csrs:ident, $index:expr, $default_val:literal, $mask:literal) => {
+    ($csrs:ident, $index:expr_2021, $default_val:literal, $mask:literal) => {
         $csrs[($index) as usize] = Csr::new($default_val, $mask);
     };
 }

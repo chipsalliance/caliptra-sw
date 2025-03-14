@@ -17,23 +17,23 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use crate::cprintln;
 use crate::crypto::Crypto;
-use crate::flow::cold_reset::{copy_tbs, TbsType};
+use crate::flow::cold_reset::{TbsType, copy_tbs};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
+use caliptra_common::RomBootStatus::*;
 use caliptra_common::cfi_check;
 use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
 };
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
-use caliptra_common::RomBootStatus::*;
 use caliptra_common::{dice, x509};
 use caliptra_drivers::{
-    okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
-    HmacMode, KeyId, Lifecycle,
+    Array4x12, CaliptraResult, HmacMode, KeyId, Lifecycle, okmutref, report_boot_status,
+    sha2_512_384::Sha2DigestOpTrait,
 };
 use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
@@ -256,9 +256,8 @@ impl FmcAliasLayer {
 
         // Clear the authority private key
         cprintln!("[afmc] ECC Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
-        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+        env.key_vault.erase_key(auth_priv_key).inspect_err(|_| {
             sig.zeroize();
-            err
         })?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
@@ -360,9 +359,8 @@ impl FmcAliasLayer {
             "[afmc] MLDSA Erase AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+        env.key_vault.erase_key(auth_priv_key).inspect_err(|_| {
             sig.zeroize();
-            err
         })?;
 
         // Set the FMC Certificate Signature in data vault.

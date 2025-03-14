@@ -15,16 +15,16 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
-use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{CfiCounter, cfi_assert_eq};
 use caliptra_common::{
     cprintln, handle_fatal_error,
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY},
 };
-use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_cpu::{TrapRecord, log_trap_record};
 
 use caliptra_drivers::{
-    hand_off::{DataStore, HandOffDataHandle},
     ResetReason,
+    hand_off::{DataStore, HandOffDataHandle},
 };
 
 mod boot_status;
@@ -53,7 +53,7 @@ fn fix_fht(env: &mut fmc_env::FmcEnv) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
@@ -94,7 +94,7 @@ pub extern "C" fn entry_point() -> ! {
     caliptra_drivers::ExitCtrl::exit(0xff)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
@@ -109,7 +109,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     handle_fatal_error(CaliptraError::FMC_GLOBAL_EXCEPTION.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
@@ -143,7 +143,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     handle_fatal_error(error.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     cprintln!("[FMC] CFI Panic code=0x{:08X}", code);
 
@@ -160,7 +160,7 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     handle_fatal_error(CaliptraError::FMC_GLOBAL_PANIC.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 fn panic_is_possible() {
     black_box(());

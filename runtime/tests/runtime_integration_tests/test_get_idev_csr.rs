@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::{get_ci_rom_version, CiRomVersion};
+use caliptra_builder::{CiRomVersion, get_ci_rom_version};
 use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
 use caliptra_drivers::{Ecc384IdevIdCsr, MfgFlags};
 use caliptra_error::CaliptraError;
@@ -10,7 +10,7 @@ use caliptra_runtime::RtBootStatus;
 use openssl::x509::X509Req;
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 
 #[test]
 fn test_get_ecc_csr() {

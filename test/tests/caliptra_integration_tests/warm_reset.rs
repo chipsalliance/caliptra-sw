@@ -3,11 +3,11 @@
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState, mbox_write_fifo};
 use caliptra_test::image_pk_desc_hash;
 
 #[test]

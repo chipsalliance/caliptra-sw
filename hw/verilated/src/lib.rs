@@ -116,7 +116,7 @@ impl CaliptraVerilated {
     pub fn init_random_puf_state(&mut self, rng: &mut impl Rng) {
         // Randomize all of ICCM and DCCM
         for addr in 0..8192 {
-            self.iccm_dccm_write(addr, rng.gen::<[u32; 5]>());
+            self.iccm_dccm_write(addr, rng.r#gen::<[u32; 5]>());
         }
     }
 

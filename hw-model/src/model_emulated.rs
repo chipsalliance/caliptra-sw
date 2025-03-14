@@ -26,14 +26,14 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
 
-use crate::bus_logger::BusLogger;
-use crate::bus_logger::LogFile;
-use crate::trace_path_or_env;
 use crate::HwModel;
 use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
+use crate::bus_logger::BusLogger;
+use crate::bus_logger::LogFile;
+use crate::trace_path_or_env;
 use caliptra_emu_bus::{Bus, BusMmio};
 
 use caliptra_api::soc_mgr::SocManager;

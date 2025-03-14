@@ -3,10 +3,10 @@
 use crate::common::get_certs;
 use caliptra_api::mailbox::GetFmcAliasCsrReq;
 use caliptra_common::mailbox_api::GetRtAliasCertReq;
-use caliptra_drivers::{FmcAliasCsr, ECC384_MAX_CSR_SIZE};
+use caliptra_drivers::{ECC384_MAX_CSR_SIZE, FmcAliasCsr};
 use caliptra_hw_model::DefaultHwModel;
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 
 #[test]
 fn test_get_fmc_alias_csr() {

@@ -6,11 +6,11 @@
 use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
 
-use caliptra_drivers::{cprintln, CaliptraError, CaliptraResult};
+use caliptra_drivers::{CaliptraError, CaliptraResult, cprintln};
 use caliptra_drivers::{PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
-use caliptra_runtime::{mailbox::Mailbox, Drivers, RtBootStatus};
+use caliptra_runtime::{Drivers, RtBootStatus, mailbox::Mailbox};
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::IntoBytes;
 
@@ -23,7 +23,7 @@ pub const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
 pub const TEST_CMD_READ_PCRS: u32 = 0x1000_0002;
 pub const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::empty_loop)]
 fn rt_entry() {
     cprintln!("{}", BANNER);

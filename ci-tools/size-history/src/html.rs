@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tinytemplate::TinyTemplate;
 
-use crate::{git, SizeRecord, Sizes};
+use crate::{SizeRecord, Sizes, git};
 
 // The GitHub "HTML sanitizer" is incredibly sensitive to whitespace; do not attempt to break newlines.
 static TEMPLATE: &str = r#"

@@ -12,9 +12,9 @@ Abstract:
 
 --*/
 
+use crate::KeyVault;
 use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
-use crate::KeyVault;
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,

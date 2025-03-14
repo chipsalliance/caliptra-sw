@@ -4,11 +4,11 @@ use std::mem::size_of;
 
 pub use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{
-        runtime_tests::{MBOX, MBOX_WITHOUT_UART},
-        APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
-    },
     FwId, ImageOptions,
+    firmware::{
+        APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
+        runtime_tests::{MBOX, MBOX_WITHOUT_UART},
+    },
 };
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
@@ -19,17 +19,17 @@ use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use caliptra_runtime::{ContextState, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, RtBootStatus};
 use dpe::{
+    DPE_PROFILE, DpeInstance, MAX_HANDLES, U8Bool,
     context::{Context, ContextHandle, ContextType},
     response::DpeErrorCode,
     tci::TciMeasurement,
     validation::ValidationError,
-    DpeInstance, U8Bool, DPE_PROFILE, MAX_HANDLES,
 };
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 
 pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)

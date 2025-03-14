@@ -27,11 +27,8 @@ pub struct ReadWriteRegisterArray<
     associated_register: PhantomData<R>,
 }
 
-impl<
-        T: UIntLike + Into<RvData> + TryFrom<RvData>,
-        const SIZE: usize,
-        R: Copy + RegisterLongName,
-    > ReadWriteRegisterArray<T, SIZE, R>
+impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Copy + RegisterLongName>
+    ReadWriteRegisterArray<T, SIZE, R>
 {
     pub fn new(default_value: T) -> Self {
         Self {

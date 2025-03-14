@@ -17,7 +17,7 @@ Abstract:
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{CfiCounter, cfi_assert_eq};
 use caliptra_common::RomBootStatus;
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_kat::*;
@@ -26,9 +26,9 @@ use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
-    Ecc384, Hmac, KeyVault, Mailbox, ResetReason, Sha256, Sha2_512_384, Sha2_512_384Acc,
-    ShaAccLockState, SocIfc, Trng,
+    CaliptraError, Ecc384, Hmac, KeyVault, Mailbox, ResetReason, Sha2_512_384, Sha2_512_384Acc,
+    Sha256, ShaAccLockState, SocIfc, Trng, cprintln, report_boot_status, report_fw_error_fatal,
+    report_fw_error_non_fatal,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -62,11 +62,11 @@ const BANNER: &str = r#"
 Running Caliptra ROM ...
 "#;
 
-extern "C" {
+unsafe extern "C" {
     static CALIPTRA_ROM_INFO: RomInfo;
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
@@ -265,7 +265,7 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
 
 fn launch_fmc(env: &mut RomEnv) -> ! {
     // Function is defined in start.S
-    extern "C" {
+    unsafe extern "C" {
         fn exit_rom(entry: u32) -> !;
     }
 
@@ -278,7 +278,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     unsafe { exit_rom(entry) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
@@ -302,7 +302,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
@@ -363,7 +363,7 @@ fn handle_non_fatal_error(code: u32) {
     report_fw_error_non_fatal(code);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     cprintln!("[ROM] CFI Panic code=0x{:08X}", code);
 
@@ -413,7 +413,7 @@ fn handle_fatal_error(code: u32) -> ! {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 fn panic_is_possible() {
     black_box(());

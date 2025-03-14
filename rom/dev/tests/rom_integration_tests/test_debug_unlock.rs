@@ -2,11 +2,11 @@
 
 use std::mem::size_of;
 
+use caliptra_api::SocManager;
 use caliptra_api::mailbox::{
     CommandId, MailboxReqHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
-use caliptra_api::SocManager;
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
@@ -14,7 +14,7 @@ use caliptra_hw_model::{
 };
 use fips204::traits::{SerDes, Signer};
 use p384::ecdsa::VerifyingKey;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use sha2::Digest;
 use zerocopy::{FromBytes, IntoBytes};
 

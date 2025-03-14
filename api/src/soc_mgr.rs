@@ -1,12 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{
-    calc_checksum,
+    CaliptraApiError, calc_checksum,
     mailbox::{
-        mbox_read_response, mbox_write_fifo, MailboxReqHeader, MailboxRespHeader, Request,
-        Response, StashMeasurementReq,
+        MailboxReqHeader, MailboxRespHeader, Request, Response, StashMeasurementReq,
+        mbox_read_response, mbox_write_fifo,
     },
-    CaliptraApiError,
 };
 use caliptra_api_types::Fuses;
 use core::mem;

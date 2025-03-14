@@ -1,9 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    elf_symbols,
+    Symbol, elf_symbols,
     firmware::{ROM, ROM_WITH_UART},
-    Symbol,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_emu_cpu::CoverageBitmaps;
@@ -34,7 +33,9 @@ fn assert_symbol_not_called(hw: &caliptra_hw_model::ModelEmulated, symbol: &Symb
     let CoverageBitmaps { rom, iccm: _iccm } = hw.code_coverage_bitmap();
     assert!(
         !rom[symbol.value as usize],
-        "{}() was called before the boot status changed to KatStarted. This is a CFI risk, as glitching a function like that could lead to an out-of-bounds write", symbol.name);
+        "{}() was called before the boot status changed to KatStarted. This is a CFI risk, as glitching a function like that could lead to an out-of-bounds write",
+        symbol.name
+    );
 }
 
 #[test]

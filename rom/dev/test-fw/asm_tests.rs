@@ -12,10 +12,10 @@ core::arch::global_asm!(include_str!("../src/start.S"));
 #[path = "../src/exception.rs"]
 mod exception;
 
-use caliptra_drivers::cprintln;
 use caliptra_drivers::ExitCtrl;
+use caliptra_drivers::cprintln;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
@@ -28,7 +28,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     ExitCtrl::exit(1);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
@@ -52,23 +52,25 @@ fn handle_panic(pi: &core::panic::PanicInfo) -> ! {
 }
 
 unsafe fn is_zeroed(mut ptr: *const u32, mut size: usize) -> bool {
-    while size > 0 {
-        if ptr.read_volatile() != 0 {
-            cprintln!("Non-zero word found at 0x{:x}" ptr as usize);
-            return false;
+    unsafe {
+        while size > 0 {
+            if ptr.read_volatile() != 0 {
+                cprintln!("Non-zero word found at 0x{:x}" ptr as usize);
+                return false;
+            }
+            size -= 4;
+            ptr = ptr.offset(1);
         }
-        size -= 4;
-        ptr = ptr.offset(1);
+        true
     }
-    true
 }
 
-extern "C" {
+unsafe extern "C" {
     fn _zero_mem256(dest: *mut u32, len: usize);
     fn _copy_mem32(dest: *mut u32, src: *const u32, len: usize);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rom_entry() -> ! {
     const SIZEOF_U32: usize = core::mem::size_of::<u32>();
     unsafe {

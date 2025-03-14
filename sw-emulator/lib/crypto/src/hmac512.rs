@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{helpers::EndianessTransform, Sha512, Sha512Mode};
+use crate::{Sha512, Sha512Mode, helpers::EndianessTransform};
 
 pub trait Hmac512Interface {
     /// Create a new instance

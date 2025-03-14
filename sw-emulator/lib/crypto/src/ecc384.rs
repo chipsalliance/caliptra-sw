@@ -16,8 +16,8 @@ use p384::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
 use p384::ecdsa::{Signature, SigningKey, VerifyingKey};
 use p384::{EncodedPoint, SecretKey};
 use rfc6979::HmacDrbg;
-use sha2::digest::generic_array::GenericArray;
 use sha2::Sha384;
+use sha2::digest::generic_array::GenericArray;
 
 use crate::EndianessTransform;
 

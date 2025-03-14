@@ -14,13 +14,13 @@ Abstract:
 
 use crate::MailboxRequester;
 use crate::{
+    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
+    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
-    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
@@ -140,7 +140,7 @@ pub struct DownloadIdevidCsrCb(pub DownloadCsrFn);
 impl DownloadIdevidCsrCb {
     pub fn new(
         f: impl FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)
-            + 'static,
+        + 'static,
     ) -> Self {
         Self(Box::new(f))
     }

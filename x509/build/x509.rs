@@ -27,11 +27,11 @@ use openssl::pkey::PKey;
 use openssl::pkey::Private;
 use openssl::sha::Sha1;
 use openssl::sha::Sha256;
+use openssl::x509::X509Extension;
+use openssl::x509::X509v3Context;
 use openssl::x509::extension::BasicConstraints;
 use openssl::x509::extension::KeyUsage as Usage;
 use openssl::x509::extension::SubjectKeyIdentifier;
-use openssl::x509::X509Extension;
-use openssl::x509::X509v3Context;
 
 use crate::tbs::TbsParam;
 

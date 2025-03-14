@@ -14,9 +14,9 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::PcrLogEntry;
-use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
+use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
+use caliptra_common::{FuseLogEntry, FuseLogEntryId, mailbox_api};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
@@ -42,7 +42,7 @@ const BANNER: &str = r#"
 Running Caliptra FMC ...
 "#;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
 
@@ -56,7 +56,7 @@ pub extern "C" fn fmc_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
@@ -72,7 +72,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {

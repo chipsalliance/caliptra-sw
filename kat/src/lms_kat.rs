@@ -14,8 +14,8 @@ Abstract:
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
-    bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
-    LmsPublicKey, LmsSignature,
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsPublicKey,
+    LmsSignature, bytes_to_words_6,
 };
 use zerocopy::{BigEndian, LittleEndian, U32};
 

@@ -12,9 +12,9 @@ Abstract:
 
 --*/
 
-use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
-use crate::{array::Array4x32, wait, Array4x12, Array4x16, Array4x8};
+use crate::kv_access::{KvAccess, KvAccessErr};
+use crate::{Array4x8, Array4x12, Array4x16, array::Array4x32, wait};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -201,8 +201,10 @@ impl Sha2_512_384 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha384 = Sha512Reg::new();
-        sha384.regs_mut().ctrl().write(|w| w.zeroize(true));
+        unsafe {
+            let mut sha384 = Sha512Reg::new();
+            sha384.regs_mut().ctrl().write(|w| w.zeroize(true));
+        }
     }
 
     /// Copy digest to buffer

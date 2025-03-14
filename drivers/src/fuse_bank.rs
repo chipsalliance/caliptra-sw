@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, Array4x4};
+use crate::{Array4x4, Array4x12};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;

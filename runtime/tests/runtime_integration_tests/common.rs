@@ -1,17 +1,17 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::{mailbox::Request, SocManager};
+use caliptra_api::{SocManager, mailbox::Request};
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
 };
 use caliptra_common::{
+    FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
     mailbox_api::{
         CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
         MailboxReq, MailboxReqHeader,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
-    FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
 };
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
@@ -33,7 +33,7 @@ use openssl::{
     bn::BigNum,
     hash::MessageDigest,
     pkey::{PKey, Private},
-    x509::{X509Builder, X509},
+    x509::{X509, X509Builder},
     x509::{X509Name, X509NameBuilder},
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
@@ -115,10 +115,9 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
 
     let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
-    let boot_flags = if let Some(flags) = args.test_mfg_flags {
-        flags.bits()
-    } else {
-        0
+    let boot_flags = match args.test_mfg_flags {
+        Some(flags) => flags.bits(),
+        _ => 0,
     };
 
     let mut model = caliptra_hw_model::new(
@@ -196,10 +195,9 @@ pub fn run_rt_test_pqc(
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
         .unwrap();
 
-    let boot_flags = if let Some(flags) = args.test_mfg_flags {
-        flags.bits()
-    } else {
-        0
+    let boot_flags = match args.test_mfg_flags {
+        Some(flags) => flags.bits(),
+        _ => 0,
     };
 
     let mut model = caliptra_hw_model::new(
@@ -366,8 +364,12 @@ pub fn execute_dpe_cmd(
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
     Some(match expected_result {
         DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
-        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from_bytes(resp_bytes).unwrap()),
-        DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
+        DpeResult::DpeCmdFailure => {
+            Response::Error(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
+        }
+        DpeResult::MboxCmdFailure(_) => unreachable!(
+            "If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."
+        ),
     })
 }
 
@@ -383,7 +385,10 @@ pub fn assert_error(
     if let ModelError::MailboxCmdFailed(code) = actual_err {
         assert_eq!(code, u32::from(expected_err));
     } else {
-        panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
+        panic!(
+            "Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error",
+            actual_err
+        )
     }
 }
 

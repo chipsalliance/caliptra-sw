@@ -14,8 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
-    KeyWriteArgs, Trng,
+    Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
+    array_concat3, okmutref, wait,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -728,8 +728,10 @@ impl Ecc384 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut ecc = EccReg::new();
-        ecc.regs_mut().ctrl().write(|w| w.zeroize(true));
+        unsafe {
+            let mut ecc = EccReg::new();
+            ecc.regs_mut().ctrl().write(|w| w.zeroize(true));
+        }
     }
 }
 

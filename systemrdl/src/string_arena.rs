@@ -15,12 +15,13 @@ impl StringArena {
     }
     pub fn add<'a>(&'a self, s: String) -> &'a str {
         let mut map = self.strings.borrow_mut();
-        if let Some(existing) = map.get(&s) {
-            unsafe { std::mem::transmute::<&'_ str, &'a str>(existing.as_str()) }
-        } else {
-            let slice = unsafe { std::mem::transmute::<&'_ str, &'a str>(s.as_str()) };
-            map.insert(s);
-            slice
+        match map.get(&s) {
+            Some(existing) => unsafe { std::mem::transmute::<&'_ str, &'a str>(existing.as_str()) },
+            _ => {
+                let slice = unsafe { std::mem::transmute::<&'_ str, &'a str>(s.as_str()) };
+                map.insert(s);
+                slice
+            }
         }
     }
 }

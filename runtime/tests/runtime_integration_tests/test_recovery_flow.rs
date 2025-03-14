@@ -1,5 +1,5 @@
 // Licensed under the Apache-2.0 license
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
 #[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
@@ -7,8 +7,8 @@ use caliptra_emu_bus::{Device, EventData};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_gen::from_hw_format;
 use caliptra_image_gen::ImageGeneratorCrypto;
+use caliptra_image_gen::from_hw_format;
 use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;

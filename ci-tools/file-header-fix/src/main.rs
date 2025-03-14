@@ -58,7 +58,7 @@ fn fix_file(path: &Path) -> Result<(), Error> {
             return Err(std::io::Error::new(
                 ErrorKind::Other,
                 format!("Unknown extension {other:?}"),
-            ))
+            ));
         }
     });
     let mut prev_contents = std::fs::read(path).map_err(wrap_err)?;
@@ -152,12 +152,21 @@ mod test {
     #[test]
     fn test_check_failures() {
         assert_eq!(
-            check_file_contents(Path::new("foo/bar.rs"), "int main()\n {\n // foobar\n".as_bytes()).unwrap_err().to_string(),
-             "File \"foo/bar.rs\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines");
+            check_file_contents(
+                Path::new("foo/bar.rs"),
+                "int main()\n {\n // foobar\n".as_bytes()
+            )
+            .unwrap_err()
+            .to_string(),
+            "File \"foo/bar.rs\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines"
+        );
 
         assert_eq!(
-            check_file_contents(Path::new("bar/foo.sh"), "".as_bytes()).unwrap_err().to_string(),
-             "File \"bar/foo.sh\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines");
+            check_file_contents(Path::new("bar/foo.sh"), "".as_bytes())
+                .unwrap_err()
+                .to_string(),
+            "File \"bar/foo.sh\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines"
+        );
 
         let err = check_file_contents(Path::new("some/invalid_utf8_file"), [0x80].as_slice())
             .unwrap_err();

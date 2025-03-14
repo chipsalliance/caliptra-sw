@@ -53,7 +53,7 @@ macro_rules! cprintln {
 
 #[macro_export]
 macro_rules! cprint_slice  {
-    ($name:expr, $arr:expr) => {
+    ($name:expr_2021, $arr:expr_2021) => {
         $crate::cprint!("{} = ", $name);
         for byte in $arr {
             $crate::cprint!("{:02X}" byte);
@@ -64,7 +64,7 @@ macro_rules! cprint_slice  {
 
 #[macro_export]
 macro_rules! cprint_slice_ref  {
-    ($name:expr, $arr:expr) => {
+    ($name:expr_2021, $arr:expr_2021) => {
         $crate::cprint!("{} = ", $name);
         for &byte in $arr {
             $crate::cprint!("{:02X}" byte);

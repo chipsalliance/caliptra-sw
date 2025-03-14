@@ -22,8 +22,8 @@ pub mod x509;
 
 ///merge imports
 pub use hand_off::{
-    DataStore, DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault,
-    FHT_INVALID_HANDLE, FHT_MARKER,
+    DataStore, DataVaultRegister, FHT_INVALID_HANDLE, FHT_MARKER, FirmwareHandoffTable,
+    HandOffDataHandle, Vault,
 };
 
 pub use boot_status::RomBootStatus;
@@ -47,4 +47,4 @@ pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 128 * 1024;
 
 pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
-pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};
+pub use wdt::{WdtTimeout, restart_wdt, start_wdt, stop_wdt};

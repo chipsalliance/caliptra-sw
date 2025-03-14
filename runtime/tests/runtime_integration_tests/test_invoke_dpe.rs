@@ -1,27 +1,27 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
-    TEST_LABEL,
+    DpeResult, RuntimeTestArgs, TEST_DIGEST, TEST_LABEL, execute_dpe_cmd, get_rt_alias_cert,
+    run_rt_test,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::HwModel;
-use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{DPE_SUPPORT, RtBootStatus, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
     signed_data::{SignedData, SignerIdentifier},
 };
 use dpe::{
+    DPE_PROFILE,
     commands::{
         CertifyKeyCmd, CertifyKeyFlags, Command, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
         RotateCtxFlags, SignCmd, SignFlags,
     },
     context::ContextHandle,
     response::{DpeErrorCode, Response},
-    DPE_PROFILE,
 };
 use openssl::{
     bn::BigNum,

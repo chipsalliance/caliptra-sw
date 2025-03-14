@@ -16,11 +16,13 @@ const fn rvsize<T>() -> RvSize {
 }
 
 unsafe fn transmute_to_u32<T>(src: &T) -> u32 {
-    match std::mem::size_of::<T>() {
-        1 => std::mem::transmute_copy::<T, u8>(src).into(),
-        2 => std::mem::transmute_copy::<T, u16>(src).into(),
-        4 => std::mem::transmute_copy::<T, u32>(src),
-        _ => panic!("Unsupported write size"),
+    unsafe {
+        match std::mem::size_of::<T>() {
+            1 => std::mem::transmute_copy::<T, u8>(src).into(),
+            2 => std::mem::transmute_copy::<T, u16>(src).into(),
+            4 => std::mem::transmute_copy::<T, u32>(src),
+            _ => panic!("Unsupported write size"),
+        }
     }
 }
 
@@ -50,16 +52,18 @@ impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
     /// As the pointer isn't read from, this Mmio implementation isn't actually
     /// unsafe for POD types like u8/u16/u32.
     unsafe fn read_volatile<T: Clone + Copy + Sized>(&self, src: *const T) -> T {
-        let val_u32 = self
-            .bus
-            .borrow_mut()
-            .read(rvsize::<T>(), src as usize as u32)
-            .unwrap();
-        match std::mem::size_of::<T>() {
-            1 => std::mem::transmute_copy::<u8, T>(&(val_u32 as u8)),
-            2 => std::mem::transmute_copy::<u16, T>(&(val_u32 as u16)),
-            4 => std::mem::transmute_copy::<u32, T>(&val_u32),
-            _ => panic!("Unsupported read size"),
+        unsafe {
+            let val_u32 = self
+                .bus
+                .borrow_mut()
+                .read(rvsize::<T>(), src as usize as u32)
+                .unwrap();
+            match std::mem::size_of::<T>() {
+                1 => std::mem::transmute_copy::<u8, T>(&(val_u32 as u8)),
+                2 => std::mem::transmute_copy::<u16, T>(&(val_u32 as u16)),
+                4 => std::mem::transmute_copy::<u32, T>(&val_u32),
+                _ => panic!("Unsupported read size"),
+            }
         }
     }
 }
@@ -76,10 +80,12 @@ impl<TBus: Bus> ureg::MmioMut for BusMmio<TBus> {
     /// As the pointer isn't written to, this Mmio implementation isn't actually
     /// unsafe for POD types like u8/u16/u32.
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
-        self.bus
-            .borrow_mut()
-            .write(rvsize::<T>(), dst as usize as u32, transmute_to_u32(&src))
-            .unwrap()
+        unsafe {
+            self.bus
+                .borrow_mut()
+                .write(rvsize::<T>(), dst as usize as u32, transmute_to_u32(&src))
+                .unwrap()
+        }
     }
 }
 
@@ -104,7 +110,9 @@ mod tests {
         }
         assert_eq!(
             mmio.into_inner().data(),
-            &[0x00, 0x00, 0x00, 0x00, 0x21, 0x93, 0xbc, 0x3a, 0xaf, 0x39, 0xf3, 0x00]
+            &[
+                0x00, 0x00, 0x00, 0x00, 0x21, 0x93, 0xbc, 0x3a, 0xaf, 0x39, 0xf3, 0x00
+            ]
         );
     }
 }

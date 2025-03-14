@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, mem};
 
-use caliptra_builder::{firmware, Symbol};
+use caliptra_builder::{Symbol, firmware};
 use caliptra_cfi_lib::CfiState;
 use caliptra_drivers::memory_layout;
 

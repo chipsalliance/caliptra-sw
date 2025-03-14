@@ -60,7 +60,7 @@ impl Aes256Cbc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{helpers::EndianessTransform, Aes256Cbc};
+    use crate::{Aes256Cbc, helpers::EndianessTransform};
 
     #[test]
     fn test_decrypt_1024bit() {
