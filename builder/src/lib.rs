@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use serde_derive::Deserialize;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -454,7 +455,7 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
     Ok(max_addr.saturating_sub(min_addr))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct ImageOptions {
     pub fmc_version: u16,
     pub app_version: u32,

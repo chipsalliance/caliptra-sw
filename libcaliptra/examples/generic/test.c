@@ -12,10 +12,11 @@
 #include "caliptra_types.h"
 #include "idev_csr_array.h"
 
-#include <openssl/asn1.h>
-#include <openssl/bn.h>
 #include <openssl/bio.h>
+#include <openssl/bn.h>
 #include <openssl/ec.h>
+#include <openssl/ecdsa.h>
+#include <openssl/evp.h>
 #include <openssl/x509.h>
 
 // Arbitrary example only - values must be customized/tuned for the SoC
@@ -26,15 +27,13 @@ static const uint16_t itrng_entropy_low_threshold = 0x1;
 static const uint16_t itrng_entropy_high_threshold = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
-// Arbitrary example only - values must be customized/tuned for the SoC
-static const uint32_t axi_pauser = 0x1;
 
 #define CSR_REQ_RESP_LEN 9000 // This needs to be large enough to hold InitDevIdCsrEnvelope
 #define ECC_CSR_ENVELOPE_OFFSET 12 // See InitDevIdCsrEnvelope
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
-void hwmod_init(struct caliptra_buffer rom);
+void hwmod_init(struct caliptra_buffer rom, const test_info *info);
 
 #ifdef ENABLE_DEBUG
 // Exists for testbench only - not part of interface for actual implementation
@@ -60,7 +59,7 @@ static void caliptra_wait_for_csr_ready(void)
     }
 }
 
-/* 
+/*
  * caliptra_verify_signature
  *
  * Uses OpenSSL to verify that the signature returned by `SignWithExportedEcdsa`
@@ -70,102 +69,138 @@ static void caliptra_wait_for_csr_ready(void)
  */
 static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
 {
-    BIO* cert_ptr = BIO_new_mem_buf(dpe_resp->new_certificate, dpe_resp->certificate_size);
-    X509* x509 = d2i_X509_bio(cert_ptr, NULL);
+    bool status = true;
+
+    EVP_PKEY* pkey = NULL;
+    EC_KEY *ec_pub_key = NULL, *ecdsa_key = NULL;
+    BIGNUM *r = NULL, *s = NULL, *x = NULL, *y = NULL;
+    ECDSA_SIG* signature = NULL;
+    EC_POINT* point = NULL;
+    uint8_t* dersig = NULL;
+    BN_CTX* bn_ctx = NULL;
+    X509* x509 = NULL;
+    BIO* cert_ptr =
+        BIO_new_mem_buf(dpe_resp->new_certificate, dpe_resp->certificate_size);
+
+    if (cert_ptr == NULL) {
+        printf("Error creating certificate pointer.\n");
+        status = false;
+        goto cleanup;
+    }
+
+    x509 = d2i_X509_bio(cert_ptr, NULL);
 
     if (x509 == NULL) {
         printf("Error parsing certificate.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EVP_PKEY *pkey = X509_get_pubkey(x509);
+    pkey = X509_get_pubkey(x509);
     if (pkey == NULL) {
         printf("Error getting public key.\n");
-        X509_free(x509);
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EC_KEY* ec_pub_key = EVP_PKEY_get1_EC_KEY(pkey);
+    ec_pub_key = EVP_PKEY_get1_EC_KEY(pkey);
     if (ec_pub_key == NULL) {
         printf("Error converting pub key to EC pub key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    BIGNUM* r = BN_bin2bn(sign_resp->signature_r, 48, NULL);
+    r = BN_bin2bn(sign_resp->signature_r, 48, NULL);
     if (r == NULL) {
         printf("Error creating ECDSA R.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    BIGNUM* s = BN_bin2bn(sign_resp->signature_s, 48, NULL);
+    s = BN_bin2bn(sign_resp->signature_s, 48, NULL);
     if (s == NULL) {
         printf("Error creating ECDSA S.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    ECDSA_SIG *signature = ECDSA_SIG_new();
+    signature = ECDSA_SIG_new();
     if (signature == NULL) {
         printf("Error creating signature.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
     ECDSA_SIG_set0(signature, r, s);
 
-    uint8_t *dersig = NULL;
     int size = i2d_ECDSA_SIG(signature, &dersig);
 
     if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ec_pub_key) != 1) {
-       return false;
+      status = false;
+      goto cleanup;
     }
 
-    BIGNUM* x = BN_bin2bn(sign_resp->derived_public_key_x, 48, NULL);
-    if (r == NULL) {
-        printf("Error creating ECDSA X.\n");
-        return false;
+    x = BN_bin2bn(sign_resp->derived_public_key_x, 48, NULL);
+    if (x == NULL) {
+      printf("Error creating ECDSA X.\n");
+      status = false;
+      goto cleanup;
     }
 
-    BIGNUM* y = BN_bin2bn(sign_resp->derived_public_key_y, 48, NULL);
-    if (s == NULL) {
-        printf("Error creating ECDSA Y.\n");
-        return false;
+    y = BN_bin2bn(sign_resp->derived_public_key_y, 48, NULL);
+    if (y == NULL) {
+      printf("Error creating ECDSA Y.\n");
+      status = false;
+      goto cleanup;
     }
 
-    EC_KEY *ecdsa_key = EC_KEY_new_by_curve_name(NID_secp384r1);
+    ecdsa_key = EC_KEY_new_by_curve_name(NID_secp384r1);
     if (ecdsa_key == NULL) {
         printf("Error creating ECDSA public key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EC_POINT *point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
+    point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
     if (point == NULL) {
         printf("Error creating EC point.\n");
         EC_KEY_free(ecdsa_key);
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(ecdsa_key), point, x, y, BN_CTX_new())) {
-        printf("Error setting EC point coordinates.\n");
-        return false;
+    bn_ctx = BN_CTX_new();
+    if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(ecdsa_key),
+                                             point, x, y, bn_ctx)) {
+      printf("Error setting EC point coordinates.\n");
+      status = false;
+      goto cleanup;
     }
-
     if (!EC_KEY_set_public_key(ecdsa_key, point)) {
         printf("Error setting public key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
     if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ecdsa_key) != 1) {
-       return false;
+      status = false;
+      goto cleanup;
     }
 
+cleanup:
+    // r and s are freed in ECDSA_SIG_free(signature)
+    BN_CTX_free(bn_ctx);
     EC_POINT_free(point);
-    BN_free(x);
-    BN_free(y);
     EC_KEY_free(ecdsa_key);
+    BN_clear_free(y);
+    BN_clear_free(x);
     free(dersig);
     ECDSA_SIG_free(signature);
+    EC_KEY_free(ec_pub_key);
+    EVP_PKEY_free(pkey);
     X509_free(x509);
     BIO_free(cert_ptr);
 
-    return true;
+    return status;
 }
 
 void dump_caliptra_error_codes()
@@ -177,6 +212,11 @@ void dump_caliptra_error_codes()
 int boot_to_ready_for_fw(const test_info *info, bool req_idev_csr)
 {
     int status;
+
+    if (!info) {
+        printf("Failed to boot Caliptra, test_info is null\n");
+        return INVALID_PARAMS;
+    }
 
     // Initialize FSM GO
     caliptra_bootfsm_go();
@@ -194,15 +234,14 @@ int boot_to_ready_for_fw(const test_info *info, bool req_idev_csr)
                                      itrng_entropy_repetition_count);
 
     // Set up our PAUSER value for the mailbox regs
-    status = caliptra_mbox_pauser_set_and_lock(axi_pauser);
-    if (status)
-    {
+    status = caliptra_mbox_pauser_set_and_lock(info->apb_pauser);
+    if (status) {
         printf("Set MBOX pauser Failed: 0x%x\n", status);
         return status;
     }
 
     // Set up our PAUSER value for the fuse regs
-    status = caliptra_fuse_pauser_set_and_lock(axi_pauser);
+    status = caliptra_fuse_pauser_set_and_lock(info->apb_pauser);
     if (status)
     {
         printf("Set FUSE pauser Failed: 0x%x\n", status);
@@ -1146,7 +1185,7 @@ int run_tests(const test_info *info)
 {
     global_test_result = 0;
 
-    hwmod_init(info->rom);
+    hwmod_init(info->rom, info);
 
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");

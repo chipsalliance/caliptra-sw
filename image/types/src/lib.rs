@@ -15,15 +15,16 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use caliptra_error::{CaliptraError, CaliptraResult};
-use core::mem::size_of;
-use core::ops::Range;
-use zeroize::Zeroize;
-
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPrivateKey, LmsPublicKey, LmsSignature,
 };
+use core::mem::size_of;
+use core::ops::Range;
 use memoffset::{offset_of, span_of};
+#[cfg(feature = "std")]
+use serde_derive::Deserialize;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zeroize::Zeroize;
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const KEY_DESCRIPTOR_VERSION: u16 = 1;
@@ -83,6 +84,7 @@ pub type ImageEccPrivKey = ImageScalar;
     Zeroize,
 )]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageEccPubKey {
     /// X Coordinate
     pub x: ImageScalar,
@@ -107,6 +109,42 @@ impl Default for ImageMldsaPubKey {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for ImageMldsaPubKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ArrayVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ArrayVisitor {
+            type Value = ImageMldsaPubKey;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(&format!(
+                    "an array of {} u32 elements",
+                    MLDSA87_PUB_KEY_WORD_SIZE
+                ))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [0u32; MLDSA87_PUB_KEY_WORD_SIZE];
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_PUB_KEY_WORD_SIZE) {
+                    *item = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(ImageMldsaPubKey(arr))
+            }
+        }
+
+        deserializer.deserialize_seq(ArrayVisitor)
+    }
+}
+
 #[repr(C)]
 #[derive(
     Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
@@ -120,6 +158,42 @@ impl Default for ImageMldsaPrivKey {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for ImageMldsaPrivKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ArrayVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ArrayVisitor {
+            type Value = ImageMldsaPrivKey;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(&format!(
+                    "an array of {} u32 elements",
+                    MLDSA87_PRIV_KEY_WORD_SIZE
+                ))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [0u32; MLDSA87_PRIV_KEY_WORD_SIZE];
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_PRIV_KEY_WORD_SIZE) {
+                    *item = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(ImageMldsaPrivKey(arr))
+            }
+        }
+
+        deserializer.deserialize_seq(ArrayVisitor)
+    }
+}
+
 #[repr(C)]
 #[derive(
     Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
@@ -130,6 +204,39 @@ pub struct ImagePqcPubKey(pub [u8; PQC_PUB_KEY_BYTE_SIZE]);
 impl Default for ImagePqcPubKey {
     fn default() -> Self {
         ImagePqcPubKey([0; PQC_PUB_KEY_BYTE_SIZE])
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for ImagePqcPubKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ArrayVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ArrayVisitor {
+            type Value = ImagePqcPubKey;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(&format!("an array of {} bytes", PQC_PUB_KEY_BYTE_SIZE))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [0u8; PQC_PUB_KEY_BYTE_SIZE];
+                for (i, item) in arr.iter_mut().enumerate().take(PQC_PUB_KEY_BYTE_SIZE) {
+                    *item = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(ImagePqcPubKey(arr))
+            }
+        }
+
+        deserializer.deserialize_seq(ArrayVisitor)
     }
 }
 
@@ -148,6 +255,7 @@ impl Default for ImagePqcPubKey {
     Zeroize,
 )]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageEccSignature {
     /// Random point
     pub r: ImageScalar,
@@ -173,6 +281,42 @@ impl Default for ImageMldsaSignature {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for ImageMldsaSignature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ArrayVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ArrayVisitor {
+            type Value = ImageMldsaSignature;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(&format!(
+                    "an array of {} u32 elements",
+                    MLDSA87_SIGNATURE_WORD_SIZE
+                ))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
+                for (i, item) in arr.iter_mut().enumerate().take(MLDSA87_SIGNATURE_WORD_SIZE) {
+                    *item = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(ImageMldsaSignature(arr))
+            }
+        }
+
+        deserializer.deserialize_seq(ArrayVisitor)
+    }
+}
+
 #[repr(C)]
 #[derive(
     Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Zeroize,
@@ -186,7 +330,41 @@ impl Default for ImagePqcSignature {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for ImagePqcSignature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ArrayVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ArrayVisitor {
+            type Value = ImagePqcSignature;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str(&format!("an array of {} bytes", PQC_SIGNATURE_BYTE_SIZE))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut arr = [0u8; PQC_SIGNATURE_BYTE_SIZE];
+                for (i, item) in arr.iter_mut().enumerate().take(PQC_SIGNATURE_BYTE_SIZE) {
+                    *item = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(i, &self))?;
+                }
+                Ok(ImagePqcSignature(arr))
+            }
+        }
+
+        deserializer.deserialize_seq(ArrayVisitor)
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub enum FwVerificationPqcKeyType {
     MLDSA = 1,
     LMS = 3,
@@ -346,6 +524,7 @@ impl ImageManifest {
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
@@ -364,6 +543,7 @@ pub struct ImageVendorPubKeyInfo {
 
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_MAX_KEY_COUNT as usize],
     #[zeroize(skip)]
@@ -373,6 +553,7 @@ pub struct ImageVendorPrivKeys {
 
 #[repr(C)]
 #[derive(IntoBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct OwnerPubKeyConfig {
     pub ecc_pub_key: ImageEccPubKey,
     #[zeroize(skip)]
@@ -383,6 +564,7 @@ pub struct OwnerPubKeyConfig {
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
     pub pqc_pub_key: ImagePqcPubKey,
@@ -390,6 +572,7 @@ pub struct ImageOwnerPubKeys {
 
 #[repr(C)]
 #[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+#[cfg_attr(feature = "std", derive(Deserialize))]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
     #[zeroize(skip)]
@@ -472,7 +655,7 @@ pub struct VendorSignedData {
     /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    pub reserved: [u8; 10],
 }
 
 #[repr(C)]
@@ -485,7 +668,7 @@ pub struct OwnerSignedData {
     /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    pub reserved: [u8; 10],
 }
 
 /// Caliptra Image header
