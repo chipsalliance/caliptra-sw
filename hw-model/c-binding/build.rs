@@ -20,7 +20,7 @@ fn main() {
 
     // Generate Output file
     let out_file = PathBuf::from(&crate_dir)
-        .join("out")
+        .join("include")
         .join("caliptra_model.h");
 
     // Generate caliptra_model.h
