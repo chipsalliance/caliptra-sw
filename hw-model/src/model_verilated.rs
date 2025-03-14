@@ -127,7 +127,6 @@ impl SocManager for ModelVerilated {
 
     const SOC_IFC_ADDR: u32 = 0x3003_0000;
     const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
-    const SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
     const SOC_MBOX_ADDR: u32 = 0x3002_0000;
 
     const MAX_WAIT_CYCLES: u32 = 20_000_000;
