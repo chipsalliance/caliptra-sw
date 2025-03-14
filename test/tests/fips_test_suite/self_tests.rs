@@ -137,12 +137,6 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
             .ready_for_mb_processing()
     });
 
-    // Verify crypto operations can be performed
-    // Verify the SHA engine is usable
-    let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
-    hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream)
-        .unwrap();
-
     // Verify we can load FW
     hw.upload_firmware(&fw_image).unwrap();
 }

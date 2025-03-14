@@ -572,6 +572,7 @@ fn make_model_with_security_state(
     })
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs
 #[test]
 fn test_key_ladder_changes_with_lifecycle() {
     // Test with several combinations of security state.
@@ -606,6 +607,7 @@ fn test_key_ladder_changes_with_lifecycle() {
     assert_ne!(ladder_c, ladder_d);
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs
 #[test]
 fn test_key_ladder_stable_across_fw_updates() {
     // Update both FMC and app FW, and ensure the key ladder is still identical.

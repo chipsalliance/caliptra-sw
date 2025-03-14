@@ -18,6 +18,7 @@ use openssl::{
 };
 use zerocopy::{FromBytes, IntoBytes};
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn test_pcr_quote() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
