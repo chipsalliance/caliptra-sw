@@ -13,8 +13,9 @@ File contains Ml_Dsa87 peripheral implementation.
 --*/
 
 use crate::helpers::{bytes_from_words_be, words_from_bytes_be, words_from_bytes_le};
-use crate::{KeyUsage, KeyVault};
+use crate::{HashSha512, KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
+use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
@@ -108,6 +109,7 @@ register_bitfields! [
             KEYGEN_AND_SIGN = 0b100,
         ],
         ZEROIZE OFFSET(3) NUMBITS(1) [],
+        PCR_SIGN OFFSET(4) NUMBITS(1) []
     ],
 
     /// Status Register Fields
@@ -215,6 +217,9 @@ pub struct Mldsa87 {
     /// Key Vault
     key_vault: KeyVault,
 
+    /// SHA512 hash
+    hash_sha512: HashSha512,
+
     /// Operation complete callback
     op_complete_action: Option<ActionHandle>,
 
@@ -238,7 +243,7 @@ impl Mldsa87 {
     /// VERSION1 Register Value TODO update when known
     const VERSION1_VAL: RvData = 0x00000000;
 
-    pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
+    pub fn new(clock: &Clock, key_vault: KeyVault, hash_sha512: HashSha512) -> Self {
         Self {
             name: [Self::NAME0_VAL, Self::NAME1_VAL],
             version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
@@ -260,6 +265,7 @@ impl Mldsa87 {
             private_key: [0; ML_DSA87_PRIVKEY_SIZE],
             timer: Timer::new(clock),
             key_vault,
+            hash_sha512,
             op_complete_action: None,
             op_seed_read_complete_action: None,
             op_zeroize_complete_action: None,
@@ -417,6 +423,32 @@ impl Mldsa87 {
         self.signature = words_from_bytes_be(&signature_extended);
     }
 
+    /// Sign the PCR digest
+    fn pcr_digest_sign(&mut self) {
+        const PCR_SIGN_KEY: u32 = 8;
+        let _ = self.read_seed_from_keyvault(PCR_SIGN_KEY);
+
+        // Generate private key from seed.
+        self.gen_key();
+        let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
+
+        let mut pcr_digest = self.hash_sha512.pcr_hash_digest();
+        pcr_digest.change_endianess(); // Switch from hardware format.
+        pcr_digest.reverse(); // Reverse buffer for fips02 format.
+
+        // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
+        let signature = secret_key
+            .try_sign_with_seed(&[0u8; 32], &pcr_digest, &[])
+            .unwrap();
+        let mut signature_extended = {
+            let mut sig = [0; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature);
+            sig
+        };
+        signature_extended.reverse();
+        self.signature = words_from_bytes_be(&signature_extended);
+    }
+
     fn verify(&mut self) {
         let mut message = bytes_from_words_be(&self.msg);
         message.reverse();
@@ -449,8 +481,12 @@ impl Mldsa87 {
             }
             Some(Control::CTRL::Value::VERIFYING) => self.verify(),
             Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
-                self.gen_key();
-                self.sign(false)
+                if self.control.reg.is_set(Control::PCR_SIGN) {
+                    self.pcr_digest_sign();
+                } else {
+                    self.gen_key();
+                    self.sign(false);
+                }
             }
             _ => panic!("Invalid value in ML-DSA Control"),
         }
@@ -460,9 +496,7 @@ impl Mldsa87 {
             .modify(Status::READY::SET + Status::VALID::SET);
     }
 
-    fn seed_read_complete(&mut self) {
-        let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
-
+    fn read_seed_from_keyvault(&mut self, key_id: u32) -> u32 {
         let mut key_usage = KeyUsage::default();
         key_usage.set_mldsa_key_gen_seed(true);
 
@@ -477,13 +511,20 @@ impl Mldsa87 {
             None => (KvRdSeedStatus::ERROR::SUCCESS.value, Some(result.unwrap())),
         };
 
-        // Read the first 32 bytes from KV?
+        // Read the first 32 bytes from KV.
         // Key vault already stores seed in hardware format
         if let Some(seed) = seed {
             self.seed = words_from_bytes_le(
                 &<[u8; ML_DSA87_SEED_SIZE]>::try_from(&seed[..ML_DSA87_SEED_SIZE]).unwrap(),
             );
         }
+
+        seed_read_result
+    }
+
+    fn seed_read_complete(&mut self) {
+        let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
+        let seed_read_result = self.read_seed_from_keyvault(key_id);
 
         self.kv_rd_seed_status.reg.modify(
             KvRdSeedStatus::READY::SET
@@ -552,8 +593,9 @@ mod tests {
     fn test_name() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let name0 = ml_dsa87.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
@@ -568,8 +610,9 @@ mod tests {
     fn test_version() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let version0 = ml_dsa87.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -584,8 +627,9 @@ mod tests {
     fn test_control() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
         assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
@@ -593,8 +637,9 @@ mod tests {
     fn test_status() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
         assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
@@ -602,8 +647,9 @@ mod tests {
     fn test_gen_key() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let seed_orig = rand::thread_rng().gen::<[u8; 32]>();
         let mut seed_hw = seed_orig;
@@ -649,8 +695,9 @@ mod tests {
     fn test_sign_from_seed() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let mut seed = rand::thread_rng().gen::<[u8; 32]>();
         seed.to_big_endian(); // Change DWORDs to big-endian.
@@ -733,8 +780,9 @@ mod tests {
     fn test_verify() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let msg_orig: [u8; 64] = {
             let part0 = rand::thread_rng().gen::<[u8; 32]>();
@@ -897,7 +945,8 @@ mod tests {
                 .write_key(key_id, &seed_to_hw, u32::from(key_usage))
                 .unwrap();
 
-            let mut ml_dsa87 = Mldsa87::new(&clock, key_vault);
+            let sha512 = HashSha512::new(&clock, key_vault.clone());
+            let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
             // We expect the output to match the generated random seed.
             // Write a different seed first to make sure the Kv seed is used
