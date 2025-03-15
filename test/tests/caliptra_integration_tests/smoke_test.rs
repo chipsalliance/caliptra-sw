@@ -79,7 +79,6 @@ fn assert_output_contains_regex(haystack: &str, needle: &str) {
     }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: fails
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
