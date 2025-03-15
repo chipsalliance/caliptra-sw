@@ -240,7 +240,7 @@ impl Sha2_512_384 {
     /// # Returns
     ///
     /// * `buf` - Digest buffer
-    pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
+    pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x16> {
         let reg = self.sha512.regs_mut();
         let status_reg = reg.gen_pcr_hash_status();
 
@@ -261,7 +261,7 @@ impl Sha2_512_384 {
         wait::until(|| status_reg.read().ready());
 
         if status_reg.read().valid() {
-            Ok(reg.gen_pcr_hash_digest().truncate::<12>().read().into())
+            Ok(reg.gen_pcr_hash_digest().read().into())
         } else {
             Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR)
         }
