@@ -354,7 +354,57 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
+        // The FPGA can't be stopped.
+        // Never stop never stopping.
         self.handle_log();
+    }
+
+    fn step_until_boot_status(
+        &mut self,
+        expected_status_u32: u32,
+        ignore_intermediate_status: bool,
+    ) {
+        // We need to check the cycle count from the FPGA, and do so quickly
+        // as possible since the ARM host core is slow.
+
+        // do an immediate check
+        let initial_boot_status_u32: u32 = self.soc_ifc().cptra_boot_status().read();
+        if initial_boot_status_u32 == expected_status_u32 {
+            return;
+        }
+
+        // Since the boot takes about 30M cycles, we know something is wrong if
+        // we're stuck at the same state for that duration.
+        const MAX_WAIT_CYCLES: u32 = 60_000_000;
+
+        let start_cycle_count = self.cycle_count();
+        for i in 0..usize::MAX {
+            let actual_status_u32 = self.soc_ifc().cptra_boot_status().read();
+            if expected_status_u32 == actual_status_u32 {
+                break;
+            }
+
+            if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+                let cycle_count = self.cycle_count().wrapping_sub(start_cycle_count);
+                panic!(
+                    "{cycle_count} Expected the next boot_status to be \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+                );
+            }
+
+            // only handle the log sometimes so that we don't miss a state transition
+            if i & 0xfff == 0 {
+                self.handle_log();
+            }
+            let cycle_count = self.cycle_count().wrapping_sub(start_cycle_count);
+            if cycle_count >= MAX_WAIT_CYCLES {
+                panic!(
+                    "Expected boot_status to be  \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
     }
 
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
@@ -480,11 +530,7 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        let cycle = unsafe {
-            self.wrapper
-                .offset(FPGA_WRAPPER_CYCLE_COUNT_OFFSET)
-                .read_volatile()
-        };
+        let cycle = self.cycle_count();
         self.output.sink().set_now(u64::from(cycle));
         &mut self.output
     }
@@ -556,10 +602,17 @@ impl HwModel for ModelFpgaRealtime {
     ) -> Result<Vec<u8>, ModelError> {
         unimplemented!()
     }
-
 }
 
 impl ModelFpgaRealtime {
+    fn cycle_count(&self) -> u32 {
+        unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_CYCLE_COUNT_OFFSET)
+                .read_volatile()
+        }
+    }
+
     pub fn launch_openocd(&mut self) -> Result<(), OpenOcdError> {
         let _ = Command::new("sudo")
             .arg("pkill")

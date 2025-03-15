@@ -222,3 +222,5 @@ opt-level = 3
 opt-level = 3
 [profile.test.package.caliptra-drivers]
 opt-level = 3
+[profile.test.package.caliptra-registers-latest]
+opt-level = 3
