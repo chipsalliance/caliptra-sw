@@ -19,6 +19,7 @@ v2.0:
 * Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
+* `QUOTE_PCRS` now returns a SHA512 of the PCRs instead of a SHA384.
 
 ## Spec Opens
 
@@ -639,7 +640,7 @@ PcrValue is defined as u8[48]
 | fips\_status | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs         | PcrValue[32] | Values of all PCRs.
 | nonce        | u8[32]       | Return the nonce used as input for convenience.
-| digest       | u8[48]       | Return the digest over the PCR values and the nonce.
+| digest       | u8[64]       | Return the digest over the PCR values and the nonce.
 | reset\_ctrs  | u32[32]      | Reset counters for all PCRs.
 | signature\_r | u8[48]       | R portion of the signature over the PCR quote.
 | signature\_s | u8[48]       | S portion of the signature over the PCR quote.
@@ -1005,7 +1006,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) 
+| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB)
 
 ### GET_IMAGE_LOAD_ADDRESS
 

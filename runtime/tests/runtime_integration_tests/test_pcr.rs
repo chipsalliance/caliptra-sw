@@ -54,11 +54,11 @@ fn test_pcr_quote() {
     let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Compute the digest and compare to mailbox result
-    let mut h = Hasher::new(MessageDigest::sha384()).unwrap();
+    let mut h = Hasher::new(MessageDigest::sha512()).unwrap();
     resp.pcrs.iter().for_each(|x| h.update(x).unwrap());
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
-    let digest: [u8; 48] = res.as_bytes().try_into().unwrap();
+    let digest: [u8; 64] = res.as_bytes().try_into().unwrap();
     assert_eq!(resp.digest, digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
