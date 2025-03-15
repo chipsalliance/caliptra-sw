@@ -582,7 +582,14 @@ impl Hmac {
         }
 
         // Wait for the hmac operation to finish
-        wait::until(|| hmac.hmac512_status().read().valid());
+        wait::until(|| {
+            hmac.hmac512_status().read().valid() || hmac.hmac512_status().read().ready()
+        });
+
+        // check for a hardware error
+        if !hmac.hmac512_status().read().valid() {
+            return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
+        }
 
         if let Some(dest_key) = dest_key {
             KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), dest_key)
