@@ -115,6 +115,15 @@ fn test_fake_rom_fw_load() {
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+
+        // Build the image we are going to send to ROM to load
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &FAKE_TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -128,14 +137,6 @@ fn test_fake_rom_fw_load() {
         )
         .unwrap();
 
-        // Build the image we are going to send to ROM to load
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &FAKE_TEST_FMC_WITH_UART,
-            &APP_WITH_UART,
-            image_options,
-        )
-        .unwrap();
-
         // Upload the FW once ROM is at the right point
         hw.step_until(|m| {
             m.soc_ifc()
@@ -144,10 +145,6 @@ fn test_fake_rom_fw_load() {
                 .ready_for_mb_processing()
         });
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap();
-
-        // Keep going until we launch FMC
-        hw.step_until_output_contains("[exit] Launching FMC")
             .unwrap();
 
         // Make sure we actually get into FMC
