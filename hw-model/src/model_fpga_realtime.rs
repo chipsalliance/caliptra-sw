@@ -400,7 +400,7 @@ impl HwModel for ModelFpgaRealtime {
             let cycle_count = self.cycle_count().wrapping_sub(start_cycle_count);
             if cycle_count >= MAX_WAIT_CYCLES {
                 panic!(
-                    "Expected boot_status to be  \
+                    "Expected boot_status to be \
                     ({expected_status_u32}), but was stuck at ({actual_status_u32})"
                 );
             }

@@ -741,7 +741,7 @@ pub trait HwModel: SocManager {
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with failure",
-                    ))
+                    ));
                 }
                 None => {}
             }
@@ -818,7 +818,7 @@ pub trait HwModel: SocManager {
 
             if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
                 panic!(
-                    "Expected the next boot_status to be  \
+                    "Expected the next boot_status to be \
                     ({expected_status_u32}), but status changed from \
                     {initial_boot_status_u32} to {actual_status_u32})"
                 );
@@ -827,7 +827,7 @@ pub trait HwModel: SocManager {
             cycle_count += 1;
             if cycle_count >= MAX_WAIT_CYCLES {
                 panic!(
-                    "Expected boot_status to be  \
+                    "Expected boot_status to be \
                     ({expected_status_u32}), but was stuck at ({actual_status_u32})"
                 );
             }
