@@ -434,7 +434,7 @@ fn test_dbg_unlock_prod_invalid_length() {
 }
 
 #[test]
-fn test_dbg_unlock_prod_invalid_token_challenage() {
+fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
     let ecc_pub_key_bytes = {

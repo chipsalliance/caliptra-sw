@@ -82,7 +82,7 @@ impl UdsProgrammingFlow {
             while seed_index < seed.len() {
                 // Poll the STATUS register until the DAI state returns to idle.
                 while {
-                    let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
+                    let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr));
                     (status_value & DAI_IDLE_BIT) == 0
                 } {}
 
@@ -95,7 +95,7 @@ impl UdsProgrammingFlow {
                     wdata_0
                 );
                 env.dma
-                    .write_dword(AxiAddr::from(direct_access_wdata_0_reg_addr), wdata_0)?;
+                    .write_dword(AxiAddr::from(direct_access_wdata_0_reg_addr), wdata_0);
                 if uds_fuse_row_granularity_64 {
                     if seed_index + 1 >= seed.len() {
                         Err(CaliptraError::ROM_UDS_PROG_INVALID_SEED_LENGTH)?;
@@ -108,7 +108,7 @@ impl UdsProgrammingFlow {
                         wdata_1
                     );
                     env.dma
-                        .write_dword(AxiAddr::from(direct_access_wdata_1_reg_addr), wdata_1)?;
+                        .write_dword(AxiAddr::from(direct_access_wdata_1_reg_addr), wdata_1);
                     seed_index += 2;
                 } else {
                     // 32-bit granularity
@@ -124,7 +124,7 @@ impl UdsProgrammingFlow {
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_address_reg_addr),
                     uds_seed_dest_address,
-                )?;
+                );
 
                 // Trigger the UDS seed write command
                 cprintln!(
@@ -135,7 +135,7 @@ impl UdsProgrammingFlow {
                 env.dma.write_dword(
                     AxiAddr::from(direct_access_cmd_reg_addr),
                     DIRECT_ACCESS_CMD_WRITE,
-                )?;
+                );
 
                 // Increment the DIRECT_ACCESS_ADDRESS register
                 if uds_fuse_row_granularity_64 {
@@ -148,7 +148,7 @@ impl UdsProgrammingFlow {
             // Trigger the partition digest operation
             // Poll the STATUS register until the DAI state returns to idle.
             while {
-                let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
+                let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr));
                 (status_value & DAI_IDLE_BIT) == 0
             } {}
 
@@ -161,7 +161,7 @@ impl UdsProgrammingFlow {
             env.dma.write_dword(
                 AxiAddr::from(direct_access_address_reg_addr),
                 env.soc_ifc.uds_seed_dest_base_addr_low(),
-            )?;
+            );
 
             // Trigger the digest calculation command
             cprintln!(
@@ -172,11 +172,11 @@ impl UdsProgrammingFlow {
             env.dma.write_dword(
                 AxiAddr::from(direct_access_cmd_reg_addr),
                 DIRECT_ACCESS_CMD_DIGEST,
-            )?;
+            );
 
             // Poll the STATUS register until the DAI state returns to idle
             while {
-                let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr))?;
+                let status_value = env.dma.read_dword(AxiAddr::from(status_reg_addr));
                 (status_value & DAI_IDLE_BIT) == 0
             } {}
 
