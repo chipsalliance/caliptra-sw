@@ -21,11 +21,11 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
+use crate::cprintln;
 use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
-use crate::cprintln;
 
 use core::mem::MaybeUninit;
 
@@ -203,7 +203,7 @@ fn check_for_alert_state(
 ) -> CaliptraResult<()> {
     // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
     // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
-    const ALERT_HANG: u32 = 0x15c;
+    const ALERT_HANG: u32 = 0x1fb;
     const CONT_HT_RUNNING: u32 = 0x1a2;
     const BOOT_PHASE_DONE: u32 = 0x8e;
 
