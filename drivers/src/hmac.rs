@@ -178,6 +178,7 @@ impl Hmac {
         mut tag: HmacTag<'a>,
         hmac_mode: HmacMode,
     ) -> CaliptraResult<HmacOp<'a>> {
+        Self::check_key(key, hmac_mode)?;
         let hmac = self.hmac.regs_mut();
         let mut csr_mode = false;
 
@@ -222,6 +223,20 @@ impl Hmac {
         Ok(op)
     }
 
+    /// Checks that the key and mode are valid for use in in the engine.
+    /// Submitting an invalid key can result in a hardware error, which we can't easily check for.
+    fn check_key(key: &HmacKey, mode: HmacMode) -> CaliptraResult<()> {
+        match key {
+            HmacKey::Array4x12(_) if mode == HmacMode::Hmac512 => {
+                Err(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS)
+            }
+            HmacKey::Array4x16(_) if mode == HmacMode::Hmac384 => {
+                Err(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS)
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Generate an LFSR seed and copy to keyvault.
     ///
     /// # Arguments
@@ -258,6 +273,7 @@ impl Hmac {
         tag: HmacTag,
         hmac_mode: HmacMode,
     ) -> CaliptraResult<()> {
+        Self::check_key(key, hmac_mode)?;
         let hmac = self.hmac.regs_mut();
         let mut tag = tag;
         let mut csr_mode: bool = false;
@@ -582,7 +598,14 @@ impl Hmac {
         }
 
         // Wait for the hmac operation to finish
-        wait::until(|| hmac.hmac512_status().read().valid());
+        wait::until(|| {
+            hmac.hmac512_status().read().valid() || hmac.hmac512_status().read().ready()
+        });
+
+        // check for a hardware error
+        if !hmac.hmac512_status().read().valid() {
+            return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
+        }
 
         if let Some(dest_key) = dest_key {
             KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), dest_key)

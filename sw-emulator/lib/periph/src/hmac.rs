@@ -535,6 +535,24 @@ impl HmacSha {
     fn op_complete(&mut self) {
         // Retrieve the tag
         let key_len = self.key_len();
+
+        // the hardware will not return the tag if HMAC512 is used with a truncated input from KV,
+        // and instead returns ready = true and valid = false.
+        if self.key_from_kv && key_len == 16 && self.key[12..16].iter().all(|&x| x == 0) {
+            self.status
+                .reg
+                .modify(Status::READY::SET + Status::VALID::CLEAR);
+            return;
+        }
+        // the hardware will not return the tag if HMAC512 is used with a 0 key from KV,
+        // and instead returns ready = true and valid = false.
+        if self.key_from_kv && self.key.iter().all(|&x| x == 0) {
+            self.status
+                .reg
+                .modify(Status::READY::SET + Status::VALID::CLEAR);
+            return;
+        }
+
         self.hmac.tag(self.tag[..key_len].as_mut_bytes());
         // Don't reveal the tag to the CPU if the inputs came from the
         // key-vault.
@@ -807,15 +825,15 @@ mod tests {
         TagWriteFailTest(bool),
     }
 
-    fn test_hmac(key: &mut [u8], data: &[u8], result: &[u8], keyvault_actions: &[KeyVaultAction]) {
-        fn make_word(idx: usize, arr: &[u8]) -> RvData {
-            let mut res: RvData = 0;
-            for i in 0..4 {
-                res |= (arr[idx + i] as RvData) << (i * 8);
-            }
-            res
+    fn make_word(idx: usize, arr: &[u8]) -> RvData {
+        let mut res: RvData = 0;
+        for i in 0..4 {
+            res |= (arr[idx + i] as RvData) << (i * 8);
         }
+        res
+    }
 
+    fn test_hmac(key: &mut [u8], data: &[u8], result: &[u8], keyvault_actions: &[KeyVaultAction]) {
         let totalblocks = ((data.len() + 16) + HMAC_BLOCK_SIZE) / HMAC_BLOCK_SIZE;
         let totalbytes = totalblocks * HMAC_BLOCK_SIZE;
         let mut block_arr = vec![0; totalbytes];
@@ -1638,5 +1656,102 @@ mod tests {
         ];
 
         test_hmac(&mut key, &data, &result, &[]);
+    }
+
+    #[test]
+    fn test_zero_key_error() {}
+
+    fn check_invalid(key: &[u8; 64]) {
+        let data = &[1; 64];
+        let key_id = 0;
+        let totalbytes = HMAC_BLOCK_SIZE;
+        let mut block_arr = vec![0; totalbytes];
+
+        // Compute the total bytes and total blocks required for the final message.
+        block_arr[..data.len()].copy_from_slice(data);
+        block_arr[data.len()] = 1 << 7;
+        let len: u128 = (HMAC_BLOCK_SIZE + data.len()) as u128;
+        let len = len * 8;
+        block_arr[totalbytes - 16..].copy_from_slice(&len.to_be_bytes());
+        block_arr.to_big_endian();
+
+        let clock = Clock::new();
+        let mut key_vault = KeyVault::new();
+
+        key_vault.write_key(key_id, key, 0x3F).unwrap();
+
+        let mut hmac = HmacSha::new(&clock, key_vault);
+
+        // Instruct key to be read from key-vault.
+        let key_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+        key_ctrl.modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
+
+        assert_eq!(
+            hmac.write(RvSize::Word, OFFSET_KEY_CONTROL, key_ctrl.get())
+                .ok(),
+            Some(())
+        );
+
+        // Wait for hmac periph to retrieve the key from key-vault.
+        loop {
+            let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
+                hmac.read(RvSize::Word, OFFSET_KEY_STATUS).unwrap(),
+            );
+
+            if key_read_status.is_set(KeyReadStatus::VALID) {
+                if key_read_status.read(KeyReadStatus::ERROR)
+                    != KeyReadStatus::ERROR::KV_SUCCESS.value
+                {
+                    return;
+                }
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut hmac);
+        }
+
+        // Process each block via the HMAC engine.
+        for i in (0..HMAC_BLOCK_SIZE).step_by(4) {
+            hmac.write(
+                RvSize::Word,
+                OFFSET_BLOCK + i as RvAddr,
+                make_word(i, &block_arr),
+            )
+            .unwrap();
+        }
+
+        hmac.write(
+            RvSize::Word,
+            OFFSET_CONTROL,
+            (Control::INIT::SET + Control::MODE::HMAC512).into(),
+        )
+        .unwrap();
+
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::READY) {
+                if status.is_set(Status::VALID) {
+                    panic!("Result should not be valid");
+                }
+                return;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut hmac);
+        }
+    }
+
+    #[test]
+    fn test_hmac_sha512_on_384_key_returns_invalid() {
+        let mut key = [0; 64];
+        key[0..48].fill(0xff); // simulate HMAC-384 key
+        check_invalid(&key);
+    }
+
+    #[test]
+    fn test_hmac_on_zero_key_invalid() {
+        let key = [0; 64];
+        check_invalid(&key);
     }
 }
