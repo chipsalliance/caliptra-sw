@@ -156,10 +156,10 @@ int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, b
 int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async);
 
 // ECDSA384 Verify
-int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
+int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool async);
 
 // LMS Verify
-int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async);
+int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async);
 
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
@@ -228,4 +228,3 @@ void caliptra_req_idev_csr_complete();
 #ifdef __cplusplus
 }
 #endif
-

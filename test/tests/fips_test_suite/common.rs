@@ -5,7 +5,7 @@ use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use dpe::{
     commands::*,
@@ -416,20 +416,9 @@ pub fn verify_mbox_output_inhibited<T: HwModel>(hw: &mut T) {
     }
 }
 
-// Check sha engine output is inhibited (ensure sha engine is locked)
-pub fn verify_sha_engine_output_inhibited<T: HwModel>(hw: &mut T) {
-    let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
-    match hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream) {
-        Ok(_) => panic!("SHA engine is not locked, output is not inhibited"),
-        Err(ModelError::UnableToLockSha512Acc) => (),
-        Err(_) => panic!("Unexpected error from compute_sha512_acc_digest"),
-    }
-}
-
 // Verify all output is inhibited
 pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
     verify_mbox_output_inhibited(hw);
-    verify_sha_engine_output_inhibited(hw);
 }
 
 pub fn hook_code_read<T: HwModel>(hw: &mut T) -> u8 {

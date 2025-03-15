@@ -10,7 +10,7 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError};
 use common::*;
 use zerocopy::IntoBytes;
 
@@ -105,7 +105,6 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
             }
         }
     }
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // Attempt to clear the error in an undocumented way
     // Clear the error reg and attempt output again
@@ -118,7 +117,6 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
     }
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // Restart Caliptra
     if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
@@ -136,12 +134,6 @@ fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
             .read()
             .ready_for_mb_processing()
     });
-
-    // Verify crypto operations can be performed
-    // Verify the SHA engine is usable
-    let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
-    hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream)
-        .unwrap();
 
     // Verify we can load FW
     hw.upload_firmware(&fw_image).unwrap();
@@ -208,8 +200,6 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
             }
         }
     }
-    // Check that the SHA engine is not usable
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // Attempt to clear the error in an undocumented way
     // Clear the error reg and attempt output again
@@ -222,7 +212,6 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
     }
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // Restart Caliptra
     if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
@@ -237,12 +226,6 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
             .read()
             .ready_for_mb_processing()
     });
-
-    // Verify crypto operations can be performed
-    // Verify the SHA engine is usable
-    let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
-    hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream)
-        .unwrap();
 
     // Verify we can load FW
     hw.upload_firmware(&fw_image).unwrap();
@@ -571,7 +554,6 @@ pub fn integrity_check_failure_rom() {
             }
         }
     }
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // Attempt to clear the error in an undocumented way
     // Clear the error reg and attempt output again
@@ -584,7 +566,6 @@ pub fn integrity_check_failure_rom() {
         Err(ModelError::MailboxCmdFailed(0x0)) => (),
         Err(e) => panic!("FW Load received unexpected error {}", e),
     }
-    verify_sha_engine_output_inhibited(&mut hw);
 
     // This error cannot be cleared.
 }

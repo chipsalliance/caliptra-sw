@@ -25,7 +25,6 @@ pub const NUM_PAUSERS: usize = 5;
 /// struct RealSocManager;
 /// const CPTRA_SOC_IFC_ADDR: u32 = 0x3003_0000;
 /// const CPTRA_SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
-/// const CPTRA_SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
 /// const CPTRA_SOC_MBOX_ADDR: u32 = 0x3002_0000;
 /// const fn caliptra_address_remap(addr : u32) -> u32 {
 ///     addr
@@ -39,9 +38,6 @@ pub const NUM_PAUSERS: usize = 5;
 ///
 ///     /// Address of the SoC TRNG interface, remapped for the SoC.
 ///     const SOC_IFC_TRNG_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_TRNG_ADDR);
-///
-///     /// Address of the SHA-512 accelerator, remapped for the SoC.
-///     const SOC_SHA512_ACC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_SHA512_ACC_ADDR);
 ///
 ///     /// Maximum number of wait cycles.
 ///     const MAX_WAIT_CYCLES: u32 = 400000;
@@ -63,7 +59,6 @@ pub const NUM_PAUSERS: usize = 5;
 pub trait SocManager {
     const SOC_IFC_ADDR: u32;
     const SOC_MBOX_ADDR: u32;
-    const SOC_SHA512_ACC_ADDR: u32;
     const SOC_IFC_TRNG_ADDR: u32;
 
     const MAX_WAIT_CYCLES: u32;
@@ -195,17 +190,6 @@ pub trait SocManager {
         unsafe {
             caliptra_registers::mbox::RegisterBlock::new_with_mmio(
                 Self::SOC_MBOX_ADDR as *mut u32,
-                self.mmio_mut(),
-            )
-        }
-    }
-
-    /// A register block that can be used to manipulate the sha512_acc peripheral
-    /// over the simulated SoC->Caliptra APB bus.
-    fn soc_sha512_acc(&mut self) -> caliptra_registers::sha512_acc::RegisterBlock<Self::TMmio<'_>> {
-        unsafe {
-            caliptra_registers::sha512_acc::RegisterBlock::new_with_mmio(
-                Self::SOC_SHA512_ACC_ADDR as *mut u32,
                 self.mmio_mut(),
             )
         }
