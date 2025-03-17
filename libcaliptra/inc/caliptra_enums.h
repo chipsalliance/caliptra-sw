@@ -103,9 +103,10 @@ enum dpe_error_codes {
 };
 
 enum dpe_derive_context_cmd_flags {
-    DPE_DERIVE_CONTEXT_FLAG_RECURSIVE          = ( 1UL << 24),
-    DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI         = ( 1UL << 23),
-    DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE = ( 1UL << 22),
+    DPE_DERIVE_CONTEXT_FLAG_RETAIN_PARENT_CONTEXT = ( 1UL << 29),
+    DPE_DERIVE_CONTEXT_FLAG_RECURSIVE             = ( 1UL << 24),
+    DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI            = ( 1UL << 23),
+    DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE    = ( 1UL << 22),
 };
 
 #define DPE_PROFILE_256 3

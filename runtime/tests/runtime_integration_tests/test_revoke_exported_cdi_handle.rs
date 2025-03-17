@@ -144,7 +144,9 @@ fn test_export_cdi_after_revoke() {
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: [0; DPE_PROFILE.get_tci_size()],
-        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
     };
