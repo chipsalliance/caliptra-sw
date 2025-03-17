@@ -503,7 +503,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
             VENDOR_CONFIG_KEY_3,
         ];
 
-        for vendor_config in VENDOR_CONFIG_LIST {
+        for vendor_config in VENDOR_CONFIG_LIST.clone() {
             let key_idx = vendor_config.ecc_key_idx;
             image_options.vendor_config = vendor_config;
 
