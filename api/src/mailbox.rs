@@ -19,8 +19,8 @@ impl CommandId {
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
-    pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
-    pub const LMS_VERIFY: Self = Self(0x4C4D5356); // "LMSV"
+    pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
+    pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
@@ -556,6 +556,7 @@ pub struct EcdsaVerifyReq {
     pub pub_key_y: [u8; 48],
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
+    pub hash: [u8; 48],
 }
 impl Request for EcdsaVerifyReq {
     const ID: CommandId = CommandId::ECDSA384_VERIFY;
@@ -576,6 +577,7 @@ pub struct LmsVerifyReq {
     pub signature_ots: [u8; 1252],
     pub signature_tree_type: u32,
     pub signature_tree_path: [u8; 360],
+    pub hash: [u8; 48],
 }
 impl Request for LmsVerifyReq {
     const ID: CommandId = CommandId::LMS_VERIFY;
