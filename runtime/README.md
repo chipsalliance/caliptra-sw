@@ -288,6 +288,9 @@ Relevant registers:
 * CPTRA\_FW\_ERROR\_NON\_FATAL: Status code of mailbox command. Any result
   other than `SUCCESS` signifies a mailbox command failure.
 
+Mailbox user 0xFFFF_FFFF is reserved for Caliptra internal use. All mailbox
+commands from that user will fail.
+
 ### CALIPTRA\_FW\_LOAD
 
 The `CALIPTRA_FW_LOAD` command is handled by both ROM and Runtime Firmware.
@@ -2016,7 +2019,7 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | tcg-dice-MultiTcbInfo\*        | FWIDs        | [0] "Journey" TCI Value                                             |
 |                                |              | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext. |
 |                                | Type         | 4-byte TYPE field of TCI node                                       |
-|                                | VendorInfo   | Locality of the caller (analog for PAUSER)                          |
+|                                | VendorInfo   | Locality of the caller (analog for Mailbox User). 0xFFFFFFFF for any measurements performed by Caliptra. |
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.
