@@ -279,8 +279,11 @@ fn handle_production_token(
     let debug_auth_pk_hash_base = mci_base + AxiAddr::from(debug_auth_pk_offset);
 
     let dma = &mut env.dma;
-    let mut fuse_digest: [u8; 64] = [0; 64];
-    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest)?;
+    let mut fuse_digest: [u32; 16] = [0; 16];
+    dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
+    for n in fuse_digest.iter_mut() {
+        *n = n.to_be();
+    }
 
     // Verify that digest of keys match
     let fuse_digest = Array4x16::from(fuse_digest);

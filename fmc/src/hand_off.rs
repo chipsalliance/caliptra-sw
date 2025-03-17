@@ -13,6 +13,7 @@ File Name:
 
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};

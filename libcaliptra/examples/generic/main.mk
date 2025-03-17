@@ -24,8 +24,8 @@ $(TARGET): $(OBJS) $(DEPS)
 	@echo [LINK] $(TARGET)
 	$(Q)$(CC) -o $(TARGET) $(OBJS) $(CFLAGS)
 	@echo [ADD DIGESTS] VENDOR OWNER
-	$(Q)dd status=none if=$(FW_FILE) bs=4 count=480 skip=2   | sha384sum | xxd -r -p > vpk.bin
-	$(Q)dd status=none if=$(FW_FILE) bs=4 count=36  skip=913 | sha384sum | xxd -r -p > opk.bin
+	$(Q)dd status=none if=$(FW_FILE) bs=4 count=434 skip=3   | sha384sum | xxd -r -p > vpk.bin
+	$(Q)dd status=none if=$(FW_FILE) bs=4 count=672  skip=2292 | sha384sum | xxd -r -p > opk.bin
 	$(Q)objcopy $(TARGET) --update-section VPK_HASH=vpk.bin
 	$(Q)objcopy $(TARGET) --update-section OPK_HASH=opk.bin
 	$(Q)rm -f vpk.bin opk.bin

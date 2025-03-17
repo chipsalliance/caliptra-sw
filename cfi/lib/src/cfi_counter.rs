@@ -74,7 +74,7 @@ pub enum CfiCounter {}
 impl CfiCounter {
     /// Reset counter
     #[inline(always)]
-    pub fn reset(entropy_gen: &mut impl FnMut() -> CaliptraResult<[u32; 12]>) {
+    pub fn reset(entropy_gen: &mut impl FnMut() -> CaliptraResult<(u32, u32, u32, u32)>) {
         prng().mix_entropy(entropy_gen);
         Self::reset_internal();
     }

@@ -6,6 +6,7 @@ Abstract:
     Crypto helper routines
 --*/
 use crate::fmc_env::FmcEnv;
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{
     crypto::{self, Ecc384KeyPair, MlDsaKeyPair},

@@ -51,6 +51,11 @@ path = "src/bin/sha384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "sha512"
+path = "src/bin/sha512_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "hmac"
 path = "src/bin/hmac_tests.rs"
 required-features = ["riscv"]
