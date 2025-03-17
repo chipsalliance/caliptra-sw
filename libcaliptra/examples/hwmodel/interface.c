@@ -2,6 +2,7 @@
 
 #define HWMODEL 1
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 #include <unistd.h>
 
 #include "caliptra_model.h"
+#include "test.h"
 
 #define CALIPTRA_STATUS_OK 0
 
@@ -29,14 +31,17 @@ void testbench_reinit(void)
     }
 }
 
-void hwmod_init(struct caliptra_buffer rom) {
+void hwmod_init(struct caliptra_buffer rom, const test_info* info) {
+    assert(info != NULL);
+
   // slice::from_raw_parts can panic when the pointer is NULL
-  uint8_t empty[0];
+    uint8_t empty[0];
     struct caliptra_model_init_params params = {
         .rom = rom,
         .dccm = {.data = empty, .len = 0},
         .iccm = {.data = empty, .len = 0},
         .security_state = CALIPTRA_SEC_STATE_DBG_LOCKED_MANUFACTURING,
+        .soc_user = info->apb_pauser,
     };
     init_params = params;
 }

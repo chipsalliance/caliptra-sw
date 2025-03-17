@@ -24,6 +24,7 @@ use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
+use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
     Ecc384, Hmac, KeyVault, Mailbox, ResetReason, Sha256, Sha2_512_384, Sha2_512_384Acc,
@@ -76,7 +77,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        let mut entropy_gen = || env.trng.generate4();
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
@@ -88,6 +89,13 @@ pub extern "C" fn rom_entry() -> ! {
     validate_trng_config(&mut env);
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
+
+    let reset_reason = env.soc_ifc.reset_reason();
+
+    // Lock the Cold Reset registers since they need to remain locked on an Update or Warm reset.
+    if reset_reason != ResetReason::ColdReset {
+        lock_cold_reset_reg(&mut env);
+    }
 
     let lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -133,8 +141,6 @@ pub extern "C" fn rom_entry() -> ! {
 
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
-
-    let reset_reason = env.soc_ifc.reset_reason();
 
     if !cfg!(feature = "fake-rom") {
         let mut kats_env = caliptra_kat::KatsEnv {

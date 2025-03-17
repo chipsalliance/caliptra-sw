@@ -17,8 +17,8 @@ use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
-    TbServicesCb, UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, MailboxRequester,
+    ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
 use clap::{arg, value_parser, ArgAction};
@@ -334,7 +334,7 @@ fn main() -> io::Result<()> {
     let soc_ifc = unsafe {
         caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
             0x3003_0000 as *mut u32,
-            BusMmio::new(root_bus.soc_to_caliptra_bus()),
+            BusMmio::new(root_bus.soc_to_caliptra_bus(MailboxRequester::SocUser(1u32))),
         )
     };
 
@@ -461,7 +461,7 @@ fn change_dword_endianess(data: &mut [u8]) {
 }
 
 fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
-    let soc_mbox = mailbox.as_external().regs();
+    let soc_mbox = mailbox.as_external(MailboxRequester::SocUser(1u32)).regs();
     // Write the cmd to mailbox.
 
     assert!(!soc_mbox.lock().read().lock());
@@ -496,7 +496,7 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
 }
 
 fn issue_ri_download_fw_mbox_cmd(mailbox: &mut MailboxInternal) {
-    let soc_mbox = mailbox.as_external().regs();
+    let soc_mbox = mailbox.as_external(MailboxRequester::SocUser(1u32)).regs();
     // Write the cmd to mailbox.
 
     assert!(!soc_mbox.lock().read().lock());
@@ -521,7 +521,7 @@ fn download_idev_id_csr(
 
     let mut file = std::fs::File::create(path).unwrap();
 
-    let soc_mbox = mailbox.as_external().regs();
+    let soc_mbox = mailbox.as_external(MailboxRequester::SocUser(1u32)).regs();
 
     let byte_count = soc_mbox.dlen().read() as usize;
     let remainder = byte_count % core::mem::size_of::<u32>();

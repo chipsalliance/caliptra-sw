@@ -23,6 +23,7 @@ Note:
 use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 use caliptra_drivers::{

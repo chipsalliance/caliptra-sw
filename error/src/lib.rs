@@ -1884,6 +1884,16 @@ impl CaliptraError {
             0x90070002,
             "ROM KAT Error: LMS digest mismatch"
         ),
+        (
+            KAT_SHA512_DIGEST_FAILURE,
+            0x90020003,
+            "ROM KAT Error: SHA512 digest failure"
+        ),
+        (
+            KAT_SHA512_DIGEST_MISMATCH,
+            0x90020004,
+            "ROM KAT Error: SHA512 digest mismatch"
+        ),
         (ROM_INTEGRITY_FAILURE, 0x90080001, "ROM integrity failure"),
         (
             FIPS_HOOKS_INJECTED_ERROR,

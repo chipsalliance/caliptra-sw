@@ -18,25 +18,25 @@ pub fn rom_from_env() -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["no-cfi"],
+    features: &[],
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "no-cfi"],
+    features: &["emu"],
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom", "no-cfi"],
+    features: &["emu", "fake-rom"],
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks", "no-cfi"],
+    features: &["fips-test-hooks"],
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
@@ -252,6 +252,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const SHA512: FwId = FwId {
+        bin_name: "sha512",
+        ..BASE_FWID
+    };
+
     pub const SHA2_512_384ACC: FwId = FwId {
         bin_name: "sha2_512_384acc",
         ..BASE_FWID
@@ -446,6 +451,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA1,
     &driver_tests::SHA256,
     &driver_tests::SHA384,
+    &driver_tests::SHA512,
     &driver_tests::SHA2_512_384ACC,
     &driver_tests::STATUS_REPORTER,
     &driver_tests::TEST_LMS_24,

@@ -109,6 +109,7 @@ func getHWModel() *C.struct_caliptra_model {
 
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
+	params.soc_user = 1
 
 	// use a dummy value for iccm and dccm because they have to be non-nil
 	iccm := C.CBytes([]byte{0})

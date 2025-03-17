@@ -41,14 +41,32 @@ bool caliptra_ready_for_fuses(void);
 int caliptra_init_fuses(const struct caliptra_fuses *fuses);
 
 /**
+ * caliptra_is_ready_for_firmware
+ *
+ * Checks if Caliptra hardware is ready for firmware upload
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_firmware(void);
+
+/**
  * caliptra_ready_for_firmware
  *
  * Waits until Caliptra hardware is ready for firmware upload or until
  * Caliptra reports an error
  *
- * @return bool True if ready, false otherwise
+ * @return int 0 if ready, Caliptra error otherwise
  */
 uint32_t caliptra_ready_for_firmware(void);
+
+/**
+ * caliptra_is_ready_for_runtime
+ *
+ * Checks if Caliptra hardware is ready for runtime commands
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_runtime(void);
 
 /**
  * caliptra_ready_for_runtime
@@ -156,10 +174,10 @@ int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, b
 int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async);
 
 // ECDSA384 Verify
-int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
+int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool async);
 
 // LMS Verify
-int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async);
+int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async);
 
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
@@ -228,4 +246,3 @@ void caliptra_req_idev_csr_complete();
 #ifdef __cplusplus
 }
 #endif
-

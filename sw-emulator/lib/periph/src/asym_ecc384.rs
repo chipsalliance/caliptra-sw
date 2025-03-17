@@ -638,7 +638,10 @@ impl AsymEcc384 {
 
         let pcr_digest = self.hash_sha512.pcr_hash_digest();
 
-        let signature = Ecc384::sign(&pcr_key[..48].try_into().unwrap(), &pcr_digest);
+        let signature = Ecc384::sign(
+            &pcr_key[..48].try_into().unwrap(),
+            &pcr_digest[..48].try_into().unwrap(),
+        );
         self.sig_r = words_from_bytes_le(&signature.r);
         self.sig_s = words_from_bytes_le(&signature.s);
     }

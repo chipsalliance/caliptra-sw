@@ -24,7 +24,6 @@ use caliptra_registers::{
 };
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
-use zerocopy::IntoBytes;
 
 pub enum DmaReadTarget {
     Mbox(u32),
@@ -251,49 +250,25 @@ impl Dma {
     ///
     /// * `read_data` - Buffer to store the read data
     ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult<()>` - Success or error code
-    fn dma_read_fifo(&self, read_data: &mut [u8]) -> CaliptraResult<()> {
+    fn dma_read_fifo(&self, read_data: &mut [u32]) {
         self.with_dma(|dma| {
-            // Only multiple of 4 bytes are allowed
-            if read_data.len() % core::mem::size_of::<u32>() != 0 {
-                return Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE);
-            }
-
-            // Process all 4-byte chunks
-            read_data.chunks_mut(4).for_each(|word| {
+            for word in read_data.iter_mut() {
                 // Wait until the FIFO has data. fifo_depth is in DWORDs.
                 while dma.status0().read().fifo_depth() == 0 {}
 
-                let read = &dma.read_data().read().to_le_bytes();
-                // check needed so that the compiler doesn't generate a panic
-                if read.len() == word.len() {
-                    word.copy_from_slice(read);
-                }
-            });
-            Ok(())
-        })
+                let read = dma.read_data().read();
+                *word = read;
+            }
+        });
     }
 
-    fn dma_write_fifo(&self, write_data: &[u8]) -> CaliptraResult<()> {
+    fn dma_write_fifo(&self, write_data: u32) {
         self.with_dma(|dma| {
-            if write_data.len() % 4 != 0 {
-                Err(CaliptraError::DRIVER_DMA_FIFO_INVALID_SIZE)?;
-            }
-
-            // Process all 4-byte chunks
             let max_fifo_depth = dma.cap().read().fifo_max_depth();
-            write_data.chunks(4).for_each(|word| {
-                // Wait until the FIFO has space. fifo_depth is in DWORDs.
-                while max_fifo_depth == dma.status0().read().fifo_depth() {}
+            while max_fifo_depth == dma.status0().read().fifo_depth() {}
 
-                dma.write_data()
-                    .write(|_| u32::from_le_bytes(word.try_into().unwrap_or_default()));
-            });
-
-            Ok(())
-        })
+            dma.write_data().write(|_| write_data);
+        });
     }
 
     /// Read a 32-bit word from the specified address
@@ -304,11 +279,11 @@ impl Dma {
     ///
     /// # Returns
     ///
-    /// * `CaliptraResult<u32>` - Read value or error code
-    pub fn read_dword(&self, read_addr: AxiAddr) -> CaliptraResult<u32> {
-        let mut read_val: u32 = 0;
-        self.read_buffer(read_addr, read_val.as_mut_bytes())?;
-        Ok(read_val)
+    /// * `u32` - Read value
+    pub fn read_dword(&self, read_addr: AxiAddr) -> u32 {
+        let mut read_val = [0u32; 1];
+        self.read_buffer(read_addr, &mut read_val);
+        read_val[0]
     }
 
     /// Read an arbitrary length buffer to fifo and read back the fifo into the provided buffer
@@ -318,21 +293,18 @@ impl Dma {
     /// * `read_addr` - Address to read from
     /// * `buffer`  - Target location to read to
     ///
-    /// # Returns
-    ///
-    /// * CaliptraResult<()> - Success or failure
-    pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u8]) -> CaliptraResult<()> {
+    pub fn read_buffer(&self, read_addr: AxiAddr, buffer: &mut [u32]) {
         let read_transaction = DmaReadTransaction {
             read_addr,
             fixed_addr: false,
-            length: buffer.len() as u32,
+            // Length is in bytes.
+            length: buffer.len() as u32 * 4,
             target: DmaReadTarget::AhbFifo,
         };
 
         self.setup_dma_read(read_transaction, 0);
-        self.dma_read_fifo(buffer)?;
+        self.dma_read_fifo(buffer);
         self.wait_for_dma_complete();
-        Ok(())
     }
 
     /// Write a 32-bit word to the specified address
@@ -342,10 +314,7 @@ impl Dma {
     /// * `write_addr` - Address to write to
     /// * `write_val` - Value to write
     ///
-    /// # Returns
-    ///
-    /// * `CaliptraResult<()>` - Success or error code
-    pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) -> CaliptraResult<()> {
+    pub fn write_dword(&self, write_addr: AxiAddr, write_val: u32) {
         let write_transaction = DmaWriteTransaction {
             write_addr,
             fixed_addr: false,
@@ -353,9 +322,8 @@ impl Dma {
             origin: DmaWriteOrigin::AhbFifo,
         };
         self.setup_dma_write(write_transaction, 0);
-        self.dma_write_fifo(write_val.as_bytes())?;
+        self.dma_write_fifo(write_val);
         self.wait_for_dma_complete();
-        Ok(())
     }
 
     /// Indicates if payload is available.
@@ -391,10 +359,6 @@ impl<'a> DmaMmio<'a> {
             None => Ok(x),
         }
     }
-
-    fn set_error(&self, err: Option<CaliptraError>) {
-        self.last_error.set(self.last_error.take().or(err));
-    }
 }
 
 impl Mmio for &DmaMmio<'_> {
@@ -406,9 +370,8 @@ impl Mmio for &DmaMmio<'_> {
         }
         let offset = src as usize;
         let a = self.dma.read_dword(self.base + offset);
-        self.set_error(a.err());
         // try_into() will always succeed since we only support u32
-        a.unwrap_or_default().try_into().unwrap_or_default()
+        a.try_into().unwrap_or_default()
     }
 }
 
@@ -422,8 +385,7 @@ impl MmioMut for &DmaMmio<'_> {
         // this will always work because we only support u32
         if let Ok(src) = src.try_into() {
             let offset = dst as usize;
-            let result = self.dma.write_dword(self.base + offset, src);
-            self.set_error(result.err());
+            self.dma.write_dword(self.base + offset, src);
         }
     }
 }
@@ -648,7 +610,7 @@ impl<'a> DmaRecovery<'a> {
                 .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_VALUE));
 
             if caliptra_fw {
-                // the first image is our own firmware, so we needd to set up to receive it
+                // the first image is our own firmware, so we need to set up to receive it
                 // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
                 // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
                 recovery.device_status_0().modify(|val| {
