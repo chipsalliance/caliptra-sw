@@ -26,7 +26,7 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 #[no_mangle]
 extern "C" fn main() {
     // Init CFI
-    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
 
     let mut sha2 = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
     let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };

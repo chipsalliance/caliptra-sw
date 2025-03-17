@@ -30,4 +30,24 @@ impl TrngExt {
         regs.cptra_trng_status().write(|w| w.data_req(false));
         Ok(result)
     }
+
+    pub fn generate4(&mut self) -> CaliptraResult<(u32, u32, u32, u32)> {
+        const MAX_CYCLES_TO_WAIT: u32 = 250000;
+
+        let regs = self.soc_ifc_trng.regs_mut();
+        regs.cptra_trng_status().write(|w| w.data_req(true));
+        let mut cycles = 0;
+        while !regs.cptra_trng_status().read().data_wr_done() {
+            cycles += 1;
+            if cycles >= MAX_CYCLES_TO_WAIT {
+                return Err(CaliptraError::DRIVER_TRNG_EXT_TIMEOUT);
+            }
+        }
+        let a = regs.cptra_trng_data().at(0).read();
+        let b = regs.cptra_trng_data().at(1).read();
+        let c = regs.cptra_trng_data().at(2).read();
+        let d = regs.cptra_trng_data().at(3).read();
+        regs.cptra_trng_status().write(|w| w.data_req(false));
+        Ok((a, b, c, d))
+    }
 }
