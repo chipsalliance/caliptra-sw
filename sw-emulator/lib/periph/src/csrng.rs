@@ -200,7 +200,7 @@ impl Csrng {
     fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
         // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
-        const ALERT_HANG: u32 = 0x15c;
+        const ALERT_HANG: u32 = 0x1fb;
         const CONT_HT_RUNNING: u32 = 0x1a2;
 
         let state = if self.health_tester.failures() > 0 {

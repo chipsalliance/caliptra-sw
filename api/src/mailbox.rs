@@ -950,7 +950,7 @@ pub struct QuotePcrsResp {
     /// The PCR values
     pub pcrs: [PcrValue; 32],
     pub nonce: [u8; 32],
-    pub digest: [u8; 48],
+    pub digest: [u8; 64],
     pub reset_ctrs: [u32; 32],
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
