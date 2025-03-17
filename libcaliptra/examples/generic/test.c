@@ -995,7 +995,8 @@ int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
     }
 
     // Create first export cdi and certificate
-    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | 
+                DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE | DPE_DERIVE_CONTEXT_FLAG_RETAIN_PARENT_CONTEXT)) {
         printf("Failed to export first CDI\n");
         return 1;
     }
