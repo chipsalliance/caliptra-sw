@@ -12,8 +12,9 @@ Abstract:
 
 --*/
 
-use crate::cprintln;
+use crate::{cprintln, memory_layout::ICCM_ORG};
 use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_image_types::ImageManifest;
 use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
     AxiDmaReg, RegisterBlock,
@@ -21,6 +22,7 @@ use caliptra_registers::axi_dma::{
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
 use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
+use zerocopy::IntoBytes;
 
 pub enum DmaReadTarget {
     Mbox(u32),
@@ -488,6 +490,31 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
+    fn transfer_payload_to_srams(
+        &self,
+        manifest: &mut ImageManifest,
+        read_addr: AxiAddr,
+        payload_len_bytes: u32,
+    ) -> CaliptraResult<()> {
+        self.dma.flush();
+
+        // Read the manifest from recovery interface to DCCM.
+        let temp = manifest.as_mut_bytes();
+        let len = temp.len() / core::mem::size_of::<u32>();
+        let ptr = temp.as_mut_ptr() as *mut u32;
+        let u32_slice: &mut [u32] = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+        self.dma.read_buffer(read_addr, u32_slice);
+
+        // Read the FMC and RT from recovery interface to ICCM.
+        let fw_size = payload_len_bytes - size_of::<ImageManifest>() as u32;
+        let address = ICCM_ORG as *mut u32;
+        let u32_slice: &mut [u32] =
+            unsafe { core::slice::from_raw_parts_mut(address, fw_size as usize) };
+        self.dma.read_buffer(read_addr, u32_slice);
+
+        Ok(())
+    }
+
     fn transfer_payload_to_axi(
         &self,
         read_addr: AxiAddr,
@@ -528,6 +555,22 @@ impl<'a> DmaRecovery<'a> {
         self.dma.setup_dma_write(write_transaction, block_size);
         self.dma.wait_for_dma_complete();
         Ok(())
+    }
+
+    pub fn download_image_to_srams(
+        &self,
+        manifest: &mut ImageManifest,
+        fw_image_index: u32,
+        caliptra_fw: bool,
+    ) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
+        // Transfer the image from the recovery interface to the mailbox SRAM.
+        let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
+        self.transfer_payload_to_srams(manifest, addr, image_size_bytes)?;
+        self.wait_for_activation()?;
+        // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        Ok(image_size_bytes)
     }
 
     // Downloads an image from the recovery interface to the mailbox SRAM.

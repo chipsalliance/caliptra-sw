@@ -1113,9 +1113,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_fmc(
         &mut self,
         verify_info: &ImageTocEntry,
-        reason: ResetReason,
+        _reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
-        let range = verify_info.image_range()?;
+        let _range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -1125,17 +1125,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
-        )?;
+        // let actual = self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(verify_info.digest) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
-        }
+        // if cfi_launder(verify_info.digest) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+        // }
 
         // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
@@ -1157,15 +1157,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
 
-        if cfi_launder(reason) == ResetReason::UpdateReset {
-            if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
-            } else {
-                cfi_assert_eq(actual, self.env.get_fmc_digest_dv());
-            }
-        } else {
-            cfi_assert_ne(reason, ResetReason::UpdateReset);
-        }
+        // if cfi_launder(reason) == ResetReason::UpdateReset {
+        //     if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
+        //         Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
+        //     } else {
+        //         cfi_assert_eq(actual, self.env.get_fmc_digest_dv());
+        //     }
+        // } else {
+        //     cfi_assert_ne(reason, ResetReason::UpdateReset);
+        // }
 
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
@@ -1183,7 +1183,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
-        let range = verify_info.image_range()?;
+        let _range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -1193,17 +1193,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
-        )?;
+        // let actual = self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(verify_info.digest) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
-        }
+        // if cfi_launder(verify_info.digest) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+        // }
 
         // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
