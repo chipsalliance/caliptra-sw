@@ -3,6 +3,7 @@
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_cfi_lib::CfiState;
 use caliptra_emu_bus::Bus;
+use caliptra_emu_periph::MailboxRequester;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SecurityState};
 use std::ffi::*;
 use std::slice;
@@ -40,6 +41,7 @@ pub struct caliptra_model_init_params {
     pub dccm: caliptra_buffer,
     pub iccm: caliptra_buffer,
     pub security_state: u8,
+    pub soc_user: u32,
 }
 
 pub const CALIPTRA_SEC_STATE_DBG_UNLOCKED_UNPROVISIONED: c_int = 0b000;
@@ -64,6 +66,7 @@ pub unsafe extern "C" fn caliptra_model_init_default(
             dccm: slice::from_raw_parts(params.dccm.data, params.dccm.len),
             iccm: slice::from_raw_parts(params.iccm.data, params.iccm.len),
             security_state: SecurityState::from(params.security_state as u32),
+            soc_user: MailboxRequester::SocUser(params.soc_user),
             ..Default::default()
         })
         .unwrap(),

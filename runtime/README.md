@@ -19,6 +19,7 @@ v2.0:
 * Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
+* `QUOTE_PCRS` now returns a SHA512 of the PCRs instead of a SHA384.
 
 ## Spec Opens
 
@@ -642,7 +643,7 @@ PcrValue is defined as u8[48]
 | fips\_status | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs         | PcrValue[32] | Values of all PCRs.
 | nonce        | u8[32]       | Return the nonce used as input for convenience.
-| digest       | u8[48]       | Return the digest over the PCR values and the nonce.
+| digest       | u8[64]       | Return the digest over the PCR values and the nonce.
 | reset\_ctrs  | u32[32]      | Reset counters for all PCRs.
 | signature\_r | u8[48]       | R portion of the signature over the PCR quote.
 | signature\_s | u8[48]       | S portion of the signature over the PCR quote.

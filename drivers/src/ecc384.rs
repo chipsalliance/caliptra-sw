@@ -515,10 +515,11 @@ impl Ecc384 {
         let sig = okmutref(&mut sig_result)?;
 
         // Verify the signature just created
-        let r = self.verify_r(pub_key, data, sig)?;
+        let _r = self.verify_r(pub_key, data, sig)?;
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
-        caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+        #[cfg(not(feature = "no-cfi"))]
+        caliptra_cfi_lib::cfi_assert_eq_12_words(&_r.0, &sig.r.0);
 
         #[cfg(feature = "fips-test-hooks")]
         let sig_result = Ok(unsafe {
@@ -558,6 +559,7 @@ impl Ecc384 {
 
         // compare the hardware generate `r` with one in signature
         let result = if verify_r == signature.r {
+            #[cfg(not(feature = "no-cfi"))]
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &signature.r.0);
             Ecc384Result::Success
         } else {

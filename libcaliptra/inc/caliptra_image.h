@@ -10,9 +10,20 @@
 #define SHA384_DIGEST_WORD_SIZE 12
 #define SHA192_DIGEST_BYTE_SIZE 24
 #define SHA192_DIGEST_WORD_SIZE 6
+#define SHA256_DIGEST_WORD_SIZE 8
+#define SHA512_DIGEST_WORD_SIZE 16
+#define SHA512_DIGEST_BYTE_SIZE 64
 #define IMAGE_LMS_OTS_P_PARAM   51
 #define IMAGE_LMS_KEY_HEIGHT    15
-#define IMAGE_BYTE_SIZE         (128 * 1024)
+#define IMAGE_BYTE_SIZE         (256 * 1024)
+#define MLDSA87_PUB_KEY_BYTE_SIZE 2592
+#define MLDSA87_PUB_KEY_WORD_SIZE 648
+#define MLDSA87_PRIV_KEY_BYTE_SIZE 4896
+#define MLDSA87_PRIV_KEY_WORD_SIZE 1224
+#define MLDSA87_SIGNATURE_BYTE_SIZE 4628
+#define MLDSA87_SIGNATURE_WORD_SIZE 1157
+#define PQC_PUB_KEY_BYTE_SIZE MLDSA87_PUB_KEY_BYTE_SIZE
+#define PQC_SIGNATURE_BYTE_SIZE MLDSA87_SIGNATURE_BYTE_SIZE
 
 struct ecc_pub_key {
     uint32_t x[ECC384_SCALAR_WORD_SIZE];
@@ -44,60 +55,112 @@ struct image_lms_signature {
     uint32_t               tree_path[SHA192_DIGEST_WORD_SIZE][IMAGE_LMS_KEY_HEIGHT];
 };
 
+struct image_mldsa_pubkey {
+    uint32_t key[MLDSA87_PUB_KEY_WORD_SIZE];
+};
+
+struct image_pqc_pubkey {
+    uint8_t key[PQC_PUB_KEY_BYTE_SIZE];
+};
+
+struct image_mldsa_signature {
+    uint32_t signature[MLDSA87_SIGNATURE_WORD_SIZE];
+};
+
+struct image_pqc_signature {
+    uint8_t signature[PQC_SIGNATURE_BYTE_SIZE];
+};
+
+struct image_ecc_key_descriptor {
+    uint16_t version;
+    uint8_t reserved;
+    uint8_t key_hash_count;
+    uint32_t key_hash[4][SHA384_DIGEST_WORD_SIZE];
+};
+
+struct image_pqc_key_descriptor {
+    uint16_t version;
+    uint8_t key_type;
+    uint8_t key_hash_count;
+    uint32_t key_hash[32][SHA384_DIGEST_WORD_SIZE];
+};
+
+struct image_vendor_pub_key_info {
+    struct image_ecc_key_descriptor ecc_key_descriptor;
+    struct image_pqc_key_descriptor pqc_key_descriptor;
+};
+
 struct image_vendor_pubkeys {
     struct ecc_pub_key ecc_pub_keys[4];
     struct lms_pub_key lms_pub_keys[32];
+    struct image_mldsa_pubkey mldsa_pub_keys[4];
 };
 
-struct image_vendor_signatures {
-    struct image_ecc_signature ecc_signature;
-    struct image_lms_signature lms_signature;
+struct image_signatures {
+    struct image_ecc_signature ecc_sig;
+    struct image_pqc_signature pqc_sig;
+};
+
+struct vendor_signed_data {
+    uint8_t vendor_not_before[15];
+    uint8_t vendor_not_after[15];
+    uint8_t reserved[10];
+};
+
+struct owner_signed_data {
+    uint8_t owner_not_before[15];
+    uint8_t owner_not_after[15];
+    uint8_t reserved[10];
 };
 
 struct image_owner_pubkeys {
     struct ecc_pub_key ecc_pub_key;
-    struct lms_pub_key lms_pub_key;
-};
-
-struct image_owner_signatures {
-    struct image_ecc_signature ecc_signature;
-    struct image_lms_signature lms_signature;
+    struct image_pqc_pubkey pqc_pub_key;
 };
 
 struct caliptra_preamble {
-    struct image_vendor_pubkeys    vendor_pub_keys;
-    uint32_t                       vendor_ecc_key_index;
-    uint32_t                       vendor_lms_key_index;
-    struct image_vendor_signatures vendor_sigs;
+    struct image_vendor_pub_key_info vendor_pub_key_info;
+    uint32_t                       vendor_ecc_pub_key_idx;
+    struct ecc_pub_key             vendor_ecc_active_pub_key;
+    uint32_t                       vendor_pqc_pub_key_idx;
+    struct image_pqc_pubkey        vendor_pqc_active_pub_key;
+    struct image_signatures        vendor_sigs;
     struct image_owner_pubkeys     owner_pub_keys;
-    struct image_owner_signatures  owner_sigs;
-    uint32_t                       reserved[2]; 
+    struct image_signatures        owner_sigs;
+    uint32_t                       _rsvd[2];
 };
 
 struct caliptra_header {
-    uint32_t header;
-    uint64_t revision;
+    uint32_t revision[2];
+    uint32_t vendor_ecc_pub_key_idx;
+    uint32_t vendor_pqc_pub_key_idx;
     uint32_t flags;
-    uint32_t toc_entry_count;
-    uint8_t  toc_digest[48];
+    uint32_t toc_len;
+    uint32_t pl0_pauser;
+    uint32_t toc_digest[SHA384_DIGEST_WORD_SIZE];
+    uint32_t svn;
+    struct vendor_signed_data vendor_data;
+    struct owner_signed_data owner_data;
 };
 
 struct caliptra_toc {
-    uint32_t toc_entry_id;
-    uint32_t image_type;
-    uint8_t  image_revision[20];
-    uint64_t image_svn;
-    uint64_t image_minimum_svn;
-    uint32_t image_load_address;
-    uint32_t image_entry_point;
-    uint32_t image_offset;
-    uint32_t image_size;
-    uint8_t  image_hash[48];
+    uint32_t id;
+    uint32_t toc_type;
+    uint8_t  revision[20];
+    uint32_t version;
+    uint32_t reserved[2];
+    uint32_t load_addr;
+    uint32_t entry_point;
+    uint32_t offset;
+    uint32_t size;
+    uint32_t digest[SHA384_DIGEST_WORD_SIZE];
 };
 
 struct caliptra_image_manifest {
     uint32_t       marker; // "CMAN"
     uint32_t       size;
+    uint8_t        pqc_key_type;
+    uint8_t        reserved[3];
     struct caliptra_preamble  preamble;
     struct caliptra_header    header;
     struct caliptra_toc       fmc;

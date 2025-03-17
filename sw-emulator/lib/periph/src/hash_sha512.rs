@@ -105,7 +105,6 @@ const SHA512_BLOCK_SIZE: usize = 128;
 const SHA512_BLOCK_SIZE_WORDS: usize = 128 >> 2;
 
 const SHA512_HASH_SIZE: usize = 64;
-const SHA384_HASH_SIZE: usize = 48;
 
 /// The number of CPU clock cycles it takes to perform initialization action.
 const INIT_TICKS: u64 = 1000;
@@ -201,9 +200,9 @@ pub struct HashSha512Regs {
     #[register(offset = 0x0000_0634)]
     pcr_hash_status: ReadOnlyRegister<u32, PcrHashStatus::Register>,
 
-    /// 12 32-bit registers storing the 384-bit digest output.
+    /// 16 32-bit registers storing the 384-bit digest output.
     #[register_array(offset = 0x0000_0638, write_fn = write_access_fault)]
-    pcr_hash_digest: [u32; SHA384_HASH_SIZE / 4],
+    pcr_hash_digest: [u32; SHA512_HASH_SIZE / 4],
 
     /// SHA512 engine
     sha512: Sha512,
@@ -660,7 +659,7 @@ impl HashSha512Regs {
         const PCR_SIZE: usize = 48;
         const NONCE_SIZE: usize = 32;
 
-        self.sha512.reset(Sha512Mode::Sha384);
+        self.sha512.reset(Sha512Mode::Sha512);
 
         for pcr_id in 0..PCR_COUNT {
             let mut pcr = self.key_vault.read_pcr(pcr_id.try_into().unwrap());
@@ -702,7 +701,7 @@ impl HashSha512 {
     }
 
     /// Export the PCR hash digest
-    pub fn pcr_hash_digest(&self) -> [u8; 48] {
+    pub fn pcr_hash_digest(&self) -> [u8; 64] {
         self.regs
             .borrow()
             .pcr_hash_digest
