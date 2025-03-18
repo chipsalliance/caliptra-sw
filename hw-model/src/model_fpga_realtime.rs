@@ -592,15 +592,6 @@ impl HwModel for ModelFpgaRealtime {
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
-
-    // TODO: we need to remove this from all of the hardware models
-    fn compute_sha512_acc_digest(
-        &mut self,
-        _data: &[u8],
-        _mode: crate::ShaAccMode,
-    ) -> Result<Vec<u8>, ModelError> {
-        unimplemented!()
-    }
 }
 
 impl ModelFpgaRealtime {
