@@ -42,6 +42,7 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
@@ -269,7 +270,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
     let cmd_busy = drivers.mbox.cmd_busy();
-    if cmd_busy {
+    let mailbox_state = drivers.mbox.mailbox_state();
+    if cmd_busy && mailbox_state != MboxFsmE::MboxIdle {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -293,7 +295,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
         }
     } else {
-        cfi_assert!(!cmd_busy);
+        cfi_assert!(!cmd_busy || mailbox_state == MboxFsmE::MboxIdle);
     }
     #[cfg(feature = "riscv")]
     setup_mailbox_wfi(drivers);
