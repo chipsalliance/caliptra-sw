@@ -4,10 +4,10 @@
 /rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
 /kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
 /drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson
-/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims
-/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims
+/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2
+/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2
 /x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson
 /fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims
 /runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims
 /hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims
-/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton
+/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton @jhand2

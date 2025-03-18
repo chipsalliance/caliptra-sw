@@ -19,8 +19,9 @@ use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
     DEFAULT_CPTRA_OBF_KEY,
 };
-use zerocopy::{FromBytes, FromZeros, IntoBytes, Ref, Unalign};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
+use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use caliptra_registers::soc_ifc::regs::{
@@ -55,11 +56,6 @@ pub use model_emulated::ModelEmulated;
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
 use ureg::MmioMut;
-
-pub enum ShaAccMode {
-    Sha384Stream,
-    Sha512Stream,
-}
 
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::ModelFpgaRealtime;
@@ -191,6 +187,8 @@ pub struct InitParams<'a> {
     // Information about the stack Caliptra is using. When set the emulator will check if the stack
     // overflows.
     pub stack_info: Option<StackInfo>,
+
+    pub soc_user: MailboxRequester,
 }
 impl Default for InitParams<'_> {
     fn default() -> Self {
@@ -230,6 +228,7 @@ impl Default for InitParams<'_> {
             random_sram_puf: true,
             trace_path: None,
             stack_info: None,
+            soc_user: MailboxRequester::SocUser(1u32),
         }
     }
 }
@@ -314,7 +313,6 @@ pub enum ModelError {
         expected: u32,
         actual: u32,
     },
-    UnableToLockSha512Acc,
     UploadMeasurementResponseError,
     UnableToReadMailbox,
     MailboxNoResponseData,
@@ -410,7 +408,6 @@ impl Display for ModelError {
                 f,
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
-            ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
             ModelError::UploadMeasurementResponseError => {
                 write!(f, "Error in response after uploading measurement")
             }
@@ -971,8 +968,7 @@ pub trait HwModel: SocManager {
         if cfg!(not(feature = "fpga_realtime")) {
             // Don't check for mbox_idle() unless the hw-model supports
             // fine-grained timing control; the firmware may proceed to lock the
-            // mailbox shortly after the mailbox transcation finishes (for example, to
-            // test the sha2_512_384_acc peripheral).
+            // mailbox shortly after the mailbox transcation finishes.
 
             // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
             // so step an extra clock cycle to wait for fm_ps to update
@@ -980,60 +976,6 @@ pub trait HwModel: SocManager {
             assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
         }
         Ok(Some(result))
-    }
-
-    /// Streams `data` to the sha512acc SoC interface. If `sha384` computes
-    /// the sha384 hash of `data`, else computes sha512 hash.
-    ///
-    /// Returns the computed digest if the sha512acc lock can be acquired.
-    /// Else, returns an error.
-    fn compute_sha512_acc_digest(
-        &mut self,
-        data: &[u8],
-        mode: ShaAccMode,
-    ) -> Result<Vec<u8>, ModelError> {
-        self.soc_sha512_acc().control().write(|w| w.zeroize(true));
-
-        if self.soc_sha512_acc().lock().read().lock() {
-            return Err(ModelError::UnableToLockSha512Acc);
-        }
-
-        self.soc_sha512_acc()
-            .dlen()
-            .write(|_| data.len().try_into().unwrap());
-
-        self.soc_sha512_acc().mode().write(|w| {
-            w.mode(|w| match mode {
-                ShaAccMode::Sha384Stream => w.sha_stream_384(),
-                ShaAccMode::Sha512Stream => w.sha_stream_512(),
-            })
-        });
-
-        // Unwrap cannot fail, count * sizeof(u32) is always smaller than data.len()
-        let (prefix_words, suffix_bytes) =
-            Ref::<_, [Unalign<u32>]>::from_prefix_with_elems(data, data.len() / 4).unwrap();
-
-        for word in Ref::into_ref(prefix_words) {
-            self.soc_sha512_acc()
-                .datain()
-                .write(|_| word.get().swap_bytes());
-        }
-
-        if !suffix_bytes.is_empty() {
-            let mut word = [0u8; 4];
-            word[..suffix_bytes.len()].copy_from_slice(suffix_bytes);
-            self.soc_sha512_acc()
-                .datain()
-                .write(|_| u32::from_be_bytes(word));
-        }
-
-        self.soc_sha512_acc().execute().write(|w| w.execute(true));
-
-        self.step_until(|m| m.soc_sha512_acc().status().read().valid());
-
-        self.soc_sha512_acc().lock().write(|w| w.lock(true)); // clear lock
-
-        Ok(self.soc_sha512_acc().digest().read().as_bytes().to_vec())
     }
 
     /// Upload firmware to the mailbox.
@@ -1136,9 +1078,7 @@ pub trait HwModel: SocManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
-    };
+    use crate::{mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
     use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_api::soc_mgr::SocManager;
     use caliptra_builder::firmware;
@@ -1563,90 +1503,6 @@ mod tests {
 
         // TODO: Add test for txn.respond_with_data (this doesn't work yet due
         // to https://github.com/chipsalliance/caliptra-rtl/issues/78)
-    }
-
-    struct Sha384Test<'a> {
-        msg: &'a [u8],
-        expected: &'a [u8],
-    }
-
-    #[test]
-    fn test_sha512_acc() {
-        let rom =
-            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
-                .unwrap();
-
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
-                ..Default::default()
-            },
-            BootParams::default(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            model.compute_sha512_acc_digest(b"Hello", ShaAccMode::Sha384Stream),
-            Err(ModelError::UnableToLockSha512Acc)
-        );
-
-        // Ask firmware to unlock mailbox for sha512acc use.
-        model.mailbox_execute(0x5000_0000, &[]).unwrap();
-
-        let tests = vec![
-            Sha384Test {
-                msg: &[
-                    0x9d, 0xd7, 0x89, 0xea, 0x25, 0xc0, 0x47, 0x45, 0xd5, 0x7a, 0x38, 0x1f, 0x22,
-                    0xde, 0x01, 0xfb, 0x0a, 0xbd, 0x3c, 0x72, 0xdb, 0xde, 0xfd, 0x44, 0xe4, 0x32,
-                    0x13, 0xc1, 0x89, 0x58, 0x3e, 0xef, 0x85, 0xba, 0x66, 0x20, 0x44, 0xda, 0x3d,
-                    0xe2, 0xdd, 0x86, 0x70, 0xe6, 0x32, 0x51, 0x54, 0x48, 0x01, 0x55, 0xbb, 0xee,
-                    0xbb, 0x70, 0x2c, 0x75, 0x78, 0x1a, 0xc3, 0x2e, 0x13, 0x94, 0x18, 0x60, 0xcb,
-                    0x57, 0x6f, 0xe3, 0x7a, 0x05, 0xb7, 0x57, 0xda, 0x5b, 0x5b, 0x41, 0x8f, 0x6d,
-                    0xd7, 0xc3, 0x0b, 0x04, 0x2e, 0x40, 0xf4, 0x39, 0x5a, 0x34, 0x2a, 0xe4, 0xdc,
-                    0xe0, 0x56, 0x34, 0xc3, 0x36, 0x25, 0xe2, 0xbc, 0x52, 0x43, 0x45, 0x48, 0x1f,
-                    0x7e, 0x25, 0x3d, 0x95, 0x51, 0x26, 0x68, 0x23, 0x77, 0x1b, 0x25, 0x17, 0x05,
-                    0xb4, 0xa8, 0x51, 0x66, 0x02, 0x2a, 0x37, 0xac, 0x28, 0xf1, 0xbd,
-                ],
-                expected: &[
-                    0xf5, 0x83, 0x5b, 0x96, 0x43, 0x74, 0x4f, 0xd3, 0x8f, 0xe7, 0x88, 0xeb, 0x91,
-                    0x47, 0x23, 0xcc, 0x00, 0xcb, 0xc9, 0x56, 0x33, 0x68, 0xdd, 0x80, 0xd3, 0x0a,
-                    0xac, 0x4d, 0x74, 0xc7, 0xa8, 0x3b, 0x00, 0x44, 0x0e, 0x10, 0xb4, 0x28, 0xdb,
-                    0x63, 0x37, 0xac, 0x51, 0x0b, 0x70, 0x4d, 0x5d, 0x70, 0x3c, 0x0a, 0xbb, 0xa6,
-                    0x14, 0xdd, 0xd9, 0xf3, 0x55, 0x6a, 0x49, 0xa9, 0xb6, 0x6c, 0xc1, 0x67,
-                ],
-            },
-            Sha384Test {
-                msg: &[0x74, 0x65, 0x73, 0x74], // Bytes "test"
-                // Computed with sha384sum
-                expected: &[
-                    0x32, 0x12, 0x84, 0x76, 0xa5, 0x0a, 0x7b, 0x0f, 0x42, 0xce, 0x2f, 0x81, 0x6b,
-                    0x70, 0xc4, 0x8d, 0xe0, 0x50, 0xae, 0x3c, 0xa1, 0xca, 0x64, 0x2a, 0x49, 0x22,
-                    0x78, 0x6a, 0xc4, 0xef, 0xe8, 0xbf, 0xcb, 0x1c, 0xef, 0xb7, 0xd1, 0x55, 0x62,
-                    0x12, 0xfe, 0x7d, 0x04, 0x96, 0xa9, 0xa0, 0x17, 0xdf, 0x2b, 0x26, 0xbc, 0xd5,
-                    0xa3, 0x97, 0xb7, 0xa2, 0xc9, 0xa9, 0xfe, 0xc4, 0x9a, 0x82, 0x9e, 0xc9,
-                ],
-            },
-            Sha384Test {
-                msg: &[0x74, 0x65], // Bytes "te"
-                // Computed with sha384sum
-                expected: &[
-                    0x1a, 0x88, 0x9c, 0x7c, 0x64, 0x5c, 0x9e, 0x54, 0x8a, 0xc9, 0x49, 0x9a, 0xca,
-                    0xd3, 0xea, 0xf4, 0x6c, 0x6c, 0x7e, 0x90, 0xf4, 0x98, 0x7f, 0xfc, 0xd7, 0x0a,
-                    0x64, 0x8f, 0x4b, 0x58, 0x83, 0xf7, 0xcc, 0xca, 0x60, 0xf4, 0x75, 0xdd, 0xa3,
-                    0x6f, 0x20, 0x18, 0xd7, 0x55, 0xf8, 0xfc, 0x9a, 0x19, 0xf0, 0xc8, 0x23, 0x0f,
-                    0xdf, 0xe0, 0x8a, 0xa4, 0xda, 0xc0, 0x83, 0x95, 0xe6, 0xa0, 0x2d, 0xa5,
-                ],
-            },
-        ];
-
-        for test in tests {
-            assert_eq!(
-                model
-                    .compute_sha512_acc_digest(test.msg, ShaAccMode::Sha384Stream)
-                    .unwrap(),
-                test.expected
-            );
-        }
     }
 
     #[test]

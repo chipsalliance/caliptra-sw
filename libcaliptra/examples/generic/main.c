@@ -79,6 +79,10 @@ int main(int argc, char *argv[])
         .image_bundle = read_file_or_exit(FW_PATH),
         .fuses = {{0}},
     };
+    struct caliptra_image_manifest *manifest =
+        (struct caliptra_image_manifest *)info.image_bundle.data;
+    if (manifest->header.flags & 1)
+        info.apb_pauser = manifest->header.pl0_pauser;
     set_fuses(&info);
 
     return run_tests(&info);

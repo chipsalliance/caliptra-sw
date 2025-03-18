@@ -19,6 +19,8 @@ v2.0:
 * Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
+* `QUOTE_PCRS` now returns a SHA512 of the PCRs instead of a SHA384.
+* `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY`require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra.
 
 ## Spec Opens
 
@@ -287,6 +289,9 @@ Relevant registers:
 * CPTRA\_FW\_ERROR\_NON\_FATAL: Status code of mailbox command. Any result
   other than `SUCCESS` signifies a mailbox command failure.
 
+Mailbox user 0xFFFF_FFFF is reserved for Caliptra internal use. All mailbox
+commands from that user will fail.
+
 ### CALIPTRA\_FW\_LOAD
 
 The `CALIPTRA_FW_LOAD` command is handled by both ROM and Runtime Firmware.
@@ -466,13 +471,12 @@ Command Code: `0x4345_5252` ("CERR")
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
-Verifies an ECDSA P-384 signature. The hash to be verified is taken from
-Caliptra's SHA384 accelerator peripheral.
+Verifies an ECDSA P-384 signature. The hash to be verified is taken from the input (new in 2.0).
 
 In the event of an invalid signature, the mailbox command will report CMD_FAILURE
 and the cause will be logged as a non-fatal error.
 
-Command Code: `0x5349_4756` ("SIGV")
+Command Code: `0x4543_5632` ("ECV2")
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` input arguments*
 
@@ -483,6 +487,7 @@ Command Code: `0x5349_4756` ("SIGV")
 | pub\_key\_y  | u8[48]   | Y portion of ECDSA verification key.
 | signature\_r | u8[48]   | R portion of signature to verify.
 | signature\_s | u8[48]   | S portion of signature to verify.
+| hash         | u8[48]   | SHA384 digest to verify.
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` output arguments*
 
@@ -493,8 +498,7 @@ Command Code: `0x5349_4756` ("SIGV")
 
 ### LMS\_SIGNATURE\_VERIFY (new in 1.1)
 
-Verifies an LMS signature. The hash to be verified is taken from
-Caliptra's SHA384 accelerator peripheral.
+Verifies an LMS signature. The hash to be verified is taken from the input (new in 2.0).
 
 In the event of an invalid signature, the mailbox command will report CMD_FAILURE
 and the cause will be logged as a non-fatal error.
@@ -509,7 +513,7 @@ The supported parameter set is limited to those used for the caliptra image sign
 | w                     | 4         | Width (in bits) of the Winternitz coefficient
 | h                     | 15        | Height of the tree
 
-Command Code: `0x4C4D_5356` ("LMSV")
+Command Code: `0x4C4D_5632` ("LMV2")
 
 *Table: `LMS_SIGNATURE_VERIFY` input arguments*
 
@@ -524,6 +528,7 @@ Command Code: `0x4C4D_5356` ("LMSV")
 | signature\_ots        | u8[1252] | LM-OTS signature
 | signature\_tree\_type | u8[4]    | LMS signature Algorithm type. Must equal 12.
 | signature\_tree\_path | u8[360]  | Path through the tree from the leaf associated with the LM-OTS signature to the root
+| hash                  | u8[48]   | SHA384 digest to verify.
 
 *Table: `LMS_SIGNATURE_VERIFY` output arguments*
 
@@ -639,7 +644,7 @@ PcrValue is defined as u8[48]
 | fips\_status | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs         | PcrValue[32] | Values of all PCRs.
 | nonce        | u8[32]       | Return the nonce used as input for convenience.
-| digest       | u8[48]       | Return the digest over the PCR values and the nonce.
+| digest       | u8[64]       | Return the digest over the PCR values and the nonce.
 | reset\_ctrs  | u32[32]      | Reset counters for all PCRs.
 | signature\_r | u8[48]       | R portion of the signature over the PCR quote.
 | signature\_s | u8[48]       | S portion of the signature over the PCR quote.
@@ -1005,7 +1010,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) 
+| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB)
 
 ### GET_IMAGE_LOAD_ADDRESS
 
@@ -2015,7 +2020,7 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | tcg-dice-MultiTcbInfo\*        | FWIDs        | [0] "Journey" TCI Value                                             |
 |                                |              | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext. |
 |                                | Type         | 4-byte TYPE field of TCI node                                       |
-|                                | VendorInfo   | Locality of the caller (analog for PAUSER)                          |
+|                                | VendorInfo   | Locality of the caller (analog for Mailbox User). 0xFFFFFFFF for any measurements performed by Caliptra. |
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.

@@ -15,8 +15,11 @@ use caliptra_emu_bus::Event;
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, InstrTracer};
 use caliptra_emu_periph::ActionCb;
+use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
+use caliptra_emu_periph::{
+    CaliptraRootBus, CaliptraRootBusArgs, MailboxRequester, SocToCaliptraBus, TbServicesCb,
+};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
@@ -127,7 +130,6 @@ impl SocManager for ModelEmulated {
 
     const SOC_IFC_ADDR: u32 = 0x3003_0000;
     const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
-    const SOC_SHA512_ACC_ADDR: u32 = 0x3002_1000;
     const SOC_MBOX_ADDR: u32 = 0x3002_0000;
 
     const MAX_WAIT_CYCLES: u32 = 20_000_000;
@@ -199,7 +201,7 @@ impl HwModel for ModelEmulated {
             };
             dccm_dest.copy_from_slice(params.dccm);
         }
-        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
+        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus(params.soc_user);
         let (events_to_caliptra, events_from_caliptra, cpu) = {
             let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
             if let Some(stack_info) = params.stack_info {
@@ -307,8 +309,11 @@ impl HwModel for ModelEmulated {
         }
     }
 
-    fn set_axi_user(&mut self, _axi_user: u32) {
-        unimplemented!();
+    fn set_axi_user(&mut self, axi_user: u32) {
+        self.soc_to_caliptra_bus.mailbox = MailboxExternal {
+            soc_user: MailboxRequester::from(axi_user),
+            regs: self.soc_to_caliptra_bus.mailbox.regs.clone(),
+        };
     }
 
     fn warm_reset(&mut self) {

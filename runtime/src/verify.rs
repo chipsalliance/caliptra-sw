@@ -31,12 +31,7 @@ impl EcdsaVerifyCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        // Won't panic, full_digest is always larger than digest
-        let full_digest = drivers.sha_acc.regs().digest().read();
-        let mut digest = Array4x12::default();
-        for (i, target_word) in digest.0.iter_mut().enumerate() {
-            *target_word = full_digest[i];
-        }
+        let digest = Array4x12::from(cmd.hash);
 
         let pubkey = Ecc384PubKey {
             x: Ecc384Scalar::from(cmd.pub_key_x),
@@ -79,13 +74,6 @@ impl LmsVerifyCmd {
 
         let cmd = LmsVerifyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        // Get the digest from the SHA accelerator
-        let msg_digest_be = drivers.sha_acc.regs().digest().truncate::<12>().read();
-        // Flip the endianness since LMS treats this as raw message bytes
-        let mut msg_digest = [0u8; 48];
-        for (i, src_word) in msg_digest_be.iter().enumerate() {
-            msg_digest[i * 4..][..4].copy_from_slice(&src_word.to_be_bytes());
-        }
 
         let lms_pub_key: LmsPublicKey<LMS_N> = LmsPublicKey {
             id: cmd.pub_key_id,
@@ -119,7 +107,7 @@ impl LmsVerifyCmd {
 
         let success = drivers.lms.verify_lms_signature(
             &mut drivers.sha256,
-            &msg_digest,
+            &cmd.hash,
             &lms_pub_key,
             &lms_sig,
         )?;
