@@ -18,7 +18,9 @@ impl CommandId {
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
+                                                      // TODO: Rename to GET_FMC_ALIAS_ECC_CERT
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const GET_FMC_ALIAS_MLDSA_CERT: Self = Self(0x4345524D); // "CERM"
     pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
     pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
     pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
@@ -163,6 +165,7 @@ pub enum MailboxResp {
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
     GetFmcAliasCert(GetFmcAliasCertResp),
+    GetFmcAliasMldsaCert(GetFmcAliasMldsaCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
     Capabilities(CapabilitiesResp),
@@ -192,6 +195,7 @@ impl MailboxResp {
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetFmcAliasMldsaCert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
@@ -217,6 +221,7 @@ impl MailboxResp {
             MailboxResp::Capabilities(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetFmcAliasMldsaCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
@@ -784,6 +789,39 @@ impl Default for GetFmcAliasCertResp {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
             data: [0u8; GetFmcAliasCertResp::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_FMC_ALIAS_MLDSA_CERT
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetFmcAliasMldsaCertReq {
+    pub header: MailboxReqHeader,
+}
+impl Request for GetFmcAliasMldsaCertReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_MLDSA_CERT;
+    type Resp = GetFmcAliasMldsaCertResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetFmcAliasMldsaCertResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; GetFmcAliasMldsaCertResp::DATA_MAX_SIZE], // variable length
+}
+impl GetFmcAliasMldsaCertResp {
+    pub const DATA_MAX_SIZE: usize = 7904;
+}
+impl ResponseVarSize for GetFmcAliasMldsaCertResp {}
+
+impl Default for GetFmcAliasMldsaCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetFmcAliasMldsaCertResp::DATA_MAX_SIZE],
         }
     }
 }

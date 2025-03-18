@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{get_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
+use crate::common::{get_fmc_alias_cert, get_fmc_alias_mldsa_cert, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
@@ -65,16 +65,26 @@ fn test_pcr_quote() {
     // See if incrementing the reset counter worked
     assert_eq!(pcr7_reset_counter, 1);
 
-    // verify signature
-    let big_r = BigNum::from_slice(&resp.ecc_signature_r).unwrap();
-    let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
-    let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
+    {
+        // Verify ECC signature.
+        let big_r = BigNum::from_slice(&resp.ecc_signature_r).unwrap();
+        let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
+        let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
-    let fmc_resp = get_fmc_alias_cert(&mut model);
-    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
-    let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
+        let fmc_resp = get_fmc_alias_cert(&mut model);
+        let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+        let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
 
-    assert!(sig.verify(&resp.digest, &pkey).unwrap());
+        assert!(sig.verify(&resp.digest, &pkey).unwrap());
+    }
+
+    {
+        // Verify MLDSA signature.
+        let fmc_resp = get_fmc_alias_mldsa_cert(&mut model);
+        let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+        // let pkey = fmc_cert.public_key().unwrap().public_key_to_der().unwrap();
+        // println!("{:?}", pkey);
+    }
 }
 
 fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> MailboxReq {

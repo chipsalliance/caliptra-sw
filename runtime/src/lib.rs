@@ -55,7 +55,7 @@ use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
+pub use dice::{GetFmcAliasCertCmd, GetFmcAliasMldsaCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
@@ -202,7 +202,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
+        // TODO: Rename to GET_FMC_ALIAS_ECC_CERT
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
+        CommandId::GET_FMC_ALIAS_MLDSA_CERT => GetFmcAliasMldsaCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
         CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),

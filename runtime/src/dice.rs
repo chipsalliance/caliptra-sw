@@ -13,14 +13,14 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
-    MailboxResp, MailboxRespHeader,
+    GetFmcAliasCertResp, GetFmcAliasMldsaCertResp, GetIdevCertReq, GetIdevCertResp,
+    GetLdevCertResp, GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
 };
 
 use crate::Drivers;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, Ecc384Signature, PersistentData};
-use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
+use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder, Mldsa87Signature};
 use zerocopy::IntoBytes;
 
 pub struct IDevIdCertCmd;
@@ -80,9 +80,23 @@ impl GetFmcAliasCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetFmcAliasCertResp::default();
 
+        // TODO: Rename this.
         resp.data_size = copy_fmc_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
 
         Ok(MailboxResp::GetFmcAliasCert(resp))
+    }
+}
+
+pub struct GetFmcAliasMldsaCertCmd;
+impl GetFmcAliasMldsaCertCmd {
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut resp = GetFmcAliasMldsaCertResp::default();
+
+        resp.data_size =
+            copy_fmc_alias_mldsa_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+
+        Ok(MailboxResp::GetFmcAliasMldsaCert(resp))
     }
 }
 
@@ -157,6 +171,7 @@ pub fn fmc_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
 /// # Returns
 ///
 /// * `usize` - The number of bytes written to `cert`
+// TODO: rename
 #[inline(never)]
 pub fn copy_fmc_alias_cert(
     persistent_data: &PersistentData,
@@ -167,6 +182,35 @@ pub fn copy_fmc_alias_cert(
         .get(..persistent_data.fht.ecc_fmcalias_tbs_size.into());
     let sig = fmc_dice_sign(persistent_data);
     cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
+}
+
+/// Copy FMC alias certificate produced by ROM to `cert` buffer
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
+#[inline(never)]
+pub fn copy_fmc_alias_mldsa_cert(
+    persistent_data: &PersistentData,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    let tbs = persistent_data
+        .mldsa_fmcalias_tbs
+        .get(..persistent_data.fht.mldsa_fmcalias_tbs_size.into());
+    let sig = persistent_data.data_vault.fmc_dice_mldsa_signature();
+    let sig_len = 4627;
+    let sig = Mldsa87Signature {
+        sig: sig.as_bytes()[..sig_len]
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)?,
+    };
+    mldsa_cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }
 
@@ -218,6 +262,37 @@ fn cert_from_tbs_and_sig(
         s: sig.s.into(),
     };
     let Some(builder) = Ecdsa384CertBuilder::new(tbs, &bldr_sig) else {
+        return Err(CaliptraError::RUNTIME_INTERNAL);
+    };
+
+    let Some(size) = builder.build(cert) else {
+        return Err(CaliptraError::RUNTIME_INTERNAL);
+    };
+
+    Ok(size)
+}
+
+/// Create a certificate from a tbs and a signature and write the output to `cert`
+///
+/// # Arguments
+///
+/// * `tbs` - ToBeSigned portion
+/// * `sig` - Ecc384Signature
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
+fn mldsa_cert_from_tbs_and_sig(
+    tbs: Option<&[u8]>,
+    sig: &Mldsa87Signature,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    let Some(tbs) = tbs else {
+        return Err(CaliptraError::RUNTIME_INTERNAL);
+    };
+
+    let Some(builder) = MlDsa87CertBuilder::new(tbs, sig) else {
         return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
