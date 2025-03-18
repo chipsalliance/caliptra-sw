@@ -630,6 +630,87 @@ impl Ecc384 {
         Ok(verify_r)
     }
 
+    /// Compute a shared secret using ECDH (Elliptic Curve Diffie-Hellman)
+    ///
+    /// # Arguments
+    ///
+    /// * `priv_key` - Private key
+    /// * `pub_key` - Public key of the other party
+    /// * `trng` - TRNG driver instance
+    /// * `shared_key_out` - Output destination for the shared key
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Success or error
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn ecdh(
+        &mut self,
+        priv_key: &Ecc384PrivKeyIn,
+        pub_key: &Ecc384PubKey,
+        trng: &mut Trng,
+        shared_key_out: Ecc384PrivKeyOut,
+    ) -> CaliptraResult<()> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::ECC384_ECDH_FAILURE)?
+        }
+
+        let ecc = self.ecc.regs_mut();
+        let mut shared_key_out = shared_key_out;
+
+        // Wait for hardware ready
+        Ecc384::wait(ecc, || ecc.status().read().ready())?;
+
+        // Configure hardware to route keys to user specified hardware blocks
+        match &mut shared_key_out {
+            Ecc384PrivKeyOut::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?;
+            }
+            Ecc384PrivKeyOut::Key(key) => {
+                KvAccess::begin_copy_to_kv(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), *key)?;
+            }
+        }
+
+        // Copy private key
+        match priv_key {
+            Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey_in())?,
+            Ecc384PrivKeyIn::Key(key) => {
+                KvAccess::copy_from_kv(*key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
+                    .map_err(|err| err.into_read_priv_key_err())?
+            }
+        }
+
+        // Copy public key to registers
+        pub_key.x.write_to_reg(ecc.pubkey_x());
+        pub_key.y.write_to_reg(ecc.pubkey_y());
+
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
+
+        // Program the command register for ECDH
+        ecc.ctrl()
+            .write(|w| w.dh_sharedkey(true).ctrl(|w| w.none()));
+
+        // Wait for command to complete
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+
+        // Copy the shared key
+        match &mut shared_key_out {
+            Ecc384PrivKeyOut::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(ecc.dh_shared_key(), arr)?
+            }
+            Ecc384PrivKeyOut::Key(key) => {
+                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
+                    .map_err(|err| err.into_write_priv_key_err())?;
+            }
+        }
+
+        self.zeroize_internal();
+
+        Ok(())
+    }
+
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
         self.ecc.regs_mut().ctrl().write(|w| w.zeroize(true));
@@ -673,7 +754,7 @@ impl Ecc384KeyAccessErr for KvAccessErr {
         }
     }
 
-    /// Convert to reads private key operation error
+    /// Convert to read private key operation error
     fn into_read_priv_key_err(self) -> CaliptraError {
         match self {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_PRIV_KEY_KV_READ,

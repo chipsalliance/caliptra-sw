@@ -14,7 +14,7 @@ Abstract:
 
 use p384::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
 use p384::ecdsa::{Signature, SigningKey, VerifyingKey};
-use p384::EncodedPoint;
+use p384::{EncodedPoint, SecretKey};
 use rfc6979::HmacDrbg;
 use sha2::digest::generic_array::GenericArray;
 use sha2::Sha384;
@@ -137,7 +137,43 @@ impl From<Ecc384Signature> for Signature {
 pub enum Ecc384 {}
 
 impl Ecc384 {
-    /// Generate a deterministic ECC private & public key pair based on the ssed
+    /// Compute a shared secret using ECDH
+    ///
+    /// # Arguments
+    ///
+    /// * `priv_key` - Private key
+    /// * `pub_key` - Public key
+    ///
+    /// # Result
+    ///
+    /// * Ecc384Scalar - Shared secret
+    pub fn compute_shared_secret(priv_key: &Ecc384PrivKey, pub_key: &Ecc384PubKey) -> Ecc384Scalar {
+        // Private key and public key are received as a list of big-endian DWORDs. Changing them to little-endian.
+        let mut priv_key_reversed = *priv_key;
+        let mut pub_key_reversed = *pub_key;
+        priv_key_reversed.to_little_endian();
+        pub_key_reversed.x.to_little_endian();
+        pub_key_reversed.y.to_little_endian();
+
+        // Convert to p384 types
+        let secret_key = SecretKey::from_slice(&priv_key_reversed).unwrap();
+        let verifying_key =
+            VerifyingKey::from_encoded_point(&EncodedPoint::from(pub_key_reversed)).unwrap();
+
+        // Compute shared secret using ECDH
+        // We use the public key point and multiply it by our private key scalar
+        let shared_secret =
+            p384::ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), verifying_key.as_affine());
+
+        // Use the x-coordinate as the shared secret
+        let mut result = [0u8; ECC_384_COORD_SIZE];
+        result.copy_from_slice(shared_secret.raw_secret_bytes().as_slice());
+        result.to_big_endian();
+
+        result
+    }
+
+    /// Generate a deterministic ECC private & public key pair based on the seed
     ///
     /// # Arguments
     ///
@@ -388,5 +424,24 @@ mod tests {
         r.to_little_endian();
         signature.r.to_little_endian();
         assert_ne!(r, signature.r)
+    }
+
+    #[test]
+    fn test_shared_secret() {
+        // Generate two key pairs
+        let seed1 = [1u8; 48];
+        let nonce1 = [2u8; 48];
+        let (priv_key1, pub_key1) = Ecc384::gen_key_pair(&seed1, &nonce1);
+
+        let seed2 = [3u8; 48];
+        let nonce2 = [4u8; 48];
+        let (priv_key2, pub_key2) = Ecc384::gen_key_pair(&seed2, &nonce2);
+
+        // Compute shared secrets from both sides
+        let shared1 = Ecc384::compute_shared_secret(&priv_key1, &pub_key2);
+        let shared2 = Ecc384::compute_shared_secret(&priv_key2, &pub_key1);
+
+        // Both sides should compute the same shared secret
+        assert_eq!(shared1, shared2);
     }
 }
