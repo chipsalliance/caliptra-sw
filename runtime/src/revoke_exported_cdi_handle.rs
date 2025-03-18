@@ -11,8 +11,7 @@ use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
-
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
@@ -32,7 +31,7 @@ impl RevokeExportedCdiHandleCmd {
 
         for slot in drivers.exported_cdi_slots.iter_mut() {
             match slot {
-                Some((cdi, handle)) if *handle == cmd.exported_cdi_handle => {
+                Some((_cdi, handle)) if *handle == cmd.exported_cdi_handle => {
                     #[cfg(not(feature = "no-cfi"))]
                     cfi_assert!(*handle == cmd.exported_cdi_handle);
 
