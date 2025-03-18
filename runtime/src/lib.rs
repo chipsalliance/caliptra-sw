@@ -16,6 +16,7 @@ Abstract:
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
+mod cryptographic_mailbox;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -237,6 +238,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
         }
+        // Cryptographic mailbox commands
+        CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes),
+        CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers),
+
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
     let resp = okmutref(&mut resp)?;

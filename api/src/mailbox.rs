@@ -68,6 +68,10 @@ impl CommandId {
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN: Self = Self(0x50445554); // "PDUT"
+
+    // Cryptographic mailbox commands
+    pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
+    pub const CM_STATUS: Self = Self(0x434D_5354); // "CMST"
 }
 
 impl From<u32> for CommandId {
@@ -169,6 +173,8 @@ pub enum MailboxResp {
     GetIdevCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
+    CmImport(CmImportResp),
+    CmStatus(CmStatusResp),
 }
 
 impl MailboxResp {
@@ -192,6 +198,8 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmImport(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -215,6 +223,8 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmImport(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -274,6 +284,7 @@ pub enum MailboxReq {
     SetAuthManifest(SetAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
+    CmImport(CmImportReq),
 }
 
 impl MailboxReq {
@@ -300,6 +311,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
+            MailboxReq::CmImport(req) => req.as_bytes_partial(),
         }
     }
 
@@ -326,6 +338,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmImport(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -352,6 +365,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
+            MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
         }
     }
 
@@ -1318,6 +1332,113 @@ impl Default for ProductionAuthDebugUnlockToken {
 impl Request for ProductionAuthDebugUnlockToken {
     const ID: CommandId = CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN; // TODO
     type Resp = MailboxRespHeader; // TODO Check
+}
+
+pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
+pub const CMK_SIZE_BYTES: usize = 128;
+/// CMK is an opaque (encrypted) wrapper around a key.
+#[derive(Clone, Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
+pub struct Cmk(pub [u8; CMK_SIZE_BYTES]);
+
+impl Default for Cmk {
+    fn default() -> Self {
+        Self([0u8; CMK_SIZE_BYTES])
+    }
+}
+
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CmKeyUsage {
+    Reserved = 0,
+    Hmac = 1,
+    HKDF = 2,
+    AES = 3,
+}
+
+impl From<u32> for CmKeyUsage {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => CmKeyUsage::Hmac,
+            2_u32 => CmKeyUsage::HKDF,
+            3_u32 => CmKeyUsage::AES,
+            _ => CmKeyUsage::Reserved,
+        }
+    }
+}
+
+impl From<CmKeyUsage> for u32 {
+    fn from(value: CmKeyUsage) -> Self {
+        match value {
+            CmKeyUsage::Hmac => 1,
+            CmKeyUsage::HKDF => 2,
+            CmKeyUsage::AES => 3,
+            _ => 0,
+        }
+    }
+}
+
+// CM_IMPORT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmImportReq {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+    pub input_size: u32,
+    pub input: [u8; Self::MAX_KEY_SIZE],
+}
+
+impl Default for CmImportReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            key_usage: 0,
+            input_size: 0,
+            input: [0u8; Self::MAX_KEY_SIZE],
+        }
+    }
+}
+
+impl CmImportReq {
+    pub const MAX_KEY_SIZE: usize = CMK_MAX_KEY_SIZE_BITS / 8;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > Self::MAX_KEY_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_KEY_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > Self::MAX_KEY_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_KEY_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmImportReq {
+    const ID: CommandId = CommandId::CM_IMPORT;
+    type Resp = CmImportResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmImportResp {
+    pub hdr: MailboxRespHeader,
+    pub cmk: Cmk,
+}
+
+impl Response for CmImportResp {}
+
+/// CM_STATUS response
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmStatusResp {
+    pub hdr: MailboxRespHeader,
+    pub used_usage_storage: u32,
+    pub total_usage_storage: u32,
 }
 
 /// Retrieves dlen bytes  from the mailbox.
