@@ -336,10 +336,12 @@ impl CaliptraRootBus {
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
+        let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
         let dma = Dma::new(
             clock,
             mailbox_ram.clone(),
             soc_reg.clone(),
+            sha512_acc.clone(),
             prod_dbg_unlock_keypairs,
         );
 
@@ -361,7 +363,7 @@ impl CaliptraRootBus {
             soc_reg,
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
-            sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
+            sha512_acc,
             dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock),
@@ -371,7 +373,6 @@ impl CaliptraRootBus {
     pub fn soc_to_caliptra_bus(&self, soc_user: MailboxRequester) -> SocToCaliptraBus {
         SocToCaliptraBus {
             mailbox: self.mailbox.as_external(soc_user),
-            sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
     }
@@ -427,9 +428,6 @@ impl CaliptraRootBus {
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     pub mailbox: MailboxExternal,
-
-    #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
-    sha512_acc: Sha512Accelerator,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,

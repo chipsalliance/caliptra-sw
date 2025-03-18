@@ -36,62 +36,69 @@ impl AuthorizeAndStashCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
-            if ImageHashSource::from(cmd.source) != ImageHashSource::InRequest {
-                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
-            }
-
-            // Check if firmware id is present in the image metadata entry collection.
-            let persistent_data = drivers.persistent_data.get();
-            let auth_manifest_image_metadata_col =
-                &persistent_data.auth_manifest_image_metadata_col;
-
-            let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
-            let auth_result = if let Some(metadata_entry) =
-                Self::find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
-            {
-                // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
-                let flags = ImageMetadataFlags(metadata_entry.flags);
-                if flags.ignore_auth_check() {
-                    cfi_assert!(cfi_launder(flags.ignore_auth_check()));
-                    IMAGE_AUTHORIZED
-                } else if cfi_launder(metadata_entry.digest) == cmd.measurement {
-                    caliptra_cfi_lib_git::cfi_assert_eq_12_words(
-                        &Array4x12::from(metadata_entry.digest).0,
-                        &Array4x12::from(cmd.measurement).0,
-                    );
-                    IMAGE_AUTHORIZED
-                } else {
-                    IMAGE_HASH_MISMATCH
-                }
-            } else {
-                IMAGE_NOT_AUTHORIZED
-            };
-
-            // Stash the measurement if the image is authorized.
-            if auth_result == IMAGE_AUTHORIZED {
-                let flags: AuthAndStashFlags = cmd.flags.into();
-                if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                    let dpe_result = StashMeasurementCmd::stash_measurement(
-                        drivers,
-                        &cmd.fw_id,
-                        &cmd.measurement,
-                    )?;
-                    if dpe_result != DpeErrorCode::NoError {
-                        drivers
-                            .soc_ifc
-                            .set_fw_extended_error(dpe_result.get_error_code());
-                        Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
-                    }
-                }
-            }
+            let auth_req_result = Self::authorize_and_stash(drivers, cmd)?;
 
             Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {
                 hdr: MailboxRespHeader::default(),
-                auth_req_result: auth_result,
+                auth_req_result,
             }))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn authorize_and_stash(
+        drivers: &mut Drivers,
+        cmd: &AuthorizeAndStashReq,
+    ) -> CaliptraResult<u32> {
+        if ImageHashSource::from(cmd.source) != ImageHashSource::InRequest {
+            Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
+        }
+
+        // Check if firmware id is present in the image metadata entry collection.
+        let persistent_data = drivers.persistent_data.get();
+        let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
+
+        let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
+        let auth_result = if let Some(metadata_entry) =
+            Self::find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
+        {
+            // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
+            let flags = ImageMetadataFlags(metadata_entry.flags);
+            if flags.ignore_auth_check() {
+                cfi_assert!(cfi_launder(flags.ignore_auth_check()));
+                IMAGE_AUTHORIZED
+            } else if cfi_launder(metadata_entry.digest) == cmd.measurement {
+                caliptra_cfi_lib_git::cfi_assert_eq_12_words(
+                    &Array4x12::from(metadata_entry.digest).0,
+                    &Array4x12::from(cmd.measurement).0,
+                );
+                IMAGE_AUTHORIZED
+            } else {
+                IMAGE_HASH_MISMATCH
+            }
+        } else {
+            IMAGE_NOT_AUTHORIZED
+        };
+
+        // Stash the measurement if the image is authorized.
+        if auth_result == IMAGE_AUTHORIZED {
+            let flags: AuthAndStashFlags = cmd.flags.into();
+            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
+                let dpe_result =
+                    StashMeasurementCmd::stash_measurement(drivers, &cmd.fw_id, &cmd.measurement)?;
+                if dpe_result != DpeErrorCode::NoError {
+                    drivers
+                        .soc_ifc
+                        .set_fw_extended_error(dpe_result.get_error_code());
+                    Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+                }
+            }
+        }
+
+        Ok(auth_result)
     }
 
     /// Search for a metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.

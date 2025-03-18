@@ -585,7 +585,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // ECDSA384_VERIFY
-    struct caliptra_ecdsa_verify_req ecdsa_req = {};
+    struct caliptra_ecdsa_verify_v2_req ecdsa_req = {};
 
     status = caliptra_ecdsa384_verify(&ecdsa_req, false);
 
@@ -606,7 +606,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // LMS_VERIFY
-    struct caliptra_lms_verify_req lms_req = {};
+    struct caliptra_lms_verify_v2_req lms_req = {};
 
     status = caliptra_lms_verify(&lms_req, false);
 
