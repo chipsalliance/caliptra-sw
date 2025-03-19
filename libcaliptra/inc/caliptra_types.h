@@ -180,8 +180,9 @@ struct caliptra_quote_pcrs_resp {
     uint8_t nonce[32];
     uint8_t digest[64];
     uint32_t reset_ctrs[32];
-    uint8_t signature_r[48];
-    uint8_t signature_s[48];
+    uint8_t ecc_signature_r[48];
+    uint8_t ecc_signature_s[48];
+    uint8_t mldsa_signature[4628];
 };
 
 struct caliptra_extend_pcr_req {

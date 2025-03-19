@@ -365,6 +365,49 @@ impl Mldsa87 {
 
         Ok(result)
     }
+
+    /// Sign the PCR digest with PCR signing private key (seed) in keyvault slot 8 (KV8).
+    /// KV8 contains the Alias FMC MLDSA keypair seed.
+    ///
+    /// # Arguments
+    ///
+    /// * `trng` - TRNG driver instance
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa87Signature` - Generated signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87Signature> {
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Clear the hardware before start
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Generate an IV.
+        let iv = Self::generate_iv(trng)?;
+        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+
+        mldsa
+            .ctrl()
+            .write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
+
+        // Wait for command to complete
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+
+        // Clear the hardware.
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        Ok(signature)
+    }
 }
 
 /// Mldsa87 key access error trait

@@ -402,8 +402,8 @@ pub fn exec_cmd_quote_pcrs<T: HwModel>(hw: &mut T) {
     assert!(contains_some_data(&resp.nonce));
     assert!(contains_some_data(&resp.digest));
     assert!(contains_some_data(&resp.reset_ctrs));
-    assert!(contains_some_data(&resp.signature_r));
-    assert!(contains_some_data(&resp.signature_s));
+    assert!(contains_some_data(&resp.ecc_signature_r));
+    assert!(contains_some_data(&resp.ecc_signature_s));
 }
 
 pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {

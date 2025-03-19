@@ -2,6 +2,7 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
@@ -968,8 +969,9 @@ pub struct QuotePcrsResp {
     pub nonce: [u8; 32],
     pub digest: [u8; 64],
     pub reset_ctrs: [u32; 32],
-    pub signature_r: [u8; 48],
-    pub signature_s: [u8; 48],
+    pub ecc_signature_r: [u8; 48],
+    pub ecc_signature_s: [u8; 48],
+    pub mldsa_signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
 }
 
 impl Response for QuotePcrsResp {}
