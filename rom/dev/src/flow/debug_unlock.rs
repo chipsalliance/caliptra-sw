@@ -102,10 +102,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
         if cfi_launder(input_token) != fuse_token {
             Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &input_token.0[..12].try_into().unwrap(),
-                &fuse_token.0[..12].try_into().unwrap(),
-            );
+            caliptra_cfi_lib::cfi_assert_eq_16_words(&input_token.0, &fuse_token.0);
         }
         Ok(())
     })();
@@ -292,10 +289,7 @@ fn handle_production_token(
         txn.set_uc_tap_unlock(false);
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
     } else {
-        caliptra_cfi_lib::cfi_assert_eq_12_words(
-            &key_digest.0[..12].try_into().unwrap(),
-            &fuse_digest.0[..12].try_into().unwrap(),
-        );
+        caliptra_cfi_lib::cfi_assert_eq_16_words(&key_digest.0, &fuse_digest.0);
     }
 
     // Verify that the challenge is properly signed by the keys
