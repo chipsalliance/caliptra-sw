@@ -8,7 +8,7 @@ use caliptra_auth_man_types::{
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::{ImageManifest, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
+use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
 use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
@@ -145,7 +145,6 @@ macro_rules! impl_idevid_csr {
 impl_idevid_csr!(Ecc384IdevIdCsr, ECC384_MAX_CSR_SIZE);
 impl_idevid_csr!(Mldsa87IdevIdCsr, MLDSA87_MAX_CSR_SIZE);
 
-pub type Hmac384Tag = [u8; SHA384_DIGEST_BYTE_SIZE];
 pub type Hmac512Tag = [u8; SHA512_DIGEST_BYTE_SIZE];
 
 pub const IDEVID_CSR_ENVELOP_MARKER: u32 = 0x43_5352;
@@ -163,14 +162,11 @@ pub struct InitDevIdCsrEnvelope {
     /// ECC CSR
     pub ecc_csr: Ecc384IdevIdCsr,
 
-    /// ECC CSR MAC
-    pub ecc_csr_mac: Hmac384Tag,
-
     /// MLDSA CSR
     pub mldsa_csr: Mldsa87IdevIdCsr,
 
-    /// MLDSA CSR MAC
-    pub mldsa_csr_mac: Hmac512Tag,
+    /// CSR MAC
+    pub csr_mac: Hmac512Tag,
 }
 
 impl Default for InitDevIdCsrEnvelope {
@@ -179,9 +175,8 @@ impl Default for InitDevIdCsrEnvelope {
             marker: IDEVID_CSR_ENVELOP_MARKER,
             size: size_of::<InitDevIdCsrEnvelope>() as u32,
             ecc_csr: Ecc384IdevIdCsr::default(),
-            ecc_csr_mac: [0u8; SHA384_DIGEST_BYTE_SIZE],
             mldsa_csr: Mldsa87IdevIdCsr::default(),
-            mldsa_csr_mac: [0u8; SHA512_DIGEST_BYTE_SIZE],
+            csr_mac: [0u8; SHA512_DIGEST_BYTE_SIZE],
         }
     }
 }

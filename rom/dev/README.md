@@ -503,10 +503,9 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 | Size           | 4            | Size of the entire CSR payload.                                                                 |
 | ECC CSR Size   | 4            | Size of the ECC CSR in bytes.                                                                   |
 | ECC CSR        | 512          | ECC CSR buffer. Actual CSR size is indicated by 'ECC CSR Size'.                                 |
-| ECC CSR MAC    | 48           | ECC CSR HMAC-384 MAC. MAC is computed over actual CSR bytes.                                    |
 | MLDSA CSR Size | 4            | Size of the MLDSA CSR in bytes.                                                                 |
 | MLDSA CSR      | 7680         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
-| MLDSA CSR MAC  | 64           | ECC CSR HMAC-512 MAC. MAC is computed over actual CSR bytes.                                    |
+| CSR MAC        | 64           | HMAC-512 MAC, computed over the envelope bytes up to but not including this field.       |
 
 **Post-conditions:**
 
