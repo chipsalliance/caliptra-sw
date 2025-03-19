@@ -687,7 +687,7 @@ impl AsymEcc384 {
             .read_key_locked(PCR_SIGN_KEY, key_usage)
             .unwrap();
 
-        let pcr_digest = self.hash_sha512.pcr_hash_digest();
+        let pcr_digest: [u8; 48] = self.hash_sha512.pcr_hash_digest()[..48].try_into().unwrap();
 
         let signature = Ecc384::sign(
             &pcr_key[..48].try_into().unwrap(),

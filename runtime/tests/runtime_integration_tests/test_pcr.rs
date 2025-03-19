@@ -66,8 +66,8 @@ fn test_pcr_quote() {
     assert_eq!(pcr7_reset_counter, 1);
 
     // verify signature
-    let big_r = BigNum::from_slice(&resp.signature_r).unwrap();
-    let big_s = BigNum::from_slice(&resp.signature_s).unwrap();
+    let big_r = BigNum::from_slice(&resp.ecc_signature_r).unwrap();
+    let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
     let fmc_resp = get_fmc_alias_cert(&mut model);

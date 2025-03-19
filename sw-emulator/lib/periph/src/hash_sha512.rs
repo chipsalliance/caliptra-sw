@@ -103,7 +103,6 @@ register_bitfields! [
 
 const SHA512_BLOCK_SIZE: usize = 128;
 const SHA512_BLOCK_SIZE_WORDS: usize = 128 >> 2;
-
 const SHA512_HASH_SIZE: usize = 64;
 
 /// The number of CPU clock cycles it takes to perform initialization action.
@@ -200,7 +199,7 @@ pub struct HashSha512Regs {
     #[register(offset = 0x0000_0634)]
     pcr_hash_status: ReadOnlyRegister<u32, PcrHashStatus::Register>,
 
-    /// 16 32-bit registers storing the 384-bit digest output.
+    /// 16 32-bit registers storing the 512-bit digest output.
     #[register_array(offset = 0x0000_0638, write_fn = write_access_fault)]
     pcr_hash_digest: [u32; SHA512_HASH_SIZE / 4],
 
