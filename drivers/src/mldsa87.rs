@@ -21,7 +21,7 @@ use crate::{
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
-use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_16_words, cfi_launder};
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
@@ -97,17 +97,9 @@ impl Mldsa87 {
         Self { mldsa87 }
     }
 
-    // The trng only generates 12 dwords
     fn generate_iv(trng: &mut Trng) -> CaliptraResult<LEArray4x16> {
-        let iv = {
-            let mut iv = [0; 16];
-            let iv1 = trng.generate()?;
-            let iv2 = trng.generate()?;
-            iv[..12].copy_from_slice(&iv1.0);
-            iv[12..16].copy_from_slice(&iv2.0[0..4]);
-            LEArray4x16::from(iv)
-        };
-        Ok(iv)
+        let iv = trng.generate16()?;
+        Ok(LEArray4x16::from(iv))
     }
 
     // Wait on the provided condition OR the error condition defined in this function
@@ -459,15 +451,7 @@ impl Mldsa87 {
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
         let result = if verify_res.0 == truncated_signature {
-            // We only have a 6, 8 and 12 dword cfi assert
-            cfi_assert_eq_12_words(
-                &verify_res.0[..12].try_into().unwrap(),
-                &truncated_signature[..12].try_into().unwrap(),
-            );
-            cfi_assert_eq_8_words(
-                &verify_res.0[8..].try_into().unwrap(),
-                &truncated_signature[8..].try_into().unwrap(),
-            );
+            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature.try_into().unwrap());
             Mldsa87Result::Success
         } else {
             Mldsa87Result::SigVerifyFailed
@@ -525,14 +509,9 @@ impl Mldsa87 {
         mldsa.ctrl().write(|w| w.zeroize(true));
 
         let result = if verify_res.0 == truncated_signature {
-            // We only have a 6, 8 and 12 dword cfi assert
-            cfi_assert_eq_12_words(
-                &verify_res.0[..12].try_into().unwrap(),
-                &truncated_signature[..12].try_into().unwrap(),
-            );
-            cfi_assert_eq_8_words(
-                &verify_res.0[8..].try_into().unwrap(),
-                &truncated_signature[8..].try_into().unwrap(),
+            cfi_assert_eq_16_words(
+                &verify_res.0.try_into().unwrap(),
+                &truncated_signature.try_into().unwrap(),
             );
             Mldsa87Result::Success
         } else {
