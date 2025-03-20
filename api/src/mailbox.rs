@@ -1237,7 +1237,7 @@ impl Response for AuthorizeAndStashResp {}
 #[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
 pub struct ManufDebugUnlockTokenReq {
     pub hdr: MailboxReqHeader,
-    pub token: [u8; 16],
+    pub token: [u8; 32],
 }
 impl Request for ManufDebugUnlockTokenReq {
     const ID: CommandId = CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN;
