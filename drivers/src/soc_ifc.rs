@@ -140,6 +140,30 @@ impl SocIfc {
         soc_ifc.cptra_flow_status().read().ready_for_fw()
     }
 
+    /// Set mailbox flow done
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - desired state of `mailbox_flow_done`.
+    ///
+    /// * None
+    pub fn flow_status_set_mailbox_flow_done(&mut self, state: bool) {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc
+            .cptra_flow_status()
+            .write(|w| w.mailbox_flow_done(state));
+    }
+
+    /// Get 'mailbox flow done' status
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_mailbox_flow_done(&mut self) -> bool {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc.cptra_flow_status().read().mailbox_flow_done()
+    }
+
     pub fn fuse_bank(&self) -> FuseBank {
         FuseBank {
             soc_ifc: &self.soc_ifc,
