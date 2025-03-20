@@ -2,7 +2,7 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
     ImageOptions,
 };
 use caliptra_error::CaliptraError;
@@ -73,8 +73,11 @@ fn test_rt_journey_pcr_validation() {
 }
 
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_mbox_busy_during_warm_reset() {
+    // This test uses the mailbox responder binary to set the mailbox_flow_done register to
+    // false.
+    // A warm reset is then performed, since the mailbox responder binary never sets mailbox_flow_done
+    // to true, we verify that the mailbox_flow_done register remains false through the warm reset.
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
@@ -82,7 +85,7 @@ fn test_mbox_busy_during_warm_reset() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &MBOX,
         ImageOptions {
             fw_svn: 9,
             ..Default::default()
@@ -113,6 +116,15 @@ fn test_mbox_busy_during_warm_reset() {
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
+    // 0xE000_0000 == OPCODE_HOLD_COMMAND_BUSY
+    model.start_mailbox_execute(0xE000_0000, &[]).unwrap();
+
+    assert!(!model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .mailbox_flow_done());
+
     // Perform warm reset
     model.warm_reset_flow(&Fuses {
         vendor_pk_hash: vendor_pk_desc_hash,
@@ -120,27 +132,14 @@ fn test_mbox_busy_during_warm_reset() {
         ..Default::default()
     });
 
-    model.soc_mbox().unlock().write(|w| w.unlock(true));
-    if model.soc_mbox().lock().read().lock() {
-        panic!("Failed to lock mailbox after forcing it unlocked.");
-    }
-
-    // Mailbox lock value should read 1 now
-    // If not, the reads are likely being blocked by the PAUSER check or some other issue
-    if !(model.soc_mbox().lock().read().lock()) {
-        panic!("Mailbox should be locked");
-    }
-
-    assert!(model.soc_mbox().status().read().mbox_fsm_ps() != MboxFsmE::MboxIdle);
-    assert!(model.soc_mbox().status().read().status().cmd_busy());
-
-    model.step_until(|m| {
-        m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
-    });
-
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    assert!(!model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .mailbox_flow_done());
 }
 
 #[test]
@@ -214,4 +213,6 @@ fn test_mbox_idle_during_warm_reset() {
         }
         m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
     });
+
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 }
