@@ -144,10 +144,10 @@ chrono = "0.4"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 const-random = "0.1.18"
 cms = "0.2.2"
-const-oid = "0.9.6"
+const-oid = "0.10.0"
 convert_case = "0.6.0"
 der = { version = "0.7.9", features = ["derive"] }
-digest = "0.10.7"
+#digest = "0.11.0-pre.10"
 dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
@@ -157,16 +157,18 @@ gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
 hex = "0.4.3"
+hmac = "0.13.0-pre.5"
 lazy_static = "1.4.0"
 libftdi1-sys = { version = "1.1.2", features = ["libusb1-sys"] }
 libusb1-sys = "0.6.4"
 memoffset = "0.8.0"
-ml-dsa = { git = "https://github.com/ArthurHeymans/signatures.git", branch = "master"}
+ml-dsa = { version = "0.1.0-pre.2" }
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
 p384 = "0.14.0-pre.2"
 proc-macro2 = "1.0.66"
 quote = "1.0"
+#rand = "0.9.0"
 rand = "0.8.5"
 rfc6979 = "0.4.0"
 rusb = "0.9.3"
@@ -190,7 +192,7 @@ ureg-codegen = { path = "ureg/lib/codegen" }
 ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = "0.5.1"
-x509-cert = { git = "https://github.com/ArthurHeymans/formats.git", branch = "master" }
+x509-cert = "0.3.0-pre.0"
 x509-parser = "0.15.0"
 zerocopy = { version = "0.8.8", features = ["derive"] }
 serial_test = "2.0.0"
@@ -198,10 +200,28 @@ nix = "0.26.2"
 libc = "0.2"
 zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
 regex = "1.10.2"
-ecdsa = { git = "https://github.com/ArthurHeymans/signatures.git", branch = "master", features = ["pem"]}
+ecdsa = { version = "0.17.0-pre.9", features = ["pem"]}
 sec1 = { version = "0.7.3" }
 itertools = "0.12.0"
 riscv = "0.13.0"
+
+[patch.crates-io]
+const-oid = { git = "https://github.com/RustCrypto/formats", rev = "4bbb6400426de043e00054d84f6d01b5dd4e45af" }
+der = { git = "https://github.com/RustCrypto/formats", rev = "4bbb6400426de043e00054d84f6d01b5dd4e45af" }
+der_derive = { git = "https://github.com/RustCrypto/formats", rev = "4bbb6400426de043e00054d84f6d01b5dd4e45af" }
+ecdsa = { git = "https://github.com/RustCrypto/signatures", rev = "e1ededaa3443525958d1ad806a85a82ad8219e9c" }
+ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "e1ededaa3443525958d1ad806a85a82ad8219e9c" }
+p384 = { git = "https://github.com/RustCrypto/elliptic-curves", rev = "32343a78f1522aa5bd856556f114053d4bb938e0" }
+sha2 = { git = "https://github.com/RustCrypto/hashes", rev = "e6bc891b48f6bf304d12d248ef4d21b46ee11812" }
+signature = { git = "https://github.com/baloo/traits", rev = "abd9d63e1d3e1eef4e1ebb845aadbd678faa1cbe" }
+async-signature = { git = "https://github.com/baloo/traits", rev = "abd9d63e1d3e1eef4e1ebb845aadbd678faa1cbe" }
+spki = { git = "https://github.com/RustCrypto/formats", rev = "4bbb6400426de043e00054d84f6d01b5dd4e45af" }
+x509-cert = { git = "https://github.com/ArthurHeymans/formats", rev = "7ec9e311a1a5d78a55e12e9569f7be83e55e0040" }
+sha1 = { git = "https://github.com/RustCrypto/hashes", rev = "e6bc891b48f6bf304d12d248ef4d21b46ee11812" }
+elliptic-curve = { git = "https://github.com/baloo/traits", rev = "abd9d63e1d3e1eef4e1ebb845aadbd678faa1cbe" }
+hmac = { git = "https://github.com/RustCrypto/MACs", rev = "f2bcad467c06f16cc422e8b99edb6b90c622a76b" }
+rfc6979 = { git = "https://github.com/RustCrypto/signatures", rev = "e1ededaa3443525958d1ad806a85a82ad8219e9c" }
+pkcs8 = { git = "https://github.com/RustCrypto/formats", rev = "4bbb6400426de043e00054d84f6d01b5dd4e45af" }
 
 [profile.firmware]
 inherits = "release"
