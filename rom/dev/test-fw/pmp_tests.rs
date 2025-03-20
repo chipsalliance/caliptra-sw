@@ -12,10 +12,10 @@ core::arch::global_asm!(include_str!("../src/start.S"));
 #[path = "../src/exception.rs"]
 mod exception;
 
-use caliptra_drivers::cprintln;
 use caliptra_drivers::ExitCtrl;
+use caliptra_drivers::cprintln;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
@@ -28,7 +28,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     ExitCtrl::exit(1);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
@@ -51,11 +51,11 @@ fn handle_panic(pi: &core::panic::PanicInfo) -> ! {
     ExitCtrl::exit(1);
 }
 
-extern "C" {
+unsafe extern "C" {
     fn _zero_mem256(dest: *mut u32, len: usize);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[cfg(not(feature = "std"))]
 pub extern "C" fn rom_entry() -> ! {
     unsafe {

@@ -2,8 +2,8 @@
 
 use crate::helpers;
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS};
 use caliptra_builder::ImageOptions;
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_FIPS_TEST_HOOKS};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 

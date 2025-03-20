@@ -23,7 +23,7 @@ global_asm!(include_str!("start.S"));
 const OUT_STR: &'static [u8; 14] = b"Hello Caliptra";
 static mut COUNT: u8 = 0x41;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn main() {
     const UART0: *mut u8 = 0x2000_1041 as *mut u8;
     unsafe {

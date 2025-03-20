@@ -63,22 +63,22 @@ pub struct caliptra_verilated_init_args {
     pub security_state: u32,
     pub cptra_obf_key: [u32; 8usize],
 }
-extern "C" {
+unsafe extern "C" {
     pub fn caliptra_verilated_new(
         args: *mut caliptra_verilated_init_args,
     ) -> *mut caliptra_verilated;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn caliptra_verilated_destroy(model: *mut caliptra_verilated);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn caliptra_verilated_trace(
         model: *mut caliptra_verilated,
         vcd_out_path: *const ::std::os::raw::c_char,
         depth: ::std::os::raw::c_int,
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn caliptra_verilated_eval(
         model: *mut caliptra_verilated,
         in_: *const caliptra_verilated_sig_in,

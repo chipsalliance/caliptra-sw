@@ -13,15 +13,15 @@ Abstract:
 --*/
 
 use crate::{
-    authorize_and_stash::AuthorizeAndStashCmd, set_auth_manifest::AuthManifestSource, Drivers,
-    SetAuthManifestCmd, IMAGE_AUTHORIZED,
+    Drivers, IMAGE_AUTHORIZED, SetAuthManifestCmd, authorize_and_stash::AuthorizeAndStashCmd,
+    set_auth_manifest::AuthManifestSource,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, DmaRecovery};
+use caliptra_drivers::{DmaRecovery, printer::HexBytes};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 
 pub enum RecoveryFlow {}

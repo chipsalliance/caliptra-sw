@@ -20,11 +20,11 @@ use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
 use dpe::x509::{CertWriter, DirectoryString, Name};
 use platform::{
-    CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
-    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE,
+    CertValidity, MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, OtherName,
+    Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
 };
 
-use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_CERT_CHAIN_SIZE};
+use crate::{MAX_CERT_CHAIN_SIZE, subject_alt_name::AddSubjectAltNameCmd};
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,

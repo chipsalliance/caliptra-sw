@@ -5,15 +5,15 @@ Licensed under the Apache-2.0 license.
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::ParseError;
 use crate::component_meta::PropertyMeta;
 use crate::file_source::FileSource;
 use crate::value::{
     AddressingType, ComponentType, InterruptType, PropertyType, Reference, ScopeType,
 };
-use crate::ParseError;
 use crate::{
-    component_meta, token::Token, token_iter::TokenIter, Bits, FileParseError, RdlError, Result,
-    Value,
+    Bits, FileParseError, RdlError, Result, Value, component_meta, token::Token,
+    token_iter::TokenIter,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -152,14 +152,15 @@ impl Scope {
         &self,
         mut path_iter: impl Iterator<Item = &'a str>,
     ) -> Result<'a, &Scope> {
-        if let Some(instance_name) = path_iter.next() {
-            if let Some(instance) = self.instances.iter().find(|e| e.name == instance_name) {
-                instance.scope.lookup_instance_by_path(path_iter)
-            } else {
-                Err(RdlError::UnknownInstanceName(instance_name))
+        match path_iter.next() {
+            Some(instance_name) => {
+                if let Some(instance) = self.instances.iter().find(|e| e.name == instance_name) {
+                    instance.scope.lookup_instance_by_path(path_iter)
+                } else {
+                    Err(RdlError::UnknownInstanceName(instance_name))
+                }
             }
-        } else {
-            Ok(self)
+            _ => Ok(self),
         }
     }
 
@@ -845,7 +846,7 @@ impl<'a> PropertyAssignment<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file_source::MemFileSource, value::AccessType, EnumReference};
+    use crate::{EnumReference, file_source::MemFileSource, value::AccessType};
 
     use super::*;
 

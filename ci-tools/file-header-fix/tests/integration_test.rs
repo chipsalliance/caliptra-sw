@@ -38,10 +38,14 @@ fn test_check_only_failure() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
-    assert_eq!(std::str::from_utf8(&out.stdout), Ok(
-        "File \"./foo.rs\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines\n\
+    assert_eq!(
+        std::str::from_utf8(&out.stdout),
+        Ok(
+            "File \"./foo.rs\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines\n\
          File \"./scripts/foo.sh\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines\n\
-         To fix, run \"ci-tools/file-header-fix.sh\" from the repo root.\n"));
+         To fix, run \"ci-tools/file-header-fix.sh\" from the repo root.\n"
+        )
+    );
 
     // Make sure it didn't rewrite
     assert_eq!(tmp_dir.read("foo.rs"), "#![no_std]\n");
@@ -124,9 +128,12 @@ fn test_fix() {
     );
 
     // code reviewers should notice the file has two licenses
-    assert_eq!(tmp_dir.read("scripts/foo.sh"), "# Licensed under the Apache-2.0 license\n\
+    assert_eq!(
+        tmp_dir.read("scripts/foo.sh"),
+        "# Licensed under the Apache-2.0 license\n\
                                                 \n\
-                                                # Licensed under the Fishy Proprietary License v6.66");
+                                                # Licensed under the Fishy Proprietary License v6.66"
+    );
 }
 
 struct TmpDir(pub PathBuf);

@@ -15,22 +15,22 @@ Abstract:
 use core::{ops::Deref, str::from_utf8};
 use std::path::Path;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 
 use caliptra_image_gen::{
-    from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
+    ImageGeneratorCrypto, ImageGeneratorHasher, from_hw_format, to_hw_format,
 };
 use caliptra_image_types::*;
 
 use {
     ecdsa::{elliptic_curve::sec1::ToEncodedPoint, signature::hazmat::PrehashSigner},
     p384::pkcs8::DecodePublicKey,
-    rand::{rngs::OsRng, RngCore},
+    rand::{RngCore, rngs::OsRng},
     sec1::DecodeEcPrivateKey,
     sha2::{Digest, Sha256, Sha384, Sha512},
 };
 
-use crate::{sign_with_lms_key, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
+use crate::{SUPPORTED_LMS_Q_VALUE, Sha256Hasher, sign_with_lms_key};
 
 #[derive(Default)]
 pub struct RustCrypto {}

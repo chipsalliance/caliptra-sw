@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Array4x12, Array4x8, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
+    Array4x8, Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
     KeyWriteArgs, Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
     Mldsa87SignRnd, Mldsa87Signature, Trng,
 };

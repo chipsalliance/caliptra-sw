@@ -3,9 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Cache,
     http::{self, Content, HttpResponse},
     util::{hex, other_err},
-    Cache,
 };
 
 const VERSION: &str = "caliptra-size-history-cache1";

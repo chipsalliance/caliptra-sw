@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
 use crate::test_update_reset::update_fw;
 use caliptra_api::SocManager;
@@ -9,8 +9,8 @@ use caliptra_auth_man_types::{
 };
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{
-    firmware::{self, FMC_WITH_UART},
     ImageOptions,
+    firmware::{self, FMC_WITH_UART},
 };
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,

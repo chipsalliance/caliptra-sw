@@ -2,16 +2,15 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{
-        self,
-        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
-        APP_WITH_UART, FMC_WITH_UART,
-    },
     ImageOptions,
+    firmware::{
+        self, APP_WITH_UART, FMC_WITH_UART,
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
+    },
 };
 use caliptra_common::{
-    memory_layout::{ICCM_ORG, ICCM_SIZE},
     RomBootStatus::*,
+    memory_layout::{ICCM_ORG, ICCM_SIZE},
 };
 use caliptra_drivers::{Array4x12, IdevidCertAttr, MfgFlags};
 use caliptra_error::CaliptraError;
@@ -37,7 +36,7 @@ use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private},
     rsa::Rsa,
-    x509::{X509Req, X509},
+    x509::{X509, X509Req},
 };
 use std::str;
 use zerocopy::{FromBytes, IntoBytes};
@@ -253,9 +252,9 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options.clone());
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -289,9 +288,9 @@ fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
         ..Default::default()
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
+    let vendor_pubkey_info_digest = r#gen
         .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
@@ -320,9 +319,9 @@ fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
         ..Default::default()
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
+    let vendor_pubkey_info_digest = r#gen
         .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
@@ -352,9 +351,9 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options.clone());
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -391,9 +390,9 @@ fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
         ..Default::default()
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
+    let vendor_pubkey_info_digest = r#gen
         .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
@@ -428,9 +427,9 @@ fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
         ..Default::default()
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
     let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
+    let vendor_pubkey_info_digest = r#gen
         .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
@@ -1178,8 +1177,8 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
             .x
             .fill(0);
 
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -1237,8 +1236,8 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
             .y
             .fill(0);
 
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -1287,8 +1286,8 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         let mut image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -1340,8 +1339,8 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         let mut image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -1393,8 +1392,8 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         let mut image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -1446,8 +1445,8 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         let mut image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
-        let gen = ImageGenerator::new(Crypto::default());
-        let digest = gen
+        let r#gen = ImageGenerator::new(Crypto::default());
+        let digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -2274,9 +2273,9 @@ fn test_runtime_svn_greater_than_max() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -2316,9 +2315,9 @@ fn test_runtime_svn_less_than_fuse_svn() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -2597,10 +2596,10 @@ fn cert_test_with_ueid() {
         assert!(result.is_ok());
         let output = String::from_utf8_lossy(&output);
 
-        assert!(hex::encode_upper(
-            &csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize]
-        )
-        .contains("010102030405060708090A0B0C0D0E0F10"));
+        assert!(
+            hex::encode_upper(&csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize])
+                .contains("010102030405060708090A0B0C0D0E0F10")
+        );
 
         let ldevid_cert = helpers::get_data("[fmc] LDEVID cert = ", &output);
         assert!(ldevid_cert.contains("010102030405060708090A0B0C0D0E0F10"));
@@ -2622,11 +2621,11 @@ fn update_header(image_bundle: &mut ImageBundle) {
         fw_svn: 0,
     };
 
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_header_digest_384 = gen
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let vendor_header_digest_384 = r#gen
         .vendor_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
-    let vendor_header_digest_512 = gen
+    let vendor_header_digest_512 = r#gen
         .vendor_header_digest_512(&image_bundle.manifest.header)
         .unwrap();
     let vendor_header_digest_holder = ImageDigestHolder {
@@ -2634,10 +2633,10 @@ fn update_header(image_bundle: &mut ImageBundle) {
         digest_512: Some(&vendor_header_digest_512),
     };
 
-    let owner_header_digest_384 = gen
+    let owner_header_digest_384 = r#gen
         .owner_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
-    let owner_header_digest_512 = gen
+    let owner_header_digest_512 = r#gen
         .owner_header_digest_512(&image_bundle.manifest.header)
         .unwrap();
     let owner_header_digest_holder = ImageDigestHolder {
@@ -2645,7 +2644,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
         digest_512: Some(&owner_header_digest_512),
     };
 
-    image_bundle.manifest.preamble = gen
+    image_bundle.manifest.preamble = r#gen
         .gen_preamble(
             &config,
             image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
@@ -2668,10 +2667,10 @@ fn update_fmc_runtime_ranges(
     image_bundle.manifest.runtime.offset = runtime_new_offset;
     image_bundle.manifest.runtime.size = runtime_new_size;
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
-    image_bundle.manifest.header.toc_digest = gen
+    image_bundle.manifest.header.toc_digest = r#gen
         .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
         .unwrap();
 
@@ -2689,10 +2688,10 @@ fn update_load_addr(image_bundle: &mut ImageBundle, is_fmc: bool, new_load_addr:
         image_bundle.manifest.runtime.load_addr = new_load_addr;
     }
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
-    image_bundle.manifest.header.toc_digest = gen
+    image_bundle.manifest.header.toc_digest = r#gen
         .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
         .unwrap();
 
@@ -2714,10 +2713,10 @@ fn update_entry_point(
         image_bundle.manifest.runtime.entry_point = new_entry_point;
     }
 
-    let gen = ImageGenerator::new(Crypto::default());
+    let r#gen = ImageGenerator::new(Crypto::default());
 
     // Update TOC digest.
-    image_bundle.manifest.header.toc_digest = gen
+    image_bundle.manifest.header.toc_digest = r#gen
         .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
         .unwrap();
 
@@ -2865,9 +2864,11 @@ fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
     assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
 
     // Verify the ldevid cert using idevid cert's public key.
-    assert!(ldevid_cert
-        .verify(idevd_cert.public_key().as_ref().unwrap())
-        .unwrap());
+    assert!(
+        ldevid_cert
+            .verify(idevd_cert.public_key().as_ref().unwrap())
+            .unwrap()
+    );
 
     ldevid_cert
 }
@@ -2899,9 +2900,11 @@ fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
     assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
 
     // Verify the ldevid cert using idevid cert's public key.
-    assert!(fmcalias_cert
-        .verify(ldevid_cert.public_key().as_ref().unwrap())
-        .unwrap());
+    assert!(
+        fmcalias_cert
+            .verify(ldevid_cert.public_key().as_ref().unwrap())
+            .unwrap()
+    );
 
     fmcalias_cert
 }

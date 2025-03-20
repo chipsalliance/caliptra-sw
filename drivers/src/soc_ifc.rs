@@ -20,7 +20,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
-use crate::{memory_layout, FuseBank};
+use crate::{FuseBank, memory_layout};
 
 pub type Lifecycle = DeviceLifecycleE;
 
@@ -327,11 +327,13 @@ impl SocIfc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn stop_wdt1() {
-        let mut soc_ifc = SocIfcReg::new();
-        soc_ifc
-            .regs_mut()
-            .cptra_wdt_timer1_en()
-            .write(|w| w.timer1_en(false));
+        unsafe {
+            let mut soc_ifc = SocIfcReg::new();
+            soc_ifc
+                .regs_mut()
+                .cptra_wdt_timer1_en()
+                .write(|w| w.timer1_en(false));
+        }
     }
 
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
@@ -527,19 +529,19 @@ impl SocIfc {
     pub fn fuse_controller_base_addr(&self) -> u64 {
         let low = self.soc_ifc.regs().ss_otp_fc_base_addr_l().read();
         let high = self.soc_ifc.regs().ss_otp_fc_base_addr_h().read();
-        (high as u64) << 32 | low as u64
+        ((high as u64) << 32) | low as u64
     }
 
     pub fn recovery_interface_base_addr(&self) -> u64 {
         let low = self.soc_ifc.regs().ss_recovery_ifc_base_addr_l().read();
         let high = self.soc_ifc.regs().ss_recovery_ifc_base_addr_h().read();
-        (high as u64) << 32 | low as u64
+        ((high as u64) << 32) | low as u64
     }
 
     pub fn mci_base_addr(&self) -> u64 {
         let low = self.soc_ifc.regs().ss_mci_base_addr_l().read();
         let high = self.soc_ifc.regs().ss_mci_base_addr_h().read();
-        (high as u64) << 32 | low as u64
+        ((high as u64) << 32) | low as u64
     }
 }
 

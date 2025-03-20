@@ -17,7 +17,7 @@ use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
-use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
+use dpe::{MAX_HANDLES, U8Bool, context::ContextHandle};
 use zerocopy::FromBytes;
 
 use crate::Drivers;

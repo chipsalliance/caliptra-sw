@@ -2,9 +2,9 @@
 
 use caliptra_image_gen::{ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
-    ImageEccPrivKey, ImageEccPubKey, ImageLmsPrivKey, ImageLmsPublicKey, ImageMldsaPrivKey,
-    ImageMldsaPubKey, ImageOwnerPrivKeys, ImageVendorPrivKeys, ImageVendorPubKeys,
-    OwnerPubKeyConfig, IMAGE_LMS_OTS_TYPE, IMAGE_LMS_TREE_TYPE, VENDOR_ECC_MAX_KEY_COUNT,
+    IMAGE_LMS_OTS_TYPE, IMAGE_LMS_TREE_TYPE, ImageEccPrivKey, ImageEccPubKey, ImageLmsPrivKey,
+    ImageLmsPublicKey, ImageMldsaPrivKey, ImageMldsaPubKey, ImageOwnerPrivKeys,
+    ImageVendorPrivKeys, ImageVendorPubKeys, OwnerPubKeyConfig, VENDOR_ECC_MAX_KEY_COUNT,
     VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
 };
 use caliptra_lms_types::bytes_to_words_6;

@@ -3,8 +3,8 @@
 use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
     ImageOptions,
+    firmware::{self, APP_WITH_UART, rom_tests::TEST_FMC_WITH_UART},
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};

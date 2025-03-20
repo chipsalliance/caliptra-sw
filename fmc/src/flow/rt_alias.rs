@@ -16,23 +16,23 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use caliptra_common::x509;
 
+use crate::FmcBootStatus;
+use crate::HandOff;
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
-use crate::FmcBootStatus;
-use crate::HandOff;
+use caliptra_common::HexBytes;
 use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
 };
-use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId,
-    PersistentData, ResetReason,
+    CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId, PersistentData, ResetReason,
+    okref, report_boot_status,
 };
 use caliptra_x509::{
     NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params,

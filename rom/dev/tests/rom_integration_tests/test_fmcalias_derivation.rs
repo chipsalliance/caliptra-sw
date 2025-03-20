@@ -2,19 +2,18 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{
-        self,
-        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
-        APP_WITH_UART,
-    },
     ImageOptions,
+    firmware::{
+        self, APP_WITH_UART,
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
+    },
 };
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
+use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault, PcrId};
+use caliptra_drivers::{DataVault, PcrId, pcr_log::MeasurementLogEntry};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -130,14 +129,14 @@ fn test_pcr_log() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        let owner_pubkey_digest = gen
+        let owner_pubkey_digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -244,16 +243,16 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let owner_pubkey_digest = gen
+        let owner_pubkey_digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
         let fuses = Fuses {
             anti_rollback_disable: true,
-            vendor_pk_hash: gen
+            vendor_pk_hash: r#gen
                 .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
                 .unwrap(),
             fuse_pqc_key_type: *pqc_key_type as u32,
@@ -337,14 +336,14 @@ fn test_pcr_log_fmc_fuse_svn() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        let owner_pubkey_digest = gen
+        let owner_pubkey_digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
@@ -486,14 +485,14 @@ fn test_pcr_log_across_update_reset() {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        let gen = ImageGenerator::new(Crypto::default());
+        let r#gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options);
 
-        let vendor_pubkey_info_digest = gen
+        let vendor_pubkey_info_digest = r#gen
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        let owner_pubkey_digest = gen
+        let owner_pubkey_digest = r#gen
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 

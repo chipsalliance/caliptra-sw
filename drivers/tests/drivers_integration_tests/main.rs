@@ -4,7 +4,7 @@ use caliptra_api::SocManager;
 use std::error::Error;
 use std::iter;
 
-use caliptra_builder::{firmware, FwId};
+use caliptra_builder::{FwId, firmware};
 use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{

@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use caliptra_builder::{elf_size, firmware, FwId};
+use caliptra_builder::{FwId, elf_size, firmware};
 use serde::{Deserialize, Serialize};
 
 mod cache;

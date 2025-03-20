@@ -37,7 +37,11 @@ impl HealthTester {
             })
             .collect();
 
-        assert_eq!(self.boot_time_nibbles.len(), NUM_NIBBLES, "itrng iterator should provide at least {NUM_NIBBLES} nibbles for boot-time health testing");
+        assert_eq!(
+            self.boot_time_nibbles.len(),
+            NUM_NIBBLES,
+            "itrng iterator should provide at least {NUM_NIBBLES} nibbles for boot-time health testing"
+        );
 
         // We'll want to pull these FIFO.
         self.boot_time_nibbles.reverse();

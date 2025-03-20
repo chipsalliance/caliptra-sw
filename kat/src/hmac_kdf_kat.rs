@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    hmac_kdf, Array4x12, Array4x16, CaliptraError, CaliptraResult, Hmac, HmacMode, Trng,
+    Array4x12, Array4x16, CaliptraError, CaliptraResult, Hmac, HmacMode, Trng, hmac_kdf,
 };
 
 const KEY: Array4x12 = Array4x12::new([

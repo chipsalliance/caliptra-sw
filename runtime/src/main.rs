@@ -19,7 +19,7 @@ core::arch::global_asm!(include_str!("ext_intr.S"));
 
 use caliptra_cfi_lib_git::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
-use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_cpu::{TrapRecord, log_trap_record};
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
@@ -37,7 +37,7 @@ const BANNER: &str = r#"
                |_|
 "#;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
@@ -94,7 +94,7 @@ pub extern "C" fn entry_point() -> ! {
     caliptra_drivers::ExitCtrl::exit(0xff);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
@@ -111,7 +111,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
@@ -159,14 +159,14 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
     cprintln!("RT CFI Panic code=0x{:08X}", code);
 
     handle_fatal_error(code);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[inline(never)]
 fn panic_is_possible() {
     black_box(());

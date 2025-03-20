@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_emu_cpu::xreg_file::XReg;
 use caliptra_emu_cpu::StepAction;
+use caliptra_emu_cpu::xreg_file::XReg;
 use caliptra_emu_cpu::{Cpu, WatchPtrKind};
 use caliptra_emu_periph::CaliptraRootBus;
 use caliptra_emu_types::RvSize;
@@ -21,11 +21,11 @@ use gdbstub::arch::SingleStepGdbBehavior;
 use gdbstub::common::Signal;
 use gdbstub::stub::SingleThreadStopReason;
 use gdbstub::target;
-use gdbstub::target::ext::base::singlethread::{SingleThreadBase, SingleThreadResume};
-use gdbstub::target::ext::base::BaseOps;
-use gdbstub::target::ext::breakpoints::WatchKind;
 use gdbstub::target::Target;
 use gdbstub::target::TargetResult;
+use gdbstub::target::ext::base::BaseOps;
+use gdbstub::target::ext::base::singlethread::{SingleThreadBase, SingleThreadResume};
+use gdbstub::target::ext::breakpoints::WatchKind;
 use gdbstub_arch;
 
 pub enum ExecMode {

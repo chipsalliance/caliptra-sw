@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{array::Array4x16, wait, Array4x8, CaliptraError, CaliptraResult};
+use crate::{Array4x8, CaliptraError, CaliptraResult, array::Array4x16, wait};
 use caliptra_registers::sha256::Sha256Reg;
 
 const SHA256_BLOCK_BYTE_SIZE: usize = 64;
@@ -156,13 +156,15 @@ impl Sha256 {
         mut ptr: *const [u32; 16],
         n_blocks: usize,
     ) -> CaliptraResult<Array4x8> {
-        for i in 0..n_blocks {
-            self.sha256.regs_mut().block().write_ptr(ptr);
-            self.digest_op(i == 0)?;
-            ptr = ptr.wrapping_add(1);
+        unsafe {
+            for i in 0..n_blocks {
+                self.sha256.regs_mut().block().write_ptr(ptr);
+                self.digest_op(i == 0)?;
+                ptr = ptr.wrapping_add(1);
+            }
+            self.digest_partial_block(&[], n_blocks == 0, n_blocks * 64)?;
+            Ok(Array4x8::read_from_reg(self.sha256.regs_mut().digest()))
         }
-        self.digest_partial_block(&[], n_blocks == 0, n_blocks * 64)?;
-        Ok(Array4x8::read_from_reg(self.sha256.regs_mut().digest()))
     }
 
     /// Zeroize the hardware registers.
@@ -181,8 +183,10 @@ impl Sha256 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha256 = Sha256Reg::new();
-        sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
+        unsafe {
+            let mut sha256 = Sha256Reg::new();
+            sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
+        }
     }
 
     /// Copy digest to buffer

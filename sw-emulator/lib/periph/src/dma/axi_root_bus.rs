@@ -12,10 +12,10 @@ Abstract:
 
 --*/
 
+use crate::SocRegistersInternal;
 use crate::dma::recovery::RecoveryRegisterInterface;
 use crate::helpers::words_from_bytes_be_vec;
-use crate::SocRegistersInternal;
-use crate::{dma::otp_fc::FuseController, Sha512Accelerator};
+use crate::{Sha512Accelerator, dma::otp_fc::FuseController};
 use caliptra_emu_bus::{
     Bus,
     BusError::{self, LoadAccessFault, StoreAccessFault},

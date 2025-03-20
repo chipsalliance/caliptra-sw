@@ -29,16 +29,16 @@ use caliptra_common::mailbox_api::{
     StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::{
-    pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
-    PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
+    FuseLogEntryId, PcrLogEntry, PcrLogEntryId, RomBootStatus::*, pcr::PCR_ID_STASH_MEASUREMENT,
+    verifier::FirmwareImageVerificationEnv,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
-use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
+use caliptra_image_types::{FwVerificationPqcKeyType, IMAGE_BYTE_SIZE, ImageManifest};
 use caliptra_image_verify::MAX_FIRMWARE_SVN;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::{ManuallyDrop, size_of};
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
@@ -492,7 +492,13 @@ impl FirmwareProcessor {
         cprintln!(
             "[fwproc] Img verified w/ Vendor ECC Key Idx {}, PQC Key Type: {}, PQC Key Idx {}, with SVN {} and effective fuse SVN {}",
             info.vendor_ecc_pub_key_idx,
-            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type) == Some(FwVerificationPqcKeyType::MLDSA)  { "MLDSA" } else { "LMS" },
+            if FwVerificationPqcKeyType::from_u8(manifest.pqc_key_type)
+                == Some(FwVerificationPqcKeyType::MLDSA)
+            {
+                "MLDSA"
+            } else {
+                "LMS"
+            },
             info.vendor_pqc_pub_key_idx,
             info.fw_svn,
             info.effective_fuse_svn,

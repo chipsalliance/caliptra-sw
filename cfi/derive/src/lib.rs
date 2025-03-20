@@ -19,13 +19,13 @@ References:
 mod cfi_asm_test;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::__private::TokenStream2;
-use syn::parse_macro_input;
-use syn::parse_quote;
 use syn::DeriveInput;
 use syn::FnArg;
 use syn::ItemFn;
+use syn::parse_macro_input;
+use syn::parse_quote;
 
 #[proc_macro_attribute]
 pub fn cfi_mod_fn(_args: TokenStream, input: TokenStream) -> TokenStream {

@@ -1,12 +1,12 @@
 // Licensed under the Apache-2.0 license
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
+    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_common::{
-    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
     RomBootStatus,
+    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -15,7 +15,7 @@ use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 use crate::common::{
-    run_rt_test, RuntimeTestArgs, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQC_KEY_TYPE,
+    DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQC_KEY_TYPE, RuntimeTestArgs, run_rt_test,
 };
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;

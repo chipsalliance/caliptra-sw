@@ -19,9 +19,9 @@ use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
 use caliptra_drivers::Hmac;
 use caliptra_drivers::KeyVault;
-use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha2_512_384;
 use caliptra_drivers::Sha2_512_384Acc;
+use caliptra_drivers::Sha256;
 use zeroize::Zeroize;
 
 use crate::Drivers;
@@ -66,7 +66,7 @@ pub mod fips_self_test_cmd {
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
     use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
     use caliptra_common::HexBytes;
-    use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
+    use caliptra_common::{FMC_SIZE, RUNTIME_SIZE, verifier::FirmwareImageVerificationEnv};
     use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::{ImageTocEntry, RomInfo};
     use caliptra_image_verify::ImageVerifier;
@@ -75,7 +75,7 @@ pub mod fips_self_test_cmd {
     // Helper function to create a slice from a memory region
     unsafe fn create_slice(toc: &ImageTocEntry) -> &'static [u8] {
         let ptr = toc.load_addr as *mut u8;
-        core::slice::from_raw_parts(ptr, toc.size as usize)
+        unsafe { core::slice::from_raw_parts(ptr, toc.size as usize) }
     }
     pub enum SelfTestStatus {
         Idle,

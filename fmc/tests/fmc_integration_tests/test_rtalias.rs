@@ -1,14 +1,14 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
+    firmware::{self, FMC_WITH_UART, runtime_tests::MOCK_RT_INTERACTIVE},
 };
 use caliptra_common::RomBootStatus::*;
 
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
-    pcr_log::{PcrLogEntry, PcrLogEntryId},
     FirmwareHandoffTable, PcrId,
+    pcr_log::{PcrLogEntry, PcrLogEntryId},
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 

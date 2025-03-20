@@ -11,14 +11,14 @@ use core::mem::size_of_val;
 #[cfg(feature = "std")]
 use serde::de::{self, Deserialize, Deserializer, Expected, MapAccess, Visitor};
 use zerocopy::{
-    BigEndian, FromBytes, Immutable, IntoBytes, KnownLayout, LittleEndian, Unaligned, U32,
+    BigEndian, FromBytes, Immutable, IntoBytes, KnownLayout, LittleEndian, U32, Unaligned,
 };
 use zeroize::Zeroize;
 
 pub type LmsIdentifier = [u8; 16];
 
 macro_rules! static_assert {
-    ($expression:expr) => {
+    ($expression:expr_2021) => {
         const _: () = assert!($expression);
     };
 }

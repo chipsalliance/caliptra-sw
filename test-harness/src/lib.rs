@@ -54,7 +54,7 @@ macro_rules! runtime_handlers {
     () => {
         use caliptra_cpu::{log_trap_record, TrapRecord};
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         #[inline(never)]
         extern "C" fn exception_handler(trap_record: &TrapRecord) {
             println!(
@@ -72,7 +72,7 @@ macro_rules! runtime_handlers {
             assert!(false);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         #[inline(never)]
         extern "C" fn nmi_handler(trap_record: &TrapRecord) {
             let soc_ifc = unsafe { SocIfcReg::new() };
@@ -136,7 +136,7 @@ macro_rules! test_suite {
             }
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn cfi_panic_handler(code: u32) -> ! {
             println!("[test] CFI Panic code=0x{:08X}", code);
 
@@ -145,14 +145,14 @@ macro_rules! test_suite {
             caliptra_drivers::ExitCtrl::exit(u32::MAX)
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn main() {
             $(
                 $test_case.run();
             )*
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn entry_point() {
             main();
             caliptra_drivers::ExitCtrl::exit(0);

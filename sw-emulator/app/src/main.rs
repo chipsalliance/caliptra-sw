@@ -21,7 +21,7 @@ use caliptra_emu_periph::{
     ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
-use clap::{arg, value_parser, ArgAction};
+use clap::{ArgAction, arg, value_parser};
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
@@ -402,7 +402,7 @@ fn main() -> io::Result<()> {
         cert[0] = flags.get();
         // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
         cert[6] = 1; // UEID Type
-                     // DWORD 07 - 10 - UEID / Manufacturer Serial Number
+        // DWORD 07 - 10 - UEID / Manufacturer Serial Number
         cert[7] = *args_ueid as u32;
         cert[8] = (*args_ueid >> 32) as u32;
         cert[9] = (*args_ueid >> 64) as u32;

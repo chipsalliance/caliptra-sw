@@ -1,16 +1,16 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{
-    common::{assert_error, run_rt_test_lms, RuntimeTestArgs},
+    common::{RuntimeTestArgs, assert_error, run_rt_test_lms},
     test_authorize_and_stash::IMAGE_DIGEST1,
 };
-use caliptra_api::{mailbox::ImageHashSource, SocManager};
+use caliptra_api::{SocManager, mailbox::ImageHashSource};
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeys, AuthManifestPubKeys,
-    AuthorizationManifest, ImageMetadataFlags, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AuthManifestFlags, AuthManifestImageMetadata,
+    AuthManifestPrivKeys, AuthManifestPubKeys, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
@@ -106,8 +106,8 @@ pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationM
         flags: manifest_flags,
     };
 
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+    let r#gen = AuthManifestGenerator::new(Crypto::default());
+    r#gen.generate(&gen_config).unwrap()
 }
 
 pub fn create_auth_manifest_with_metadata(
@@ -169,8 +169,8 @@ pub fn create_auth_manifest_with_metadata(
         flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
     };
 
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+    let r#gen = AuthManifestGenerator::new(Crypto::default());
+    r#gen.generate(&gen_config).unwrap()
 }
 
 fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationManifest {
@@ -246,8 +246,8 @@ fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationM
         flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
     };
 
-    let gen = AuthManifestGenerator::new(Crypto::default());
-    gen.generate(&gen_config).unwrap()
+    let r#gen = AuthManifestGenerator::new(Crypto::default());
+    r#gen.generate(&gen_config).unwrap()
 }
 
 #[test]

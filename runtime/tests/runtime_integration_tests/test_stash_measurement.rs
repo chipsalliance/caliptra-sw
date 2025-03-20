@@ -2,8 +2,8 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
+    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
 };
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq, StashMeasurementResp,
@@ -14,7 +14,7 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{RuntimeTestArgs, run_rt_test};
 
 #[test]
 fn test_stash_measurement() {

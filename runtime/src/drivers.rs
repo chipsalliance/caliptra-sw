@@ -19,12 +19,12 @@ use crate::cryptographic_mailbox::CmStorage;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
-    MAX_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL0_PAUSER_FLAG,
-    PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    CptraDpeTypes, DPE_SUPPORT, DisableAttestationCmd, DpeCrypto, DpePlatform, MAX_CERT_CHAIN_SIZE,
+    Mailbox, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD, PL0_PAUSER_FLAG, PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
+    dice,
 };
 
-use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
+use crate::dpe_crypto::{EXPORTED_HANDLES_NUM, ExportedCdiHandles};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
@@ -32,10 +32,10 @@ use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::Dma;
 use caliptra_drivers::{
-    cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
     Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
-    PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
-    Sha2_512_384Acc, SocIfc, Trng,
+    PersistentDataAccessor, Pic, ResetReason, Sha1, Sha2_512_384, Sha2_512_384Acc, Sha256,
+    Sha256Alg, SocIfc, Trng, cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR,
+    sha2_512_384::Sha2DigestOpTrait,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::{
@@ -44,15 +44,15 @@ use caliptra_registers::{
     sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_x509::{NotAfter, NotBefore};
+use dpe::MAX_HANDLES;
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
-use dpe::MAX_HANDLES;
 use dpe::{
+    DPE_PROFILE,
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance},
-    DPE_PROFILE,
 };
 
 use core::cmp::Ordering::{Equal, Greater};
@@ -121,39 +121,41 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )?;
+        unsafe {
+            let trng = Trng::new(
+                CsrngReg::new(),
+                EntropySrcReg::new(),
+                SocIfcTrngReg::new(),
+                &SocIfcReg::new(),
+            )?;
 
-        Ok(Self {
-            mbox: Mailbox::new(MboxCsr::new()),
-            sha_acc: Sha512AccCsr::new(),
-            key_vault: KeyVault::new(KvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
-            sha256: Sha256::new(Sha256Reg::new()),
-            sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
-            sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac: Hmac::new(HmacReg::new()),
-            ecc384: Ecc384::new(EccReg::new()),
-            mldsa87: Mldsa87::new(MldsaReg::new()),
-            sha1: Sha1::default(),
-            lms: Lms::default(),
-            trng,
-            persistent_data: PersistentDataAccessor::new(),
-            pcr_bank: PcrBank::new(PvReg::new()),
-            pic: Pic::new(El2PicCtrl::new()),
-            #[cfg(feature = "fips_self_test")]
-            self_test_status: SelfTestStatus::Idle,
-            cert_chain: ArrayVec::new(),
-            is_shutdown: false,
-            dmtf_device_info: None,
-            exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
-            dma: Dma::default(),
-            cryptographic_usage_data: CmStorage::default(),
-        })
+            Ok(Self {
+                mbox: Mailbox::new(MboxCsr::new()),
+                sha_acc: Sha512AccCsr::new(),
+                key_vault: KeyVault::new(KvReg::new()),
+                soc_ifc: SocIfc::new(SocIfcReg::new()),
+                sha256: Sha256::new(Sha256Reg::new()),
+                sha2_512_384: Sha2_512_384::new(Sha512Reg::new()),
+                sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
+                hmac: Hmac::new(HmacReg::new()),
+                ecc384: Ecc384::new(EccReg::new()),
+                mldsa87: Mldsa87::new(MldsaReg::new()),
+                sha1: Sha1::default(),
+                lms: Lms::default(),
+                trng,
+                persistent_data: PersistentDataAccessor::new(),
+                pcr_bank: PcrBank::new(PvReg::new()),
+                pic: Pic::new(El2PicCtrl::new()),
+                #[cfg(feature = "fips_self_test")]
+                self_test_status: SelfTestStatus::Idle,
+                cert_chain: ArrayVec::new(),
+                is_shutdown: false,
+                dmtf_device_info: None,
+                exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
+                dma: Dma::default(),
+                cryptographic_usage_data: CmStorage::default(),
+            })
+        }
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -299,7 +301,9 @@ impl Drivers {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
+                    cprintln!(
+                        "Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR"
+                    );
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
                     );

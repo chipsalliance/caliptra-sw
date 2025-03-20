@@ -1,13 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_builder::ImageOptions;
 use caliptra_builder::firmware;
 use caliptra_builder::version;
-use caliptra_builder::ImageOptions;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_image_types::ImageHeader;
 use caliptra_image_types::ImageManifest;
 use caliptra_image_types::ImageSignatures;
-use clap::{arg, value_parser, Command};
+use clap::{Command, arg, value_parser};
 use memoffset::{offset_of, span_of};
 use serde_json::{json, to_string_pretty};
 use sha2::{Digest, Sha384};
@@ -65,10 +65,9 @@ fn main() {
         std::fs::write(path, rom).unwrap();
     }
 
-    let fw_svn = if let Some(fw_svn) = args.get_one::<u32>("fw-svn") {
-        *fw_svn
-    } else {
-        0
+    let fw_svn = match args.get_one::<u32>("fw-svn") {
+        Some(fw_svn) => *fw_svn,
+        _ => 0,
     };
 
     let pqc_key_type = match args.get_one("pqc-key-type") {

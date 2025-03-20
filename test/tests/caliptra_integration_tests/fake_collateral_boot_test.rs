@@ -4,8 +4,8 @@
 
 use caliptra_api_types::Fuses;
 use caliptra_builder::{
-    firmware::{APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART},
     ImageOptions,
+    firmware::{APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART},
 };
 use caliptra_common::mailbox_api::{
     CommandId, GetFmcAliasCertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
@@ -154,9 +154,11 @@ fn fake_boot_test() {
     // logic in the ROM that derives LDevID has changed. Ensure this is
     // intentional, and then make the same change to
     // caliptra_test::LDevId::derive().
-    assert!(expected_ldevid_key
-        .derive_public_key()
-        .public_eq(&ldev_pubkey));
+    assert!(
+        expected_ldevid_key
+            .derive_public_key()
+            .public_eq(&ldev_pubkey)
+    );
 
     println!("ldev-cert: {}", ldev_cert_txt);
 

@@ -20,7 +20,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 macro_rules! static_assert {
-    ($expression:expr) => {
+    ($expression:expr_2021) => {
         const _: () = assert!($expression);
     };
 }
@@ -88,9 +88,11 @@ unsafe fn u32_be_to_u8_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<[u8; B]>,
     src: &Array4xN<W, B>,
 ) {
-    let ptr = dest.as_mut_ptr() as *mut [u8; 4];
-    for i in 0..W {
-        ptr.add(i).write(src.0[i].to_be_bytes());
+    unsafe {
+        let ptr = dest.as_mut_ptr() as *mut [u8; 4];
+        for i in 0..W {
+            ptr.add(i).write(src.0[i].to_be_bytes());
+        }
     }
 }
 
@@ -117,10 +119,12 @@ unsafe fn u8_to_u32_be_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<Array4xN<W, B>>,
     src: &[u8; B],
 ) {
-    let dest = dest.as_mut_ptr() as *mut u32;
-    for i in 0..W {
-        dest.add(i)
-            .write(u32::from_be_bytes(src[i * 4..][..4].try_into().unwrap()));
+    unsafe {
+        let dest = dest.as_mut_ptr() as *mut u32;
+        for i in 0..W {
+            dest.add(i)
+                .write(u32::from_be_bytes(src[i * 4..][..4].try_into().unwrap()));
+        }
     }
 }
 

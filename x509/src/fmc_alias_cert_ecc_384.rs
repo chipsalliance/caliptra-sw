@@ -29,8 +29,8 @@ mod tests {
     use openssl::x509::X509;
 
     use x509_parser::nom::Parser;
-    use x509_parser::oid_registry::asn1_rs::oid;
     use x509_parser::oid_registry::Oid;
+    use x509_parser::oid_registry::asn1_rs::oid;
     use x509_parser::prelude::X509CertificateParser;
     use x509_parser::x509::X509Version;
 
@@ -211,10 +211,10 @@ mod tests {
         // Check that TCG extensions are present
         let ext_map = parsed_cert.extensions_map().unwrap();
 
-        const UEID_OID: Oid = oid!(2.23.133 .5 .4 .4);
+        const UEID_OID: Oid = oid!(2.23.133.5.4.4);
         assert!(!ext_map[&UEID_OID].critical);
 
-        const MULTI_TCB_INFO_OID: Oid = oid!(2.23.133 .5 .4 .5);
+        const MULTI_TCB_INFO_OID: Oid = oid!(2.23.133.5.4.5);
         assert!(!ext_map[&MULTI_TCB_INFO_OID].critical);
     }
 

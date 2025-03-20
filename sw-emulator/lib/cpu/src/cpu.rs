@@ -947,7 +947,7 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Ram, Rom, Timer};
+    use caliptra_emu_bus::{DynamicBus, Ram, Rom, Timer, testing::FakeBus};
 
     #[test]
     fn test_new() {

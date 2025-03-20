@@ -22,8 +22,8 @@ Abstract:
 
 use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
-    bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
-    LmsSignature,
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
+    bytes_to_words_8,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Array4x16, Array4x8, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PrivKey, Mldsa87Seed,
+    Array4x8, Array4x16, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PrivKey, Mldsa87Seed,
     Mldsa87SignRnd, Sha2_512_384, Trng,
 };
 use caliptra_registers::sha512::Sha512Reg;

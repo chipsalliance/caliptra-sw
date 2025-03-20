@@ -2,9 +2,9 @@
 
 use anyhow::Context;
 use bit_vec::BitVec;
-use caliptra_builder::{build_firmware_elf, FwId, SymbolType};
-use elf::endian::AnyEndian;
+use caliptra_builder::{FwId, SymbolType, build_firmware_elf};
 use elf::ElfBytes;
+use elf::endian::AnyEndian;
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;

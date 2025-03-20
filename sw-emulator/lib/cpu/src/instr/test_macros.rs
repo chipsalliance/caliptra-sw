@@ -15,7 +15,7 @@ Abstract:
 mod test {
     #[macro_export]
     macro_rules! test_ld_op {
-        ($test:ident, $instr:ident, $result:expr, $offset:expr, $base:expr, $data:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $offset:expr_2021, $base:expr_2021, $data:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -39,7 +39,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_op {
-        ($test:ident, $instr:ident, $result:expr, $data:expr, $imm:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $data:expr_2021, $imm:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -63,7 +63,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_dest_bypass {
-        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -88,7 +88,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -114,7 +114,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 2, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -145,7 +145,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_src1_bypass {
-        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -169,7 +169,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -194,7 +194,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 2, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -224,7 +224,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_src1_eq_dest {
-        ($test:ident, $instr:ident, $result:expr, $data:expr, $imm:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $data:expr_2021, $imm:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -248,7 +248,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_zero_src1 {
-        ($test:ident, $instr:ident, $result:expr, $imm:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $imm:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -270,7 +270,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_imm_zero_dest {
-        ($test:ident, $instr:ident, $data:expr, $imm:expr) => {
+        ($test:ident, $instr:ident, $data:expr_2021, $imm:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -294,7 +294,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_st_op {
-        ($test:ident, $ld_instr:ident, $st_instr:ident, $result:expr, $offset:expr, $base:expr, $data:expr) => {
+        ($test:ident, $ld_instr:ident, $st_instr:ident, $result:expr_2021, $offset:expr_2021, $base:expr_2021, $data:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -320,7 +320,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_r_op {
-        ($test:ident, $instr:ident, $result:expr, $val1:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val1:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -344,7 +344,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_op {
-        ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -369,7 +369,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_r_src1_eq_dest{
-        ($test:ident, $instr:ident, $result:expr, $val1:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val1:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -393,7 +393,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_src1_eq_dest{
-        ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -418,7 +418,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_src2_eq_dest{
-        ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -443,7 +443,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_src12_eq_dest{
-        ($test:ident, $instr:ident, $result:expr, $val:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -467,7 +467,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_r_dest_bypass {
-        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr) => {
+        ($test:ident, 0, $instr:ident, $result:expr_2021, $val1:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -492,7 +492,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr) => {
+        ($test:ident, 1, $instr:ident, $result:expr_2021, $val1:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -518,7 +518,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr) => {
+        ($test:ident, 2, $instr:ident, $result:expr_2021, $val1:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -549,7 +549,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_dest_bypass {
-        ($test:ident, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -576,7 +576,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -604,7 +604,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 2, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -637,7 +637,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_src12_bypass {
-        ($test:ident, 0, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -663,7 +663,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 0, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -690,7 +690,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 0, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 2, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -718,7 +718,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -745,7 +745,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -773,7 +773,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 2, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -805,7 +805,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_src21_bypass {
-        ($test:ident, 0, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -831,7 +831,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 0, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -858,7 +858,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 0, 2, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 0, 2, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -886,7 +886,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -913,7 +913,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 1, 1, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 1, 1, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -941,7 +941,7 @@ mod test {
                 );
             }
         };
-        ($test:ident, 2, 0, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
+        ($test:ident, 2, 0, $instr:ident, $result:expr_2021, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -973,7 +973,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_zerosrc1 {
-        ($test:ident, $instr:ident, $result:expr, $val:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -997,7 +997,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_zerosrc2 {
-        ($test:ident, $instr:ident, $result:expr, $val:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021, $val:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1021,7 +1021,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_zerosrc12 {
-        ($test:ident, $instr:ident, $result:expr) => {
+        ($test:ident, $instr:ident, $result:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1044,7 +1044,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_rr_zerodest{
-        ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1069,7 +1069,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_lui {
-        ($test:ident, $result:expr, $val:expr, $shamt:expr) => {
+        ($test:ident, $result:expr_2021, $val:expr_2021, $shamt:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1092,7 +1092,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_br2_op_taken {
-        ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1124,7 +1124,7 @@ mod test {
 
     #[macro_export]
     macro_rules! test_br2_op_not_taken {
-        ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
+        ($test:ident, $instr:ident, $val1:expr_2021, $val2:expr_2021) => {
             #[test]
             fn $test() {
                 use $crate::xreg_file::XReg;
@@ -1157,10 +1157,10 @@ mod test {
     #[macro_export]
     macro_rules! isa_test {
         (
-            $text_addr:expr => $text:expr,
-            $data_addr:expr => $data:expr,
-            {$($init_reg:path = $init_val:expr;)*},
-            {$($result_reg:path = $result_val:expr;)*}
+            $text_addr:expr_2021 => $text:expr_2021,
+            $data_addr:expr_2021 => $data:expr_2021,
+            {$($init_reg:path = $init_val:expr_2021;)*},
+            {$($result_reg:path = $result_val:expr_2021;)*}
         ) => {
             let mut cpu = $crate::isa_test_cpu!( $text_addr => $text, $data_addr => $data);
             $(assert_eq!(cpu.write_xreg($init_reg, $init_val).ok(), Some(()));)*
@@ -1176,8 +1176,8 @@ mod test {
     #[macro_export]
     macro_rules! isa_test_cpu {
         (
-            $text_addr:expr => $text:expr,
-            $data_addr:expr => $data:expr
+            $text_addr:expr_2021 => $text:expr_2021,
+            $data_addr:expr_2021 => $data:expr_2021
         ) => {{
             use caliptra_emu_bus::{Clock, DynamicBus, Ram, Rom};
             use $crate::cpu::Cpu;
@@ -1201,7 +1201,7 @@ mod test {
 
     #[macro_export]
     macro_rules! db {
-        ($byte:expr) => {{
+        ($byte:expr_2021) => {{
             let val: u8 = $byte;
             val
         }};
@@ -1209,7 +1209,7 @@ mod test {
 
     #[macro_export]
     macro_rules! dh {
-        ($half_word:expr) => {{
+        ($half_word:expr_2021) => {{
             let val: u16 = $half_word;
             val
         }};
@@ -1217,7 +1217,7 @@ mod test {
 
     #[macro_export]
     macro_rules! dw {
-        ($word:expr) => {{
+        ($word:expr_2021) => {{
             let val: u32 = $word;
             val
         }};
@@ -1225,7 +1225,7 @@ mod test {
 
     #[macro_export]
     macro_rules! text {
-        ($($item:expr;)*) => {{
+        ($($item:expr_2021;)*) => {{
             let mut v = vec![];
             $(v.extend($item.to_le_bytes());)*
             v
@@ -1234,7 +1234,7 @@ mod test {
 
     #[macro_export]
     macro_rules! data {
-        ($($item:expr;)*) => {{
+        ($($item:expr_2021;)*) => {{
             let mut v = vec![];
             $(v.extend($item.to_le_bytes());)*
             v

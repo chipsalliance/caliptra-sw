@@ -3,7 +3,7 @@
 [package]
 name = "caliptra-cpu"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 # This feature is used to filter all these binary targets during normal builds

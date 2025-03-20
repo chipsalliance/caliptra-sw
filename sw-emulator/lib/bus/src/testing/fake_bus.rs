@@ -13,7 +13,7 @@ Abstract:
 --*/
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
-use crate::{testing::Log, Bus, BusError};
+use crate::{Bus, BusError, testing::Log};
 use std::fmt::Write;
 
 /// A Bus implementation that logs all calls, and allows the user to override

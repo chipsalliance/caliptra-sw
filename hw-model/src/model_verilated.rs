@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use crate::EtrngResponse;
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
-use crate::EtrngResponse;
 use crate::{HwModel, SocManager, TrngMode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusMmio;

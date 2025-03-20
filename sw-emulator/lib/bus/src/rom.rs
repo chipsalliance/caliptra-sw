@@ -108,10 +108,10 @@ mod tests {
     fn test_read() {
         let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(rom.read(RvSize::Byte, 0).ok(), Some(1));
-        assert_eq!(rom.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
+        assert_eq!(rom.read(RvSize::HalfWord, 0).ok(), Some(1 | (2 << 8)));
         assert_eq!(
             rom.read(RvSize::Word, 0).ok(),
-            Some(1 | 2 << 8 | 3 << 16 | 4 << 24)
+            Some(1 | (2 << 8) | (3 << 16) | (4 << 24))
         );
     }
 

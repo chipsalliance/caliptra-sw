@@ -43,7 +43,7 @@ mod verify;
 // Used by runtime tests
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib_git::{CfiCounter, cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder};
 use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
@@ -81,9 +81,9 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason, okmutref};
 use caliptra_registers::mbox::enums::MboxStatusE;
-pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
+pub use dpe::{DpeInstance, MAX_HANDLES, U8Bool, context::ContextState, tci::TciMeasurement};
 use dpe::{
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,

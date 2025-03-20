@@ -159,8 +159,8 @@ pub fn attempt_ssp_access_fw_load() {
     let fw_image = fips_fw_image();
     let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
 
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_info_digest = gen.vendor_pubkey_info_digest(&manifest.preamble).unwrap();
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let vendor_pubkey_info_digest = r#gen.vendor_pubkey_info_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
         vendor_pk_hash: vendor_pubkey_info_digest,
@@ -210,8 +210,8 @@ pub fn attempt_ssp_access_rt() {
     let fw_image = fips_fw_image();
     let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
 
-    let gen = ImageGenerator::new(Crypto::default());
-    let vendor_pubkey_info_digest = gen.vendor_pubkey_info_digest(&manifest.preamble).unwrap();
+    let r#gen = ImageGenerator::new(Crypto::default());
+    let vendor_pubkey_info_digest = r#gen.vendor_pubkey_info_digest(&manifest.preamble).unwrap();
     let fuses = caliptra_hw_model::Fuses {
         //field_entropy
         vendor_pk_hash: vendor_pubkey_info_digest,

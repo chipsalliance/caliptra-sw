@@ -24,8 +24,8 @@ Note:
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::{
-    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
+    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
 };
 use caliptra_drivers::{
     CaliptraError, CaliptraResult, PcrBank, PersistentData, Sha2_512_384, SocIfc,

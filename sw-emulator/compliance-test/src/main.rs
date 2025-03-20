@@ -120,7 +120,7 @@ fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Resu
                 return Err(into_io_error(format!(
                     "Error accessing memory for comparison with reference data: {:?}",
                     err
-                )))
+                )));
             }
         };
         if expected_word != actual_word {

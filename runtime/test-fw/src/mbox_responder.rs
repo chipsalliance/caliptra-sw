@@ -7,15 +7,14 @@ use core::mem::size_of;
 
 use caliptra_common::{handle_fatal_error, keyids::KEY_ID_TMP, mailbox_api::CommandId};
 use caliptra_drivers::{
-    cprintln,
+    Array4x12, CaliptraError, CaliptraResult, cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Array4x12, CaliptraError, CaliptraResult,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
-    key_ladder::KeyLadder, mailbox::Mailbox, ContextState, DpeInstance, Drivers, Hmac,
-    RtBootStatus, TciMeasurement, U8Bool, MAX_HANDLES,
+    ContextState, DpeInstance, Drivers, Hmac, MAX_HANDLES, RtBootStatus, TciMeasurement, U8Bool,
+    key_ladder::KeyLadder, mailbox::Mailbox,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
@@ -55,7 +54,7 @@ const BANNER: &str = r#"
                |_|
 "#;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::empty_loop)]
 fn rt_entry() {
     cprintln!("{}", BANNER);

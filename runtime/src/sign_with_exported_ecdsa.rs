@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
+use crate::{Drivers, PauserPrivileges, dpe_crypto::DpeCrypto};
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};

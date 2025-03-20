@@ -3,9 +3,9 @@
 use std::io::{BufRead, BufReader, Write};
 use std::marker::PhantomData;
 use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::thread;
 use std::{env, slice, str::FromStr};
 
@@ -606,7 +606,7 @@ impl Drop for ModelFpgaRealtime {
 
         // Close openocd
         match &mut self.openocd {
-            Some(ref mut cmd) => cmd.kill().expect("Failed to close openocd"),
+            Some(cmd) => cmd.kill().expect("Failed to close openocd"),
             _ => (),
         }
     }

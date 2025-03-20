@@ -20,8 +20,8 @@ use std::collections::HashMap;
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
 use crate::util::token_iter::{
-    expect_ident, skip_to_field_with_attributes, skip_to_group, skip_to_struct_with_attributes,
-    Attribute,
+    Attribute, expect_ident, skip_to_field_with_attributes, skip_to_group,
+    skip_to_struct_with_attributes,
 };
 
 pub fn derive_bus(input: TokenStream) -> TokenStream {
@@ -178,8 +178,8 @@ fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
             panic!("More than one #[peripheral] attribute attached to field");
         }
         let attr = &field.attributes[0];
-        if let Some(offset) = attr.args.get("offset").cloned() {
-            result.push(RegisterField {
+        match attr.args.get("offset").cloned() {
+            Some(offset) => result.push(RegisterField {
                 name: field.field_name.map(|i| i.to_string()),
                 ty_tokens: field.field_type,
                 offset: literal::parse_hex_u32(offset),
@@ -188,15 +188,16 @@ fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
                 is_array: field.attr_name == "register_array",
                 array_len: attr.args.get("len").map(literal::parse_usize),
                 array_item_size: attr.args.get("item_size").map(literal::parse_usize),
-            })
-        } else {
-            panic!(
-                "register attribute on field {} must have offset parameter",
-                field
-                    .field_name
-                    .map(|i| i.to_string())
-                    .unwrap_or(attr.args.get("read_fn").unwrap().to_string())
-            );
+            }),
+            _ => {
+                panic!(
+                    "register attribute on field {} must have offset parameter",
+                    field
+                        .field_name
+                        .map(|i| i.to_string())
+                        .unwrap_or(attr.args.get("read_fn").unwrap().to_string())
+                );
+            }
         }
     }
     result
@@ -222,17 +223,22 @@ fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
             panic!("More than one #[peripheral] attribute attached to field");
         }
         let attr = &field.attributes[0];
-        if let (Some(offset), Some(mask)) = (
+        match (
             attr.args.get("offset").cloned(),
             attr.args.get("mask").cloned(),
         ) {
-            result.push(PeripheralField {
+            (Some(offset), Some(mask)) => result.push(PeripheralField {
                 name: field.field_name.unwrap().to_string(),
                 offset: literal::parse_hex_u32(offset),
                 mask: literal::parse_hex_u32(mask),
-            })
-        } else {
-            panic!("peripheral attribute must have offset and mask parameters and be placed before a field offset={:?} mask={:?}", attr.args.get("offset"), attr.args.get("mask"));
+            }),
+            _ => {
+                panic!(
+                    "peripheral attribute must have offset and mask parameters and be placed before a field offset={:?} mask={:?}",
+                    attr.args.get("offset"),
+                    attr.args.get("mask")
+                );
+            }
         }
     }
     result
@@ -272,7 +278,10 @@ fn build_match_tree_from_fields(fields: &[PeripheralField]) -> Option<MaskMatchB
     let mut fields_by_mask: HashMap<u32, Vec<PeripheralField>> = HashMap::new();
     for field in fields.iter() {
         if !lsbs_contiguous(field.mask) {
-            panic!("Field {} has an invalid peripheral mask (must be equal to a power of two minus 1) {:#010x}", field.name, field.mask);
+            panic!(
+                "Field {} has an invalid peripheral mask (must be equal to a power of two minus 1) {:#010x}",
+                field.name, field.mask
+            );
         }
         fields_by_mask
             .entry(field.mask)
@@ -283,37 +292,38 @@ fn build_match_tree_from_fields(fields: &[PeripheralField]) -> Option<MaskMatchB
     fn recurse(
         mut iter: impl Iterator<Item = (u32, Vec<PeripheralField>)>,
     ) -> Option<MaskMatchBlock> {
-        if let Some((mask, fields)) = iter.next() {
-            let mut result = MaskMatchBlock {
-                mask: !mask,
-                match_arms: Vec::new(),
-            };
-            for field in fields.into_iter() {
-                result.match_arms.push(MatchArm {
-                    offset: field.offset,
-                    body: MatchBody::Field(field.name),
-                });
-            }
-            if let Some(sub_matches) = recurse(iter) {
-                let mut map: HashMap<u32, Vec<MatchArm>> = HashMap::new();
-                for m in sub_matches.match_arms.into_iter() {
-                    map.entry(m.offset & !mask).or_default().push(m);
+        match iter.next() {
+            Some((mask, fields)) => {
+                let mut result = MaskMatchBlock {
+                    mask: !mask,
+                    match_arms: Vec::new(),
+                };
+                for field in fields.into_iter() {
+                    result.match_arms.push(MatchArm {
+                        offset: field.offset,
+                        body: MatchBody::Field(field.name),
+                    });
                 }
-                for (masked_offset, matches) in sorted_by_key(map.into_iter(), |p| p.0) {
-                    if !matches.is_empty() {
-                        result.match_arms.push(MatchArm {
-                            offset: masked_offset,
-                            body: MatchBody::SubMatchBlock(MaskMatchBlock {
-                                mask: sub_matches.mask,
-                                match_arms: matches,
-                            }),
-                        });
+                if let Some(sub_matches) = recurse(iter) {
+                    let mut map: HashMap<u32, Vec<MatchArm>> = HashMap::new();
+                    for m in sub_matches.match_arms.into_iter() {
+                        map.entry(m.offset & !mask).or_default().push(m);
+                    }
+                    for (masked_offset, matches) in sorted_by_key(map.into_iter(), |p| p.0) {
+                        if !matches.is_empty() {
+                            result.match_arms.push(MatchArm {
+                                offset: masked_offset,
+                                body: MatchBody::SubMatchBlock(MaskMatchBlock {
+                                    mask: sub_matches.mask,
+                                    match_arms: matches,
+                                }),
+                            });
+                        }
                     }
                 }
+                Some(result)
             }
-            Some(result)
-        } else {
-            None
+            _ => None,
         }
     }
     recurse(sorted_by_key(fields_by_mask.into_iter(), |p| p.0).rev())
@@ -350,7 +360,7 @@ fn gen_bus_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) 
                     #offset => return caliptra_emu_bus::Bus::write(&mut self.#field_name, size, addr & #addr_mask, val),
                 }
             },
-            (MatchBody::SubMatchBlock(ref sub_mask_matches), _) => {
+            (MatchBody::SubMatchBlock(sub_mask_matches), _) => {
                 let submatch_tokens = gen_bus_match_tokens(sub_mask_matches, access_type);
                 quote! {
                     #offset => #submatch_tokens,

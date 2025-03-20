@@ -16,12 +16,12 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmImportReq, CmImportResp, CmKeyUsage, CmStatusResp, MailboxResp, MailboxRespHeader,
-    CMK_MAX_KEY_SIZE_BITS,
+    CMK_MAX_KEY_SIZE_BITS, CmImportReq, CmImportResp, CmKeyUsage, CmStatusResp, MailboxResp,
+    MailboxRespHeader,
 };
 use caliptra_drivers::CaliptraResult;
 use caliptra_error::CaliptraError;
-use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, transmute};
 
 pub const KEY_USAGE_MAX: usize = 256;
 
@@ -162,7 +162,7 @@ impl Commands {
 
 #[cfg(test)]
 mod tests {
-    use crate::cryptographic_mailbox::{EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES};
+    use crate::cryptographic_mailbox::{EncryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES, UnencryptedCmk};
     use caliptra_common::mailbox_api::CMK_SIZE_BYTES;
 
     #[test]

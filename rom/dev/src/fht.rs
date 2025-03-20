@@ -12,17 +12,17 @@ Abstract:
 
 --*/
 
-use crate::{rom_env::RomEnv, CALIPTRA_ROM_INFO};
+use crate::{CALIPTRA_ROM_INFO, rom_env::RomEnv};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
+    FHT_INVALID_HANDLE, FHT_MARKER, FirmwareHandoffTable, HandOffDataHandle, Vault,
     keyids::{
         KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_FW_KEY_LADDER,
         KEY_ID_ROM_FMC_CDI,
     },
-    FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
-use caliptra_drivers::{cprintln, RomAddr};
+use caliptra_drivers::{RomAddr, cprintln};
 use caliptra_image_verify::MAX_FIRMWARE_SVN;
 
 const FHT_MAJOR_VERSION: u16 = 1;

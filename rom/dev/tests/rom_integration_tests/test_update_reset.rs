@@ -3,18 +3,17 @@
 use crate::helpers;
 use caliptra_api::SocManager;
 use caliptra_builder::{
+    FwId, ImageOptions,
     firmware::{
-        self,
+        self, APP_WITH_UART,
         rom_tests::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
         },
-        APP_WITH_UART,
     },
-    FwId, ImageOptions,
 };
-use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
