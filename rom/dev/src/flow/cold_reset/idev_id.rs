@@ -33,6 +33,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use core::mem::offset_of;
 use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
@@ -271,6 +272,29 @@ impl InitDevIdLayer {
         // Generate MLDSA CSR.
         Self::make_mldsa_csr(env, output)?;
 
+        // Create a HMAC tag for the CSR Envelop.
+        let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
+
+        // Data to be HMACed is everything before the CSR MAC.
+        let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
+        let envlope_slice = csr_envelop
+            .as_bytes()
+            .get(..offset)
+            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+
+        // Generate the CSR MAC.
+        let mut tag = Array4x16::default();
+        env.hmac.hmac(
+            &HmacKey::CsrMode(),
+            &HmacData::Slice(envlope_slice),
+            &mut env.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )?;
+
+        // Copy the tag to the CSR envelop.
+        csr_envelop.csr_mac = tag.into();
+
         // Execute Send CSR Flow
         Self::send_csr_envelop(env)?;
 
@@ -338,20 +362,6 @@ impl InitDevIdLayer {
             HexBytes(&csr_envelop.ecc_csr.csr[..csr_len])
         );
 
-        // Generate the CSR MAC.
-        let mut tag = Array4x12::default();
-        let csr_slice = &csr_envelop.ecc_csr.csr[..csr_len];
-        env.hmac.hmac(
-            &HmacKey::CsrMode(),
-            &HmacData::Slice(csr_slice),
-            &mut env.trng,
-            (&mut tag).into(),
-            HmacMode::Hmac384,
-        )?;
-
-        // Copy the tag to the CSR envelop.
-        csr_envelop.ecc_csr_mac = tag.into();
-
         Ok(())
     }
 
@@ -404,19 +414,6 @@ impl InitDevIdLayer {
         }
         csr_envelop.mldsa_csr.csr_len = csr_len as u32;
 
-        // Generate the CSR MAC.
-        let mut tag = Array4x16::default();
-        let csr_slice = &csr_envelop.mldsa_csr.csr[..csr_len];
-        env.hmac.hmac(
-            &HmacKey::CsrMode(),
-            &HmacData::Slice(csr_slice),
-            &mut env.trng,
-            (&mut tag).into(),
-            HmacMode::Hmac512,
-        )?;
-
-        // Copy the tag to the CSR envelop.
-        csr_envelop.mldsa_csr_mac = tag.into();
         Ok(())
     }
 
