@@ -20,7 +20,7 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
-use rand::{CryptoRng, Rng, RngCore};
+use rand::{CryptoRng, RngCore};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
@@ -78,7 +78,7 @@ const ML_DSA87_SIGN_RND_SIZE: usize = 32;
 const ML_DSA87_MSG_SIZE: usize = 64;
 
 /// ML_DSA87 VERIFICATION size
-const ML_DSA87_VERIFICATION_SIZE: usize = 64;
+const ML_DSA87_VERIFICATION_SIZE_BYTES: usize = 64;
 
 /// ML_DSA87 PUBKEY size
 const ML_DSA87_PUBKEY_SIZE: usize = PK_LEN;
@@ -175,7 +175,7 @@ pub struct Mldsa87 {
 
     /// Verification result
     #[register_array(offset = 0x0000_00d8, write_fn = write_access_fault)]
-    verify_res: [u32; ML_DSA87_VERIFICATION_SIZE / 4],
+    verify_res: [u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4],
 
     /// Public key
     #[register_array(offset = 0x0000_1000)]
@@ -466,10 +466,10 @@ impl Mldsa87 {
 
         if success {
             self.verify_res.copy_from_slice(
-                &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE / 4..],
+                &self.signature[self.signature.len() - ML_DSA87_VERIFICATION_SIZE_BYTES / 4..],
             );
         } else {
-            self.verify_res = rand::thread_rng().gen::<[u32; 16]>();
+            self.verify_res = [0u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4];
         }
     }
 
@@ -875,7 +875,7 @@ mod tests {
         };
         assert_eq!(
             result,
-            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE..]
+            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE_BYTES..]
         );
 
         // Bad signature
@@ -919,7 +919,7 @@ mod tests {
         let result = bytes_from_words_be(&ml_dsa87.verify_res);
         assert_ne!(
             result,
-            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE..]
+            &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE_BYTES..]
         );
     }
 
