@@ -31,6 +31,7 @@ const OPCODE_READ_DPE_INSTANCE: u32 = 0xA000_0000;
 const OPCODE_CORRUPT_DPE_INSTANCE: u32 = 0xB000_0000;
 const OPCODE_READ_PCR_RESET_COUNTER: u32 = 0xC000_0000;
 const OPCODE_CORRUPT_DPE_ROOT_TCI: u32 = 0xD000_0000;
+const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
 fn read_request(mbox: &Mailbox) -> &[u8] {
@@ -219,6 +220,10 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .regs_mut()
                     .internal_fw_update_reset()
                     .write(|w| w.core_rst(true));
+            }
+            CommandId(OPCODE_HOLD_COMMAND_BUSY) => {
+                drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+                write_response(&mut drivers.mbox, &[]);
             }
             _ => {
                 drivers.mbox.set_status(MboxStatusE::CmdFailure);
