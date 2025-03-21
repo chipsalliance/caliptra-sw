@@ -640,14 +640,12 @@ impl<'a> DmaRecovery<'a> {
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // set RESET signal to indirect control to load the nexxt image
+            // Set RESET signal to INDIRECT_FIFO_CTRL0 register to load the next image.
             recovery
                 .indirect_fifo_ctrl_0()
                 .modify(|val| val.reset(Self::RESET_VAL));
 
-            // [TODO][CAP2] we need to program CMS bits, currently they are not available in RDL. Using bytes[4:7] for now for size
-
-            // Read the image size from INDIRECT_FIFO_CTRL0:Byte[2:3] & INDIRECT_FIFO_CTRL1:Byte[0:1]. Image size in DWORDs.
+            // Read the image size from INDIRECT_FIFO_CTRL0 & INDIRECT_FIFO_CTRL1 registers. Image size is in DWORDs.
             let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
             let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
 
