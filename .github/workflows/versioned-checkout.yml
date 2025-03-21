@@ -111,6 +111,10 @@ jobs:
         with:
           name: caliptra-rom
           path: /tmp/caliptra-rom-firmware
+      
+      - name: Debug List Downloads
+        run: |
+            ls -laR /tmp/caliptra-*
 
       - name: Merge Rom files and Firmware files
         run: |
