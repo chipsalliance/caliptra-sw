@@ -807,6 +807,7 @@ fn execute_lms_cmd<T: HwModel>(
     Ok(())
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_lms_verify_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -832,6 +833,7 @@ fn test_lms_verify_cmd() {
     execute_lms_cmd(&mut model, &MSG_2, &MSG_2_PUB_KEY_2, &MSG_2_KEY_2_SIG_2).unwrap();
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_lms_verify_failure() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -850,6 +852,7 @@ fn test_lms_verify_failure() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_lms_verify_invalid_sig_lms_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -873,6 +876,7 @@ fn test_lms_verify_invalid_sig_lms_type() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_lms_verify_invalid_key_lms_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -895,6 +899,7 @@ fn test_lms_verify_invalid_key_lms_type() {
     );
 }
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: we need to do some sort of workaround for the SHA accelerator being missing
 #[test]
 fn test_lms_verify_invalid_lmots_type() {
     let mut model = run_rt_test(RuntimeTestArgs::default());

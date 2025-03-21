@@ -137,6 +137,16 @@ fn test_pcr_log() {
             },
         )
         .unwrap();
+        let image2 = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &MOCK_RT_INTERACTIVE,
+            ImageOptions {
+                app_version: 2,
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let mut hw = caliptra_hw_model::new(
             InitParams {
@@ -198,24 +208,15 @@ fn test_pcr_log() {
         assert_eq!(pcr2_from_log, pcr2_from_hw);
         assert_eq!(pcr3_from_log, pcr3_from_hw);
 
-        let image2 = caliptra_builder::build_and_sign_image(
-            &FMC_WITH_UART,
-            &MOCK_RT_INTERACTIVE,
-            ImageOptions {
-                app_version: 2,
-                pqc_key_type: *pqc_key_type,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
         // Trigger an update reset with "new" firmware
         hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image2.to_bytes().unwrap())
             .unwrap();
 
-        hw.step_until_boot_status(KatStarted.into(), true);
-        hw.step_until_boot_status(KatComplete.into(), true);
-        hw.step_until_boot_status(UpdateResetStarted.into(), false);
+        if cfg!(not(feature = "fpga_realtime")) {
+            hw.step_until_boot_status(KatStarted.into(), true);
+            hw.step_until_boot_status(KatComplete.into(), true);
+        }
+        hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
         assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 

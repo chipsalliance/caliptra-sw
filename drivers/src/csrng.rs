@@ -21,6 +21,7 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
+use crate::cprintln;
 use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
@@ -87,28 +88,39 @@ impl Csrng {
         let mut result = Self { csrng, entropy_src };
         let e = result.entropy_src.regs_mut();
 
+        cprintln!("CSRNG init with_seed");
+
         // Configure and enable entropy_src if needed.
         if e.module_enable().read().module_enable() == FALSE {
+            cprintln!("CSRNG set health check thresh");
             set_health_check_thresholds(e, soc_ifc.regs());
 
+            cprintln!("CSRNG conf write 1");
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
                     .threshold_scope(TRUE)
                     .rng_bit_enable(FALSE)
             });
+            cprintln!("CSRNG module enable");
             e.module_enable().write(|w| w.module_enable(TRUE));
+            cprintln!("CSRNG check for alert state wait");
             check_for_alert_state(result.entropy_src.regs())?;
+            cprintln!("CSRNG check for alert state done");
         }
 
         let c = result.csrng.regs_mut();
 
+        cprintln!("CSRNG check enable");
         if c.ctrl().read().enable() == FALSE {
+            cprintln!("CSRNG check enable");
             c.ctrl()
                 .write(|w| w.enable(TRUE).sw_app_enable(TRUE).read_int_state(TRUE));
         }
 
+        cprintln!("CSRNG uninst");
         send_command(&mut result.csrng, Command::Uninstantiate)?;
+        cprintln!("CSRNG inst");
         send_command(&mut result.csrng, Command::Instantiate(seed))?;
 
         Ok(result)

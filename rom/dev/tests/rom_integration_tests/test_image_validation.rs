@@ -2373,6 +2373,7 @@ fn test_runtime_svn_corruption() {
     );
 }
 
+//#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs
 #[test]
 fn cert_test_with_custom_dates() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -2385,18 +2386,6 @@ fn cert_test_with_custom_dates() {
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-        let mut hw = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
-                security_state: SecurityState::from(fuses.life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
-                fuses,
-                ..Default::default()
-            },
-        )
-        .unwrap();
 
         opts.vendor_config
             .not_before
@@ -2420,6 +2409,19 @@ fn cert_test_with_custom_dates() {
         let image_bundle =
             caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts)
                 .unwrap();
+
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                security_state: SecurityState::from(fuses.life_cycle as u32),
+                ..Default::default()
+            },
+            BootParams {
+                fuses,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let mut output = vec![];
 
@@ -2465,6 +2467,7 @@ fn cert_test_with_custom_dates() {
     }
 }
 
+//#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: broken; hangs on fwproc wait for commands
 #[test]
 fn cert_test() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -2477,6 +2480,13 @@ fn cert_test() {
             ..Default::default()
         };
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options,
+        )
+        .unwrap();
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -2487,13 +2497,6 @@ fn cert_test() {
                 fuses,
                 ..Default::default()
             },
-        )
-        .unwrap();
-
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &TEST_FMC_WITH_UART,
-            &APP_WITH_UART,
-            image_options,
         )
         .unwrap();
 
@@ -2535,6 +2538,7 @@ fn cert_test() {
     }
 }
 
+//#[cfg_attr(feature = "fpga_realtime", ignore)] // TODO: hangs
 #[test]
 fn cert_test_with_ueid() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -2554,6 +2558,10 @@ fn cert_test_with_ueid() {
         fuses.idevid_cert_attr[IdevidCertAttr::UeidType as usize] = 1;
 
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts)
+                .unwrap();
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
@@ -2566,10 +2574,6 @@ fn cert_test_with_ueid() {
             },
         )
         .unwrap();
-
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts)
-                .unwrap();
 
         let mut output = vec![];
 

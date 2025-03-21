@@ -63,7 +63,7 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
-itrng = ["caliptra-hw-model/itrng"]
+itrng = ["caliptra-drivers/itrng", "caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 slow_tests = []
@@ -74,5 +74,5 @@ no-cfi = [
     "caliptra-drivers/no-cfi",
     "dpe/no-cfi",
 ]
-fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
