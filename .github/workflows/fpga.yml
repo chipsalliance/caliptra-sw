@@ -4,7 +4,6 @@ name: FPGA Build
 on:
   push:
     branches: ["main"]
-  pull_request:
   workflow_call:
     inputs:
       artifact-suffix:
