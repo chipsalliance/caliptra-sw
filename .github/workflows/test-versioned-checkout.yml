@@ -15,6 +15,7 @@ jobs:
         fw-ref: "main"
         hw-version: "latest"
         workflow_call: true
+        artifact-suffix: "test"
   
   get-artifacts:
     runs-on: ubuntu-22.04
@@ -23,5 +24,5 @@ jobs:
     - name: Download caliptra-unified artifact
       uses: actions/download-artifact@v4
       with:
-        name: caliptra-unified
+        name: caliptra-unified-test
         path: /tmp/caliptra-unified 
