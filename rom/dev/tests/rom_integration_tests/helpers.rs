@@ -13,13 +13,22 @@ use caliptra_hw_model::{
     BootParams, CodeRange, Fuses, HwModel, ImageInfo, InitParams, SecurityState, StackInfo,
     StackRange,
 };
-use caliptra_hw_model::{DefaultHwModel, ModelError};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, ModelError};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle};
 use zerocopy::TryFromBytes;
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
     FwVerificationPqcKeyType::MLDSA,
+];
+
+pub const LIFECYCLES_PROVISIONED: [DeviceLifecycle; 2] =
+    [DeviceLifecycle::Manufacturing, DeviceLifecycle::Production];
+
+pub const LIFECYCLES_ALL: [DeviceLifecycle; 3] = [
+    DeviceLifecycle::Unprovisioned,
+    DeviceLifecycle::Manufacturing,
+    DeviceLifecycle::Production,
 ];
 
 pub fn build_hw_model_and_image_bundle(
