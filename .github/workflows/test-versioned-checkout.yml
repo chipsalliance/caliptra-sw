@@ -1,0 +1,54 @@
+name: Test Versioned Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      fw-ref:
+        default: "main"
+        type: string
+      artifact-suffix:
+        default: "test"
+        type: string
+  pull_request:
+    inputs:
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      fw-ref:
+        default: "main"
+        type: string
+      artifact-suffix:
+        default: "test"
+        type: string
+    branches:
+      - main
+
+jobs:
+  test-versioned-checkout:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+        rom-ref: "main"
+        rom-logging: false
+        fw-ref: "main"
+        hw-version: "latest"
+        workflow_call: true
+        artifact-suffix: "test"
+  
+  get-artifacts:
+    runs-on: ubuntu-22.04
+    needs: test-versioned-checkout
+    steps:
+    - name: Download caliptra-unified artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: caliptra-unified-main-main-latest-test
+        path: /tmp/caliptra-unified 
