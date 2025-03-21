@@ -2,6 +2,17 @@ name: Nightly Release
 
 on:
   workflow_dispatch:
+    inupts:
+      hw-version:
+        default: "latest"
+        type: string
+      rom-ref:
+        default: "main"
+        type: string
+      firmware-version:
+        default: "main"
+        type: string
+      
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
@@ -385,6 +396,9 @@ jobs:
 
       - name: Generate release zip
         run: |
+          # argc == 1: <release_name>
+          # argc == 3: <release_name> <rom_ref> <firmware_ref> 
+
           ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
