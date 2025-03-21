@@ -32,6 +32,10 @@ on:
           default: true
           type: boolean
           required: false
+        artifact-suffix:
+          description: 'The suffix to append to the artifact name'
+          type: string
+          required: true
         
 jobs:
   build_versioned_rom:
@@ -63,7 +67,7 @@ jobs:
       - name: Upload ROM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-rom
+          name: caliptra-rom-${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-rom-firmware/caliptra-rom.bin
 
   build_versioned_fmc_rt:
@@ -93,7 +97,7 @@ jobs:
       - name: Upload FMC and RT artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-fmc-rt
+          name: caliptra-fmc-rt-${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fmc-rt-firmware/*
 
   unify_rom_fmc_rt:
@@ -103,13 +107,13 @@ jobs:
       - name: Download FMC and RT artifacts
         uses: actions/download-artifact@v4
         with:
-          name: caliptra-fmc-rt
+          name: caliptra-fmc-rt-${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fmc-rt-firmware
 
       - name: Download ROM artifacts
         uses: actions/download-artifact@v4
         with:
-          name: caliptra-rom
+          name: caliptra-rom-${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-rom-firmware
       
       - name: Debug List Downloads
@@ -120,10 +124,11 @@ jobs:
         run: |
             mkdir -p /tmp/caliptra
             cp /tmp/caliptra-fmc-rt-firmware/*.elf /tmp/caliptra
-            cp /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra
+            cp /tmp/caliptra-rom-firmware/caliptra-rom.bin /tmp/caliptra
 
+      # caliptra-unified-<rom-ref>-<fw-ref>-<hw-version>-<artifact-suffix>
       - name: Upload unified artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-unified
-          path: /tmp/caliptra/*
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra/
