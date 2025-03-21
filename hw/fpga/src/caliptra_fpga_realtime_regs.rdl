@@ -24,25 +24,29 @@ property wr_swacc {
 };
 
 regfile interface_regs {
-
     reg {
-        field { sw=rw; hw=r; } value[32] = 32'b0;
-    } generic_input_wires[2];
-
-    reg {
-        field { sw=r; hw=rw; } value[32] = 32'b0;
-    } generic_output_wires[2];
-
-    reg {
-        default sw=rw;
+        default sw=r;
         default hw=r;
 
-        field {} value[32] = 32'b0;
-    } cptra_obf_key[8];
+        field {
+            desc = "Ascii \"CPTR\" to check that the image is valid.";
+        } fpga_magic[32] = 32'h52545043;
+    } fpga_magic;
+    reg {
+        default sw=r;
+        default hw=rw;
+
+        field {
+            desc = "Git commit of HEAD the FPGA was built with.";
+        } fpga_version[32] = 32'b0;
+    } fpga_version;
 
     reg {
         field { sw=rw; hw=r; } cptra_pwrgood = 1'b0;
         field { sw=rw; hw=r; } cptra_rst_b = 1'b0;
+        
+        field { sw=rw; hw=r; } cptra_obf_uds_seed_vld = 1'b0;
+        field { sw=rw; hw=r; } cptra_obf_field_entropy_vld = 1'b0;
 
         field { sw=rw; hw=r; } ss_debug_locked = 1'b0;
         field { sw=rw; hw=r; } ss_device_lifecycle[2] = 2'b0;
@@ -85,11 +89,40 @@ regfile interface_regs {
     } cycle_count;
 
     reg {
-        default sw=r;
-        default hw=rw;
+        field { sw=rw; hw=r; } value[32] = 32'b0;
+    } generic_input_wires[2] @0x30;
 
-        field {} fpga_version[32] = 32'b0;
-    } fpga_version;
+    reg {
+        field { sw=r; hw=rw; } value[32] = 32'b0;
+    } generic_output_wires[2];
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} value[32] = 32'b0;
+    } cptra_obf_key[8] @0x40;
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} value[32] = 32'b0;
+    } cptra_csr_hmac_key[16];
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} value[32] = 32'b0;
+    } cptra_obf_uds_seed[16];
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} value[32] = 32'b0;
+    } cptra_obf_field_entropy[8];
 };
 
 regfile fifo_regs {
