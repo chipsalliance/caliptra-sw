@@ -422,7 +422,8 @@ impl HwModel for ModelFpgaRealtime {
         let output = Output::new(params.log_writer);
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
         // This locks the device, and so acts as a test mutex so that only one test can run at a time.
-        let dev = UioDevice::blocking_new(uio_num)?;
+        let dev = UioDevice::blocking_new(uio_num)
+            .expect("UIO driver not found. Run \"sudo ./hw/fpga/setup_fpga.sh\"");
 
         let wrapper = dev
             .map_mapping(FPGA_WRAPPER_MAPPING)
@@ -472,6 +473,19 @@ impl HwModel for ModelFpgaRealtime {
 
             openocd: None,
         };
+
+        // Check if the FPGA image is valid
+        if 0x52545043 == unsafe { wrapper.offset(FPGA_WRAPPER_MAGIC_OFFSET).read_volatile() } {
+            let fpga_version = unsafe {
+                m.wrapper
+                    .offset(FPGA_WRAPPER_VERSION_OFFSET)
+                    .read_volatile()
+            };
+            writeln!(m.output().logger(), "Valid FPGA built from {fpga_version}")?;
+        } else {
+            writeln!(m.output().logger(), "FPGA image invalid")?;
+            panic!("FPGA image invalid");
+        }
 
         // Set pwrgood and rst_b to 0 to boot from scratch
         m.set_cptra_pwrgood(false);
