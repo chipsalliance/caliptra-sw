@@ -168,6 +168,36 @@ module caliptra_wrapper_top (
     logic [`CALIPTRA_IMEM_ADDR_WIDTH-1:0] imem_addr;
     logic [`CALIPTRA_IMEM_DATA_WIDTH-1:0] imem_rdata;
 
+
+    logic [255:0]                              cptra_obf_key;
+    logic [`CLP_CSR_HMAC_KEY_DWORDS-1:0][31:0] cptra_csr_hmac_key;
+    logic [`CLP_OBF_FE_DWORDS-1 :0][31:0]      cptra_obf_field_entropy;
+    logic [`CLP_OBF_UDS_DWORDS-1:0][31:0]      cptra_obf_uds_seed;
+    assign cptra_obf_key =
+        {hwif_out.interface_regs.cptra_obf_key[7].value.value,
+         hwif_out.interface_regs.cptra_obf_key[6].value.value,
+         hwif_out.interface_regs.cptra_obf_key[5].value.value,
+         hwif_out.interface_regs.cptra_obf_key[4].value.value,
+         hwif_out.interface_regs.cptra_obf_key[3].value.value,
+         hwif_out.interface_regs.cptra_obf_key[2].value.value,
+         hwif_out.interface_regs.cptra_obf_key[1].value.value,
+         hwif_out.interface_regs.cptra_obf_key[0].value.value};
+    initial begin
+      for (int dword = 0; dword < `CLP_CSR_HMAC_KEY_DWORDS; dword++) begin
+         cptra_csr_hmac_key[dword] = hwif_out.interface_regs.cptra_csr_hmac_key[dword].value.value;
+      end
+    end
+    initial begin
+      for (int dword = 0; dword < `CLP_OBF_FE_DWORDS; dword++) begin
+         cptra_obf_field_entropy[dword] = hwif_out.interface_regs.cptra_obf_field_entropy[dword].value.value;
+      end
+    end
+    initial begin
+      for (int dword = 0; dword < `CLP_OBF_UDS_DWORDS; dword++) begin
+         cptra_obf_uds_seed[dword] = hwif_out.interface_regs.cptra_obf_uds_seed[dword].value.value;
+      end
+    end
+
 `ifndef CALIPTRA_APB
     axi_if #(
         .AW(`CALIPTRA_SLAVE_ADDR_WIDTH(`CALIPTRA_SLAVE_SEL_SOC_IFC)),
@@ -289,14 +319,12 @@ caliptra_top caliptra_top_dut (
     .cptra_rst_b                (hwif_out.interface_regs.control.cptra_rst_b.value),
     .clk                        (core_clk),
 
-    .cptra_obf_key              ({hwif_out.interface_regs.cptra_obf_key[7].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[6].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[5].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[4].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[3].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[2].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[1].value.value,
-                                  hwif_out.interface_regs.cptra_obf_key[0].value.value}),
+    .cptra_obf_key,
+    .cptra_csr_hmac_key,
+    .cptra_obf_field_entropy_vld(hwif_out.interface_regs.control.cptra_obf_field_entropy_vld.value),
+    .cptra_obf_field_entropy,
+    .cptra_obf_uds_seed_vld(hwif_out.interface_regs.control.cptra_obf_uds_seed_vld.value),
+    .cptra_obf_uds_seed,
 
     .jtag_tck(jtag_tck),
     .jtag_tdi(jtag_tdi),
