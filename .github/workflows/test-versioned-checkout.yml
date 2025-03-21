@@ -1,0 +1,27 @@
+name: Test Versioned Workflow
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-versioned-checkout:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+        rom-ref: "main"
+        rom-logging: false
+        fw-ref: "main"
+        hw-version: "latest"
+        workflow_call: true
+  
+  get-artifacts:
+    runs-on: ubuntu-22.04
+    needs: test-versioned-checkout
+    steps:
+    - name: Download caliptra-unified artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: caliptra-unified
+        path: /tmp/caliptra-unified 
