@@ -296,6 +296,7 @@ fn test_pcr_extend() {
 
 #[test]
 #[cfg(feature = "fpga_realtime")]
+#[ignore] // TODO: this will hard crash the FPGA host in 2.0 until we update the test binary
 fn test_mbox_pauser_sigbus() {
     fn find_binary_path() -> Option<&'static str> {
         // Use this path when running on github.

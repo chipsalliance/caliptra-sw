@@ -576,25 +576,45 @@ fn make_model_with_security_state(
 fn test_key_ladder_changes_with_lifecycle() {
     // Test with several combinations of security state.
 
-    let mut model =
-        make_model_with_security_state(&FMC_WITH_UART, &MBOX, false, DeviceLifecycle::Production);
-    let ladder_a = get_ladder_digest(&mut model, 0);
+    let ladder_a = {
+        let mut model = make_model_with_security_state(
+            &FMC_WITH_UART,
+            &MBOX,
+            false,
+            DeviceLifecycle::Production,
+        );
+        get_ladder_digest(&mut model, 0)
+    };
 
-    model = make_model_with_security_state(
-        &FMC_WITH_UART,
-        &MBOX,
-        false,
-        DeviceLifecycle::Manufacturing,
-    );
-    let ladder_b = get_ladder_digest(&mut model, 0);
+    let ladder_b = {
+        let mut model = make_model_with_security_state(
+            &FMC_WITH_UART,
+            &MBOX,
+            false,
+            DeviceLifecycle::Manufacturing,
+        );
+        get_ladder_digest(&mut model, 0)
+    };
 
-    model =
-        make_model_with_security_state(&FMC_WITH_UART, &MBOX, true, DeviceLifecycle::Production);
-    let ladder_c = get_ladder_digest(&mut model, 0);
+    let ladder_c = {
+        let mut model = make_model_with_security_state(
+            &FMC_WITH_UART,
+            &MBOX,
+            true,
+            DeviceLifecycle::Production,
+        );
+        get_ladder_digest(&mut model, 0)
+    };
 
-    model =
-        make_model_with_security_state(&FMC_WITH_UART, &MBOX, true, DeviceLifecycle::Manufacturing);
-    let ladder_d = get_ladder_digest(&mut model, 0);
+    let ladder_d = {
+        let mut model = make_model_with_security_state(
+            &FMC_WITH_UART,
+            &MBOX,
+            true,
+            DeviceLifecycle::Manufacturing,
+        );
+        get_ladder_digest(&mut model, 0)
+    };
 
     assert_ne!(ladder_a, ladder_b);
     assert_ne!(ladder_a, ladder_c);
@@ -613,11 +633,17 @@ fn test_key_ladder_stable_across_fw_updates() {
     let (fmc_a, app_a) = (&FMC_WITH_UART, &MBOX);
     let (fmc_b, app_b) = (&FMC_FAKE_WITH_UART, &MBOX_WITHOUT_UART);
 
-    let mut model = make_model_with_security_state(fmc_a, app_a, true, DeviceLifecycle::Production);
-    let ladder_a = get_ladder_digest(&mut model, 0);
+    let ladder_a = {
+        let mut model =
+            make_model_with_security_state(fmc_a, app_a, true, DeviceLifecycle::Production);
+        get_ladder_digest(&mut model, 0)
+    };
 
-    model = make_model_with_security_state(fmc_b, app_b, true, DeviceLifecycle::Production);
-    let ladder_b = get_ladder_digest(&mut model, 0);
+    let ladder_b = {
+        let mut model =
+            make_model_with_security_state(fmc_b, app_b, true, DeviceLifecycle::Production);
+        get_ladder_digest(&mut model, 0)
+    };
 
     assert_eq!(ladder_a, ladder_b);
 }
