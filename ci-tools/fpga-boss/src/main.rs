@@ -323,8 +323,9 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
+                const HOUR_AND_HALF: u64 = 5_400;
                 let (uart_rx, mut uart_tx) =
-                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B)?;
+                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B, Some(Duration::from_secs(HOUR_AND_HALF)))?;
 
                 println!("Taking FPGA out of reset");
                 sd_mux.set_target(SdMuxTarget::Dut)?;
@@ -332,10 +333,17 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?;
 
                 let mut uart_lines = BufReader::new(uart_rx).lines();
-                log_uart_until(
+                match log_uart_until(
                     &mut uart_lines,
                     "36668aa492b1c83cdd3ade8466a0153d --- Command input",
-                )?;
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out listening to FPGA!");
+                        continue;
+                    },
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
 
                 let command_args: Vec<_> =
                     sub_matches.get_many::<OsString>("CMD").unwrap().collect();
@@ -355,10 +363,17 @@ fn main_impl() -> anyhow::Result<()> {
                 uart_tx.write_all(&output.stdout)?;
                 uart_tx.write_all(b"\n")?;
 
-                log_uart_until(
+                match log_uart_until(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
-                )?;
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out listening to FPGA!");
+                        continue;
+                    },
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
             }
         }
         _ => unreachable!(),
