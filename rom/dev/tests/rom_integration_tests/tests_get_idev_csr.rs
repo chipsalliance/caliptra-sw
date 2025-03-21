@@ -3,10 +3,10 @@
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
-use caliptra_drivers::MfgFlags;
+use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
-use caliptra_image_types::FwVerificationPqcKeyType;
+use core::mem::offset_of;
 use openssl::{hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -95,7 +95,7 @@ fn test_get_csr_generate_csr_flag_not_set() {
 }
 
 #[test]
-fn test_validate_ecc_csr_mac() {
+fn test_validate_csr_mac() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
@@ -117,50 +117,14 @@ fn test_validate_ecc_csr_mac() {
     };
 
     let hmac = {
-        let csr = csr_envelop.ecc_csr.csr[..csr_envelop.ecc_csr.csr_len as usize].to_vec();
-        let key = PKey::hmac(&DEFAULT_CSR_KEY[..48]).unwrap();
-        let mut signer = Signer::new(MessageDigest::sha384(), &key).unwrap();
-        signer.update(&csr).unwrap();
-
-        signer.sign_to_vec().unwrap()
-    };
-
-    assert!(memcmp::eq(&hmac, &csr_envelop.ecc_csr_mac));
-}
-
-#[test]
-fn test_validate_mldsa_csr_mac() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-        ..Default::default()
-    };
-    let (mut hw, _) = helpers::build_hw_model_and_image_bundle(Fuses::default(), image_options);
-
-    let csr_envelop = {
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
-
-        let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
-
-        hw.step_until(|m| {
-            m.soc_ifc()
-                .cptra_flow_status()
-                .read()
-                .ready_for_mb_processing()
-        });
-        csr_envelop
-    };
-
-    let hmac = {
-        let csr = csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize].to_vec();
+        let offset = offset_of!(InitDevIdCsrEnvelope, csr_mac);
+        let envelope_slice = csr_envelop.as_bytes().get(..offset).unwrap().to_vec();
         let key = PKey::hmac(&DEFAULT_CSR_KEY).unwrap();
         let mut signer = Signer::new(MessageDigest::sha512(), &key).unwrap();
-        signer.update(&csr).unwrap();
+        signer.update(&envelope_slice).unwrap();
 
         signer.sign_to_vec().unwrap()
     };
 
-    assert!(memcmp::eq(&hmac, &csr_envelop.mldsa_csr_mac));
+    assert!(memcmp::eq(&hmac, &csr_envelop.csr_mac));
 }
