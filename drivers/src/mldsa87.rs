@@ -49,6 +49,8 @@ pub type Mldsa87SignRnd = Array4x8;
 
 type Mldsa87VerifyRes = Array4x16;
 
+pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
+
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
 pub enum Mldsa87Seed<'a> {
@@ -344,9 +346,12 @@ impl Mldsa87 {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
         }
 
-        let verify_res = self.verify_res(pub_key, msg, signature)?;
+        let truncated_signature = &signature.0[signature.0.len() - MLDSA87_VERIFY_RES_WORD_LEN..];
+        if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
+            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
+        }
 
-        let truncated_signature = &signature.0[signature.0.len() - verify_res.0.len()..];
+        let verify_res = self.verify_res(pub_key, msg, signature)?;
 
         let result = if verify_res.0 == truncated_signature {
             // We only have a 6, 8 and 12 dword cfi assert

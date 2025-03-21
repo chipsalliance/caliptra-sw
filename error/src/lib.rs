@@ -313,6 +313,11 @@ impl CaliptraError {
             "Driver Error: MLDSA87 key generation seed bad usage"
         ),
         (
+            DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE,
+            0x00058006,
+            "Driver Error: MLDSA87 signature is not supported"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"

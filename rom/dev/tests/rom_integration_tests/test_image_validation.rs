@@ -3042,33 +3042,7 @@ fn hw_and_mldsa_image_bundle() -> (DefaultHwModel, ImageBundle) {
 fn test_header_verify_vendor_mldsa_sig_zero() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
-    // Modify the vendor public key.
-    let mldsa_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
-
-    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
-        image_bundle
-            .manifest
-            .preamble
-            .vendor_pqc_active_pub_key
-            .0
-            .as_mut_bytes(),
-    )
-    .unwrap();
-
-    *mldsa_pub_key = Default::default();
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID.into()
-        )
-    );
-    drop(hw);
-
-    let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
-
     // Modify the vendor signature.
-    image_bundle.manifest.preamble.vendor_pqc_active_pub_key = mldsa_pub_key_backup;
     let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
@@ -3084,7 +3058,7 @@ fn test_header_verify_vendor_mldsa_sig_zero() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err(),
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE.into()
         )
     );
 
@@ -3092,15 +3066,18 @@ fn test_header_verify_vendor_mldsa_sig_zero() {
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_extended_error_info().read()[0],
+        u32::from(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)
+    );
 }
 
 #[test]
-fn test_header_verify_vendor_mldsa_sig_mismatch() {
+fn test_header_verify_vendor_mldsa_sig_verify_fail_incorrect_pubkey() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
     // Modify the vendor public key.
-    let mldsa_pub_key_backup = image_bundle.manifest.preamble.vendor_pqc_active_pub_key;
-
     let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
@@ -3119,12 +3096,18 @@ fn test_header_verify_vendor_mldsa_sig_mismatch() {
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_SIGNATURE_INVALID.into()
         )
     );
-    drop(hw);
 
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_header_verify_vendor_mldsa_verify_fail_incorrect_sig() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
     // Modify the vendor signature.
-    image_bundle.manifest.preamble.vendor_pqc_active_pub_key = mldsa_pub_key_backup;
     let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
@@ -3138,6 +3121,11 @@ fn test_header_verify_vendor_mldsa_sig_mismatch() {
 
     let mut signature = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
     signature[0..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+    let len = signature.len();
+
+    // Last 64 bytes are used as verify_result.
+    // If these are zero, then the signature is treated as invalid and not verified.
+    signature[len - 4..].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
     *mldsa_sig = ImageMldsaSignature(signature);
 
     assert_eq!(
@@ -3155,12 +3143,10 @@ fn test_header_verify_vendor_mldsa_sig_mismatch() {
 }
 
 #[test]
-fn test_header_verify_owner_mldsa_sig_zero() {
+fn test_header_verify_owner_mldsa_sig_verify_fail_incorrect_pubkey() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
     // Modify the owner public key.
-    let mldsa_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
-
     let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
         image_bundle
             .manifest
@@ -3180,12 +3166,13 @@ fn test_header_verify_owner_mldsa_sig_zero() {
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID.into()
         )
     );
-    drop(hw);
+}
 
+#[test]
+fn test_header_verify_owner_mldsa_sig_verify_fail_incorrect_sig() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
     // Modify the owner signature.
-    image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = mldsa_pub_key_backup;
     let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
@@ -3196,7 +3183,16 @@ fn test_header_verify_owner_mldsa_sig_zero() {
             .as_mut_bytes(),
     )
     .unwrap();
-    *mldsa_sig = Default::default();
+
+    let mut signature = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
+    signature[0..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+    let len = signature.len();
+
+    // Last 64 bytes are used as verify_result.
+    // If these are zero, then the signature is treated as invalid and not verified.
+    signature[len - 4..].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+    *mldsa_sig = ImageMldsaSignature(signature);
+
     assert_eq!(
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err(),
@@ -3212,37 +3208,10 @@ fn test_header_verify_owner_mldsa_sig_zero() {
 }
 
 #[test]
-fn test_header_verify_owner_mldsa_sig_mismatch() {
-    let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
-
-    // Modify the owner public key.
-    let mldsa_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key;
-
-    let (mldsa_pub_key, _) = ImageMldsaPubKey::mut_from_prefix(
-        image_bundle
-            .manifest
-            .preamble
-            .owner_pub_keys
-            .pqc_pub_key
-            .0
-            .as_mut_bytes(),
-    )
-    .unwrap();
-
-    *mldsa_pub_key = Default::default();
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID.into()
-        )
-    );
-    drop(hw);
-
+fn test_header_verify_owner_mldsa_sig_verify_fail_zero_sig() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
     // Modify the owner signature.
-    image_bundle.manifest.preamble.owner_pub_keys.pqc_pub_key = mldsa_pub_key_backup;
     let (mldsa_sig, _) = ImageMldsaSignature::mut_from_prefix(
         image_bundle
             .manifest
@@ -3254,21 +3223,25 @@ fn test_header_verify_owner_mldsa_sig_mismatch() {
     )
     .unwrap();
 
-    let mut signature = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
-    signature[0..4].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+    let signature = [0u32; MLDSA87_SIGNATURE_WORD_SIZE];
     *mldsa_sig = ImageMldsaSignature(signature);
 
     assert_eq!(
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err(),
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_SIGNATURE_INVALID.into()
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_VERIFY_FAILURE.into()
         )
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_extended_error_info().read()[0],
+        u32::from(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)
     );
 }
 
