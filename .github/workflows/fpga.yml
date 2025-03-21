@@ -110,6 +110,7 @@ jobs:
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
+  # this workflow uploads a file named caliptra-unified-<rom-ref>-<fw-ref>-<hw-version>-<artifact-suffix>
   versioned-checkout-build:
     uses: ./.github/workflows/versioned-checkout.yml
     with:
@@ -118,6 +119,7 @@ jobs:
       fw-ref: "${{ inputs.fw-ref }}"
       hw-version: "${{ inputs.hw-version }}"
       workflow_call: "${{ inputs.workflow_call }}"
+      artifact-suffix: "${{ inputs.artifact-suffix }}"
 
   build_test_binaries:
     runs-on: [e2-standard-8]
@@ -145,7 +147,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
-          name: caliptra-unified
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
 
       - name: Extract sysroot
         if: "steps.restore_sysroot_cache.outputs.cache-hit"
