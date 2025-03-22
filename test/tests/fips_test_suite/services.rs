@@ -686,6 +686,8 @@ pub fn execute_all_services_rt() {
     exec_cmd_get_rt_cert(&mut hw);
 
     // ECDSA384_VERIFY
+    // TODO: add LMS verify
+    // TODO: add MLDSA verify
     exec_cmd_ecdsa_verify(&mut hw);
 
     // STASH_MEASUREMENT
