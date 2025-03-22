@@ -128,6 +128,13 @@ impl SocIfc {
         }
     }
 
+    pub fn set_tap_mailbox_available(&mut self) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs
+            .ss_dbg_manuf_service_reg_rsp()
+            .write(|w| w.tap_mailbox_available(true));
+    }
+
     /// Set debug unlock as finished with either failure or success
     pub fn finish_ss_dbg_unlock(&mut self, success: bool) {
         let lifecycle = self.lifecycle();

@@ -105,16 +105,24 @@ fn test_dbg_unlock_manuf() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..token
     };
-    hw.mailbox_execute(
-        CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
-        token.as_bytes(),
-    )
-    .unwrap();
+    let _ = hw
+        .mailbox_execute(
+            CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
+            token.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.manuf_dbg_unlock_success()
     });
+
+    assert!(!hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .manuf_dbg_unlock_in_progress());
 }
 
 #[test]
@@ -198,20 +206,23 @@ fn test_dbg_unlock_manuf_invalid_token() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..token
     };
-    assert_eq!(
-        hw.mailbox_execute(
+    let _ = hw
+        .mailbox_execute(
             CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
-            token.as_bytes()
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN.into()
-        ))
-    );
+            token.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.manuf_dbg_unlock_fail()
     });
+    assert!(!hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .manuf_dbg_unlock_in_progress());
 }
 
 #[test]
