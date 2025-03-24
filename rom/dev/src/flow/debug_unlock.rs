@@ -88,37 +88,9 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let result: CaliptraResult<()> = (|| {
         // Hash the token.
-        let token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
+        let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
 
-        // Generate a 256-bit random nonce.
-        let nonce: [u8; 32] = env.trng.generate()?.as_bytes()[..32].try_into().unwrap();
-
-        // Append the nonce to the token digest and perform a SHA-512 operation to generate the expected token.
-        let input_token_digest = {
-            let mut token: [u8; 96] = [0; 96];
-
-            // Append the hash of the received token to the nonce
-            // and perform a SHA-512 operation to generate the expected token.
-            token[..64].copy_from_slice(token_digest.as_bytes());
-            token[64..].copy_from_slice(&nonce);
-
-            env.sha2_512_384.sha512_digest(&token)?
-        };
-
-        // Perform the same transformation to the token in the fuse.
-        let fuse_token_digest = {
-            let mut token: [u8; 96] = [0; 96];
-
-            // fuse value endianess is the same as the hardware format.
-            let fuse = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
-
-            // Append the token hash from the fuse to the nonce
-            // and perform a SHA-512 operation to generate the expected token.
-            token[..64].copy_from_slice(fuse.as_bytes());
-            token[64..].copy_from_slice(&nonce);
-
-            env.sha2_512_384.sha512_digest(&token)?
-        };
+        let fuse_token_digest = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
 
         if cfi_launder(input_token_digest) != fuse_token_digest {
             cprintln!("[dbg_manuf] Token mismatch!");

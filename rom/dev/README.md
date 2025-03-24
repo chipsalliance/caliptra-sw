@@ -264,25 +264,21 @@ The following flows are conducted when the ROM is operating in the manufacturing
 #### Debug Unlock
 1. On reset, the ROM checks if the `MANUF_DBG_UNLOCK_REQ` bit in the `SS_DBG_MANUF_SERVICE_REG_REQ` register and the `DEBUG_INTENT` bit in `SS_DEBUG_INTENT` register are set.
 
-2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register.
+2. If they are set, the ROM sets the `TAP_MAILBOX_AVAILABLE` bit in the `SS_DBG_MANUF_SERVICE_REG_RSP` register, then enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 256-bit value.
 
-3. If they are set, the ROM enters a loop, awaiting a `TOKEN` command on the mailbox. The payload of this command is a 128-bit value.
+3. Upon receiving the `TOKEN` command, ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 1.
 
-4. Upon receiving the `TOKEN` command, ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 1.
+4. The ROM performs a SHA-512 operation on the token to generate the input token digest.
 
-5. The ROM performs a SHA-512 operation on the token to generate the token digest.
+5. The ROM compares the `FUSE_MANUF_DBG_UNLOCK_TOKEN` fuse register with the input token digest.
 
-6. The ROM then appends a 256-bit random nonce to the token digest and performs a SHA-512 operation to generate the expected token.
+6. The ROM completes the mailbox command.
 
-7. The ROM reads the value from the `FUSE_MANUF_DBG_UNLOCK_TOKEN` fuse register and applies the same transformation as step 6 to obtain the stored token.
+7. If the input token digest and fuse token digests match, the ROM authorizes the debug unlock by setting the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_SUCCESS` bit to 1.
 
-8. ROM completes the mailbox command.
+8. If the token digests do not match, the ROM blocks the debug unlock by setting the the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_FAIL` bit to 1.
 
-9. The ROM compares the expected token with the stored token. If they match, the ROM authorizes the debug unlock by setting the the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_SUCCESS` bit to 1.
-
-10. If the tokens do not match, the ROM blocks the debug unlock by setting the the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_FAIL` bit to 1.
-
-11. The ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 0.
+9. The ROM sets the `SS_DBG_MANUF_SERVICE_REG_RSP` register `MANUF_DBG_UNLOCK_IN_PROGRESS` bit to 0.
 
 
 ### Production Flows
