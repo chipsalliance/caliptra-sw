@@ -126,9 +126,11 @@ fn test_update_reset_no_mailbox_cmd() {
             hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
                 .unwrap();
 
-            hw.step_until_boot_status(KatStarted.into(), true);
-            hw.step_until_boot_status(KatComplete.into(), true);
-            hw.step_until_boot_status(UpdateResetStarted.into(), false);
+            if cfg!(not(feature = "fpga_realtime")) {
+                hw.step_until_boot_status(KatStarted.into(), true);
+                hw.step_until_boot_status(KatComplete.into(), true);
+            }
+            hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
             // No command in the mailbox.
             hw.step_until(|m| m.soc_ifc().cptra_fw_error_non_fatal().read() != 0);
@@ -187,8 +189,11 @@ fn test_update_reset_non_fw_load_cmd() {
             // "unknown" command in the mailbox for the ROM to find
             hw.start_mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD, &[])
                 .unwrap();
-            hw.step_until_boot_status(KatStarted.into(), true);
-            hw.step_until_boot_status(KatComplete.into(), true);
+
+            if cfg!(not(feature = "fpga_realtime")) {
+                hw.step_until_boot_status(KatStarted.into(), true);
+                hw.step_until_boot_status(KatComplete.into(), true);
+            }
             hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
             let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
@@ -246,9 +251,11 @@ fn test_update_reset_verify_image_failure() {
             hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &[0u8; 4])
                 .unwrap();
 
-            hw.step_until_boot_status(KatStarted.into(), true);
-            hw.step_until_boot_status(KatComplete.into(), true);
-            hw.step_until_boot_status(UpdateResetStarted.into(), false);
+            if cfg!(not(feature = "fpga_realtime")) {
+                hw.step_until_boot_status(KatStarted.into(), true);
+                hw.step_until_boot_status(KatComplete.into(), true);
+            }
+            hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
             assert_eq!(
                 hw.finish_mailbox_execute(),

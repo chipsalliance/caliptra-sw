@@ -14,6 +14,7 @@ use caliptra_hw_model::InitParams;
 
 use crate::helpers;
 
+#[cfg_attr(feature = "fpga_realtime", ignore)] // The FPGA is too fast for the host to catch these state transitions.
 #[test]
 fn test_cold_reset_status_reporting() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -40,20 +41,13 @@ fn test_cold_reset_status_reporting() {
         hw.step_until_boot_status(IDevIdKeyPairDerivationComplete.into(), false);
         hw.step_until_boot_status(IDevIdSubjIdSnGenerationComplete.into(), false);
         hw.step_until_boot_status(IDevIdSubjKeyIdGenerationComplete.into(), false);
-        // step_until_boot_status(IDevIdMakeCsrEnvelopeComplete, false);
-        // step_until_boot_status(IDevIdSendCsrEnvelopeComplete, false);
         hw.step_until_boot_status(IDevIdDerivationComplete.into(), false);
         hw.step_until_boot_status(LDevIdCdiDerivationComplete.into(), false);
         hw.step_until_boot_status(LDevIdKeyPairDerivationComplete.into(), false);
         hw.step_until_boot_status(LDevIdSubjIdSnGenerationComplete.into(), false);
         hw.step_until_boot_status(LDevIdSubjKeyIdGenerationComplete.into(), false);
-        if cfg!(feature = "fpga_realtime") {
-            // Skip check for LDevIdCertSigGenerationComplete because it is set for too short of a time in nolog mode
-            hw.step_until_boot_status(LDevIdDerivationComplete.into(), true);
-        } else {
-            hw.step_until_boot_status(LDevIdCertSigGenerationComplete.into(), false);
-            hw.step_until_boot_status(LDevIdDerivationComplete.into(), false);
-        }
+        hw.step_until_boot_status(LDevIdCertSigGenerationComplete.into(), false);
+        hw.step_until_boot_status(LDevIdDerivationComplete.into(), false);
 
         // Wait for uploading firmware.
         hw.step_until(|m| {
@@ -92,15 +86,8 @@ fn test_cold_reset_status_reporting() {
         hw.step_until_boot_status(FwProcessorImageVerificationComplete.into(), false);
         hw.step_until_boot_status(FwProcessorPopulateDataVaultComplete.into(), false);
         hw.step_until_boot_status(FwProcessorExtendPcrComplete.into(), false);
-
-        if cfg!(feature = "fpga_realtime") {
-            // Skip check for FwProcessorLoadImageComplete because it is set for too short of a time in nolog mode
-            hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), true);
-        } else {
-            hw.step_until_boot_status(FwProcessorLoadImageComplete.into(), false);
-            hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), false);
-        }
-
+        hw.step_until_boot_status(FwProcessorLoadImageComplete.into(), false);
+        hw.step_until_boot_status(FwProcessorFirmwareDownloadTxComplete.into(), false);
         hw.step_until_boot_status(FwProcessorCalculateKeyLadderComplete.into(), false);
         hw.step_until_boot_status(FwProcessorComplete.into(), false);
         hw.step_until_boot_status(FmcAliasDeriveCdiComplete.into(), false);

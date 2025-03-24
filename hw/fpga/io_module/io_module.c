@@ -36,7 +36,7 @@ int init_module(void)
     // Caliptra MMIO interface
     uio_info.mem[1].name = "caliptra";
     uio_info.mem[1].addr = 0xA4100000;
-    uio_info.mem[1].size = 0x00040000;
+    uio_info.mem[1].size = 0x00100000;
     uio_info.mem[1].memtype = UIO_MEM_PHYS;
 
     // Caliptra ROM
@@ -78,4 +78,3 @@ void cleanup_module(void)
 }
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Linux");
-
