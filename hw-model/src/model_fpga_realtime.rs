@@ -70,17 +70,19 @@ const FPGA_WRAPPER_ITRNG_FIFO_STATUS_OFFSET: isize = 0x100C / 4;
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     /// Wrapper wires -> Caliptra
-    pub struct GpioOutput(u32);
+    pub struct WrapperControl(u32);
     cptra_pwrgood, set_cptra_pwrgood: 0, 0;
     cptra_rst_b, set_cptra_rst_b: 1, 1;
-    debug_locked, set_debug_locked: 2, 2;
-    device_lifecycle, set_device_lifecycle: 4, 3;
+    cptra_obf_uds_seed_vld, set_cptra_obf_uds_seed_vld: 2, 2;
+    cptra_obf_field_entropy_vld, set_cptra_obf_field_entropy_vld: 3, 3;
+    debug_locked, set_debug_locked: 4, 4;
+    device_lifecycle, set_device_lifecycle: 6, 5;
 }
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     /// Wrapper wires <- Caliptra
-    pub struct GpioInput(u32);
+    pub struct WrapperStatus(u32);
     cptra_error_fatal, _: 0, 0;
     cptra_error_non_fatal, _: 1, 1;
     ready_for_fuses, _: 2, 2;
@@ -214,7 +216,7 @@ impl ModelFpgaRealtime {
 
     fn is_ready_for_fuses(&self) -> bool {
         unsafe {
-            GpioInput(
+            WrapperStatus(
                 self.wrapper
                     .offset(FPGA_WRAPPER_STATUS_OFFSET)
                     .read_volatile(),
@@ -225,7 +227,7 @@ impl ModelFpgaRealtime {
     }
     fn set_cptra_pwrgood(&mut self, value: bool) {
         unsafe {
-            let mut val = GpioOutput(
+            let mut val = WrapperControl(
                 self.wrapper
                     .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
@@ -238,7 +240,7 @@ impl ModelFpgaRealtime {
     }
     fn set_cptra_rst_b(&mut self, value: bool) {
         unsafe {
-            let mut val = GpioOutput(
+            let mut val = WrapperControl(
                 self.wrapper
                     .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
@@ -251,13 +253,28 @@ impl ModelFpgaRealtime {
     }
     fn set_security_state(&mut self, value: SecurityState) {
         unsafe {
-            let mut val = GpioOutput(
+            let mut val = WrapperControl(
                 self.wrapper
                     .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
             val.set_debug_locked(u32::from(value.debug_locked()));
             val.set_device_lifecycle(u32::from(value.device_lifecycle()));
+            self.wrapper
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                .write_volatile(val.0);
+        }
+    }
+    // @Vishal feel free to change this if you need
+    fn set_secrets_valid(&mut self, value: bool) {
+        unsafe {
+            let mut val = WrapperControl(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                    .read_volatile(),
+            );
+            val.set_cptra_obf_uds_seed_vld(value as u32);
+            val.set_cptra_obf_field_entropy_vld(value as u32);
             self.wrapper
                 .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
@@ -511,6 +528,9 @@ impl HwModel for ModelFpgaRealtime {
             };
         }
 
+        // @Vishal feel free to move this to wherever it needs to go, after setting the UDS and FE.
+        m.set_secrets_valid(true);
+
         // Write ROM image over backdoor
         writeln!(m.output().logger(), "Writing ROM")?;
         let rom_slice = unsafe { slice::from_raw_parts_mut(rom, params.rom.len()) };
@@ -577,7 +597,7 @@ impl HwModel for ModelFpgaRealtime {
 
     fn ready_for_fw(&self) -> bool {
         unsafe {
-            GpioInput(
+            WrapperStatus(
                 self.wrapper
                     .offset(FPGA_WRAPPER_STATUS_OFFSET)
                     .read_volatile(),

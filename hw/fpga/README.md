@@ -93,6 +93,10 @@ This script provides a number of configuration options for features that can be 
  - Copy petalinux_project/images/linux/BOOT.BIN to the boot partition as boot1900.bin
    - If the Ubuntu image is booted, it will mount the boot partition at /boot/firmware/
    - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
+   ```shell
+   sudo su
+   cp BOOT.BIN /boot/firmware/boot1900.bin
+   ```
 
 ### Running Caliptra tests from the FPGA: ###
 ```shell
