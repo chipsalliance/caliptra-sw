@@ -20,7 +20,6 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::FromBytes;
-use zeroize::Zeroize;
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
@@ -54,23 +53,20 @@ impl GetPcrQuoteCmd {
 
         let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
-        // Ecc384 signature
-        let mut ecc_signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+        let mut ecc_signature = Default::default();
+        let mut mldsa_signature = Default::default();
 
-        // Mldsa signature
-        let mut mldsa_signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+        if args.flags == QuotePcrsFlags::MLDSA_SIGNATURE {
+            mldsa_signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+        } else if args.flags == QuotePcrsFlags::ECC_SIGNATURE {
+            ecc_signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+        }
 
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
         let mut pcrs = [[0u8; 48]; 32];
         for (i, p) in raw_pcrs.iter().enumerate() {
             pcrs[i] = p.into()
-        }
-
-        if args.flags == QuotePcrsFlags::MLDSA_SIGNATURE {
-            ecc_signature.zeroize();
-        } else if args.flags == QuotePcrsFlags::ECC_SIGNATURE {
-            mldsa_signature.zeroize();
         }
 
         Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
