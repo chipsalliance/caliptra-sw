@@ -72,63 +72,78 @@ const SIGNATURE_S: [u8; 48] = [
 
 #[test]
 fn test_invalid_manifest_marker() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
+    for life_cycle in helpers::LIFECYCLES_ALL.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
 
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
 
-        let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        image_bundle.manifest.marker = 0xDEADBEEF;
+            let fuses = Fuses {
+                life_cycle: *life_cycle,
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
+            let (mut hw, mut image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
+            image_bundle.manifest.marker = 0xDEADBEEF;
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
+
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
 #[test]
 fn test_invalid_manifest_size() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-        let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
+    for life_cycle in helpers::LIFECYCLES_ALL.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
+            let fuses = Fuses {
+                life_cycle: *life_cycle,
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
+            let (mut hw, mut image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
+            image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
@@ -156,93 +171,115 @@ fn test_invalid_pqc_key_type() {
 
 #[test]
 fn test_pqc_key_type_mismatch() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let incorrect_pqc_key_type = match pqc_key_type {
-            FwVerificationPqcKeyType::LMS => FwVerificationPqcKeyType::MLDSA,
-            FwVerificationPqcKeyType::MLDSA => FwVerificationPqcKeyType::LMS,
-        };
-        let fuses = caliptra_hw_model::Fuses {
-            fuse_pqc_key_type: incorrect_pqc_key_type as u32,
-            ..Default::default()
-        };
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    for life_cycle in helpers::LIFECYCLES_ALL.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
+            let incorrect_pqc_key_type = match pqc_key_type {
+                FwVerificationPqcKeyType::LMS => FwVerificationPqcKeyType::MLDSA,
+                FwVerificationPqcKeyType::MLDSA => FwVerificationPqcKeyType::LMS,
+            };
+            let fuses = caliptra_hw_model::Fuses {
+                life_cycle: *life_cycle,
+                fuse_pqc_key_type: incorrect_pqc_key_type as u32,
+                ..Default::default()
+            };
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
 #[test]
 fn test_preamble_zero_vendor_pubkey_info_digest() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let fuses = caliptra_hw_model::Fuses {
-            life_cycle: DeviceLifecycle::Manufacturing,
-            vendor_pk_hash: [0u32; 12],
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
+            let fuses = caliptra_hw_model::Fuses {
+                life_cycle: *life_cycle,
+                vendor_pk_hash: [0u32; 12],
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
 #[test]
 fn test_preamble_vendor_pubkey_info_digest_mismatch() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let fuses = caliptra_hw_model::Fuses {
-            life_cycle: DeviceLifecycle::Manufacturing,
-            vendor_pk_hash: [0xDEADBEEF; 12],
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
+            let fuses = caliptra_hw_model::Fuses {
+                life_cycle: *life_cycle,
+                vendor_pk_hash: [0xDEADBEEF; 12],
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
 
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
+            assert_eq!(
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH.into()
+                ),
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err()
+            );
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
@@ -260,8 +297,8 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
             .unwrap();
 
         let fuses = caliptra_hw_model::Fuses {
-            life_cycle: DeviceLifecycle::Manufacturing,
             vendor_pk_hash: vendor_pubkey_info_digest,
+            life_cycle: DeviceLifecycle::Manufacturing,
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
@@ -284,74 +321,13 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
 
 #[test]
 fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-        ..Default::default()
-    };
-
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
-        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_info_digest,
-        ..Default::default()
-    };
-
-    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
-        ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
-        ))
-    );
-}
-
-#[test]
-fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
-        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_info_digest,
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
-
-    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
-        ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
-        ))
-    );
-}
-
-#[test]
-fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        println!("lifecycle: {:?}", life_cycle);
         let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
             ..Default::default()
         };
+
         let gen = ImageGenerator::new(Crypto::default());
         let image_bundle = helpers::build_image_bundle(image_options.clone());
         let vendor_pubkey_info_digest = gen
@@ -359,9 +335,125 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
             .unwrap();
 
         let fuses = caliptra_hw_model::Fuses {
-            life_cycle: DeviceLifecycle::Manufacturing,
+            life_cycle: *life_cycle,
             vendor_pk_hash: vendor_pubkey_info_digest,
-            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
+            ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
+        assert_eq!(
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
+            ))
+        );
+    }
+}
+
+#[test]
+fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        println!("lifecycle: {:?}", life_cycle);
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options.clone());
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let fuses = caliptra_hw_model::Fuses {
+            life_cycle: *life_cycle,
+            vendor_pk_hash: vendor_pubkey_info_digest,
+            fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+            ..Default::default()
+        };
+
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        image_bundle.manifest.preamble.vendor_pqc_active_pub_key =
+            ImagePqcPubKey([0xDE; PQC_PUB_KEY_BYTE_SIZE]);
+        assert_eq!(
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_DIGEST_MISMATCH
+            ))
+        );
+    }
+}
+
+#[test]
+fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
+            let gen = ImageGenerator::new(Crypto::default());
+            let image_bundle = helpers::build_image_bundle(image_options.clone());
+            let vendor_pubkey_info_digest = gen
+                .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
+                .unwrap();
+
+            let fuses = caliptra_hw_model::Fuses {
+                life_cycle: *life_cycle,
+                vendor_pk_hash: vendor_pubkey_info_digest,
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
+
+            let (mut hw, mut image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
+            let pub_key_idx = image_bundle
+                .manifest
+                .preamble
+                .vendor_pub_key_info
+                .ecc_key_descriptor
+                .key_hash_count;
+            image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = pub_key_idx as u32;
+            assert_eq!(
+                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                    .unwrap_err(),
+                ModelError::MailboxCmdFailed(u32::from(
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+                ))
+            );
+        }
+    }
+}
+
+#[test]
+fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        println!("lifecycle: {:?}", life_cycle);
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options.clone());
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let fuses = caliptra_hw_model::Fuses {
+            life_cycle: *life_cycle,
+            vendor_pk_hash: vendor_pubkey_info_digest,
+            fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
             ..Default::default()
         };
 
@@ -371,90 +463,57 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
             .manifest
             .preamble
             .vendor_pub_key_info
-            .ecc_key_descriptor
+            .pqc_key_descriptor
             .key_hash_count;
-        image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = pub_key_idx as u32;
+        image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
         assert_eq!(
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap_err(),
             ModelError::MailboxCmdFailed(u32::from(
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
             ))
         );
     }
 }
 
 #[test]
-fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
-        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_info_digest,
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
-
-    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let pub_key_idx = image_bundle
-        .manifest
-        .preamble
-        .vendor_pub_key_info
-        .pqc_key_descriptor
-        .key_hash_count;
-    image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
-        ))
-    );
-}
-
-#[test]
 fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-        ..Default::default()
-    };
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
+        println!("lifecycle: {:?}", life_cycle);
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+            ..Default::default()
+        };
 
-    let gen = ImageGenerator::new(Crypto::default());
-    let image_bundle = helpers::build_image_bundle(image_options.clone());
-    let vendor_pubkey_info_digest = gen
-        .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
-        .unwrap();
+        let gen = ImageGenerator::new(Crypto::default());
+        let image_bundle = helpers::build_image_bundle(image_options.clone());
+        let vendor_pubkey_info_digest = gen
+            .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
+            .unwrap();
 
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        vendor_pk_hash: vendor_pubkey_info_digest,
-        ..Default::default()
-    };
+        let fuses = caliptra_hw_model::Fuses {
+            life_cycle: *life_cycle,
+            vendor_pk_hash: vendor_pubkey_info_digest,
+            ..Default::default()
+        };
 
-    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let pub_key_idx = image_bundle
-        .manifest
-        .preamble
-        .vendor_pub_key_info
-        .pqc_key_descriptor
-        .key_hash_count;
-    image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err(),
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
-        ))
-    );
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        let pub_key_idx = image_bundle
+            .manifest
+            .preamble
+            .vendor_pub_key_info
+            .pqc_key_descriptor
+            .key_hash_count;
+        image_bundle.manifest.preamble.vendor_pqc_pub_key_idx = pub_key_idx as u32;
+        assert_eq!(
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+            ))
+        );
+    }
 }
 
 #[test]
@@ -489,68 +548,78 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
 #[test]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let mut image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-        const LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 1;
-        static VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_MAX_KEY_COUNT as usize] = [
-            VENDOR_CONFIG_KEY_0,
-            VENDOR_CONFIG_KEY_1,
-            VENDOR_CONFIG_KEY_2,
-            VENDOR_CONFIG_KEY_3,
-        ];
-
-        for vendor_config in VENDOR_CONFIG_LIST.clone() {
-            let key_idx = vendor_config.ecc_key_idx;
-            image_options.vendor_config = vendor_config;
-
-            let fuses = caliptra_hw_model::Fuses {
-                fuse_ecc_revocation: U4::try_from(1u32 << image_options.vendor_config.ecc_key_idx)
-                    .unwrap(),
-                fuse_pqc_key_type: *pqc_key_type as u32,
+    for life_cycle in helpers::LIFECYCLES_ALL.iter() {
+        for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+            println!(
+                "lifecycle: {:?}, pqc_key_type: {:?}",
+                life_cycle, pqc_key_type
+            );
+            let mut image_options = ImageOptions {
+                pqc_key_type: *pqc_key_type,
                 ..Default::default()
             };
+            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            const LAST_KEY_IDX: u32 = VENDOR_ECC_MAX_KEY_COUNT - 1;
+            static VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig;
+                VENDOR_ECC_MAX_KEY_COUNT as usize] = [
+                VENDOR_CONFIG_KEY_0,
+                VENDOR_CONFIG_KEY_1,
+                VENDOR_CONFIG_KEY_2,
+                VENDOR_CONFIG_KEY_3,
+            ];
 
-            let mut hw = caliptra_hw_model::new(
-                InitParams {
-                    rom: &rom,
+            for vendor_config in VENDOR_CONFIG_LIST.clone() {
+                let key_idx = vendor_config.ecc_key_idx;
+                image_options.vendor_config = vendor_config;
+
+                let fuses = caliptra_hw_model::Fuses {
+                    fuse_ecc_revocation: U4::try_from(
+                        1u32 << image_options.vendor_config.ecc_key_idx,
+                    )
+                    .unwrap(),
+                    fuse_pqc_key_type: *pqc_key_type as u32,
+                    life_cycle: *life_cycle,
                     ..Default::default()
-                },
-                BootParams {
-                    fuses,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+                };
 
-            let image_bundle = caliptra_builder::build_and_sign_image(
-                &FMC_WITH_UART,
-                &APP_WITH_UART,
-                image_options.clone(),
-            )
-            .unwrap();
+                let mut hw = caliptra_hw_model::new(
+                    InitParams {
+                        rom: &rom,
+                        ..Default::default()
+                    },
+                    BootParams {
+                        fuses,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
 
-            if key_idx == LAST_KEY_IDX {
-                // Last key is never revoked.
-                hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                    .unwrap();
-                hw.step_until_boot_status(u32::from(ColdResetComplete), true);
-            } else {
-                assert_eq!(
-                    ModelError::MailboxCmdFailed(
-                        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED.into()
-                    ),
+                let image_bundle = caliptra_builder::build_and_sign_image(
+                    &FMC_WITH_UART,
+                    &APP_WITH_UART,
+                    image_options.clone(),
+                )
+                .unwrap();
+
+                if key_idx == LAST_KEY_IDX {
+                    // Last key is never revoked.
                     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                        .unwrap_err()
-                );
+                        .unwrap();
+                    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+                } else {
+                    assert_eq!(
+                        ModelError::MailboxCmdFailed(
+                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED.into()
+                        ),
+                        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                            .unwrap_err()
+                    );
 
-                assert_eq!(
-                    hw.soc_ifc().cptra_boot_status().read(),
-                    u32::from(FwProcessorManifestLoadComplete)
-                );
+                    assert_eq!(
+                        hw.soc_ifc().cptra_boot_status().read(),
+                        u32::from(FwProcessorManifestLoadComplete)
+                    );
+                }
             }
         }
     }
