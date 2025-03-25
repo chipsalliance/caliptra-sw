@@ -125,6 +125,29 @@ fn test_pcr_quote_ecc_sig_zero() {
     assert_ne!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
 }
 
+#[test]
+fn test_pcr_quote_ecc_and_mldsa() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        flags: QuotePcrsFlags::MLDSA_SIGNATURE | QuotePcrsFlags::ECC_SIGNATURE,
+        nonce: [0; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    assert_ne!(resp.ecc_signature_r, [0u8; 48]);
+    assert_ne!(resp.ecc_signature_s, [0u8; 48]);
+    assert_ne!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
+}
+
 fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> MailboxReq {
     let mut cmd = MailboxReq::ExtendPcr(ExtendPcrReq {
         hdr: MailboxReqHeader { chksum: 0 },
