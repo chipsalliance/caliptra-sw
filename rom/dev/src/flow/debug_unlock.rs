@@ -121,12 +121,12 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     result
 }
 
-fn payload_length(length: [u8; 3]) -> usize {
-    let mut len: usize = 0;
-    len |= length[0] as usize;
-    len |= (length[1] as usize) << 8;
-    len |= (length[2] as usize) << 16;
-    len * size_of::<u32>()
+fn bytes_to_usize(input: [u8; 3]) -> usize {
+    let mut val: usize = 0;
+    val |= input[0] as usize;
+    val |= (input[1] as usize) << 8;
+    val |= (input[2] as usize) << 16;
+    val * size_of::<u32>()
 }
 
 fn handle_production_request(
@@ -154,23 +154,15 @@ fn handle_production_request(
     let mut request = ProductionAuthDebugUnlockReq::default();
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
-    let payload_length = |length: [u8; 3]| {
-        let mut len: usize = 0;
-        len |= length[0] as usize;
-        len |= (length[1] as usize) << 8;
-        len |= (length[2] as usize) << 16;
-        len * size_of::<u32>()
-    };
-
     // Validate payload
-    if payload_length(request.length)
+    if bytes_to_usize(request.length)
         != size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>()
     {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
     }
     // [TODO][CAP2] what do these 3 bytes mean when only 4 bits are active?
     // Debug level
-    let dbg_level = payload_length(request.unlock_category);
+    let dbg_level = bytes_to_usize(request.unlock_category);
     if dbg_level & 0xf != dbg_level {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
     }
@@ -247,14 +239,14 @@ fn handle_production_token(
     FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
 
     // Validate payload
-    if payload_length(token.length)
+    if bytes_to_usize(token.length)
         != size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>()
     {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
     }
 
     // Debug level
-    if payload_length(token.unlock_category) != payload_length(request.unlock_category) {
+    if token.unlock_category != request.unlock_category {
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
     }
 
@@ -269,7 +261,7 @@ fn handle_production_token(
 
     let debug_auth_pk_offset =
         env.soc_ifc
-            .debug_unlock_pk_hash_offset(payload_length(token.unlock_category))? as u64;
+            .debug_unlock_pk_hash_offset(bytes_to_usize(token.unlock_category))? as u64;
     let mci_base = env.soc_ifc.ss_mci_axi_base();
     let debug_auth_pk_hash_base = mci_base + AxiAddr::from(debug_auth_pk_offset);
 
