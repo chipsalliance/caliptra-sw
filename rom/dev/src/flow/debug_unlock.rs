@@ -121,6 +121,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     result
 }
 
+/// Converts a little-endian 3-byte count of number of dwords to the corresponding size in bytes.
 fn bytes_to_usize(input: [u8; 3]) -> usize {
     let mut val: usize = 0;
     val |= input[0] as usize;
