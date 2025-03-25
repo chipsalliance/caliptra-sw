@@ -22,7 +22,7 @@ use caliptra_api::mailbox::{
     ProductionAuthDebugUnlockToken,
 };
 use caliptra_cfi_lib::{cfi_launder, CfiCounter};
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::{cprintln, mailbox_api::CommandId};
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Ecc384PubKey, Ecc384Result,
     Ecc384Scalar, Ecc384Signature, Lifecycle, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
@@ -44,11 +44,11 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     }
 
     if !env.soc_ifc.active_mode() {
-        crate::cprintln!("[state] error debug unlock requested in passive mode!");
+        cprintln!("[state] error debug unlock requested in passive mode!");
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE)?;
     }
 
-    crate::cprintln!("[state] debug unlock requested");
+    cprintln!("[state] debug unlock requested");
 
     let lifecycle = env.soc_ifc.lifecycle();
     match lifecycle {
@@ -59,6 +59,11 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
+    cprintln!("[dbg_manuf] ++");
+
+    // Set tap mailbox available.
+    env.soc_ifc.set_tap_mailbox_available();
+
     let mbox = &mut env.mbox;
     let txn = loop {
         // Random delay for CFI glitch protection.
@@ -71,6 +76,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     };
 
     if CommandId::from(txn.cmd()) != CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN {
+        cprintln!("[dbg_manuf] Invalid command: {:?}", txn.cmd());
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?
     }
 
@@ -81,48 +87,37 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     env.soc_ifc.set_ss_dbg_unlock_in_progress(true);
 
     let result: CaliptraResult<()> = (|| {
-        let nonce: [u8; 32] = env.trng.generate()?.as_bytes()[..32].try_into().unwrap();
-        // The ROM then appends a 256-bit random nonce to the token and performs a SHA-512 operation to generate the expected token.
-        let input_token = {
-            let mut token: [u8; 64] = [0; 64];
-            token[8..][..16].copy_from_slice(&request.token);
-            token[32..].copy_from_slice(&nonce);
-            env.sha2_512_384.sha512_digest(&token)?
-        };
+        // Hash the token.
+        let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
 
-        // Same transformation as mbox input
-        let fuse_token = {
-            let mut token: [u8; 64] = [0; 64];
-            let fuse = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
-            token[8..][..16].copy_from_slice(fuse.as_bytes());
-            token[32..].copy_from_slice(&nonce);
-            env.sha2_512_384.sha512_digest(&token)?
-        };
+        let fuse_token_digest = env.soc_ifc.fuse_bank().manuf_dbg_unlock_token();
 
-        if cfi_launder(input_token) != fuse_token {
+        if cfi_launder(input_token_digest) != fuse_token_digest {
+            cprintln!("[dbg_manuf] Token mismatch!");
             Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &input_token.0[..12].try_into().unwrap(),
-                &fuse_token.0[..12].try_into().unwrap(),
+                &input_token_digest.0[..12].try_into().unwrap(),
+                &fuse_token_digest.0[..12].try_into().unwrap(),
             );
         }
         Ok(())
     })();
 
-    env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
+    let resp = MailboxRespHeader::default();
+    txn.send_response(resp.as_bytes())?;
     match result {
         Ok(()) => {
+            cprintln!("[dbg_manuf] Debug unlock successful");
             env.soc_ifc.finish_ss_dbg_unlock(true);
-            txn.set_uc_tap_unlock(true);
-            let resp = MailboxRespHeader::default();
-            txn.send_response(resp.as_bytes())?;
         }
         Err(_) => {
+            cprintln!("[dbg_manuf] Debug unlock failed");
             env.soc_ifc.finish_ss_dbg_unlock(false);
-            txn.set_uc_tap_unlock(false);
         }
     }
+
+    cprintln!("[dbg_manuf] --");
     result
 }
 
