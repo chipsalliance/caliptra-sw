@@ -53,14 +53,17 @@ impl GetPcrQuoteCmd {
 
         let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
-        let mut ecc_signature = Default::default();
-        let mut mldsa_signature = Default::default();
+        let mldsa_signature = if args.flags == QuotePcrsFlags::MLDSA_SIGNATURE {
+            drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?
+        } else {
+            Default::default()
+        };
 
-        if args.flags == QuotePcrsFlags::MLDSA_SIGNATURE {
-            mldsa_signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
-        } else if args.flags == QuotePcrsFlags::ECC_SIGNATURE {
-            ecc_signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
-        }
+        let ecc_signature = if args.flags == QuotePcrsFlags::ECC_SIGNATURE {
+            drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?
+        } else {
+            Default::default()
+        };
 
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
