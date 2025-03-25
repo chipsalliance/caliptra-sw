@@ -295,7 +295,7 @@ impl FuseBank<'_> {
         self.soc_ifc.regs().fuse_pqc_key_type().read().into()
     }
 
-    /// Get the manufactoring debug unlock token
+    /// Get the manufacturing debug unlock token
     ///
     /// # Arguments
     /// * None
