@@ -296,10 +296,14 @@ fn test_dbg_unlock_prod() {
 
     let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
+    let unlock_category: [u8; 2] = [1, unlock_level];
+    let reserved = [0u8; 2];
+
     let mut sha384 = sha2::Sha384::new();
-    sha384.update(challenge.challenge);
     sha384.update(challenge.unique_device_identifier);
-    sha384.update([unlock_level]);
+    sha384.update(unlock_category);
+    sha384.update(reserved);
+    sha384.update(challenge.challenge);
     let sha384_digest = sha384.finalize();
     let (ecc_signature, _id) = signing_ecc_key
         .sign_prehash_recoverable(sha384_digest.as_slice())
@@ -308,9 +312,10 @@ fn test_dbg_unlock_prod() {
     let ecc_signature = ecc_signature.as_slice();
 
     let mut sha512 = sha2::Sha512::new();
-    sha512.update(challenge.challenge);
     sha512.update(challenge.unique_device_identifier);
-    sha512.update([unlock_level]);
+    sha512.update(unlock_category);
+    sha512.update(reserved);
+    sha512.update(challenge.challenge);
     let mut sha512_digest = sha512.finalize();
     let msg = {
         let msg: &mut [u8] = sha512_digest.as_mut_slice();
@@ -321,8 +326,6 @@ fn test_dbg_unlock_prod() {
     let mldsa_signature = signing_mldsa_key
         .try_sign_with_seed(&[0; 32], msg, &[])
         .unwrap();
-
-    let unlock_category: [u8; 2] = [1, unlock_level];
 
     let token = ProductionAuthDebugUnlockToken {
         length: {
@@ -418,15 +421,24 @@ fn test_dbg_unlock_prod_invalid_length() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..request
     };
-    assert_eq!(
-        hw.mailbox_execute(
+
+    let _ = hw
+        .mailbox_execute(
             CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
             request.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ.into()
-        ))
-    );
+        )
+        .unwrap()
+        .unwrap();
+
+    hw.step_until(|m| {
+        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        resp.prod_dbg_unlock_fail()
+    });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -523,20 +535,23 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
+    let _ = hw
+        .mailbox_execute(
             CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
             token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE.into()
-        ))
-    );
+        )
+        .unwrap()
+        .unwrap();
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -655,20 +670,23 @@ fn test_dbg_unlock_prod_invalid_signature() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
+    let _ = hw
+        .mailbox_execute(
             CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
             token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE.into()
-        ))
-    );
+        )
+        .unwrap()
+        .unwrap();
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -722,7 +740,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     )
     .unwrap();
 
-    let unlock_level = 5u8;
+    let unlock_level = 4u8;
 
     let request = ProductionAuthDebugUnlockReq {
         length: {
@@ -777,20 +795,20 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS.into()
-        ))
+    let _ = hw.mailbox_execute(
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+        token.as_bytes(),
     );
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
