@@ -16,8 +16,8 @@ use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
-    WriteOnlyRegister,
+    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister,
+    Timer, WriteOnlyRegister,
 };
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Sha512, Sha512Mode};
@@ -40,22 +40,20 @@ register_bitfields! [
         MODE OFFSET(2) NUMBITS(2) [],
         ZEROIZE OFFSET(4) NUMBITS(1) [],
         LAST OFFSET(5) NUMBITS(1) [],
-        RSVD OFFSET(6) NUMBITS(26) [],
+        RESTORE OFFSET(6) NUMBITS(1) [],
     ],
 
     /// Status Register Fields
     Status[
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
-        RSVD OFFSET(2) NUMBITS(30) [],
-    ],
+   ],
 
     /// Block Read Control Register Fields
     BlockReadControl[
         KEY_READ_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
         PCR_HASH_EXTEND OFFSET(6) NUMBITS(1) [],
-        RSVD OFFSET(7) NUMBITS(25) [],
     ],
 
     /// Block Read Status Register Fields
@@ -67,7 +65,6 @@ register_bitfields! [
             KV_READ_FAIL = 1,
             KV_WRITE_FAIL= 2,
         ],
-        RSVD OFFSET(10) NUMBITS(22) [],
     ],
 
     /// Hash Write Control Register Fields
@@ -75,7 +72,6 @@ register_bitfields! [
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
         USAGE OFFSET(6) NUMBITS(6) [],
-        RSVD OFFSET(12) NUMBITS(20) [],
     ],
 
     /// Hash Write Status Register Fields
@@ -169,7 +165,7 @@ pub struct HashSha512Regs {
 
     /// SHA512 Hash Memory
     #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
-    hash: ReadOnlyMemory<SHA512_HASH_SIZE>,
+    hash: ReadWriteMemory<SHA512_HASH_SIZE>,
 
     /// Block Read Control register
     #[register(offset = 0x0000_0600, write_fn = on_write_block_read_control)]
@@ -258,7 +254,7 @@ impl HashSha512Regs {
             pcr_hash_status: ReadOnlyRegister::new(PcrHashStatus::READY::SET.value),
             pcr_hash_digest: Default::default(),
             block: Default::default(),
-            hash: ReadOnlyMemory::new(),
+            hash: ReadWriteMemory::new(),
             key_vault,
             timer: Timer::new(clock),
             op_complete_action: None,
@@ -290,6 +286,11 @@ impl HashSha512Regs {
 
         // Reset the pcr_present flag.
         self.pcr_present = false;
+
+        if self.control.reg.is_set(Control::RESTORE) {
+            // Restore the hash state.
+            self.sha512.set_hash(self.hash.data());
+        }
 
         if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
             // Reset the Ready and Valid status bits
@@ -804,10 +805,7 @@ mod tests {
         let mut sha512 = HashSha512Regs::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_HASH..(OFFSET_HASH + SHA512_HASH_SIZE as u32)).step_by(4) {
             assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(0));
-            assert_eq!(
-                sha512.write(RvSize::Word, addr, 0xFF).err(),
-                Some(BusError::StoreAccessFault)
-            );
+            assert_eq!(sha512.write(RvSize::Word, addr, 0xFF).err(), None);
         }
     }
 
