@@ -560,7 +560,7 @@ pub trait Sha2DigestOpTrait<'a, V>: Sized {
             return Err(CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR);
         }
 
-        if this.data_size + data.len() > SHA512_MAX_DATA_SIZE {
+        if data.len() > SHA512_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
