@@ -2,13 +2,18 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
+use caliptra_image_types::{MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
 use crate::CaliptraApiError;
 use caliptra_registers::mbox;
 use ureg::MmioMut;
+
+/// Maximum input data size for cryptographic mailbox commands.
+pub const MAX_CMB_DATA_SIZE: usize = 4096;
+/// Context size for CMB SHA commands.
+pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
@@ -73,6 +78,9 @@ impl CommandId {
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
     pub const CM_STATUS: Self = Self(0x434D_5354); // "CMST"
+    pub const CM_SHA_INIT: Self = Self(0x434D_5349); // "CMSI"
+    pub const CM_SHA_UPDATE: Self = Self(0x434D_5355); // "CMSU"
+    pub const CM_SHA_FINAL: Self = Self(0x434D_5346); // "CMSF"
 }
 
 impl From<u32> for CommandId {
@@ -176,6 +184,8 @@ pub enum MailboxResp {
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     CmImport(CmImportResp),
     CmStatus(CmStatusResp),
+    CmShaInit(CmShaInitResp),
+    CmShaFinal(CmShaFinalResp),
 }
 
 impl MailboxResp {
@@ -201,6 +211,8 @@ impl MailboxResp {
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
         }
     }
 
@@ -226,6 +238,8 @@ impl MailboxResp {
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
         }
     }
 
@@ -286,6 +300,9 @@ pub enum MailboxReq {
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     CmImport(CmImportReq),
+    CmShaInit(CmShaInitReq),
+    CmShaUpdate(CmShaUpdateReq),
+    CmShaFinal(CmShaFinalReq),
 }
 
 impl MailboxReq {
@@ -313,6 +330,9 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::CmImport(req) => req.as_bytes_partial(),
+            MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
+            MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
         }
     }
 
@@ -340,6 +360,9 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmImport(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
         }
     }
 
@@ -367,6 +390,9 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
+            MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
+            MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
+            MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
         }
     }
 
@@ -1454,6 +1480,202 @@ pub struct CmStatusResp {
     pub used_usage_storage: u32,
     pub total_usage_storage: u32,
 }
+
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CmHashAlgorithm {
+    Reserved = 0,
+    Sha384 = 1,
+    Sha512 = 2,
+}
+
+impl From<u32> for CmHashAlgorithm {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => CmHashAlgorithm::Sha384,
+            2_u32 => CmHashAlgorithm::Sha512,
+            _ => CmHashAlgorithm::Reserved,
+        }
+    }
+}
+
+impl From<CmHashAlgorithm> for u32 {
+    fn from(value: CmHashAlgorithm) -> Self {
+        match value {
+            CmHashAlgorithm::Sha384 => 1,
+            CmHashAlgorithm::Sha512 => 2,
+            _ => 0,
+        }
+    }
+}
+
+// CM_SHA_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaInitReq {
+    pub hdr: MailboxReqHeader,
+    pub hash_algorithm: u32,
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShaInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            hash_algorithm: 0,
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShaInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShaInitReq {
+    const ID: CommandId = CommandId::CM_SHA_INIT;
+    type Resp = CmShaInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaInitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+}
+
+impl Default for CmShaInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_SHA_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmShaInitResp {}
+
+// CM_SHA_UPDATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaUpdateReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShaUpdateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHA_CONTEXT_SIZE],
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShaUpdateReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShaUpdateReq {
+    const ID: CommandId = CommandId::CM_SHA_UPDATE;
+    type Resp = CmShaInitResp; // We can reuse the same response struct for update and init.
+}
+
+// CM_SHA_FINAL
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaFinalReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmShaFinalReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHA_CONTEXT_SIZE],
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmShaFinalReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmShaFinalReq {
+    const ID: CommandId = CommandId::CM_SHA_FINAL;
+    type Resp = CmShaFinalResp; // We can reuse the same response struct for update and init.
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaFinalResp {
+    pub hdr: MailboxRespHeaderVarSize,
+    pub hash: [u8; SHA512_DIGEST_BYTE_SIZE],
+}
+
+impl Default for CmShaFinalResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeaderVarSize::default(),
+            hash: [0u8; SHA512_DIGEST_BYTE_SIZE],
+        }
+    }
+}
+
+impl ResponseVarSize for CmShaFinalResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
