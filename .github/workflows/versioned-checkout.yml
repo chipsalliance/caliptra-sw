@@ -53,6 +53,10 @@ jobs:
           submodules: 'true'
           ref: ${{ inputs.rom-ref }}
 
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
       - name: Build ROM
         run: |
           mkdir /tmp/caliptra-rom-firmware

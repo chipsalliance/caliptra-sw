@@ -159,7 +159,7 @@ jobs:
         run: |
           sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
 
-      - name: build sysroot
+      - name: Build sysroot
         # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
         # it is missing xilinx-provided kernel headers needed to build kernel modules
         if: "!steps.restore_sysroot_cache.outputs.cache-hit"
@@ -220,10 +220,6 @@ jobs:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
-
-      - name: Merge ROM and firmware
-        run: |
-          mv /tmp/caliptra-rom-firmware/caliptra-rom*.elf /tmp/caliptra-test-firmware/
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
@@ -306,6 +302,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: 'true'
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
   
       - name: Mount FPGA tools
         run: |
@@ -441,12 +441,26 @@ jobs:
       - name: Set clock rate
         run: |
           sudo bash -c 'echo 20000000 > /sys/bus/platform/drivers/xilinx_fclk/fclk0/set_rate'
+        
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+
+      - name: Debug List Downloads
+        run: |
+          ls -laR /tmp/caliptra-*
 
       - name: Execute tests
         run: |
           export RUST_TEST_THREADS=1
+          CALIPTRA_ARTIFACTS_PATH=caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=4"
+          VARS+="CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-fmc-rt-firmware/"
+          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin"
+          VARS+="CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
