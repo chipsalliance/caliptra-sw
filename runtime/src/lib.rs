@@ -16,6 +16,7 @@ Abstract:
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
+pub mod compatibility;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
