@@ -529,6 +529,15 @@ impl HwModel for ModelFpgaRealtime {
             };
         }
 
+        // Set the CSR HMAC key
+        for i in 0..8 {
+            unsafe {
+                m.wrapper
+                    .offset(FPGA_WRAPPER_CSR_HMAC_KEY_OFFSET + i)
+                    .write_volatile(params.csr_hmac_key[i as usize])
+            };
+        }
+
         // Set the UDS Seed
         for i in 0..16 {
             unsafe {
