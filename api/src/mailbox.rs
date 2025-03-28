@@ -949,12 +949,24 @@ impl Request for IncrementPcrResetCounterReq {
     type Resp = MailboxRespHeader;
 }
 
+#[repr(C)]
+#[derive(Debug, PartialEq, Eq, FromBytes, Immutable, KnownLayout, IntoBytes)]
+pub struct QuotePcrsFlags(u32);
+
+bitflags! {
+    impl QuotePcrsFlags: u32 {
+        const ECC_SIGNATURE = 0b0000_0001;
+        const MLDSA_SIGNATURE = 0b0000_0010;
+    }
+}
+
 /// QUOTE_PCRS input arguments
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct QuotePcrsReq {
     pub hdr: MailboxReqHeader,
     pub nonce: [u8; 32],
+    pub flags: QuotePcrsFlags,
 }
 
 pub type PcrValue = [u8; 48];
