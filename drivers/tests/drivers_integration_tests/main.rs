@@ -394,7 +394,7 @@ fn test_doe_when_debug_locked() {
             rom: &rom,
             security_state: *SecurityState::from(0)
                 .set_debug_locked(true)
-                .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+                .set_device_lifecycle(DeviceLifecycle::Production),
             ..default_init_params()
         },
         BootParams::default(),
