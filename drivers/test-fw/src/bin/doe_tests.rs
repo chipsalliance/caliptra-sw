@@ -60,7 +60,7 @@ fn test_decrypt() {
     // Init CFI
     let mut entropy_gen = || trng.generate4();
     CfiCounter::reset(&mut entropy_gen);
-
+	
     assert_eq!(
         doe.decrypt_uds(&Array4x4::from(DOE_TEST_IV), KeyId::KeyId0)
             .ok(),

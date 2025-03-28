@@ -21,6 +21,7 @@ use crate::EtrngResponse;
 use crate::ModelError;
 use crate::Output;
 use crate::{HwModel, SecurityState, SocManager, TrngMode};
+use caliptra_hw_model_types::{DEFAULT_UDS_SEED, DEFAULT_FIELD_ENTROPY};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OpenOcdError {
@@ -60,7 +61,7 @@ const _FPGA_WRAPPER_GENERIC_OUTPUT_OFFSET: isize = 0x0038 / 4;
 const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0040 / 4;
 const FPGA_WRAPPER_CSR_HMAC_KEY_OFFSET: isize = 0x0060 / 4;
 const FPGA_WRAPPER_OBF_UDS_SEED_OFFSET: isize = 0x00A0 / 4;
-const FPGA_WRAPPER_OBF_FIELD_ENTROPY_OFFSET: isize = 0x00A0 / 4;
+const FPGA_WRAPPER_OBF_FIELD_ENTROPY_OFFSET: isize = 0x00E0 / 4;
 // FIFOs
 const FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
 const FPGA_WRAPPER_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
@@ -525,6 +526,24 @@ impl HwModel for ModelFpgaRealtime {
                 m.wrapper
                     .offset(FPGA_WRAPPER_DEOBF_KEY_OFFSET + i)
                     .write_volatile(params.cptra_obf_key[i as usize])
+            };
+        }
+
+        // Set the UDS Seed
+        for i in 0..16 {
+            unsafe {
+                m.wrapper
+                    .offset(FPGA_WRAPPER_OBF_UDS_SEED_OFFSET + i)
+                    .write_volatile(DEFAULT_UDS_SEED[i as usize])
+            };
+        }
+
+        // Set the FE Seed
+        for i in 0..8 {
+            unsafe {
+                m.wrapper
+                    .offset(FPGA_WRAPPER_OBF_FIELD_ENTROPY_OFFSET + i)
+                    .write_volatile(DEFAULT_FIELD_ENTROPY[i as usize])
             };
         }
 
