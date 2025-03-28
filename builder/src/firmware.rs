@@ -13,77 +13,63 @@ pub fn rom_from_env() -> &'static FwId<'static> {
     }
 }
 
-pub const ROM: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &[],
-};
+macro_rules! define_fw_id {
+    ($name:ident, $crate_name:expr, $bin_name:expr, $features:expr) => {
+        pub const $name: FwId = FwId {
+            crate_name: $crate_name,
+            bin_name: $bin_name,
+            features: $features,
+        };
+    };
+}
 
-pub const ROM_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu"],
-};
-
-pub const ROM_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
-};
-
-pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
-};
-
-pub const FMC_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu"],
-};
-
-pub const FMC_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc"],
-};
-
-pub const APP: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["fips_self_test"],
-};
-
-pub const APP_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test"],
-};
-
-pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks"],
-};
-
-pub const APP_WITH_UART_FPGA: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime"],
-};
-
-pub const APP_ZEROS: FwId = FwId {
-    crate_name: "caliptra-zeros",
-    bin_name: "caliptra-zeros",
-    features: &[],
-};
-
-pub const FMC_ZEROS: FwId = FwId {
-    crate_name: "caliptra-zeros",
-    bin_name: "caliptra-zeros",
-    features: &["fmc"],
-};
+define_fw_id!(ROM, "caliptra-rom", "caliptra-rom", &[]);
+define_fw_id!(ROM_WITH_UART, "caliptra-rom", "caliptra-rom", &["emu"]);
+define_fw_id!(
+    ROM_FAKE_WITH_UART,
+    "caliptra-rom",
+    "caliptra-rom",
+    &["emu", "fake-rom"]
+);
+define_fw_id!(
+    ROM_WITH_FIPS_TEST_HOOKS,
+    "caliptra-rom",
+    "caliptra-rom",
+    &["fips-test-hooks"]
+);
+define_fw_id!(FMC_WITH_UART, "caliptra-fmc", "caliptra-fmc", &["emu"]);
+define_fw_id!(
+    FMC_FAKE_WITH_UART,
+    "caliptra-fmc",
+    "caliptra-fmc",
+    &["emu", "fake-fmc"]
+);
+define_fw_id!(
+    APP,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["fips_self_test"]
+);
+define_fw_id!(
+    APP_WITH_UART,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test"]
+);
+define_fw_id!(
+    APP_WITH_UART_FIPS_TEST_HOOKS,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test", "fips-test-hooks"]
+);
+define_fw_id!(
+    APP_WITH_UART_FPGA,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test", "fpga_realtime"]
+);
+define_fw_id!(APP_ZEROS, "caliptra-zeros", "caliptra-zeros", &[]);
+define_fw_id!(FMC_ZEROS, "caliptra-zeros", "caliptra-zeros", &["fmc"]);
 
 pub mod caliptra_builder_tests {
     use super::*;
