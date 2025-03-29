@@ -172,6 +172,7 @@ struct caliptra_increment_pcr_reset_counter_req {
 struct caliptra_quote_pcrs_req {
     struct caliptra_req_header hdr;
     uint8_t nonce[32];
+    uint32_t flags;
 };
 
 struct caliptra_quote_pcrs_resp {

@@ -15,8 +15,8 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
-    QuotePcrsResp,
+    ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsFlags,
+    QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::FromBytes;
@@ -53,11 +53,17 @@ impl GetPcrQuoteCmd {
 
         let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
-        // Ecc384 signature
-        let ecc_signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+        let mldsa_signature = if args.flags.contains(QuotePcrsFlags::MLDSA_SIGNATURE) {
+            drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?
+        } else {
+            Default::default()
+        };
 
-        // Mldsa signature
-        let mldsa_signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+        let ecc_signature = if args.flags.contains(QuotePcrsFlags::ECC_SIGNATURE) {
+            drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?
+        } else {
+            Default::default()
+        };
 
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
