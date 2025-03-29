@@ -54,7 +54,7 @@ fn test_loads_mcu_fw() {
     assert!(found);
 }
 
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
 fn test_mcu_fw_bad_signature() {
     // Test that the recovery flow runs and loads MCU's firmware

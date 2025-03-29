@@ -16,11 +16,16 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmImportReq, CmImportResp, CmKeyUsage, CmStatusResp, MailboxResp, MailboxRespHeader,
-    CMK_MAX_KEY_SIZE_BITS,
+    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmShaFinalResp, CmShaInitReq,
+    CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader,
+    MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES,
 };
-use caliptra_drivers::CaliptraResult;
+use caliptra_drivers::{
+    sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
+    Array4x12, Array4x16, CaliptraResult, Sha2_512_384,
+};
 use caliptra_error::CaliptraError;
+use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const KEY_USAGE_MAX: usize = 256;
@@ -92,13 +97,37 @@ impl UnencryptedCmk {
 
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
-struct EncryptedCmk {
-    domain: u32,
-    domain_metadata: [u8; 16],
-    iv: [u8; 12],
-    ciphertext: [u8; UNENCRYPTED_CMK_SIZE_BYTES],
-    gcm_tag: [u8; 16],
+pub struct EncryptedCmk {
+    pub domain: u32,
+    pub domain_metadata: [u8; 16],
+    pub iv: [u8; 12],
+    pub ciphertext: [u8; UNENCRYPTED_CMK_SIZE_BYTES],
+    pub gcm_tag: [u8; 16],
 }
+
+#[repr(C)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+pub struct ShaContext {
+    pub length: u32,
+    pub hash_algorithm: u32,
+    pub input_buffer: [u8; SHA512_BLOCK_BYTE_SIZE],
+    pub intermediate_hash: [u8; SHA512_HASH_SIZE],
+}
+
+impl Default for ShaContext {
+    fn default() -> Self {
+        ShaContext {
+            input_buffer: [0u8; SHA512_BLOCK_BYTE_SIZE],
+            intermediate_hash: [0u8; SHA512_HASH_SIZE],
+            length: 0,
+            hash_algorithm: 0,
+        }
+    }
+}
+
+const _: () = assert!(core::mem::size_of::<UnencryptedCmk>() == UNENCRYPTED_CMK_SIZE_BYTES);
+const _: () = assert!(core::mem::size_of::<EncryptedCmk>() == CMK_SIZE_BYTES);
+const _: () = assert!(core::mem::size_of::<ShaContext>() == CMB_SHA_CONTEXT_SIZE);
 
 pub(crate) struct Commands {}
 
@@ -158,19 +187,209 @@ impl Commands {
             cmk,
         }))
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::cryptographic_mailbox::{EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES};
-    use caliptra_common::mailbox_api::CMK_SIZE_BYTES;
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn sha_init(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmShaInitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShaInitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
-    #[test]
-    fn test_check_cmk_sizes() {
-        assert_eq!(
-            UNENCRYPTED_CMK_SIZE_BYTES,
-            core::mem::size_of::<UnencryptedCmk>()
-        );
-        assert_eq!(CMK_SIZE_BYTES, core::mem::size_of::<EncryptedCmk>());
+        let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let mut context = ShaContext {
+            hash_algorithm: cm_hash_algorithm.into(),
+            ..Default::default()
+        };
+
+        let data = &cmd.input[..cmd.input_size as usize];
+
+        let data_len = match cm_hash_algorithm {
+            CmHashAlgorithm::Sha384 => {
+                let mut op = drivers.sha2_512_384.sha384_digest_init()?;
+                op.update(data)?;
+                op.save_buffer(&mut context.input_buffer)?
+            }
+
+            CmHashAlgorithm::Sha512 => {
+                let mut op = drivers.sha2_512_384.sha512_digest_init()?;
+                op.update(data)?;
+                op.save_buffer(&mut context.input_buffer)?
+            }
+            _ => {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            }
+        };
+
+        context.length = data_len as u32;
+
+        // copy the intermediate hash if we had enough data to generate one
+        if data_len >= SHA512_BLOCK_BYTE_SIZE {
+            let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
+            intermediate_digest.0.iter_mut().for_each(|x| {
+                *x = x.swap_bytes();
+            });
+            context
+                .intermediate_hash
+                .copy_from_slice(intermediate_digest.as_bytes());
+        }
+
+        // Safety: we've copied the state, so it is safe to zeroize
+        unsafe {
+            Sha2_512_384::zeroize();
+        }
+
+        let context = transmute!(context);
+        Ok(MailboxResp::CmShaInit(CmShaInitResp {
+            hdr: MailboxRespHeader::default(),
+            context,
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn sha_update(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShaUpdateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let mut context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cm_hash_algorithm = context.hash_algorithm.into();
+        let data = &cmd.input[..cmd.input_size as usize];
+
+        let context_buffer_len = context.length as usize % SHA512_BLOCK_BYTE_SIZE;
+        let resume_len = context.length as usize - context_buffer_len;
+        let data_len = match cm_hash_algorithm {
+            CmHashAlgorithm::Sha384 => {
+                let mut op = drivers.sha2_512_384.sha384_digest_init()?;
+                op.resume(
+                    resume_len,
+                    &context.intermediate_hash.into(),
+                    &context.input_buffer[..context_buffer_len],
+                )?;
+                op.update(data)?;
+                op.save_buffer(&mut context.input_buffer)?
+            }
+            CmHashAlgorithm::Sha512 => {
+                let mut op = drivers.sha2_512_384.sha512_digest_init()?;
+                op.resume(
+                    resume_len,
+                    &context.intermediate_hash.into(),
+                    &context.input_buffer[..context_buffer_len],
+                )?;
+                op.update(data)?;
+                op.save_buffer(&mut context.input_buffer)?
+            }
+            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        };
+
+        context.length = data_len as u32;
+
+        // copy the intermediate hash if we had enough data to generate one
+        if data_len >= SHA512_BLOCK_BYTE_SIZE {
+            let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
+            intermediate_digest.0.iter_mut().for_each(|x| {
+                *x = x.swap_bytes();
+            });
+            context
+                .intermediate_hash
+                .copy_from_slice(intermediate_digest.as_bytes());
+        }
+
+        // Safety: we've copied the state, so it is safe to zeroize
+        unsafe {
+            Sha2_512_384::zeroize();
+        }
+
+        let context = transmute!(context);
+        Ok(MailboxResp::CmShaInit(CmShaInitResp {
+            hdr: MailboxRespHeader::default(),
+            context,
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn sha_final(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmShaUpdateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.input_size as usize > cmd.input.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cm_hash_algorithm = context.hash_algorithm.into();
+        let data = &cmd.input[..cmd.input_size as usize];
+
+        let mut digest = [0u8; SHA512_HASH_SIZE];
+        let context_buffer_len = context.length as usize % SHA512_BLOCK_BYTE_SIZE;
+        let resume_len = context.length as usize - context_buffer_len;
+        let len = match cm_hash_algorithm {
+            CmHashAlgorithm::Sha384 => {
+                let mut op = drivers.sha2_512_384.sha384_digest_init()?;
+                op.resume(
+                    resume_len,
+                    &context.intermediate_hash.into(),
+                    &context.input_buffer[..context_buffer_len],
+                )?;
+                op.update(data)?;
+                let mut digest32 = Array4x12::default();
+                op.finalize(&mut digest32)?;
+                digest[..SHA384_DIGEST_BYTE_SIZE]
+                    .copy_from_slice(&<[u8; SHA384_DIGEST_BYTE_SIZE]>::from(digest32));
+                SHA384_DIGEST_BYTE_SIZE
+            }
+            CmHashAlgorithm::Sha512 => {
+                let mut op = drivers.sha2_512_384.sha512_digest_init()?;
+                op.resume(
+                    resume_len,
+                    &context.intermediate_hash.into(),
+                    &context.input_buffer[..context_buffer_len],
+                )?;
+                op.update(data)?;
+                let mut digest32 = Array4x16::default();
+                op.finalize(&mut digest32)?;
+                digest.copy_from_slice(&<[u8; SHA512_DIGEST_BYTE_SIZE]>::from(digest32));
+                SHA512_DIGEST_BYTE_SIZE
+            }
+            _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        };
+
+        // Safety: we've copied the digest, so it is safe to zeroize
+        unsafe {
+            Sha2_512_384::zeroize();
+        }
+
+        Ok(MailboxResp::CmShaFinal(CmShaFinalResp {
+            hdr: MailboxRespHeaderVarSize {
+                hdr: MailboxRespHeader::default(),
+                data_len: len as u32,
+            },
+            hash: digest,
+        }))
     }
 }

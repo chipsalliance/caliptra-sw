@@ -1092,6 +1092,10 @@ The sequence to use these are:
 
 For each command, the context from the previous command's output must be passed as an input.
 
+The `SHA_CONTEXT_SIZE` is always exactly 200 bytes long.
+
+The maximum supported data size for the SHA commands is 4096 bytes.
+
 Command Code: `0x434D_5349` ("CMSI")
 
 *Table: `CM_SHA_INIT` input arguments*
@@ -1101,26 +1105,24 @@ Command Code: `0x434D_5349` ("CMSI")
 | chksum         | u32           |                    |
 | hash algorithm | u32           | Enum.              |
 |                |               | Value 0 = reserved |
-|                |               | Value 1 = SHA2-256 |
-|                |               | Value 2 = SHA2-384 |
-|                |               | Value 3 = SHA2-512 |
+|                |               | Value 1 = SHA2-384 |
+|                |               | Value 2 = SHA2-512 |
 | data size      | u32           |                    |
 | data           | u8[data size] | Data to hash       |
 
 *Table: `CM_SHA_INIT` output arguments*
-| **Name**     | **Type**         | **Description**                            |
-| ------------ | ---------------- | ------------------------------------------ |
-| chksum       | u32              |                                            |
-| fips_status  | u32              | FIPS approved or an error                  |
-| context size | u32              |                                            |
-| context      | u8[context size] | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
+| **Name**     | **Type**             | **Description**                            |
+| ------------ | -------------------- | ------------------------------------------ |
+| chksum       | u32                  |                                            |
+| fips_status  | u32                  | FIPS approved or an error                  |
+| context      | u8[SHA_CONTEXT_SIZE] | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
 
 *Table: `CM_SHA_INIT` / `CM_SHA_UPDATE` / `CM_SHA_FINAL` internal context*
 | **Name**          | **Type** | **Description** |
 | ----------------- | -------- | --------------- |
 | input buffer      | u8[128]  |                 |
 | intermediate hash | u8[64]   |                 |
-| length            | u64      |                 |
+| length            | u32      |                 |
 | hash algorithm    | u32      |                 |
 
 ### CM_SHA_UPDATE
@@ -1132,21 +1134,19 @@ The context MUST be passed in from `CM_SHA_INIT` or `CM_SHA_UPDATE`.
 Command Code: `0x434D_5355` ("CMSU")
 
 *Table: `CM_SHA_UPDATE` input arguments*
-| **Name**     | **Type**         | **Description**                      |
-| ------------ | ---------------- | ------------------------------------ |
-| chksum       | u32              |                                      |
-| context size | u32              |                                      |
-| context      | u8[context size] | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
-| data size    | u32              |                                      |
-| data         | u8[data size]    | Data to hash                         |
+| **Name**     | **Type**             | **Description**                      |
+| ------------ | -------------------- | ------------------------------------ |
+| chksum       | u32                  |                                      |
+| context      | u8[SHA_CONTEXT_SIZE] | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size    | u32                  |                                      |
+| data         | u8[data size]        | Data to hash                         |
 
 *Table: `CM_SHA_UPDATE` output arguments*
-| **Name**     | **Type**         | **Description**                            |
-| ------------ | ---------------- | ------------------------------------------ |
-| chksum       | u32              |                                            |
-| fips_status  | u32              | FIPS approved or an error                  |
-| context size | u32              |                                            |
-| context      | u8[context size] | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
+| **Name**     | **Type**             | **Description**                            |
+| ------------ | -------------------- | ------------------------------------------ |
+| chksum       | u32                  |                                            |
+| fips_status  | u32                  | FIPS approved or an error                  |
+| context      | u8[SHA_CONTEXT_SIZE] | Passed to `CM_SHA_UPDATE` / `CM_SHA_FINAL` |
 
 ### CM_SHA_FINAL
 
@@ -1157,13 +1157,12 @@ The context MUST be passed in from `CM_SHA_INIT` or `CMA_SHA_UPDATE`.
 Command Code: `0x434D_5346` ("CMSF")
 
 *Table: `CM_SHA_FINAL` input arguments*
-| **Name**     | **Type**         | **Description**                      |
-| ------------ | ---------------- | ------------------------------------ |
-| chksum       | u32              |                                      |
-| context size | u32              |                                      |
-| context      | u8[context size] | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
-| data size    | u32              | May be 0                             |
-| data         | u8[data size]    | Data to hash                         |
+| **Name**     | **Type**             | **Description**                      |
+| ------------ | -------------------- | ------------------------------------ |
+| chksum       | u32                  |                                      |
+| context      | u8[SHA_CONTEXT_SIZE] | From `CM_SHA_INIT` / `CM_SHA_UPDATE` |
+| data size    | u32                  | May be 0                             |
+| data         | u8[data size]        | Data to hash                         |
 
 *Table: `CM_SHA_FINAL` output arguments*
 | **Name**    | **Type**      | **Description**           |
