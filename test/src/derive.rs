@@ -311,7 +311,7 @@ pub struct Pcr0Input {
     pub fmc_digest: [u32; 12],
     pub cold_boot_fw_svn: u32,
     pub fw_fuse_svn: u32,
-    pub lms_vendor_pub_key_index: u32,
+    pub pqc_vendor_pub_key_index: u32,
     pub pqc_key_type: u32,
 }
 impl Pcr0Input {}
@@ -334,7 +334,7 @@ impl Pcr0 {
                 input.ecc_vendor_pub_key_index as u8,
                 input.cold_boot_fw_svn as u8,
                 input.fw_fuse_svn as u8,
-                input.lms_vendor_pub_key_index as u8,
+                input.pqc_vendor_pub_key_index as u8,
                 input.pqc_key_type as u8,
                 input.owner_pub_key_hash_from_fuses as u8,
             ],
@@ -378,7 +378,7 @@ fn test_derive_pcr0() {
         ],
         cold_boot_fw_svn: 5,
         fw_fuse_svn: 2,
-        lms_vendor_pub_key_index: u32::MAX,
+        pqc_vendor_pub_key_index: u32::MAX,
         pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
     });
     assert_eq!(
