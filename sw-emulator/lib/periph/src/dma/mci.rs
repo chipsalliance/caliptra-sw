@@ -17,7 +17,7 @@ use caliptra_emu_derive::Bus;
 use sha2::{Digest, Sha512};
 
 const SS_MANUF_DBG_UNLOCK_FUSE_SIZE: usize = 64;
-const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 4;
+const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 8;
 
 #[derive(Bus)]
 pub struct Mci {
