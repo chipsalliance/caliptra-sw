@@ -12,4 +12,4 @@ Abstract:
 
 --*/
 
-include! {"../build/local_dev_id_cert_tbs_mldsa_87.rs"}
+include! {"../build/local_dev_id_cert_tbs_ml_dsa_87.rs"}
