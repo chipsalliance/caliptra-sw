@@ -40,14 +40,14 @@ impl RtAliasCertTbsMlDsa87 {
     const PUBLIC_KEY_OFFSET: usize = 333usize;
     const SUBJECT_SN_OFFSET: usize = 207usize;
     const ISSUER_SN_OFFSET: usize = 57usize;
-    const TCB_INFO_RT_TCI_OFFSET: usize = 3026usize;
+    const TCB_INFO_RT_TCI_OFFSET: usize = 3042usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 3094usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 3127usize;
-    const UEID_OFFSET: usize = 2970usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 3110usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3143usize;
+    const UEID_OFFSET: usize = 2986usize;
     const NOT_BEFORE_OFFSET: usize = 166usize;
     const NOT_AFTER_OFFSET: usize = 181usize;
-    const TCB_INFO_FW_SVN_OFFSET: usize = 3007usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 3023usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
@@ -59,9 +59,9 @@ impl RtAliasCertTbsMlDsa87 {
     const NOT_BEFORE_LEN: usize = 13usize;
     const NOT_AFTER_LEN: usize = 13usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 3163usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3179usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 12u8, 87u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 12u8, 103u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
         116u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8,
@@ -256,8 +256,9 @@ impl RtAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 163u8, 129u8, 235u8, 48u8, 129u8, 232u8, 48u8, 18u8, 6u8, 3u8, 85u8,
+        95u8, 95u8, 95u8, 163u8, 129u8, 251u8, 48u8, 129u8, 248u8, 48u8, 18u8, 6u8, 3u8, 85u8,
         29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 2u8, 48u8,
+        14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8,
         34u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8, 4u8, 21u8, 48u8, 19u8,
         4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 48u8, 94u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 1u8, 1u8,
@@ -292,7 +293,7 @@ impl RtAliasCertTbsMlDsa87 {
     fn apply(&mut self, params: &RtAliasCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 3163usize],
+            buf: &mut [u8; 3179usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
