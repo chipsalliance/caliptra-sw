@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, Array4x16, AxiAddr};
+use crate::{cprintln, Array4x12, AxiAddr};
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -179,7 +179,7 @@ impl SocIfc {
             Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL)?
         }
         // DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( (Debug Unlock Level - 1) * SHA2-512 hash size (64 bytes) )
-        Ok(fusebank_offset + size_of::<Array4x16>() * (level as usize - 1))
+        Ok(fusebank_offset + size_of::<Array4x12>() * (level as usize - 1))
     }
 
     pub fn debug_unlock_pk_hash_count(&self) -> u32 {

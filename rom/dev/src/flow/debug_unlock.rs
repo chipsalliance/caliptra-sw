@@ -296,6 +296,11 @@ fn handle_auth_debug_unlock_token(
             *n = n.to_be();
         }
 
+        cprintln!("pub_keys_digest");
+        for n in fuse_digest {
+            cprintln!("{}", n);
+        }
+
         // Verify the fuse digest matches with the ECC and MLDSA public key digest.
         let fuse_digest = Array4x12::from(fuse_digest);
         if cfi_launder(pub_keys_digest) != fuse_digest {
@@ -306,10 +311,20 @@ fn handle_auth_debug_unlock_token(
         }
 
         // Verify that the Unique Device Identifier, Unlock Category and Challenge signature is valid.
-        let pubkey = Ecc384PubKey {
-            x: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_public_key[..48]).unwrap()),
-            y: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_public_key[48..]).unwrap()),
+        cprintln!("rom");
+        for n in token.ecc_public_key.iter().take(4) {
+            cprintln!("{:x}", *n);
+        }
+
+        // let pubkey = Ecc384PubKey {
+        //     x: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_public_key[..48]).unwrap()),
+        //     y: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_public_key[48..]).unwrap()),
+        // };
+        let pub_key = Ecc384PubKey {
+            x: pub_key.x.into(),
+            y: pub_key.y.into(),
         };
+
         let signature = Ecc384Signature {
             r: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_signature[..48]).unwrap()),
             s: Ecc384Scalar::from(<[u8; 48]>::try_from(&token.ecc_signature[48..]).unwrap()),
@@ -323,6 +338,7 @@ fn handle_auth_debug_unlock_token(
 
         let mut ecc_msg = Array4x12::default();
         digest_op.finalize(&mut ecc_msg)?;
+        // todo print inside here.
         let result = env.ecc384.verify(&pubkey, &ecc_msg, &signature)?;
         if result == Ecc384Result::SigVerifyFailed {
             cprintln!("ECC Signature verification failed");
