@@ -3,6 +3,8 @@
 /target/
 /target-ci/
 
+/x509/ml-dsa/target/
+
 # By default, ignore Cargo.lock files in non-workspace directories.
 */**/Cargo.lock
 
