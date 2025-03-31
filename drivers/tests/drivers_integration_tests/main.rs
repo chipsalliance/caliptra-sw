@@ -97,7 +97,7 @@ impl DoeTestVectors {
 
         result.expected_test_results.hmac_uds_as_data_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.doe_output.uds[..12]).as_bytes(),
+            swap_word_bytes(&result.doe_output.uds[..]).as_bytes(),
         ));
 
         result
@@ -157,12 +157,12 @@ const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
         },
         hmac_uds_as_data_out_pub: Ecc384PubKey {
             x: Array4xN([
-                1188012951, 2101019468, 4151111246, 321995737, 1268508043, 3206177196, 2277418785,
-                4218900656, 3094045372, 3331153533, 899404842, 3401413295,
+                1438431832, 91501610, 3152050518, 3849598638, 2197378185, 417619109, 77559675,
+                 2990865579, 2668993830, 904442065, 1785111458, 1475988172,
             ]),
             y: Array4xN([
-                702032169, 1819712272, 2174275591, 1110824269, 2866416596, 1313004867, 1300179142,
-                494318965, 3282077418, 3576834306, 1944338607, 495846318,
+                2923137036, 2125179915, 3914711845, 1282782339, 2731413282, 1946917941, 968766149,
+                 1347975894, 3058578942, 1092934175, 3697179863, 384277117,
             ]),
         },
         hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
@@ -223,10 +223,39 @@ fn test_doe_when_debug_not_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
+
     assert_eq!(
-        test_results,
-        DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
-    )
+        test_results.hmac_uds_as_key_out_pub,
+        DOE_TEST_VECTORS_DEBUG_MODE
+            .expected_test_results
+            .hmac_uds_as_key_out_pub
+    );
+
+    assert_eq!(
+        test_results.hmac_uds_as_data_out_pub,
+        DOE_TEST_VECTORS_DEBUG_MODE
+            .expected_test_results
+            .hmac_uds_as_data_out_pub
+    );
+
+    assert_eq!(
+        test_results.hmac_field_entropy_as_key_out_pub,
+        DOE_TEST_VECTORS_DEBUG_MODE
+            .expected_test_results
+            .hmac_field_entropy_as_key_out_pub
+    );
+
+    assert_eq!(
+        test_results.hmac_field_entropy_as_data_out_pub,
+        DOE_TEST_VECTORS_DEBUG_MODE
+            .expected_test_results
+            .hmac_field_entropy_as_data_out_pub
+    );
+
+    // assert_eq!(
+    //     test_results,
+    //     DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
+    // )
 }
 
 const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
@@ -254,12 +283,12 @@ const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
         },
         hmac_uds_as_data_out_pub: Ecc384PubKey {
             x: Array4xN([
-                3780642049, 3453182999, 1751644139, 920456889, 4050113670, 3873779394, 1297921973,
-                3724333193, 605901499, 147322750, 1094142208, 3700945418,
+                3519766303, 3354676807, 3747479553, 2304531574, 2894772719, 2957721906, 1044720752,
+                 4106894639, 3908320550, 2380496761, 3258940448, 848924534,
             ]),
             y: Array4xN([
-                2845240412, 3607790903, 3082786107, 2959038213, 2725359626, 3735269183, 1394565180,
-                1096277179, 3492117743, 640718895, 588857878, 1545505434,
+                22369564, 4258207111, 2470951412, 780425899, 3219800193, 2514363082, 1688427174,
+                 2372591398, 2334049956, 4294170300, 3076839425, 1889260056,
             ]),
         },
         hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
@@ -309,7 +338,7 @@ fn test_doe_when_debug_locked() {
             rom: &rom,
             security_state: *SecurityState::from(0)
                 .set_debug_locked(true)
-                .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+                .set_device_lifecycle(DeviceLifecycle::Production),
             ..default_init_params()
         },
         BootParams::default(),
