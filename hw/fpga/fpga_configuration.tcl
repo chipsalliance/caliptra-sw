@@ -18,7 +18,8 @@ set ITRNG TRUE
 set CG_EN FALSE
 set RTL_VERSION latest
 foreach arg $argv {
-    regexp {(.*)=(.*)} $arg fullmatch option value
+    # ensure variables cannot be empty
+    regexp {(.+)=(.+)} $arg fullmatch option value
     set $option "$value"
 }
 # If VERSION was not set by tclargs, set it from the commit ID.
@@ -27,8 +28,12 @@ if {[info exists VERSION] == 0} {
   set VERSION [exec git rev-parse --short HEAD]
 }
 
-# Path to rtl
 set rtlDir $fpgaDir/../$RTL_VERSION/rtl
+if {![file exists $rtlDir]} {
+  puts "RTL directory $rtlDir does not exist."
+  exit 1
+}
+
 puts "JTAG: $JTAG"
 puts "ITRNG: $ITRNG"
 puts "CG_EN: $CG_EN"
