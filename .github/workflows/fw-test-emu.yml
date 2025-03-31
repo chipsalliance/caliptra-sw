@@ -24,6 +24,14 @@ on:
         type: string
 
 jobs:
+  versioned-checkout-build:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      artifact-suffix: "${{ inputs.artifact-suffix }}"
+
   build_and_test:
     runs-on: ubuntu-22.04
 
@@ -51,31 +59,25 @@ jobs:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
 
-      - name: Checkout versioned ROM (${{ inputs.rom-ref }})
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ inputs.rom-ref }}
-
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
-      - name: Checkout versioned ROM and firmware
-        uses: ./.github/workflows/versioned-checkout.yml
-        with:
-          rom-ref: "${{ inputs.rom-ref }}"
-          rom-logging: "${{ inputs.rom-logging }}"
-          fw-ref: "${{ inputs.fw-ref }}"
-
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
       - name: Pull dpe submodule
         run: |
           git submodule update --init dpe
+
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          # there is no hw version definition here because we are running in the emulator, so assume latest
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
 
       - name: Run tests
         run: |
+          CALIPTRA_ARTIFACTS_PATH=caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
           export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
