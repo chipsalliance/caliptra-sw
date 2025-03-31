@@ -21,15 +21,15 @@ pub struct FmcAliasTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl FmcAliasTbsMlDsa87 {
-    const UEID_OFFSET: usize = 2797usize;
+    const UEID_OFFSET: usize = 2813usize;
     const PUBLIC_KEY_OFFSET: usize = 147usize;
     const SUBJECT_SN_OFFSET: usize = 20usize;
     const UEID_LEN: usize = 17usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
-    pub const TBS_TEMPLATE_LEN: usize = 2814usize;
+    pub const TBS_TEMPLATE_LEN: usize = 2830usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 10u8, 250u8, 2u8, 1u8, 0u8, 48u8, 116u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8,
+        48u8, 130u8, 11u8, 10u8, 2u8, 1u8, 0u8, 48u8, 116u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8,
         85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
@@ -211,12 +211,13 @@ impl FmcAliasTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 160u8, 73u8, 48u8, 71u8, 6u8,
-        9u8, 42u8, 134u8, 72u8, 134u8, 247u8, 13u8, 1u8, 9u8, 14u8, 49u8, 58u8, 48u8, 56u8, 48u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 160u8, 89u8, 48u8, 87u8, 6u8,
+        9u8, 42u8, 134u8, 72u8, 134u8, 247u8, 13u8, 1u8, 9u8, 14u8, 49u8, 74u8, 48u8, 72u8, 48u8,
         18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8,
-        2u8, 1u8, 5u8, 48u8, 34u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8,
-        4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        2u8, 1u8, 5u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8,
+        2u8, 4u8, 48u8, 34u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8, 4u8,
+        21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
     pub fn new(params: &FmcAliasTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -237,7 +238,7 @@ impl FmcAliasTbsMlDsa87 {
     fn apply(&mut self, params: &FmcAliasTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 2814usize],
+            buf: &mut [u8; 2830usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
