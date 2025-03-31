@@ -201,9 +201,10 @@ jobs:
           else
             FEATURES=fpga_realtime,itrng
           fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+          if [[ "${{ inputs.workflow_call }}" && -n "${{ inputs.hw-version }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
+
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
