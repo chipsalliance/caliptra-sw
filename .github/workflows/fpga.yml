@@ -323,14 +323,14 @@ jobs:
           cd hw/fpga
           mkdir caliptra_build
           if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
-            ITRNG=FALSE
+            export ITRNG=FALSE
           else
-            ITRNG=TRUE
+            export ITRNG=TRUE
           fi
           if [ "${{ inputs.workflow_call }}" ]; then
-            RTL_VERSION="${{ inputs.hw-version }}"
+            export RTL_VERSION="${{ inputs.hw-version }}"
           else
-            RTL_VERSION="latest"
+            export RTL_VERSION="latest"
           fi
           /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
