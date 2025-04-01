@@ -3,9 +3,7 @@ name: FPGA Build
 
 on:
   push:
-    branches: ["main"]
-  # Disabled in main-2.x until FPGA CI works again.
-  # pull_request:
+    branches: ["main-2.x"]
   workflow_call:
     inputs:
       artifact-suffix:
@@ -47,16 +45,13 @@ jobs:
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
-      kmod_cache_key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-      rtl_cache_hit: ${{ steps.restore_rtl_cache.outputs.cache-hit }}
-      kmod_cache_hit: ${{ steps.restore_kmod_cache.outputs.cache-hit }}
+      rtl_cache_hit: ${{ steps.restore_rtl_bitstream_cache.outputs.cache-hit }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
-  
+          submodules: 'recursive'
       - name: Compute cache-keys
         id: cache_key
         run: |
@@ -69,40 +64,8 @@ jobs:
           fi
           echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-
-      - name: Restore FPGA bitstream from cache
-        uses: actions/cache/restore@v3
-        id: restore_rtl_cache
-        with:
-          path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
-          key: ${{ steps.cache_key.outputs.rtl_cache_key }}
-
-      - name: Restore kernel modules from cache
-        uses: actions/cache/restore@v3
-        id: restore_kmod_cache
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-
-      - name: 'Upload FPGA bitstream artifact'
-        if: steps.restore_rtl_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
-          retention-days: 7
-
-      - name: 'Upload kernel module artifacts'
-        if: steps.restore_kmod_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
-
   build_test_binaries:
-    runs-on: [e2-standard-16]
+    runs-on: [e2-standard-8]
     timeout-minutes: 60
 
     env:
@@ -159,6 +122,7 @@ jobs:
       - name: Install cross compiler
         run: |
           sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
+          rustup toolchain install 1.84-x86_64-unknown-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Build test binaries
@@ -196,6 +160,7 @@ jobs:
 
       - name: Build test firmware
         run: |
+          rustup target add riscv32imc-unknown-none-elf
           mkdir /tmp/caliptra-test-firmware
 
           FEATURES=""
@@ -211,264 +176,96 @@ jobs:
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
-  build_kernel_modules:
-    runs-on: ubuntu-22.04
-    needs: check_cache
-    if: "!needs.check_cache.outputs.kmod_cache_hit"
+  test_artifacts:
+    runs-on: vck190
+    needs: [check_cache, build_test_binaries]
+    if: |
+      !cancelled() &&
+      needs.check_cache.result == 'success' &&
+      (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped')
+
     steps:
-      - name: Install sysroot pre-requisites
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
-
-      - name: Setup xilinx sysroot
-        run: |
-          echo I am ${USER}
-
-          # NOTE: I would prefer to use
-          # iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-sysroot.tar.xz,
-          # but it has source for kernel version 5.15.0-1014-xilinx-zynqmp
-          # instead of 5.15.0-1015-xilinx-zynqmp used by the pre-built kernel.
-          curl -o /tmp/sysroot.tar.gz https://people.canonical.com/~platform/images/xilinx/zcu-ubuntu-22.04/iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-rootfs.tar.gz
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          mkdir "${SYSROOT}"
-          sudo tar xf /tmp/sysroot.tar.gz -C "${SYSROOT}"
-          ls -l "${SYSROOT}"
-          sudo cp -L --remove-destination /etc/resolv.conf "${SYSROOT}/etc/"
-          sudo chroot "${SYSROOT}" mount -t proc proc /proc
-          sudo chroot "${SYSROOT}" mount -t devtmpfs devtmpfs /dev
-          sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
-          sudo mkdir "${SYSROOT}/home/${USER}"
-          sudo chown "${USER}" "${SYSROOT}/home/${USER}"
-          #sudo chroot "${SYSROOT}" apt-get update
-          #sudo chroot "${SYSROOT}" apt-get -y install build-essential
-
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          path: sysroot/home/runner/caliptra-sw
+          submodules: 'recursive' 
 
-      - name: Build modules
+      - name: 'Download Test Binaries Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-binaries.sqsh
+
+      - name: 'Download Test Firmware Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-firmware
+
+      - name: Mount binaries
         run: |
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          KERNEL=5.15.0-1015-xilinx-zynqmp
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
+          # We don't have enough DRAM on the FPGA board to extract a tarball
+          # into the overlaid tmpfs, so use squashfs instead
+          echo mkdir
+          sudo mkdir /tmp/caliptra-test-binaries
+          echo mount squashfs
+          sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          find /tmp/caliptra-test-binaries
 
-          mkdir /tmp/caliptra-fpga-kmod
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
+      - name: Install kernel modules
+        run: |
+          sudo apt update
+          sudo apt install -y make gcc
+          sudo ./hw/fpga/setup_fpga.sh
 
-      - name: Save kernel modules to cache
-        uses: actions/cache/save@v3
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ needs.check_cache.outputs.kmod_cache_key }}
+      - name: Execute tests
+        run: |
+          export RUST_TEST_THREADS=1
+          TEST_BIN=/tmp/caliptra-test-binaries
+          VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
-      - name: 'Upload kernel module artifacts'
+          if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
+          elif [ "${{ inputs.rom-logging }}" == false ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITHOUT_UART"
+          else
+            echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
+            exit 1
+          fi
+
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
+            VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+          fi
+
+          echo VARS=${VARS}
+
+          COMMON_ARGS=(
+              --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
+              --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
+              --target-dir-remap="${TEST_BIN}/target"
+              --workspace-remap=.
+              -E 'not (package(/caliptra-emu-.*/) |
+                       package(caliptra-builder) |
+                       package(caliptra-cfi-derive) |
+                       package(caliptra-file-header-fix) |
+                       package(compliance-test))'
+          )
+
+          cargo-nextest nextest list \
+              "${COMMON_ARGS[@]}" \
+              --message-format json > /tmp/nextest-list.json
+
+          sudo ${VARS} cargo-nextest nextest run \
+              "${COMMON_ARGS[@]}" \
+              --test-threads=1 \
+              --no-fail-fast \
+              --profile=nightly
+
+      - name: 'Upload test results'
         uses: actions/upload-artifact@v4
+        if: success() || failure()
         with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
-
-  # build_bitstream:
-  #   runs-on: [e2-standard-8, fpga-tools]
-  #   timeout-minutes: 180
-  #   needs: check_cache
-  #   if: "!needs.check_cache.outputs.rtl_cache_hit"
-
-  #   steps:
-  #     - name: Checkout repo
-  #       uses: actions/checkout@v3
-  #       with:
-  #         submodules: 'true'
-
-  #     - name: Mount FPGA tools
-  #       run: |
-  #         # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
-  #         sudo mkdir /fpga-tools
-  #         sudo mount UUID=be18f242-fb8d-4d99-971e-a8ae390ad620 /fpga-tools/
-
-  #     - name: Build FPGA bitstream
-  #       run: |
-  #         cd hw/fpga
-  #         mkdir caliptra_build
-  #         if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
-  #           ITRNG=FALSE
-  #         else
-  #           ITRNG=TRUE
-  #         fi
-  #         if [ "${{ inputs.workflow_call }}" ]; then
-  #           RTL_VERSION="${{ inputs.hw-version }}"
-  #         else
-  #           RTL_VERSION="latest"
-  #         fi
-  #         /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
-  #         if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
-  #           echo "Output file was not found; failing script"
-  #           exit 1
-  #         fi
-
-  #     - name: 'Upload FPGA bitstream artifact'
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-  #         path: hw/fpga/caliptra_build/caliptra_fpga.bin
-
-  # cache_fpga_bitstream_artifact:
-  #   runs-on: ubuntu-22.04
-  #   needs: [check_cache, build_bitstream]
-  #   if: "!needs.check_cache.outputs.rtl_cache_hit"
-
-  #   # If we write to the cache from the self-hosted runner, the result is
-  #   # usually not accessible from GitHub-hosted runners. So cache the artifact
-  #   # instead.
-
-  #   steps:
-  #     - name: 'Download FPGA Bitstream Artifact'
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-  #         path: /tmp/caliptra-fpga-bitstream
-
-  #     - name: Save FPGA bitstream to cache
-  #       uses: actions/cache/save@v3
-  #       with:
-  #         path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
-  #         key: ${{ needs.check_cache.outputs.rtl_cache_key }}
-
-  # test_artifacts:
-  #   runs-on: caliptra-fpga
-  #   needs: [check_cache, build_bitstream, build_test_binaries, build_kernel_modules]
-  #   if: |
-  #     !cancelled() &&
-  #     needs.check_cache.result == 'success' &&
-  #     (needs.build_bitstream.result == 'success' || needs.build_bitstream.result == 'skipped') &&
-  #     (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped') &&
-  #     (needs.build_kernel_modules.result == 'success' || needs.build_kernel_modules.result == 'skipped')
-
-  #   steps:
-  #     - name: Checkout repo
-  #       uses: actions/checkout@v3
-
-  #     - name: Pull dpe submodule
-  #       run: |
-  #         git submodule update --init dpe
-
-  #     - name: 'Download FPGA Bitstream Artifact'
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-  #         path: /tmp/caliptra-fpga-bitstream
-
-  #     - name: 'Download kernel driver artifacts'
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-  #         path: /tmp/caliptra-fpga-kmod/
-
-  #     - name: 'Download Test Binaries Artifact'
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: caliptra-test-binaries${{ inputs.artifact-suffix }}
-  #         path: /tmp/caliptra-test-binaries.sqsh
-
-  #     - name: 'Download Test Firmware Artifact'
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-  #         path: /tmp/caliptra-test-firmware
-
-  #     - name: Mount binaries
-  #       run: |
-  #         # We don't have enough DRAM on the FPGA board to extract a tarball
-  #         # into the overlaid tmpfs, so use squashfs instead
-  #         echo mkdir
-  #         sudo mkdir /tmp/caliptra-test-binaries
-  #         echo mount squashfs
-  #         sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
-  #         find /tmp/caliptra-test-binaries
-
-  #     - name: Load FPGA Bitstream
-  #       run: |
-  #         # sha256sum /tmp/caliptra-fpga/caliptra_fpga.bin
-
-  #         sudo mkdir -p /lib/firmware
-  #         sudo cp /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin /lib/firmware/caliptra_fpga.bin
-  #         sudo bash -c 'echo 0 > /sys/class/fpga_manager/fpga0/flags'
-  #         echo "Uploading bitstream"
-  #         sudo bash -c 'echo caliptra_fpga.bin > /sys/class/fpga_manager/fpga0/firmware'
-  #         echo "Upload complete"
-
-  #         state="$(sudo cat /sys/class/fpga_manager/fpga0/state)"
-  #         echo FPGA state is "${state}"
-  #         if [ "$state" = "operating" ]; then
-  #           exit 0
-  #         else
-  #           exit 1
-  #         fi
-
-  #     - name: Install kernel modules
-  #       run: |
-  #         ls -l /tmp/caliptra-fpga-kmod
-  #         sudo insmod /tmp/caliptra-fpga-kmod/io_module.ko
-  #         sudo insmod /tmp/caliptra-fpga-kmod/rom_backdoor.ko
-
-  #     - name: Set clock rate
-  #       run: |
-  #         sudo bash -c 'echo 20000000 > /sys/bus/platform/drivers/xilinx_fclk/fclk0/set_rate'
-
-  #     - name: Execute tests
-  #       run: |
-  #         export RUST_TEST_THREADS=1
-  #         TEST_BIN=/tmp/caliptra-test-binaries
-  #         VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
-
-  #         if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
-  #           VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
-  #         elif [ "${{ inputs.rom-logging }}" == false ]; then
-  #           VARS+=" CPTRA_ROM_TYPE=ROM_WITHOUT_UART"
-  #         else
-  #           echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
-  #           exit 1
-  #         fi
-
-#           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
-#             VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
-#           fi
-
-  #         echo VARS=${VARS}
-
-  #         COMMON_ARGS=(
-  #             --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
-  #             --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
-  #             --target-dir-remap="${TEST_BIN}/target"
-  #             --workspace-remap=.
-  #             -E 'not (package(/caliptra-emu-.*/) |
-  #                      package(caliptra-builder) |
-  #                      package(caliptra-cfi-derive) |
-  #                      package(caliptra-file-header-fix) |
-  #                      package(compliance-test))'
-  #         )
-
-  #         cargo-nextest nextest list \
-  #             "${COMMON_ARGS[@]}" \
-  #             --message-format json > /tmp/nextest-list.json
-
-  #         sudo ${VARS} cargo-nextest nextest run \
-  #             "${COMMON_ARGS[@]}" \
-  #             --test-threads=1 \
-  #             --no-fail-fast \
-  #             --profile=nightly
-
-  #     - name: 'Upload test results'
-  #       uses: actions/upload-artifact@v4
-  #       if: success() || failure()
-  #       with:
-  #         name: caliptra-test-results${{ inputs.artifact-suffix }}
-  #         path: |
-  #           /tmp/junit.xml
-  #           /tmp/nextest-list.json
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: |
+            /tmp/junit.xml
+            /tmp/nextest-list.json
