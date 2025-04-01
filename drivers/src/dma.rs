@@ -401,7 +401,9 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
     const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+    const PROT_CAP2_PUSH_C_IMAGE_SUPPORT: u32 = 0x80; // Bit 7 in agent_caps
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
+    const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
     const MCU_SRAM_OFFSET: u64 = 0x20_0000;
     const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
 
@@ -414,7 +416,8 @@ impl<'a> DmaRecovery<'a> {
 
     const DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
     const DEVICE_STATUS_PENDING: u32 = 0x4;
-    const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
+    pub const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
+    pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
@@ -552,7 +555,7 @@ impl<'a> DmaRecovery<'a> {
             0,
         )?;
         self.wait_for_activation()?;
-        // Set the RECOVERY_STATUS:Byte0 Bit[3:0] to 0x2 ('Booting recovery image').
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
         self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)
     }
@@ -560,12 +563,12 @@ impl<'a> DmaRecovery<'a> {
     pub fn wait_for_activation(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            // Set device status to recovery pending to request activation
+            // Set device status to 'Recovery Pending (waiting for activation)'.
             recovery
                 .device_status_0()
                 .modify(|val| val.dev_status(Self::DEVICE_STATUS_PENDING));
 
-            // Read RECOVERY_CTRL Byte[2] (3rd byte) for 'Activate Recovery Image' (0xF) command.
+            // Read RECOVERY_CTRL register 'Activate Recovery Image' field for 'Activate Recovery Image' (0xF) command.
             while recovery.recovery_ctrl().read().activate_rec_img()
                 != Self::ACTIVATE_RECOVERY_IMAGE_CMD
             {}
@@ -604,10 +607,17 @@ impl<'a> DmaRecovery<'a> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // Set PROT_CAP2.AGENT_CAPS Bit11 to 1 ('Flashless boot').
-            recovery
-                .prot_cap_2()
-                .modify(|val| val.agent_caps(Self::PROT_CAP2_FLASHLESS_BOOT_VALUE));
+            // Set PROT_CAP2.AGENT_CAPS
+            // - Bit7  to 1 ('Push C-image support')
+            // - Bit11 to 1 ('Flashless boot')
+            // - Bit12 to 1 ('FIFO CMS support')
+            recovery.prot_cap_2().modify(|val| {
+                val.agent_caps(
+                    Self::PROT_CAP2_FIFO_CMS_SUPPORT
+                        | Self::PROT_CAP2_FLASHLESS_BOOT_VALUE
+                        | Self::PROT_CAP2_PUSH_C_IMAGE_SUPPORT,
+                )
+            });
 
             if caliptra_fw {
                 // the first image is our own firmware, so we need to set up to receive it
@@ -621,13 +631,13 @@ impl<'a> DmaRecovery<'a> {
                 // if this is our own firmware, then we must now be running the recovery image,
                 // which is necessary to load further images
                 // Set DEVICE_STATUS:Byte0 to 0x5 ('Running recovery image').
-                recovery
-                    .device_status_0()
-                    .modify(|val| val.dev_status(Self::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE));
+                // recovery
+                //     .device_status_0()
+                //     .modify(|val| val.dev_status(Self::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE));
             }
 
-            // Set Byte0 Bit[3:0] to 0x1 ('Awaiting recovery image')
-            // Set Byte0 Bit[7:4] to recovery image index
+            // Set RECOVERY_STATUS register 'Device Recovery Status' field to 0x1 ('Awaiting recovery image')
+            // and 'Recovery Image Index' to recovery image index.
             recovery.recovery_status().modify(|recovery_status_val| {
                 recovery_status_val
                     .rec_img_index(fw_image_index)
@@ -640,16 +650,8 @@ impl<'a> DmaRecovery<'a> {
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
-            // Set RESET signal to INDIRECT_FIFO_CTRL0 register to load the next image.
-            recovery
-                .indirect_fifo_ctrl_0()
-                .modify(|val| val.reset(Self::RESET_VAL));
-
-            // Read the image size from INDIRECT_FIFO_CTRL0 & INDIRECT_FIFO_CTRL1 registers. Image size is in DWORDs.
-            let image_size_msb = recovery.indirect_fifo_ctrl_0().read().image_size_msb();
-            let image_size_lsb = recovery.indirect_fifo_ctrl_1().read().image_size_lsb();
-
-            let image_size_dwords = image_size_msb << 16 | image_size_lsb;
+            // Read the image size from INDIRECT_FIFO_CTRL1 register. Image size is in DWORDs.
+            let image_size_dwords = recovery.indirect_fifo_ctrl_1().read();
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
             Ok::<u32, CaliptraError>(image_size_bytes)
         })??;
@@ -665,6 +667,24 @@ impl<'a> DmaRecovery<'a> {
                     .rec_img_index(image_idx)
                     .dev_rec_status(status)
             });
+        })
+    }
+
+    pub fn set_device_status(&self, status: u32) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery
+                .device_status_0()
+                .modify(|device_status_val| device_status_val.dev_status(status));
+        })
+    }
+
+    pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            recovery
+                .recovery_ctrl()
+                .modify(|recovery_ctrl_val| recovery_ctrl_val.activate_rec_img(Self::RESET_VAL));
         })
     }
 

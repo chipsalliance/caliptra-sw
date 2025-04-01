@@ -465,23 +465,37 @@ impl FirmwareProcessor {
 
         // If running in active mode, set the recovery status.
         if active_mode {
-            let (status, next_image_idx) = if info.is_err() {
-                (DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR, 0)
+            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
+
+            // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
+            dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
+
+            let (recovery_status, next_image_idx, device_status) = if info.is_err() {
+                (
+                    DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
+                    0,
+                    DmaRecovery::DEVICE_STATUS_FATAL_ERROR,
+                )
             } else {
                 // we still have to do the SoC and MCU images
                 // we pre-emptively set the next image index to 1 so that the recovery interface
                 // will receive the right index so that no matter what order the recovery registers
                 // are read, we will send the right image next
-                (DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE, 1)
+                (
+                    DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
+                    1,
+                    DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE,
+                )
             };
 
             cprintln!(
-                "[fwproc] Setting device recovery status to 0x{:x}, image index 0x{:x}",
-                status,
-                next_image_idx
+                "[fwproc] Setting device recovery status to 0x{:x}, image index 0x{:x}, device status 0x{:x}",
+                recovery_status,
+                next_image_idx,
+                device_status
             );
-            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
-            dma_recovery.set_recovery_status(status, next_image_idx)?;
+            dma_recovery.set_recovery_status(recovery_status, next_image_idx)?;
+            dma_recovery.set_device_status(device_status)?;
         }
 
         let info = match info {

@@ -652,34 +652,34 @@ There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Foll
 
 Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
 
-- On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register, `Agent Capability` field bits:
+1. On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register, `Agent Capability` field bits:
     - `Push C-image support`
     - `Flashless boot`
     - `FIFO CMS support`
-- Set the RI DEVICE_STATUS_0 register, `Device Status` field  to 0x3 ('Recovery mode - ready to accept recovery image') and 
+2. Set the RI DEVICE_STATUS_0 register, `Device Status` field  to 0x3 ('Recovery mode - ready to accept recovery image') and 
 `Recovery Reason Code` field to 0x12 ('Flashless/Streaming Boot (FSB)').
-- Set the RI RECOVERY_STATUS register, `Device Recovery Status` field to 0x1 ('Awaiting recovery image') and `Recovery Image Index` field to 0 (Firmware Image).
-- Loop on the `payload_available` bit on the `DMA Status0` register for the firmware image info to be available.
-- Read the image size from RI INDIRECT_FIFO_CTRL_0 register `Image Size Msb` field and INDIRECT_FIFO_CTRL_1 register `Image Size Lsb` fields. Image size in DWORDs.
-- Initiate image download from the recovery interface to the mailbox sram:
-  - Write the payload length to the DMA widget 'Byte Count' register.
-  - Write the block size with a value of 256 to the DMA widget 'Block Size' register.
-  - Write the source address to the DMA widget 'Source Address - Low' and 'Source Address - High' registers.
-  - Acquire the mailbox lock.
-  - Write DMA widget 'Control' register.
+3. Set the RI RECOVERY_STATUS register, `Device Recovery Status` field to 0x1 ('Awaiting recovery image') and `Recovery Image Index` field to 0 (Firmware Image).
+4. Loop on the `payload_available` bit in the `DMA Status0` register for the firmware image info to be available.
+5. Read the image size from RI INDIRECT_FIFO_CTRL_1 register. Image size in DWORDs.
+6. Initiate image download from the recovery interface to the mailbox sram:
+  a. Write the payload length to the DMA widget 'Byte Count' register.
+  b. Write the block size with a value of 256 to the DMA widget 'Block Size' register.
+  c. Write the source address to the DMA widget 'Source Address - Low' and 'Source Address - High' registers.
+  d. Acquire the mailbox lock.
+  e. Write DMA widget 'Control' register.
     - Set `Read Route` bits to 0x1 (AXI RD -> Mailbox)
     - Set `Read Addr fixed` bit.
     - Set Bit0 (GO)
-  - Read DMA widget `Status0` register in a loop if `Busy' bit is 0.
-  - Image is downloaded into mailbox sram.
-  - Set RI `DEVICE_STATUS` register, `Device Status` field to 0x4 (`Recovery Pending (waiting for activation)`)
-  - Loop on RI `RECOVERY_CTRL` register `Activate Recovery Image` field to wait for processing the image.
-  - Set RI `RECOVERY_STATUS` register `Device Recovery Status` field to 0x2 (`Booting recovery image`).
-  - Validate the image per the [Image Validation Process](#firmware-image-validation-process).
-  - Reset the `RECOVERY_CTRL` register `Activate Recovery Image` field by writing 0x1.
-  - If the validation is succesful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
-  - If the validation is fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xc (`Recovery failed`) and `DEVICE_STATUS` register `Device Status` field to 0xF (`Fatal Error (Recover Reason Code not populated)`).
-  - Release the mailbox lock.
+  f. Read DMA widget `Status0` register in a loop if `Busy' bit is 0.
+  g. Image is downloaded into mailbox sram.
+7. Set RI `DEVICE_STATUS` register, `Device Status` field to 0x4 (`Recovery Pending (waiting for activation)`)
+8. Loop on RI `RECOVERY_CTRL` register `Activate Recovery Image` field to wait for processing the image.
+9. Set RI `RECOVERY_STATUS` register `Device Recovery Status` field to 0x2 (`Booting recovery image`).
+10. Validate the image per the [Image Validation Process](#firmware-image-validation-process).
+11. Reset the `RECOVERY_CTRL` register `Activate Recovery Image` field by writing 0x1.
+12. If the validation is succesful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
+13. If the validation is fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xc (`Recovery failed`) and `DEVICE_STATUS` register `Device Status` field to 0xF (`Fatal Error (Recover Reason Code not populated)`).
+14. Release the mailbox lock.
 
 #### Image validation
 
