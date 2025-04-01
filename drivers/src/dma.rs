@@ -650,6 +650,11 @@ impl<'a> DmaRecovery<'a> {
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
+            // set RESET signal to indirect control to load the next image
+            recovery
+                .indirect_fifo_ctrl_0()
+                .modify(|val| val.reset(Self::RESET_VAL));
+
             // Read the image size from INDIRECT_FIFO_CTRL1 register. Image size is in DWORDs.
             let image_size_dwords = recovery.indirect_fifo_ctrl_1().read();
             let image_size_bytes = image_size_dwords * size_of::<u32>() as u32;
