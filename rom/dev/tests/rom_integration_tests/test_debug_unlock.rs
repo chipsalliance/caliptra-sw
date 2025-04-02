@@ -18,7 +18,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 use zerocopy::{FromBytes, IntoBytes};
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_passive_mode() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -67,7 +69,9 @@ fn test_dbg_unlock_manuf_passive_mode() {
     );
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -125,7 +129,9 @@ fn test_dbg_unlock_manuf() {
         .manuf_dbg_unlock_in_progress());
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_wrong_cmd() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -171,7 +177,9 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     );
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_manuf_invalid_token() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -225,7 +233,9 @@ fn test_dbg_unlock_manuf_invalid_token() {
         .manuf_dbg_unlock_in_progress());
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -372,7 +382,9 @@ fn test_dbg_unlock_prod() {
     });
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_length() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -444,7 +456,9 @@ fn test_dbg_unlock_prod_invalid_length() {
     );
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_token_challenge() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -560,7 +574,9 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     });
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_invalid_signature() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -699,7 +715,9 @@ fn test_dbg_unlock_prod_invalid_signature() {
     });
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_public_keys() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
@@ -827,7 +845,9 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     });
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_wrong_cmd() {
     let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
     let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
