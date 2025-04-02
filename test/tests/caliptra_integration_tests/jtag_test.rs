@@ -68,7 +68,9 @@ fn gdb_mem_test<R>(
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn gdb_test() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 
