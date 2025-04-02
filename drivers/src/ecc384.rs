@@ -555,18 +555,6 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Ecc384Result> {
-        crate::cprintln!("driver pubkey x");
-        let temp = pub_key.x.0.as_bytes();
-        for n in temp {
-            // crate::cprint!("{:x} ", *n);
-            crate::cprint!("{:x} ", *n);
-        }
-        // crate::cprintln!("driver pubkey y");
-        // for n in pub_key.y.0.iter() {
-        // crate::cprint!("{:x} ", *n);
-        // }
-        crate::cprintln!("");
-
         // Get the verify r result
         let mut verify_r = self.verify_r(pub_key, digest, signature)?;
 
