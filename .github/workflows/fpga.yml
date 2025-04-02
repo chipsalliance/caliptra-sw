@@ -101,7 +101,7 @@ jobs:
           retention-days: 1
 
   build_test_binaries:
-    runs-on: [e2-standard-16]
+    runs-on: [e2-standard-8]
     timeout-minutes: 60
 
     env:
