@@ -9,13 +9,16 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
 
+use caliptra_api::soc_mgr::SocManager;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Device;
 use caliptra_emu_bus::Event;
 use caliptra_emu_bus::EventData;
+use caliptra_emu_bus::{Bus, BusMmio};
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_emu_cpu::{Cpu, InstrTracer};
+use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
@@ -25,6 +28,8 @@ use caliptra_emu_periph::{
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
+use caliptra_registers::i3ccsr::regs::DeviceStatus0ReadVal;
+use tock_registers::interfaces::{ReadWriteable, Readable};
 
 use crate::bus_logger::BusLogger;
 use crate::bus_logger::LogFile;
@@ -34,9 +39,7 @@ use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
-use caliptra_emu_bus::{Bus, BusMmio};
 
-use caliptra_api::soc_mgr::SocManager;
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
@@ -256,6 +259,24 @@ impl HwModel for ModelEmulated {
     fn step(&mut self) {
         if self.cpu_enabled.get() {
             self.cpu.step(self.trace_fn.as_deref_mut());
+        }
+
+        // do the bare minimum for the recovery flow: activating the recovery image
+        const DEVICE_STATUS_PENDING: u32 = 0x4;
+        const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
+        if DeviceStatus0ReadVal::from(self.cpu.bus.bus.dma.axi.recovery.device_status_0.reg.get())
+            .dev_status()
+            == DEVICE_STATUS_PENDING
+        {
+            self.cpu
+                .bus
+                .bus
+                .dma
+                .axi
+                .recovery
+                .recovery_ctrl
+                .reg
+                .modify(RecoveryControl::ACTIVATE_RECOVERY_IMAGE.val(ACTIVATE_RECOVERY_IMAGE_CMD));
         }
 
         for event in self.events_from_caliptra.try_iter() {

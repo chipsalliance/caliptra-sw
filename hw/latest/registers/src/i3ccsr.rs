@@ -807,7 +807,7 @@ impl<TMmio: ureg::Mmio> SecfwrecoveryifBlock<TMmio> {
             )
         }
     }
-    /// Read value: [`i3ccsr::regs::IndirectFifoCtrl1ReadVal`]; Write value: [`i3ccsr::regs::IndirectFifoCtrl1WriteVal`]
+    /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
     pub fn indirect_fifo_ctrl_1(
         &self,
@@ -3492,11 +3492,6 @@ pub mod regs {
         pub fn reset(&self) -> u32 {
             (self.0 >> 8) & 0xff
         }
-        /// Image Size (2 MSBs): Size of the image to be loaded in 4B units
-        #[inline(always)]
-        pub fn image_size_msb(&self) -> u32 {
-            (self.0 >> 16) & 0xffff
-        }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
         pub fn modify(self) -> IndirectFifoCtrl0WriteVal {
@@ -3538,11 +3533,6 @@ pub mod regs {
         pub fn reset(self, val: u32) -> Self {
             Self((self.0 & !(0xff << 8)) | ((val & 0xff) << 8))
         }
-        /// Image Size (2 MSBs): Size of the image to be loaded in 4B units
-        #[inline(always)]
-        pub fn image_size_msb(self, val: u32) -> Self {
-            Self((self.0 & !(0xffff << 16)) | ((val & 0xffff) << 16))
-        }
     }
     impl From<u32> for IndirectFifoCtrl0WriteVal {
         #[inline(always)]
@@ -3553,53 +3543,6 @@ pub mod regs {
     impl From<IndirectFifoCtrl0WriteVal> for u32 {
         #[inline(always)]
         fn from(val: IndirectFifoCtrl0WriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct IndirectFifoCtrl1ReadVal(u32);
-    impl IndirectFifoCtrl1ReadVal {
-        /// Image Size (2 LSBs): Size of the image to be loaded in 4B units
-        #[inline(always)]
-        pub fn image_size_lsb(&self) -> u32 {
-            (self.0 >> 0) & 0xffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> IndirectFifoCtrl1WriteVal {
-            IndirectFifoCtrl1WriteVal(self.0)
-        }
-    }
-    impl From<u32> for IndirectFifoCtrl1ReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<IndirectFifoCtrl1ReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: IndirectFifoCtrl1ReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct IndirectFifoCtrl1WriteVal(u32);
-    impl IndirectFifoCtrl1WriteVal {
-        /// Image Size (2 LSBs): Size of the image to be loaded in 4B units
-        #[inline(always)]
-        pub fn image_size_lsb(self, val: u32) -> Self {
-            Self((self.0 & !(0xffff << 0)) | ((val & 0xffff) << 0))
-        }
-    }
-    impl From<u32> for IndirectFifoCtrl1WriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<IndirectFifoCtrl1WriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: IndirectFifoCtrl1WriteVal) -> u32 {
             val.0
         }
     }
@@ -5890,11 +5833,6 @@ pub mod regs {
         pub fn simple_crr_support(&self) -> bool {
             ((self.0 >> 5) & 1) != 0
         }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> StbyCrCapabilitiesWriteVal {
-            StbyCrCapabilitiesWriteVal(self.0)
-        }
     }
     impl From<u32> for StbyCrCapabilitiesReadVal {
         #[inline(always)]
@@ -5905,62 +5843,6 @@ pub mod regs {
     impl From<StbyCrCapabilitiesReadVal> for u32 {
         #[inline(always)]
         fn from(val: StbyCrCapabilitiesReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StbyCrCapabilitiesWriteVal(u32);
-    impl StbyCrCapabilitiesWriteVal {
-        /// Defines whether Dynamic Address Assignment with ENTDAA CCC is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_entdaa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 15)) | (u32::from(val) << 15))
-        }
-        /// Defines whether Dynamic Address Assignment with SETDASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setdasa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 14)) | (u32::from(val) << 14))
-        }
-        /// Defines whether Dynamic Address Assignment with SETAASA CCC (using Static Address) is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported
-        #[inline(always)]
-        pub fn daa_setaasa_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 13)) | (u32::from(val) << 13))
-        }
-        /// Defines whether an I3C Target Transaction Interface is supported.
-        ///
-        /// 1'b0: DISABLED: Not supported
-        ///
-        /// 1'b1: ENABLED: Supported via vendor-defined Extended Capability structure
-        #[inline(always)]
-        pub fn target_xact_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 12)) | (u32::from(val) << 12))
-        }
-        #[inline(always)]
-        pub fn simple_crr_support(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-    }
-    impl From<u32> for StbyCrCapabilitiesWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StbyCrCapabilitiesWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: StbyCrCapabilitiesWriteVal) -> u32 {
             val.0
         }
     }
@@ -7957,11 +7839,7 @@ pub mod meta {
         crate::i3ccsr::regs::IndirectFifoCtrl0ReadVal,
         crate::i3ccsr::regs::IndirectFifoCtrl0WriteVal,
     >;
-    pub type SecfwrecoveryifIndirectFifoCtrl1 = ureg::ReadWriteReg32<
-        0,
-        crate::i3ccsr::regs::IndirectFifoCtrl1ReadVal,
-        crate::i3ccsr::regs::IndirectFifoCtrl1WriteVal,
-    >;
+    pub type SecfwrecoveryifIndirectFifoCtrl1 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type SecfwrecoveryifIndirectFifoStatus0 =
         ureg::ReadOnlyReg32<crate::i3ccsr::regs::IndirectFifoStatus0ReadVal>;
     pub type SecfwrecoveryifIndirectFifoStatus1 = ureg::ReadOnlyReg32<u32>;
@@ -7982,11 +7860,8 @@ pub mod meta {
         crate::i3ccsr::regs::StbyCrDeviceAddrReadVal,
         crate::i3ccsr::regs::StbyCrDeviceAddrWriteVal,
     >;
-    pub type StdbyctrlmodeStbyCrCapabilities = ureg::ReadWriteReg32<
-        0,
-        crate::i3ccsr::regs::StbyCrCapabilitiesReadVal,
-        crate::i3ccsr::regs::StbyCrCapabilitiesWriteVal,
-    >;
+    pub type StdbyctrlmodeStbyCrCapabilities =
+        ureg::ReadOnlyReg32<crate::i3ccsr::regs::StbyCrCapabilitiesReadVal>;
     pub type StdbyctrlmodeRsvd0 = ureg::ReadWriteReg32<0, u32, u32>;
     pub type StdbyctrlmodeStbyCrStatus = ureg::ReadWriteReg32<
         0,

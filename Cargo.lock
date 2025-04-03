@@ -560,6 +560,7 @@ dependencies = [
  "nix",
  "rand",
  "sha2",
+ "tock-registers",
  "uio",
  "ureg",
  "zerocopy",
