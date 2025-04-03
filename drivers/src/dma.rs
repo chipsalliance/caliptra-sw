@@ -627,13 +627,6 @@ impl<'a> DmaRecovery<'a> {
                     val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
                         .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
                 });
-            } else {
-                // if this is our own firmware, then we must now be running the recovery image,
-                // which is necessary to load further images
-                // Set DEVICE_STATUS:Byte0 to 0x5 ('Running recovery image').
-                // recovery
-                //     .device_status_0()
-                //     .modify(|val| val.dev_status(Self::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE));
             }
 
             // Set RECOVERY_STATUS register 'Device Recovery Status' field to 0x1 ('Awaiting recovery image')
