@@ -34,7 +34,7 @@ impl CodeGen {
         std::fs::write(&file_path, Self::code(type_name, template)).unwrap();
         if Command::new("rustfmt")
             .arg("--emit=files")
-            .arg("--edition=2024")
+            .arg("--edition=2021")
             .arg(file_path)
             .spawn()
             .is_ok()
