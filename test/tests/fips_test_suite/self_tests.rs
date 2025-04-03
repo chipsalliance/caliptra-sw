@@ -15,7 +15,11 @@ use common::*;
 use zerocopy::IntoBytes;
 
 #[test]
-#[cfg(not(feature = "test_env_immutable_rom"))]
+//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+#[cfg(all(
+    not(feature = "test_env_immutable_rom"),
+    not(feature = "fpga_realtime")
+))]
 pub fn kat_halt_check_no_output() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 

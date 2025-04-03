@@ -206,7 +206,9 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
     assert_eq!(vectors, DOE_TEST_VECTORS_DEBUG_MODE);
 }
 
+//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_not_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
     let mut model = caliptra_hw_model::new(
@@ -301,7 +303,9 @@ fn test_generate_doe_vectors_when_debug_locked() {
     assert_eq!(vectors, DOE_TEST_VECTORS);
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
     let mut model = caliptra_hw_model::new(
