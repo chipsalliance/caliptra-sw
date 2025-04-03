@@ -55,10 +55,12 @@ pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
             CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
         ),
     ];
+    let mut security_state = SecurityState::from(fuses.life_cycle as u32);
+    security_state.set_debug_locked(true);
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
+            security_state,
             stack_info: Some(StackInfo::new(image_info)),
             ..Default::default()
         },

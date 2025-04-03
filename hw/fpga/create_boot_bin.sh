@@ -47,7 +47,10 @@ petalinux-build -c psmfw
 
 echo Modify device tree for 2024.2
 dtc -I dtb -O dts -o images/linux/system.dts images/linux/system.dtb
+# Change uart description to what ubuntu expects
 sed -i 's/primecell/sbsa-uart/g' images/linux/system.dts
+# Enable versal-gpio
+sed -i '/versal-gpio/{n;s/disabled/okay/}' images/linux/system.dts
 dtc -I dts -O dtb -o images/linux/system.dtb images/linux/system.dts
 
 echo Packaging boot files
