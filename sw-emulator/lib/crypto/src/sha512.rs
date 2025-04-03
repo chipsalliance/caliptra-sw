@@ -116,6 +116,14 @@ impl Sha512 {
         }
     }
 
+    pub fn set_hash(&mut self, hash: &[u8]) {
+        let mut hash = Vec::from(hash);
+        hash.to_big_endian();
+        for i in 0..Self::HASH_SIZE / 8 {
+            self.hash[i] = u64::from_be_bytes(hash[i * 8..(i + 1) * 8].try_into().unwrap());
+        }
+    }
+
     /// Reset the state
     pub fn reset(&mut self, mode: Sha512Mode) {
         self.mode = mode;
