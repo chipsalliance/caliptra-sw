@@ -17,7 +17,7 @@ use std::{
 
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
-    DEFAULT_CPTRA_OBF_KEY,
+    DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY,
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
@@ -164,6 +164,9 @@ pub struct InitParams<'a> {
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
+    // The silicon csr hmac key passed to caliptra_top.
+    pub csr_hmac_key: [u32; 16],
+
     // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
     // peripheral).
     pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
@@ -218,6 +221,7 @@ impl Default for InitParams<'_> {
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
+            csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
             etrng_responses,
             trng_mode: Some(if cfg!(feature = "itrng") {
