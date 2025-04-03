@@ -18,8 +18,9 @@ OUT = out
 TARGET = $(OUT)/smoke_test
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/1.0/rtl/src/soc_ifc/rtl
 BUILDER_PATH = ../../../builder
-CALIPTRA_MODEL_PATH = ../out
+CALIPTRA_MODEL_PATH = ../include
 CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH)
+HW_MODEL_STATIC_LIB = $(OUT)/debug/libcaliptra_hw_model_c_binding.a
 
 SOURCE += api/caliptra_api.c
 SOURCE += smoke_test.c
@@ -27,7 +28,7 @@ SOURCE += smoke_test.c
 OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 
 all: $(TARGET)
-$(OUT)/caliptra_model.h:
+$(HW_MODEL_STATIC_LIB):
 	cargo --config="$(EXTRA_CARGO_CONFIG)" build
 	mkdir -p $(OUT)/debug
 	cp ../../../target/debug/libcaliptra_hw_model_c_binding.a $(OUT)/debug/
@@ -36,11 +37,11 @@ $(OUT)/%.o: $(SOURCE)
 	$(MKDIR)
 	$(CC) ${CFLAGS} -g -c $< -o $@
 
-$(TARGET): $(OUT)/caliptra_model.h $(OBJS)
+$(TARGET): $(HW_MODEL_STATIC_LIB) $(OBJS)
 	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-L$(OUT)/debug -lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lrt -lm
 
 clean:
-	$(RM) -rf $(OUT)
+	$(RM) -rf $(OUT) *.o api/*.o
 
 run: $(TARGET)
 	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom-with-log $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin
