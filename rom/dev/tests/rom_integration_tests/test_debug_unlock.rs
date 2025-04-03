@@ -297,6 +297,11 @@ fn test_dbg_unlock_prod() {
         &request.as_bytes()[4..],
     );
 
+    println!("ProductionAuthDebugUnlockReq");
+    println!("checksum: {:08X?}", checksum.to_be_bytes());
+    println!("length: {:08X?}", request.length.to_be_bytes());
+    println!("challenge: {:08X?}", request.unlock_level.to_be_bytes());
+
     let request = ProductionAuthDebugUnlockReq {
         hdr: MailboxReqHeader { chksum: checksum },
         ..request
@@ -310,6 +315,14 @@ fn test_dbg_unlock_prod() {
         .unwrap();
 
     let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
+
+    println!("ProductionAuthDebugUnlockChallenge");
+    println!("length: {:08X?}", challenge.length.to_be_bytes());
+    println!(
+        "unique_device_identifier: {:08X?}",
+        u8_to_u32_be(&challenge.unique_device_identifier)
+    );
+    println!("challenge: {:08X?}", u8_to_u32_be(&challenge.challenge));
 
     let reserved = [0u8; 3];
 
@@ -371,6 +384,19 @@ fn test_dbg_unlock_prod() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..token
     };
+
+    println!("ProductionAuthDebugUnlockToken");
+    println!("length: {:08X?}", token.length.to_be_bytes());
+    println!(
+        "unique_device_identifier: {:08X?}",
+        u8_to_u32_be(&token.unique_device_identifier)
+    );
+    println!("unlock_level: {:08X?}", token.unlock_level.to_be_bytes());
+    println!("challenge: {:08X?}", u8_to_u32_be(&token.challenge));
+    println!("ecc_public_key: {:08X?}", token.ecc_public_key);
+    println!("mldsa_public_key: {:08X?}", token.mldsa_public_key);
+    println!("ecc_signature: {:08X?}", token.ecc_signature);
+    println!("mldsa_signature: {:08X?}", &token.mldsa_signature);
 
     let _ = hw
         .mailbox_execute(
