@@ -206,23 +206,28 @@ fn test_dbg_unlock_manuf_invalid_token() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..token
     };
-    let _ = hw
-        .mailbox_execute(
-            CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
-            token.as_bytes(),
-        )
-        .unwrap()
-        .unwrap();
+    let resp = hw.mailbox_execute(
+        CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN.into(),
+        token.as_bytes(),
+    );
 
-    hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
-        resp.manuf_dbg_unlock_fail()
-    });
-    assert!(!hw
-        .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
-        .read()
-        .manuf_dbg_unlock_in_progress());
+    assert_eq!(
+        resp,
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN.into()
+        ))
+    );
+}
+
+fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
+    input
+        .chunks(4)
+        .map(|chunk| {
+            let mut array = [0u8; 4];
+            array.copy_from_slice(chunk);
+            u32::from_be_bytes(array)
+        })
+        .collect()
 }
 
 #[test]
@@ -237,6 +242,9 @@ fn test_dbg_unlock_prod() {
         pk
     };
 
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
     let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
     let mldsa_pub_key_reversed = {
@@ -244,6 +252,9 @@ fn test_dbg_unlock_prod() {
         key.reverse();
         key
     };
+
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -258,7 +269,10 @@ fn test_dbg_unlock_prod() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_reversed)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             debug_intent: true,
             active_mode: true,
             ..Default::default()
@@ -282,6 +296,7 @@ fn test_dbg_unlock_prod() {
         u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ),
         &request.as_bytes()[4..],
     );
+
     let request = ProductionAuthDebugUnlockReq {
         hdr: MailboxReqHeader { chksum: checksum },
         ..request
@@ -296,21 +311,26 @@ fn test_dbg_unlock_prod() {
 
     let challenge = ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
 
+    let reserved = [0u8; 3];
+
     let mut sha384 = sha2::Sha384::new();
-    sha384.update(challenge.challenge);
     sha384.update(challenge.unique_device_identifier);
     sha384.update([unlock_level]);
+    sha384.update(reserved);
+    sha384.update(challenge.challenge);
     let sha384_digest = sha384.finalize();
     let (ecc_signature, _id) = signing_ecc_key
         .sign_prehash_recoverable(sha384_digest.as_slice())
         .unwrap();
     let ecc_signature = ecc_signature.to_bytes();
     let ecc_signature = ecc_signature.as_slice();
+    let ecc_signature = u8_to_u32_be(ecc_signature);
 
     let mut sha512 = sha2::Sha512::new();
-    sha512.update(challenge.challenge);
     sha512.update(challenge.unique_device_identifier);
     sha512.update([unlock_level]);
+    sha512.update(reserved);
+    sha512.update(challenge.challenge);
     let mut sha512_digest = sha512.finalize();
     let msg = {
         let msg: &mut [u8] = sha512_digest.as_mut_slice();
@@ -321,6 +341,12 @@ fn test_dbg_unlock_prod() {
     let mldsa_signature = signing_mldsa_key
         .try_sign_with_seed(&[0; 32], msg, &[])
         .unwrap();
+    let mldsa_signature = {
+        let mut sig = [0; 4628];
+        sig[..4627].copy_from_slice(&mldsa_signature);
+        sig.reverse();
+        u8_to_u32_be(&sig)
+    };
 
     let token = ProductionAuthDebugUnlockToken {
         length: {
@@ -331,15 +357,10 @@ fn test_dbg_unlock_prod() {
         unique_device_identifier: challenge.unique_device_identifier,
         unlock_level,
         challenge: challenge.challenge,
-        ecc_public_key: ecc_pub_key_bytes,
-        mldsa_public_key: mldsa_pub_key_reversed,
+        ecc_public_key: ecc_pub_key.try_into().unwrap(),
+        mldsa_public_key: mldsa_pub_key.try_into().unwrap(),
         ecc_signature: ecc_signature.try_into().unwrap(),
-        mldsa_signature: {
-            let mut sig = [0; 4628];
-            sig[..4627].copy_from_slice(&mldsa_signature);
-            sig.reverse();
-            sig
-        },
+        mldsa_signature: mldsa_signature.try_into().unwrap(),
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -351,7 +372,7 @@ fn test_dbg_unlock_prod() {
         ..token
     };
 
-    let _resp = hw
+    let _ = hw
         .mailbox_execute(
             CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
             token.as_bytes(),
@@ -376,8 +397,13 @@ fn test_dbg_unlock_prod_invalid_length() {
         pk
     };
 
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -392,7 +418,10 @@ fn test_dbg_unlock_prod_invalid_length() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                &mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             debug_intent: true,
             active_mode: true,
             ..Default::default()
@@ -416,15 +445,20 @@ fn test_dbg_unlock_prod_invalid_length() {
         hdr: MailboxReqHeader { chksum: checksum },
         ..request
     };
-    assert_eq!(
-        hw.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
-            request.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ.into()
-        ))
+    let _ = hw.mailbox_execute(
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
+        request.as_bytes(),
     );
+
+    hw.step_until(|m| {
+        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        resp.prod_dbg_unlock_fail()
+    });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -438,9 +472,13 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -455,7 +493,10 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             active_mode: true,
             debug_intent: true,
             ..Default::default()
@@ -504,10 +545,10 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         unique_device_identifier: challenge.unique_device_identifier,
         unlock_level,
         challenge: invalid_challenge, // Use invalid challenge
-        ecc_public_key: ecc_pub_key_bytes,
-        mldsa_public_key: mldsa_pub_key_bytes,
-        ecc_signature: [0u8; 96],     // Invalid signature
-        mldsa_signature: [0u8; 4628], // Invalid signature
+        ecc_public_key: ecc_pub_key.try_into().unwrap(),
+        mldsa_public_key: mldsa_pub_key.try_into().unwrap(),
+        ecc_signature: [0u32; 24],     // Invalid signature
+        mldsa_signature: [0u32; 1157], // Invalid signature
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -519,20 +560,20 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE.into()
-        ))
+    let _ = hw.mailbox_execute(
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+        token.as_bytes(),
     );
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -546,6 +587,8 @@ fn test_dbg_unlock_prod_invalid_signature() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
@@ -554,6 +597,8 @@ fn test_dbg_unlock_prod_invalid_signature() {
         key.reverse();
         key
     };
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -568,7 +613,10 @@ fn test_dbg_unlock_prod_invalid_signature() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_reversed)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             debug_intent: true,
             active_mode: true,
             ..Default::default()
@@ -619,6 +667,12 @@ fn test_dbg_unlock_prod_invalid_signature() {
     let mldsa_signature = signing_mldsa_key
         .try_sign_with_seed(&[0; 32], msg, &[])
         .unwrap();
+    let mldsa_signature = {
+        let mut sig = [0; 4628];
+        sig[..4627].copy_from_slice(&mldsa_signature);
+        sig.reverse();
+        u8_to_u32_be(&sig)
+    };
 
     let token = ProductionAuthDebugUnlockToken {
         length: {
@@ -629,15 +683,10 @@ fn test_dbg_unlock_prod_invalid_signature() {
         unique_device_identifier: challenge.unique_device_identifier,
         unlock_level,
         challenge: challenge.challenge,
-        ecc_public_key: ecc_pub_key_bytes,
-        mldsa_public_key: mldsa_pub_key_reversed,
-        ecc_signature: [0xab; 96], // Invalid signature
-        mldsa_signature: {
-            let mut sig = [0; 4628];
-            sig[..4627].copy_from_slice(&mldsa_signature);
-            sig.reverse();
-            sig
-        },
+        ecc_public_key: ecc_pub_key.try_into().unwrap(),
+        mldsa_public_key: mldsa_pub_key.try_into().unwrap(),
+        ecc_signature: [0xab; 24], // Invalid signature
+        mldsa_signature: mldsa_signature.try_into().unwrap(),
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -649,20 +698,20 @@ fn test_dbg_unlock_prod_invalid_signature() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE.into()
-        ))
+    let _ = hw.mailbox_execute(
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+        token.as_bytes(),
     );
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -676,9 +725,13 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     // Generate a different set of keys that aren't registered with the hardware
     let different_signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
@@ -690,9 +743,11 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
+    let different_ecc_pub_key = u8_to_u32_be(&different_ecc_pub_key_bytes);
 
     let (different_verifying_mldsa_key, _) = fips204::ml_dsa_87::try_keygen().unwrap();
     let different_mldsa_pub_key_bytes = different_verifying_mldsa_key.into_bytes();
+    let different_mldsa_pub_key = u8_to_u32_be(&different_mldsa_pub_key_bytes);
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -707,7 +762,10 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             debug_intent: true,
             active_mode: true,
             ..Default::default()
@@ -754,10 +812,10 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         unlock_level,
         challenge: challenge.challenge,
         // Use the different public keys that weren't registered with the hardware
-        ecc_public_key: different_ecc_pub_key_bytes,
-        mldsa_public_key: different_mldsa_pub_key_bytes,
-        ecc_signature: [0u8; 96], // Signature doesn't matter since keys will fail first
-        mldsa_signature: [0u8; 4628], // Signature doesn't matter since keys will fail first
+        ecc_public_key: different_ecc_pub_key.try_into().unwrap(),
+        mldsa_public_key: different_mldsa_pub_key.try_into().unwrap(),
+        ecc_signature: [0u32; 24], // Signature doesn't matter since keys will fail first
+        mldsa_signature: [0u32; 1157], // Signature doesn't matter since keys will fail first
         ..Default::default()
     };
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -769,20 +827,20 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         ..token
     };
 
-    assert_eq!(
-        hw.mailbox_execute(
-            CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
-            token.as_bytes(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS.into()
-        ))
+    let _ = hw.mailbox_execute(
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+        token.as_bytes(),
     );
 
     hw.step_until(|m| {
         let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
         resp.prod_dbg_unlock_fail()
     });
+    assert!(hw
+        .soc_ifc()
+        .ss_dbg_manuf_service_reg_rsp()
+        .read()
+        .prod_dbg_unlock_fail());
 }
 
 #[test]
@@ -796,9 +854,13 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
+    let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+    let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -813,7 +875,10 @@ fn test_dbg_unlock_prod_wrong_cmd() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
+            prod_dbg_unlock_keypairs: vec![(
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            )],
             debug_intent: true,
             active_mode: true,
             ..Default::default()
@@ -846,4 +911,328 @@ fn test_dbg_unlock_prod_wrong_cmd() {
             CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD.into()
         ))
     );
+}
+
+#[test]
+fn test_dbg_unlock_prod_unlock_levels_success() {
+    for unlock_level in 1..=8 {
+        println!("unlock_level: {}", unlock_level);
+
+        let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
+        let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
+        let ecc_pub_key_bytes = {
+            let mut pk = [0; 96];
+            let ecc_key = verifying_ecc_key.to_encoded_point(false);
+            pk[..48].copy_from_slice(ecc_key.x().unwrap());
+            pk[48..].copy_from_slice(ecc_key.y().unwrap());
+            pk
+        };
+        let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+        let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
+        let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
+        let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+        let mldsa_pub_key_reversed = {
+            let mut key = mldsa_pub_key_bytes;
+            key.reverse();
+            key
+        };
+        let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+        let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
+
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production);
+
+        let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
+
+        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+
+        let mut prod_dbg_unlock_keypairs = Vec::new();
+        for _ in 0..8 {
+            prod_dbg_unlock_keypairs.push((
+                ecc_pub_key_bytes.try_into().unwrap(),
+                mldsa_pub_key_bytes.try_into().unwrap(),
+            ));
+        }
+
+        let mut hw = caliptra_hw_model::new(
+            caliptra_hw_model::InitParams {
+                rom: &rom,
+                security_state,
+                dbg_manuf_service,
+                prod_dbg_unlock_keypairs,
+                debug_intent: true,
+                active_mode: true,
+                ..Default::default()
+            },
+            caliptra_hw_model::BootParams::default(),
+        )
+        .unwrap();
+
+        // [TODO][CAP2] With wrong len mbox err 0 gets returned which is not right
+        let request = ProductionAuthDebugUnlockReq {
+            length: {
+                let req_len =
+                    size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
+                (req_len / size_of::<u32>()) as u32
+            },
+            unlock_level,
+            ..Default::default()
+        };
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ),
+            &request.as_bytes()[4..],
+        );
+        let request = ProductionAuthDebugUnlockReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..request
+        };
+        let resp = hw
+            .mailbox_execute(
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
+                request.as_bytes(),
+            )
+            .unwrap()
+            .unwrap();
+
+        let challenge =
+            ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
+
+        let reserved = [0u8; 3];
+
+        let mut sha384 = sha2::Sha384::new();
+        sha384.update(challenge.unique_device_identifier);
+        sha384.update([unlock_level]);
+        sha384.update(reserved);
+        sha384.update(challenge.challenge);
+        let sha384_digest = sha384.finalize();
+        let (ecc_signature, _id) = signing_ecc_key
+            .sign_prehash_recoverable(sha384_digest.as_slice())
+            .unwrap();
+        let ecc_signature = ecc_signature.to_bytes();
+        let ecc_signature = ecc_signature.as_slice();
+        let ecc_signature = u8_to_u32_be(ecc_signature);
+
+        let mut sha512 = sha2::Sha512::new();
+        sha512.update(challenge.unique_device_identifier);
+        sha512.update([unlock_level]);
+        sha512.update(reserved);
+        sha512.update(challenge.challenge);
+        let mut sha512_digest = sha512.finalize();
+        let msg = {
+            let msg: &mut [u8] = sha512_digest.as_mut_slice();
+            msg.reverse();
+            msg
+        };
+
+        let mldsa_signature = signing_mldsa_key
+            .try_sign_with_seed(&[0; 32], msg, &[])
+            .unwrap();
+        let mldsa_signature = {
+            let mut sig = [0; 4628];
+            sig[..4627].copy_from_slice(&mldsa_signature);
+            sig.reverse();
+            u8_to_u32_be(&sig)
+        };
+
+        let token = ProductionAuthDebugUnlockToken {
+            length: {
+                let req_len =
+                    size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
+                (req_len / size_of::<u32>()) as u32
+            },
+            unique_device_identifier: challenge.unique_device_identifier,
+            unlock_level,
+            challenge: challenge.challenge,
+            ecc_public_key: ecc_pub_key.try_into().unwrap(),
+            mldsa_public_key: mldsa_pub_key.try_into().unwrap(),
+            ecc_signature: ecc_signature.try_into().unwrap(),
+            mldsa_signature: mldsa_signature.try_into().unwrap(),
+            ..Default::default()
+        };
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN),
+            &token.as_bytes()[4..],
+        );
+        let token = ProductionAuthDebugUnlockToken {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..token
+        };
+
+        let _resp = hw
+            .mailbox_execute(
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+                token.as_bytes(),
+            )
+            .unwrap();
+
+        hw.step_until(|m| {
+            let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+            resp.prod_dbg_unlock_success()
+        });
+    }
+}
+
+#[test]
+fn test_dbg_unlock_prod_unlock_levels_failure() {
+    for unlock_level in [0, 9, 16] {
+        let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
+        let verifying_ecc_key = VerifyingKey::from(&signing_ecc_key);
+        let ecc_pub_key_bytes = {
+            let mut pk = [0; 96];
+            let ecc_key = verifying_ecc_key.to_encoded_point(false);
+            pk[..48].copy_from_slice(ecc_key.x().unwrap());
+            pk[48..].copy_from_slice(ecc_key.y().unwrap());
+            pk
+        };
+        let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
+        let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
+
+        let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
+        let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
+        let mldsa_pub_key_reversed = {
+            let mut key = mldsa_pub_key_bytes;
+            key.reverse();
+            key
+        };
+        let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+        let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
+
+        let security_state = *SecurityState::default()
+            .set_debug_locked(true)
+            .set_device_lifecycle(DeviceLifecycle::Production);
+
+        let dbg_manuf_service = *DbgManufServiceRegReq::default().set_prod_dbg_unlock_req(true);
+
+        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+
+        let mut hw = caliptra_hw_model::new(
+            caliptra_hw_model::InitParams {
+                rom: &rom,
+                security_state,
+                dbg_manuf_service,
+                prod_dbg_unlock_keypairs: vec![(
+                    ecc_pub_key_bytes.try_into().unwrap(),
+                    mldsa_pub_key_bytes.try_into().unwrap(),
+                )],
+                debug_intent: true,
+                active_mode: true,
+                ..Default::default()
+            },
+            caliptra_hw_model::BootParams::default(),
+        )
+        .unwrap();
+
+        // [TODO][CAP2] With wrong len mbox err 0 gets returned which is not right
+        let request = ProductionAuthDebugUnlockReq {
+            length: {
+                let req_len =
+                    size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>();
+                (req_len / size_of::<u32>()) as u32
+            },
+            unlock_level,
+            ..Default::default()
+        };
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ),
+            &request.as_bytes()[4..],
+        );
+        let request = ProductionAuthDebugUnlockReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..request
+        };
+        let resp = hw
+            .mailbox_execute(
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ.into(),
+                request.as_bytes(),
+            )
+            .unwrap()
+            .unwrap();
+
+        if unlock_level > 8 {
+            assert_eq!(resp.as_slice(), [0, 0, 0, 0, 0, 0, 0, 0]);
+            return;
+        }
+
+        let challenge =
+            ProductionAuthDebugUnlockChallenge::read_from_bytes(resp.as_slice()).unwrap();
+        let reserved = [0u8; 3];
+
+        let mut sha384 = sha2::Sha384::new();
+        sha384.update(challenge.unique_device_identifier);
+        sha384.update([unlock_level]);
+        sha384.update(reserved);
+        sha384.update(challenge.challenge);
+        let sha384_digest = sha384.finalize();
+        let (ecc_signature, _id) = signing_ecc_key
+            .sign_prehash_recoverable(sha384_digest.as_slice())
+            .unwrap();
+        let ecc_signature = ecc_signature.to_bytes();
+        let ecc_signature = ecc_signature.as_slice();
+        let ecc_signature = u8_to_u32_be(ecc_signature);
+
+        let mut sha512 = sha2::Sha512::new();
+        sha512.update(challenge.unique_device_identifier);
+        sha512.update([unlock_level]);
+        sha512.update(reserved);
+        sha512.update(challenge.challenge);
+        let mut sha512_digest = sha512.finalize();
+        let msg = {
+            let msg: &mut [u8] = sha512_digest.as_mut_slice();
+            msg.reverse();
+            msg
+        };
+
+        let mldsa_signature = signing_mldsa_key
+            .try_sign_with_seed(&[0; 32], msg, &[])
+            .unwrap();
+        let mldsa_signature = {
+            let mut sig = [0; 4628];
+            sig[..4627].copy_from_slice(&mldsa_signature);
+            sig.reverse();
+            u8_to_u32_be(&sig)
+        };
+
+        let token = ProductionAuthDebugUnlockToken {
+            length: {
+                let req_len =
+                    size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
+                (req_len / size_of::<u32>()) as u32
+            },
+            unique_device_identifier: challenge.unique_device_identifier,
+            unlock_level,
+            challenge: challenge.challenge,
+            ecc_public_key: ecc_pub_key.try_into().unwrap(),
+            mldsa_public_key: mldsa_pub_key.try_into().unwrap(),
+            ecc_signature: ecc_signature.try_into().unwrap(),
+            mldsa_signature: mldsa_signature.try_into().unwrap(),
+            ..Default::default()
+        };
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN),
+            &token.as_bytes()[4..],
+        );
+        let token = ProductionAuthDebugUnlockToken {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..token
+        };
+
+        let _ = hw
+            .mailbox_execute(
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN.into(),
+                token.as_bytes(),
+            )
+            .unwrap();
+
+        hw.step_until(|m| {
+            let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+            resp.prod_dbg_unlock_fail()
+        });
+        assert!(hw
+            .soc_ifc()
+            .ss_dbg_manuf_service_reg_rsp()
+            .read()
+            .prod_dbg_unlock_fail());
+    }
 }

@@ -1302,10 +1302,10 @@ pub struct ProductionAuthDebugUnlockToken {
     pub unlock_level: u8,                   // Debug unlock Level (1-8)
     pub reserved: [u8; 3],                  // Reserved
     pub challenge: [u8; 48],                // Random number
-    pub ecc_public_key: [u8; 96],           // ECC public key
-    pub mldsa_public_key: [u8; 2592],       // MLDSA public key
-    pub ecc_signature: [u8; 96], // ECC P-384 signature of the Message hashed using SHA2-384. R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
-    pub mldsa_signature: [u8; 4628], // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte).
+    pub ecc_public_key: [u32; 24],          // ECC public key
+    pub mldsa_public_key: [u32; 648],       // MLDSA public key
+    pub ecc_signature: [u32; 24], // ECC P-384 signature of the Message hashed using SHA2-384. R-Coordinate: Random Point (48 bytes) S-Coordinate: Proof (48 bytes)
+    pub mldsa_signature: [u32; 1157], // MLDSA signature of the Message hashed using SHA2-512. (4627 bytes + 1 Reserved byte).
 }
 impl Default for ProductionAuthDebugUnlockToken {
     fn default() -> Self {
@@ -1316,10 +1316,10 @@ impl Default for ProductionAuthDebugUnlockToken {
             unique_device_identifier: Default::default(),
             unlock_level: Default::default(),
             challenge: [0; 48],
-            ecc_public_key: [0; 96],
-            mldsa_public_key: [0; 2592],
-            ecc_signature: [0; 96],
-            mldsa_signature: [0; 4628],
+            ecc_public_key: [0; 24],
+            mldsa_public_key: [0; 648],
+            ecc_signature: [0; 24],
+            mldsa_signature: [0; 1157],
         }
     }
 }
