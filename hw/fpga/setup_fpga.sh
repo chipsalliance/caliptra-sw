@@ -11,6 +11,22 @@ function usage() {
     echo "usage: $0"
 }
 
+function disable_cpu_idle() {
+    for i in $(seq 0 1); do
+        cpu_sysfs=/sys/devices/system/cpu/cpu"$i"/cpuidle/state1/disable
+        echo 1 >"$cpu_sysfs"
+        echo "    |- cpu[$i]"
+
+        # verify options were set
+        while IFS= read -r line; do
+            if [[ "$line" -ne "1" ]]; then
+                echo "[-] error setting cpu[$i] into idle state"
+                exit 1
+            fi
+        done <"$cpu_sysfs"
+    done
+}
+
 function build_and_install_kernel_modules() {
 
     # io_module.ko
@@ -37,5 +53,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # main execution
+echo "[*] Disabling CPU idle for cpu 0-1"
+disable_cpu_idle
+
 echo "[*] Building and installing kernel modules"
 build_and_install_kernel_modules
