@@ -2020,29 +2020,29 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
 ### DPE leaf certificate definition
 
-| Field                          | Sub field    | Value                                                               |
-| ------------------------------ | ------------ | ------------------------------------------------------------------- |
-| Version                        | v3           | 2                                                                   |
-| Serial Number                  |              | First 20 bytes of sha256 hash of DPE Alias public key               |
-| Issuer Name                    | CN           | Caliptra Runtime Alias                                              |
-|                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key           |
-| Validity                       | notBefore    | notBefore from firmware manifest                                    |
-|                                | notAfter     | notAfter from firmware manifest                                     |
-| Subject Name                   | CN           | Caliptra DPE Leaf                                                   |
-|                                | serialNumber | SHA384 hash of Subject public key                                   |
-| Subject Public Key Info        | Algorithm    | ecdsa-with-SHA384                                                   |
-|                                | Parameters   | Named Curve = prime384v1                                            |
-|                                | Public Key   | DPE Alias Public Key value                                          |
-| Signature Algorithm Identifier | Algorithm    | ecdsa-with-SHA384                                                   |
-|                                | Parameters   | Named Curve = prime384v1                                            |
-| Signature Value                |              | Digital signature for the certificate                               |
-| KeyUsage                       | keyCertSign  | 1                                                                   |
-| Basic Constraints              | CA           | False                                                               |
-| Policy OIDs                    |              | id-tcg-kp-attestLoc                                                 |
-| tcg-dice-MultiTcbInfo\*        | FWIDs        | [0] "Journey" TCI Value                                             |
-|                                |              | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext. |
-|                                | Type         | 4-byte TYPE field of TCI node                                       |
-|                                | VendorInfo   | Locality of the caller (analog for Mailbox User). 0xFFFFFFFF for any measurements performed by Caliptra. |
+| Field                          | Sub field          | Value
+| -------------                  | ---------          | ---------
+| Version                        | v3                 | 2
+| Serial Number                  |                    | First 20 bytes of sha256 hash of DPE Alias public key
+| Issuer Name                    | CN                 | Caliptra Runtime Alias
+|                                | serialNumber       | First 20 bytes of sha384 hash of Runtime Alias public key
+| Validity                       | notBefore          | notBefore from firmware manifest
+|                                | notAfter           | notAfter from firmware manifest
+| Subject Name                   | CN                 | Caliptra DPE Leaf
+|                                | serialNumber       | SHA384 hash of Subject public key
+| Subject Public Key Info        | Algorithm          | ecdsa-with-SHA384
+|                                | Parameters         | Named Curve = prime384v1
+|                                | Public Key         | DPE Alias Public Key value
+| Signature Algorithm Identifier | Algorithm          | ecdsa-with-SHA384
+|                                | Parameters         | Named Curve = prime384v1
+| Signature Value                |                    | Digital signature for the certificate
+| KeyUsage                       | keyCertSign        | 1
+| Basic Constraints              | CA                 | False
+| Policy OIDs                    |                    | id-tcg-kp-attestLoc
+| tcg-dice-MultiTcbInfo\*        | FWIDs              | [0] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext
+|                                | IntegrityRegisters | [0] "Journey" TCI Value.
+|                                | Type               | 4-byte TYPE field of TCI node
+|                                | VendorInfo         | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.
