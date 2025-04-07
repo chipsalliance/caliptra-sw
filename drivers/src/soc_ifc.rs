@@ -117,7 +117,7 @@ impl SocIfc {
         let soc_ifc = self.soc_ifc.regs_mut();
         soc_ifc
             .cptra_flow_status()
-            .write(|w| w.idevid_csr_ready(true));
+            .modify(|w| w.idevid_csr_ready(true));
     }
 
     /// Set ready for firmware
@@ -127,7 +127,7 @@ impl SocIfc {
     /// * None
     pub fn flow_status_set_ready_for_firmware(&mut self) {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+        soc_ifc.cptra_flow_status().modify(|w| w.ready_for_fw(true));
     }
 
     /// Get 'ready for firmware' status

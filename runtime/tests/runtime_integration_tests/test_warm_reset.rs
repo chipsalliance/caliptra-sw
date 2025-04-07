@@ -213,16 +213,6 @@ fn test_mbox_idle_during_warm_reset() {
         ..Default::default()
     });
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
-    });
-
-    //if model.soc_ifc().cptra_fw_error_non_fatal().read()
-    //    == u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
-    //{
-    //    panic!("Did not expect RUNTIME_CMD_BUSY_DURING_WARM_RESET during warm reset!");
-    //}
-
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
     if model.soc_ifc().cptra_fw_error_non_fatal().read()
