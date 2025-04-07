@@ -32,6 +32,7 @@ fn check_jtag_accessible(
     );
 }
 
+#[test]
 fn jtag_locked() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 

@@ -68,6 +68,7 @@ fn gdb_mem_test<R>(
     }
 }
 
+#[test]
 fn gdb_test() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 
