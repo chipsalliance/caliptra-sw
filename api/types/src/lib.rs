@@ -231,6 +231,7 @@ pub struct Fuses {
     pub soc_stepping_id: u16,
     pub fuse_pqc_key_type: u32,
     pub manuf_dbg_unlock_token: [u32; 16],
+    pub debug_locked: bool,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -250,6 +251,7 @@ impl Default for Fuses {
             soc_stepping_id: Default::default(),
             fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
             manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN_HASH,
+            debug_locked: false,
         }
     }
 }

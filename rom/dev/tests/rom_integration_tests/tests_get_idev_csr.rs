@@ -3,7 +3,6 @@
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
 use caliptra_common::{
-    cprint, cprintln,
     mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader},
 };
 use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
@@ -27,6 +26,7 @@ fn test_get_ecc_csr() {
     let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
+            debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
@@ -81,6 +81,7 @@ fn test_get_csr_generate_csr_flag_not_set() {
     let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
+            debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
@@ -114,6 +115,7 @@ fn test_validate_csr_mac() {
     let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
+            debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
@@ -145,16 +147,6 @@ fn test_validate_csr_mac() {
 
         signer.sign_to_vec().unwrap()
     };
-
-    cprintln!("SW HMAC:");
-    for b in &hmac {
-        cprint!("{:02x}", *b);
-    }
-    cprintln!("");
-    cprintln!("HW HMAC:");
-    for i in 0..csr_envelop.csr_mac.len() {
-        cprint!("{:02x}", csr_envelop.csr_mac[i]);
-    }
 
     assert!(memcmp::eq(&hmac, &csr_envelop.csr_mac));
 }
