@@ -222,7 +222,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .write(|w| w.core_rst(true));
             }
             CommandId(OPCODE_HOLD_COMMAND_BUSY) => {
-                drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+                drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
                 write_response(&mut drivers.mbox, &[]);
             }
             _ => {

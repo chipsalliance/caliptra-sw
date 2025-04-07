@@ -138,11 +138,7 @@ fn test_mbox_busy_during_warm_reset() {
     // 0xE000_0000 == OPCODE_HOLD_COMMAND_BUSY
     model.start_mailbox_execute(0xE000_0000, &[]).unwrap();
 
-    assert!(!model
-        .soc_ifc()
-        .cptra_flow_status()
-        .read()
-        .mailbox_flow_done());
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
 
     // Perform warm reset
     model.warm_reset_flow(&Fuses {
@@ -155,7 +151,7 @@ fn test_mbox_busy_during_warm_reset() {
     // Wait for boot
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
-    assert!(!model
+    assert!(model
         .soc_ifc()
         .cptra_flow_status()
         .read()
