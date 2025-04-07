@@ -633,8 +633,7 @@ impl HmacSha {
                 KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
             Ok(data) => {
-                let key_size = self.key_len() * 4;
-                self.format_block(&data[..key_size.min(data.len())]);
+                self.format_block(data.as_bytes());
                 self.block_from_kv = true;
                 KeyReadStatus::ERROR::KV_SUCCESS.value
             }
