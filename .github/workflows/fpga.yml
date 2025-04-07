@@ -215,7 +215,7 @@ jobs:
       - name: Install kernel modules
         run: |
           sudo apt update
-          sudo apt install -y make gcc
+          sudo apt install -y make gcc openocd gdb-multiarch
           sudo ./hw/fpga/setup_fpga.sh
 
       - name: Execute tests
