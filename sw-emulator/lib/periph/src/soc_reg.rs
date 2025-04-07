@@ -406,11 +406,14 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().clear_secrets();
     }
 
-    // [TODO][CAP2] Rdl is not yet updated for UDS fuse controller 32/64 granularity bit (6)
     pub fn set_hw_config(&mut self, val: CptraHwConfigReadVal) {
         self.regs.borrow_mut().cptra_hw_config = ReadWriteRegister {
             reg: InMemoryRegister::<u32, HwConfig::Register>::new(val.into()),
         };
+    }
+
+    pub fn set_generic_input_wires(&mut self, val: &[u32; CPTRA_GENERIC_INPUT_WIRES_SIZE / 4]) {
+        self.regs.borrow_mut().cptra_generic_input_wires = *val;
     }
 
     pub fn set_uds_seed(&mut self, seed: &[u32; FUSE_UDS_SEED_SIZE / 4]) {

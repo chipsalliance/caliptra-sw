@@ -194,6 +194,9 @@ impl HwModel for ModelEmulated {
             .into(),
         );
 
+        let input_wires = (params.uds_granularity_64 as u32) << 31;
+        root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
+
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
             let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {

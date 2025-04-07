@@ -531,8 +531,8 @@ impl SocIfc {
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
-        let config_val: u32 = self.soc_ifc.regs().cptra_hw_config().read().into();
-        ((config_val >> 6) & 1) != 0
+        let config_val = self.soc_ifc.regs().cptra_generic_input_wires().read()[0];
+        (config_val >> 31 & 1) == 1
     }
 
     pub fn fuse_controller_base_addr(&self) -> u64 {
