@@ -282,9 +282,11 @@ impl ModelFpgaRealtime {
     }
     fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
         unsafe {
-            self.wrapper
-                .offset(FPGA_WRAPPER_GENERIC_INPUT_OFFSET)
-                .write_volatile(value);
+            for i in 0..2 {
+                self.wrapper
+                    .offset(FPGA_WRAPPER_GENERIC_INPUT_OFFSET + i)
+                    .write_volatile(value[i as usize]);
+            }
         }
     }
 
