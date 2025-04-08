@@ -498,7 +498,7 @@ impl HwModel for ModelFpgaRealtime {
                     .offset(FPGA_WRAPPER_VERSION_OFFSET)
                     .read_volatile()
             };
-            writeln!(m.output().logger(), "FPGA built from {fpga_version}")?;
+            writeln!(m.output().logger(), "FPGA built from {fpga_version:x}")?;
         } else {
             panic!("FPGA image invalid");
         }
