@@ -243,6 +243,8 @@ impl InitParams<'_> {
             rom_sha384: sha2::Sha384::digest(self.rom).into(),
             obf_key: self.cptra_obf_key,
             security_state: self.security_state,
+            hmac_csr_key: self.csr_hmac_key,
+            debug_locked: self.security_state.debug_locked(),
         }
     }
 }
@@ -250,14 +252,18 @@ impl InitParams<'_> {
 pub struct InitParamsSummary {
     rom_sha384: [u8; 48],
     obf_key: [u32; 8],
+    hmac_csr_key: [u32; 16],
     security_state: SecurityState,
+    debug_locked: bool,
 }
 impl std::fmt::Debug for InitParamsSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InitParamsSummary")
             .field("rom_sha384", &HexBytes(&self.rom_sha384))
             .field("obf_key", &HexSlice(&self.obf_key))
+            .field("hmac_csr_key", &HexSlice(&self.hmac_csr_key))
             .field("security_state", &self.security_state)
+            .field("debug_locked", &self.debug_locked)
             .finish()
     }
 }

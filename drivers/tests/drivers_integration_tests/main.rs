@@ -206,9 +206,7 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
     assert_eq!(vectors, DOE_TEST_VECTORS_DEBUG_MODE);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_not_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
     let mut model = caliptra_hw_model::new(
@@ -225,7 +223,6 @@ fn test_doe_when_debug_not_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
-
     assert_eq!(
         test_results,
         DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
@@ -301,39 +298,10 @@ fn test_generate_doe_vectors_when_debug_locked() {
         // in debug-locked mode, this defaults to 0
         keyvault_initial_word_value: 0x0000_0000,
     });
-    assert_eq!(
-        vectors.expected_test_results.hmac_uds_as_key_out_pub,
-        DOE_TEST_VECTORS
-            .expected_test_results
-            .hmac_uds_as_key_out_pub
-    );
-    assert_eq!(
-        vectors.expected_test_results.hmac_uds_as_data_out_pub,
-        DOE_TEST_VECTORS
-            .expected_test_results
-            .hmac_uds_as_data_out_pub
-    );
-    assert_eq!(
-        vectors
-            .expected_test_results
-            .hmac_field_entropy_as_key_out_pub,
-        DOE_TEST_VECTORS
-            .expected_test_results
-            .hmac_field_entropy_as_key_out_pub
-    );
-    assert_eq!(
-        vectors
-            .expected_test_results
-            .hmac_field_entropy_as_data_out_pub,
-        DOE_TEST_VECTORS
-            .expected_test_results
-            .hmac_field_entropy_as_data_out_pub
-    );
+    assert_eq!(vectors, DOE_TEST_VECTORS);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_locked() {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::DOE).unwrap();
     let mut model = caliptra_hw_model::new(
@@ -351,7 +319,6 @@ fn test_doe_when_debug_locked() {
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
     assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
-
     txn.respond_success();
     model.step_until_exit_success().unwrap();
 }

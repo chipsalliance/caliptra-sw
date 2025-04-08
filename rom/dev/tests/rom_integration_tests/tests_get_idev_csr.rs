@@ -106,9 +106,7 @@ fn test_get_csr_generate_csr_flag_not_set() {
     assert_eq!(expected_error, response.unwrap_err());
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_validate_csr_mac() {
     let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
         Fuses {
