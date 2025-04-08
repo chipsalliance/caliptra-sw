@@ -68,6 +68,7 @@ jobs:
       rom-version: "1.0"
       rom-logging: true
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_0-full-suite-etrng-nolog:
     name: FPGA Suite (1.0, etrng, nolog)
@@ -81,6 +82,7 @@ jobs:
       rom-version: "1.0"
       rom-logging: false
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_0-full-suite-itrng-log:
     name: FPGA Suite (1.0, itrng, log)
@@ -94,6 +96,7 @@ jobs:
       rom-version: "1.0"
       rom-logging: true
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_0-full-suite-itrng-nolog:
     name: FPGA Suite (1.0, itrng, nolog)
@@ -107,6 +110,7 @@ jobs:
       rom-version: "1.0"
       rom-logging: false
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_1-full-suite-etrng-log:
     name: FPGA Suite (1.1, etrng, log)
@@ -120,6 +124,7 @@ jobs:
       rom-version: "1.1"
       rom-logging: true
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_1-full-suite-etrng-nolog:
     name: FPGA Suite (1.1, etrng, nolog)
@@ -133,6 +138,7 @@ jobs:
       rom-version: "1.1"
       rom-logging: false
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_1-full-suite-itrng-log:
     name: FPGA Suite (1.1, itrng, log)
@@ -146,6 +152,7 @@ jobs:
       rom-version: "1.1"
       rom-logging: true
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-1_1-full-suite-itrng-nolog:
     name: FPGA Suite (1.1, itrng, nolog)
@@ -159,6 +166,7 @@ jobs:
       rom-version: "1.1"
       rom-logging: false
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-latest-full-suite-etrng-log:
     name: FPGA Suite (hw-latest, etrng, log)
@@ -171,6 +179,7 @@ jobs:
       hw-version: "latest"
       rom-logging: true
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-latest-full-suite-etrng-nolog:
     name: FPGA Suite (hw-latest, etrng, nolog)
@@ -183,6 +192,7 @@ jobs:
       hw-version: "latest"
       rom-logging: false
       fpga-itrng: false
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-latest-full-suite-itrng-log:
     name: FPGA Suite (hw-latest, itrng, log)
@@ -195,6 +205,7 @@ jobs:
       hw-version: "latest"
       rom-logging: true
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   fpga-latest-full-suite-itrng-nolog:
     name: FPGA Suite (hw-latest, itrng, nolog)
@@ -207,6 +218,7 @@ jobs:
       hw-version: "latest"
       rom-logging: false
       fpga-itrng: true
+      fpga-runs-on: '["caliptra-fpga-nightly"]'
 
   sw-emulator-hw-latest-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
