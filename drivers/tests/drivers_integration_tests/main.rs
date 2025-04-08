@@ -203,37 +203,10 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
         // In debug mode, this defaults to 0xaaaa_aaaa
         keyvault_initial_word_value: 0xaaaa_aaaa,
     });
-    assert_eq!(
-        vectors.expected_test_results.hmac_uds_as_key_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_uds_as_key_out_pub
-    );
-    assert_eq!(
-        vectors.expected_test_results.hmac_uds_as_data_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_uds_as_data_out_pub
-    );
-    assert_eq!(
-        vectors
-            .expected_test_results
-            .hmac_field_entropy_as_key_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_field_entropy_as_key_out_pub
-    );
-    assert_eq!(
-        vectors
-            .expected_test_results
-            .hmac_field_entropy_as_data_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_field_entropy_as_data_out_pub
-    );
+    assert_eq!(vectors, DOE_TEST_VECTORS_DEBUG_MODE);
 }
 
-//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_not_locked() {
@@ -252,34 +225,6 @@ fn test_doe_when_debug_not_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
-
-    assert_eq!(
-        test_results.hmac_uds_as_key_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_uds_as_key_out_pub
-    );
-
-    assert_eq!(
-        test_results.hmac_uds_as_data_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_uds_as_data_out_pub
-    );
-
-    assert_eq!(
-        test_results.hmac_field_entropy_as_key_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_field_entropy_as_key_out_pub
-    );
-
-    assert_eq!(
-        test_results.hmac_field_entropy_as_data_out_pub,
-        DOE_TEST_VECTORS_DEBUG_MODE
-            .expected_test_results
-            .hmac_field_entropy_as_data_out_pub
-    );
 
     assert_eq!(
         test_results,
@@ -386,7 +331,7 @@ fn test_generate_doe_vectors_when_debug_locked() {
     );
 }
 
-//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_doe_when_debug_locked() {
@@ -405,13 +350,7 @@ fn test_doe_when_debug_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from_bytes(txn.req.data.as_slice()).unwrap();
-
-    assert_eq!(
-        test_results.hmac_uds_as_key_out_pub,
-        DOE_TEST_VECTORS
-            .expected_test_results
-            .hmac_uds_as_key_out_pub
-    );
+    assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
 
     txn.respond_success();
     model.step_until_exit_success().unwrap();

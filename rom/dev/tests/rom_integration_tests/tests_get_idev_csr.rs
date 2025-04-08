@@ -2,9 +2,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
-use caliptra_common::{
-    mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader},
-};
+use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
 use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
@@ -108,7 +106,7 @@ fn test_get_csr_generate_csr_flag_not_set() {
     assert_eq!(expected_error, response.unwrap_err());
 }
 
-//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_validate_csr_mac() {
