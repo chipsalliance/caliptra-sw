@@ -16,9 +16,10 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmShaFinalResp, CmShaInitReq,
-    CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader,
-    MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES,
+    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
+    CmRandomGenerateResp, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
+    CmStatusResp, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE,
+    CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
@@ -390,6 +391,40 @@ impl Commands {
                 data_len: len as u32,
             },
             hash: digest,
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn random_generate(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmRandomGenerateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmRandomGenerateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        let size = cmd.size as usize;
+        if size > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let mut data = [0u8; MAX_CMB_DATA_SIZE];
+
+        for i in (0..data.len()).step_by(48) {
+            let rand: [u8; 48] = drivers.trng.generate()?.into();
+            let len = 48.min(data.len() - i);
+            data[i..i + len].copy_from_slice(&rand[..len]);
+        }
+
+        Ok(MailboxResp::CmRandomGenerate(CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize {
+                hdr: MailboxRespHeader::default(),
+                data_len: size as u32,
+            },
+            data,
         }))
     }
 }

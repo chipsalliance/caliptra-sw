@@ -81,6 +81,7 @@ impl CommandId {
     pub const CM_SHA_INIT: Self = Self(0x434D_5349); // "CMSI"
     pub const CM_SHA_UPDATE: Self = Self(0x434D_5355); // "CMSU"
     pub const CM_SHA_FINAL: Self = Self(0x434D_5346); // "CMSF"
+    pub const CM_RANDOM_GENERATE: Self = Self(0x434D_5247); // "CMRG"
 }
 
 impl From<u32> for CommandId {
@@ -186,6 +187,7 @@ pub enum MailboxResp {
     CmStatus(CmStatusResp),
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
+    CmRandomGenerate(CmRandomGenerateResp),
 }
 
 impl MailboxResp {
@@ -213,6 +215,7 @@ impl MailboxResp {
             MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial(),
         }
     }
 
@@ -240,6 +243,7 @@ impl MailboxResp {
             MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial_mut(),
         }
     }
 
@@ -303,6 +307,7 @@ pub enum MailboxReq {
     CmShaInit(CmShaInitReq),
     CmShaUpdate(CmShaUpdateReq),
     CmShaFinal(CmShaFinalReq),
+    CmRandomGenerate(CmRandomGenerateReq),
 }
 
 impl MailboxReq {
@@ -333,6 +338,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
+            MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -363,6 +369,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -393,6 +400,7 @@ impl MailboxReq {
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
+            MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
         }
     }
 
@@ -1676,6 +1684,36 @@ impl Default for CmShaFinalResp {
 }
 
 impl ResponseVarSize for CmShaFinalResp {}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CmRandomGenerateReq {
+    pub hdr: MailboxReqHeader,
+    pub size: u32,
+}
+
+impl Request for CmRandomGenerateReq {
+    const ID: CommandId = CommandId::CM_RANDOM_GENERATE;
+    type Resp = CmRandomGenerateResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmRandomGenerateResp {
+    pub hdr: MailboxRespHeaderVarSize,
+    pub data: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmRandomGenerateResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeaderVarSize::default(),
+            data: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl ResponseVarSize for CmRandomGenerateResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

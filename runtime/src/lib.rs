@@ -244,6 +244,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_SHA_INIT => cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes),
         CommandId::CM_SHA_UPDATE => cryptographic_mailbox::Commands::sha_update(drivers, cmd_bytes),
         CommandId::CM_SHA_FINAL => cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes),
+        CommandId::CM_RANDOM_GENERATE => {
+            cryptographic_mailbox::Commands::random_generate(drivers, cmd_bytes)
+        }
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
