@@ -65,13 +65,13 @@ impl<'a> From<&'a Array4x8> for AesKey<'a> {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum AesMode {
-    _ECB = 1 << 0,
-    _CBC = 1 << 1,
-    _CFB = 1 << 2,
-    _OFB = 1 << 4,
-    _CTR = 1 << 5,
-    GCM = 1 << 6,
-    _NONE = (1 << 7) - 1,
+    _Ecb = 1 << 0,
+    _Cbc = 1 << 1,
+    _Cfb = 1 << 2,
+    _Ofb = 1 << 4,
+    _Ctr = 1 << 5,
+    Gcm = 1 << 6,
+    _None = (1 << 7) - 1,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -105,6 +105,7 @@ pub struct Aes {
 // with the key split into two pieces that are XOR'd together.
 const MASK: u32 = 0x1234_5678;
 
+#[allow(clippy::too_many_arguments)]
 impl Aes {
     pub fn new(aes: AesReg) -> Self {
         Self { aes }
@@ -123,22 +124,24 @@ impl Aes {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_gcm_encrypt(
         &mut self,
+        trng: &mut Trng,
         iv: AesIv,
         key: AesKey,
         aad: &[u8],
         plaintext: &[u8],
         ciphertext: &mut [u8],
-        trng: &mut Trng,
         tag_size: usize,
     ) -> CaliptraResult<([u8; AES_IV_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
+        if tag_size > AES_BLOCK_SIZE_BYTES {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
+        }
         self.aes_256_gcm_op(
+            trng,
             iv,
             key,
             aad,
             plaintext,
             ciphertext,
-            trng,
-            tag_size,
             AesOperation::Encrypt,
         )
     }
@@ -148,48 +151,43 @@ impl Aes {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_gcm_decrypt(
         &mut self,
+        trng: &mut Trng,
         iv: &[u8; AES_IV_SIZE_BYTES],
         key: AesKey,
         aad: &[u8],
         ciphertext: &[u8],
         plaintext: &mut [u8],
-        trng: &mut Trng,
         tag: &[u8],
     ) -> CaliptraResult<()> {
         if tag.len() > AES_BLOCK_SIZE_BYTES {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
         let (_, _computed_tag) = self.aes_256_gcm_op(
+            trng,
             AesIv::from(iv),
             key,
             aad,
             ciphertext,
             plaintext,
-            trng,
-            tag.len(),
             AesOperation::Decrypt,
         )?;
         // TODO: check the tag
         Ok(())
     }
 
-    //#[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn aes_256_gcm_op(
         &mut self,
+        trng: &mut Trng,
         iv: AesIv,
         key: AesKey,
         aad: &[u8],
         input: &[u8],
         output: &mut [u8],
-        trng: &mut Trng,
-        tag_size: usize,
         op: AesOperation,
     ) -> CaliptraResult<([u8; AES_IV_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
         if input.len() > AES_MAX_DATA_SIZE || output.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
-        if tag_size > AES_BLOCK_SIZE_BYTES {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
         if input.len() > output.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
@@ -215,7 +213,7 @@ impl Aes {
             for _ in 0..2 {
                 aes.ctrl_shadowed().write(|w| {
                     w.key_len(AesKeyLen::_256 as u32)
-                        .mode(AesMode::GCM as u32)
+                        .mode(AesMode::Gcm as u32)
                         .operation(op as u32)
                 });
             }
@@ -293,7 +291,7 @@ impl Aes {
 
         // 11. Read out the tag.
         let mut tag_return = [0u8; AES_BLOCK_SIZE_BYTES];
-        self.read_data_block(&mut tag_return[..tag_size])?;
+        self.read_data_block(&mut tag_return)?;
 
         self.zeroize_internal();
         Ok((iv_return, tag_return))

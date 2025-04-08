@@ -111,12 +111,12 @@ impl CmStorage {
         let mut ciphertext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
         // Encrypt the CMK using the KEK
         let (iv, gcm_tag) = aes.aes_256_gcm_encrypt(
+            trng,
             AesIv::U96(kek_iv),
             AesKey::Split(&self.kek.0, &self.kek.1),
             &[],
             plaintext,
             &mut ciphertext[..],
-            trng,
             16,
         )?;
         Ok(EncryptedCmk {
