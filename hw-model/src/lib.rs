@@ -17,7 +17,7 @@ use std::{
 
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
-    DEFAULT_CPTRA_OBF_KEY,
+    DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY,
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
@@ -164,6 +164,9 @@ pub struct InitParams<'a> {
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
+    // The silicon csr hmac key passed to caliptra_top.
+    pub csr_hmac_key: [u32; 16],
+
     // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
     // peripheral).
     pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
@@ -218,6 +221,7 @@ impl Default for InitParams<'_> {
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
+            csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
             etrng_responses,
             trng_mode: Some(if cfg!(feature = "itrng") {
@@ -239,6 +243,8 @@ impl InitParams<'_> {
             rom_sha384: sha2::Sha384::digest(self.rom).into(),
             obf_key: self.cptra_obf_key,
             security_state: self.security_state,
+            hmac_csr_key: self.csr_hmac_key,
+            debug_locked: self.security_state.debug_locked(),
         }
     }
 }
@@ -246,14 +252,18 @@ impl InitParams<'_> {
 pub struct InitParamsSummary {
     rom_sha384: [u8; 48],
     obf_key: [u32; 8],
+    hmac_csr_key: [u32; 16],
     security_state: SecurityState,
+    debug_locked: bool,
 }
 impl std::fmt::Debug for InitParamsSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InitParamsSummary")
             .field("rom_sha384", &HexBytes(&self.rom_sha384))
             .field("obf_key", &HexSlice(&self.obf_key))
+            .field("hmac_csr_key", &HexSlice(&self.hmac_csr_key))
             .field("security_state", &self.security_state)
+            .field("debug_locked", &self.debug_locked)
             .finish()
     }
 }

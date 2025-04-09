@@ -15,7 +15,7 @@ use common::*;
 use zerocopy::IntoBytes;
 
 #[test]
-//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[cfg(all(
     not(feature = "test_env_immutable_rom"),
     not(feature = "fpga_realtime")

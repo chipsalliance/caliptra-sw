@@ -45,7 +45,10 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
      sudo apt install make gcc
      ```
    - Install rustup using Unix directions: https://rustup.rs/#
-   - Consider assigning a hostname for SSH access.
+   - [Optional] Assign a hostname for SSH access.
+   - [Optional] Save uboot environment variables to avoid the MAC being randomized each boot.
+     - When connected to the serial port interrupt uboot at the message "Hit any key to stop autoboot:  0"
+     - Issue 'saveenv' command to uboot, which creates an env file in the boot partition for use in subsequent boots.
 
 #### Serial port configuration: ####
 The USB Type-C connecter J207 provides UART and JTAG access to the board. The first UART connection should be for the PS.
@@ -93,6 +96,14 @@ This script provides a number of configuration options for features that can be 
  - Copy petalinux_project/images/linux/BOOT.BIN to the boot partition as boot1900.bin
    - If the Ubuntu image is booted, it will mount the boot partition at /boot/firmware/
    - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
+   ```shell
+   sudo su
+   cp BOOT.BIN /boot/firmware/boot1900.bin
+   reboot
+   ```
+- Verify the correct image is loaded
+   - fpga_magic (0xA4010000) contains 0x52545043.
+   - fpga_version (0xA4010004) contains the hash of the git HEAD commit.
 
 ### Running Caliptra tests from the FPGA: ###
 ```shell

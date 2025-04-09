@@ -21,6 +21,11 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
     0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
 ];
 
+pub const DEFAULT_CSR_HMAC_KEY: [u32; 16] = [
+    0x14552AD, 0x19550757, 0x50C602DD, 0x85DE4E9B, 0x815CC9EF, 0xBA81A35, 0x7A05D7C0, 0x7F5EFAEB,
+    0xF76DD9D2, 0x9E38197F, 0x4052537, 0x25B568F4, 0x432665F1, 0xD11D02A7, 0xBFB9279F, 0xA2EB96D7,
+];
+
 pub const DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN: [u32; 8] = [
     0x552c92d8, 0x7f732b79, 0xe5f31329, 0x7554e6cb, 0x6e015262, 0xa163e9ae, 0x3a754edd, 0x96f087f7,
 ];
@@ -226,6 +231,7 @@ pub struct Fuses {
     pub soc_stepping_id: u16,
     pub fuse_pqc_key_type: u32,
     pub manuf_dbg_unlock_token: [u32; 16],
+    pub debug_locked: bool,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -245,6 +251,7 @@ impl Default for Fuses {
             soc_stepping_id: Default::default(),
             fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
             manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN_HASH,
+            debug_locked: false,
         }
     }
 }

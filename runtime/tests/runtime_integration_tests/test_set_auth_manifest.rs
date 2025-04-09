@@ -376,7 +376,7 @@ fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
     set_manifest_command_execute(auth_manifest, None);
 }
 
-//TOOD: https://github.com/chipsalliance/caliptra-sw/issues/2070
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
 fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {

@@ -273,9 +273,9 @@ register_bitfields! [
         CLEAR OFFSET(2) NUMBITS(1) [],
         RSVD0 OFFSET(3) NUMBITS(1) [],
         RSVD1 OFFSET(4) NUMBITS(5) [],
-        USAGE OFFSET(9) NUMBITS(6) [],
-        LAST_DWORD OFFSET(15) NUMBITS(4) [],
-        RSVD OFFSET(19) NUMBITS(13) [],
+        USAGE OFFSET(9) NUMBITS(8) [],
+        LAST_DWORD OFFSET(17) NUMBITS(4) [],
+        RSVD OFFSET(21) NUMBITS(11) [],
     ],
 
     /// Clear Secrets Register Fields
