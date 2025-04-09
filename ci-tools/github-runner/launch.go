@@ -63,7 +63,6 @@ func GitHubRegisterRunner(ctx context.Context, client *github.Client, labels []s
 		if response != nil {
 			log.Printf("%+v\n", response.Body)
 		}
-		log.Printf("%+v\n", response.Body)
 		return RunnerInfo{}, err
 	}
 	return RunnerInfo{

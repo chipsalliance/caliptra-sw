@@ -1,14 +1,14 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
+use crate::{Drivers, PauserPrivileges};
 
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive_git::cfi_impl_fn;
 #[cfg(not(feature = "no-cfi"))]
-use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 
 use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
+    MailboxResp, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;

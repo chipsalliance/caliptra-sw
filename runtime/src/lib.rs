@@ -48,7 +48,6 @@ pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
-use caliptra_registers::mbox::enums::MboxFsmE;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
