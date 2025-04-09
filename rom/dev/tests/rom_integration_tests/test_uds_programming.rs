@@ -47,7 +47,7 @@ fn test_uds_programming_no_active_mode() {
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
-fn test_uds_programming_active_mode() {
+fn test_uds_programming_granularity_64bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
@@ -58,6 +58,7 @@ fn test_uds_programming_active_mode() {
             security_state,
             dbg_manuf_service,
             active_mode: true,
+            uds_granularity_64: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -76,7 +77,7 @@ fn test_uds_programming_active_mode() {
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
 #[test]
-fn test_uds_programming_active_mode_32() {
+fn test_uds_programming_granularity_32bit() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
     let dbg_manuf_service = *DbgManufServiceRegReq::default().set_uds_program_req(true);
