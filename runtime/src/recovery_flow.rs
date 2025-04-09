@@ -45,6 +45,8 @@ impl RecoveryFlow {
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
+            // need to make sure the device status is correct to load the next image
+            dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
 
             // download SoC manifest
             dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)
@@ -61,6 +63,8 @@ impl RecoveryFlow {
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
+            // need to make sure the device status is correct to load the next image
+            dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
             cprintln!("[rt] Uploading MCU firmware");
             let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
             cprintln!("[rt] Calculating MCU digest");

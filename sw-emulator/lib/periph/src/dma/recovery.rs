@@ -79,7 +79,6 @@ register_bitfields! [
     IndirectCtrl0 [
         CMS OFFSET(0) NUMBITS(8),
         RESET OFFSET(8) NUMBITS(1),
-
     ],
 
 
@@ -152,7 +151,7 @@ pub struct RecoveryRegisterInterface {
     #[register(offset = 0x50)]
     pub indirect_fifo_status_0: ReadOnlyRegister<u32, IndirectStatus::Register>,
     #[register(offset = 0x54)]
-    pub indirect_fifo_status_1: ReadOnlyRegister<u32>, // Write index
+    pub indirect_fifo_status_1: ReadWriteRegister<u32>, // Write index
     #[register(offset = 0x58)]
     pub indirect_fifo_status_2: ReadOnlyRegister<u32>, // Read index
     #[register(offset = 0x5c)]
@@ -207,7 +206,7 @@ impl RecoveryRegisterInterface {
             indirect_fifo_ctrl_0: ReadWriteRegister::new(0),
             indirect_fifo_ctrl_image_size: ReadWriteRegister::new(0),
             indirect_fifo_status_0: ReadOnlyRegister::new(0x1), // EMPTY=1
-            indirect_fifo_status_1: ReadOnlyRegister::new(0),
+            indirect_fifo_status_1: ReadWriteRegister::new(0),
             indirect_fifo_status_2: ReadOnlyRegister::new(0),
             indirect_fifo_status_3: ReadWriteRegister::new(0),
             indirect_fifo_status_4: ReadWriteRegister::new(0),
@@ -256,6 +255,33 @@ impl RecoveryRegisterInterface {
         let data = &image[range];
         self.indirect_fifo_status_2.reg.set(read_index + 1);
         Ok(u32::from_le_bytes(data.try_into().unwrap()))
+    }
+
+    pub fn indirect_fifo_data_write(&mut self, data: &[u8]) {
+        if self.cms_data.is_empty() {
+            println!("No image set in RRI");
+            return;
+        }
+        let image_index = ((self.recovery_status.reg.get() >> 4) & 0xf) as usize;
+        let Some(image) = self.cms_data.get_mut(image_index) else {
+            println!("Recovery image index out of bounds");
+            return;
+        };
+
+        let cms = self.indirect_fifo_ctrl_0.reg.read(IndirectCtrl0::CMS);
+        if cms != 0 {
+            println!("CMS {cms} not supported");
+            return;
+        }
+
+        let write_index = self.indirect_fifo_status_1.reg.get();
+        let address = (write_index * 4) as usize;
+        image.resize(address + data.len(), 0);
+        image[address..address + data.len()].copy_from_slice(data);
+        // head pointer must be aligned to 4 bytes at the end
+        self.indirect_fifo_status_1
+            .reg
+            .set(((address + data.len()).next_multiple_of(4) / 4) as u32);
     }
 
     pub fn indirect_fifo_ctrl_0_write(
@@ -337,6 +363,13 @@ impl RecoveryRegisterInterface {
         self.event_sender = Some(sender);
     }
 
+    fn read_max_bytes(payload: &[u8], max: usize) -> u32 {
+        let mut padded_payload = [0; 4];
+        let len = payload.len().min(max);
+        padded_payload[..len].copy_from_slice(&payload[0..len]);
+        u32::from_le_bytes(padded_payload)
+    }
+
     pub fn incoming_event(&mut self, event: Rc<Event>) {
         let sender = self
             .event_sender
@@ -356,6 +389,54 @@ impl RecoveryRegisterInterface {
                 // replace any existing image
                 self.cms_data[idx].clear();
                 self.cms_data[idx].extend_from_slice(image);
+            }
+            EventData::RecoveryBlockWrite {
+                source_addr: _,
+                target_addr: _,
+                command_code,
+                payload,
+            } => {
+                match command_code {
+                    RecoveryCommandCode::ProtCap => (),      // read-only
+                    RecoveryCommandCode::DeviceId => (),     // read-only
+                    RecoveryCommandCode::DeviceStatus => (), // read-only
+                    RecoveryCommandCode::DeviceReset => {
+                        self.device_reset.reg.set(Self::read_max_bytes(&payload, 3));
+                    }
+                    RecoveryCommandCode::RecoveryCtrl => {
+                        self.recovery_ctrl
+                            .reg
+                            .set(Self::read_max_bytes(&payload, 3));
+                    }
+                    RecoveryCommandCode::RecoveryStatus => (), // read-only,
+                    RecoveryCommandCode::HwStatus => (),       // read-only
+                    RecoveryCommandCode::IndirectCtrl => {
+                        // unsupported
+                        return;
+                    }
+                    RecoveryCommandCode::IndirectStatus => (), // read-only
+                    RecoveryCommandCode::IndirectData => {
+                        // not supported
+                        return;
+                    }
+                    RecoveryCommandCode::Vendor => {
+                        // not supported
+                        return;
+                    }
+                    RecoveryCommandCode::IndirectFifoCtrl => {
+                        if payload.len() < 6 {
+                            return;
+                        }
+                        let a = Self::read_max_bytes(&payload[0..2], 2);
+                        self.indirect_fifo_ctrl_0.reg.set(a);
+                        let size = u32::from_le_bytes(payload[2..6].try_into().unwrap());
+                        self.indirect_fifo_ctrl_image_size.reg.set(size);
+                    }
+                    RecoveryCommandCode::IndirectFifoStatus => (), // read-only
+                    RecoveryCommandCode::IndirectFifoData => {
+                        self.indirect_fifo_data_write(payload);
+                    }
+                }
             }
             EventData::RecoveryBlockReadRequest {
                 source_addr,
