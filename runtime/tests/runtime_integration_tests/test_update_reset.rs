@@ -546,7 +546,7 @@ fn test_key_ladder_max_svn() {
         ..Default::default()
     });
 
-    let resp = model.mailbox_execute(0xE000_0000, &[]).unwrap().unwrap();
+    let resp = model.mailbox_execute(0xF000_0000, &[]).unwrap().unwrap();
 
     let max = u16::from_le_bytes(resp.try_into().unwrap());
     assert_eq!(max as u32, MAX_SVN);
