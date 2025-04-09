@@ -65,7 +65,7 @@ impl UdsProgrammingFlow {
             seed[..12].copy_from_slice(&seed1.0);
             seed[12..16].copy_from_slice(&seed2.0[0..4]);
 
-            let uds_fuse_row_granularity_64: bool = env.soc_ifc.uds_fuse_row_granularity_64();
+            let uds_fuse_row_granularity_64 = env.soc_ifc.uds_fuse_row_granularity_64();
             let fuse_controller_base_addr = env.soc_ifc.fuse_controller_base_addr();
             let status_reg_addr = fuse_controller_base_addr + STATUS_REG_OFFSET;
             let direct_access_wdata_0_reg_addr =

@@ -55,7 +55,7 @@ const FPGA_WRAPPER_STATUS_OFFSET: isize = 0x000C / 4;
 const FPGA_WRAPPER_PAUSER_OFFSET: isize = 0x0010 / 4;
 const FPGA_WRAPPER_ITRNG_DIV_OFFSET: isize = 0x0014 / 4;
 const FPGA_WRAPPER_CYCLE_COUNT_OFFSET: isize = 0x0018 / 4;
-const _FPGA_WRAPPER_GENERIC_INPUT_OFFSET: isize = 0x0030 / 4;
+const FPGA_WRAPPER_GENERIC_INPUT_OFFSET: isize = 0x0030 / 4;
 const _FPGA_WRAPPER_GENERIC_OUTPUT_OFFSET: isize = 0x0038 / 4;
 // Secrets
 const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0040 / 4;
@@ -278,6 +278,15 @@ impl ModelFpgaRealtime {
             self.wrapper
                 .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
+        }
+    }
+    fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+        unsafe {
+            for i in 0..2 {
+                self.wrapper
+                    .offset(FPGA_WRAPPER_GENERIC_INPUT_OFFSET + i)
+                    .write_volatile(value[i as usize]);
+            }
         }
     }
 
@@ -508,6 +517,10 @@ impl HwModel for ModelFpgaRealtime {
         m.set_cptra_rst_b(false);
 
         writeln!(m.output().logger(), "new_unbooted")?;
+
+        // Set generic input wires.
+        let input_wires = [(params.uds_granularity_64 as u32) << 31, 0];
+        m.set_generic_input_wires(&input_wires);
 
         // Set Security State signal wires
         m.set_security_state(params.security_state);

@@ -155,6 +155,8 @@ pub struct InitParams<'a> {
 
     pub active_mode: bool,
 
+    pub uds_granularity_64: bool,
+
     // Keypairs for production debug unlock levels, from low to high
     // ECC384 and MLDSA87 keypairs
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
@@ -218,6 +220,7 @@ impl Default for InitParams<'_> {
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
             active_mode: false,
+            uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
