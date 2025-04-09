@@ -162,12 +162,16 @@ jobs:
 
       - name: ROM Makefile
         run: |
-          (cd rom/dev && make run)         
-         
+          (cd rom/dev && make run)
+
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
           git submodule update --init
           (cd hw-model/c-binding/examples && make run)
+
+      - name: Check that C Bindings don't need to be updated
+        run: |
+          git diff --exit-code -- hw-model/c-binding/include/caliptra_model.h
 
       - name: Caliptra C API Hwmodel Integration Test
         run: |
@@ -175,4 +179,4 @@ jobs:
       - name: DPE Verification Tests
         run: |
           (cd test/dpe_verification && make run)
-          
+
