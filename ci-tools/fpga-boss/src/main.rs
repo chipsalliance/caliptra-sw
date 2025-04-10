@@ -159,7 +159,10 @@ fn log_uart_until<R: BufRead>(lines: &mut Lines<R>, needle: &str) -> std::io::Re
                 if line.contains(needle) {
                     return Ok(());
                 }
-            }
+            },
+            Err(e) if e.kind() == ErrorKind::TimedOut => {
+                return Err(e);
+            },
             Err(e) => {
                 println!("UART error: {}", e);
             }
@@ -304,7 +307,7 @@ fn main_impl() -> anyhow::Result<()> {
             let mut fpga = get_fpga_ftdi()?;
             let mut sd_mux = get_sd_mux()?;
             let sd_dev_path = get_sd_dev_path()?;
-            loop {
+            'outer: loop {
                 println!("Putting FPGA into reset");
                 fpga.set_reset(FpgaReset::Reset)?;
                 sd_mux.set_target(SdMuxTarget::Host)?;
@@ -323,8 +326,9 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
+                const ONE_HOUR: u64 = 3_600;
                 let (uart_rx, mut uart_tx) =
-                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B)?;
+                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B, Some(Duration::from_secs(ONE_HOUR)))?;
 
                 println!("Taking FPGA out of reset");
                 sd_mux.set_target(SdMuxTarget::Dut)?;
@@ -332,10 +336,17 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?;
 
                 let mut uart_lines = BufReader::new(uart_rx).lines();
-                log_uart_until(
+                match log_uart_until(
                     &mut uart_lines,
                     "36668aa492b1c83cdd3ade8466a0153d --- Command input",
-                )?;
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to enter start-up!");
+                        continue 'outer;
+                    },
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
 
                 let command_args: Vec<_> =
                     sub_matches.get_many::<OsString>("CMD").unwrap().collect();
@@ -355,10 +366,17 @@ fn main_impl() -> anyhow::Result<()> {
                 uart_tx.write_all(&output.stdout)?;
                 uart_tx.write_all(b"\n")?;
 
-                log_uart_until(
+                match log_uart_until(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
-                )?;
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to complete tests!");
+                        continue 'outer;
+                    },
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
             }
         }
         _ => unreachable!(),
