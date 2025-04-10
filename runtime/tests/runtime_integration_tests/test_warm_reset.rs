@@ -136,7 +136,7 @@ fn test_mbox_busy_during_warm_reset() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     // 0xE000_0000 == OPCODE_HOLD_COMMAND_BUSY
-    model.start_mailbox_execute(0xE000_0000, &[]).unwrap();
+    model.mailbox_execute(0xE000_0000, &[]).unwrap();
 
     assert!(!model
         .soc_ifc()
@@ -153,13 +153,11 @@ fn test_mbox_busy_during_warm_reset() {
     });
 
     // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
-
-    assert!(!model
-        .soc_ifc()
-        .cptra_flow_status()
-        .read()
-        .mailbox_flow_done());
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
+    );
 }
 
 #[test]
@@ -213,14 +211,10 @@ fn test_mbox_idle_during_warm_reset() {
         ..Default::default()
     });
 
-    model.step_until(|m| {
-        if m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
-        {
-            panic!("Did not expect RUNTIME_CMD_BUSY_DURING_WARM_RESET during warm reset!");
-        }
-        m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
-    });
-
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+
+    assert_ne!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
+    );
 }
