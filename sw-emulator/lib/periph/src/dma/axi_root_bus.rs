@@ -144,7 +144,7 @@ impl AxiRootBus {
                             Device::MCU,
                             EventData::MemoryWrite {
                                 start_addr: (addr - Self::MCU_SRAM_OFFSET) as u32,
-                                data: val.to_be_bytes().to_vec(),
+                                data: val.to_le_bytes().to_vec(),
                             },
                         ))
                         .unwrap();
@@ -170,7 +170,7 @@ impl AxiRootBus {
             data,
         } = &event.event
         {
-            // we only access read responses from the MCU
+            // we only allow read responses from the MCU
             if event.src == Device::MCU {
                 self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
             }
