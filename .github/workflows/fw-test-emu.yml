@@ -34,6 +34,7 @@ jobs:
 
   build_and_test:
     runs-on: ubuntu-22.04
+    needs: versioned-checkout-build
 
     env:
       NEXTEST_VERSION: 0.9.63
@@ -75,9 +76,12 @@ jobs:
           # there is no hw version definition here because we are running in the emulator, so assume latest
           name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
 
+      - name: Debug List Downloads
+        run: |
+          ls -laR /tmp/caliptra-*
+
       - name: Run tests
         run: |
-          CALIPTRA_ARTIFACTS_PATH=caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
           export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
