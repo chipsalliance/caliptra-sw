@@ -7,85 +7,84 @@ use crate::FwId;
 
 pub fn rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
-        Ok("ROM") => &ROM,
-        Ok("ROM_WITHOUT_UART") => &ROM,
-        Ok("ROM_WITH_UART") => &ROM_WITH_UART,
+        Ok("ROM") | Ok("ROM_WITHOUT_UART") => &ROM,
+        Ok("ROM_WITH_UART") | Err(_) => &ROM_WITH_UART,
         Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
-        Err(_) => &ROM_WITH_UART,
     }
 }
 
-pub const ROM: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &[],
-};
+/// Define a firmware target by their features and crate names.
+///
+/// <div class="warning">The defined FwID struct is `pub`.</div>
+macro_rules! fwid {
+    ($name:ident, $crate_name:expr, $bin_name:expr, $features:expr) => {
+        pub const $name: FwId = FwId {
+            crate_name: $crate_name,
+            bin_name: $bin_name,
+            features: $features,
+        };
+    };
+}
 
-pub const ROM_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu"],
-};
+/// Define a firmware target by their features and crate names, with a base FwId.
+///
+/// <div class="warning">The defined FwID struct is `pub`.</div>
+macro_rules! fwid_base {
+    ($name:ident, $bin_name:expr, $base:expr) => {
+        pub const $name: FwId = FwId {
+            bin_name: $bin_name,
+            ..$base
+        };
+    };
+}
 
-pub const ROM_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
-};
-
-pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
-};
-
-pub const FMC_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu"],
-};
-
-pub const FMC_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc"],
-};
-
-pub const APP: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["fips_self_test"],
-};
-
-pub const APP_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test"],
-};
-
-pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks"],
-};
-
-pub const APP_WITH_UART_FPGA: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime"],
-};
-
-pub const APP_ZEROS: FwId = FwId {
-    crate_name: "caliptra-zeros",
-    bin_name: "caliptra-zeros",
-    features: &[],
-};
-
-pub const FMC_ZEROS: FwId = FwId {
-    crate_name: "caliptra-zeros",
-    bin_name: "caliptra-zeros",
-    features: &["fmc"],
-};
+fwid!(ROM, "caliptra-rom", "caliptra-rom", &[]);
+fwid!(ROM_WITH_UART, "caliptra-rom", "caliptra-rom", &["emu"]);
+fwid!(
+    ROM_FAKE_WITH_UART,
+    "caliptra-rom",
+    "caliptra-rom",
+    &["emu", "fake-rom"]
+);
+fwid!(
+    ROM_WITH_FIPS_TEST_HOOKS,
+    "caliptra-rom",
+    "caliptra-rom",
+    &["fips-test-hooks"]
+);
+fwid!(FMC_WITH_UART, "caliptra-fmc", "caliptra-fmc", &["emu"]);
+fwid!(
+    FMC_FAKE_WITH_UART,
+    "caliptra-fmc",
+    "caliptra-fmc",
+    &["emu", "fake-fmc"]
+);
+fwid!(
+    APP,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["fips_self_test"]
+);
+fwid!(
+    APP_WITH_UART,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test"]
+);
+fwid!(
+    APP_WITH_UART_FIPS_TEST_HOOKS,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test", "fips-test-hooks"]
+);
+fwid!(
+    APP_WITH_UART_FPGA,
+    "caliptra-runtime",
+    "caliptra-runtime",
+    &["emu", "fips_self_test", "fpga_realtime"]
+);
+fwid!(APP_ZEROS, "caliptra-zeros", "caliptra-zeros", &[]);
+fwid!(FMC_ZEROS, "caliptra-zeros", "caliptra-zeros", &["fmc"]);
 
 pub mod caliptra_builder_tests {
     use super::*;
@@ -106,60 +105,33 @@ pub mod hw_model_tests {
         features: &["emu"],
     };
 
-    pub const MAILBOX_RESPONDER: FwId = FwId {
-        bin_name: "mailbox_responder",
-        ..BASE_FWID
-    };
-
-    pub const MAILBOX_SENDER: FwId = FwId {
-        bin_name: "mailbox_sender",
-        ..BASE_FWID
-    };
-
-    pub const TEST_ICCM_BYTE_WRITE: FwId = FwId {
-        bin_name: "test_iccm_byte_write",
-        ..BASE_FWID
-    };
-
-    pub const TEST_ICCM_UNALIGNED_WRITE: FwId = FwId {
-        bin_name: "test_iccm_unaligned_write",
-        ..BASE_FWID
-    };
-
-    pub const TEST_ICCM_WRITE_LOCKED: FwId = FwId {
-        bin_name: "test_iccm_write_locked",
-        ..BASE_FWID
-    };
-
-    pub const TEST_INVALID_INSTRUCTION: FwId = FwId {
-        bin_name: "test_invalid_instruction",
-        ..BASE_FWID
-    };
-
-    pub const TEST_WRITE_TO_ROM: FwId = FwId {
-        bin_name: "test_write_to_rom",
-        ..BASE_FWID
-    };
-
-    pub const TEST_ICCM_DOUBLE_BIT_ECC: FwId = FwId {
-        bin_name: "test_iccm_double_bit_ecc",
-        ..BASE_FWID
-    };
-
-    pub const TEST_DCCM_DOUBLE_BIT_ECC: FwId = FwId {
-        bin_name: "test_dccm_double_bit_ecc",
-        ..BASE_FWID
-    };
-
-    pub const TEST_UNITIALIZED_READ: FwId = FwId {
-        bin_name: "test_uninitialized_read",
-        ..BASE_FWID
-    };
-
-    pub const TEST_PCR_EXTEND: FwId = FwId {
-        bin_name: "test_pcr_extend",
-        ..BASE_FWID
-    };
+    fwid_base!(MAILBOX_RESPONDER, "mailbox_responder", BASE_FWID);
+    fwid_base!(MAILBOX_SENDER, "mailbox_sender", BASE_FWID);
+    fwid_base!(TEST_ICCM_BYTE_WRITE, "test_iccm_byte_write", BASE_FWID);
+    fwid_base!(
+        TEST_ICCM_UNALIGNED_WRITE,
+        "test_iccm_unaligned_write",
+        BASE_FWID
+    );
+    fwid_base!(TEST_ICCM_WRITE_LOCKED, "test_iccm_write_locked", BASE_FWID);
+    fwid_base!(
+        TEST_INVALID_INSTRUCTION,
+        "test_invalid_instruction",
+        BASE_FWID
+    );
+    fwid_base!(TEST_WRITE_TO_ROM, "test_write_to_rom", BASE_FWID);
+    fwid_base!(
+        TEST_ICCM_DOUBLE_BIT_ECC,
+        "test_iccm_double_bit_ecc",
+        BASE_FWID
+    );
+    fwid_base!(
+        TEST_DCCM_DOUBLE_BIT_ECC,
+        "test_dccm_double_bit_ecc",
+        BASE_FWID
+    );
+    fwid_base!(TEST_UNITIALIZED_READ, "test_uninitialized_read", BASE_FWID);
+    fwid_base!(TEST_PCR_EXTEND, "test_pcr_extend", BASE_FWID);
 }
 
 pub mod driver_tests {
@@ -171,35 +143,16 @@ pub mod driver_tests {
         features: &["emu"],
     };
 
-    pub const DOE: FwId = FwId {
-        bin_name: "doe",
-        ..BASE_FWID
-    };
-
-    pub const ECC384: FwId = FwId {
-        bin_name: "ecc384",
-        ..BASE_FWID
-    };
-
-    pub const ECC384_SIGN_VALIDATION_FAILURE: FwId = FwId {
-        bin_name: "ecc384_sign_validation_failure",
-        ..BASE_FWID
-    };
-
-    pub const ERROR_REPORTER: FwId = FwId {
-        bin_name: "error_reporter",
-        ..BASE_FWID
-    };
-
-    pub const HMAC384: FwId = FwId {
-        bin_name: "hmac384",
-        ..BASE_FWID
-    };
-
-    pub const KEYVAULT: FwId = FwId {
-        bin_name: "keyvault",
-        ..BASE_FWID
-    };
+    fwid_base!(DOE, "doe", BASE_FWID);
+    fwid_base!(ECC384, "ecc384", BASE_FWID);
+    fwid_base!(
+        ECC384_SIGN_VALIDATION_FAILURE,
+        "ecc384_sign_validation_failure",
+        BASE_FWID
+    );
+    fwid_base!(ERROR_REPORTER, "error_reporter", BASE_FWID);
+    fwid_base!(HMAC384, "hmac384", BASE_FWID);
+    fwid_base!(KEYVAULT, "keyvault", BASE_FWID);
 
     pub const KEYVAULT_FPGA: FwId = FwId {
         bin_name: "keyvault",
@@ -207,110 +160,47 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
-    pub const MAILBOX_DRIVER_RESPONDER: FwId = FwId {
-        bin_name: "mailbox_driver_responder",
-        ..BASE_FWID
-    };
-
-    pub const MAILBOX_DRIVER_SENDER: FwId = FwId {
-        bin_name: "mailbox_driver_sender",
-        ..BASE_FWID
-    };
-
-    pub const MAILBOX_DRIVER_NEGATIVE_TESTS: FwId = FwId {
-        bin_name: "mailbox_driver_negative_tests",
-        ..BASE_FWID
-    };
-
-    pub const MBOX_SEND_TXN_DROP: FwId = FwId {
-        bin_name: "mbox_send_txn_drop",
-        ..BASE_FWID
-    };
-
-    pub const PCRBANK: FwId = FwId {
-        bin_name: "pcrbank",
-        ..BASE_FWID
-    };
-
-    pub const SHA1: FwId = FwId {
-        bin_name: "sha1",
-        ..BASE_FWID
-    };
-
-    pub const SHA256: FwId = FwId {
-        bin_name: "sha256",
-        ..BASE_FWID
-    };
-
-    pub const SHA384: FwId = FwId {
-        bin_name: "sha384",
-        ..BASE_FWID
-    };
-
-    pub const SHA2_512_384ACC: FwId = FwId {
-        bin_name: "sha2_512_384acc",
-        ..BASE_FWID
-    };
-
-    pub const STATUS_REPORTER: FwId = FwId {
-        bin_name: "status_reporter",
-        ..BASE_FWID
-    };
-
-    pub const TEST_LMS_24: FwId = FwId {
-        bin_name: "test_lms_24",
-        ..BASE_FWID
-    };
-
-    pub const TEST_LMS_32: FwId = FwId {
-        bin_name: "test_lms_32",
-        ..BASE_FWID
-    };
-
-    pub const TEST_NEGATIVE_LMS: FwId = FwId {
-        bin_name: "test_negative_lms",
-        ..BASE_FWID
-    };
-
-    pub const TEST_UART: FwId = FwId {
-        bin_name: "test_uart",
-        ..BASE_FWID
-    };
-
-    pub const CSRNG: FwId = FwId {
-        bin_name: "csrng",
-        ..BASE_FWID
-    };
-
-    pub const CSRNG2: FwId = FwId {
-        bin_name: "csrng2",
-        ..BASE_FWID
-    };
-
-    pub const CSRNG_PASS_HEALTH_TESTS: FwId = FwId {
-        bin_name: "csrng_pass_health_tests",
-        ..BASE_FWID
-    };
-
-    pub const CSRNG_FAIL_REPCNT_TESTS: FwId = FwId {
-        bin_name: "csrng_fail_repcnt_tests",
-        ..BASE_FWID
-    };
-
-    pub const CSRNG_FAIL_ADAPTP_TESTS: FwId = FwId {
-        bin_name: "csrng_fail_adaptp_tests",
-        ..BASE_FWID
-    };
-
-    pub const TRNG_DRIVER_RESPONDER: FwId = FwId {
-        bin_name: "trng_driver_responder",
-        ..BASE_FWID
-    };
-
-    pub const PERSISTENT: FwId = FwId {
-        bin_name: "persistent",
-        ..BASE_FWID
-    };
+    fwid_base!(
+        MAILBOX_DRIVER_RESPONDER,
+        "mailbox_driver_responder",
+        BASE_FWID
+    );
+    fwid_base!(MAILBOX_DRIVER_SENDER, "mailbox_driver_sender", BASE_FWID);
+    fwid_base!(
+        MAILBOX_DRIVER_NEGATIVE_TESTS,
+        "mailbox_driver_negative_tests",
+        BASE_FWID
+    );
+    fwid_base!(MBOX_SEND_TXN_DROP, "mbox_send_txn_drop", BASE_FWID);
+    fwid_base!(PCRBANK, "pcrbank", BASE_FWID);
+    fwid_base!(SHA1, "sha1", BASE_FWID);
+    fwid_base!(SHA256, "sha256", BASE_FWID);
+    fwid_base!(SHA384, "sha384", BASE_FWID);
+    fwid_base!(SHA2_512_384ACC, "sha2_512_384acc", BASE_FWID);
+    fwid_base!(STATUS_REPORTER, "status_reporter", BASE_FWID);
+    fwid_base!(TEST_LMS_24, "test_lms_24", BASE_FWID);
+    fwid_base!(TEST_LMS_32, "test_lms_32", BASE_FWID);
+    fwid_base!(TEST_NEGATIVE_LMS, "test_negative_lms", BASE_FWID);
+    fwid_base!(TEST_UART, "test_uart", BASE_FWID);
+    fwid_base!(CSRNG, "csrng", BASE_FWID);
+    fwid_base!(CSRNG2, "csrng2", BASE_FWID);
+    fwid_base!(
+        CSRNG_PASS_HEALTH_TESTS,
+        "csrng_pass_health_tests",
+        BASE_FWID
+    );
+    fwid_base!(
+        CSRNG_FAIL_REPCNT_TESTS,
+        "csrng_fail_repcnt_tests",
+        BASE_FWID
+    );
+    fwid_base!(
+        CSRNG_FAIL_ADAPTP_TESTS,
+        "csrng_fail_adaptp_tests",
+        BASE_FWID
+    );
+    fwid_base!(TRNG_DRIVER_RESPONDER, "trng_driver_responder", BASE_FWID);
+    fwid_base!(PERSISTENT, "persistent", BASE_FWID);
 }
 
 pub mod rom_tests {
@@ -322,40 +212,37 @@ pub mod rom_tests {
         features: &["emu"],
     };
 
-    pub const ASM_TESTS: FwId = FwId {
-        bin_name: "asm_tests",
-        ..BASE_FWID
-    };
-
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-    };
-
-    pub const TEST_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-rt",
-        bin_name: "caliptra-rom-test-rt",
-        features: &["emu"],
-    };
-
-    pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "fake-fmc"],
-    };
-
-    pub const TEST_FMC_INTERACTIVE: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-    };
-
-    pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc", "fake-fmc"],
-    };
+    fwid_base!(ASM_TESTS, "asm_tests", BASE_FWID);
+    fwid!(
+        TEST_FMC_WITH_UART,
+        "caliptra-rom-test-fmc",
+        "caliptra-rom-test-fmc",
+        &["emu"]
+    );
+    fwid!(
+        TEST_RT_WITH_UART,
+        "caliptra-rom-test-rt",
+        "caliptra-rom-test-rt",
+        &["emu"]
+    );
+    fwid!(
+        FAKE_TEST_FMC_WITH_UART,
+        "caliptra-rom-test-fmc",
+        "caliptra-rom-test-fmc",
+        &["emu", "fake-fmc"]
+    );
+    fwid!(
+        TEST_FMC_INTERACTIVE,
+        "caliptra-rom-test-fmc",
+        "caliptra-rom-test-fmc",
+        &["emu", "interactive_test_fmc"]
+    );
+    fwid!(
+        FAKE_TEST_FMC_INTERACTIVE,
+        "caliptra-rom-test-fmc",
+        "caliptra-rom-test-fmc",
+        &["emu", "interactive_test_fmc", "fake-fmc"]
+    );
 }
 
 pub mod runtime_tests {
@@ -367,25 +254,14 @@ pub mod runtime_tests {
         features: &["emu", "riscv", "runtime"],
     };
 
-    pub const BOOT: FwId = FwId {
-        bin_name: "boot",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const MBOX: FwId = FwId {
-        bin_name: "mbox",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const PERSISTENT_RT: FwId = FwId {
-        bin_name: "persistent_rt",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const MOCK_RT_INTERACTIVE: FwId = FwId {
-        bin_name: "mock_rt_interact",
-        ..RUNTIME_TEST_FWID_BASE
-    };
+    fwid_base!(BOOT, "boot", RUNTIME_TEST_FWID_BASE);
+    fwid_base!(MBOX, "mbox", RUNTIME_TEST_FWID_BASE);
+    fwid_base!(PERSISTENT_RT, "persistent_rt", RUNTIME_TEST_FWID_BASE);
+    fwid_base!(
+        MOCK_RT_INTERACTIVE,
+        "mock_rt_interact",
+        RUNTIME_TEST_FWID_BASE
+    );
 }
 
 pub const REGISTERED_FW: &[&FwId] = &[
