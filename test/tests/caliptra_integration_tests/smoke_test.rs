@@ -79,16 +79,16 @@ fn assert_output_contains_regex(haystack: &str, needle: &str) {
     }
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
-            security_state: *SecurityState::default().set_debug_locked(true),
+            security_state: *SecurityState::default()
+                .set_debug_locked(true)
+                .set_device_lifecycle(DeviceLifecycle::Manufacturing),
             ..Default::default()
         },
         BootParams {
