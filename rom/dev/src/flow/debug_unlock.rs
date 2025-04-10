@@ -296,11 +296,6 @@ fn handle_auth_debug_unlock_token(
             *n = n.to_be();
         }
 
-        // cprintln!("pub_keys_digest");
-        // for n in fuse_digest {
-        //     cprintln!("{}", n);
-        // }
-
         // Verify the fuse digest matches with the ECC and MLDSA public key digest.
         let fuse_digest = Array4x12::from(fuse_digest);
         if cfi_launder(pub_keys_digest) != fuse_digest {
@@ -311,11 +306,6 @@ fn handle_auth_debug_unlock_token(
         }
 
         // Verify that the Unique Device Identifier, Unlock Category and Challenge signature is valid.
-        // cprintln!("rom");
-        // for n in token.ecc_public_key.iter().take(4) {
-        //     cprintln!("{:x}", *n);
-        // }
-
         let pubkey = Ecc384PubKey {
             x: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_public_key[..12]).unwrap()),
             y: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_public_key[12..]).unwrap()),
