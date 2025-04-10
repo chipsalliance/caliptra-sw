@@ -156,7 +156,7 @@ pub struct InitParams<'a> {
     pub active_mode: bool,
 
     // Keypairs for production debug unlock levels, from low to high
-    // ECC384 and MLDSA87 keypairs
+    // ECC384 and MLDSA87 keypairs. Passed in hardware format.
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
     pub debug_intent: bool,
