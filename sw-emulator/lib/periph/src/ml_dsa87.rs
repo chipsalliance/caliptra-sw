@@ -399,6 +399,11 @@ impl Mldsa87 {
     }
 
     fn sign(&mut self, caller_provided: bool) {
+        // Check if PCR_SIGN is set
+        if self.control.reg.is_set(Control::PCR_SIGN) {
+            panic!("ML-DSA PCR Sign operation needs to be performed with KEYGEN_AND_SIGN option");
+        }
+
         let secret_key = if caller_provided {
             // Convert to library format.
             let mut privkey = bytes_from_words_be(&self.privkey_in);
