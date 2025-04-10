@@ -401,27 +401,22 @@ impl RecoveryRegisterInterface {
                     RecoveryCommandCode::DeviceId => (),     // read-only
                     RecoveryCommandCode::DeviceStatus => (), // read-only
                     RecoveryCommandCode::DeviceReset => {
-                        self.device_reset.reg.set(Self::read_max_bytes(&payload, 3));
+                        self.device_reset.reg.set(Self::read_max_bytes(payload, 3));
                     }
                     RecoveryCommandCode::RecoveryCtrl => {
-                        self.recovery_ctrl
-                            .reg
-                            .set(Self::read_max_bytes(&payload, 3));
+                        self.recovery_ctrl.reg.set(Self::read_max_bytes(payload, 3));
                     }
                     RecoveryCommandCode::RecoveryStatus => (), // read-only,
                     RecoveryCommandCode::HwStatus => (),       // read-only
                     RecoveryCommandCode::IndirectCtrl => {
                         // unsupported
-                        return;
                     }
                     RecoveryCommandCode::IndirectStatus => (), // read-only
                     RecoveryCommandCode::IndirectData => {
                         // not supported
-                        return;
                     }
                     RecoveryCommandCode::Vendor => {
                         // not supported
-                        return;
                     }
                     RecoveryCommandCode::IndirectFifoCtrl => {
                         if payload.len() < 6 {
