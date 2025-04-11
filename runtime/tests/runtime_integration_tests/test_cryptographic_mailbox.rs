@@ -3,12 +3,12 @@
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use caliptra_api::mailbox::{
     CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq, CmRandomGenerateResp,
-    CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
-    MailboxReq, MailboxResp, MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
+    CmStatusResp, CommandId, MailboxReq, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{HwModel, InitParams, TrngMode};
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384, Sha512};
 use zerocopy::{FromBytes, IntoBytes};
@@ -418,4 +418,121 @@ fn test_random_generate() {
                 != 0
         );
     }
+}
+
+#[test]
+fn test_random_stir_itrng() {
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: u32::MAX,
+        ..Default::default()
+    });
+    assert_eq!(
+        cm_random_stir.populate_chksum().unwrap_err(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+    );
+
+    // 0 bytes
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 0,
+        ..Default::default()
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    // 1 byte
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 1,
+        input: [0xff; MAX_CMB_DATA_SIZE],
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    // There's nothing we can really check other than success.
+    let _ =
+        MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+            hdr: MailboxReqHeader::default(),
+            input_size: req_len as u32,
+            input: [0xff; MAX_CMB_DATA_SIZE],
+        });
+        cm_random_stir.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_STIR),
+                cm_random_stir.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        // There's nothing we can really check other than success.
+        let _ = MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()])
+            .unwrap();
+    }
+}
+
+#[test]
+fn test_random_stir_etrng_not_supported() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
+        hdr: MailboxReqHeader::default(),
+        input_size: 0,
+        ..Default::default()
+    });
+    cm_random_stir.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_STIR),
+            cm_random_stir.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::DRIVER_TRNG_UPDATE_NOT_SUPPORTED,
+        err,
+    );
 }

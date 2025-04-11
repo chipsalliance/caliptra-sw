@@ -15,7 +15,9 @@ mod health_test;
 use health_test::HealthTester;
 
 mod ctr_drbg;
-use ctr_drbg::{Block, CtrDrbg, Instantiate, Seed};
+use ctr_drbg::{Block, CtrDrbg, Instantiate, Seed, SEED_LEN_BYTES};
+
+use crate::helpers::bytes_from_words_be;
 
 type Word = u32;
 
@@ -73,6 +75,7 @@ pub struct Csrng {
 
     cmd_req_state: CmdReqState,
     seed: Vec<u32>,
+    update: Vec<u32>,
     ctr_drbg: CtrDrbg,
     words: Words,
     health_tester: HealthTester,
@@ -98,8 +101,9 @@ impl Csrng {
             alert_fail_counts: ReadOnlyRegister::new(0),
             main_sm_state: ReadOnlyRegister::new(0x2c), // StartupHTStart, entropy_src_main_sm_pkg.sv
 
-            cmd_req_state: CmdReqState::ExpectNewCommand,
+            cmd_req_state: CmdReqState::NewCommand,
             seed: vec![],
+            update: vec![],
             ctr_drbg: CtrDrbg::new(),
             words: Words::default(),
             health_tester: HealthTester::new(itrng_nibbles),
@@ -111,14 +115,26 @@ impl Csrng {
         // supply words to an existing command, we need to track which "state"
         // we're in for this register and branch accordingly.
         match self.cmd_req_state {
-            CmdReqState::ExpectNewCommand => self.process_new_cmd(data),
+            CmdReqState::NewCommand => self.process_new_cmd(data),
 
-            CmdReqState::ExpectSeedWords { num_words } => {
+            CmdReqState::SeedWords { num_words } => {
                 self.seed.push(data);
                 if self.seed.len() == num_words {
                     self.ctr_drbg.instantiate(Instantiate::Words(&self.seed));
                     self.seed.clear();
-                    self.cmd_req_state = CmdReqState::ExpectNewCommand;
+                    self.cmd_req_state = CmdReqState::NewCommand;
+                }
+            }
+
+            CmdReqState::UpdateWords { num_words } => {
+                self.update.push(data);
+                if self.update.len() == num_words {
+                    let seed32: [u32; SEED_LEN_BYTES / 4] =
+                        self.update.as_slice().try_into().unwrap();
+                    let seed = bytes_from_words_be(&seed32);
+                    self.ctr_drbg.update(seed);
+                    self.update.clear();
+                    self.cmd_req_state = CmdReqState::NewCommand;
                 }
             }
         }
@@ -216,6 +232,7 @@ impl Csrng {
     fn process_new_cmd(&mut self, data: RvData) {
         const INSTANTIATE: u32 = 1;
         const GENERATE: u32 = 3;
+        const UPDATE: u32 = 4;
         const UNINSTANTIATE: u32 = 5;
 
         let acmd = data & 0xf;
@@ -244,7 +261,7 @@ impl Csrng {
                     }
 
                     [TRUE, _] => {
-                        self.cmd_req_state = CmdReqState::ExpectSeedWords {
+                        self.cmd_req_state = CmdReqState::SeedWords {
                             num_words: clen as usize,
                         };
                     }
@@ -259,6 +276,12 @@ impl Csrng {
 
             UNINSTANTIATE => {
                 self.ctr_drbg.uninstantiate();
+            }
+
+            UPDATE => {
+                self.cmd_req_state = CmdReqState::UpdateWords {
+                    num_words: SEED_LEN_BYTES / 4,
+                };
             }
 
             _ => {
@@ -351,8 +374,9 @@ impl ExactSizeIterator for Words {
 }
 
 enum CmdReqState {
-    ExpectNewCommand,
-    ExpectSeedWords { num_words: usize },
+    NewCommand,
+    SeedWords { num_words: usize },
+    UpdateWords { num_words: usize },
 }
 
 #[repr(u32)]

@@ -1516,6 +1516,11 @@ impl CaliptraError {
             "SOC_IFC driver Error: Invalid timer config"
         ),
         (
+            DRIVER_TRNG_UPDATE_NOT_SUPPORTED,
+            0x00100003,
+            "TRNG_EXT Error: Update not supported"
+        ),
+        (
             ADDRESS_MISALIGNED,
             0x00110000,
             "Bounded address Error: Misaligned"

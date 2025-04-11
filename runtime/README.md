@@ -998,6 +998,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
 | measurement | u8[48]   | Digest of the image requested for authorization |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
+| svn         | u32      | The version of the image |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
 | source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
 
@@ -1596,7 +1597,7 @@ Command Code: `0x434D_4546` ("CMEF")
 
 ### CM_RANDOM_STIR
 
-This allows additional entropy to be added to the underlying deterministic random bit generator.
+This allows additional entropy to be added to the underlying deterministic random bit generator, if the hardware is using a CSRNG DRBG.
 
 Command Code: `0x434D_5253` ("CMRS")
 
