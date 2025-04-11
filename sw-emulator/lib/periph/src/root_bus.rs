@@ -214,7 +214,7 @@ pub struct CaliptraRootBusArgs<'a> {
     // The security state wires provided to caliptra_top
     pub security_state: SecurityState,
     pub dbg_manuf_service_req: DbgManufServiceRegReq,
-    pub active_mode: bool,
+    pub subsystem_mode: bool,
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
     pub debug_intent: bool,
 
@@ -239,7 +239,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             log_dir: Default::default(),
             security_state: Default::default(),
             dbg_manuf_service_req: Default::default(),
-            active_mode: false,
+            subsystem_mode: false,
             prod_dbg_unlock_keypairs: vec![],
             debug_intent: false,
             tb_services_cb: Default::default(),

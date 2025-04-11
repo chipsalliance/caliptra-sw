@@ -522,7 +522,7 @@ impl SocIfc {
         self.soc_ifc.regs().ss_uds_seed_base_addr_l().read()
     }
 
-    pub fn active_mode(&self) -> bool {
+    pub fn subsystem_mode(&self) -> bool {
         self.soc_ifc
             .regs()
             .cptra_hw_config()

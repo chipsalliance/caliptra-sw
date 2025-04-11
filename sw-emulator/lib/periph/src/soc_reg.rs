@@ -304,7 +304,7 @@ register_bitfields! [
         DEBUG_INTENT OFFSET(0) NUMBITS(1) [],
     ],
 
-    /// SubSytem Debug Manufacturing Service Request Register
+    /// Subsystem Debug Manufacturing Service Request Register
     SsDbgManufServiceRegReq [
         MANUF_DBG_UNLOCK_REQ OFFSET(0) NUMBITS(1) [],
         PROD_DBG_UNLOCK_REQ OFFSET(1) NUMBITS(1) [],
@@ -312,7 +312,7 @@ register_bitfields! [
         RSVD OFFSET(3) NUMBITS(29) [],
     ],
 
-    /// SubSytem Debug Manufacturing Service Response Register
+    /// Subsystem Debug Manufacturing Service Response Register
     SsDbgManufServiceRegRsp [
         MANUF_DBG_UNLOCK_SUCCESS OFFSET(0) NUMBITS(1) [],
         MANUF_DBG_UNLOCK_FAIL OFFSET(1) NUMBITS(1) [],
@@ -879,7 +879,7 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
-    const CALIPTRA_HW_CONFIG_ACTIVE_MODE: u32 = 1 << 5;
+    const CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE: u32 = 1 << 5;
 
     pub fn new(
         clock: &Clock,
@@ -928,8 +928,8 @@ impl SocRegistersImpl {
             cptra_generic_output_wires: Default::default(),
             cptra_hw_rev_id: ReadOnlyRegister::new(0x02), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
-            cptra_hw_config: ReadWriteRegister::new(if args.active_mode {
-                Self::CALIPTRA_HW_CONFIG_ACTIVE_MODE
+            cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
+                Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
             } else {
                 0
             }),

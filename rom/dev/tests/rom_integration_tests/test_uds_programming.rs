@@ -28,7 +28,7 @@ fn test_uds_programming_no_active_mode() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            active_mode: false,
+            subsystem_mode: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -57,7 +57,7 @@ fn test_uds_programming_granularity_64bit() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            active_mode: true,
+            subsystem_mode: true,
             uds_granularity_64: true,
             ..Default::default()
         },
@@ -87,7 +87,7 @@ fn test_uds_programming_granularity_32bit() {
             rom: &rom,
             security_state,
             dbg_manuf_service,
-            active_mode: true,
+            subsystem_mode: true,
             uds_granularity_64: false,
             ..Default::default()
         },

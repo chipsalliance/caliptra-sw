@@ -1606,7 +1606,7 @@ impl CaliptraError {
             "Firmware Processor Error: Mailbox get IDevID CSR unprovisioned CSR"
         ),
         (
-            FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE,
+            FW_PROC_MAILBOX_FW_LOAD_CMD_IN_SUBSYSTEM_MODE,
             0x0102000B,
             "Firmware Processor Error: Mailbox FW load command in active mode"
         ),
