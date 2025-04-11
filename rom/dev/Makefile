@@ -188,7 +188,7 @@ run-active: build-emu build-fw-image build-rom
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle $(DEVICE_LIFECYCLE) \
-		--active-mode \
+		--subsystem-mode \
 		--pqc-key-type $(PQC_KEY_TYPE) \
 		$(if $(filter production manufacturing,$(DEVICE_LIFECYCLE)),--mfg-pk-hash \
 			$$(dd if=$(TARGET_DIR)/caliptra-rom-test-fw bs=1 skip=12 count=1736 status=none | sha384sum | cut -d' ' -f1),)

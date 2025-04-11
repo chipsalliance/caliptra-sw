@@ -169,7 +169,7 @@ impl Drivers {
             ResetReason::ColdReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::ColdReset);
                 Self::initialize_dpe(self)?;
-                if self.soc_ifc.active_mode() {
+                if self.soc_ifc.subsystem_mode() {
                     RecoveryFlow::recovery_flow(self)?;
                 }
             }

@@ -153,7 +153,7 @@ pub struct InitParams<'a> {
 
     pub dbg_manuf_service: DbgManufServiceRegReq,
 
-    pub active_mode: bool,
+    pub subsystem_mode: bool,
 
     pub uds_granularity_64: bool,
 
@@ -219,7 +219,7 @@ impl Default for InitParams<'_> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             dbg_manuf_service: Default::default(),
-            active_mode: false,
+            subsystem_mode: false,
             uds_granularity_64: true,
             prod_dbg_unlock_keypairs: Default::default(),
             debug_intent: false,
@@ -641,13 +641,17 @@ pub trait HwModel: SocManager {
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
             self.cover_fw_mage(fw_image);
-            let active_mode = self.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
+            let subsystem_mode = self.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
             writeln!(
                 self.output().logger(),
                 "mode {}",
-                if active_mode { "active" } else { "passive" }
+                if subsystem_mode {
+                    "subsystem"
+                } else {
+                    "passive"
+                }
             )?;
-            if active_mode {
+            if subsystem_mode {
                 self.upload_firmware_rri(
                     fw_image,
                     boot_params.soc_manifest,

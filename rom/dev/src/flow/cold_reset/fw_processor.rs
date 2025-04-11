@@ -202,7 +202,7 @@ impl FirmwareProcessor {
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<(ManuallyDrop<MailboxRecvTxn<'a>>, u32)> {
         let mut self_test_in_progress = false;
-        let active_mode = soc_ifc.active_mode();
+        let subsystem_mode = soc_ifc.subsystem_mode();
 
         cprintln!("[fwproc] Wait for Commands...");
         loop {
@@ -221,8 +221,8 @@ impl FirmwareProcessor {
 
                 // Handle FW load as a separate case due to the re-borrow explained below
                 if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
-                    if active_mode {
-                        Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_ACTIVE_MODE)?;
+                    if subsystem_mode {
+                        Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_SUBSYSTEM_MODE)?;
                     }
 
                     // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
@@ -364,7 +364,7 @@ impl FirmwareProcessor {
                         txn.send_response(resp.as_bytes())?;
                     }
                     CommandId::RI_DOWNLOAD_FIRMWARE => {
-                        if !active_mode {
+                        if !subsystem_mode {
                             cprintln!(
                                 "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
                             );
@@ -458,13 +458,13 @@ impl FirmwareProcessor {
         let dma = venv.dma;
         let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
         let mci_base_addr = venv.soc_ifc.mci_base_addr().into();
-        let active_mode = venv.soc_ifc.active_mode();
+        let subsystem_mode = venv.soc_ifc.subsystem_mode();
 
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset);
 
-        // If running in active mode, set the recovery status.
-        if active_mode {
+        // If running in subsystem mode, set the recovery status.
+        if subsystem_mode {
             let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
 
             // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
@@ -610,7 +610,7 @@ impl FirmwareProcessor {
     ///
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
-    /// * `active_mode` - Indicates if ROM is running in the Active mode
+    /// * `subsystem_mode` - Indicates if ROM is running in the Subsystem mode
     // Inlined to reduce ROM size
     #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]

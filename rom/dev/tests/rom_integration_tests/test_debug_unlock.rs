@@ -36,7 +36,7 @@ fn test_dbg_unlock_manuf_passive_mode() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            active_mode: false,
+            subsystem_mode: false,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -87,7 +87,7 @@ fn test_dbg_unlock_manuf() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -147,7 +147,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -195,7 +195,7 @@ fn test_dbg_unlock_manuf_invalid_token() {
             security_state,
             dbg_manuf_service,
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -270,7 +270,7 @@ fn test_dbg_unlock_prod() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_reversed)],
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -414,7 +414,7 @@ fn test_dbg_unlock_prod_invalid_length() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -487,7 +487,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
             security_state,
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
-            active_mode: true,
+            subsystem_mode: true,
             debug_intent: true,
             ..Default::default()
         },
@@ -611,7 +611,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_reversed)],
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -761,7 +761,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
@@ -877,7 +877,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
             dbg_manuf_service,
             prod_dbg_unlock_keypairs: vec![(&ecc_pub_key_bytes, &mldsa_pub_key_bytes)],
             debug_intent: true,
-            active_mode: true,
+            subsystem_mode: true,
             ..Default::default()
         },
         caliptra_hw_model::BootParams::default(),
