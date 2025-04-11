@@ -40,8 +40,8 @@ impl UdsProgrammingFlow {
 
         cprintln!("[uds] ++");
 
-        // Check if ROM is running in Active mode.
-        if !env.soc_ifc.active_mode() {
+        // Check if ROM is running in Subsystem mode.
+        if !env.soc_ifc.subsystem_mode() {
             cprintln!("[uds] ROM is not in Active mode.");
             Err(CaliptraError::ROM_UDS_PROG_IN_PASSIVE_MODE)?;
         }

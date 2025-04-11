@@ -174,7 +174,7 @@ impl HwModel for ModelEmulated {
             }),
             security_state: params.security_state,
             dbg_manuf_service_req: params.dbg_manuf_service,
-            active_mode: params.active_mode,
+            subsystem_mode: params.subsystem_mode,
             prod_dbg_unlock_keypairs: params.prod_dbg_unlock_keypairs,
             debug_intent: params.debug_intent,
             cptra_obf_key: params.cptra_obf_key,
@@ -190,7 +190,7 @@ impl HwModel for ModelEmulated {
             (match trng_mode {
                 TrngMode::Internal => 1,
                 TrngMode::External => 0,
-            } | if params.active_mode { 1 << 5 } else { 0 })
+            } | if params.subsystem_mode { 1 << 5 } else { 0 })
             .into(),
         );
 

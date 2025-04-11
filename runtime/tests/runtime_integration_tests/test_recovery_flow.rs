@@ -35,7 +35,7 @@ fn test_loads_mcu_fw() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
-        active_mode: true,
+        subsystem_mode: true,
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);
@@ -78,7 +78,7 @@ fn test_mcu_fw_bad_signature() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     args.init_params = Some(InitParams {
         rom: &rom,
-        active_mode: true,
+        subsystem_mode: true,
         ..Default::default()
     });
     args.soc_manifest = Some(soc_manifest);

@@ -166,7 +166,7 @@ fn main() -> io::Result<()> {
                 .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
         )
         .arg(
-            arg!(--"active-mode" ... "Active mode: get image update via recovery register interface")
+            arg!(--"subsystem-mode" ... "Subsystem mode: get image update via recovery register interface")
                 .required(false)
                 .action(ArgAction::SetTrue)
         )
@@ -281,7 +281,7 @@ fn main() -> io::Result<()> {
         },
     );
 
-    let active_mode = args.get_flag("active-mode");
+    let subsystem_mode = args.get_flag("subsystem-mode");
 
     // Clippy seems wrong about this clone not being necessary
     #[allow(clippy::redundant_clone)]
@@ -294,7 +294,7 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
-        ready_for_fw_cb: if active_mode {
+        ready_for_fw_cb: if subsystem_mode {
             ReadyForFwCb::new(move |args| {
                 args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
                     issue_ri_download_fw_mbox_cmd(mailbox)
@@ -321,13 +321,13 @@ fn main() -> io::Result<()> {
                 download_idev_id_csr(mailbox, log_dir.clone(), cptra_dbg_manuf_service_reg);
             },
         ),
-        active_mode,
+        subsystem_mode,
         ..Default::default()
     };
 
     let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
     // Populate the RRI data
-    if active_mode {
+    if subsystem_mode {
         root_bus.dma.axi.recovery.cms_data = vec![current_fw_buf.as_ref().clone()];
     }
 
