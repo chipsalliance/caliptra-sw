@@ -4,7 +4,9 @@ use crate::common::{
     execute_dpe_cmd, generate_test_x509_cert, run_rt_test, DpeResult, RuntimeTestArgs,
 };
 use caliptra_api::SocManager;
-use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq};
+use caliptra_common::mailbox_api::{
+    CommandId, MailboxReq, MailboxReqHeader, PopulateIdevEcc384CertReq,
+};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
@@ -88,10 +90,10 @@ fn test_populate_idev_cert_cmd() {
 
     // copy der encoded idev cert
     let cert_bytes = cert.to_der().unwrap();
-    let mut cert_slice = [0u8; PopulateIdevCertReq::MAX_CERT_SIZE];
+    let mut cert_slice = [0u8; PopulateIdevEcc384CertReq::MAX_CERT_SIZE];
     cert_slice[..cert_bytes.len()].copy_from_slice(&cert_bytes);
 
-    let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq {
+    let mut pop_idev_cmd = MailboxReq::PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq {
         hdr: MailboxReqHeader { chksum: 0 },
         cert_size: cert_bytes.len() as u32,
         cert: cert_slice,
@@ -134,10 +136,10 @@ fn test_populate_idev_cert_cmd() {
 #[test]
 fn test_populate_idev_cert_size_too_big() {
     // Test with cert_size too big.
-    let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq {
+    let mut pop_idev_cmd = MailboxReq::PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        cert_size: PopulateIdevCertReq::MAX_CERT_SIZE as u32 + 1,
-        cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
+        cert_size: PopulateIdevEcc384CertReq::MAX_CERT_SIZE as u32 + 1,
+        cert: [0u8; PopulateIdevEcc384CertReq::MAX_CERT_SIZE],
     });
     assert_eq!(
         pop_idev_cmd.populate_chksum(),
