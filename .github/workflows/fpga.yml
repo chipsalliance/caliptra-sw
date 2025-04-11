@@ -120,7 +120,7 @@ jobs:
       - name: Build modules
         run: |
           SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          KERNEL=5.15.0-1015-xilinx-zynqmp
+          KERNEL=5.15.0-1020-xilinx-zynqmp
           sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
           sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
           sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
