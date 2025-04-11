@@ -515,9 +515,7 @@ impl Commands {
         let mut cmd = CmRandomStirReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
-        let size = (cmd.input_size as usize)
-            .next_multiple_of(MAX_SEED_WORDS * 4)
-            .min(MAX_CMB_DATA_SIZE);
+        let size = (cmd.input_size as usize).next_multiple_of(MAX_SEED_WORDS * 4);
         if size > MAX_CMB_DATA_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
