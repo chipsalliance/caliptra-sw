@@ -249,7 +249,6 @@ impl ModelFpgaRealtime {
                     .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
-            val.set_debug_intent(value as u32);
             val.set_cptra_rst_b(value as u32);
             self.wrapper
                 .offset(FPGA_WRAPPER_CONTROL_OFFSET)
@@ -279,6 +278,19 @@ impl ModelFpgaRealtime {
             );
             val.set_cptra_obf_uds_seed_vld(value as u32);
             val.set_cptra_obf_field_entropy_vld(value as u32);
+            self.wrapper
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                .write_volatile(val.0);
+        }
+    }
+    fn set_debug_intent(&mut self, value: bool) {
+        unsafe {
+            let mut val = WrapperControl(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                    .read_volatile(),
+            );
+            val.set_debug_intent(value as u32);
             self.wrapper
                 .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
@@ -528,6 +540,9 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set Security State signal wires
         m.set_security_state(params.security_state);
+
+        // @Vishal set this to something more interesting
+        m.set_debug_intent(true);
 
         // Set initial PAUSER
         m.set_axi_user(DEFAULT_AXI_PAUSER);
