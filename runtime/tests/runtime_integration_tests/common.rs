@@ -7,7 +7,7 @@ use caliptra_builder::{
 };
 use caliptra_common::{
     mailbox_api::{
-        CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
+        CommandId, GetFmcAliasEcc384CertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
         MailboxReq, MailboxReqHeader,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
@@ -401,19 +401,22 @@ pub fn get_certs<R: Request>(model: &mut DefaultHwModel) -> R::Resp {
     resp
 }
 
-pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
+pub fn get_ecc_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasEcc384CertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_FMC_ALIAS_CERT),
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
             &[],
         ),
     };
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_FMC_ALIAS_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
-    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
-    let mut fmc_resp = GetFmcAliasCertResp::default();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasEcc384CertResp>());
+    let mut fmc_resp = GetFmcAliasEcc384CertResp::default();
     fmc_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     fmc_resp
 }
@@ -421,12 +424,15 @@ pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
 pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
             &[],
         ),
     };
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());

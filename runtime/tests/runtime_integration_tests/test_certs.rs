@@ -2,8 +2,8 @@
 
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{
-    execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
-    run_rt_test_pqc, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    execute_dpe_cmd, generate_test_x509_cert, get_ecc_fmc_alias_cert, get_rt_alias_cert,
+    run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
@@ -72,12 +72,15 @@ fn test_rt_cert_with_custom_dates() {
 
         let payload = MailboxReqHeader {
             chksum: caliptra_common::checksum::calc_checksum(
-                u32::from(CommandId::GET_RT_ALIAS_CERT),
+                u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
                 &[],
             ),
         };
         let resp = model
-            .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+            .mailbox_execute(
+                u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
+                payload.as_bytes(),
+            )
             .unwrap()
             .unwrap();
         assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
@@ -132,7 +135,10 @@ fn test_idev_id_cert() {
     cmd.populate_chksum().unwrap();
 
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_IDEV_CERT), cmd.as_bytes().unwrap())
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_ECC384_CERT),
+            cmd.as_bytes().unwrap(),
+        )
         .unwrap()
         .expect("We expected a response");
 
@@ -169,10 +175,16 @@ fn test_idev_id_cert_size_too_big() {
 
 fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            &[],
+        ),
     };
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
@@ -216,7 +228,7 @@ fn test_fmc_alias_cert() {
     let ldev_resp = get_ldev_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
 
-    let fmc_resp = get_fmc_alias_cert(&mut model);
+    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
 
     // Check the FMC is signed by LDevID and that subject/issuer names match
@@ -234,7 +246,7 @@ fn test_fmc_alias_cert() {
 fn test_rt_alias_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let fmc_resp = get_fmc_alias_cert(&mut model);
+    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
 
     let rt_resp = get_rt_alias_cert(&mut model);
@@ -295,7 +307,7 @@ fn test_full_cert_chain() {
     let ldev_resp = get_ldev_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
 
-    let fmc_resp = get_fmc_alias_cert(&mut model);
+    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
 
     let rt_resp = get_rt_alias_cert(&mut model);

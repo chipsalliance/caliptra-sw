@@ -165,19 +165,19 @@ fn test_generate_csr_envelop_stress() {
 
             let ldev_cert = verify_key(
                 &mut hw,
-                u32::from(CommandId::GET_LDEV_CERT),
+                u32::from(CommandId::GET_LDEV_ECC384_CERT),
                 &idevid_pubkey,
                 &fuses.uds_seed,
             );
             let fmc_cert = verify_key(
                 &mut hw,
-                u32::from(CommandId::GET_FMC_ALIAS_CERT),
+                u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
                 &ldev_cert.public_key().unwrap(),
                 &fuses.uds_seed,
             );
             let _rt_cert = verify_key(
                 &mut hw,
-                u32::from(CommandId::GET_RT_ALIAS_CERT),
+                u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
                 &fmc_cert.public_key().unwrap(),
                 &fuses.uds_seed,
             );
