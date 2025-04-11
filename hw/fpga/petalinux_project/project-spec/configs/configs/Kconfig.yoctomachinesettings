@@ -1,0 +1,64 @@
+# Copyright (C) 2023, Advanced Micro Devices, Inc.  All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+#
+config YOCTO_MACHINE_NAME
+       string "Yocto Machine Name"
+       default "versal-net-generic" if SUBSYSTEM_VARIANT_VERSALNET
+       default "versal-generic" if SYSTEM_VERSAL
+       default "zynqmp-generic" if SYSTEM_ZYNQMP
+       default "zynq-generic" if SUBSYSTEM_ARCH_ARM
+       default "microblaze-generic" if SUBSYSTEM_ARCH_MICROBLAZE
+       help
+         You can specify MACHINE_NAME using this variable.
+	 Auto append the deviceId to Machine Name if this matches with INCLUDE_MACHINE_NAME
+
+config YOCTO_INCLUDE_MACHINE_NAME
+	string "Yocto Include Machine name"
+	default "ac701-microblazeel" if YOCTO_MACHINE_NAME = "xilinx-ac701"
+	default "kc705-microblazeel" if YOCTO_MACHINE_NAME = "xilinx-kc705"
+	default "kcu105-microblazeel" if YOCTO_MACHINE_NAME = "xilinx-kcu105"
+	default "vcu118-microblazeel" if YOCTO_MACHINE_NAME = "xilinx-vcu118"
+	default "kcu105-tmr-microblazeel" if YOCTO_MACHINE_NAME = "xilinx-sp701"
+	default "zc702-zynq7" if YOCTO_MACHINE_NAME = "xilinx-zc702"
+	default "zc706-zynq7" if YOCTO_MACHINE_NAME = "xilinx-zc706"
+	default "zedboard-zynq7" if YOCTO_MACHINE_NAME = "avnet-digilent-zedboard"
+	default "zc1751-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zc1751-dc1"
+	default "zcu102-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu102"
+	default "zcu104-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu104"
+	default "zcu106-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu106"
+	default "zcu111-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu111"
+	default "zcu208-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu208"
+	default "zcu216-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu216"
+	default "zcu670-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-zcu670"
+	default "k26-sm" if YOCTO_MACHINE_NAME = "xilinx-k26-som"
+	default "k24-sm" if YOCTO_MACHINE_NAME = "xilinx-k24-som"
+	default "k26-smk-kr" if YOCTO_MACHINE_NAME = "xilinx-k26-kr"
+	default "k26-smk-kv" if YOCTO_MACHINE_NAME = "xilinx-k26-kv"
+	default "k24-smk-kd" if YOCTO_MACHINE_NAME = "xilinx-k24-kd"
+	default "vck-sc-zynqmp" if YOCTO_MACHINE_NAME = "xilinx-vck190-sc"
+	default "eval-brd-sc-zynqmp" if YOCTO_MACHINE_NAME = "eval-brd-sc"
+	default "vck190-versal" if YOCTO_MACHINE_NAME = "xilinx-vck190"
+	default "vc-p-a2197-00-versal" if YOCTO_MACHINE_NAME = "xilinx-vc-p-a2197-00"
+	default "vck5000-versal" if YOCTO_MACHINE_NAME = "xilinx-vck5000"
+	default "vek280-versal" if YOCTO_MACHINE_NAME = "xilinx-vek280"
+	default "vhk158-versal" if YOCTO_MACHINE_NAME = "xilinx-vhk158"
+	default "vmk180-versal" if YOCTO_MACHINE_NAME = "xilinx-vmk180"
+	default "vpk120-versal" if YOCTO_MACHINE_NAME = "xilinx-vpk120"
+	default "vpk180-versal" if YOCTO_MACHINE_NAME = "xilinx-vpk180"
+	help
+	  Specify MACHINE_NAME which will need to be include into the YOCTO_MACHINE file
+
+config YOCTO_ADD_OVERRIDES
+	string "Yocto Additional Overrides"
+	default ""
+	help
+	  Specify additional overrides to the generated machine conf file
+	  Specify multiple overrides with ':' separator
+
+if SUBSYSTEM_SDT_FLOW
+
+
+
+endif
