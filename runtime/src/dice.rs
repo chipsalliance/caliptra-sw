@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
-    MailboxResp, MailboxRespHeader,
+    GetFmcAliasCertResp, GetIdevCertResp, GetIdevEcc384CertReq, GetLdevCertResp,
+    GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
 };
 
 use crate::Drivers;
@@ -27,8 +27,8 @@ pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
     #[inline(never)]
     pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
-            let mut cmd = GetIdevCertReq::default();
+        if cmd_args.len() <= core::mem::size_of::<GetIdevEcc384CertReq>() {
+            let mut cmd = GetIdevEcc384CertReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
 
             // Validate tbs
