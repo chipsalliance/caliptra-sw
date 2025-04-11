@@ -4,7 +4,7 @@ use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
+    GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::{CaliptraError, InitDevIdCsrEnvelope};

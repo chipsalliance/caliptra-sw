@@ -105,11 +105,11 @@ pub fn exec_cmd_get_idev_cert<T: HwModel>(hw: &mut T) {
     .unwrap();
 
     // Make sure we got some cert data (not verifying contents)
-    assert!(cert_resp.cert_size > 0);
+    assert!(cert_resp.data_size > 0);
 
     // Verify we have something in the data field
     assert!(contains_some_data(
-        &cert_resp.cert[..cert_resp.cert_size as usize]
+        &cert_resp.data[..cert_resp.data_size as usize]
     ));
 }
 
