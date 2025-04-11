@@ -60,6 +60,22 @@ impl Trng {
         }
     }
 
+    /// Stir in additional data to the internal state of the TRNG, if supported.
+    /// This is analagous to the NIST update comman in SP800-90A.
+    pub fn stir(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
+        extern "C" {
+            fn cfi_panic_handler(code: u32) -> !;
+        }
+        match self {
+            Self::Internal(csrng) => csrng.update(additional_data),
+            Self::External(_) => Err(CaliptraError::DRIVER_TRNG_UPDATE_NOT_SUPPORTED)?,
+            Self::MfgMode() => Ok(()),
+            _ => unsafe {
+                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+            },
+        }
+    }
+
     pub fn generate(&mut self) -> CaliptraResult<Array4x12> {
         extern "C" {
             fn cfi_panic_handler(code: u32) -> !;
