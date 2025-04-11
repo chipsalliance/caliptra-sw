@@ -1,0 +1,18 @@
+menu "user packages " 
+config gpio-demo  
+	 bool "gpio-demo"
+	 help
+	
+config io-module  
+	 bool "io-module"
+	 help
+	
+config peekpoke  
+	 bool "peekpoke"
+	 help
+	
+config rom-backdoor  
+	 bool "rom-backdoor"
+	 help
+	
+endmenu

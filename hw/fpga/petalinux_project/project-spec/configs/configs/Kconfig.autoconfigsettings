@@ -1,0 +1,49 @@
+# Copyright (C) 2023, Advanced Micro Devices, Inc.  All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+
+menu "Auto Config Settings"
+
+config SUBSYSTEM_AUTOCONFIG_DEVICE__TREE
+	bool "Device tree autoconfig"
+	default y
+	help
+	  Select this option to enable auto generation of device-tree configuration
+	  files into components/plnx_workspace/device-tree/device-tree.
+
+config SUBSYSTEM_DEVICE_TREE_MANUAL_INCLUDE
+	bool "Specify a manual device tree include directory"
+	default n
+	help
+	  Select this option to allow you to specify a custom include directory
+	  to use when compiling the device tree.
+
+config SUBSYSTEM_DEVICE_TREE_INCLUDE_DIR
+	string "Manual device tree include directory"
+	default "${STAGING_KERNEL_DIR}/include"
+	depends on SUBSYSTEM_DEVICE_TREE_MANUAL_INCLUDE
+	help
+	  This is the include directory used by DTC during device tree compliation.
+	  By default it points to "${STAGING_KERNEL_DIR}/include" which is
+	  "${TMPDIR}/work-shared/${MACHINE}/kernel-source/include"
+
+if SYSTEM_MICROBLAZE
+config SUBSYSTEM_AUTOCONFIG_KERNEL
+	bool "kernel autoconfig"
+	default y
+	help
+	  Choose this option to use PetaLinux kernel configuration generated based on
+	  system config.
+	  Over this petalinux auto generated fragments -- plnx_kernel.cfg applied
+
+config SUBSYSTEM_AUTOCONFIG_U__BOOT
+	bool "u-boot autoconfig"
+	default y
+	help
+	  Choose this option to use PetaLinux u-boot configuration.
+	  See CONFIG_SUBSYSTEM_UBOOT_CONFIG_TARGET for defconfig used from U-boot src,
+	  Over this petalinux auto generated fragments -- platform-auto.h, platform-top.h, config.cfg are applied
+
+endif
+endmenu

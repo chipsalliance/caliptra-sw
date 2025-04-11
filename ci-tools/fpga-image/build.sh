@@ -10,20 +10,14 @@ set -x
 
 mkdir -p out
 
-SYSTEM_BOOT_SHA256="714cc0b12607c476672f569b3f996ce8b3446bd05b30bffcd1c772c483923098"
-if ! (echo "${SYSTEM_BOOT_SHA256} out/system-boot.tar.gz" | sha256sum -c); then
-  curl -o out/system-boot.tar.gz https://people.canonical.com/~platform/images/xilinx/zcu-ubuntu-22.04/iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-system-boot.tar.gz
-  if ! (echo "${SYSTEM_BOOT_SHA256} out/system-boot.tar.gz" | sha256sum -c); then
-    echo "Downloaded system-boot file did not match expected sha256sum".
-    exit 1
-  fi
-fi
+mv /tmp/vck190-kernel/vck190-kernel.tar.gz out/system-boot.tar.gz
+mv /tmp/vck190-kmod/io-module.ko  out/
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch --arch arm64 --foreign bookworm out/rootfs
+  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,squashfs-tools,macchanger --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
   chroot out/rootfs useradd runner --shell /bin/bash --create-home
 
@@ -72,18 +66,25 @@ su $SUDO_USER -c "
     --target=aarch64-unknown-linux-gnu \
     --root /tmp/cargo-nextest"
 
+
 cp /tmp/cargo-nextest/bin/cargo-nextest out/rootfs/usr/bin/
+# chroot out/rootfs bash -c 'ldd -v /usr/bin/cargo-nextest'
+# chroot out/rootfs bash -c 'ld -v'
 
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
 cp startup-script.sh out/rootfs/usr/bin/
+chroot out/rootfs systemctl set-default multi-user.target
 chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
 cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
-# Build a squashed filesystem from the rootfs
-rm out/rootfs.sqsh || true
+cp out/io-module.ko out/rootfs/home/runner/io-module.ko
+
+(rm -r out/image.img || true)
+
+m out/rootfs.sqsh || true
 sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
-bootfs_blocks="$((80000 * 2))"
+bootfs_blocks="$((80000 * 4))"
 rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
 rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
 persistfs_blocks=14680064
@@ -127,11 +128,9 @@ function cleanup2 {
 trap cleanup2 EXIT
 
 # Write bootfs contents
-tar xvzf out/system-boot.tar.gz -C out/bootfs
+tar xvf out/system-boot.tar.gz -C out/bootfs --no-same-owner
 
 # Replace the u-boot boot script with our own
-rm out/bootfs/boot.scr.uimg
-mkimage -T script -n "boot script" -C none -d boot.scr out/bootfs/boot.scr.uimg
 umount out/bootfs
 trap cleanup1 EXIT
 

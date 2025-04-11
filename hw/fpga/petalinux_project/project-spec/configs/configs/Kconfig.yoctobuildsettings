@@ -1,0 +1,253 @@
+# Copyright (C) 2023, Advanced Micro Devices, Inc.  All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+
+if SUBSYSTEM_DISTRO_PETALINUX
+menu "Firmware Version Configuration"
+config SUBSYSTEM_HOSTNAME
+	string "Host name"
+	default "petalinux"
+	help
+	 The host name of your SUBSYSTEM, set at startup.
+
+config SUBSYSTEM_PRODUCT
+	string "Product name"
+	default ""
+	help
+	  This is an string inserted into /etc/product during the build.
+
+config SUBSYSTEM_FW_VERSION
+	string "Firmware Version"
+	default "1.00"
+	help
+	  This is an arbitrary string value that is inserted into
+	  /etc/version during the build.
+endmenu
+endif
+
+if !SUBSYSTEM_DISTRO_PETALINUX
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
+endif
+
+if SUBSYSTEM_DISTRO_PETALINUX
+menu "Yocto Settings"
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctomachinesettings
+
+if SUBSYSTEM_SDT_FLOW
+config MC_PLNX_IMAGES_LOCATION
+        string "PetaLinux Multiconfig Deploy Directory"
+        help
+          Specify the PetaLinux multiconfig deploy directory to place the generated build artifacts.
+
+endif
+
+menu "TMPDIR Location"
+config TMP_DIR_LOCATION
+	string "TMPDIR Location"
+	default "${PROOT}/build/tmp"
+	help
+	  Relative path can be used with reference to ${PROOT}
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+endmenu
+
+menu "Devtool Workspace Location"
+config DEVTOOL_WORKSPACE_LOCATION
+	string "Devtool Workspace Location"
+	default "${PROOT}/components/yocto/workspace"
+	help
+	  Specify the devtool workspace directory, This will setup a workspace layer
+	  in an alternative specified absolute or releative path using layerpath option.
+	  Relative path can be used with reference to ${PROOT}
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+		${TOPDIR} will not be functional.
+endmenu
+
+config PLNX_IMAGES_LOCATION
+	string "PetaLinux Deploy Directory"
+	help
+	  Specify the PetaLinux deploy directory to place the generated build artifacts.
+
+menu "Parallel thread execution"
+config YOCTO_BB_NUMBER_THREADS
+	string "Set number of bb threads (BB_NUMBER_THREADS)"
+	help
+	  Sets the number of tasks BitBake should run in parallel at any one time.
+	  By default BitBake calculates the number of tasks is equal to the
+	  number of cores on the build system.
+
+config YOCTO_BB_NUMBER_PARSE_THREADS
+	string "Set number of bb parse threads (BB_NUMBER_PARSE_THREADS)"
+	help
+	  Sets the number of threads BitBake uses when parsing.
+	  By default BitBake calculates the number of threads is equal
+	  to the number of cores on the build system.
+
+config YOCTO_PARALLEL_MAKE
+	string "Set number of parallel make -j (PARALLEL_MAKE)"
+	help
+	  Specify parallel compilation on the local build host
+	  during the do_compile task.
+	  By default BitBake calculates the number of cores on the build system.
+
+endmenu
+
+menu "Add pre-mirror url "
+config PRE_MIRROR_URL
+        string "pre-mirror url path"
+        help
+	pre-mirrors is used by bitbake to fetch sources from specified location first.
+	If sources are not available in pre-mirrors, bitbake then fetches from SRC_URI in the recipes.
+
+        path can be ftp, https or local directory.examples are
+        "file::///path/to/your/downloads/"
+        "https://example.com/your/downloadsmirrors/"
+        "ftp://example.com/your/downloadsmirrors/"
+endmenu
+
+menu "Local sstate feeds settings"
+config YOCTO_LOCAL_SSTATE_FEEDS_URL
+	string "local sstate feeds url"
+	default ""
+	help
+	 Provide NFS/local sstate feed path.
+	 The sstate cache will be pulled from these path and used to build the components.
+	 E.g: /some/local/dir/sstate/
+endmenu
+
+config YOCTO_NETWORK_SSTATE_FEEDS
+	bool "Enable Network sstate feeds"
+	default y
+	help
+	 The sstate feeds which are hosted on webserver has to be provided.
+	 The sstate cache will be pulled from these servers and rootfs was generated.
+
+menu "Network sstate feeds URL"
+	depends on YOCTO_NETWORK_SSTATE_FEEDS
+config YOCTO_NETWORK_SSTATE_FEEDS_URL
+	string "network sstate feeds url"
+	default ""
+	help
+	 Provide Network sstate feed URI.
+	 The sstate cache will be pulled from these servers and used to build the components.
+	 E.g: https://someserver.tld/share/sstate/
+endmenu
+
+config YOCTO_BB_NO_NETWORK
+	bool "Enable BB NO NETWORK"
+	default n
+	help
+	 Enabling this option restricts bitbake to go to internet for fetching.
+
+config YOCTO_BUILDTOOLS_EXTENDED
+	bool "Enable Buildtools Extended"
+	default n
+	help
+	 Enabling this option to use the gcc and other libraries from $PETALINUX/components/yocto/buildtools_extended/
+	 Use this option on a machine that does not meet the minimal gcc, Git, tar, and Python requirements.
+
+menu "User Layers"
+config USER_LAYER_0
+	string "user layer 0"
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_1
+	string "user layer 1"
+	depends on USER_LAYER_0 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_2
+	string "user layer 2"
+	depends on USER_LAYER_1 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_3
+	string "user layer 3"
+	depends on USER_LAYER_2 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_4
+	string "user layer 4"
+	depends on USER_LAYER_3 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_5
+	string "user layer 5"
+	depends on USER_LAYER_4 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_6
+	string "user layer 6"
+	depends on USER_LAYER_5 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_7
+	string "user layer 7"
+	depends on USER_LAYER_6 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_8
+	string "user layer 8"
+	depends on USER_LAYER_7 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+config USER_LAYER_9
+	string "user layer 9"
+	depends on USER_LAYER_8 != ""
+	help
+	  You can specify relative path or absolute path of layer.
+	  To add layer at <project-root>/project-spec/meta-security
+	  Enter: ${PROOT}/project-spec/meta-security
+	  Note: ${PROOT} is a PetaLinux variable, Using bitbake variable such as
+	        ${TOPDIR} will not be functional.
+
+endmenu
+endmenu
+endif
