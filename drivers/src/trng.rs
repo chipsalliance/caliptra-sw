@@ -61,7 +61,7 @@ impl Trng {
     }
 
     /// Stir in additional data to the internal state of the TRNG, if supported.
-    /// This is analagous to the NIST update comman in SP800-90A.
+    /// This is analagous to the NIST update command in SP800-90A.
     pub fn stir(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
         extern "C" {
             fn cfi_panic_handler(code: u32) -> !;
