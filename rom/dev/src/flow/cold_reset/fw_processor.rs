@@ -342,7 +342,7 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
-                    CommandId::GET_IDEV_ECC_CSR => {
+                    CommandId::GET_IDEV_ECC384_CSR => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
@@ -367,7 +367,7 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes_partial()?)?;
                     }
-                    CommandId::GET_IDEV_MLDSA_CSR => {
+                    CommandId::GET_IDEV_MLDSA87_CSR => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
