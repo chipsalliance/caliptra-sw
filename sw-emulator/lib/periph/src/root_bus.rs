@@ -12,16 +12,16 @@ Abstract:
 
 --*/
 
-use crate::MailboxRequester;
 use crate::{
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault, MailboxExternal,
-    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
+    Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
+    MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
+use crate::{AesClp, MailboxRequester};
 use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
@@ -270,6 +270,12 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1001_0000, mask = 0x0000_07ff)]
     pub hmac: HmacSha,
 
+    #[peripheral(offset = 0x1001_1000, mask = 0x0000_07ff)]
+    pub aes: Aes,
+
+    #[peripheral(offset = 0x1001_1800, mask = 0x0000_07ff)]
+    pub aes_clp: AesClp,
+
     #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
     pub key_vault: KeyVault,
 
@@ -350,6 +356,8 @@ impl CaliptraRootBus {
 
         Self {
             rom,
+            aes: Aes::new(clock),
+            aes_clp: AesClp::new(clock, key_vault.clone()),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
             hmac: HmacSha::new(clock, key_vault.clone()),
