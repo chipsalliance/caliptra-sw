@@ -78,6 +78,9 @@ bitfield! {
     cptra_obf_field_entropy_vld, set_cptra_obf_field_entropy_vld: 3, 3;
     debug_locked, set_debug_locked: 4, 4;
     device_lifecycle, set_device_lifecycle: 6, 5;
+    scan_mode, set_scan_mode: 7, 7;
+    bootfsm_brkpoint, set_bootfsm_brkpoint: 8, 8;
+    debug_intent, set_debug_intent: 9, 9;
 }
 
 bitfield! {
@@ -246,6 +249,7 @@ impl ModelFpgaRealtime {
                     .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
+            val.set_debug_intent(value as u32);
             val.set_cptra_rst_b(value as u32);
             self.wrapper
                 .offset(FPGA_WRAPPER_CONTROL_OFFSET)
