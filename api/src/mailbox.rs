@@ -463,6 +463,35 @@ impl Default for MailboxRespHeader {
     }
 }
 
+// Generic variable-sized data response type
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VarSizeDataResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; VarSizeDataResp::DATA_MAX_SIZE], // variable length
+}
+
+impl VarSizeDataResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
+}
+
+impl ResponseVarSize for VarSizeDataResp {}
+
+impl Default for VarSizeDataResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
 // GET_IDEV_CERT
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -504,27 +533,8 @@ impl Default for GetIdevCertReq {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct GetIdevCertResp {
-    pub hdr: MailboxRespHeader,
-    pub cert_size: u32,
-    pub cert: [u8; GetIdevCertResp::DATA_MAX_SIZE], // variable length
-}
-impl GetIdevCertResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-}
-impl ResponseVarSize for GetIdevCertResp {}
-
-impl Default for GetIdevCertResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            cert_size: 0,
-            cert: [0u8; GetIdevCertResp::DATA_MAX_SIZE],
-        }
-    }
-}
+// Use the generic VarSizeDataResp for certificate responses
+pub type GetIdevCertResp = VarSizeDataResp;
 
 // GET_IDEV_INFO
 // No command-specific input args
@@ -548,27 +558,7 @@ impl Request for GetLdevCertReq {
     type Resp = GetLdevCertResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct GetLdevCertResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; GetLdevCertResp::DATA_MAX_SIZE], // variable length
-}
-impl GetLdevCertResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-}
-impl ResponseVarSize for GetLdevCertResp {}
-
-impl Default for GetLdevCertResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
-        }
-    }
-}
+pub type GetLdevCertResp = VarSizeDataResp;
 
 // GET_RT_ALIAS_CERT
 #[repr(C)]
@@ -581,31 +571,7 @@ impl Request for GetRtAliasCertReq {
     type Resp = GetRtAliasCertResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct GetRtAliasCertResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; GetRtAliasCertResp::DATA_MAX_SIZE], // variable length
-}
-impl GetRtAliasCertResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-
-    pub fn data(&self) -> Option<&[u8]> {
-        self.data.get(..self.data_size as usize)
-    }
-}
-impl ResponseVarSize for GetRtAliasCertResp {}
-
-impl Default for GetRtAliasCertResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; GetRtAliasCertResp::DATA_MAX_SIZE],
-        }
-    }
-}
+pub type GetRtAliasCertResp = VarSizeDataResp;
 
 // ECDSA384_SIGNATURE_VERIFY
 #[repr(C)]
@@ -811,27 +777,7 @@ impl Request for GetFmcAliasCertReq {
     type Resp = GetFmcAliasCertResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct GetFmcAliasCertResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; GetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
-}
-impl GetFmcAliasCertResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-}
-impl ResponseVarSize for GetFmcAliasCertResp {}
-
-impl Default for GetFmcAliasCertResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; GetFmcAliasCertResp::DATA_MAX_SIZE],
-        }
-    }
-}
+pub type GetFmcAliasCertResp = VarSizeDataResp;
 
 // FIPS_SELF_TEST
 // No command-specific input args
@@ -1087,27 +1033,7 @@ impl Request for GetIdevCsrReq {
     type Resp = GetIdevCsrResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct GetIdevCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; Self::DATA_MAX_SIZE],
-}
-impl GetIdevCsrResp {
-    pub const DATA_MAX_SIZE: usize = 512;
-}
-impl ResponseVarSize for GetIdevCsrResp {}
-
-impl Default for GetIdevCsrResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; Self::DATA_MAX_SIZE],
-        }
-    }
-}
+pub type GetIdevCsrResp = VarSizeDataResp;
 
 // GET_IDEVID_MLDSA_CSR
 #[repr(C)]
@@ -1155,28 +1081,7 @@ impl Request for GetFmcAliasCsrReq {
     type Resp = GetFmcAliasCsrResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct GetFmcAliasCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; Self::DATA_MAX_SIZE],
-}
-
-impl Default for GetFmcAliasCsrResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; Self::DATA_MAX_SIZE],
-        }
-    }
-}
-
-impl GetFmcAliasCsrResp {
-    pub const DATA_MAX_SIZE: usize = 512;
-}
-impl ResponseVarSize for GetFmcAliasCsrResp {}
+pub type GetFmcAliasCsrResp = VarSizeDataResp;
 
 // SIGN_WITH_EXPORTED_ECDSA
 #[repr(C)]
