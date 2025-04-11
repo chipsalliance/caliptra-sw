@@ -2,7 +2,7 @@
 
 use crate::common::get_certs;
 use caliptra_api::mailbox::GetFmcAliasCsrReq;
-use caliptra_common::mailbox_api::GetRtAliasCertReq;
+use caliptra_common::mailbox_api::GetRtAliasEcc384CertReq;
 use caliptra_drivers::{FmcAliasCsr, ECC384_MAX_CSR_SIZE};
 use caliptra_hw_model::DefaultHwModel;
 
@@ -14,7 +14,7 @@ fn test_get_fmc_alias_csr() {
         model: &mut DefaultHwModel,
         pub_key: openssl::pkey::PKey<openssl::pkey::Public>,
     ) {
-        let get_rt_alias_cert_resp = get_certs::<GetRtAliasCertReq>(model);
+        let get_rt_alias_cert_resp = get_certs::<GetRtAliasEcc384CertReq>(model);
         assert_ne!(0, get_rt_alias_cert_resp.data_size);
 
         let der = &get_rt_alias_cert_resp.data[..get_rt_alias_cert_resp.data_size as usize];

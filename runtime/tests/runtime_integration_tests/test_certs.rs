@@ -8,7 +8,7 @@ use crate::common::{
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
-    CommandId, GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, GetLdevCertResp,
+    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevInfoResp, GetLdevCertResp,
     GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
@@ -112,7 +112,7 @@ fn test_idev_id_cert() {
     let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
 
     // Extract tbs from cert
-    let mut tbs = [0u8; GetIdevCertReq::DATA_MAX_SIZE];
+    let mut tbs = [0u8; GetIdevEcc384CertReq::DATA_MAX_SIZE];
     let cert_der_vec = cert.to_der().unwrap();
     let cert_der = cert_der_vec.as_bytes();
     // skip first 4 outer sequence bytes
@@ -122,7 +122,7 @@ fn test_idev_id_cert() {
     let tbs_size = 223;
     tbs[..tbs_size].copy_from_slice(&cert_der[tbs_offset..tbs_offset + tbs_size]);
 
-    let mut cmd = MailboxReq::GetIdevCert(GetIdevCertReq {
+    let mut cmd = MailboxReq::GetIdevEcc384Cert(GetIdevEcc384CertReq {
         hdr: MailboxReqHeader { chksum: 0 },
         tbs,
         signature_r,
@@ -154,12 +154,12 @@ fn test_idev_id_cert() {
 #[test]
 fn test_idev_id_cert_size_too_big() {
     // Test with tbs_size too big.
-    let mut cmd = MailboxReq::GetIdevCert(GetIdevCertReq {
+    let mut cmd = MailboxReq::GetIdevEcc384Cert(GetIdevEcc384CertReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        tbs: [0u8; GetIdevCertReq::DATA_MAX_SIZE],
+        tbs: [0u8; GetIdevEcc384CertReq::DATA_MAX_SIZE],
         signature_r: [0u8; 48],
         signature_s: [0u8; 48],
-        tbs_size: GetIdevCertReq::DATA_MAX_SIZE as u32 + 1,
+        tbs_size: GetIdevEcc384CertReq::DATA_MAX_SIZE as u32 + 1,
     });
     assert_eq!(
         cmd.populate_chksum(),
