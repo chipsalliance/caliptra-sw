@@ -2,9 +2,9 @@
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use caliptra_api::mailbox::{
-    CmImportReq, CmImportResp, CmKeyUsage, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
-    CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxReq, MailboxResp, CMK_SIZE_BYTES,
-    MAX_CMB_DATA_SIZE,
+    CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq, CmRandomGenerateResp,
+    CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
+    MailboxReq, MailboxResp, MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
@@ -312,5 +312,110 @@ fn test_sha_many() {
             let expected_bytes = expected_resp.as_bytes().unwrap();
             assert_eq!(expected_bytes, resp_bytes);
         }
+    }
+}
+
+#[test]
+fn test_random_generate() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // check too large of an input
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: u32::MAX,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
+    // 0 bytes
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 0,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp::default();
+    const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+    resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
+    assert_eq!(resp.hdr.data_len, 0);
+    assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
+
+    // 1 byte
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 1,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert_eq!(len, 1);
+    resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+    // We can't check if it is non-zero because it will randomly be 0 sometimes.
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+            hdr: MailboxReqHeader::default(),
+            size: req_len as u32,
+        });
+        cm_random_generate.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_GENERATE),
+                cm_random_generate.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let mut resp = CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        assert_eq!(len, req_len);
+        resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+        assert!(
+            resp.data[..len]
+                .iter()
+                .copied()
+                .reduce(|a, b| (a | b))
+                .unwrap()
+                != 0
+        );
     }
 }
