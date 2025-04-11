@@ -1417,6 +1417,11 @@ impl CaliptraError {
             0x000E005E,
             "Runtime Error: Key usage storage full"
         ),
+        (
+            RUNTIME_CMB_NOT_INITIALIZED,
+            0x000E005F,
+            "Runtime Error: Crypto mailbox system not initialized"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
@@ -1969,6 +1974,59 @@ impl CaliptraError {
             ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE,
             0xa000000a,
             "Debug unlock error: Request in passive mode"
+        ),
+        (
+            RUNTIME_DRIVER_AES_READ_KEY_KV_READ,
+            0xa004_0001,
+            "Driver Error: AES read key KV read"
+        ),
+        // 0xa004_0002 blank to match HMAC errors
+        (
+            RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN,
+            0xa004_0003,
+            "Driver Error: AES read key KV unknown"
+        ),
+        (
+            RUNTIME_DRIVER_AES_READ_DATA_KV_READ,
+            0xa004_0004,
+            "Driver Error: AES read data KV read"
+        ),
+        // 0xa004_0005 blank to match HMAC errors
+        (
+            RUNTIME_DRIVER_AES_READ_DATA_KV_UNKNOWN,
+            0xa004_0006,
+            "Driver Error: AES read data KV unknown"
+        ),
+        // 0xa004_0007-a blank to match HMAC errors
+        (
+            RUNTIME_DRIVER_AES_INVALID_STATE,
+            0xa004_000b,
+            "Driver Error: AES invalid state"
+        ),
+        (
+            RUNTIME_DRIVER_AES_MAX_DATA,
+            0xa004_000c,
+            "Driver Error: AES max data exceeded"
+        ),
+        (
+            RUNTIME_DRIVER_AES_INVALID_SLICE,
+            0xa004_000d,
+            "Driver Error: AES invalid slice"
+        ),
+        (
+            RUNTIME_DRIVER_AES_INDEX_OUT_OF_BOUNDS,
+            0xa004_000e,
+            "Driver Error: AES index out of bounds"
+        ),
+        (
+            RUNTIME_DRIVER_AES_INVALID_TAG_SIZE,
+            0xa004_000f,
+            "Driver Error: AES tag size is invalid"
+        ),
+        (
+            RUNTIME_DRIVER_AES_ENGINE_BUSY,
+            0xa004_0010,
+            "Driver Error: AES engine is busy"
         ),
     ];
 }

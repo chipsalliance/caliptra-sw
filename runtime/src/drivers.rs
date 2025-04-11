@@ -33,11 +33,12 @@ use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_drivers::Dma;
 use caliptra_drivers::{
     cprintln, hand_off::DataStore, pcr_log::RT_FW_JOURNEY_PCR, sha2_512_384::Sha2DigestOpTrait,
-    Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87, PcrBank,
-    PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
+    Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
+    PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384,
     Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_image_types::ImageManifest;
+use caliptra_registers::aes::AesReg;
 use caliptra_registers::{
     csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl, entropy_src::EntropySrcReg,
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
@@ -111,7 +112,8 @@ pub struct Drivers {
     pub exported_cdi_slots: ExportedCdiHandles,
     pub dma: Dma,
 
-    pub cryptographic_usage_data: CmStorage,
+    pub cryptographic_mailbox: CmStorage,
+    pub aes: Aes,
 }
 
 impl Drivers {
@@ -127,6 +129,8 @@ impl Drivers {
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
         )?;
+
+        let aes = Aes::new(AesReg::new());
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -152,13 +156,15 @@ impl Drivers {
             dmtf_device_info: None,
             exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
             dma: Dma::default(),
-            cryptographic_usage_data: CmStorage::default(),
+            cryptographic_mailbox: CmStorage::new(),
+            aes,
         })
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
+        self.cryptographic_mailbox.init(&mut self.trng)?;
         if self.persistent_data.get().attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
