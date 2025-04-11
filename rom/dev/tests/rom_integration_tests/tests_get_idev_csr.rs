@@ -10,7 +10,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
 use core::mem::offset_of;
 use openssl::{hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 
@@ -61,7 +61,8 @@ fn test_get_ecc_csr() {
         .unwrap()
         .unwrap();
 
-    let get_idv_csr_resp = GetIdevCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let mut get_idv_csr_resp = GetIdevCsrResp::default();
+    get_idv_csr_resp.as_mut_bytes()[..response.len()].copy_from_slice(&response);
 
     assert!(caliptra_common::checksum::verify_checksum(
         get_idv_csr_resp.hdr.chksum,

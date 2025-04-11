@@ -19,6 +19,7 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::ResponseVarSize;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
@@ -361,7 +362,7 @@ impl FirmwareProcessor {
                         resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_bytes_partial()?)?;
                     }
                     CommandId::GET_IDEV_MLDSA_CSR => {
                         let mut request = MailboxReqHeader::default();
