@@ -16,13 +16,14 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmShaFinalResp, CmShaInitReq,
-    CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader,
-    MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES,
+    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
+    CmRandomGenerateResp, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
+    CmStatusResp, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE,
+    CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
-    Array4x12, Array4x16, CaliptraResult, Sha2_512_384,
+    Aes, AesIv, AesKey, Array4x12, Array4x16, Array4x8, CaliptraResult, Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -36,10 +37,40 @@ const MAX_KEY_ID: u32 = 0xffffff;
 /// Holds data for the cryptographic mailbox system.
 #[derive(Default)]
 pub struct CmStorage {
+    initialized: bool,
+    // Usage counters for individual GCM keys.
     counters: ArrayVec<KeyUsageInfo, KEY_USAGE_MAX>,
+    // 1-up counter for KEK GCM IV
+    kek_next_iv: u128,
+    // KEK split into two key shares
+    kek: (Array4x8, Array4x8),
 }
 
 impl CmStorage {
+    pub fn new() -> Self {
+        Self {
+            kek: (Array4x8::default(), Array4x8::default()),
+            ..Default::default()
+        }
+    }
+
+    /// Initialize the cryptographic mailbox storage key and IV.
+    /// This is done after the TRNG is initialized and CFI is configured.
+    pub fn init(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        let key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        let key_share0 = Array4x8::from(key_share0);
+        let key_share1 = Array4x8::from(key_share1);
+        let random_iv = trng.generate4()?;
+        // we mask off the top bit so that we always have at least 2^95 usages left.
+        self.kek_next_iv = (((random_iv.0 & 0x7fff_ffff) as u128) << 64)
+            | ((random_iv.1 as u128) << 32)
+            | (random_iv.2 as u128);
+        self.kek = (key_share0, key_share1);
+        self.initialized = true;
+        Ok(())
+    }
+
     /// Inserts a new counter (with 0 usage) and returns the new key id.
     pub fn add_counter(&mut self) -> CaliptraResult<[u8; 3]> {
         if self.counters.is_full() {
@@ -65,6 +96,36 @@ impl CmStorage {
                 }
             }
         }
+    }
+
+    fn encrypt_cmk(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        unencrypted_cmk: &UnencryptedCmk,
+    ) -> CaliptraResult<EncryptedCmk> {
+        let kek_iv = self.kek_next_iv;
+        self.kek_next_iv += 1;
+
+        let plaintext = unencrypted_cmk.as_bytes();
+        let mut ciphertext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        // Encrypt the CMK using the KEK
+        let (iv, gcm_tag) = aes.aes_256_gcm_encrypt(
+            trng,
+            AesIv::U96(kek_iv),
+            AesKey::Split(&self.kek.0, &self.kek.1),
+            &[],
+            plaintext,
+            &mut ciphertext[..],
+            16,
+        )?;
+        Ok(EncryptedCmk {
+            domain: 0,
+            domain_metadata: [0u8; 16],
+            iv,
+            ciphertext,
+            gcm_tag,
+        })
     }
 }
 
@@ -135,7 +196,10 @@ impl Commands {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn status(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        let len = drivers.cryptographic_usage_data.counters.len();
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        let len = drivers.cryptographic_mailbox.counters.len();
         Ok(MailboxResp::CmStatus(CmStatusResp {
             hdr: MailboxRespHeader::default(),
             used_usage_storage: len as u32,
@@ -146,6 +210,9 @@ impl Commands {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn import(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
         if cmd_bytes.len() > core::mem::size_of::<CmImportReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -159,28 +226,27 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
         }
 
-        let _raw_key = &cmd.input[..cmd.input_size as usize];
-        // [TODO][CAP2]: we need to generate our internal key to encrypt the CMK
-        let _unencrypted_cmk = UnencryptedCmk {
+        let raw_key = &cmd.input[..cmd.input_size as usize];
+        let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
             length: cmd.input_size as u16,
             key_usage: key_usage as u32 as u8,
             id: if matches!(key_usage, CmKeyUsage::AES) {
-                drivers.cryptographic_usage_data.add_counter()?
+                drivers.cryptographic_mailbox.add_counter()?
             } else {
                 [0u8; 3]
             },
             usage_counter: 0,
             key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
         };
+        unencrypted_cmk.key_material[..raw_key.len()].copy_from_slice(raw_key);
 
-        let encrypted_cmk = EncryptedCmk {
-            domain: 0,
-            domain_metadata: [0u8; 16],
-            iv: [0u8; 12],
-            ciphertext: [0xffu8; UNENCRYPTED_CMK_SIZE_BYTES], // TODO: actually do the encryption once we have the AES driver
-            gcm_tag: [0u8; 16],
-        };
+        let encrypted_cmk = drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?;
+
         let cmk = transmute!(encrypted_cmk);
         Ok(MailboxResp::CmImport(CmImportResp {
             hdr: MailboxRespHeader::default(),
@@ -191,6 +257,9 @@ impl Commands {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn sha_init(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
         if cmd_bytes.len() > core::mem::size_of::<CmShaInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -258,6 +327,9 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -330,6 +402,9 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -390,6 +465,40 @@ impl Commands {
                 data_len: len as u32,
             },
             hash: digest,
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn random_generate(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmRandomGenerateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmRandomGenerateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        let size = cmd.size as usize;
+        if size > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let mut data = [0u8; MAX_CMB_DATA_SIZE];
+
+        for i in (0..data.len()).step_by(48) {
+            let rand: [u8; 48] = drivers.trng.generate()?.into();
+            let len = 48.min(data.len() - i);
+            data[i..i + len].copy_from_slice(&rand[..len]);
+        }
+
+        Ok(MailboxResp::CmRandomGenerate(CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize {
+                hdr: MailboxRespHeader::default(),
+                data_len: size as u32,
+            },
+            data,
         }))
     }
 }
