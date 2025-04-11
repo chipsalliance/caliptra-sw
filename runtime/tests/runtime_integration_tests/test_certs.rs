@@ -146,8 +146,8 @@ fn test_idev_id_cert() {
         &resp[core::mem::size_of_val(&cert.hdr.chksum)..],
     ));
 
-    assert!(tbs_size < cert.cert_size as usize);
-    let idev_cert = X509::from_der(&cert.cert[..cert.cert_size as usize]).unwrap();
+    assert!(tbs_size < cert.data_size as usize);
+    let idev_cert = X509::from_der(&cert.data[..cert.data_size as usize]).unwrap();
     assert!(idev_cert.verify(&ec_key).unwrap());
 }
 

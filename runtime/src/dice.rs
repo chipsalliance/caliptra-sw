@@ -53,8 +53,8 @@ impl IDevIdCertCmd {
 
             Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
                 hdr: MailboxRespHeader::default(),
-                cert_size: cert_size as u32,
-                cert,
+                data_size: cert_size as u32,
+                data: cert,
             }))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
