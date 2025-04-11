@@ -109,8 +109,8 @@ jobs:
           sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
           sudo mkdir "${SYSROOT}/home/${USER}"
           sudo chown "${USER}" "${SYSROOT}/home/${USER}"
-          #sudo chroot "${SYSROOT}" apt-get update
-          #sudo chroot "${SYSROOT}" apt-get -y install build-essential
+          sudo chroot "${SYSROOT}" apt-get update
+          sudo chroot "${SYSROOT}" apt-get -y install build-essential
 
       - name: Checkout repo
         uses: actions/checkout@v3
