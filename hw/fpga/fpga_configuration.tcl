@@ -59,6 +59,8 @@ if {$APB} {
 lappend VERILOG_OPTIONS FPGA_VERSION=32'h$VERSION
 # Needed to inform Adam's Bridge to use key vault params. TODO: Still need to test if this works
 lappend VERILOG_OPTIONS CALIPTRA
+# Forcing Caliptra to think it is in SS
+lappend VERILOG_OPTIONS CALIPTRA_MODE_SUBSYSTEM
 
 # Start the Vivado GUI for interactive debug
 if {$GUI} {

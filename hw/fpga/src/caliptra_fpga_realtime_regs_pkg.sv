@@ -174,6 +174,10 @@ package caliptra_fpga_realtime_regs_pkg;
     } interface_regs__control__bootfsm_brkpoint__out_t;
 
     typedef struct {
+        logic value;
+    } interface_regs__control__ss_debug_intent__out_t;
+
+    typedef struct {
         interface_regs__control__cptra_pwrgood__out_t cptra_pwrgood;
         interface_regs__control__cptra_rst_b__out_t cptra_rst_b;
         interface_regs__control__cptra_obf_uds_seed_vld__out_t cptra_obf_uds_seed_vld;
@@ -182,6 +186,7 @@ package caliptra_fpga_realtime_regs_pkg;
         interface_regs__control__ss_device_lifecycle__out_t ss_device_lifecycle;
         interface_regs__control__scan_mode__out_t scan_mode;
         interface_regs__control__bootfsm_brkpoint__out_t bootfsm_brkpoint;
+        interface_regs__control__ss_debug_intent__out_t ss_debug_intent;
     } interface_regs__control__out_t;
 
     typedef struct {

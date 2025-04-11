@@ -128,6 +128,7 @@ Don't override. Generated from: caliptra_fpga_realtime_regs
 | 6:5|    ss_device_lifecycle    |  rw  | 0x0 |  — |
 |  7 |         scan_mode         |  rw  | 0x0 |  — |
 |  8 |      bootfsm_brkpoint     |  rw  | 0x0 |  — |
+|  9 |      ss_debug_intent      |  rw  | 0x0 |  — |
 
 ### status register
 

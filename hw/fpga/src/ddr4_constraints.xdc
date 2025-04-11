@@ -116,3 +116,4 @@ set_property PACKAGE_PIN AM39 [get_ports {ddr4_dimm1_odt[0]}]
 set_property PACKAGE_PIN AD42 [get_ports {ddr4_dimm1_reset_n[0]}]
 set_property PACKAGE_PIN AE42 [get_ports {ddr4_dimm1_sma_clk_clk_p[0]}]
 set_property PACKAGE_PIN AF43 [get_ports {ddr4_dimm1_sma_clk_clk_n[0]}]
+
