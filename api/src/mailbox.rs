@@ -82,6 +82,7 @@ impl CommandId {
     pub const CM_SHA_UPDATE: Self = Self(0x434D_5355); // "CMSU"
     pub const CM_SHA_FINAL: Self = Self(0x434D_5346); // "CMSF"
     pub const CM_RANDOM_GENERATE: Self = Self(0x434D_5247); // "CMRG"
+    pub const CM_RANDOM_STIR: Self = Self(0x434D_5253); // "CMRS"
 }
 
 impl From<u32> for CommandId {
@@ -308,6 +309,7 @@ pub enum MailboxReq {
     CmShaUpdate(CmShaUpdateReq),
     CmShaFinal(CmShaFinalReq),
     CmRandomGenerate(CmRandomGenerateReq),
+    CmRandomStir(CmRandomStirReq),
 }
 
 impl MailboxReq {
@@ -339,6 +341,7 @@ impl MailboxReq {
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
+            MailboxReq::CmRandomStir(req) => req.as_bytes_partial(),
         }
     }
 
@@ -370,6 +373,7 @@ impl MailboxReq {
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmRandomStir(req) => req.as_bytes_partial_mut(),
         }
     }
 
@@ -401,6 +405,7 @@ impl MailboxReq {
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
             MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
+            MailboxReq::CmRandomStir(_) => CommandId::CM_RANDOM_STIR,
         }
     }
 
@@ -1714,6 +1719,48 @@ impl Default for CmRandomGenerateResp {
 }
 
 impl ResponseVarSize for CmRandomGenerateResp {}
+
+// CM_RANDOM_STIR
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmRandomStirReq {
+    pub hdr: MailboxReqHeader,
+    pub input_size: u32,
+    pub input: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmRandomStirReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            input_size: 0,
+            input: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmRandomStirReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmRandomStirReq {
+    const ID: CommandId = CommandId::CM_RANDOM_STIR;
+    type Resp = MailboxRespHeader;
+}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

@@ -60,7 +60,9 @@ pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
-pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
+pub use csrng::{
+    Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed, MAX_SEED_WORDS,
+};
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
     AxiAddr, Dma, DmaReadTarget, DmaReadTransaction, DmaRecovery, DmaWriteOrigin,

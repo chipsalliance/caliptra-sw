@@ -10,7 +10,7 @@ use super::WORD_SIZE_BYTES;
 // Table 3 of Section 10.2.1 (page 49).
 const BLOCK_LEN_BYTES: usize = 128 / 8;
 const KEY_LEN_BYTES: usize = 256 / 8;
-const SEED_LEN_BYTES: usize = BLOCK_LEN_BYTES + KEY_LEN_BYTES;
+pub(crate) const SEED_LEN_BYTES: usize = BLOCK_LEN_BYTES + KEY_LEN_BYTES;
 
 pub type Block = [u8; BLOCK_LEN_BYTES];
 type Key = [u8; KEY_LEN_BYTES];
@@ -43,7 +43,7 @@ impl CtrDrbg {
         }
     }
 
-    fn update(&mut self, provided_data: Seed) {
+    pub fn update(&mut self, provided_data: Seed) {
         // Section 10.2.1.2 (page 51).
         let mut temp = [0_u8; SEED_LEN_BYTES];
 

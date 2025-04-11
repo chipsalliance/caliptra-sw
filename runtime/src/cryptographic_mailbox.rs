@@ -17,13 +17,14 @@ use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
-    CmRandomGenerateResp, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
-    CmStatusResp, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_SHA_CONTEXT_SIZE,
-    CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
+    CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize,
+    CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesIv, AesKey, Array4x12, Array4x16, Array4x8, CaliptraResult, Sha2_512_384, Trng,
+    MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -500,5 +501,38 @@ impl Commands {
             },
             data,
         }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn random_stir(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmRandomStirReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmRandomStirReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        let size = (cmd.input_size as usize)
+            .next_multiple_of(MAX_SEED_WORDS * 4)
+            .min(MAX_CMB_DATA_SIZE);
+        if size > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let mut additional_data = [0u32; MAX_CMB_DATA_SIZE / 4];
+        for (i, chunk) in cmd.input[..size].chunks_exact(4).enumerate() {
+            // avoid panic even though this is impossible
+            if i >= additional_data.len() {
+                break;
+            }
+            additional_data[i] = u32::from_be_bytes(chunk.try_into().unwrap());
+        }
+
+        drivers.trng.stir(&additional_data[..size / 4])?;
+
+        Ok(MailboxResp::Header(MailboxRespHeader::default()))
     }
 }
