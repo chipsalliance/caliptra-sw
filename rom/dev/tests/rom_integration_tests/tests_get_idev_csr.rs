@@ -10,7 +10,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
 use core::mem::offset_of;
 use openssl::{hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
 
@@ -51,13 +51,13 @@ fn test_get_ecc_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
     let response = hw
-        .mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -96,12 +96,12 @@ fn test_get_csr_generate_csr_flag_not_set() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
-    let response = hw.mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes());
+    let response = hw.mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes());
 
     let expected_error = ModelError::MailboxCmdFailed(
         CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR.into(),
@@ -180,13 +180,13 @@ fn test_get_mldsa_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_MLDSA_CSR),
+            u32::from(CommandId::GET_IDEV_MLDSA87_CSR),
             &[],
         ),
     };
 
     let response = hw
-        .mailbox_execute(CommandId::GET_IDEV_MLDSA_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_MLDSA87_CSR.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 

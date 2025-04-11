@@ -14,19 +14,36 @@ use ureg::MmioMut;
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
+/// Maximum response data size
+pub const MAX_RESP_DATA_SIZE: usize = 9216; // 9K
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlgorithmType {
+    Ecc384,
+    Mldsa87,
+}
+
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
-    pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
+    pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
-    pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
-    pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
-    pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
+    pub const GET_LDEV_ECC384_CERT: Self = Self(0x4C444556); // "LDEV"
+    pub const GET_FMC_ALIAS_ECC384_CERT: Self = Self(0x43455246); // "CERF"
+    pub const GET_RT_ALIAS_ECC384_CERT: Self = Self(0x43455252); // "CERR"
+
+    // MLDSA87 versions
+    pub const GET_IDEV_MLDSA87_CERT: Self = Self(0x49444D43); // "IDMC"
+    pub const POPULATE_IDEV_MLDSA87_CERT: Self = Self(0x49444D50); // "IDMP"
+    pub const GET_LDEV_MLDSA87_CERT: Self = Self(0x4C444D43); // "LDMC"
+    pub const GET_FMC_ALIAS_MLDSA87_CERT: Self = Self(0x434D4346); // "CMCF"
+    pub const GET_RT_ALIAS_MLDSA87_CERT: Self = Self(0x434D4352); // "CMCR"
     pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
     pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
+    pub const MLDSA87_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
@@ -62,13 +79,16 @@ impl CommandId {
     pub const RI_DOWNLOAD_FIRMWARE: Self = Self(0x5249_4644); // "RIFD"
 
     // The get IDevID ECC CSR command.
-    pub const GET_IDEV_ECC_CSR: Self = Self(0x4944_4352); // "IDCR"
+    pub const GET_IDEV_ECC384_CSR: Self = Self(0x4944_4352); // "IDCR"
 
     // The get IDevID MLDSA CSR command.
-    pub const GET_IDEV_MLDSA_CSR: Self = Self(0x4944_434D); // "IDCM"
+    pub const GET_IDEV_MLDSA87_CSR: Self = Self(0x4944_4d52); // "IDMR"
 
-    // The get FMC Alias CSR command.
-    pub const GET_FMC_ALIAS_CSR: Self = Self(0x464D_4352); // "FMCR"
+    // The get FMC Alias ECC CSR command.
+    pub const GET_FMC_ALIAS_ECC384_CSR: Self = Self(0x464D_4352); // "FMCR"
+
+    // The get FMC Alias MLDSA CSR command.
+    pub const GET_FMC_ALIAS_MLDSA87_CSR: Self = Self(0x464d_4452); // "FMDR"
 
     // The sign with exported ecdsa command.
     pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
@@ -175,7 +195,8 @@ pub enum MailboxResp {
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
-    GetFmcAliasCert(GetFmcAliasCertResp),
+    GetFmcAliasEcc384Cert(GetFmcAliasEcc384CertResp),
+    GetFmcAliasMlDsa87Cert(GetFmcAliasMlDsa87CertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
     Capabilities(CapabilitiesResp),
@@ -208,7 +229,8 @@ impl MailboxResp {
             MailboxResp::FwInfo(resp) => Ok(resp.as_bytes()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
-            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetFmcAliasEcc384Cert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetFmcAliasMlDsa87Cert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
@@ -237,7 +259,8 @@ impl MailboxResp {
             MailboxResp::FwInfo(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_mut_bytes()),
-            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetFmcAliasEcc384Cert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetFmcAliasMlDsa87Cert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
@@ -387,17 +410,17 @@ impl MailboxReq {
         match self {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
             MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
-            MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_CERT,
+            MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_CERT,
-            MailboxReq::GetIdevEcc384Cert(_) => CommandId::GET_IDEV_CERT,
+            MailboxReq::GetIdevEcc384Cert(_) => CommandId::GET_IDEV_ECC384_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
-            MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_CERT,
-            MailboxReq::GetRtAliasEcc384Cert(_) => CommandId::GET_RT_ALIAS_CERT,
+            MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_ECC384_CERT,
+            MailboxReq::GetRtAliasEcc384Cert(_) => CommandId::GET_RT_ALIAS_ECC384_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
@@ -473,7 +496,7 @@ pub struct VarSizeDataResp {
 }
 
 impl VarSizeDataResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
+    pub const DATA_MAX_SIZE: usize = MAX_RESP_DATA_SIZE;
 
     pub fn data(&self) -> Option<&[u8]> {
         self.data.get(..self.data_size as usize)
@@ -554,7 +577,7 @@ pub struct GetLdevEcc384CertReq {
 }
 
 impl Request for GetLdevEcc384CertReq {
-    const ID: CommandId = CommandId::GET_LDEV_CERT;
+    const ID: CommandId = CommandId::GET_LDEV_ECC384_CERT;
     type Resp = GetLdevCertResp;
 }
 
@@ -567,7 +590,7 @@ pub struct GetRtAliasEcc384CertReq {
     pub header: MailboxReqHeader,
 }
 impl Request for GetRtAliasEcc384CertReq {
-    const ID: CommandId = CommandId::GET_RT_ALIAS_CERT;
+    const ID: CommandId = CommandId::GET_RT_ALIAS_ECC384_CERT;
     type Resp = GetRtAliasCertResp;
 }
 
@@ -773,11 +796,23 @@ pub struct GetFmcAliasEcc384CertReq {
     pub header: MailboxReqHeader,
 }
 impl Request for GetFmcAliasEcc384CertReq {
-    const ID: CommandId = CommandId::GET_FMC_ALIAS_CERT;
-    type Resp = GetFmcAliasCertResp;
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_ECC384_CERT;
+    type Resp = GetFmcAliasEcc384CertResp;
 }
 
-pub type GetFmcAliasCertResp = VarSizeDataResp;
+pub type GetFmcAliasEcc384CertResp = VarSizeDataResp;
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetFmcAliasMlDsa87CertReq {
+    pub header: MailboxReqHeader,
+}
+impl Request for GetFmcAliasMlDsa87CertReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_MLDSA87_CERT;
+    type Resp = GetFmcAliasMlDsa87CertResp;
+}
+
+pub type GetFmcAliasMlDsa87CertResp = VarSizeDataResp;
 
 // FIPS_SELF_TEST
 // No command-specific input args
@@ -1029,7 +1064,7 @@ pub struct GetIdevCsrReq {
 }
 
 impl Request for GetIdevCsrReq {
-    const ID: CommandId = CommandId::GET_IDEV_ECC_CSR;
+    const ID: CommandId = CommandId::GET_IDEV_ECC384_CSR;
     type Resp = GetIdevCsrResp;
 }
 
@@ -1043,7 +1078,7 @@ pub struct GetIdevMldsaCsrReq {
 }
 
 impl Request for GetIdevMldsaCsrReq {
-    const ID: CommandId = CommandId::GET_IDEV_MLDSA_CSR;
+    const ID: CommandId = CommandId::GET_IDEV_MLDSA87_CSR;
     type Resp = GetIdevMldsaCsrResp;
 }
 
@@ -1077,7 +1112,7 @@ pub struct GetFmcAliasCsrReq {
 }
 
 impl Request for GetFmcAliasCsrReq {
-    const ID: CommandId = CommandId::GET_FMC_ALIAS_CSR;
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_ECC384_CSR;
     type Resp = GetFmcAliasCsrResp;
 }
 
