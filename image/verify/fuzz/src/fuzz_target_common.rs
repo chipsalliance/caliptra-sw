@@ -12,6 +12,12 @@ use core::ops::Range;
 #[cfg(feature = "struct-aware")]
 const IMAGE_BUNDLE_SIZE: u32 = 131072;
 
+#[no_mangle]
+extern "C" fn cfi_panic_handler(_code: u32) -> ! {
+  eprintln!("cfi_panic_handler");
+  std::process::abort();
+}
+
 /*
  * NOTE: Copied from image/verify/src/verifier.rs, unable to import.
  * - Possibly, because it is a required parameter for creating the object.
