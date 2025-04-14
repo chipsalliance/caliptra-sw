@@ -102,9 +102,7 @@ fn test_pcr_quote_mldsa_sig_zero() {
     assert_eq!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_pcr_quote_ecc_sig_zero() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
@@ -127,9 +125,7 @@ fn test_pcr_quote_ecc_sig_zero() {
     assert_ne!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_pcr_quote_ecc_and_mldsa() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 

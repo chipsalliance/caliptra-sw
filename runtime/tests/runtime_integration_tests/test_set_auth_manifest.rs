@@ -376,30 +376,11 @@ fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
     set_manifest_command_execute(auth_manifest, None);
 }
 
-//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
 fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
     let mut auth_manifest =
         create_auth_manifest_of_metadata_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
     auth_manifest.image_metadata_col.entry_count += 1;
-
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(true);
-    flags.set_image_source(ImageHashSource::ShaAcc as u32);
-
-    let ptr = auth_manifest
-        .image_metadata_col
-        .image_metadata_list
-        .as_mut_ptr();
-
-    unsafe {
-        *ptr.add(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT) = AuthManifestImageMetadata {
-            fw_id: 127,
-            flags: flags.0,
-            digest: IMAGE_DIGEST1,
-        };
-    }
 
     set_manifest_command_execute(
         auth_manifest,

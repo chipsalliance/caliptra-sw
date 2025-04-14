@@ -27,7 +27,7 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 
 #[test]
 fn test_update_reset_success() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -48,7 +48,7 @@ fn test_update_reset_success() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -88,7 +88,7 @@ fn test_update_reset_success() {
 
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -108,7 +108,7 @@ fn test_update_reset_no_mailbox_cmd() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -152,7 +152,7 @@ fn test_update_reset_no_mailbox_cmd() {
 
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -172,7 +172,7 @@ fn test_update_reset_non_fw_load_cmd() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -214,7 +214,7 @@ fn test_update_reset_non_fw_load_cmd() {
 
 #[test]
 fn test_update_reset_verify_image_failure() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -234,7 +234,7 @@ fn test_update_reset_verify_image_failure() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -281,7 +281,7 @@ fn test_update_reset_verify_image_failure() {
 
 #[test]
 fn test_update_reset_boot_status() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -301,7 +301,7 @@ fn test_update_reset_boot_status() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -351,7 +351,7 @@ fn test_update_reset_boot_status() {
 
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
             let vendor_config_cold_boot = ImageGeneratorVendorConfig {
@@ -376,7 +376,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -440,7 +440,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
             pqc_key_idx: 3,
@@ -476,7 +476,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 rom: &rom,
-                active_mode,
+                subsystem_mode,
                 ..Default::default()
             },
             BootParams {
@@ -515,7 +515,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_check_rom_update_reset_status_reg() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -536,7 +536,7 @@ fn test_check_rom_update_reset_status_reg() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {
@@ -627,7 +627,7 @@ fn test_fmc_is_16k() {
 
 #[test]
 fn test_update_reset_max_fw_image() {
-    for active_mode in [false, true] {
+    for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             let image_options = ImageOptions {
                 pqc_key_type: *pqc_key_type,
@@ -648,7 +648,7 @@ fn test_update_reset_max_fw_image() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    active_mode,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {

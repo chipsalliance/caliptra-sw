@@ -400,7 +400,7 @@ impl Mldsa87 {
 
         mldsa
             .ctrl()
-            .write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
+            .write(|w| w.pcr_sign(true).ctrl(|w| w.keygen_sign()));
 
         // Wait for command to complete
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;

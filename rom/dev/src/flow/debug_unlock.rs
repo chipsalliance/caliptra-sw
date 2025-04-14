@@ -43,7 +43,7 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
         return Ok(());
     }
 
-    if !env.soc_ifc.active_mode() {
+    if !env.soc_ifc.subsystem_mode() {
         cprintln!("[state] error debug unlock requested in passive mode!");
         Err(CaliptraError::ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE)?;
     }
