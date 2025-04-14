@@ -104,6 +104,7 @@ _start:
     andi t1, t1, 0x3
     bne t1, x0, post_ecc_init
 
+#ifndef CARGO_FEATURE_SKIP_CLEAR_SRAM
     //
     // Cold Boot
     //
@@ -117,6 +118,7 @@ _start:
     la a0, DCCM_ORG         // dest
     la a1, DCCM_SIZE        // len 
     call _zero_mem256
+#endif // CARGO_FEATURE_SKIP_CLEAR_SRAM
 
 post_ecc_init:
 
@@ -354,9 +356,11 @@ exit_rom:
     
     // Save the FMC address
     addi a3, a0, 0
+#ifndef CARGO_FEATURE_SKIP_CLEAR_SRAM
     la a0, STACK_ORG         // dest
     la a1, STACK_SIZE        // len 
     call _zero_mem256
+#endif // CARGO_FEATURE_SKIP_CLEAR_SRAM
 
    // Clear all registers
    li x1,  0; li x2,  0; li x3,  0; li x4,  0;
