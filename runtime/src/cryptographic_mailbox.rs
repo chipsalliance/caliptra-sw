@@ -514,23 +514,12 @@ impl Commands {
         }
         let mut cmd = CmRandomStirReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
-
         let size = (cmd.input_size as usize).next_multiple_of(MAX_SEED_WORDS * 4);
         if size > MAX_CMB_DATA_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-
-        let mut additional_data = [0u32; MAX_CMB_DATA_SIZE / 4];
-        for (i, chunk) in cmd.input[..size].chunks_exact(4).enumerate() {
-            // avoid panic even though this is impossible
-            if i >= additional_data.len() {
-                break;
-            }
-            additional_data[i] = u32::from_be_bytes(chunk.try_into().unwrap());
-        }
-
+        let additional_data = <[u32; MAX_CMB_DATA_SIZE / 4]>::ref_from_bytes(&cmd.input).unwrap();
         drivers.trng.stir(&additional_data[..size / 4])?;
-
         Ok(MailboxResp::Header(MailboxRespHeader::default()))
     }
 }
