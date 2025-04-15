@@ -8,7 +8,8 @@ File Name:
 
 Abstract:
 
-    File contains startup code for Caliptra.
+    File contains minimal startup code for Caliptra tests. Will only execute
+    ROM. Does not support jumping to later firmware
 
 Environment:
 
@@ -95,9 +96,9 @@ _start:
     // Store address of NMI handler in MMIO NMI vector register
     sw t0, 0x0(t1)
 
-    // Initialize ICCM & DCCM on cold boot to
-    // all zeros. This is needed to intialize the ECC
-    // in ICCM & DCCM.
+
+    // !!! Do not use in production !!!
+    // Skipping zeroing ICCM & DCCM
     // CLP_SOC_IFC_REG_CPTRA_RESET_REASON = 0x30030040
     li t0, 0x30030040
     lw t1, 0x0(t0)
@@ -108,43 +109,10 @@ _start:
     // Cold Boot
     //
 
-    // Zero ICCM
-
-    // Zero DCCM
-
 post_ecc_init:
-
-    // Copy Data Section
-    // la a0, _sdata        // dest
-    // la a1, _sidata       // src
-    // la a2, _data_len     // len
-    // call _copy_mem32
-
-    // Zero BSS Section
 
     tail rom_entry
 
-    .cfi_endproc
-
-.section .init.text, "ax"
-.align 2
-_zero_mem256:
-    .cfi_startproc
-    // Can't use "sw x0" below if we want c.sw
-    li a2, 0
-    add a1, a1, a0
-1:
-    sw a2, 0(a0)
-    sw a2, 4(a0)
-    sw a2, 8(a0)
-    sw a2, 12(a0)
-    sw a2, 16(a0)
-    sw a2, 20(a0)
-    sw a2, 24(a0)
-    sw a2, 28(a0)
-    addi a0, a0, 32
-    bltu a0, a1, 1b
-    ret
     .cfi_endproc
 
 .section .init.text, "ax"
@@ -332,37 +300,4 @@ _nmi_handler:
     lw sp,  0x4(sp)
 
     mret
-
-.section .init.text, "ax"
-.align 2
-.global exit_rom
-exit_rom:
-    .cfi_startproc
-
-    //
-    // Clear the stack
-    //
-
-    // Save the FMC address
-    addi a3, a0, 0
-    la a0, STACK_ORG         // dest
-    la a1, STACK_SIZE        // len
-    ;call _zero_mem256
-
-   // Clear all registers
-   li x1,  0; li x2,  0; li x3,  0; li x4,  0;
-   li x5,  0; li x6,  0; li x7,  0; li x8,  0;
-   li x9,  0; li x10, 0; li x11, 0; li x12, 0;
-   // Don't clear x13 as it contains the FMC address.
-   li x14, 0; li x15, 0; li x16, 0;
-   li x17, 0; li x18, 0; li x19, 0; li x20, 0;
-   li x21, 0; li x22, 0; li x23, 0; li x24, 0;
-   li x25, 0; li x26, 0; li x27, 0; li x28, 0;
-   li x29, 0; li x30, 0; li x31, 0;
-
-    // Jump to FMC
-    jr a3
-1:
-    j 1b
-    .cfi_endproc
 
