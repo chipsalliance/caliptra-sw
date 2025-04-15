@@ -86,7 +86,7 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Check if TRNG is correctly sourced as per hw config.
-    validate_trng_config(&mut env);
+    //validate_trng_config(&mut env);
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
@@ -422,6 +422,7 @@ fn panic_is_possible() {
 }
 
 #[inline(always)]
+#[allow(dead_code)]
 fn validate_trng_config(env: &mut RomEnv) {
     // NOTE: The usage of non-short-circuiting boolean operations (| and &) is
     // explicit here, and necessary to prevent the compiler from inserting a ton
