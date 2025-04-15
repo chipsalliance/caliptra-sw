@@ -880,6 +880,7 @@ pub mod kv;
 pub mod mbox;
 pub mod mbox_sram;
 pub mod mldsa;
+pub mod otp_ctrl;
 pub mod pv;
 pub mod sha256;
 pub mod sha512;
