@@ -29,7 +29,7 @@ use caliptra_registers::soc_ifc::{self, SocIfcReg};
 use core::mem::MaybeUninit;
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
-const MAX_SEED_WORDS: usize = 12;
+pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
 
 /// A unique handle to the underlying CSRNG peripheral.
@@ -168,7 +168,11 @@ impl Csrng {
     }
 
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
-        send_command(&mut self.csrng, Command::Update(additional_data))
+        // if we are given too much data, do multiple updates
+        for data in additional_data.chunks(MAX_SEED_WORDS) {
+            send_command(&mut self.csrng, Command::Update(data))?;
+        }
+        Ok(())
     }
 
     /// Returns the number of failing health checks.
