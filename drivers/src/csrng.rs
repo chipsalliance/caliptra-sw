@@ -140,6 +140,9 @@ impl Csrng {
                 num_128_bit_blocks: 12 / WORDS_PER_BLOCK,
             },
         )?;
+        
+        let reg = self.csrng.regs().sw_cmd_sts().read();
+        crate::cprintln!("CMD ACK before reading data: {}", reg.cmd_ack());
 
         let mut result = MaybeUninit::<[u32; 12]>::uninit();
         let dest = result.as_mut_ptr() as *mut u32;
@@ -159,6 +162,8 @@ impl Csrng {
             dest.add(9).write(self.csrng.regs().genbits().read());
             dest.add(10).write(self.csrng.regs().genbits().read());
             dest.add(11).write(self.csrng.regs().genbits().read());
+            let reg = self.csrng.regs().sw_cmd_sts().read();
+            crate::cprintln!("CMD ACK after reading data: {}", reg.cmd_ack());
             Ok(result.assume_init())
         }
     }
@@ -272,7 +277,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     let extra_words: &[u32];
     let err: CaliptraError;
 
-    match command {
+    let check_ack = match command {
         Command::Instantiate(ref seed) | Command::Reseed(ref seed) => {
             acmd = if matches!(command, Command::Instantiate(_)) {
                 err = CaliptraError::DRIVER_CSRNG_INSTANTIATE;
@@ -297,6 +302,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             }
 
             glen = 0;
+            true
         }
 
         Command::Generate { num_128_bit_blocks } => {
@@ -306,6 +312,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             glen = num_128_bit_blocks;
             extra_words = &[];
             err = CaliptraError::DRIVER_CSRNG_GENERATE;
+            false
         }
 
         Command::Update(words) => {
@@ -315,6 +322,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             glen = 0;
             extra_words = &words[..clen];
             err = CaliptraError::DRIVER_CSRNG_UPDATE;
+            true
         }
 
         Command::Uninstantiate => {
@@ -324,8 +332,9 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             glen = 0;
             extra_words = &[];
             err = CaliptraError::DRIVER_CSRNG_UNINSTANTIATE;
+            true
         }
-    }
+    };
 
     // Write mandatory 32-bit command header.
     csrng.regs_mut().cmd_req().write(|w| {
@@ -351,7 +360,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             return Err(err);
         }
 
-        if reg.cmd_rdy() && reg.cmd_ack() {
+        if reg.cmd_rdy() && (!check_ack || reg.cmd_ack()) {
             return Ok(());
         }
     }
