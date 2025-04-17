@@ -158,7 +158,7 @@ pub struct InitParams<'a> {
     pub uds_granularity_64: bool,
 
     // Keypairs for production debug unlock levels, from low to high
-    // ECC384 and MLDSA87 keypairs
+    // ECC384 and MLDSA87 keypairs (in hardware format i.e. little-endian)
     pub prod_dbg_unlock_keypairs: Vec<(&'a [u8; 96], &'a [u8; 2592])>,
 
     pub debug_intent: bool,
