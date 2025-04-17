@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{get_ecc_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert, run_rt_test, RuntimeTestArgs,
+};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
@@ -11,6 +13,7 @@ use caliptra_drivers::PcrId;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
+use fips204::traits::{SerDes, Verifier};
 use openssl::{
     bn::BigNum,
     ecdsa::EcdsaSig,
@@ -43,7 +46,7 @@ fn test_pcr_quote() {
 
     let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::ECC_SIGNATURE,
+        flags: QuotePcrsFlags::ECC_SIGNATURE | QuotePcrsFlags::MLDSA_SIGNATURE,
         nonce: [0xf5; 32],
     });
     cmd.populate_chksum().unwrap();
@@ -60,7 +63,7 @@ fn test_pcr_quote() {
     resp.pcrs.iter().for_each(|x| h.update(x).unwrap());
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
-    let digest: [u8; 64] = res.as_bytes().try_into().unwrap();
+    let mut digest: [u8; 64] = res.as_bytes().try_into().unwrap();
     assert_eq!(resp.digest, digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
@@ -72,11 +75,25 @@ fn test_pcr_quote() {
     let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
-    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
-    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
-    let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
+    let ecc_fmc_resp = get_ecc_fmc_alias_cert(&mut model);
+    let ecc_fmc_cert: X509 =
+        X509::from_der(&ecc_fmc_resp.data[..ecc_fmc_resp.data_size as usize]).unwrap();
+    let ecc_pkey = ecc_fmc_cert.public_key().unwrap().ec_key().unwrap();
+    assert!(sig.verify(&resp.digest, &ecc_pkey).unwrap());
 
-    assert!(sig.verify(&resp.digest, &pkey).unwrap());
+    let mut mldsa_fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    // 4 (x509 start) + PUBLIC_KEY_OFFSET(318) in FmcAliasCertTbsMlDsa87
+    let public_key_offset = 4 + 318;
+    let public_key_len = 2592;
+    let mldsa_pkey = &mut mldsa_fmc_resp.data[..mldsa_fmc_resp.data_size as usize]
+        [public_key_offset..public_key_offset + public_key_len];
+    mldsa_pkey.reverse();
+    let pk = fips204::ml_dsa_87::PublicKey::try_from_bytes(mldsa_pkey.try_into().unwrap()).unwrap();
+    digest.reverse();
+    let mut signature: [u8; 4627] = resp.mldsa_signature[1..].try_into().unwrap();
+    signature.reverse();
+
+    assert!(pk.verify(&digest, &signature, &[]));
 }
 
 #[test]

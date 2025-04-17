@@ -853,6 +853,7 @@ dependencies = [
  "cms",
  "crypto",
  "dpe",
+ "fips204",
  "memoffset 0.8.0",
  "openssl",
  "platform",
