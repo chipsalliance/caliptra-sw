@@ -64,6 +64,9 @@ impl CommandId {
     // The get IDevID ECC CSR command.
     pub const GET_IDEV_ECC_CSR: Self = Self(0x4944_4352); // "IDCR"
 
+    // The get IDevID MLDSA CSR command.
+    pub const GET_IDEV_MLDSA_CSR: Self = Self(0x4944_434D); // "IDCM"
+
     // The get FMC Alias CSR command.
     pub const GET_FMC_ALIAS_CSR: Self = Self(0x464D_4352); // "FMCR"
 
@@ -182,6 +185,7 @@ pub enum MailboxResp {
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
+    GetIdevMldsaCsr(GetIdevMldsaCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     CmImport(CmImportResp),
@@ -210,6 +214,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_bytes()),
@@ -238,6 +243,7 @@ impl MailboxResp {
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_mut_bytes()),
@@ -1094,6 +1100,40 @@ impl GetIdevCsrResp {
 impl ResponseVarSize for GetIdevCsrResp {}
 
 impl Default for GetIdevCsrResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_IDEVID_MLDSA_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetIdevMldsaCsrReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetIdevMldsaCsrReq {
+    const ID: CommandId = CommandId::GET_IDEV_MLDSA_CSR;
+    type Resp = GetIdevMldsaCsrResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetIdevMldsaCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; Self::DATA_MAX_SIZE],
+}
+impl GetIdevMldsaCsrResp {
+    pub const DATA_MAX_SIZE: usize = 7680;
+}
+impl ResponseVarSize for GetIdevMldsaCsrResp {}
+
+impl Default for GetIdevMldsaCsrResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),
