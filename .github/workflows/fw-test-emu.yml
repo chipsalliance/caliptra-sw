@@ -75,15 +75,16 @@ jobs:
           # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
           # there is no hw version definition here because we are running in the emulator, so assume latest
           name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-unified
 
       - name: Debug List Downloads
         run: |
-          ls -laR /tmp/caliptra-*
+          ls -la /tmp/ 
 
       - name: Run tests
         run: |
-          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
-          export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin
+          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/
+          export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.bin
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
           fi

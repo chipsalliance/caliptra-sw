@@ -227,12 +227,13 @@ jobs:
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
 
-      - name: 'Upload test firmware artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-firmware
-          retention-days: 1
+      # This is replaced by claiptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+      # - name: 'Upload test firmware artifact'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+      #     path: /tmp/caliptra-test-firmware
+      #     retention-days: 1
 
   build_kernel_modules:
     runs-on: ubuntu-22.04
@@ -403,11 +404,11 @@ jobs:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
-      - name: 'Download Test Firmware Artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-firmware
+      # - name: 'Download Test Firmware Artifact'
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+      #     path: /tmp/caliptra-test-firmware
 
       - name: Mount binaries
         run: |
@@ -453,6 +454,7 @@ jobs:
         with:
           # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
           name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-unified
 
       - name: Debug List Downloads
         run: |
@@ -463,10 +465,10 @@ jobs:
           export RUST_TEST_THREADS=1
           CALIPTRA_ARTIFACTS_PATH=caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=4"
-          VARS+="CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-fmc-rt-firmware/"
-          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-rom-firmware/caliptra-rom.bin"
-          VARS+="CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=4 "
+          VARS+="CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/ "
+          VARS+="CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.bin "
+          VARS+="CALIPTRA_IMAGE_NO_GIT_REVISION=1 "
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
