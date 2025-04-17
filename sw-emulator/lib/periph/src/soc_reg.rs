@@ -757,6 +757,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x5c4)]
     ss_dbg_manuf_service_reg_rsp: ReadWriteRegister<u32, SsDbgManufServiceRegRsp::Register>,
 
+    #[register_array(offset = 0x5c8)]
+    ss_soc_dbg_unlock_level: [u32; 2],
+
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
 
@@ -1017,6 +1020,7 @@ impl SocRegistersImpl {
             ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister::new(
                 ss_prod_dbg_unlock_fuse_offset as u32,
             ),
+            ss_soc_dbg_unlock_level: [0; 2],
         };
         regs
     }
