@@ -398,6 +398,7 @@ impl Mldsa87 {
         let iv = Self::generate_iv(trng)?;
         KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
 
+        // [CAP2][TODO] verify that the hardware needs keygen_sign bit set for pcr_sign
         mldsa
             .ctrl()
             .write(|w| w.pcr_sign(true).ctrl(|w| w.keygen_sign()));
