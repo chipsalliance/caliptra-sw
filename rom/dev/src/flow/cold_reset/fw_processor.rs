@@ -25,8 +25,8 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
-    StashMeasurementReq, StashMeasurementResp,
+    CapabilitiesResp, CommandId, GetIdevCsrResp, GetIdevMldsaCsrResp, MailboxReqHeader,
+    MailboxRespHeader, Response, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::{
     pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
@@ -344,6 +344,31 @@ impl FirmwareProcessor {
 
                         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
                         let mut resp = GetIdevCsrResp::default();
+
+                        if csr_persistent_mem.is_unprovisioned() {
+                            // CSR was never written to DCCM. This means the gen_idev_id_csr
+                            // manufacturing flag was not set before booting into ROM.
+                            return Err(
+                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
+                            );
+                        }
+
+                        let csr = csr_persistent_mem
+                            .get()
+                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+
+                        resp.data_size = csr_persistent_mem.get_csr_len();
+                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
+
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::GET_IDEV_MLDSA_CSR => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+
+                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
+                        let mut resp = GetIdevMldsaCsrResp::default();
 
                         if csr_persistent_mem.is_unprovisioned() {
                             // CSR was never written to DCCM. This means the gen_idev_id_csr

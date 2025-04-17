@@ -2,7 +2,9 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{CommandId, GetIdevCsrResp, MailboxReqHeader};
+use caliptra_common::mailbox_api::{
+    CommandId, GetIdevCsrResp, GetIdevMldsaCsrResp, MailboxReqHeader,
+};
 use caliptra_drivers::{InitDevIdCsrEnvelope, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
@@ -145,4 +147,59 @@ fn test_validate_csr_mac() {
     };
 
     assert!(memcmp::eq(&hmac, &csr_envelop.csr_mac));
+}
+
+#[test]
+fn test_get_mldsa_csr() {
+    let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
+        Fuses {
+            life_cycle: DeviceLifecycle::Manufacturing,
+            debug_locked: true,
+            ..Default::default()
+        },
+        ImageOptions::default(),
+    );
+
+    let mldsa_csr_bytes = {
+        let flags = MfgFlags::GENERATE_IDEVID_CSR;
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| flags.bits());
+
+        let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
+
+        hw.step_until(|m| {
+            m.soc_ifc()
+                .cptra_flow_status()
+                .read()
+                .ready_for_mb_processing()
+        });
+        csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize].to_vec()
+    };
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA_CSR),
+            &[],
+        ),
+    };
+
+    let response = hw
+        .mailbox_execute(CommandId::GET_IDEV_MLDSA_CSR.into(), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let get_idv_csr_resp = GetIdevMldsaCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        get_idv_csr_resp.hdr.chksum,
+        0x0,
+        &get_idv_csr_resp.as_bytes()[core::mem::size_of_val(&get_idv_csr_resp.hdr.chksum)..],
+    ));
+
+    assert_eq!(mldsa_csr_bytes.len() as u32, get_idv_csr_resp.data_size);
+    assert_eq!(
+        mldsa_csr_bytes,
+        get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize]
+    );
 }

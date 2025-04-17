@@ -65,7 +65,7 @@ pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
-pub use get_idev_csr::GetIdevCsrCmd;
+pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
@@ -234,6 +234,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_ECC_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_MLDSA_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
