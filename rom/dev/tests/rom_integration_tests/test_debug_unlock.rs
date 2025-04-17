@@ -238,7 +238,6 @@ fn test_dbg_unlock_manuf_invalid_token() {
         .manuf_dbg_unlock_fail());
 }
 
-
 fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
     input
         .chunks(4)

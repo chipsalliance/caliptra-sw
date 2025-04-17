@@ -780,6 +780,34 @@ impl FirmwareProcessor {
         Ok(())
     }
 
+    /// Read verify checksum from mailbox.
+    ///
+    /// # Arguments
+    /// * `txn` - Mailbox Receive Transaction
+    ///
+    /// # Returns
+    /// * `()` - Ok
+    ///    Error code on failure.
+    #[allow(dead_code)]
+    pub fn req_verify_chksum(txn: &MailboxRecvTxn) -> CaliptraResult<()> {
+        let data = txn.raw_mailbox_contents();
+        // Extract header out from the rest of the request
+        let req_hdr =
+            MailboxReqHeader::ref_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
+                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+        // Verify checksum
+        if !caliptra_common::checksum::verify_checksum(
+            req_hdr.chksum,
+            txn.cmd(),
+            &data[core::mem::size_of_val(&req_hdr.chksum)..],
+        ) {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
+        };
+
+        Ok(())
+    }
+
     /// Read measurement from mailbox and extends it into PCR31
     ///
     /// # Arguments
