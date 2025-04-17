@@ -608,6 +608,11 @@ impl<'a> DmaRecovery<'a> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
 
+            // set RESET signal to indirect control to load the next image
+            recovery
+                .indirect_fifo_ctrl_0()
+                .modify(|val| val.reset(Self::RESET_VAL));
+
             // Set PROT_CAP2.AGENT_CAPS
             // - Bit7  to 1 ('Push C-image support')
             // - Bit11 to 1 ('Flashless boot')
@@ -643,11 +648,6 @@ impl<'a> DmaRecovery<'a> {
         while !self.dma.payload_available() {}
         let image_size_bytes = self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-
-            // set RESET signal to indirect control to load the next image
-            recovery
-                .indirect_fifo_ctrl_0()
-                .modify(|val| val.reset(Self::RESET_VAL));
 
             // Read the image size from INDIRECT_FIFO_CTRL1 register. Image size is in DWORDs.
             let image_size_dwords = recovery.indirect_fifo_ctrl_1().read();
