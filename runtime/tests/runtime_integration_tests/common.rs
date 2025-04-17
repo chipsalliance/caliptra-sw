@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::{mailbox::Request, SocManager};
+use caliptra_api::{
+    mailbox::{GetFmcAliasMlDsa87CertResp, Request},
+    SocManager,
+};
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
@@ -344,6 +347,26 @@ pub fn get_ecc_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasEcc384Ce
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetFmcAliasEcc384CertResp>());
     let mut fmc_resp = GetFmcAliasEcc384CertResp::default();
+    fmc_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    fmc_resp
+}
+
+pub fn get_mldsa_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasMlDsa87CertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_FMC_ALIAS_MLDSA87_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_FMC_ALIAS_MLDSA87_CERT),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasMlDsa87CertResp>());
+    let mut fmc_resp = GetFmcAliasMlDsa87CertResp::default();
     fmc_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     fmc_resp
 }
