@@ -343,9 +343,9 @@ fn handle_auth_debug_unlock_token(
         digest_op.finalize(&mut mldsa_msg)?;
 
         let result = env.mldsa87.verify(
-            &Mldsa87PubKey::from(&token.mldsa_public_key),
+            &Mldsa87PubKey::from(token.mldsa_public_key),
             &mldsa_msg,
-            &Mldsa87Signature::from(&token.mldsa_signature),
+            &Mldsa87Signature::from(token.mldsa_signature),
         )?;
 
         if result == Mldsa87Result::SigVerifyFailed {
