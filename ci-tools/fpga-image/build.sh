@@ -10,9 +10,9 @@ set -x
 
 mkdir -p out
 
-SYSTEM_BOOT_SHA256="714cc0b12607c476672f569b3f996ce8b3446bd05b30bffcd1c772c483923098"
+SYSTEM_BOOT_SHA256="5a22eac02deb38825ed5df260e394753f440d546a34b9ed30ac096eb3aed2eb5"
 if ! (echo "${SYSTEM_BOOT_SHA256} out/system-boot.tar.gz" | sha256sum -c); then
-  curl -o out/system-boot.tar.gz https://people.canonical.com/~platform/images/xilinx/zcu-ubuntu-22.04/iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-system-boot.tar.gz
+  curl -o out/system-boot.tar.gz https://people.canonical.com/~platform/images/xilinx/versal-ubuntu-22.04/iot-limerick-versal-classic-server-2204-x02-20230315-48-system-boot.tar.gz
   if ! (echo "${SYSTEM_BOOT_SHA256} out/system-boot.tar.gz" | sha256sum -c); then
     echo "Downloaded system-boot file did not match expected sha256sum".
     exit 1
@@ -83,7 +83,7 @@ chroot out/rootfs systemctl enable startup-script.service
 # Build a squashed filesystem from the rootfs
 rm out/rootfs.sqsh || true
 sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
-bootfs_blocks="$((80000 * 2))"
+bootfs_blocks="$((80000 * 4))"
 rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
 rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
 persistfs_blocks=14680064
