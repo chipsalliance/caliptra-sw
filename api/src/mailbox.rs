@@ -315,6 +315,7 @@ pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
     LmsVerify(LmsVerifyReq),
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
+    GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
     FipsVersion(MailboxReqHeader),
@@ -351,6 +352,7 @@ impl MailboxReq {
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevEcc384Cert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
@@ -379,6 +381,7 @@ impl MailboxReq {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
@@ -411,6 +414,7 @@ impl MailboxReq {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
             MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
+            MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
@@ -578,6 +582,18 @@ pub struct GetLdevEcc384CertReq {
 
 impl Request for GetLdevEcc384CertReq {
     const ID: CommandId = CommandId::GET_LDEV_ECC384_CERT;
+    type Resp = GetLdevCertResp;
+}
+
+// GET_LDEV_MLDSA87_CERT
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetLdevMldsa87CertReq {
+    pub header: MailboxReqHeader,
+}
+
+impl Request for GetLdevMldsa87CertReq {
+    const ID: CommandId = CommandId::GET_LDEV_MLDSA87_CERT;
     type Resp = GetLdevCertResp;
 }
 
