@@ -14,7 +14,8 @@ Abstract:
 
 use caliptra_common::mailbox_api::{
     AlgorithmType, GetFmcAliasEcc384CertResp, GetFmcAliasMlDsa87CertResp, GetIdevCertResp,
-    GetIdevEcc384CertReq, GetLdevCertResp, GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
+    GetIdevEcc384CertReq, GetIdevMldsa87CertReq, GetLdevCertResp, GetRtAliasCertResp, MailboxResp,
+    MailboxRespHeader,
 };
 
 use crate::Drivers;
@@ -66,9 +67,40 @@ impl IDevIdCertCmd {
                 }
             }
             AlgorithmType::Mldsa87 => {
-                // MLDSA87 implementation would go here
-                // This is just a placeholder - actual implementation would depend on MLDSA87 specifics
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+                if cmd_args.len() <= core::mem::size_of::<GetIdevMldsa87CertReq>() {
+                    let mut cmd = GetIdevMldsa87CertReq::default();
+                    cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
+
+                    // Validate tbs
+                    if cmd.tbs_size as usize > cmd.tbs.len() {
+                        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                    }
+
+                    let sig = caliptra_x509::Mldsa87Signature {
+                        sig: cmd.signature[..4627]
+                            .try_into()
+                            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+                    };
+
+                    let Some(builder) =
+                        MlDsa87CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
+                    else {
+                        return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+                    };
+
+                    let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
+                    let Some(cert_size) = builder.build(&mut cert) else {
+                        return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+                    };
+
+                    Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
+                        hdr: MailboxRespHeader::default(),
+                        data_size: cert_size as u32,
+                        data: cert,
+                    }))
+                } else {
+                    Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+                }
             }
         }
     }

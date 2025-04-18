@@ -327,6 +327,7 @@ pub enum MailboxReq {
     FwInfo(MailboxReqHeader),
     PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq),
     GetIdevEcc384Cert(GetIdevEcc384CertReq),
+    GetIdevMldsa87Cert(GetIdevMldsa87CertReq),
     TagTci(TagTciReq),
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasEcc384Cert(GetFmcAliasEcc384CertReq),
@@ -359,6 +360,7 @@ impl MailboxReq {
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevEcc384Cert(req) => req.as_bytes_partial(),
+            MailboxReq::GetIdevMldsa87Cert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_bytes()),
@@ -391,6 +393,7 @@ impl MailboxReq {
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
+            MailboxReq::GetIdevMldsa87Cert(req) => req.as_bytes_partial_mut(),
             MailboxReq::TagTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
@@ -423,6 +426,7 @@ impl MailboxReq {
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_CERT,
             MailboxReq::GetIdevEcc384Cert(_) => CommandId::GET_IDEV_ECC384_CERT,
+            MailboxReq::GetIdevMldsa87Cert(_) => CommandId::GET_IDEV_MLDSA87_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_ECC384_CERT,
@@ -521,7 +525,7 @@ impl Default for VarSizeDataResp {
     }
 }
 
-// GET_IDEV_CERT
+// GET_IDEV_ECC384_CERT
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetIdevEcc384CertReq {
@@ -558,6 +562,45 @@ impl Default for GetIdevEcc384CertReq {
             signature_r: [0u8; 48],
             signature_s: [0u8; 48],
             tbs: [0u8; GetIdevEcc384CertReq::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_IDEV_MLDSA87_CERT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetIdevMldsa87CertReq {
+    pub hdr: MailboxReqHeader,
+    pub tbs_size: u32,
+    pub signature: [u8; 4628],
+    pub tbs: [u8; GetIdevMldsa87CertReq::DATA_MAX_SIZE], // variable length
+}
+impl GetIdevMldsa87CertReq {
+    pub const DATA_MAX_SIZE: usize = 916; // Req max size = Resp max size - MAX_MLDSA87_SIG_LEN
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for GetIdevMldsa87CertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            tbs_size: 0,
+            signature: [0u8; 4628],
+            tbs: [0u8; GetIdevMldsa87CertReq::DATA_MAX_SIZE],
         }
     }
 }
