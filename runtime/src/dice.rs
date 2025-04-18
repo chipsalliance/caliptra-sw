@@ -121,9 +121,10 @@ impl GetLdevCertCmd {
                 Ok(MailboxResp::GetLdevCert(resp))
             }
             AlgorithmType::Mldsa87 => {
-                // MLDSA87 implementation would go here
-                // This is just a placeholder - actual implementation would depend on MLDSA87 specifics
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+                let mut resp = GetLdevCertResp::default();
+                resp.data_size =
+                    copy_ldevid_mldsa87_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+                Ok(MailboxResp::GetLdevCert(resp))
             }
         }
     }
@@ -191,6 +192,19 @@ pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
     persistent_data.data_vault.ldev_dice_ecc_signature()
 }
 
+/// Return the LDevId MLDSA87 cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+///
+/// # Returns
+///
+/// * `Mldsa87Signature` - The formed signature
+pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Signature {
+    persistent_data.data_vault.ldev_dice_mldsa_signature()
+}
+
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
@@ -211,6 +225,29 @@ pub fn copy_ldevid_cert(
         .get(..persistent_data.fht.ecc_ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data);
     ecc384_cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
+}
+
+/// Copy LDevID certificate produced by ROM to `cert` buffer
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
+#[inline(never)]
+pub fn copy_ldevid_mldsa87_cert(
+    persistent_data: &PersistentData,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    let tbs = persistent_data
+        .mldsa_ldevid_tbs
+        .get(..persistent_data.fht.mldsa_ldevid_tbs_size.into());
+    let sig = ldevid_dice_mldsa87_sign(persistent_data);
+    mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
 }
 

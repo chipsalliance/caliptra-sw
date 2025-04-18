@@ -193,6 +193,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384),
         CommandId::GET_IDEV_MLDSA87_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87),
         CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_LDEV_MLDSA87_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
