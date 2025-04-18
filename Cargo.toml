@@ -85,7 +85,8 @@ members = [
 ]
 
 [workspace.dependencies]
-aes = "0.8.2"
+aes = "0.8.4"
+aes-gcm = "0.10.3"
 anyhow = "1.0.70"
 arbitrary = { version = "1.3.0", features = ["derive"] }
 arrayref = "0.3.6"

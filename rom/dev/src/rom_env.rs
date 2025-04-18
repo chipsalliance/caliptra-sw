@@ -16,14 +16,14 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
+    Aes, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, Mldsa87, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
-    csrng::CsrngReg, doe::DoeReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
-    kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
-    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    aes::AesReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg, entropy_src::EntropySrcReg,
+    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Rom Context
@@ -75,6 +75,9 @@ pub struct RomEnv {
 
     /// Dma engine
     pub dma: Dma,
+
+    /// AES engine
+    pub aes: Aes,
 }
 
 impl RomEnv {
@@ -103,6 +106,7 @@ impl RomEnv {
             persistent_data: PersistentDataAccessor::new(),
             mldsa87: Mldsa87::new(MldsaReg::new()),
             dma: Dma::default(),
+            aes: Aes::new(AesReg::new()),
         })
     }
 }

@@ -14,12 +14,10 @@ Abstract:
 
 use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 
-use crate::helpers::EndianessTransform;
+use crate::{helpers::EndianessTransform, AES_256_BLOCK_SIZE, AES_256_KEY_SIZE};
 
 pub enum Aes256Cbc {}
 
-const AES_256_BLOCK_SIZE: usize = 16;
-const AES_256_KEY_SIZE: usize = 32;
 const AES_256_IV_SIZE: usize = AES_256_BLOCK_SIZE;
 
 type Aes256Decryptor = cbc::Decryptor<aes::Aes256>;

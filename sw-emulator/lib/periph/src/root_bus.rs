@@ -356,7 +356,7 @@ impl CaliptraRootBus {
 
         Self {
             rom,
-            aes: Aes::new(clock),
+            aes: Aes::new(),
             aes_clp: AesClp::new(clock, key_vault.clone()),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
