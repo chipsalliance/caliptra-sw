@@ -190,7 +190,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_ECC384_CERT => IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384),
-        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
+        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_IDEV_MLDSA87_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87),
         CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),

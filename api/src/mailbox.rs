@@ -2,7 +2,9 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::{MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
+use caliptra_image_types::{
+    MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE,
+};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
@@ -41,6 +43,7 @@ impl CommandId {
     pub const GET_LDEV_MLDSA87_CERT: Self = Self(0x4C444D43); // "LDMC"
     pub const GET_FMC_ALIAS_MLDSA87_CERT: Self = Self(0x434D4346); // "CMCF"
     pub const GET_RT_ALIAS_MLDSA87_CERT: Self = Self(0x434D4352); // "CMCR"
+    pub const GET_IDEV_MLDSA87_INFO: Self = Self(0x49444D49); // "IDMI"
     pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
     pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
     pub const MLDSA87_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
@@ -192,6 +195,7 @@ pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
     GetIdevInfo(GetIdevInfoResp),
+    GetIdevMldsa87Info(GetIdevMldsa87InfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
@@ -222,6 +226,7 @@ impl MailboxResp {
             MailboxResp::Header(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
@@ -252,6 +257,7 @@ impl MailboxResp {
             MailboxResp::Header(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
@@ -567,6 +573,15 @@ pub struct GetIdevInfoResp {
     pub hdr: MailboxRespHeader,
     pub idev_pub_x: [u8; 48],
     pub idev_pub_y: [u8; 48],
+}
+
+// GET_IDEV_MLDSA87_INFO
+// No command-specific input args
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetIdevMldsa87InfoResp {
+    pub hdr: MailboxRespHeader,
+    pub idev_pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
 }
 
 // GET_LDEV_CERT

@@ -221,6 +221,21 @@ fn test_ldev_cert() {
         .unwrap());
 }
 
+// #[test]
+// fn test_idev_mldsa87_info() {
+//     let mut model = run_rt_test(RuntimeTestArgs::default());
+
+//     // Get IDev public key
+//     let payload = MailboxReqHeader {
+//         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_MLDSA87_INFO), &[]),
+//     };
+//     let resp = model
+//         .mailbox_execute(u32::from(CommandId::GET_IDEV_MLDSA87_INFO), payload.as_bytes())
+//         .unwrap()
+//         .unwrap();
+//     let idev_resp = GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+// }
+
 #[test]
 fn test_fmc_alias_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());

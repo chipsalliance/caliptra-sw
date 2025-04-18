@@ -13,7 +13,10 @@ Abstract:
 --*/
 
 use crate::{handoff::RtHandoff, Drivers};
-use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    AlgorithmType, FwInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp, MailboxResp,
+    MailboxRespHeader,
+};
 use caliptra_drivers::CaliptraResult;
 
 pub struct FwInfoCmd;
@@ -53,14 +56,29 @@ impl FwInfoCmd {
 pub struct IDevIdInfoCmd;
 impl IDevIdInfoCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &Drivers,
+        alg_type: AlgorithmType,
+    ) -> CaliptraResult<MailboxResp> {
         let pdata = drivers.persistent_data.get();
-        let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
+        match alg_type {
+            AlgorithmType::Ecc384 => {
+                let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
 
-        Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
-            hdr: MailboxRespHeader::default(),
-            idev_pub_x: pub_key.x.into(),
-            idev_pub_y: pub_key.y.into(),
-        }))
+                return Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
+                    hdr: MailboxRespHeader::default(),
+                    idev_pub_x: pub_key.x.into(),
+                    idev_pub_y: pub_key.y.into(),
+                }));
+            }
+            AlgorithmType::Mldsa87 => {
+                let pub_key = pdata.idevid_mldsa_pub_key;
+
+                return Ok(MailboxResp::GetIdevMldsa87Info(GetIdevMldsa87InfoResp {
+                    hdr: MailboxRespHeader::default(),
+                    idev_pub_key: pub_key.into(),
+                }));
+            }
+        }
     }
 }
