@@ -23,8 +23,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
-    Aes, AesIv, AesKey, Array4x12, Array4x16, Array4x8, CaliptraResult, Sha2_512_384, Trng,
-    MAX_SEED_WORDS,
+    Aes, AesIv, AesKey, Array4x12, Array4x16, CaliptraResult, Sha2_512_384, Trng, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -44,13 +43,13 @@ pub struct CmStorage {
     // 1-up counter for KEK GCM IV
     kek_next_iv: u128,
     // KEK split into two key shares
-    kek: (Array4x8, Array4x8),
+    kek: ([u8; 32], [u8; 32]),
 }
 
 impl CmStorage {
     pub fn new() -> Self {
         Self {
-            kek: (Array4x8::default(), Array4x8::default()),
+            kek: ([0u8; 32], [0u8; 32]),
             ..Default::default()
         }
     }
@@ -60,14 +59,12 @@ impl CmStorage {
     pub fn init(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
         let key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
         let key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
-        let key_share0 = Array4x8::from(key_share0);
-        let key_share1 = Array4x8::from(key_share1);
         let random_iv = trng.generate4()?;
         // we mask off the top bit so that we always have at least 2^95 usages left.
         self.kek_next_iv = (((random_iv.0 & 0x7fff_ffff) as u128) << 64)
             | ((random_iv.1 as u128) << 32)
             | (random_iv.2 as u128);
-        self.kek = (key_share0, key_share1);
+        self.kek = (transmute!(key_share0), transmute!(key_share1));
         self.initialized = true;
         Ok(())
     }
@@ -105,7 +102,7 @@ impl CmStorage {
         trng: &mut Trng,
         unencrypted_cmk: &UnencryptedCmk,
     ) -> CaliptraResult<EncryptedCmk> {
-        let kek_iv = self.kek_next_iv;
+        let kek_iv: [u8; 12] = self.kek_next_iv.to_le_bytes()[..12].try_into().unwrap();
         self.kek_next_iv += 1;
 
         let plaintext = unencrypted_cmk.as_bytes();
@@ -113,7 +110,7 @@ impl CmStorage {
         // Encrypt the CMK using the KEK
         let (iv, gcm_tag) = aes.aes_256_gcm_encrypt(
             trng,
-            AesIv::U96(kek_iv),
+            AesIv::Array(&kek_iv),
             AesKey::Split(&self.kek.0, &self.kek.1),
             &[],
             plaintext,
