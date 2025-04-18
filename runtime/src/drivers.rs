@@ -498,7 +498,7 @@ impl Drivers {
 
         // Write fmc alias cert to cert chain.
         let fmcalias_cert_size =
-            dice::copy_fmc_alias_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
+            dice::copy_fmc_alias_ecc384_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }

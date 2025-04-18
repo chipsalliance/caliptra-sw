@@ -9,7 +9,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevCertReq, StashMeasurementReq,
+    PopulateIdevEcc384CertReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -331,7 +331,8 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
 
-        let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq::default());
+        let mut pop_idev_cmd =
+            MailboxReq::PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq::default());
         pop_idev_cmd.populate_chksum().unwrap();
 
         let resp = model

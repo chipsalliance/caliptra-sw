@@ -74,7 +74,7 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxResp};
+use caliptra_common::mailbox_api::{AlgorithmType, CommandId, MailboxResp};
 use packet::Packet;
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
@@ -189,9 +189,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Handle the request and generate the response
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
+        CommandId::GET_IDEV_ECC384_CERT => IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384),
         CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
-        CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
+        CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
@@ -202,8 +202,25 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
-        CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
+        CommandId::GET_FMC_ALIAS_ECC384_CERT => {
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
+        }
+        CommandId::GET_RT_ALIAS_ECC384_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
+        }
+        // MLDSA87 versions
+        CommandId::GET_IDEV_MLDSA87_CERT => {
+            IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87)
+        }
+        CommandId::GET_LDEV_MLDSA87_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
+        CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
+        CommandId::GET_RT_ALIAS_MLDSA87_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
         CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
@@ -233,9 +250,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_ECC_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_MLDSA_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
         }
