@@ -14,10 +14,10 @@ Abstract:
 
 use bitfield::size_of;
 use caliptra_emu_derive::Bus;
-use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha384};
 
-const SS_MANUF_DBG_UNLOCK_FUSE_SIZE: usize = 64;
-const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 4;
+const SS_MANUF_DBG_UNLOCK_FUSE_SIZE: usize = 48;
+const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 8;
 
 #[derive(Bus)]
 pub struct Mci {
@@ -40,7 +40,7 @@ impl Mci {
                     * SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES];
                 key_pairs.iter().enumerate().for_each(|(i, (ecc, mldsa))| {
                     // Create a single hasher for the concatenated keys
-                    let mut hasher = Sha512::new();
+                    let mut hasher = Sha384::new();
                     hasher.update(ecc);
                     hasher.update(mldsa);
                     let hash = hasher.finalize();
@@ -48,7 +48,8 @@ impl Mci {
                     // Copy hash into fuses array (64 bytes / 16 u32s)
                     let base_idx = i * (SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>());
                     hash.chunks(4).enumerate().for_each(|(j, chunk)| {
-                        let value = u32::from_le_bytes(chunk.try_into().unwrap());
+                        // Program the hash in hardware format i.e. little endian.
+                        let value = u32::from_be_bytes(chunk.try_into().unwrap());
                         fuses[base_idx + j] = value;
                     });
                 });
