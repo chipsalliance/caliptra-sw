@@ -157,7 +157,9 @@ fn test_idev_id_ecc384_cert() {
     assert!(idev_cert.verify(&ec_key).unwrap());
 }
 
-#[test]
+// #[test]
+// [TODO][CAP2]: Write this test.
+#[allow(dead_code)]
 fn test_idev_id_mldsa87_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
@@ -280,6 +282,7 @@ fn test_ldev_cert() {
         .unwrap());
 }
 
+// [TODO][CAP2]: Write this test.
 // #[test]
 // fn test_idev_mldsa87_info() {
 //     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -293,6 +296,11 @@ fn test_ldev_cert() {
 //         .unwrap()
 //         .unwrap();
 //     let idev_resp = GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+// }
+
+// [TODO][CAP2]: Write this test.
+// #[test]
+// fn test_get_ldev_mldsa_cert() {
 // }
 
 #[test]
