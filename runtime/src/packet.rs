@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_drivers::CaliptraResult;
 
-use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
+use caliptra_common::{cprintln, mailbox_api::{MailboxReqHeader, MailboxResp}};
 use caliptra_drivers::CaliptraError;
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -25,7 +25,7 @@ pub struct Packet {
     pub len: usize, // Length in bytes
 }
 
-const MAX_PAYLOAD_SIZE: usize = 3586; // in dwords
+const MAX_PAYLOAD_SIZE: usize = 4354; // in dwords
 
 impl Default for Packet {
     fn default() -> Self {

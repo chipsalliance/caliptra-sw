@@ -332,6 +332,7 @@ fn test_authorize_and_stash_fwid_0() {
         fw_id: 0,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -370,6 +371,7 @@ fn test_authorize_and_stash_fwid_127() {
         fw_id: 127,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -433,6 +435,7 @@ fn test_authorize_and_stash_cmd_deny_second_bad_hash() {
             fw_id: 1,
             flags: flags.0,
             digest: IMAGE_DIGEST_BAD,
+            ..Default::default()
         }];
         let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
         let mut model = set_auth_manifest(Some(auth_manifest));
@@ -476,6 +479,7 @@ fn test_authorize_and_stash_after_update_reset() {
         fw_id: 0,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -543,6 +547,7 @@ fn test_authorize_and_stash_after_update_reset_unauthorized_fw_id() {
         fw_id: 0,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -616,6 +621,7 @@ fn test_authorize_and_stash_after_update_reset_bad_hash() {
         fw_id: 0,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -744,6 +750,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: 0,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let mut model = set_auth_manifest(Some(auth_manifest));
@@ -860,6 +867,7 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         fw_id: 127,
         flags: flags.0,
         digest: IMAGE_DIGEST1,
+        ..Default::default()
     }];
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
 

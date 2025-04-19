@@ -22,7 +22,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
+use caliptra_common::{cprintln, mailbox_api::{MailboxResp, SetAuthManifestReq}};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lms, Sha256, Sha2_512_384,
@@ -429,6 +429,8 @@ impl SetAuthManifestCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+
+        cprintln!("SetAuthManifestCmd::execute");
         // Validate cmd length
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
@@ -544,16 +546,19 @@ mod tests {
                 fw_id: 5,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 48,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
         ];
         let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);
@@ -568,16 +573,19 @@ mod tests {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 5,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
         ];
         let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);

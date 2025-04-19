@@ -86,6 +86,9 @@ impl CommandId {
     pub const CM_SHA_FINAL: Self = Self(0x434D_5346); // "CMSF"
     pub const CM_RANDOM_GENERATE: Self = Self(0x434D_5247); // "CMRG"
     pub const CM_RANDOM_STIR: Self = Self(0x434D_5253); // "CMRS"
+
+    // Image metadata commands
+    pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 }
 
 impl From<u32> for CommandId {
@@ -193,6 +196,7 @@ pub enum MailboxResp {
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
     CmRandomGenerate(CmRandomGenerateResp),
+    GetImageInfo(GetImageInfoResp),
 }
 
 impl MailboxResp {
@@ -222,6 +226,7 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetImageInfo(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -251,6 +256,7 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetImageInfo(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -316,6 +322,7 @@ pub enum MailboxReq {
     CmShaFinal(CmShaFinalReq),
     CmRandomGenerate(CmRandomGenerateReq),
     CmRandomStir(CmRandomStirReq),
+    GetImageInfo(GetImageInfoReq)
 }
 
 impl MailboxReq {
@@ -348,6 +355,7 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial(),
+            MailboxReq::GetImageInfo(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -380,6 +388,7 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial_mut(),
+            MailboxReq::GetImageInfo(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -412,6 +421,7 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
             MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
             MailboxReq::CmRandomStir(_) => CommandId::CM_RANDOM_STIR,
+            MailboxReq::GetImageInfo(_) => CommandId::GET_IMAGE_INFO,
         }
     }
 
@@ -1047,7 +1057,7 @@ pub struct SetAuthManifestReq {
     pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
 }
 impl SetAuthManifestReq {
-    pub const MAX_MAN_SIZE: usize = 14 * 1024;
+    pub const MAX_MAN_SIZE: usize = 17 * 1024;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
         if self.manifest_size as usize > Self::MAX_MAN_SIZE {
@@ -1244,6 +1254,8 @@ pub enum ImageHashSource {
     Invalid = 0,
     InRequest,
     ShaAcc,
+    LoadAddress,
+    StagingAddress
 }
 
 impl From<u32> for ImageHashSource {
@@ -1251,6 +1263,8 @@ impl From<u32> for ImageHashSource {
         match val {
             1_u32 => ImageHashSource::InRequest,
             2_u32 => ImageHashSource::ShaAcc,
+            3_u32 => ImageHashSource::LoadAddress,
+            4_u32 => ImageHashSource::StagingAddress,
             _ => ImageHashSource::Invalid,
         }
     }
@@ -1261,6 +1275,8 @@ impl From<ImageHashSource> for u32 {
         match val {
             ImageHashSource::InRequest => 1,
             ImageHashSource::ShaAcc => 2,
+            ImageHashSource::LoadAddress => 3,
+            ImageHashSource::StagingAddress => 4,
             _ => 0,
         }
     }
@@ -1296,6 +1312,7 @@ pub struct AuthorizeAndStashReq {
     pub svn: u32,
     pub flags: u32,
     pub source: u32,
+    pub image_size: u32, // Image size in bytes if source is LoadAddress or StagingAddress
 }
 impl Default for AuthorizeAndStashReq {
     fn default() -> Self {
@@ -1307,6 +1324,7 @@ impl Default for AuthorizeAndStashReq {
             svn: Default::default(),
             flags: AuthAndStashFlags::SKIP_STASH.bits(),
             source: ImageHashSource::InRequest as u32,
+            image_size: 0,
         }
     }
 }
@@ -1801,6 +1819,41 @@ impl Request for CmRandomStirReq {
     const ID: CommandId = CommandId::CM_RANDOM_STIR;
     type Resp = MailboxRespHeader;
 }
+
+
+// GET_IMAGE_INFO
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetImageInfoReq {
+    pub hdr: MailboxReqHeader,
+    pub fw_id: [u8; 4],
+}
+impl Default for GetImageInfoReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            fw_id: Default::default(),
+        }
+    }
+}
+impl Request for GetImageInfoReq {
+    const ID: CommandId = CommandId::GET_IMAGE_INFO;
+    type Resp = GetImageInfoResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetImageInfoResp {
+    pub hdr: MailboxRespHeader,
+    pub component_id : u32,
+    pub flags: u32,
+    pub image_load_address_high : u32,
+    pub image_load_address_low : u32,
+    pub image_staging_address_high : u32,
+    pub image_staging_address_low : u32,
+}
+impl Response for GetImageInfoResp {}
+
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

@@ -14,7 +14,7 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
-use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestPrivKeys};
+use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, AuthManifestPrivKeys};
 use caliptra_auth_man_types::{AuthManifestPubKeys, ImageMetadataFlags};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -43,6 +43,10 @@ pub struct ImageMetadataConfigFromFile {
     source: u32,
     fw_id: u32,
     ignore_auth_check: bool,
+    component_id: u32,
+    image_load_address: u64,
+    image_staging_address: u64,
+    classification: u32,
 }
 
 // Authorization Manifest configuration from TOML file
@@ -142,6 +146,22 @@ pub(crate) fn image_metadata_config_from_file(
             fw_id: image.fw_id,
             flags: flags.0,
             digest: digest_vec.try_into().unwrap(),
+            component_id: image.component_id,
+            image_load_address: {
+                let addr = image.image_load_address;
+                Addr64 {
+                    lo: (addr & 0xFFFFFFFF) as u32,
+                    hi: (addr >> 32) as u32,
+                }
+            },
+            image_staging_address: {
+                let addr = image.image_staging_address;
+                Addr64 {
+                    lo: (addr & 0xFFFFFFFF) as u32,
+                    hi: (addr >> 32) as u32,
+                }
+            },
+            classification: image.classification,
         };
 
         image_metadata_list.push(image_metadata);

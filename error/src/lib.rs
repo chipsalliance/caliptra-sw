@@ -1422,6 +1422,11 @@ impl CaliptraError {
             0x000E005F,
             "Runtime Error: Crypto mailbox system not initialized"
         ),
+        (
+            RUNTIME_IMAGE_METADATA_NOT_FOUND,
+            0x000E0060,
+            "Runtime Error: Image metadata not found"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
