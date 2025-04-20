@@ -88,6 +88,9 @@ pub extern "C" fn rom_entry() -> ! {
     // Check if TRNG is correctly sourced as per hw config.
     validate_trng_config(&mut env);
 
+    // initialize the masking PRNG of the AES engine
+    env.aes.init_masking(&mut env.trng);
+
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
     let reset_reason = env.soc_ifc.reset_reason();

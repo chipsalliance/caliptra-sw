@@ -18,10 +18,10 @@ Abstract:
 
 --*/
 
-use crate::{CaliptraError, CaliptraResult, Trng};
+use crate::{cprintln, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_registers::aes::AesReg;
+use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use zerocopy::transmute;
 
 const AES_BLOCK_SIZE_BYTES: usize = 16;
@@ -50,6 +50,9 @@ pub enum AesKey<'a> {
 
     /// Split key parts that are XOR'd together
     Split(&'a [u8; 32], &'a [u8; 32]),
+
+    /// Read from key vault
+    Key(KeyReadArgs),
 }
 
 impl<'a> From<&'a [u8; 32]> for AesKey<'a> {
@@ -122,6 +125,20 @@ impl Aes {
     ) -> T {
         let aes = self.aes.regs_mut();
         f(aes)
+    }
+
+    pub fn init_masking(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        self.with_aes(|_aes| {
+            // always safe to reset the seed, even if the engine is busy
+            let mut aes_clp = unsafe { AesClpReg::new() };
+            let regs = aes_clp.regs_mut();
+            let seed = trng.generate()?;
+            const MASK_SIZE: usize = 9;
+            for i in 0..MASK_SIZE {
+                regs.entropy_if_seed().at(i).write(|_| seed.0[i]);
+            }
+            Ok(())
+        })
     }
 
     /// Calculate the AES-256-GCM encrypted ciphertext for the given plaintext.
@@ -221,13 +238,46 @@ impl Aes {
         };
 
         self.with_aes(|aes| {
+            cprintln!("Wait for AES idle 1");
             wait_for_idle(&aes);
+            cprintln!("Wait for AES idle 1 done");
+
+            // sideload the KV key before we program the control register
+            match key {
+                AesKey::Key(key) => {
+                    // Don't force reseed if we are sideloading from the keyvault. Otherwise this seems to
+                    // lock up the AES engine.
+                    for _ in 0..2 {
+                        aes.ctrl_aux_shadowed()
+                            .write(|w| w.key_touch_forces_reseed(false));
+                    }
+                    wait_for_idle(&aes);
+
+                    let mut aes_clp = unsafe { AesClpReg::new() };
+                    let regs = aes_clp.regs_mut();
+                    cprintln!("Copy from KV");
+                    KvAccess::copy_from_kv(
+                        key,
+                        regs.aes_kv_rd_key_status(),
+                        regs.aes_kv_rd_key_ctrl(),
+                    )
+                    .map_err(|_| CaliptraError::DRIVER_HMAC_READ_KEY_KV_READ)?;
+                    cprintln!("Copy from KV done");
+                }
+                _ => (),
+            }
+
+            cprintln!("Wait for AES idle 2");
+            wait_for_idle(&aes);
+            cprintln!("Wait for AES idle 2 done");
+
             for _ in 0..2 {
                 aes.ctrl_shadowed().write(|w| {
                     w.key_len(AesKeyLen::_256 as u32)
                         .mode(AesMode::Gcm as u32)
                         .operation(op as u32)
                         .manual_operation(false)
+                        .sideload(matches!(key, AesKey::Key(_)))
                 });
             }
 
@@ -257,9 +307,12 @@ impl Aes {
                         aes.key_share1().at(i).write(|_| word);
                     }
                 }
+                AesKey::Key(_) => (), // key is already sideloaded
             }
 
+            cprintln!("Wait for AES idle 3");
             wait_for_idle(&aes);
+            cprintln!("Wait for AES idle 3 done");
             // Program the IV (last 4 bytes must be 0).
             for (i, ivi) in iv.into_iter().enumerate() {
                 aes.iv().at(i).write(|_| ivi);
@@ -270,13 +323,16 @@ impl Aes {
         })?;
 
         // Load the AAD
+        cprintln!("Write AAD");
         if !aad.is_empty() {
             self.read_write_data(aad, GcmPhase::Aad, None)?;
         }
 
+        cprintln!("RW blocks");
         // Write blocks of plaintext and read blocks of ciphertext out.
         self.read_write_data(input, GcmPhase::Text, Some(output))?;
 
+        cprintln!("Compute tag");
         // Compute the tag
         self.with_aes(|aes| {
             wait_for_idle(&aes);
@@ -300,12 +356,15 @@ impl Aes {
         self.read_data_block(&mut tag_return, 0)?;
 
         self.zeroize_internal();
+        cprintln!("Done");
         Ok((transmute!(iv), tag_return))
     }
 
     fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
         let aes = self.aes.regs_mut();
+        cprintln!("Wait on output valid {:x}", u32::from(aes.status().read()));
         while !aes.status().read().output_valid() {}
+        cprintln!("Wait on output valid done");
 
         let mut buffer = [0u8; 16];
         // read the data out
@@ -335,7 +394,9 @@ impl Aes {
         let data = &data[block_num * AES_BLOCK_SIZE_BYTES..];
         let data = &data[..AES_BLOCK_SIZE_BYTES.min(data.len())];
 
+        cprintln!("Wait on input ready {:x}", u32::from(aes.status().read()));
         while !aes.status().read().input_ready() {}
+        cprintln!("Wait on input ready done");
         let len = data.len();
         let mut padded_data = [0u8; AES_BLOCK_SIZE_BYTES];
         let data = if len < AES_BLOCK_SIZE_BYTES {
@@ -378,7 +439,12 @@ impl Aes {
                 };
                 // set the mode and valid length
                 self.with_aes(|aes| {
+                    cprintln!(
+                        "RW wait for idle, status {:x}",
+                        u32::from(aes.status().read())
+                    );
                     wait_for_idle(&aes);
+                    cprintln!("RW wait for idle done");
                     for _ in 0..2 {
                         aes.ctrl_gcm_shadowed()
                             .write(|w| w.phase(phase as u32).num_valid_bytes(num_bytes as u32));
@@ -402,6 +468,9 @@ impl Aes {
     /// Helper function to zeroize the hardware registers.
     fn zeroize_regs(aes: &mut AesReg) {
         let aes = aes.regs_mut();
+
+        wait_for_idle(&aes);
+
         // Disable autostarting the engine.
         for _ in 0..2 {
             aes.ctrl_shadowed().write(|w| w.manual_operation(true));
@@ -409,6 +478,8 @@ impl Aes {
         // Clear IV, keys, input, output registers.
         aes.trigger()
             .write(|w| w.key_iv_data_in_clear(true).data_out_clear(true));
+
+        wait_for_idle(&aes);
     }
 
     /// Zeroize the hardware registers.

@@ -136,6 +136,7 @@ impl KvAccess {
         ctrl_reg.write(|w| {
             w.write_en(true)
                 .write_entry(key.id.into())
+                .aes_key_dest_valid(key.usage.aes_key())
                 .hmac_key_dest_valid(key.usage.hmac_key())
                 .hmac_block_dest_valid(key.usage.hmac_data())
                 .mldsa_seed_dest_valid(key.usage.mldsa_seed())

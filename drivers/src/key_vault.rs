@@ -120,9 +120,8 @@ bitfield! {
     /// Flag indicating if the key can be used as ECC Key Generation Seed
     pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
 
-    /// Flag indicating if the key can be used as ECC data part of signature
-    /// generation and verification process
-    pub ecc_data, set_ecc_data:5;
+    /// Flag indicating if the key can be used as AES key
+    pub aes_key, set_aes_key: 5;
 }
 
 impl KeyUsage {
@@ -146,8 +145,8 @@ impl KeyUsage {
         self.set_ecc_key_gen_seed(true);
         *self
     }
-    pub fn set_ecc_data_en(&mut self) -> KeyUsage {
-        self.set_ecc_data(true);
+    pub fn set_aes_key_en(&mut self) -> KeyUsage {
+        self.set_aes_key(true);
         *self
     }
 }

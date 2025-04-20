@@ -176,6 +176,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const AES: FwId = FwId {
+        bin_name: "aes",
+        ..BASE_FWID
+    };
+
     pub const ECC384: FwId = FwId {
         bin_name: "ecc384",
         ..BASE_FWID
@@ -435,6 +440,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
+    &driver_tests::AES,
     &driver_tests::DOE,
     &driver_tests::ECC384,
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,

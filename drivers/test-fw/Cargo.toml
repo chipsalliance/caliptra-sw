@@ -7,13 +7,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { workspace = true, features=["emu"] }
+caliptra_common = { workspace = true }
+caliptra-drivers = { workspace = true, features = ["emu"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-kat = { workspace = true }
 caliptra-lms-types = { workspace = true }
 caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
+ufmt.workspace = true
 zerocopy.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
@@ -29,6 +31,11 @@ fpga_realtime = []
 #     --features riscv
 riscv = ["caliptra-test-harness/riscv"]
 runtime = []
+
+[[bin]]
+name = "aes"
+path = "src/bin/aes_tests.rs"
+required-features = ["riscv"]
 
 [[bin]]
 name = "mbox_send_txn_drop"
@@ -52,7 +59,7 @@ required-features = ["riscv"]
 
 [[bin]]
 name = "sha512"
-path = "src/bin/sha512_tests.rs"
+    path = "src/bin/sha512_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

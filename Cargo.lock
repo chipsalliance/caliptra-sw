@@ -426,7 +426,9 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra_common",
  "cfg-if",
+ "ufmt",
  "zerocopy",
 ]
 
