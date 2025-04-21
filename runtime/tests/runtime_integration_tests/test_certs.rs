@@ -8,8 +8,8 @@ use crate::common::{
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
-    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevInfoResp, GetLdevCertResp,
-    GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
+    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevInfoResp, GetIdevMldsa87InfoResp,
+    GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
@@ -159,64 +159,64 @@ fn test_idev_id_ecc384_cert() {
 
 // #[test]
 // [TODO][CAP2]: Write this test.
-#[allow(dead_code)]
-fn test_idev_id_mldsa87_cert() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+// #[allow(dead_code)]
+// fn test_idev_id_mldsa87_cert() {
+//     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    // generate 48 byte ECDSA key pair
-    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
-    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
+//     // generate 48 byte ECDSA key pair
+//     let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+//     let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
 
-    let cert = generate_test_x509_cert(ec_key.clone());
-    assert!(cert.verify(&ec_key).unwrap());
+//     let cert = generate_test_x509_cert(ec_key.clone());
+//     assert!(cert.verify(&ec_key).unwrap());
 
-    // Extract the r and s values of the signature
-    let sig_bytes = cert.signature().as_slice();
-    let signature = EcdsaSig::from_der(sig_bytes).unwrap();
-    let signature_r: [u8; 48] = signature.r().to_vec_padded(48).unwrap().try_into().unwrap();
-    let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
+//     // Extract the r and s values of the signature
+//     let sig_bytes = cert.signature().as_slice();
+//     let signature = EcdsaSig::from_der(sig_bytes).unwrap();
+//     let signature_r: [u8; 48] = signature.r().to_vec_padded(48).unwrap().try_into().unwrap();
+//     let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
 
-    // Extract tbs from cert
-    let mut tbs = [0u8; GetIdevEcc384CertReq::DATA_MAX_SIZE];
-    let cert_der_vec = cert.to_der().unwrap();
-    let cert_der = cert_der_vec.as_bytes();
-    // skip first 4 outer sequence bytes
-    let tbs_offset = 4;
-    // this value is hard-coded and will need to be changed if the above x509 encoding is ever changed
-    // you can change it by calling asn1parse on the byte dump of the x509 cert, and finding the size of the TbsCertificate portion
-    let tbs_size = 223;
-    tbs[..tbs_size].copy_from_slice(&cert_der[tbs_offset..tbs_offset + tbs_size]);
+//     // Extract tbs from cert
+//     let mut tbs = [0u8; GetIdevEcc384CertReq::DATA_MAX_SIZE];
+//     let cert_der_vec = cert.to_der().unwrap();
+//     let cert_der = cert_der_vec.as_bytes();
+//     // skip first 4 outer sequence bytes
+//     let tbs_offset = 4;
+//     // this value is hard-coded and will need to be changed if the above x509 encoding is ever changed
+//     // you can change it by calling asn1parse on the byte dump of the x509 cert, and finding the size of the TbsCertificate portion
+//     let tbs_size = 223;
+//     tbs[..tbs_size].copy_from_slice(&cert_der[tbs_offset..tbs_offset + tbs_size]);
 
-    let mut cmd = MailboxReq::GetIdevMldsa87Cert(GetIdevMldsa87CertReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        tbs,
-        signature,
-        tbs_size: tbs_size as u32,
-    });
-    cmd.populate_chksum().unwrap();
+//     let mut cmd = MailboxReq::GetIdevMldsa87Cert(GetIdevMldsa87CertReq {
+//         hdr: MailboxReqHeader { chksum: 0 },
+//         tbs,
+//         signature,
+//         tbs_size: tbs_size as u32,
+//     });
+//     cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::GET_IDEV_MLDSA87_CERT),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We expected a response");
+//     let resp = model
+//         .mailbox_execute(
+//             u32::from(CommandId::GET_IDEV_MLDSA87_CERT),
+//             cmd.as_bytes().unwrap(),
+//         )
+//         .unwrap()
+//         .expect("We expected a response");
 
-    assert!(resp.len() <= std::mem::size_of::<GetIdevCertResp>());
-    let mut cert = GetIdevCertResp::default();
-    cert.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+//     assert!(resp.len() <= std::mem::size_of::<GetIdevCertResp>());
+//     let mut cert = GetIdevCertResp::default();
+//     cert.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
-    assert!(caliptra_common::checksum::verify_checksum(
-        cert.hdr.chksum,
-        0x0,
-        &resp[core::mem::size_of_val(&cert.hdr.chksum)..],
-    ));
+//     assert!(caliptra_common::checksum::verify_checksum(
+//         cert.hdr.chksum,
+//         0x0,
+//         &resp[core::mem::size_of_val(&cert.hdr.chksum)..],
+//     ));
 
-    assert!(tbs_size < cert.data_size as usize);
-    let idev_cert = X509::from_der(&cert.data[..cert.data_size as usize]).unwrap();
-    assert!(idev_cert.verify(&ec_key).unwrap());
-}
+//     assert!(tbs_size < cert.data_size as usize);
+//     let idev_cert = X509::from_der(&cert.data[..cert.data_size as usize]).unwrap();
+//     assert!(idev_cert.verify(&ec_key).unwrap());
+// }
 
 #[test]
 fn test_idev_id_cert_size_too_big() {
@@ -282,21 +282,27 @@ fn test_ldev_cert() {
         .unwrap());
 }
 
-// [TODO][CAP2]: Write this test.
-// #[test]
-// fn test_idev_mldsa87_info() {
-//     let mut model = run_rt_test(RuntimeTestArgs::default());
+#[test]
+fn test_idev_mldsa87_info() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
-//     // Get IDev public key
-//     let payload = MailboxReqHeader {
-//         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_MLDSA87_INFO), &[]),
-//     };
-//     let resp = model
-//         .mailbox_execute(u32::from(CommandId::GET_IDEV_MLDSA87_INFO), payload.as_bytes())
-//         .unwrap()
-//         .unwrap();
-//     let idev_resp = GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
-// }
+    // Get IDev public key
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    let idev_resp = GetIdevMldsa87InfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_ne!(idev_resp.idev_pub_key, [0; 2592]);
+}
 
 // [TODO][CAP2]: Write this test.
 // #[test]

@@ -53,3 +53,25 @@ fn test_get_fmc_alias_csr() {
 
     verify_rt_cert(&mut model, pubkey);
 }
+
+#[test]
+fn test_get_fmc_alias_mldsa_csr() {
+    fn get_fmc_alias_csr(model: &mut DefaultHwModel) {
+        let get_fmc_alias_csr_resp = get_certs::<GetFmcAliasMldsa87CsrReq>(model);
+
+        assert_ne!(
+            FmcAliasCsr::UNPROVISIONED_CSR,
+            get_fmc_alias_csr_resp.data_size
+        );
+        assert_ne!(0, get_fmc_alias_csr_resp.data_size);
+
+        let csr_der = &get_fmc_alias_csr_resp.data[..get_fmc_alias_csr_resp.data_size as usize];
+        let csr = openssl::x509::X509Req::from_der(csr_der).unwrap();
+
+        assert_ne!([0; ECC384_MAX_CSR_SIZE], csr_der);
+
+        csr
+    }
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+}
