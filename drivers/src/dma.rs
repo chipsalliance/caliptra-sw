@@ -725,6 +725,79 @@ impl<'a> DmaRecovery<'a> {
     }
 }
 
+// DMAImage is a wrapper around the DMA peripheral that provides
+// image related transfers including SHA384 image digest calculation.
+
+pub struct DmaImage<'a> {
+    dma: &'a Dma,
+}
+impl<'a> DmaImage<'a> {
+    pub fn new(dma: &'a Dma) -> Self {
+        Self { dma }
+    }
+
+    pub fn sha384_image(
+        &self,
+        sha_acc: &'a mut Sha2_512_384Acc,
+        source: AxiAddr,
+        length: u32,
+    ) -> CaliptraResult<Array4x12> {
+        const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
+        const IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+        let mut digest = Array4x12::default();
+
+        let mut acc_op = sha_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+            .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+
+        acc_op.stream_start_384(length, true)?;
+
+        let write_addr = Sha512AccCsr::PTR as u64 + SHA_ACC_DATA_IN_OFFSET;
+
+        cprintln!(
+            "[dma-image] SHA384 image digest calculation: source = {}, length = {}",
+            source.lo,
+            length
+        );
+
+        // stream the data in to the SHA accelerator
+        self.transfer_payload_to_axi(
+            source,
+            length,
+            write_addr.into(),
+            false,
+            IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES,
+            true,
+        )?;
+
+        acc_op.stream_finish_384(&mut digest)?;
+        Ok(digest)
+    }
+
+    fn transfer_payload_to_axi(
+        &self,
+        read_addr: AxiAddr,
+        payload_len_bytes: u32,
+        write_addr: AxiAddr,
+        read_fixed_addr: bool,
+        block_size: u32,
+        write_fixed_addr: bool,
+    ) -> CaliptraResult<()> {
+        self.dma.flush();
+
+        let read_transaction = DmaReadTransaction {
+            read_addr,
+            fixed_addr: read_fixed_addr,
+            length: payload_len_bytes,
+            target: DmaReadTarget::AxiWr(write_addr, write_fixed_addr),
+        };
+        self.dma.setup_dma_read(read_transaction, block_size);
+        cprintln!("Wait for DMA to complete");
+        self.dma.wait_for_dma_complete();
+        Ok(())
+    }
+}
+
 pub struct DmaOtpCtrl<'a> {
     base: AxiAddr,
     dma: &'a Dma,

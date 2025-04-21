@@ -18,6 +18,7 @@ pub enum Device {
     CaliptraCore,
     MCU,
     BMC,
+    TestSram,
     External(&'static str),
 }
 

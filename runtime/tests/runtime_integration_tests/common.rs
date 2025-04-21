@@ -66,6 +66,8 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest: Option<&'a [u8]>,
     // MCU firmware image passed via the recovery interface
     pub mcu_fw_image: Option<&'a [u8]>,
+    /// Initial content of the test SRAM
+    pub test_sram: Option<&'a [u8]>,
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
@@ -106,6 +108,7 @@ pub fn run_rt_test_lms(args: RuntimeTestArgs) -> DefaultHwModel {
         None => InitParams {
             rom: &rom,
             stack_info: Some(StackInfo::new(image_info)),
+            test_sram: args.test_sram,
             ..Default::default()
         },
     };

@@ -88,11 +88,13 @@ pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationM
             fw_id: 1,
             flags: flags1.0,
             digest: IMAGE_DIGEST1,
+            ..Default::default()
         },
         AuthManifestImageMetadata {
             fw_id: 2,
             flags: flags2.0,
             digest: image_digest2,
+            ..Default::default()
         },
     ];
 
@@ -233,6 +235,7 @@ fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationM
             fw_id: id as u32,
             flags: flags.0,
             digest,
+            ..Default::default()
         })
     }
 

@@ -25,6 +25,7 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
+mod get_image_info;
 pub mod handoff;
 mod hmac;
 pub mod info;
@@ -66,6 +67,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
+pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
@@ -175,7 +177,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     } else {
         cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
     }
-
     // Get the command bytes
     let req_packet = Packet::copy_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
@@ -185,7 +186,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         req_packet.cmd,
         req_packet.len
     );
-
     // Handle the request and generate the response
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
@@ -268,6 +268,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };

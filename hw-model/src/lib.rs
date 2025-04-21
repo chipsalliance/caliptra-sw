@@ -194,6 +194,9 @@ pub struct InitParams<'a> {
     pub stack_info: Option<StackInfo>,
 
     pub soc_user: MailboxRequester,
+
+    // Initial contents of the test SRAM
+    pub test_sram: Option<&'a [u8]>,
 }
 impl Default for InitParams<'_> {
     fn default() -> Self {
@@ -236,6 +239,7 @@ impl Default for InitParams<'_> {
             trace_path: None,
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
+            test_sram: None,
         }
     }
 }
