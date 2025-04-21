@@ -186,10 +186,35 @@ fn test_fw_info() {
 fn test_idev_id_info() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC384_INFO),
+            &[],
+        ),
     };
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_ECC384_INFO),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+}
+
+#[test]
+fn test_idev_id_mldsa87_info() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
     GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
