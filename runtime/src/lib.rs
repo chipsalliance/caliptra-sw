@@ -268,9 +268,10 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
+
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
-    let mailbox_flow_is_active = !drivers.soc_ifc.flow_status_mailbox_flow_done();
-    if mailbox_flow_is_active {
+    let command_was_running = drivers.persistent_data.get().runtime_cmd_active.get();
+    if command_was_running {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -294,7 +295,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
         }
     } else {
-        cfi_assert!(!mailbox_flow_is_active);
+        cfi_assert!(!command_was_running);
     }
     #[cfg(feature = "riscv")]
     setup_mailbox_wfi(drivers);
@@ -306,6 +307,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
 
         // No command is executing, set the mailbox flow done to true before beginning idle.
         drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
+        drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(false);
 
         enter_idle(drivers);
 
@@ -321,6 +323,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             // We have woken from idle and have a command ready, set the mailbox flow done to false until we return to
             // idle.
             drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+            drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(true);
 
             // Acknowledge the interrupt so we go back to sleep after
             // processing the mailbox. After this point, if the mailbox is
