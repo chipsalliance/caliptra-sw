@@ -1,6 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use serde::{Deserialize, Serialize};
+use ghac::v1::{
+    self as ghac_types, CreateCacheEntryResponse, FinalizeCacheEntryUploadResponse,
+    GetCacheEntryDownloadUrlResponse,
+};
+use prost::Message;
 
 use crate::{
     http::{self, Content, HttpResponse},
@@ -15,81 +19,79 @@ pub struct GithubActionCache {
 }
 impl GithubActionCache {
     pub fn new() -> std::io::Result<Self> {
-        let wrap_err = |_| other_err("ACTIONS_CACHE_URL environment variable not set".to_string());
+        let wrap_err =
+            |_| other_err("ACTIONS_RESULTS_URL environment variable not set".to_string());
         let prefix = format!(
-            "{}/_apis/artifactcache",
-            std::env::var("ACTIONS_CACHE_URL").map_err(wrap_err)?
+            "{}/twirp/github.actions.results.api.v1.CacheService",
+            std::env::var("ACTIONS_RESULTS_URL").map_err(wrap_err)?
         );
         Ok(Self { prefix })
     }
 }
 impl Cache for GithubActionCache {
     fn set(&self, key: &str, val: &[u8]) -> std::io::Result<()> {
-        let response = http::api_post(
-            &format!("{}/caches", self.prefix),
-            Some(&Content::json(&CacheReserveRequest {
-                key: format_key(key),
-                version: VERSION.into(),
-            })),
-        )?;
-        let response: CacheReserveResponse = json_response(&response)?;
-        let cache_url = &format!("{}/caches/{}", self.prefix, response.cache_id);
-        empty_response(http::api_patch(cache_url, 0, &Content::octet_stream(val))?)?;
-        empty_response(http::api_post(
-            cache_url,
-            Some(&Content::json(&CacheFinalize {
-                size: val.len() as u64,
-            })),
-        )?)?;
+        let url_key = format_key(key);
+        let request = ghac_types::CreateCacheEntryRequest {
+            key: url_key.clone(),
+            version: VERSION.into(),
+            metadata: None,
+        };
+        let content = Content::protobuf(request.encode_to_vec());
+        let body = Some(&content);
+        let response = http::api_post(&format!("{}/CreateCacheEntry", self.prefix), body)?;
+        let response: ghac_types::CreateCacheEntryResponse =
+            CreateCacheEntryResponse::decode(response.data.as_ref())?;
+        if !response.ok {
+            return Err(other_err(format!(
+                "Unable to create cache entry for {url_key:?}"
+            )));
+        }
+        let cache_url = response.signed_upload_url;
+        empty_response(http::api_patch(&cache_url, 0, &Content::octet_stream(val))?)?;
+        let request = ghac_types::FinalizeCacheEntryUploadRequest {
+            key: url_key.clone(),
+            version: VERSION.into(),
+            size_bytes: val.len() as i64,
+            metadata: None,
+        };
+        let content = Content::protobuf(request.encode_to_vec());
+        let body = Some(&content);
+        let response = http::api_post(&format!("{}/FinalizeCacheEntryUpload", self.prefix), body)?;
+        let response: ghac_types::FinalizeCacheEntryUploadResponse =
+            FinalizeCacheEntryUploadResponse::decode(response.data.as_ref())?;
+        if !response.ok {
+            return Err(other_err(format!(
+                "Unable to finalize cache upload for {url_key:?}"
+            )));
+        }
         Ok(())
     }
 
     fn get(&self, key: &str) -> std::io::Result<Option<Vec<u8>>> {
         let url_key = format_key(key);
-        let response = http::api_get(&format!(
-            "{}/cache?keys={url_key}&version={VERSION}",
-            self.prefix
-        ))?;
-        if response.status == 204 {
+        let request = ghac_types::GetCacheEntryDownloadUrlRequest {
+            key: url_key.clone(),
+            version: VERSION.into(),
+            metadata: None,
+            restore_keys: vec![],
+        };
+        let content = Content::protobuf(request.encode_to_vec());
+        let body = Some(&content);
+        let response = http::api_post(&format!("{}/GetCacheEntryDownloadURL", self.prefix), body)?;
+        let response: GetCacheEntryDownloadUrlResponse =
+            GetCacheEntryDownloadUrlResponse::decode(response.data.as_ref())?;
+        if !response.ok {
             return Ok(None);
         }
-        let response: CacheResponse = json_response(&response)?;
-        if response.cache_key != url_key {
+        if response.matched_key != url_key {
             return Err(other_err(format!(
                 "Expected key {url_key:?}, was {:?}",
-                response.cache_key
+                response.matched_key
             )));
         }
-        let response = http::raw_get(&response.archive_location)?;
+        let response = http::raw_get(&response.signed_download_url)?;
         Ok(Some(response.data))
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CacheResponse {
-    cache_key: String,
-    #[allow(dead_code)]
-    scope: String,
-    archive_location: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CacheReserveRequest {
-    key: String,
-    version: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CacheReserveResponse {
-    cache_id: u64,
-}
-
-#[derive(Serialize)]
-struct CacheFinalize {
-    size: u64,
 }
 
 fn empty_response(response: HttpResponse) -> std::io::Result<()> {
@@ -99,16 +101,6 @@ fn empty_response(response: HttpResponse) -> std::io::Result<()> {
         )));
     }
     Ok(())
-}
-
-fn json_response<'a, T: Deserialize<'a>>(response: &'a HttpResponse) -> std::io::Result<T> {
-    if !(200..300).contains(&response.status) {
-        return Err(other_err(format!(
-            "Unexpected response from server {response:?}"
-        )));
-    }
-    serde_json::from_slice(&response.data)
-        .map_err(|_| other_err(format!("Unable to parse response {response:?}")))
 }
 
 fn format_key(key: &str) -> String {
