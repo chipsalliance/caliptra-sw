@@ -9,6 +9,9 @@ edition = "2021"
 
 [dependencies]
 caliptra-builder.workspace = true
+ghac = "0.2.0"
+prost = "=0.13.2"
+prost-derive = "=0.13.2"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tinytemplate.workspace = true
