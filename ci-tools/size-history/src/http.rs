@@ -1,9 +1,7 @@
 // Licensed under the Apache-2.0 license
 
-use std::{borrow::Cow, io, process::Command};
-
-use serde::Serialize;
 use std::str::FromStr;
+use std::{borrow::Cow, io, process::Command};
 
 use crate::{
     process::run_cmd_stdout,
@@ -21,10 +19,10 @@ impl<'a> Content<'a> {
             data: val.into(),
         }
     }
-    pub fn json(val: &impl Serialize) -> Content {
-        Content {
-            mime_type: "application/json".into(),
-            data: serde_json::to_string(val).unwrap().into_bytes().into(),
+    pub fn protobuf(val: impl Into<Cow<'a, [u8]>>) -> Self {
+        Self {
+            mime_type: "application/protobuf".into(),
+            data: val.into(),
         }
     }
 }
@@ -84,19 +82,6 @@ fn auth_header() -> io::Result<String> {
 pub fn raw_get(url: &str) -> io::Result<HttpResponse> {
     HttpResponse::parse(run_cmd_stdout(
         Command::new("curl").arg("-sSi").arg(url),
-        None,
-    )?)
-}
-
-pub fn api_get(url: &str) -> io::Result<HttpResponse> {
-    HttpResponse::parse(run_cmd_stdout(
-        Command::new("curl")
-            .arg("-sSi")
-            .arg(url)
-            .arg("-H")
-            .arg(auth_header()?)
-            .arg("-H")
-            .arg("Accept: application/json;api-version=6.0-preview.1"),
         None,
     )?)
 }
