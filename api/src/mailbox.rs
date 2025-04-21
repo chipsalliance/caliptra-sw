@@ -93,6 +93,9 @@ impl CommandId {
     // The sign with exported ecdsa command.
     pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
 
+    // The sign with exported mldsa command.
+    pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
+
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
@@ -1174,6 +1177,60 @@ impl Default for SignWithExportedEcdsaResp {
             signature_s: [0u8; Self::S_SIZE],
             derived_pubkey_x: [0u8; Self::X_SIZE],
             derived_pubkey_y: [0u8; Self::Y_SIZE],
+        }
+    }
+}
+
+// SIGN_WITH_EXPORTED_MLDSA
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedMldsaReq {
+    pub hdr: MailboxReqHeader,
+    pub exported_cdi_handle: [u8; Self::EXPORTED_CDI_MAX_SIZE],
+    pub tbs: [u8; Self::MAX_DIGEST_SIZE],
+}
+
+impl Default for SignWithExportedMldsaReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            exported_cdi_handle: [0u8; Self::EXPORTED_CDI_MAX_SIZE],
+            tbs: [0u8; Self::MAX_DIGEST_SIZE],
+        }
+    }
+}
+
+impl SignWithExportedMldsaReq {
+    pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
+    pub const MAX_DIGEST_SIZE: usize = 64;
+}
+
+impl Request for SignWithExportedMldsaReq {
+    const ID: CommandId = CommandId::SIGN_WITH_EXPORTED_MLDSA;
+    type Resp = SignWithExportedMldsaResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedMldsaResp {
+    pub hdr: MailboxRespHeader,
+    pub derived_pubkey: [u8; Self::PUBKEY_SIZE],
+    pub signature: [u8; Self::SIG_SIZE],
+}
+
+impl SignWithExportedMldsaResp {
+    pub const SIG_SIZE: usize = 4628;
+    pub const PUBKEY_SIZE: usize = 2592;
+}
+
+impl ResponseVarSize for SignWithExportedMldsaResp {}
+
+impl Default for SignWithExportedMldsaResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            signature: [0u8; Self::SIG_SIZE],
+            derived_pubkey: [0u8; Self::PUBKEY_SIZE],
         }
     }
 }

@@ -35,6 +35,7 @@ mod populate_idev;
 mod recovery_flow;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
+mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
