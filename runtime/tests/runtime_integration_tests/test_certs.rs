@@ -8,8 +8,10 @@ use crate::common::{
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
-    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevInfoResp, GetIdevMldsa87InfoResp,
-    GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
+    CommandId, CommandId, GetIdevCertResp, GetIdevCertResp, GetIdevEcc384CertReq,
+    GetIdevEcc384CertReq, GetIdevInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp,
+    GetLdevCertResp, GetLdevCertResp, GetRtAliasCertResp, GetRtAliasCertResp, MailboxReq,
+    MailboxReq, MailboxReqHeader, MailboxReqHeader, StashMeasurementReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
