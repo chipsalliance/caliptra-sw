@@ -245,14 +245,6 @@ impl Aes {
             // sideload the KV key before we program the control register
             match key {
                 AesKey::Key(key) => {
-                    // Don't force reseed if we are sideloading from the keyvault. Otherwise this seems to
-                    // lock up the AES engine.
-                    for _ in 0..2 {
-                        aes.ctrl_aux_shadowed()
-                            .write(|w| w.key_touch_forces_reseed(false));
-                    }
-                    wait_for_idle(&aes);
-
                     let mut aes_clp = unsafe { AesClpReg::new() };
                     let regs = aes_clp.regs_mut();
                     cprintln!("Copy from KV");
@@ -280,6 +272,8 @@ impl Aes {
                         .sideload(matches!(key, AesKey::Key(_)))
                 });
             }
+
+            wait_for_idle(&aes);
 
             for _ in 0..2 {
                 aes.ctrl_gcm_shadowed()

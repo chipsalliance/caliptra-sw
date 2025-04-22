@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Aes, AesIv, AesKey, Array4x12, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs,
     KeyUsage, KeyWriteArgs, Trng,
@@ -139,6 +140,9 @@ fn test_aes_kv() {
 }
 
 fn test_kat() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+
     let mut aes = unsafe { Aes::new(AesReg::new()) };
     let mut trng = unsafe {
         Trng::new(
