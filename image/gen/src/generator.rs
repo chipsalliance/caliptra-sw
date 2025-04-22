@@ -159,33 +159,23 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         // Private key is received in hw format. Reverse the DWORD endianess for signing.
         let priv_key = {
-            let mut key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
+            let key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
                 from_hw_format::<MLDSA87_PRIV_KEY_BYTE_SIZE>(&priv_key.0);
-
-            // Reverse the private key bytes per the endianess needed by the FIPS204 library.
-            key_bytes.reverse();
 
             PrivateKey::try_from_bytes(key_bytes).unwrap()
         };
 
         // Digest is received in hw format. Reverse the DWORD endianess for signing.
-        let mut digest: [u8; MLDSA87_MSG_BYTE_SIZE] =
-            from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
-
-        // Reverse the digest bytes per the endianess needed by the FIPS204 library.
-        digest.reverse();
+        let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
 
         let signature = priv_key
             .try_sign_with_seed(&[0u8; 32], &digest, &[])
             .unwrap();
-        let mut signature_extended = {
+        let signature_extended = {
             let mut sig = [0u8; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-
-        // Reverse the signature bytes per the endianess needed by the FIPS204 library.
-        signature_extended.reverse();
 
         // Return the signature in hw format.
         let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();

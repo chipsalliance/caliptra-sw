@@ -346,7 +346,7 @@ impl Mldsa87 {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
         }
 
-        let truncated_signature = &signature.0[signature.0.len() - MLDSA87_VERIFY_RES_WORD_LEN..];
+        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
         if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
             Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
         }

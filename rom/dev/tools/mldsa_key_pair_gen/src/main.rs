@@ -36,12 +36,10 @@ fn main() {
 
     for i in 0..5 {
         let (pk, sk) = try_keygen_with_rng(&mut seeded_rng).unwrap();
-        let mut pk = pk.into_bytes();
-        let mut sk = sk.into_bytes();
-        pk.reverse();
-        sk.reverse();
+        let pk = pk.into_bytes();
+        let sk = sk.into_bytes();
 
-        let dir = "mldsa_keys";
+        let dir = "../mldsa_keys";
         fs::create_dir_all(dir).unwrap();
 
         let mut pub_file = format!("{}/vnd-mldsa-pub-key-{}.bin", dir, i);
