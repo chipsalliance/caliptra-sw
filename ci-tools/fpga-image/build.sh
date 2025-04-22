@@ -29,7 +29,6 @@ if ! (echo "${XILINX_ROOT_FS_SHA256} out/rootfs.tar.gz" | sha256sum -c); then
 fi
 
 # Build the rootfs
-export SKIP_DEBOOTSTRAP=1
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
