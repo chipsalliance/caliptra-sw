@@ -1,3 +1,3 @@
-setenv bootargs "earlycon=pl011,mmio32,0xFF000000,115200n8 root=/dev/mmcblk0p3 rootwait console=ttyAMA0,115200 overlayroot=tmpfs clk_ignore_unused"
+setenv bootargs "earlycon=pl011,mmio32,0xFF000000,115200n8 root=/dev/mmcblk0p3 rootwait console=ttyAMA0,115200 uio_pdrv_genirq.of_id=generic-uio overlayroot=tmpfs clk_ignore_unused"
 load mmc 0:1 0x10000000 image.fit
 bootm 0x10000000 0x10000000 $fdtcontroladdr
