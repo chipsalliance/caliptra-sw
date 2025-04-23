@@ -264,6 +264,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
             RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
         }
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers),
@@ -276,7 +277,24 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
-        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
+        CommandId::CM_AES_GCM_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_GCM_ENCRYPT_FINAL => {
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_final(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_GCM_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_GCM_DECRYPT_FINAL => {
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_final(drivers, cmd_bytes)
+        }
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };

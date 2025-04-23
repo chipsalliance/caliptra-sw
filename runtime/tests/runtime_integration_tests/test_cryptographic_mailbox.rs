@@ -1,15 +1,25 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+use aes::cipher::KeyInit;
+use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
-    CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq, CmRandomGenerateResp,
-    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
-    CmStatusResp, CommandId, MailboxReq, MailboxReqHeader, MailboxResp, MailboxRespHeader,
-    MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader,
+    CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
+    CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
+    CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
+    CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
+    CmAesGcmEncryptUpdateRespHeader, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
+    CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
+    CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader,
+    MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
-use caliptra_hw_model::{HwModel, InitParams, TrngMode};
+use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
+use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
 use caliptra_runtime::RtBootStatus;
+use rand::prelude::*;
+use rand::rngs::StdRng;
 use sha2::{Digest, Sha384, Sha512};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -536,4 +546,458 @@ fn test_random_stir_etrng_not_supported() {
         caliptra_drivers::CaliptraError::DRIVER_TRNG_UPDATE_NOT_SUPPORTED,
         err,
     );
+}
+
+#[test]
+fn test_aes_edge_cases() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_aes_key(&mut model, &[0xaa; 32]);
+
+    // check too large of an input
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk,
+        aad_size: u32::MAX,
+        aad: [0; MAX_CMB_DATA_SIZE],
+    });
+    cm_aes_encrypt_init
+        .populate_chksum()
+        .expect_err("Should have failed");
+
+    // TODO: check the rest of the edge cases
+}
+
+// Check a simle encryption with 4 bytes of data.
+#[test]
+fn test_aes_simple() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let key = [0xaa; 32];
+
+    let cmk = import_aes_key(&mut model, &key);
+
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk,
+        aad_size: 0,
+        aad: [0; MAX_CMB_DATA_SIZE],
+    });
+    cm_aes_encrypt_init.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_ENCRYPT_INIT),
+            cm_aes_encrypt_init.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    let resp = CmAesGcmEncryptInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let mut cm_aes_encrypt_final = MailboxReq::CmAesGcmEncryptFinal(CmAesGcmEncryptFinalReq {
+        hdr: MailboxReqHeader::default(),
+        context: resp.context,
+        plaintext_size: 4,
+        plaintext: [1; MAX_CMB_DATA_SIZE],
+    });
+    cm_aes_encrypt_final.populate_chksum().unwrap();
+
+    let final_resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_ENCRYPT_FINAL),
+            cm_aes_encrypt_final.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptFinalRespHeader>();
+
+    let mut final_resp = CmAesGcmEncryptFinalResp {
+        hdr: CmAesGcmEncryptFinalRespHeader::read_from_bytes(
+            &final_resp_bytes[..FINAL_HEADER_SIZE],
+        )
+        .unwrap(),
+        ..Default::default()
+    };
+    let len = final_resp.hdr.ciphertext_size as usize;
+    assert_eq!(len, 4);
+    final_resp.ciphertext[..len]
+        .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
+    let ciphertext = &final_resp.ciphertext[..final_resp.hdr.ciphertext_size as usize];
+
+    let iv = &resp.iv;
+    let aad = &[];
+    let plaintext = &[1, 1, 1, 1];
+    let key: &Key<aes_gcm::Aes256Gcm> = (&key).into();
+    let mut cipher = aes_gcm::Aes256Gcm::new(key);
+    let mut buffer = plaintext.to_vec();
+    cipher
+        .encrypt_in_place_detached(iv.into(), aad, &mut buffer)
+        .expect("Encryption failed");
+
+    println!("Ciphertext {:x?}", ciphertext);
+    println!("Known ciphertext {:x?}", &buffer);
+
+    assert_eq!(ciphertext, &buffer);
+}
+
+// Random encrypt and decrypt stress test.
+#[test]
+fn test_aes_random_encrypt_decrypt() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    const KEYS: usize = 16;
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_aes_key(&mut model, &key));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE * 3);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let aad_len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+        let mut aad = vec![0u8; aad_len];
+        seeded_rng.fill_bytes(&mut aad);
+
+        let (iv, tag, ciphertext) = mailbox_encrypt(
+            &mut model,
+            &cmks[key_idx],
+            &aad,
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+        );
+        let (rtag, rciphertext) = rustcrypto_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        assert_eq!(tag, rtag);
+        let (dtag, dplaintext) = mailbox_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &aad,
+            &ciphertext,
+            &tag,
+            MAX_CMB_DATA_SIZE,
+        );
+        assert_eq!(dplaintext, plaintext);
+        assert_eq!(dtag, tag);
+    }
+}
+
+// Check encrypting and decrypting a single byte at a time.
+// This checks the internal buffering is working correctly.
+#[test]
+fn test_aes_random_encrypt_decrypt_1() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    const KEYS: usize = 16;
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_aes_key(&mut model, &key));
+    }
+
+    for _ in 0..10 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng.gen_range(0..100);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let aad_len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+        let mut aad = vec![0u8; aad_len];
+        seeded_rng.fill_bytes(&mut aad);
+
+        let (iv, tag, ciphertext) =
+            mailbox_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
+        let (rtag, rciphertext) = rustcrypto_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        assert_eq!(tag, rtag);
+        let (dtag, dplaintext) =
+            mailbox_decrypt(&mut model, &cmks[key_idx], &iv, &aad, &ciphertext, &tag, 1);
+        assert_eq!(dplaintext, plaintext);
+        assert_eq!(dtag, tag);
+    }
+}
+
+fn rustcrypto_encrypt(key: &[u8], iv: &[u8], aad: &[u8], plaintext: &[u8]) -> ([u8; 16], Vec<u8>) {
+    let key: &Key<aes_gcm::Aes256Gcm> = key.into();
+    let mut cipher = aes_gcm::Aes256Gcm::new(key);
+    let mut buffer = plaintext.to_vec();
+    let tag = cipher
+        .encrypt_in_place_detached(iv.into(), aad, &mut buffer)
+        .expect("Encryption failed");
+    (tag.into(), buffer)
+}
+
+fn mailbox_encrypt(
+    model: &mut DefaultHwModel,
+    cmk: &Cmk,
+    aad: &[u8],
+    mut plaintext: &[u8],
+    split: usize,
+) -> ([u8; 12], [u8; 16], Vec<u8>) {
+    let mut cm_aes_encrypt_init = CmAesGcmEncryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+        aad_size: aad.len() as u32,
+        aad: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_encrypt_init.aad[..aad.len()].copy_from_slice(aad);
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(cm_aes_encrypt_init);
+    cm_aes_encrypt_init.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_ENCRYPT_INIT),
+            cm_aes_encrypt_init.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    let resp = CmAesGcmEncryptInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let mut ciphertext = vec![];
+
+    let mut context = resp.context;
+
+    while plaintext.len() > split {
+        let mut cm_aes_encrypt_update = CmAesGcmEncryptUpdateReq {
+            hdr: MailboxReqHeader::default(),
+            context,
+            plaintext_size: split as u32,
+            plaintext: [0; MAX_CMB_DATA_SIZE],
+        };
+        cm_aes_encrypt_update.plaintext[..split].copy_from_slice(&plaintext[..split]);
+        let mut cm_aes_encrypt_update = MailboxReq::CmAesGcmEncryptUpdate(cm_aes_encrypt_update);
+        plaintext = &plaintext[split..];
+        cm_aes_encrypt_update.populate_chksum().unwrap();
+
+        let update_resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_GCM_ENCRYPT_UPDATE),
+                cm_aes_encrypt_update.as_bytes().unwrap(),
+            )
+            .expect("Should have succeeded")
+            .unwrap();
+
+        const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptUpdateRespHeader>();
+
+        let mut update_resp = CmAesGcmEncryptUpdateResp {
+            hdr: CmAesGcmEncryptUpdateRespHeader::read_from_bytes(
+                &update_resp_bytes[..UPDATE_HEADER_SIZE],
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        let len = update_resp.hdr.ciphertext_size as usize;
+        assert!(len < split + AES_BLOCK_SIZE_BYTES);
+        assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
+        update_resp.ciphertext[..len]
+            .copy_from_slice(&update_resp_bytes[UPDATE_HEADER_SIZE..UPDATE_HEADER_SIZE + len]);
+        ciphertext
+            .extend_from_slice(&update_resp.ciphertext[..update_resp.hdr.ciphertext_size as usize]);
+        context = update_resp.hdr.context;
+    }
+
+    let mut cm_aes_encrypt_final = CmAesGcmEncryptFinalReq {
+        hdr: MailboxReqHeader::default(),
+        context,
+        plaintext_size: plaintext.len() as u32,
+        plaintext: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_encrypt_final.plaintext[..plaintext.len()].copy_from_slice(plaintext);
+    let mut cm_aes_encrypt_final = MailboxReq::CmAesGcmEncryptFinal(cm_aes_encrypt_final);
+    cm_aes_encrypt_final.populate_chksum().unwrap();
+
+    let final_resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_ENCRYPT_FINAL),
+            cm_aes_encrypt_final.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptFinalRespHeader>();
+
+    let mut final_resp = CmAesGcmEncryptFinalResp {
+        hdr: CmAesGcmEncryptFinalRespHeader::read_from_bytes(
+            &final_resp_bytes[..FINAL_HEADER_SIZE],
+        )
+        .unwrap(),
+        ..Default::default()
+    };
+    let len = final_resp.hdr.ciphertext_size as usize;
+    assert!(len <= split + AES_BLOCK_SIZE_BYTES);
+    final_resp.ciphertext[..len]
+        .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
+    ciphertext.extend_from_slice(&final_resp.ciphertext[..final_resp.hdr.ciphertext_size as usize]);
+
+    (resp.iv, final_resp.hdr.tag, ciphertext)
+}
+
+fn mailbox_decrypt(
+    model: &mut DefaultHwModel,
+    cmk: &Cmk,
+    iv: &[u8; 12],
+    aad: &[u8],
+    mut ciphertext: &[u8],
+    tag: &[u8; 16],
+    split: usize,
+) -> ([u8; 16], Vec<u8>) {
+    let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+        iv: iv.clone(),
+        aad_size: aad.len() as u32,
+        aad: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_decrypt_init.aad[..aad.len()].copy_from_slice(aad);
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmDecryptInit(cm_aes_decrypt_init);
+    cm_aes_encrypt_init.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_INIT),
+            cm_aes_encrypt_init.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    let resp = CmAesGcmDecryptInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let mut plaintext = vec![];
+
+    let mut context = resp.context;
+
+    while ciphertext.len() > split {
+        let mut cm_aes_decrypt_update = CmAesGcmDecryptUpdateReq {
+            hdr: MailboxReqHeader::default(),
+            context,
+            ciphertext_size: split as u32,
+            ciphertext: [0; MAX_CMB_DATA_SIZE],
+        };
+        cm_aes_decrypt_update.ciphertext[..split].copy_from_slice(&ciphertext[..split]);
+        let mut cm_aes_decrypt_update = MailboxReq::CmAesGcmDecryptUpdate(cm_aes_decrypt_update);
+        ciphertext = &ciphertext[split..];
+        cm_aes_decrypt_update.populate_chksum().unwrap();
+
+        let update_resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_GCM_DECRYPT_UPDATE),
+                cm_aes_decrypt_update.as_bytes().unwrap(),
+            )
+            .expect("Should have succeeded")
+            .unwrap();
+
+        const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptUpdateRespHeader>();
+
+        let mut update_resp = CmAesGcmDecryptUpdateResp {
+            hdr: CmAesGcmDecryptUpdateRespHeader::read_from_bytes(
+                &update_resp_bytes[..UPDATE_HEADER_SIZE],
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        let len = update_resp.hdr.plaintext_size as usize;
+        assert!(len < split + AES_BLOCK_SIZE_BYTES);
+        assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
+        update_resp.plaintext[..len]
+            .copy_from_slice(&update_resp_bytes[UPDATE_HEADER_SIZE..UPDATE_HEADER_SIZE + len]);
+        plaintext
+            .extend_from_slice(&update_resp.plaintext[..update_resp.hdr.plaintext_size as usize]);
+        context = update_resp.hdr.context;
+    }
+
+    let mut cm_aes_decrypt_final = CmAesGcmDecryptFinalReq {
+        hdr: MailboxReqHeader::default(),
+        context,
+        tag_len: tag.len() as u32,
+        tag: tag.clone(),
+        ciphertext_size: ciphertext.len() as u32,
+        ciphertext: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_decrypt_final.ciphertext[..ciphertext.len()].copy_from_slice(ciphertext);
+    let mut cm_aes_decrypt_final = MailboxReq::CmAesGcmDecryptFinal(cm_aes_decrypt_final);
+    cm_aes_decrypt_final.populate_chksum().unwrap();
+
+    let final_resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_FINAL),
+            cm_aes_decrypt_final.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptFinalRespHeader>();
+
+    let mut final_resp = CmAesGcmDecryptFinalResp {
+        hdr: CmAesGcmDecryptFinalRespHeader::read_from_bytes(
+            &final_resp_bytes[..FINAL_HEADER_SIZE],
+        )
+        .unwrap(),
+        ..Default::default()
+    };
+    let len = final_resp.hdr.plaintext_size as usize;
+    assert!(len <= split + AES_BLOCK_SIZE_BYTES);
+    final_resp.plaintext[..len]
+        .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
+    plaintext.extend_from_slice(&final_resp.plaintext[..final_resp.hdr.plaintext_size as usize]);
+
+    (final_resp.hdr.tag, plaintext)
+}
+
+fn import_aes_key(model: &mut DefaultHwModel, key: &[u8]) -> Cmk {
+    let mut input = [0u8; 64];
+    input[..key.len()].copy_from_slice(key);
+
+    let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::AES.into(),
+        input_size: key.len() as u32,
+        input,
+    });
+    cm_import_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_IMPORT),
+            cm_import_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
+    cm_import_resp.cmk.clone()
 }

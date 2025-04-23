@@ -16,14 +16,21 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
-    CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
-    CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize,
-    CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader,
+    CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
+    CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
+    CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
+    CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
+    CmAesGcmEncryptUpdateRespHeader, CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
+    CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader,
+    MailboxRespHeaderVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
+    CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_AES_MAX_OUTPUT_SIZE, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
-    Aes, AesIv, AesKey, Array4x12, Array4x16, CaliptraResult, Sha2_512_384, Trng, MAX_SEED_WORDS,
+    Aes, AesContext, AesIv, AesKey, Array4x12, Array4x16, CaliptraResult, Sha2_512_384, Trng,
+    AES_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -44,12 +51,17 @@ pub struct CmStorage {
     kek_next_iv: u128,
     // KEK split into two key shares
     kek: ([u8; 32], [u8; 32]),
+    // 1-up counter for context GCM IV
+    context_next_iv: u128,
+    // key for encrypting contexts
+    context_key: ([u8; 32], [u8; 32]),
 }
 
 impl CmStorage {
     pub fn new() -> Self {
         Self {
             kek: ([0u8; 32], [0u8; 32]),
+            context_key: ([0u8; 32], [0u8; 32]),
             ..Default::default()
         }
     }
@@ -57,14 +69,27 @@ impl CmStorage {
     /// Initialize the cryptographic mailbox storage key and IV.
     /// This is done after the TRNG is initialized and CFI is configured.
     pub fn init(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
-        let key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
-        let key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
-        let random_iv = trng.generate4()?;
+        let kek_key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        let kek_key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        let kek_random_iv = trng.generate4()?;
         // we mask off the top bit so that we always have at least 2^95 usages left.
-        self.kek_next_iv = (((random_iv.0 & 0x7fff_ffff) as u128) << 64)
-            | ((random_iv.1 as u128) << 32)
-            | (random_iv.2 as u128);
-        self.kek = (transmute!(key_share0), transmute!(key_share1));
+        self.context_next_iv = (((kek_random_iv.0 & 0x7fff_ffff) as u128) << 64)
+            | ((kek_random_iv.1 as u128) << 32)
+            | (kek_random_iv.2 as u128);
+        self.kek = (transmute!(kek_key_share0), transmute!(kek_key_share1));
+
+        let context_key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        let context_key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+        // we mask off the top bit so that we always have at least 2^95 usages left.
+        let context_random_iv = trng.generate4()?;
+        self.context_next_iv = (((context_random_iv.0 & 0x7fff_ffff) as u128) << 64)
+            | ((context_random_iv.1 as u128) << 32)
+            | (context_random_iv.2 as u128);
+        self.context_key = (
+            transmute!(context_key_share0),
+            transmute!(context_key_share1),
+        );
+
         self.initialized = true;
         Ok(())
     }
@@ -125,6 +150,74 @@ impl CmStorage {
             gcm_tag,
         })
     }
+
+    fn decrypt_cmk(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        encrypted_cmk: &EncryptedCmk,
+    ) -> CaliptraResult<UnencryptedCmk> {
+        let ciphertext = &encrypted_cmk.ciphertext;
+        let mut plaintext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        aes.aes_256_gcm_decrypt(
+            trng,
+            &encrypted_cmk.iv,
+            AesKey::Split(&self.kek.0, &self.kek.1),
+            &[],
+            ciphertext,
+            &mut plaintext,
+            &encrypted_cmk.gcm_tag,
+        )?;
+        UnencryptedCmk::read_from_bytes(&plaintext)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
+    }
+
+    fn encrypt_aes_context(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        unencrypted_context: &AesContext,
+    ) -> CaliptraResult<EncryptedAesContext> {
+        let context_iv: [u8; 12] = self.context_next_iv.to_le_bytes()[..12].try_into().unwrap();
+        self.context_next_iv += 1;
+
+        let mut ciphertext = [0u8; AES_CONTEXT_SIZE_BYTES];
+        // Encrypt the context using the context key
+        let (iv, tag) = aes.aes_256_gcm_encrypt(
+            trng,
+            AesIv::Array(&context_iv),
+            AesKey::Split(&self.context_key.0, &self.context_key.1),
+            &[],
+            unencrypted_context.as_bytes(),
+            &mut ciphertext[..],
+            16,
+        )?;
+        Ok(EncryptedAesContext {
+            iv,
+            tag,
+            ciphertext,
+        })
+    }
+
+    fn decrypt_aes_context(
+        &mut self,
+        aes: &mut Aes,
+        trng: &mut Trng,
+        encrypted_context: &EncryptedAesContext,
+    ) -> CaliptraResult<AesContext> {
+        let ciphertext = &encrypted_context.ciphertext;
+        let mut plaintext = [0u8; AES_CONTEXT_SIZE_BYTES];
+        aes.aes_256_gcm_decrypt(
+            trng,
+            &encrypted_context.iv,
+            AesKey::Split(&self.context_key.0, &self.context_key.1),
+            &[],
+            ciphertext,
+            &mut plaintext,
+            &encrypted_context.tag,
+        )?;
+        Ok(transmute!(plaintext))
+    }
 }
 
 #[derive(Default)]
@@ -184,9 +277,19 @@ impl Default for ShaContext {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+pub struct EncryptedAesContext {
+    pub iv: [u8; 12],
+    pub tag: [u8; 16],
+    pub ciphertext: [u8; AES_CONTEXT_SIZE_BYTES],
+}
+
 const _: () = assert!(core::mem::size_of::<UnencryptedCmk>() == UNENCRYPTED_CMK_SIZE_BYTES);
 const _: () = assert!(core::mem::size_of::<EncryptedCmk>() == CMK_SIZE_BYTES);
 const _: () = assert!(core::mem::size_of::<ShaContext>() == CMB_SHA_CONTEXT_SIZE);
+const _: () =
+    assert!(core::mem::size_of::<EncryptedAesContext>() == CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE);
 
 pub(crate) struct Commands {}
 
@@ -519,4 +622,277 @@ impl Commands {
         drivers.trng.stir(&additional_data[..size / 4])?;
         Ok(MailboxResp::Header(MailboxRespHeader::default()))
     }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub(crate) fn aes_256_gcm_encrypt_init(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptInitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmEncryptInitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let aad = &cmd.aad[..cmd.aad_size as usize];
+
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+        let key = &cmk.key_material[..32].try_into().unwrap();
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, key, AesIv::Random, aad)?;
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_context,
+        )?;
+
+        Ok(MailboxResp::CmAesGcmEncryptInit(CmAesGcmEncryptInitResp {
+            hdr: MailboxRespHeader::default(),
+            iv: unencrypted_context.iv,
+            context: transmute!(encrypted_context),
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_encrypt_update(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptUpdateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmEncryptUpdateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
+
+        let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_context,
+        )?;
+        let mut ciphertext = [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE];
+        let (written, new_unencrypted_context) =
+            drivers
+                .aes
+                .aes_256_gcm_encrypt_update(context, plaintext, &mut ciphertext[..])?;
+
+        let new_encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &new_unencrypted_context,
+        )?;
+
+        Ok(MailboxResp::CmAesGcmEncryptUpdate(
+            CmAesGcmEncryptUpdateResp {
+                hdr: CmAesGcmEncryptUpdateRespHeader {
+                    hdr: MailboxRespHeader::default(),
+                    context: transmute!(new_encrypted_context),
+                    ciphertext_size: written as u32,
+                },
+                ciphertext,
+            },
+        ))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_encrypt_final(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptFinalReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmEncryptFinalReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
+
+        let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_context,
+        )?;
+        let mut ciphertext = [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE];
+        let (written, tag) =
+            drivers
+                .aes
+                .aes_256_gcm_encrypt_final(context, plaintext, &mut ciphertext[..])?;
+
+        Ok(MailboxResp::CmAesGcmEncryptFinal(
+            CmAesGcmEncryptFinalResp {
+                hdr: CmAesGcmEncryptFinalRespHeader {
+                    hdr: MailboxRespHeader::default(),
+                    tag,
+                    ciphertext_size: written as u32,
+                },
+                ciphertext,
+            },
+        ))
+    }
+
+    pub(crate) fn aes_256_gcm_decrypt_init(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptInitReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmDecryptInitReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let aad = &cmd.aad[..cmd.aad_size as usize];
+
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+        let key = &cmk.key_material[..32].try_into().unwrap();
+        let unencrypted_context =
+            drivers
+                .aes
+                .aes_256_gcm_init(&mut drivers.trng, key, AesIv::Array(&cmd.iv), aad)?;
+        let encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_context,
+        )?;
+
+        Ok(MailboxResp::CmAesGcmDecryptInit(CmAesGcmDecryptInitResp {
+            hdr: MailboxRespHeader::default(),
+            iv: unencrypted_context.iv,
+            context: transmute!(encrypted_context),
+        }))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_decrypt_update(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptUpdateReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmDecryptUpdateReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
+
+        let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_context,
+        )?;
+        let mut plaintext = [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE];
+        let (written, new_unencrypted_context) =
+            drivers
+                .aes
+                .aes_256_gcm_decrypt_update(context, ciphertext, &mut plaintext[..])?;
+
+        let new_encrypted_context = drivers.cryptographic_mailbox.encrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &new_unencrypted_context,
+        )?;
+
+        Ok(MailboxResp::CmAesGcmDecryptUpdate(
+            CmAesGcmDecryptUpdateResp {
+                hdr: CmAesGcmDecryptUpdateRespHeader {
+                    hdr: MailboxRespHeader::default(),
+                    context: transmute!(new_encrypted_context),
+                    plaintext_size: written as u32,
+                },
+                plaintext,
+            },
+        ))
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn aes_256_gcm_decrypt_final(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+    ) -> CaliptraResult<MailboxResp> {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptFinalReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmAesGcmDecryptFinalReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        if cmd.tag_len as usize > 16 {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let tag = &cmd.tag[..cmd.tag_len as usize];
+        let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
+
+        let encrypted_context = EncryptedAesContext::ref_from_bytes(&cmd.context[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let context = &drivers.cryptographic_mailbox.decrypt_aes_context(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_context,
+        )?;
+        let mut plaintext = [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE];
+        let (written, computed_tag, tag_verified) =
+            drivers
+                .aes
+                .aes_256_gcm_decrypt_final(context, ciphertext, &mut plaintext[..], tag)?;
+
+        Ok(MailboxResp::CmAesGcmDecryptFinal(
+            CmAesGcmDecryptFinalResp {
+                hdr: CmAesGcmDecryptFinalRespHeader {
+                    hdr: MailboxRespHeader::default(),
+                    tag_verified: tag_verified as u32,
+                    tag: computed_tag,
+                    plaintext_size: written as u32,
+                },
+                plaintext,
+            },
+        ))
+    }
 }
+
+// TODO: add buffer tests for AES encrypt and decrypt
