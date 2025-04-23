@@ -64,7 +64,6 @@ members = [
   "ureg/lib/codegen",
   "ureg/lib/systemrdl",
   "x509",
-  "x509/ml-dsa",
   "kat",
   "image/types",
   "image/gen",
@@ -140,12 +139,13 @@ caliptra-test-harness-types = { path = "test-harness/types" }
 caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
+const-oid = "0.9.6"
+ml-dsa = "0.0.4"
 cbindgen = { version = "0.24.0", default-features = false }
 cfg-if = "1.0.0"
 chrono = "0.4"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 const-random = "0.1.18"
-const-oid = "0.9.6"
 convert_case = "0.6.0"
 cms = "0.2.2"
 der = { version = "0.7.10", features = ["derive", "alloc"] }
@@ -162,7 +162,6 @@ lazy_static = "1.4.0"
 libftdi1-sys = { version = "1.1.2", features = ["libusb1-sys"] }
 libusb1-sys = "0.6.4"
 memoffset = "0.8.0"
-ml-dsa = "0.0.4"
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
 p384 = "0.13.0"
