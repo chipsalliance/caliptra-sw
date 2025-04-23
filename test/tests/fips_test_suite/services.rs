@@ -118,12 +118,15 @@ pub fn exec_cmd_get_idev_cert<T: HwModel>(hw: &mut T) {
 
 pub fn exec_cmd_get_idev_info<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC384_INFO),
+            &[],
+        ),
     };
 
     let resp = mbx_send_and_check_resp_hdr::<_, GetIdevInfoResp>(
         hw,
-        u32::from(CommandId::GET_IDEV_INFO),
+        u32::from(CommandId::GET_IDEV_ECC384_INFO),
         payload.as_bytes(),
     )
     .unwrap();

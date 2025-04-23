@@ -65,19 +65,19 @@ impl IDevIdInfoCmd {
             AlgorithmType::Ecc384 => {
                 let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
 
-                return Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
+                Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
                     hdr: MailboxRespHeader::default(),
                     idev_pub_x: pub_key.x.into(),
                     idev_pub_y: pub_key.y.into(),
-                }));
+                }))
             }
             AlgorithmType::Mldsa87 => {
                 let pub_key = pdata.idevid_mldsa_pub_key;
 
-                return Ok(MailboxResp::GetIdevMldsa87Info(GetIdevMldsa87InfoResp {
+                Ok(MailboxResp::GetIdevMldsa87Info(GetIdevMldsa87InfoResp {
                     hdr: MailboxRespHeader::default(),
                     idev_pub_key: pub_key.into(),
-                }));
+                }))
             }
         }
     }

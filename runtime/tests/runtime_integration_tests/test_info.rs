@@ -9,8 +9,8 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     mailbox_api::{
-        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, MailboxReqHeader,
-        MailboxRespHeader,
+        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp,
+        MailboxReqHeader, MailboxRespHeader,
     },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
@@ -217,7 +217,7 @@ fn test_idev_id_mldsa87_info() {
         )
         .unwrap()
         .unwrap();
-    GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    GetIdevMldsa87InfoResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]
