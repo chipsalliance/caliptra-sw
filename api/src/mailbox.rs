@@ -1193,7 +1193,6 @@ impl Default for SignWithExportedEcdsaResp {
 pub enum ImageHashSource {
     Invalid = 0,
     InRequest,
-    ShaAcc,
     LoadAddress,
     StagingAddress,
 }
@@ -1202,9 +1201,8 @@ impl From<u32> for ImageHashSource {
     fn from(val: u32) -> Self {
         match val {
             1_u32 => ImageHashSource::InRequest,
-            2_u32 => ImageHashSource::ShaAcc,
-            3_u32 => ImageHashSource::LoadAddress,
-            4_u32 => ImageHashSource::StagingAddress,
+            2_u32 => ImageHashSource::LoadAddress,
+            3_u32 => ImageHashSource::StagingAddress,
             _ => ImageHashSource::Invalid,
         }
     }
@@ -1214,9 +1212,8 @@ impl From<ImageHashSource> for u32 {
     fn from(val: ImageHashSource) -> Self {
         match val {
             ImageHashSource::InRequest => 1,
-            ImageHashSource::ShaAcc => 2,
-            ImageHashSource::LoadAddress => 3,
-            ImageHashSource::StagingAddress => 4,
+            ImageHashSource::LoadAddress => 2,
+            ImageHashSource::StagingAddress => 3,
             _ => 0,
         }
     }

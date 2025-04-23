@@ -30,6 +30,7 @@ pub type AxiAddr = u64;
 use super::mci::Mci;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
+const EXTERNAL_TEST_SRAM_SIZE: usize = 4 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,
@@ -60,8 +61,17 @@ impl AxiRootBus {
     pub const OTC_FC_OFFSET: AxiAddr = (const_random!(u64) & 0xffffffff_00000000) + 0x1000;
     pub const OTC_FC_END: AxiAddr = Self::OTC_FC_OFFSET + 0xfff;
 
-    pub const TEST_SRAM_OFFSET: AxiAddr = 0x50_0000;
+    // Test SRAM is used for testing purposes and is not part of the actual design.
+    // An arbitratry offset is chosen to avoid overlap with other peripherals.
+    // Test SRAM is only accessible from the Caliptra Core, and is initialized by the emulator.
+    pub const TEST_SRAM_OFFSET: AxiAddr = 0x00000000_00500000;
     pub const TEST_SRAM_END: AxiAddr = Self::TEST_SRAM_OFFSET + TEST_SRAM_SIZE as u64;
+
+    // External Test SRAM is used for testing purposes and is not part of the actual design.
+    // This SRAM is accessible from the Caliptra Core and the MCU emulators.
+    pub const EXTERNAL_TEST_SRAM_OFFSET: AxiAddr = 0x00000000_80000000;
+    pub const EXTERNAL_TEST_SRAM_END: AxiAddr =
+        Self::EXTERNAL_TEST_SRAM_OFFSET + EXTERNAL_TEST_SRAM_SIZE as u64;
 
     pub fn new(
         soc_reg: SocRegistersInternal,
@@ -93,6 +103,10 @@ impl AxiRootBus {
 
     pub fn must_schedule(&mut self, addr: AxiAddr) -> bool {
         matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
+            || matches!(
+                addr,
+                Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
+            )
     }
 
     pub fn schedule_read(&mut self, addr: AxiAddr, len: u32) -> Result<(), BusError> {
@@ -100,6 +114,10 @@ impl AxiRootBus {
             println!("Cannot schedule read if previous DMA result has not been consumed");
             return Err(BusError::LoadAccessFault);
         }
+        println!(
+            "AXI root bus Scheduling read from addr: {:#x}, len: {}",
+            addr, len
+        );
         match addr {
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
                 let addr = addr - Self::MCU_SRAM_OFFSET;
@@ -108,6 +126,23 @@ impl AxiRootBus {
                         .send(Event::new(
                             Device::CaliptraCore,
                             Device::MCU,
+                            EventData::MemoryRead {
+                                start_addr: addr as u32,
+                                len,
+                            },
+                        ))
+                        .unwrap();
+                }
+                Ok(())
+            }
+            Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END => {
+                let addr = addr - Self::EXTERNAL_TEST_SRAM_OFFSET;
+                println!("Sending read event for ExternalTestSram");
+                if let Some(sender) = self.event_sender.as_mut() {
+                    sender
+                        .send(Event::new(
+                            Device::CaliptraCore,
+                            Device::ExternalTestSram,
                             EventData::MemoryRead {
                                 start_addr: addr as u32,
                                 len,
@@ -204,8 +239,8 @@ impl AxiRootBus {
             data,
         } = &event.event
         {
-            // we only allow read responses from the MCU
-            if event.src == Device::MCU {
+            // we only allow read responses from the MCU and ExternalTestSram
+            if event.src == Device::MCU || event.src == Device::ExternalTestSram {
                 self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
             }
         }

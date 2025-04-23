@@ -742,6 +742,8 @@ impl<'a> DmaImage<'a> {
         source: AxiAddr,
         length: u32,
     ) -> CaliptraResult<Array4x12> {
+        // SHA accelerator offset where data will to hashed will be streamed to
+        // https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.sha512_acc_csr.DATAIN
         const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
         const IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES: u32 = 256;
         let mut digest = Array4x12::default();
@@ -755,7 +757,8 @@ impl<'a> DmaImage<'a> {
         let write_addr = Sha512AccCsr::PTR as u64 + SHA_ACC_DATA_IN_OFFSET;
 
         cprintln!(
-            "[dma-image] SHA384 image digest calculation: source = {}, length = {}",
+            "[dma-image] SHA384 image digest calculation: source = {:08x}{:08x}, length = {}",
+            source.hi,
             source.lo,
             length
         );
@@ -792,7 +795,6 @@ impl<'a> DmaImage<'a> {
             target: DmaReadTarget::AxiWr(write_addr, write_fixed_addr),
         };
         self.dma.setup_dma_read(read_transaction, block_size);
-        cprintln!("Wait for DMA to complete");
         self.dma.wait_for_dma_complete();
         Ok(())
     }

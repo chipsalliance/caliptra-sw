@@ -19,6 +19,7 @@ pub enum Device {
     MCU,
     BMC,
     TestSram,
+    ExternalTestSram,
     External(&'static str),
 }
 

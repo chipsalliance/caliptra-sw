@@ -80,7 +80,7 @@ pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationM
 
     let mut flags2 = ImageMetadataFlags(0);
     flags2.set_ignore_auth_check(true);
-    flags2.set_image_source(ImageHashSource::ShaAcc as u32);
+    flags2.set_image_source(ImageHashSource::InRequest as u32);
 
     // Generate authorization manifest.
     let image_metadata_list: Vec<AuthManifestImageMetadata> = vec![
@@ -224,7 +224,7 @@ fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationM
 
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(true);
-    flags.set_image_source(ImageHashSource::ShaAcc as u32);
+    flags.set_image_source(ImageHashSource::InRequest as u32);
     let mut digest = crate::test_authorize_and_stash::IMAGE_DIGEST1;
 
     // Generate authorization manifest with a specific amount of elements.

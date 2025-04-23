@@ -31,6 +31,7 @@ mod hmac;
 pub mod info;
 mod invoke_dpe;
 pub mod key_ladder;
+pub mod manifest;
 mod pcr;
 mod populate_idev;
 mod recovery_flow;
@@ -177,6 +178,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     } else {
         cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
     }
+
     // Get the command bytes
     let req_packet = Packet::copy_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
@@ -186,6 +188,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         req_packet.cmd,
         req_packet.len
     );
+
     // Handle the request and generate the response
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
