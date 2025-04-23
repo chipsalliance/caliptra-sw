@@ -984,31 +984,22 @@ dependencies = [
  "asn1",
  "bitfield",
  "caliptra_common",
- "convert_case",
- "hex",
- "openssl",
- "quote",
- "syn 1.0.109",
- "x509-parser",
- "zeroize",
-]
-
-[[package]]
-name = "caliptra-x509-rustcrypto-mldsa"
-version = "0.1.0"
-dependencies = [
  "const-oid",
  "convert_case",
  "der",
  "hex",
  "ml-dsa",
+ "openssl",
  "quote",
  "rand",
  "sha1",
  "sha2",
  "signature",
  "spki",
+ "syn 1.0.109",
  "x509-cert",
+ "x509-parser",
+ "zeroize",
 ]
 
 [[package]]
