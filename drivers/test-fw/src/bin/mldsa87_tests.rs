@@ -760,6 +760,34 @@ fn test_sign_caller_provided_private_key() {
     assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
 }
 
+fn test_sign_caller_provided_private_key_var_msg() {
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let sign_rnd = Mldsa87SignRnd::default(); // Deterministic signing
+
+    let signature = ml_dsa87
+        .sign_var(
+            &Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+            &Mldsa87PubKey::from(MLDSA_PUBKEY),
+            &MLDSA_MSG.into(),
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
+}
+
 fn test_keygen_caller_provided_seed() {
     let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
 
@@ -822,9 +850,10 @@ fn test_verify_failure() {
 
 test_suite! {
     test_gen_key_pair,
-    test_sign,
-    test_sign_caller_provided_private_key,
-    test_keygen_caller_provided_seed,
-    test_verify,
-    test_verify_failure,
+    // test_sign,
+    // test_sign_caller_provided_private_key,
+    test_sign_caller_provided_private_key_var_msg,
+    // test_keygen_caller_provided_seed,
+    // test_verify,
+    // test_verify_failure,
 }

@@ -23,6 +23,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
+use zerocopy::{IntoBytes, Unalign};
+use zerocopy::FromBytes;
 
 #[must_use]
 #[repr(u32)]
@@ -280,6 +282,111 @@ impl Mldsa87 {
         } else {
             Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
         }
+    }
+
+    pub fn sign_var(
+        &mut self,
+        seed: &Mldsa87Seed,
+        _pub_key: &Mldsa87PubKey,
+        msg: &[u8],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut gen_keypair = true;
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Clear the hardware before start
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        // TODO: Wait on msg_stream_read?
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Sign RND.
+        KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
+
+        // Generate an IV.
+        let iv = Self::generate_iv(trng)?;
+        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+
+        // Copy seed or the private key to the hardware
+        match seed {
+            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Key(key) => {
+                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                    .map_err(|err| err.into_read_seed_err())?
+            }
+            Mldsa87Seed::PrivKey(priv_key) => {
+                gen_keypair = false;
+                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+            }
+        }
+
+        // TOOD: Merge these two writes into one
+        // Set the read mode to stream the message.
+        mldsa.ctrl().write(|w| w.stream_msg(true));
+
+        // Program the command register for key generation
+        mldsa.ctrl().write(|w| {
+            w.ctrl(|w| {
+                if gen_keypair {
+                    w.keygen_sign()
+                } else {
+                    w.signing()
+                }
+            })
+        });
+
+        // Wait for stream ready.
+        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
+
+        // Stream the message to the hardware.
+        let mut count = msg.len() / size_of::<u32>();
+        let mut last_dword_len = 0u32;
+        let (buf_words, suffix) = <[Unalign<u32>]>::ref_from_prefix_with_elems(msg, count).unwrap();
+        if suffix.is_empty() {
+            count -= 1;
+        }
+        else {
+            last_dword_len = suffix.len() as u32;
+        }
+        for i in 0..count {
+            mldsa.msg().at(0).write(|_| buf_words[i].get());
+        }
+
+        // Write the strobe register to indicate the end of the message.
+        mldsa.msg_strobe().write(|_| last_dword_len.into());
+
+        // Write the last incomplete word.
+        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
+            let mut last_word = 0_u32;
+            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
+            mldsa.msg().at(0).write(|_| last_word);
+        }
+        else if suffix.is_empty(){
+            // Write the last complete word.
+            mldsa.msg().at(0).write(|_| buf_words[count].get());
+        }
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+        // Copy signature
+        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+
+        // // No need to zeroize here, as the hardware will be zeroized by verify.
+        // let result = self.verify(pub_key, msg, &signature)?;
+        // if result == Mldsa87Result::Success {
+        //     cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+        //     Ok(signature)
+        // } else {
+        //     Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        // }
+        // [TODO][CAP2] Verify the signature
+        Ok(signature)
     }
 
     /// Verify the signature with specified public key and message.
