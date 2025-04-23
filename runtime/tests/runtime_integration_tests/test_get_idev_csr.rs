@@ -8,7 +8,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
 use openssl::x509::X509Req;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
@@ -24,18 +24,19 @@ fn test_get_ecc_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
-    let result = model.mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes());
+    let result = model.mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes());
 
     match get_ci_rom_version() {
         CiRomVersion::Latest => {
             let response = result.unwrap().unwrap();
 
-            let get_idv_csr_resp = GetIdevCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+            let mut get_idv_csr_resp = GetIdevCsrResp::default();
+            get_idv_csr_resp.as_mut_bytes()[..response.len()].copy_from_slice(&response);
             assert_ne!(
                 Ecc384IdevIdCsr::UNPROVISIONED_CSR,
                 get_idv_csr_resp.data_size
@@ -60,13 +61,13 @@ fn test_missing_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
     let response = model
-        .mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes())
         .unwrap_err();
 
     match get_ci_rom_version() {

@@ -51,17 +51,18 @@ fn test_get_ecc_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
     let response = hw
-        .mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 
-    let get_idv_csr_resp = GetIdevCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let mut get_idv_csr_resp = GetIdevCsrResp::default();
+    get_idv_csr_resp.as_mut_bytes()[..response.len()].copy_from_slice(&response);
 
     assert!(caliptra_common::checksum::verify_checksum(
         get_idv_csr_resp.hdr.chksum,
@@ -95,12 +96,12 @@ fn test_get_csr_generate_csr_flag_not_set() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_ECC_CSR),
+            u32::from(CommandId::GET_IDEV_ECC384_CSR),
             &[],
         ),
     };
 
-    let response = hw.mailbox_execute(CommandId::GET_IDEV_ECC_CSR.into(), payload.as_bytes());
+    let response = hw.mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes());
 
     let expected_error = ModelError::MailboxCmdFailed(
         CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR.into(),
@@ -179,13 +180,13 @@ fn test_get_mldsa_csr() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_IDEV_MLDSA_CSR),
+            u32::from(CommandId::GET_IDEV_MLDSA87_CSR),
             &[],
         ),
     };
 
     let response = hw
-        .mailbox_execute(CommandId::GET_IDEV_MLDSA_CSR.into(), payload.as_bytes())
+        .mailbox_execute(CommandId::GET_IDEV_MLDSA87_CSR.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 

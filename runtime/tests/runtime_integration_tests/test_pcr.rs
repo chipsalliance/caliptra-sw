@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{get_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
+use crate::common::{get_ecc_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
@@ -72,7 +72,7 @@ fn test_pcr_quote() {
     let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
-    let fmc_resp = get_fmc_alias_cert(&mut model);
+    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
     let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
 

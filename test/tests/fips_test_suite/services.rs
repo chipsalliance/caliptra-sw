@@ -94,22 +94,25 @@ pub fn exec_cmd_self_test_get_results<T: HwModel>(hw: &mut T) {
 
 pub fn exec_cmd_get_idev_cert<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC384_CERT),
+            &[],
+        ),
     };
 
     let cert_resp = mbx_send_and_check_resp_hdr::<_, GetIdevCertResp>(
         hw,
-        u32::from(CommandId::GET_IDEV_CERT),
+        u32::from(CommandId::GET_IDEV_ECC384_CERT),
         payload.as_bytes(),
     )
     .unwrap();
 
     // Make sure we got some cert data (not verifying contents)
-    assert!(cert_resp.cert_size > 0);
+    assert!(cert_resp.data_size > 0);
 
     // Verify we have something in the data field
     assert!(contains_some_data(
-        &cert_resp.cert[..cert_resp.cert_size as usize]
+        &cert_resp.data[..cert_resp.data_size as usize]
     ));
 }
 
@@ -148,12 +151,15 @@ pub fn exec_cmd_populate_idev_cert<T: HwModel>(hw: &mut T) {
 
 pub fn exec_cmd_get_ldev_cert<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            &[],
+        ),
     };
 
     let ldev_cert_resp = mbx_send_and_check_resp_hdr::<_, GetLdevCertResp>(
         hw,
-        u32::from(CommandId::GET_LDEV_CERT),
+        u32::from(CommandId::GET_LDEV_ECC384_CERT),
         payload.as_bytes(),
     )
     .unwrap();
@@ -170,14 +176,14 @@ pub fn exec_cmd_get_ldev_cert<T: HwModel>(hw: &mut T) {
 pub fn exec_cmd_get_fmc_cert<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_FMC_ALIAS_CERT),
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
             &[],
         ),
     };
 
-    let cert_resp = mbx_send_and_check_resp_hdr::<_, GetFmcAliasCertResp>(
+    let cert_resp = mbx_send_and_check_resp_hdr::<_, GetFmcAliasEcc384CertResp>(
         hw,
-        u32::from(CommandId::GET_FMC_ALIAS_CERT),
+        u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
         payload.as_bytes(),
     )
     .unwrap();
@@ -194,14 +200,14 @@ pub fn exec_cmd_get_fmc_cert<T: HwModel>(hw: &mut T) {
 pub fn exec_cmd_get_rt_cert<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
             &[],
         ),
     };
 
     let cert_resp = mbx_send_and_check_resp_hdr::<_, GetRtAliasCertResp>(
         hw,
-        u32::from(CommandId::GET_RT_ALIAS_CERT),
+        u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
         payload.as_bytes(),
     )
     .unwrap();
