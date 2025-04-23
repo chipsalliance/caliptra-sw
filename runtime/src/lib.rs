@@ -17,6 +17,7 @@ mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
 mod cryptographic_mailbox;
+mod debug_unlock;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -315,6 +316,20 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_ECDH_FINISH => {
             cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes)
         }
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => {
+            drivers
+                .debug_unlock
+                .handle_request(&mut drivers.trng, &drivers.soc_ifc, cmd_bytes)
+        }
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN => drivers.debug_unlock.handle_token(
+            &mut drivers.soc_ifc,
+            &mut drivers.sha2_512_384,
+            &mut drivers.sha2_512_384_acc,
+            &mut drivers.ecc384,
+            &mut drivers.mldsa87,
+            &mut drivers.dma,
+            cmd_bytes,
+        ),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
     let resp = okmutref(&mut resp)?;

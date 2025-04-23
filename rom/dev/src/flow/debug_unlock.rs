@@ -40,7 +40,7 @@ pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
 
     if !env.soc_ifc.subsystem_mode() {
         cprintln!("[state] Error: debug unlock requested in passive mode!");
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE)?;
     }
 
     cprintln!("[state] debug unlock requested");
@@ -73,7 +73,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     if CommandId::from(txn.cmd()) != CommandId::MANUF_DEBUG_UNLOCK_REQ_TOKEN {
         cprintln!("[dbg_manuf] Invalid command: {:?}", txn.cmd());
         env.soc_ifc.set_ss_dbg_unlock_in_progress(false);
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD)?;
     }
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
@@ -90,7 +90,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
         if cfi_launder(input_token_digest) != fuse_token_digest {
             cprintln!("[dbg_manuf] Token mismatch!");
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
+            Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_12_words(
                 &input_token_digest.0[..12].try_into().unwrap(),
@@ -141,7 +141,7 @@ fn handle_auth_debug_unlock_request(
             "Invalid command: {:?}, was expecting PRODUCTION_AUTH_DEBUG_UNLOCK_REQ",
             txn.cmd()
         );
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD)?
     }
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
@@ -188,7 +188,7 @@ fn handle_auth_debug_unlock_token(
             "Invalid command: {:?}, was expecting PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN",
             txn.cmd()
         );
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD)?;
     }
 
     let mut txn = ManuallyDrop::new(txn.start_txn());

@@ -107,7 +107,7 @@ impl SocIfc {
                 Ok(true)
             }
             (true, true, _) | (true, false, _) | (false, true, _) => {
-                Err(CaliptraError::ROM_SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE)
+                Err(CaliptraError::SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE)
             }
             (false, false, _) => Ok(false),
         }
@@ -185,7 +185,7 @@ impl SocIfc {
             .ss_num_of_prod_debug_unlock_auth_pk_hashes()
             .read();
         if level == 0 || level > num_of_debug_pk_hashes {
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL)?
+            Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_LEVEL)?
         }
         // DEBUG_AUTH_PK_HASH_REG_BANK_OFFSET register value + ( (Debug Unlock Level - 1) * SHA2-384 hash size (48 bytes) )
         Ok(fusebank_offset + size_of::<Array4x12>() * (level as usize - 1))

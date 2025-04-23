@@ -52,7 +52,7 @@ pub fn create_debug_unlock_challenge(
             "Invalid ProductionAuthDebugUnlockReq payload length: {}",
             request.length
         );
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
     }
 
     // Check if the debug level is valid.
@@ -63,7 +63,7 @@ pub fn create_debug_unlock_challenge(
             dbg_level,
             soc_ifc.debug_unlock_pk_hash_count()
         );
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
     }
 
     let length = ((size_of::<ProductionAuthDebugUnlockChallenge>() - size_of::<MailboxReqHeader>())
@@ -105,19 +105,19 @@ pub fn validate_debug_unlock_token(
             "Invalid ProductionAuthDebugUnlockToken payload length: {}",
             token.length
         );
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
     }
 
     // Check if the debug level is same as the request.
     if token.unlock_level != request.unlock_level {
         crate::cprintln!("Invalid unlock level: {}", token.unlock_level);
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
     }
 
     // Check if the challenge is same as the request.
     if cfi_launder(token.challenge) != challenge.challenge {
         crate::cprintln!("Challenge mismatch");
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
     } else {
         cfi_assert_eq_12_words(
             &Array4x12::from(token.challenge).0,
@@ -142,7 +142,7 @@ pub fn validate_debug_unlock_token(
         };
         let mut acc_op = sha2_512_384_acc
             .try_start_operation(lock_state)?
-            .ok_or(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
+            .ok_or(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
 
         acc_op.digest_384(
             combined_len as u32,
@@ -166,7 +166,7 @@ pub fn validate_debug_unlock_token(
 
     if cfi_launder(pub_keys_digest) != fuse_digest {
         crate::cprintln!("Public keys hash mismatch");
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
     } else {
         cfi_assert_eq_12_words(&pub_keys_digest.0, &fuse_digest.0);
     }
@@ -193,7 +193,7 @@ pub fn validate_debug_unlock_token(
     let result = ecc384.verify(&pubkey, &ecc_msg, &signature)?;
     if result == Ecc384Result::SigVerifyFailed {
         crate::cprintln!("ECC Signature verification failed");
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
     }
 
     // Create MLDSA message hash
@@ -213,7 +213,7 @@ pub fn validate_debug_unlock_token(
 
     if result == Mldsa87Result::SigVerifyFailed {
         crate::cprintln!("MLDSA Signature verification failed");
-        Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
     }
 
     Ok(())
