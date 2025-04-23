@@ -658,6 +658,7 @@ impl Request for GetLdevMldsa87CertReq {
     const ID: CommandId = CommandId::GET_LDEV_MLDSA87_CERT;
     type Resp = GetLdevCertResp;
 }
+
 pub type GetLdevCertResp = VarSizeDataResp;
 
 // GET_RT_ALIAS_CERT

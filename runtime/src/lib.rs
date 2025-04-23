@@ -224,6 +224,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
             GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
         }
+        CommandId::GET_RT_ALIAS_MLDSA87_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
         CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
