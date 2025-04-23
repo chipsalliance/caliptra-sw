@@ -72,7 +72,7 @@ fn test_uds_programming_granularity_64bit() {
     });
 
     let config_val = hw.soc_ifc().cptra_generic_input_wires().read()[0];
-    assert_eq!(config_val >> 31 & 1, 1);
+    assert_eq!((config_val >> 31) & 1, 1);
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // No fuse controller in FPGA without MCI
@@ -102,5 +102,5 @@ fn test_uds_programming_granularity_32bit() {
     });
 
     let config_val = hw.soc_ifc().cptra_generic_input_wires().read()[0];
-    assert_eq!(config_val >> 31 & 1, 0);
+    assert_eq!((config_val >> 31) & 1, 0);
 }

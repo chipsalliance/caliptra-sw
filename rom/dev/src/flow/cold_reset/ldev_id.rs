@@ -229,10 +229,11 @@ impl LocalDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        env.key_vault.erase_key(ecc_auth_priv_key).map_err(|err| {
-            sig.zeroize();
-            err
-        })?;
+        env.key_vault
+            .erase_key(ecc_auth_priv_key)
+            .inspect_err(|_err| {
+                sig.zeroize();
+            })?;
 
         let _pub_x: [u8; 48] = (&ecc_pub_key.x).into();
         let _pub_y: [u8; 48] = (&ecc_pub_key.y).into();
@@ -309,9 +310,8 @@ impl LocalDevIdLayer {
         // Clear the authority private key
         env.key_vault
             .erase_key(mldsa_auth_priv_key)
-            .map_err(|err| {
+            .inspect_err(|_err| {
                 sig.zeroize();
-                err
             })?;
 
         let data_vault = &mut env.persistent_data.get_mut().data_vault;

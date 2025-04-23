@@ -78,7 +78,7 @@ impl From<u64> for AxiAddr {
 }
 impl From<AxiAddr> for u64 {
     fn from(addr: AxiAddr) -> Self {
-        (addr.hi as u64) << 32 | (addr.lo as u64)
+        ((addr.hi as u64) << 32) | (addr.lo as u64)
     }
 }
 

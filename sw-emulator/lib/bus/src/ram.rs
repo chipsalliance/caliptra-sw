@@ -112,10 +112,10 @@ mod tests {
     fn test_read() {
         let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(ram.read(RvSize::Byte, 0).ok(), Some(1));
-        assert_eq!(ram.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
+        assert_eq!(ram.read(RvSize::HalfWord, 0).ok(), Some(1 | (2 << 8)));
         assert_eq!(
             ram.read(RvSize::Word, 0).ok(),
-            Some(1 | 2 << 8 | 3 << 16 | 4 << 24)
+            Some(1 | (2 << 8) | (3 << 16) | (4 << 24))
         );
     }
 

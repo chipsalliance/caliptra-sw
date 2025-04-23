@@ -1200,7 +1200,7 @@ impl SocRegistersImpl {
 
         // If timer is enabled, schedule a callback on expiry.
         if self.cptra_wdt_timer1_en.reg.is_set(WdtEnable::TIMER_EN) {
-            let timer_period: u64 = (self.cptra_wdt_timer1_timeout_period[1] as u64) << 32
+            let timer_period: u64 = ((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
                 | self.cptra_wdt_timer1_timeout_period[0] as u64;
 
             self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
@@ -1223,7 +1223,7 @@ impl SocRegistersImpl {
                 .reg
                 .modify(WdtStatus::T1_TIMEOUT::CLEAR);
 
-            let timer_period: u64 = (self.cptra_wdt_timer1_timeout_period[1] as u64) << 32
+            let timer_period: u64 = ((self.cptra_wdt_timer1_timeout_period[1] as u64) << 32)
                 | self.cptra_wdt_timer1_timeout_period[0] as u64;
 
             self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
@@ -1240,7 +1240,7 @@ impl SocRegistersImpl {
 
         // If timer is enabled, schedule a callback on expiry.
         if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
-            let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+            let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
                 | self.cptra_wdt_timer2_timeout_period[0] as u64;
 
             self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
@@ -1263,7 +1263,7 @@ impl SocRegistersImpl {
                 .reg
                 .modify(WdtStatus::T2_TIMEOUT::CLEAR);
 
-            let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+            let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
                 | self.cptra_wdt_timer2_timeout_period[0] as u64;
 
             self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
@@ -1375,7 +1375,7 @@ impl SocRegistersImpl {
                     .reg
                     .modify(ErrorIntrT::ERROR_WDT_TIMER2_TIMEOUT_STS::CLEAR);
 
-                let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+                let timer_period: u64 = ((self.cptra_wdt_timer2_timeout_period[1] as u64) << 32)
                     | self.cptra_wdt_timer2_timeout_period[0] as u64;
 
                 self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
