@@ -63,9 +63,10 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   mkdir -p out/xilinx-rootfs
   tar xvzf out/rootfs.tar.gz -C out/xilinx-rootfs
 
-  mkdir -p out/rootfs/boot
-  scp -r out/xilinx-rootfs/boot out/rootfs
-  rm -r out/rootfs/boot/firmware
+  mkdir -p out/rootfs/lib/modules
+  scp -r out/xilinx-rootfs/lib/modules/5.15.0-1020-xilinx-zynqmp out/rootfs/lib
+  mkdir -p out/rootfs/usr/lib/modules
+  scp -r out/xilinx-rootfs/usr/lib/modules/5.15.0-1020-xilinx-zynqmp out/rootfs/usr/lib/modules
 
   # Comment this line out if you don't trust folks with physical access to the
   # uart
