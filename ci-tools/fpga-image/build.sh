@@ -64,7 +64,8 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   tar xvzf out/rootfs.tar.gz -C out/xilinx-rootfs
 
   mkdir -p out/rootfs/lib/modules
-  scp -r out/xilinx-rootfs/lib/modules/5.15.0-1020-xilinx-zynqmp out/rootfs/lib
+  scp -r out/xilinx-rootfs/lib/modules/5.15.0-1020-xilinx-zynqmp out/rootfs/lib/modules/
+
   mkdir -p out/rootfs/usr/lib/modules
   scp -r out/xilinx-rootfs/usr/lib/modules/5.15.0-1020-xilinx-zynqmp out/rootfs/usr/lib/modules
 
