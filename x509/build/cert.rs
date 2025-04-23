@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-use crate::tbs::{TbsParam, TbsTemplate};
+use crate::tbs::{get_tbs, init_param, sanitize, TbsParam, TbsTemplate};
 use crate::x509::{self, AsymKey, FwidParam, KeyUsage, SigningAlgorithm};
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
@@ -291,7 +291,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         let der = cert.to_der().unwrap();
 
         // Retrieve the To be signed portion from the Certificate
-        let mut tbs = x509::get_tbs(der);
+        let mut tbs = get_tbs(der);
 
         // Match long params first to ensure a subset is not sanitized by a short param.
         self.params
@@ -301,7 +301,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         let params = self
             .params
             .iter()
-            .map(|p| x509::sanitize(x509::init_param(&p.needle, &tbs, p.tbs_param), &mut tbs))
+            .map(|p| sanitize(init_param(&p.needle, &tbs, p.tbs_param), &mut tbs))
             .collect();
 
         // Create the template
