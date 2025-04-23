@@ -57,6 +57,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
   chroot out/rootfs bash -c 'echo "NTP=time.google.com" >> /etc/systemd/timesyncd.conf'
+  chroot out/rootfs bash -c 'echo "uio_pdrv_genirq" >> /etc/modules'
 
   # Add Xilinx kernel modules
   (rm -rf out/xilinx-rootfs || true)
