@@ -67,6 +67,9 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   mkdir -p out/rootfs/lib/firmware
   scp -r out/xilinx-rootfs/lib/firmware out/rootfs/lib/firmware
 
+  mkdir -p out/rootfs/boot
+  scp -r out/xilinx-rootfs/boot out/rootfs/boot
+
   # Comment this line out if you don't trust folks with physical access to the
   # uart
   # chroot out/rootfs bash -c 'echo root:password | chpasswd'
