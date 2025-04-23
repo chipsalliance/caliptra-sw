@@ -1915,6 +1915,21 @@ impl CaliptraError {
             "ROM KAT Error: LMS digest mismatch"
         ),
         (
+            KAT_AES_TAG_MISMATCH,
+            0x90090001,
+            "ROM KAT Error: AES tag mismatch"
+        ),
+        (
+            KAT_AES_CIPHERTEXT_MISMATCH,
+            0x90090002,
+            "ROM KAT Error: AES ciphertext mismatch"
+        ),
+        (
+            KAT_AES_PLAINTEXT_MISMATCH,
+            0x90090003,
+            "ROM KAT Error: AES plaintext mismatch"
+        ),
+        (
             KAT_SHA512_DIGEST_FAILURE,
             0x90020003,
             "ROM KAT Error: SHA512 digest failure"

@@ -90,6 +90,9 @@ impl FirmwareProcessor {
             // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
+            // AES Engine
+            aes: &mut env.aes,
+
             // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };

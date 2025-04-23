@@ -9,6 +9,7 @@ edition = "2021"
 
 [dependencies]
 aes.workspace = true
+aes-gcm.workspace = true
 cbc.workspace = true
 p384.workspace = true
 rfc6979.workspace = true

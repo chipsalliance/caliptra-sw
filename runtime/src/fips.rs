@@ -176,6 +176,9 @@ pub mod fips_self_test_cmd {
             // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
+            // AES Engine,
+            aes: &mut env.aes,
+
             // SHA Acc Lock State
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };

@@ -10,13 +10,19 @@ Abstract:
 
     Driver for AES hardware operations.
 
+    Notes about how this hardware differs from other hardware:
+
+    * Shadowed control registers need to be written twice.
+    * Registers are in little-endian order rather than big-endian,
+      so we cannot use our normal Array4xN types.
+
 --*/
 
-use crate::Array4x8;
 use crate::{CaliptraError, CaliptraResult, Trng};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::aes::AesReg;
+use zerocopy::transmute;
 
 const AES_BLOCK_SIZE_BYTES: usize = 16;
 const AES_IV_SIZE_BYTES: usize = 12;
@@ -25,24 +31,14 @@ const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
-pub enum AesIv {
-    U96(u128),
+pub enum AesIv<'a> {
+    Array(&'a [u8; 12]),
     Random,
 }
 
-impl From<u128> for AesIv {
-    /// Converts to this type from the input type.
-    fn from(value: u128) -> Self {
-        Self::U96(value)
-    }
-}
-
-impl From<&[u8; 12]> for AesIv {
-    /// Converts to this type from the input type.
-    fn from(value: &[u8; 12]) -> Self {
-        let mut pad = [0u8; 16];
-        pad[0..12].copy_from_slice(value);
-        Self::U96(u128::from_le_bytes(pad))
+impl<'a> From<&'a [u8; 12]> for AesIv<'a> {
+    fn from(value: &'a [u8; 12]) -> Self {
+        Self::Array(value)
     }
 }
 
@@ -50,43 +46,44 @@ impl From<&[u8; 12]> for AesIv {
 #[derive(Debug, Copy, Clone)]
 pub enum AesKey<'a> {
     /// Array - 32 Bytes (256 bits)
-    Array4x8(&'a Array4x8),
+    Array(&'a [u8; 32]),
 
     /// Split key parts that are XOR'd together
-    Split(&'a Array4x8, &'a Array4x8),
+    Split(&'a [u8; 32], &'a [u8; 32]),
 }
 
-impl<'a> From<&'a Array4x8> for AesKey<'a> {
+impl<'a> From<&'a [u8; 32]> for AesKey<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a Array4x8) -> Self {
-        Self::Array4x8(value)
+    fn from(value: &'a [u8; 32]) -> Self {
+        Self::Array(value)
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AesMode {
     _Ecb = 1 << 0,
     _Cbc = 1 << 1,
     _Cfb = 1 << 2,
-    _Ofb = 1 << 4,
-    _Ctr = 1 << 5,
-    Gcm = 1 << 6,
-    _None = (1 << 7) - 1,
+    _Ofb = 1 << 3,
+    _Ctr = 1 << 4,
+    Gcm = 1 << 5,
+    _None = (1 << 6) - 1,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AesKeyLen {
     _128 = 1,
     _192 = 2,
     _256 = 4,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AesOperation {
     Encrypt = 1,
     Decrypt = 2,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GcmPhase {
     Init = 1 << 0,
     _Restore = 1 << 1,
@@ -105,12 +102,20 @@ pub struct Aes {
 // with the key split into two pieces that are XOR'd together.
 const MASK: u32 = 0x1234_5678;
 
+/// Wait for the AES engine to be idle.
+/// Necessary before writing control registers.
+fn wait_for_idle(aes: &caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<'_>>) {
+    while !aes.status().read().idle() {}
+}
+
 #[allow(clippy::too_many_arguments)]
 impl Aes {
     pub fn new(aes: AesReg) -> Self {
         Self { aes }
     }
 
+    // Ensures that only one copy of the AES registers are used
+    // in any given context to ensure exclusive access.
     fn with_aes<T>(
         &mut self,
         f: impl FnOnce(caliptra_registers::aes::RegisterBlock<ureg::RealMmioMut<'_>>) -> T,
@@ -134,6 +139,9 @@ impl Aes {
     ) -> CaliptraResult<([u8; AES_IV_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
         if tag_size > AES_BLOCK_SIZE_BYTES {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
+        }
+        if ciphertext.len() < plaintext.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         self.aes_256_gcm_op(
             trng,
@@ -159,12 +167,15 @@ impl Aes {
         plaintext: &mut [u8],
         tag: &[u8],
     ) -> CaliptraResult<()> {
+        if plaintext.len() < ciphertext.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
         if tag.len() > AES_BLOCK_SIZE_BYTES {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG_SIZE)?;
         }
         let (_, _computed_tag) = self.aes_256_gcm_op(
             trng,
-            AesIv::from(iv),
+            iv.into(),
             key,
             aad,
             ciphertext,
@@ -197,169 +208,189 @@ impl Aes {
             // should be impossible
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_STATE)?;
         }
+
+        // No zerocopy since we can't guarantee that the
+        // byte array is aligned to 4-byte boundaries.
         let iv = match iv {
-            AesIv::U96(iv) => [(iv >> 64) as u32, (iv >> 32) as u32, iv as u32],
+            AesIv::Array(iv) => [
+                u32::from_le_bytes(iv[0..4].try_into().unwrap()),
+                u32::from_le_bytes(iv[4..8].try_into().unwrap()),
+                u32::from_le_bytes(iv[8..12].try_into().unwrap()),
+            ],
             AesIv::Random => trng.generate()?.0[0..3].try_into().unwrap(),
         };
 
-        let mut iv_return = [0u8; AES_IV_SIZE_BYTES];
-
         self.with_aes(|aes| {
-            if !aes.status().read().idle() {
-                Err(CaliptraError::RUNTIME_DRIVER_AES_ENGINE_BUSY)?;
-            }
-
-            // 1. Program the control register twice (since it is shadowed).
+            wait_for_idle(&aes);
             for _ in 0..2 {
                 aes.ctrl_shadowed().write(|w| {
                     w.key_len(AesKeyLen::_256 as u32)
                         .mode(AesMode::Gcm as u32)
                         .operation(op as u32)
+                        .manual_operation(false)
                 });
             }
-            // 2. Program the GCM control register twice (since it is shadowed).
+
             for _ in 0..2 {
                 aes.ctrl_gcm_shadowed()
-                    .write(|w| w.phase(GcmPhase::Init as u32));
+                    .write(|w| w.phase(GcmPhase::Init as u32).num_valid_bytes(16));
             }
 
-            // 3. Program the key
+            // Program the key
+            // No zerocopy since we can't guarantee that the
+            // byte arrays are aligned to 4-byte boundaries.
             match key {
-                AesKey::Array4x8(&arr) => {
-                    for i in 0..arr.0.len() {
-                        aes.key_share0().at(i).write(|_| arr.0[i] ^ MASK);
+                AesKey::Array(&arr) => {
+                    for (i, chunk) in arr.chunks_exact(4).enumerate() {
+                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
+                        aes.key_share0().at(i).write(|_| word ^ MASK);
                         aes.key_share1().at(i).write(|_| MASK);
                     }
                 }
                 AesKey::Split(&key1, &key2) => {
-                    for i in 0..key1.0.len() {
-                        aes.key_share0().at(i).write(|_| key1.0[i]);
-                        aes.key_share1().at(i).write(|_| key2.0[i]);
+                    for (i, chunk) in key1.chunks_exact(4).enumerate() {
+                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
+                        aes.key_share0().at(i).write(|_| word);
+                    }
+                    for (i, chunk) in key2.chunks_exact(4).enumerate() {
+                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
+                        aes.key_share1().at(i).write(|_| word);
                     }
                 }
             }
 
-            // 4. Program the IV (last 4 bytes must be 0).
-            for i in 0..3 {
-                aes.iv().at(i).write(|_| iv[i]);
-                iv_return[i * 4..i * 4 + 4].copy_from_slice(&iv[i].to_be_bytes());
+            wait_for_idle(&aes);
+            // Program the IV (last 4 bytes must be 0).
+            for (i, ivi) in iv.into_iter().enumerate() {
+                aes.iv().at(i).write(|_| ivi);
             }
             aes.iv().at(3).write(|_| 0);
 
-            // 5. Set the mode to AAD.
-            for _ in 0..2 {
-                aes.ctrl_gcm_shadowed()
-                    .write(|w| w.phase(GcmPhase::Aad as u32));
-            }
             Ok::<(), CaliptraError>(())
         })?;
 
-        // 6. Load the AAD
-        self.load_data(aad)?;
-
-        self.with_aes(|aes| {
-            // 7. Set the mode to text.
-            for _ in 0..2 {
-                aes.ctrl_gcm_shadowed()
-                    .write(|w| w.phase(GcmPhase::Text as u32));
-            }
-        });
-
-        // 8. Write blocks of plaintext and read blocks of ciphertext out.
-        for start in (0..input.len()).step_by(AES_BLOCK_SIZE_BYTES) {
-            let end = (start + AES_BLOCK_SIZE_BYTES).min(input.len());
-            self.load_data_block(&input[start..end])?;
-            if end - start < AES_BLOCK_SIZE_BYTES {
-                self.set_gcm_len(end - start)?;
-            }
-            self.read_data_block(&mut output[start..end])?;
+        // Load the AAD
+        if !aad.is_empty() {
+            self.read_write_data(aad, GcmPhase::Aad, None)?;
         }
 
+        // Write blocks of plaintext and read blocks of ciphertext out.
+        self.read_write_data(input, GcmPhase::Text, Some(output))?;
+
+        // Compute the tag
         self.with_aes(|aes| {
-            // 9. Set the mode to tag.
+            wait_for_idle(&aes);
             for _ in 0..2 {
-                aes.ctrl_gcm_shadowed()
-                    .write(|w| w.phase(GcmPhase::Tag as u32));
+                aes.ctrl_gcm_shadowed().write(|w| {
+                    w.phase(GcmPhase::Tag as u32)
+                        .num_valid_bytes(AES_BLOCK_SIZE_BYTES as u32)
+                });
             }
         });
-
-        // 10. Compute the final block and load it into data_in
+        // Compute the final block and load it into data_in
         let mut tag_input = [0u8; AES_BLOCK_SIZE_BYTES];
-        tag_input[0..8].copy_from_slice(&(aad.len() as u64).to_be_bytes());
-        tag_input[8..16].copy_from_slice(&(input.len() as u64).to_be_bytes());
-        self.load_data_block(&tag_input)?;
+        // as per NIST SP 800-38D, algorithm 4, step 5, the last block
+        // is len(A) || len(C), with the lengths in bits
+        tag_input[0..8].copy_from_slice(&((aad.len() * 8) as u64).to_be_bytes());
+        tag_input[8..16].copy_from_slice(&((input.len() * 8) as u64).to_be_bytes());
+        self.load_data_block(&tag_input, 0)?;
 
-        // 11. Read out the tag.
+        // Read out the tag.
         let mut tag_return = [0u8; AES_BLOCK_SIZE_BYTES];
-        self.read_data_block(&mut tag_return)?;
+        self.read_data_block(&mut tag_return, 0)?;
 
         self.zeroize_internal();
-        Ok((iv_return, tag_return))
+        Ok((transmute!(iv), tag_return))
     }
 
-    fn read_data_block(&mut self, output: &mut [u8]) -> CaliptraResult<()> {
+    fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
         let aes = self.aes.regs_mut();
-
-        let mut buffer = [0u8; 16];
-
         while !aes.status().read().output_valid() {}
 
+        let mut buffer = [0u8; 16];
         // read the data out
         for i in 0..AES_BLOCK_SIZE_WORDS {
-            buffer[i * 4..i * 4 + 4].copy_from_slice(&aes.data_out().at(i).read().to_le_bytes());
+            let x = aes.data_out().at(i).read();
+            buffer[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
         }
 
-        let len = output.len().min(buffer.len());
-        output.copy_from_slice(&buffer[..len]);
+        // not possible but needed to prevent panic
+        if block_num * AES_BLOCK_SIZE_BYTES >= output.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        let output = &mut output[block_num * AES_BLOCK_SIZE_BYTES..];
+        let len = output.len().min(AES_BLOCK_SIZE_BYTES);
+        let output = &mut output[..len];
+        output[..len].copy_from_slice(&buffer[..len]);
         Ok(())
     }
 
-    fn load_data_block(&mut self, data: &[u8]) -> CaliptraResult<()> {
+    fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
         let aes = self.aes.regs_mut();
 
+        // not possible but needed to prevent panic
+        if block_num * AES_BLOCK_SIZE_BYTES >= data.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        let data = &data[block_num * AES_BLOCK_SIZE_BYTES..];
+        let data = &data[..AES_BLOCK_SIZE_BYTES.min(data.len())];
+
         while !aes.status().read().input_ready() {}
+        let len = data.len();
         let mut padded_data = [0u8; AES_BLOCK_SIZE_BYTES];
-        let len = data.len().min(AES_BLOCK_SIZE_BYTES);
-        padded_data[..len].copy_from_slice(&data[..len]);
-        for (i, chunk) in padded_data.chunks(4).enumerate() {
-            let word = u32::from_be_bytes(chunk.try_into().unwrap());
+        let data = if len < AES_BLOCK_SIZE_BYTES {
+            padded_data[..len].copy_from_slice(&data[..len]);
+            &padded_data[..]
+        } else {
+            data
+        };
+        // not possible but needed to prevent panic
+        if data.len() != AES_BLOCK_SIZE_BYTES {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        for (i, chunk) in data.chunks_exact(4).enumerate() {
+            let word = u32::from_le_bytes(chunk.try_into().unwrap());
             aes.data_in().at(i).write(|_| word);
         }
 
         Ok(())
     }
 
-    fn set_gcm_len(&mut self, len: usize) -> CaliptraResult<()> {
-        let aes = self.aes.regs_mut();
-        // wait for the engine to be idle
-        while !aes.status().read().idle() {}
-        // program the number of bytes for this block
-        for _ in 0..2 {
-            aes.ctrl_gcm_shadowed()
-                .write(|w| w.num_valid_bytes(len as u32));
+    fn read_write_data(
+        &mut self,
+        input: &[u8],
+        phase: GcmPhase,
+        output: Option<&mut [u8]>,
+    ) -> CaliptraResult<()> {
+        let num_blocks = input.len().div_ceil(AES_BLOCK_SIZE_BYTES);
+        // length of the last block
+        let partial_text_len = input.len() % AES_BLOCK_SIZE_BYTES;
+
+        let read_output = output.is_some();
+        let output = output.unwrap_or(&mut []);
+
+        for i in 0..num_blocks {
+            if i == 0 || ((i == num_blocks - 1) && (partial_text_len != 0)) {
+                let num_bytes = if (i == num_blocks - 1) && partial_text_len != 0 {
+                    partial_text_len
+                } else {
+                    AES_BLOCK_SIZE_BYTES
+                };
+                // set the mode and valid length
+                self.with_aes(|aes| {
+                    wait_for_idle(&aes);
+                    for _ in 0..2 {
+                        aes.ctrl_gcm_shadowed()
+                            .write(|w| w.phase(phase as u32).num_valid_bytes(num_bytes as u32));
+                    }
+                });
+            }
+
+            self.load_data_block(input, i)?;
+            if read_output {
+                self.read_data_block(output, i)?;
+            }
         }
-        Ok(())
-    }
-
-    fn load_data(&mut self, mut aad: &[u8]) -> CaliptraResult<()> {
-        let aes = self.aes.regs_mut();
-
-        // wait for input ready to be set
-        while !aes.status().read().input_ready() {}
-
-        if aad.is_empty() {
-            self.set_gcm_len(0)?;
-            self.load_data_block(aad)?;
-            return Ok(());
-        }
-
-        while !aad.is_empty() {
-            let len = aad.len().min(AES_BLOCK_SIZE_BYTES);
-            self.set_gcm_len(len)?;
-            self.load_data_block(&aad[..len])?;
-            aad = &aad[len..];
-        }
-
         Ok(())
     }
 
