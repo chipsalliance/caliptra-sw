@@ -62,13 +62,10 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/xilinx-rootfs || true)
   mkdir -p out/xilinx-rootfs
   tar xvzf out/rootfs.tar.gz -C out/xilinx-rootfs
-  mkdir -p out/rootfs/lib/modules
-  scp -r out/xilinx-rootfs/lib/modules out/rootfs/lib/modules
-  mkdir -p out/rootfs/lib/firmware
-  scp -r out/xilinx-rootfs/lib/firmware out/rootfs/lib/firmware
 
   mkdir -p out/rootfs/boot
   scp -r out/xilinx-rootfs/boot out/rootfs/boot
+  rm -r out/rootfs/boot/firmware
 
   # Comment this line out if you don't trust folks with physical access to the
   # uart
