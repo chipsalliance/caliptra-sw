@@ -64,7 +64,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   tar xvzf out/rootfs.tar.gz -C out/xilinx-rootfs
 
   mkdir -p out/rootfs/boot
-  scp -r out/xilinx-rootfs/boot out/rootfs/boot
+  scp -r out/xilinx-rootfs/boot out/rootfs
   rm -r out/rootfs/boot/firmware
 
   # Comment this line out if you don't trust folks with physical access to the
