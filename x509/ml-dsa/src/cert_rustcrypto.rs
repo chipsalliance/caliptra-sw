@@ -25,11 +25,11 @@ use ml_dsa::{KeyGen, MlDsa87};
 use sha2::{Digest, Sha256};
 use signature::Keypair;
 use spki::EncodePublicKey;
-use x509_cert::builder::profile::devid::DevId;
-use x509_cert::builder::{Builder, CertificateBuilder};
+
+use x509_cert::builder::{Builder, CertificateBuilder, Profile};
 use x509_cert::der::Encode;
 use x509_cert::ext::{
-    pkix::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
+    pkix::{AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectKeyIdentifier},
     AsExtension, Extension,
 };
 use x509_cert::name::Name;
@@ -269,7 +269,6 @@ where
             // const FLAG_BIT_NOT_SECURE: u32 = 1 << 1;
             // const FLAG_BIT_DEBUG: u32 = 1 << 3;
             // const FLAG_BIT_FIXED_WIDTH: u32 = 1 << 31;
-
             flags_mask: Some(&[0xD0, 0x00, 0x00, 0x01]),
         };
 
@@ -403,7 +402,10 @@ where
         };
         self.params.push(param);
 
-        let validity = Validity::new(Time::UtcTime(not_before), Time::UtcTime(not_after));
+        let validity = Validity {
+            not_before: Time::UtcTime(not_before),
+            not_after: Time::UtcTime(not_after),
+        };
 
         // Set the serial number
         let serial_number_bytes = [0x7fu8; 20];
@@ -445,18 +447,25 @@ where
         let issuer_key_hash = hex::encode(Sha256::digest(&issuer_pk_bytes)).to_uppercase();
         let issuer = format!("CN={},serialNumber={}", issuer_cn, issuer_key_hash);
         let issuer_name = Name::from_str(&issuer).unwrap();
+        let profile = Profile::Manual {
+            issuer: Some(issuer_name),
+        };
         let param = CertTemplateParam {
             tbs_param: TbsParam::new("ISSUER_SN", 0, issuer_key_hash.len()),
             needle: issuer_key_hash.into_bytes(),
         };
         self.params.push(param);
 
-        let profile = DevId::new(issuer_name, subject_name, None).unwrap();
-
         // Clone subject_spki before passing it to CertificateBuilder because it's needed later
-        let mut builder =
-            CertificateBuilder::new(profile, serial_number, validity, subject_spki.clone())
-                .expect("Create certificate");
+        let mut builder = CertificateBuilder::new(
+            profile,
+            serial_number,
+            validity,
+            subject_name,
+            subject_spki.clone(),
+            &issuer_key,
+        )
+        .expect("Create certificate");
 
         if let Some(basic_constraints) = self.basic_constraints {
             builder.add_extension(&basic_constraints).unwrap();
@@ -485,13 +494,12 @@ where
         // Add Authority Key Identifier
         let issuer_key_bytes = issuer_spki.subject_public_key.as_bytes().unwrap();
         let issuer_key_hash = sha1::Sha1::digest(issuer_key_bytes).as_slice().to_vec();
-        // Somehow this ends up twice in extensions if we do this?
-        // let authority_key_id = AuthorityKeyIdentifier {
-        //     key_identifier: Some(der::asn1::OctetString::new(issuer_key_hash.clone()).unwrap()),
-        //     authority_cert_issuer: None,
-        //     authority_cert_serial_number: None,
-        // };
-        // builder.add_extension(&authority_key_id).unwrap();
+        let authority_key_id = AuthorityKeyIdentifier {
+            key_identifier: Some(der::asn1::OctetString::new(issuer_key_hash.clone()).unwrap()),
+            authority_cert_issuer: None,
+            authority_cert_serial_number: None,
+        };
+        builder.add_extension(&authority_key_id).unwrap();
 
         // Add parameters for template generation
         self.params.push(CertTemplateParam {
@@ -504,7 +512,7 @@ where
             needle: issuer_key_hash,
         });
 
-        let req = builder.build(&issuer_key).unwrap();
+        let req = builder.build().unwrap();
         let der = req.to_der().unwrap();
 
         // Retrieve the To be signed portion from the CSR
