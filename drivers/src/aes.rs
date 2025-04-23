@@ -171,7 +171,7 @@ impl Aes {
         let ghash_state = self.save()?;
         self.zeroize_internal();
         Ok(AesContext {
-            key: key.clone(),
+            key: *key,
             iv,
             aad_len: aad.len() as u32,
             ghash_state,
@@ -218,6 +218,29 @@ impl Aes {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
 
+        let mut len = context.buffer_len as usize;
+
+        if left + input.len() < AES_BLOCK_SIZE_BYTES {
+            // not enough bytes to do a block, so save in the buffer and return
+            let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
+            buffer[..left].copy_from_slice(&context.buffer[..left]);
+            buffer[left..left + input.len()].copy_from_slice(input);
+            len += input.len();
+            self.zeroize_internal();
+            return Ok((
+                0,
+                AesContext {
+                    key: context.key,
+                    iv: context.iv,
+                    aad_len: context.aad_len,
+                    ghash_state: context.ghash_state,
+                    buffer_len: len as u32,
+                    buffer,
+                    resreved: [0; 16],
+                },
+            ));
+        }
+
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
@@ -227,40 +250,18 @@ impl Aes {
         )?;
 
         // check if we need to process the previous buffer
-        let mut len = context.buffer_len as usize;
         let mut written = 0;
         if left > 0 {
-            if left + input.len() >= AES_BLOCK_SIZE_BYTES {
-                let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
-                buffer[..left].copy_from_slice(&context.buffer[..left]);
-                let take = AES_BLOCK_SIZE_BYTES - left;
-                buffer[left..].copy_from_slice(&input[..take]);
-                input = &input[take..];
-                len += take;
-                self.read_write_data(&buffer, GcmPhase::Text, Some(output))?;
-                output = &mut output[AES_BLOCK_SIZE_BYTES..];
-                written += AES_BLOCK_SIZE_BYTES;
-            } else {
-                // not enough bytes to do a block, so save in the buffer and return
-                let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
-                buffer[..left].copy_from_slice(&context.buffer[..left]);
-                buffer[left..left + input.len()].copy_from_slice(input);
-                len += input.len();
-                let ghash_state = self.save()?;
-                self.zeroize_internal();
-                return Ok((
-                    0,
-                    AesContext {
-                        key: context.key.clone(),
-                        iv: context.iv.clone(),
-                        aad_len: context.aad_len,
-                        ghash_state,
-                        buffer_len: len as u32,
-                        buffer,
-                        resreved: [0; 16],
-                    },
-                ));
-            }
+            // guaranteed to have at least one block to do
+            let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
+            buffer[..left].copy_from_slice(&context.buffer[..left]);
+            let take = AES_BLOCK_SIZE_BYTES - left;
+            buffer[left..].copy_from_slice(&input[..take]);
+            input = &input[take..];
+            len += take;
+            self.read_write_data(&buffer, GcmPhase::Text, Some(output))?;
+            output = &mut output[AES_BLOCK_SIZE_BYTES..];
+            written += AES_BLOCK_SIZE_BYTES;
         }
 
         // Write blocks of input and read blocks of output.
@@ -287,8 +288,8 @@ impl Aes {
         Ok((
             written,
             AesContext {
-                key: context.key.clone(),
-                iv: context.iv.clone(),
+                key: context.key,
+                iv: context.iv,
                 aad_len: context.aad_len,
                 ghash_state,
                 buffer_len: len as u32,
@@ -419,6 +420,7 @@ impl Aes {
                 let x = aes.data_out().at(i).read();
                 ghash_state[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
             }
+            wait_for_idle(&aes);
         });
         Ok(ghash_state)
     }
@@ -506,7 +508,7 @@ impl Aes {
                     .write(|w| w.phase(GcmPhase::Restore as u32));
             }
             wait_for_idle(&aes);
-            for (i, ghashi) in ghash_state.chunks_exact(4).into_iter().enumerate() {
+            for (i, ghashi) in ghash_state.chunks_exact(4).enumerate() {
                 aes.data_in()
                     .at(i)
                     .write(|_| u32::from_le_bytes(ghashi.try_into().unwrap()));

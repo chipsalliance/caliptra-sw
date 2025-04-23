@@ -278,7 +278,7 @@ impl Aes {
 
                 // update GHASH
                 let ciphertext = if self.is_encrypt() { &output } else { buffer };
-                let mut ciphertext = ciphertext.clone();
+                let mut ciphertext = *ciphertext;
                 if num_valid != 16 {
                     ciphertext[num_valid..].fill(0);
                 }

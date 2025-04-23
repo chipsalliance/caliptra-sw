@@ -739,6 +739,8 @@ fn test_aes_random_encrypt_decrypt_1() {
         let mut aad = vec![0u8; aad_len];
         seeded_rng.fill_bytes(&mut aad);
 
+        println!("submitting test aad_len = {} len = {}", aad_len, len);
+
         let (iv, tag, ciphertext) =
             mailbox_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
         let (rtag, rciphertext) = rustcrypto_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
@@ -879,7 +881,7 @@ fn mailbox_decrypt(
     let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
         cmk: cmk.clone(),
-        iv: iv.clone(),
+        iv: *iv,
         aad_size: aad.len() as u32,
         aad: [0; MAX_CMB_DATA_SIZE],
     };
@@ -944,7 +946,7 @@ fn mailbox_decrypt(
         hdr: MailboxReqHeader::default(),
         context,
         tag_len: tag.len() as u32,
-        tag: tag.clone(),
+        tag: *tag,
         ciphertext_size: ciphertext.len() as u32,
         ciphertext: [0; MAX_CMB_DATA_SIZE],
     };

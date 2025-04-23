@@ -24,15 +24,10 @@ const AES_256_GCM_IV_SIZE: usize = 12;
 const AES_256_GCM_TAG_SIZE: usize = 16;
 
 /// Streaming GHASH implementation for AES-256-GCM.
+#[derive(Default)]
 pub struct GHash {
     h: u128,
     state: u128,
-}
-
-impl Default for GHash {
-    fn default() -> Self {
-        Self { h: 0, state: 0 }
-    }
 }
 
 impl GHash {
@@ -127,7 +122,7 @@ impl Aes256Gcm {
         let key: &Key<aes_gcm::Aes256Gcm> = key.into();
         let mut cipher = aes_gcm::Aes256Gcm::new(key);
         // TODO: remove this hack and use propert CTR mode for performance.
-        let mut buffer = vec![0u8; AES_256_BLOCK_SIZE].repeat(block_num);
+        let mut buffer = [0u8; AES_256_BLOCK_SIZE].repeat(block_num);
         buffer.extend_from_slice(plaintext);
         cipher
             .encrypt_in_place_detached(iv.into(), &[], &mut buffer)
@@ -205,7 +200,7 @@ mod tests {
             .repeat(2)
             .try_into()
             .unwrap();
-        let mut h = GHash::new(&key.try_into().unwrap());
+        let mut h = GHash::new(&key);
         let ct: [u128; 4] = [
             0x522dc1f099567d07f47f37a32a84427d,
             0x643a8cdcbfe5c0c97598a2bd2555d1aa,
@@ -237,7 +232,7 @@ mod tests {
             0x11, 0xa5, 0x36, 0x3d, 0x59, 0xa6, 0x28, 0x88, 0x70, 0xf5, 0x27, 0xbc, 0xff, 0xeb,
             0x4d, 0x6e, 0x4,
         ];
-        let mut h = GHash::new(&KEY.try_into().unwrap());
+        let mut h = GHash::new(&KEY);
         let ct: [u128; 3] = [
             0x42cade3a19204b7d4843628c425c2375,
             0x7a1b61009dce6b7cd4d1ea0203b179f1,

@@ -2072,7 +2072,7 @@ pub struct CmAesGcmEncryptFinalResp {
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmAesGcmEncryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
     pub tag: [u8; 16],
@@ -2084,16 +2084,6 @@ impl Default for CmAesGcmEncryptFinalResp {
         Self {
             hdr: CmAesGcmEncryptFinalRespHeader::default(),
             ciphertext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
-        }
-    }
-}
-
-impl Default for CmAesGcmEncryptFinalRespHeader {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            tag: [0u8; 16],
-            ciphertext_size: 0,
         }
     }
 }
@@ -2334,7 +2324,7 @@ pub struct CmAesGcmDecryptFinalResp {
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmAesGcmDecryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
     pub tag_verified: u32,
@@ -2347,17 +2337,6 @@ impl Default for CmAesGcmDecryptFinalResp {
         Self {
             hdr: CmAesGcmDecryptFinalRespHeader::default(),
             plaintext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
-        }
-    }
-}
-
-impl Default for CmAesGcmDecryptFinalRespHeader {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            tag_verified: 0,
-            tag: [0u8; 16],
-            plaintext_size: 0,
         }
     }
 }
