@@ -142,7 +142,7 @@ where
         };
         self.params.push(param);
 
-        let mut builder = RequestBuilder::new(name).unwrap();
+        let mut builder = RequestBuilder::new(name, &key).unwrap();
 
         if let Some(basic_constraints) = self.basic_constraints {
             builder.add_extension(&basic_constraints).unwrap();
@@ -153,7 +153,7 @@ where
         if let Some(ueid) = self.tcg_ueid {
             builder.add_extension(&ueid).unwrap();
         }
-        let req = builder.build(&key).unwrap();
+        let req = builder.build().unwrap();
         let der = req.to_der().unwrap();
 
         // Retrieve the To be signed portion from the CSR

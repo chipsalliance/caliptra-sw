@@ -71,9 +71,9 @@ impl FmcAliasCertTbsMlDsa87 {
     const TCB_INFO_FLAGS_LEN: usize = 4usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
     const TCB_INFO_FW_SVN_FUSES_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 3287usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3271usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 12u8, 211u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 12u8, 195u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
         113u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8,
@@ -268,12 +268,12 @@ impl FmcAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 163u8,
-        130u8, 1u8, 104u8, 48u8, 130u8, 1u8, 100u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8,
-        1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 3u8, 48u8, 14u8, 6u8, 3u8,
-        85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 34u8, 6u8, 6u8,
-        103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8,
+        130u8, 1u8, 88u8, 48u8, 130u8, 1u8, 84u8, 48u8, 18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8,
+        255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 3u8, 48u8, 14u8, 6u8, 3u8, 85u8,
+        29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 4u8, 48u8, 34u8, 6u8, 6u8, 103u8,
+        129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8, 4u8, 21u8, 48u8, 19u8, 4u8, 17u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 48u8, 129u8, 201u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 5u8, 1u8, 1u8, 255u8, 4u8,
+        48u8, 129u8, 201u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 5u8, 1u8, 1u8, 255u8, 4u8,
         129u8, 187u8, 48u8, 129u8, 184u8, 48u8, 129u8, 181u8, 48u8, 97u8, 131u8, 2u8, 1u8, 95u8,
         166u8, 64u8, 48u8, 62u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 3u8,
         49u8, 0u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
@@ -290,8 +290,7 @@ impl FmcAliasCertTbsMlDsa87 {
         4u8, 22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8,
         35u8, 4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 14u8, 6u8,
-        3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 7u8, 128u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
     pub fn new(params: &FmcAliasCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -312,7 +311,7 @@ impl FmcAliasCertTbsMlDsa87 {
     fn apply(&mut self, params: &FmcAliasCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 3287usize],
+            buf: &mut [u8; 3271usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
