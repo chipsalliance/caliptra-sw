@@ -583,6 +583,7 @@ pub struct GetIdevMldsa87CertReq {
     pub tbs: [u8; GetIdevMldsa87CertReq::DATA_MAX_SIZE], // variable length
 }
 impl GetIdevMldsa87CertReq {
+    // TODO: This number is incorrect.
     pub const DATA_MAX_SIZE: usize = 916; // Req max size = Resp max size - MAX_MLDSA87_SIG_LEN
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
