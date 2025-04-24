@@ -22,6 +22,14 @@ pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 pub const MAX_RESP_DATA_SIZE: usize = 9216; // 9K
 /// Encrypted context size for the CMB AES GCM commands.
 pub const CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE: usize = 128;
+// ECDH context (unencrypted) size
+pub const CMB_ECDH_CONTEXT_SIZE: usize = 48;
+/// Context size for CMB ECDH commands.
+pub const CMB_ECDH_ENCRYPTED_CONTEXT_SIZE: usize = 76; // = unencrypted size + 12 bytes IV + 16 bytes tag
+const _: () = assert!(CMB_ECDH_CONTEXT_SIZE + 12 + 16 == CMB_ECDH_ENCRYPTED_CONTEXT_SIZE);
+/// CMB ECDH exchange data maximum size is the size of two coordinates + 1 byte, rounded up.
+pub const CMB_ECDH_EXCHANGE_DATA_MAX_SIZE: usize = 96; // = 48 * 2;
+const _: () = assert!(CMB_ECDH_CONTEXT_SIZE * 2 == CMB_ECDH_EXCHANGE_DATA_MAX_SIZE);
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
@@ -128,6 +136,8 @@ impl CommandId {
     pub const CM_AES_GCM_DECRYPT_INIT: Self = Self(0x434D_4449); // "CMDI"
     pub const CM_AES_GCM_DECRYPT_UPDATE: Self = Self(0x434D_4455); // "CMDU"
     pub const CM_AES_GCM_DECRYPT_FINAL: Self = Self(0x434D_4446); // "CMDF"
+    pub const CM_ECDH_GENERATE: Self = Self(0x434D_4547); // "CMEG"
+    pub const CM_ECDH_FINISH: Self = Self(0x434D_4546); // "CMEF"
 }
 
 impl From<u32> for CommandId {
@@ -245,6 +255,8 @@ pub enum MailboxResp {
     CmAesGcmDecryptInit(CmAesGcmDecryptInitResp),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateResp),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalResp),
+    CmEcdhGenerate(CmEcdhGenerateResp),
+    CmEcdhFinish(CmEcdhFinishResp),
 }
 
 impl MailboxResp {
@@ -284,6 +296,8 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -323,6 +337,8 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -398,6 +414,8 @@ pub enum MailboxReq {
     CmAesGcmDecryptInit(CmAesGcmDecryptInitReq),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateReq),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq),
+    CmEcdhGenerate(CmEcdhGenerateReq),
+    CmEcdhFinish(CmEcdhFinishReq),
 }
 
 impl MailboxReq {
@@ -440,6 +458,8 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial(),
+            MailboxReq::CmEcdhGenerate(req) => Ok(req.as_bytes()),
+            MailboxReq::CmEcdhFinish(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -482,6 +502,8 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmEcdhGenerate(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmEcdhFinish(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -524,6 +546,8 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptInit(_) => CommandId::CM_AES_GCM_DECRYPT_INIT,
             MailboxReq::CmAesGcmDecryptUpdate(_) => CommandId::CM_AES_GCM_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmDecryptFinal(_) => CommandId::CM_AES_GCM_DECRYPT_FINAL,
+            MailboxReq::CmEcdhGenerate(_) => CommandId::CM_ECDH_GENERATE,
+            MailboxReq::CmEcdhFinish(_) => CommandId::CM_ECDH_FINISH,
         }
     }
 
@@ -2469,6 +2493,81 @@ impl ResponseVarSize for CmAesGcmDecryptFinalResp {
         Ok(size_of::<CmAesGcmDecryptFinalRespHeader>() + hdr.plaintext_size as usize)
     }
 }
+
+// CM_ECDH_GENERATE
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmEcdhGenerateReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for CmEcdhGenerateReq {
+    const ID: CommandId = CommandId::CM_ECDH_GENERATE;
+    type Resp = CmEcdhGenerateResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmEcdhGenerateResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
+    pub exchange_data: [u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+}
+
+impl Default for CmEcdhGenerateResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
+            exchange_data: [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+        }
+    }
+}
+
+impl Response for CmEcdhGenerateResp {}
+// CM_ECDH_FINISH
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmEcdhFinishReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
+    pub key_usage: u32,
+    pub incoming_exchange_data: [u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+}
+
+impl Default for CmEcdhFinishReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
+            key_usage: 0,
+            incoming_exchange_data: [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+        }
+    }
+}
+
+impl Request for CmEcdhFinishReq {
+    const ID: CommandId = CommandId::CM_ECDH_FINISH;
+    type Resp = CmEcdhFinishResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmEcdhFinishResp {
+    pub hdr: MailboxRespHeader,
+    pub output_cmk: [u8; CMK_SIZE_BYTES],
+}
+
+impl Default for CmEcdhFinishResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            output_cmk: [0u8; CMK_SIZE_BYTES],
+        }
+    }
+}
+
+impl Response for CmEcdhFinishResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

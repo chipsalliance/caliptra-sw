@@ -33,7 +33,7 @@ use zerocopy::IntoBytes;
 
 fn export_result_from_kv(ecc: &mut Ecc384, trng: &mut Trng, key_id: KeyId) -> Ecc384PubKey {
     ecc.key_pair(
-        &KeyReadArgs::new(key_id).into(),
+        KeyReadArgs::new(key_id).into(),
         &Array4x12::default(),
         trng,
         KeyWriteArgs::new(KeyId::KeyId3, KeyUsage::default().set_ecc_private_key_en()).into(),

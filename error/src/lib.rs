@@ -1890,6 +1890,11 @@ impl CaliptraError {
             "ROM KAT Error: MLDSA87 key pair verify failure"
         ),
         (
+            KAT_ECDH_VERIFY_FAILURE,
+            0x90040010,
+            "ROM KAT Error: ECDH verify failure"
+        ),
+        (
             KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
             0x90050001,
             "ROM KAT Error: SHA2_512_384_ACC digest start op failure"

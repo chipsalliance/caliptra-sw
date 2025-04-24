@@ -62,7 +62,7 @@ fn ecc384_key_gen(
     )?;
 
     let pub_key = drivers.ecc384.key_pair(
-        &KeyReadArgs::new(KEY_ID_TMP).into(),
+        KeyReadArgs::new(KEY_ID_TMP).into(),
         &Array4x12::default(),
         &mut drivers.trng,
         KeyWriteArgs::new(priv_key, KeyUsage::default().set_ecc_private_key_en()).into(),

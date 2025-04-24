@@ -130,7 +130,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
     // Step 1: Place a key in the key-vault.
     //
     ecc.key_pair(
-        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
         KeyWriteArgs::new(
@@ -148,7 +148,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
     //
     hmac384
         .hmac(
-            &KeyReadArgs::new(KeyId::KeyId0).into(),
+            &(KeyReadArgs::new(KeyId::KeyId0).into()),
             &data.into(),
             &mut trng,
             KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en()).into(),
@@ -158,7 +158,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
 
     let pub_key = ecc
         .key_pair(
-            &KeyReadArgs::new(KeyId::KeyId1).into(),
+            KeyReadArgs::new(KeyId::KeyId1).into(),
             &Array4x12::default(),
             &mut trng,
             KeyWriteArgs::new(KeyId::KeyId2, KeyUsage::default().set_ecc_private_key_en()).into(),
@@ -334,7 +334,7 @@ fn test_hmac5() {
             .set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
-        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -460,7 +460,7 @@ fn test_kdf_hmac384(
 
     let pub_key = ecc
         .key_pair(
-            &KeyReadArgs::new(KeyId::KeyId1).into(),
+            KeyReadArgs::new(KeyId::KeyId1).into(),
             &Array4x12::default(),
             &mut trng,
             Ecc384PrivKeyOut::from(ecc_out),

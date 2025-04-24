@@ -131,7 +131,7 @@ impl<'a> DpeCrypto<'a> {
                 let pub_key = self
                     .ecc384
                     .key_pair(
-                        &Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
+                        Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
                         &Array4x12::default(),
                         self.trng,
                         KeyWriteArgs::new(key_id, KeyUsage::default().set_ecc_private_key_en())
@@ -379,7 +379,7 @@ impl Crypto for DpeCrypto<'_> {
                 let sig = self
                     .ecc384
                     .sign(
-                        &ecc_priv_key,
+                        ecc_priv_key,
                         &ecc_pub_key,
                         &Ecc384Scalar::from(digest_arr),
                         self.trng,

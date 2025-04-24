@@ -298,6 +298,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_final(drivers, cmd_bytes)
         }
 
+        CommandId::CM_ECDH_GENERATE => {
+            cryptographic_mailbox::Commands::ecdh_generate(drivers, cmd_bytes)
+        }
+        CommandId::CM_ECDH_FINISH => {
+            cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
     let resp = okmutref(&mut resp)?;
