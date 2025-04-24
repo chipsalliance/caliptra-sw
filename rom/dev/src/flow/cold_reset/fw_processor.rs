@@ -19,14 +19,15 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
+use caliptra_api::mailbox::ResponseVarSize;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, GetIdevCsrResp, GetIdevMldsaCsrResp, MailboxReqHeader,
-    MailboxRespHeader, Response, StashMeasurementReq, StashMeasurementResp,
+    CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::{
     pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
@@ -341,7 +342,7 @@ impl FirmwareProcessor {
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
-                    CommandId::GET_IDEV_ECC_CSR => {
+                    CommandId::GET_IDEV_ECC384_CSR => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
@@ -364,14 +365,14 @@ impl FirmwareProcessor {
                         resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
                         resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_bytes_partial()?)?;
                     }
-                    CommandId::GET_IDEV_MLDSA_CSR => {
+                    CommandId::GET_IDEV_MLDSA87_CSR => {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
                         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
-                        let mut resp = GetIdevMldsaCsrResp::default();
+                        let mut resp = GetIdevCsrResp::default();
 
                         if csr_persistent_mem.is_unprovisioned() {
                             // CSR was never written to DCCM. This means the gen_idev_id_csr

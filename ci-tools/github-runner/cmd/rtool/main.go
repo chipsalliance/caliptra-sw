@@ -70,6 +70,8 @@ func main() {
 			runner, err := hello.GitHubRegisterRunner(ctx, client, labels, os.Args[5])
 			if err == nil {
 				fmt.Println(runner.JitConfig)
+			} else {
+				log.Fatal(err)
 			}
 		}
 		if err != nil {

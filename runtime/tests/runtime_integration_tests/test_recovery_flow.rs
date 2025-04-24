@@ -28,6 +28,7 @@ fn test_loads_mcu_fw() {
         fw_id: 2,
         flags: flags.0,
         digest,
+        ..Default::default()
     }];
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();
@@ -71,6 +72,7 @@ fn test_mcu_fw_bad_signature() {
         fw_id: 2,
         flags: flags.0,
         digest,
+        ..Default::default()
     }];
     let soc_manifest = create_auth_manifest_with_metadata(metadata);
     let soc_manifest = soc_manifest.as_bytes();

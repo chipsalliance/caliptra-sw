@@ -47,6 +47,12 @@ impl Mailbox {
         mbox.status().read().status().cmd_busy()
     }
 
+    /// Get the current state of the mailbox FSM
+    pub fn mailbox_state(&self) -> MboxFsmE {
+        let mbox = self.mbox.regs();
+        mbox.status().read().mbox_fsm_ps()
+    }
+
     /// Get the length of the current mailbox data in bytes
     pub fn dlen(&self) -> u32 {
         let mbox = self.mbox.regs();

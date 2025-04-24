@@ -419,7 +419,7 @@ fn runtime_update_to_svn(model: &mut DefaultHwModel, svn: u32) {
 
 fn get_ladder_digest(model: &mut DefaultHwModel, target_svn: u32) -> Vec<u8> {
     let digest = model
-        .mailbox_execute(0xF000_0000, target_svn.as_bytes())
+        .mailbox_execute(0x1000_1000, target_svn.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -429,7 +429,7 @@ fn get_ladder_digest(model: &mut DefaultHwModel, target_svn: u32) -> Vec<u8> {
 
 fn assert_target_svn_too_large(model: &mut DefaultHwModel, target_svn: u32) {
     assert_eq!(
-        model.mailbox_execute(0xF000_0000, target_svn.as_bytes()),
+        model.mailbox_execute(0x1000_1000, target_svn.as_bytes()),
         Err(ModelError::MailboxCmdFailed(u32::from(
             CaliptraError::RUNTIME_KEY_LADDER_TARGET_SVN_TOO_LARGE,
         )))
@@ -546,7 +546,7 @@ fn test_key_ladder_max_svn() {
         ..Default::default()
     });
 
-    let resp = model.mailbox_execute(0xE000_0000, &[]).unwrap().unwrap();
+    let resp = model.mailbox_execute(0xF000_0000, &[]).unwrap().unwrap();
 
     let max = u16::from_le_bytes(resp.try_into().unwrap());
     assert_eq!(max as u32, MAX_SVN);

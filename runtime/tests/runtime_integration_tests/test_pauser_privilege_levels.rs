@@ -1,7 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::PQC_KEY_TYPE;
-use caliptra_api::{mailbox::SignWithExportedEcdsaReq, SocManager};
+use caliptra_api::{
+    mailbox::{RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq},
+    SocManager,
+};
 use caliptra_builder::{
     build_firmware_elf,
     firmware::{APP_WITH_UART, FMC_WITH_UART},
@@ -9,7 +12,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevCertReq, StashMeasurementReq,
+    PopulateIdevEcc384CertReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -331,7 +334,8 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
 
-        let mut pop_idev_cmd = MailboxReq::PopulateIdevCert(PopulateIdevCertReq::default());
+        let mut pop_idev_cmd =
+            MailboxReq::PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq::default());
         pop_idev_cmd.populate_chksum().unwrap();
 
         let resp = model
@@ -406,6 +410,38 @@ fn test_sign_with_exported_ecdsa_cannot_be_called_from_pl1() {
     let resp = model
         .mailbox_execute(
             u32::from(CommandId::SIGN_WITH_EXPORTED_ECDSA),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+}
+
+#[test]
+fn test_revoke_export_cdi_handle_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::REVOKE_EXPORTED_CDI_HANDLE),
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();

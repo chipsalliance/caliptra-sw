@@ -8,7 +8,7 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, GetFmcAliasCertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
+    CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_test::{
@@ -88,22 +88,21 @@ fn fake_boot_test() {
     assert_output_contains(&output, "Running Caliptra ROM");
     assert_output_contains(&output, "[fake-rom-cold-reset]");
     assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(
-        &output,
-        r#"
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
-| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
-| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-    );
+    assert_output_contains(&output, "Caliptra RT");
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            &[],
+        ),
     };
 
     // Execute the command
     let resp = hw
-        .mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_LDEV_ECC384_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
 
@@ -162,19 +161,22 @@ fn fake_boot_test() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_FMC_ALIAS_CERT),
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
             &[],
         ),
     };
 
     // Execute command
     let resp = hw
-        .mailbox_execute(u32::from(CommandId::GET_FMC_ALIAS_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_FMC_ALIAS_ECC384_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
 
-    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
-    let mut fmc_alias_cert_resp = GetFmcAliasCertResp::default();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasEcc384CertResp>());
+    let mut fmc_alias_cert_resp = GetFmcAliasEcc384CertResp::default();
     fmc_alias_cert_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval

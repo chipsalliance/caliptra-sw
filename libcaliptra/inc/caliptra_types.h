@@ -241,6 +241,11 @@ struct caliptra_sign_with_exported_ecdsa_resp {
     uint8_t signature_s[48];
 };
 
+struct caliptra_revoke_exported_cdi_handle_req {
+    struct caliptra_req_header hdr;
+    uint8_t exported_cdi_handle[32];
+};
+
 // DPE commands
 
 #define DPE_MAGIC    0x44504543 // "DPEC"

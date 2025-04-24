@@ -46,6 +46,7 @@ use caliptra_registers::{
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::dpe_instance::DpeInstanceFlags;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
@@ -241,7 +242,7 @@ impl Drivers {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to DPE validation failure");
+                    cprintln!("Disabled attest: DPE valid fail");
                     // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
                     drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
@@ -415,6 +416,7 @@ impl Drivers {
             DPE_SUPPORT,
             u32::from_be_bytes(*b"RTJM"),
             rt_journey_measurement,
+            DpeInstanceFlags::empty(),
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
@@ -498,7 +500,7 @@ impl Drivers {
 
         // Write fmc alias cert to cert chain.
         let fmcalias_cert_size =
-            dice::copy_fmc_alias_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
+            dice::copy_fmc_alias_ecc384_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }

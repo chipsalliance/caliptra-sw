@@ -25,16 +25,20 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
+mod get_image_info;
 pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
 pub mod key_ladder;
+pub mod manifest;
 mod pcr;
 mod populate_idev;
 mod recovery_flow;
+mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
+mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -51,6 +55,7 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -66,6 +71,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
+pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
@@ -74,7 +80,7 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{CommandId, MailboxResp};
+use caliptra_common::mailbox_api::{AlgorithmType, CommandId, MailboxResp};
 use packet::Packet;
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
@@ -189,9 +195,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Handle the request and generate the response
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
-        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
-        CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
+        CommandId::GET_IDEV_ECC384_CERT => IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384),
+        CommandId::GET_IDEV_ECC384_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_IDEV_MLDSA87_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87),
+        CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_LDEV_MLDSA87_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
@@ -202,8 +212,22 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
-        CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
+        CommandId::GET_FMC_ALIAS_ECC384_CERT => {
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
+        }
+        CommandId::GET_RT_ALIAS_ECC384_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
+        }
+        // MLDSA87 versions
+        CommandId::GET_IDEV_MLDSA87_CERT => {
+            IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87)
+        }
+        CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
+        CommandId::GET_RT_ALIAS_MLDSA87_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
         CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
@@ -233,11 +257,14 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_ECC_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_MLDSA_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
+            RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
         }
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes),
@@ -251,6 +278,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
@@ -282,8 +310,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
-    let cmd_busy = drivers.mbox.cmd_busy();
-    if cmd_busy {
+    let mailbox_flow_is_active = !drivers.soc_ifc.flow_status_mailbox_flow_done();
+    if mailbox_flow_is_active {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -303,20 +331,23 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
         }
     } else {
-        cfi_assert!(!cmd_busy);
+        cfi_assert!(!mailbox_flow_is_active);
     }
     #[cfg(feature = "riscv")]
     setup_mailbox_wfi(drivers);
     caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
     loop {
+        if drivers.is_shutdown {
+            return Err(CaliptraError::RUNTIME_SHUTDOWN);
+        }
+
+        // No command is executing, set the mailbox flow done to true before beginning idle.
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
+
         enter_idle(drivers);
 
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
-
-        if drivers.is_shutdown {
-            return Err(CaliptraError::RUNTIME_SHUTDOWN);
-        }
 
         // The hardware will set this interrupt high when the mbox_fsm_ps
         // transitions to state MBOX_EXECUTE_UC (same state as mbox.is_cmd_ready()),
@@ -324,6 +355,10 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         // transitions away from MBOX_EXECUTE_UC and back.
         let cmd_ready = drivers.soc_ifc.has_mbox_notif_status();
         if cmd_ready {
+            // We have woken from idle and have a command ready, set the mailbox flow done to false until we return to
+            // idle.
+            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+
             // Acknowledge the interrupt so we go back to sleep after
             // processing the mailbox. After this point, if the mailbox is
             // still in the MBOX_EXECUTE_UC state before going back to
