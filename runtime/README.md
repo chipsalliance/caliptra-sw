@@ -1336,6 +1336,8 @@ Currently only supports AES-256-GCM with a random 96-bit IV.
 
 The CMK must have been created for AES usage.
 
+Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
 Command Code: `0x434D_4749` ("CMGI")
 
 *Table: `CM_AES_GCM_ENCRYPT_INIT` input arguments*
@@ -1345,30 +1347,31 @@ Command Code: `0x434D_4749` ("CMGI")
 | CMK            | CMK                | CMK of the key to use to encrypt |
 | aad size       | u32                |                                  |
 | aad            | u8[aad size]       | Additional authenticated data    |
-| plaintext size | u32                |                                  |
-| plaintext      | u8[plaintext size] | Data to encrypt                  |
 
 *Table: `CM_AES_GCM_ENCRYPT_INIT` output arguments*
 | **Name**       | **Type**            | **Description**                  |
 | -------------- | ------------------- | -------------------------------- |
 | chksum         | u32                 |                                  |
 | fips_status    | u32                 | FIPS approved or an error        |
-| context size   | u32                 |                                  |
-| context        | u8[context size]    |                                  |
+| context        | AES_GCM_CONTEXT     |                                  |
 | iv             | u8[12]              |                                  |
-| cipertext size | u32                 | MUST be equal to ciphertext size |
-| ciphertext     | u8[ciphertext size] |                                  |
 
 The encrypted and authenticated context's internal structure will be:
 
 *Table: internal context for CM_AES_GCM_ENCRYPT_* operations*
-| **Name**        | **Type** | **Description** |
-| --------------- | -------- | --------------- |
-| key             | u8[32]   |                 |
-| last length     | u32      |                 |
-| last counter    | u8[16]   |                 |
-| last GHASH      | u8[16]   |                 |
-| last ciphertext | u8[16]   |                 |
+| **Name**       | **Type** | **Description**             |
+| -------------- | -------- | --------------------------- |
+| key            | u8[32]   |                             |
+| iv             | u8[12]   |                             |
+| aad length     | u32      |                             |
+| GHASH state    | u8[16]   |                             |
+| current length | u32      | value mod 16 is buffer size |
+| buffer         | u8[16]   |                             |
+| reserved       | u8[16]   |                             |
+
+The size of the (encrypted) context is always exactly 128 bytes,
+and we will use the type `AES_GCM_CONTEXT` to represent `u8[128]` below.
+
 
 ### CM_AES_GCM_ENCRYPT_UPDATE
 
@@ -1382,8 +1385,7 @@ Command Code: `0x434D_4755` ("CMGU")
 | **Name**       | **Type**           | **Description**  |
 | -------------- | ------------------ | ---------------- |
 | chksum         | u32                |                  |
-| context size   | u32                |                  |
-| context        | u8[context size]   |                  |
+| context        | AES_GCM_CONTEXT    |                  |
 | plaintext size | u32                | MUST be non-zero |
 | plaintext      | u8[plaintext size] | Data to encrypt  |
 
@@ -1392,8 +1394,7 @@ Command Code: `0x434D_4755` ("CMGU")
 | -------------- | ------------------- | ------------------------------- |
 | chksum         | u32                 |                                 |
 | fips_status    | u32                 | FIPS approved or an error       |
-| context size   | u32                 |                                 |
-| context        | u8[context size]    |                                 |
+| context        | AES_GCM_CONTEXT     |                  |
 | cipertext size | u32                 | MUST be equal to plaintext size |
 | ciphertext     | u8[ciphertext size] |                                 |
 
@@ -1409,8 +1410,7 @@ Command Code: `0x434D_4746` ("CMGF")
 | **Name**       | **Type**           | **Description** |
 | -------------- | ------------------ | --------------- |
 | chksum         | u32                |                 |
-| context size   | u32                |                 |
-| context        | u8[context size]   |                 |
+| context        | AES_GCM_CONTEXT    |                  |
 | plaintext size | u32                | MAY be 0        |
 | plaintext      | u8[plaintext size] | Data to encrypt |
 
@@ -1419,9 +1419,9 @@ Command Code: `0x434D_4746` ("CMGF")
 | -------------- | ------------------- | -------------------------------- |
 | chksum         | u32                 |                                  |
 | fips_status    | u32                 | FIPS approved or an error        |
+| tag            | u8[16]              |                                  |
 | cipertext size | u32                 | MUST be equal to ciphertext size |
 | ciphertext     | u8[ciphertext size] |                                  |
-| tag            | u8[16]              |                                  |
 
 The tag returned will always be 16 bytes. Shorter tags can be constructed by truncating.
 
@@ -1433,7 +1433,9 @@ Currently only supports AES-256-GCM with a 96-bit IV.
 
 The CMK must have been created for AES usage.
 
-Tags between 0 and 16 bytes are supported.
+Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
+The AAD and IV must match what was passed and returned from the encryption operation.
 
 Command Code: `0x434D_4449` ("CMDI")
 
@@ -1442,36 +1444,18 @@ Command Code: `0x434D_4449` ("CMDI")
 | --------------- | ------------------- | ----------------------------- |
 | chksum          | u32                 |                               |
 | CMK             | CMK                 | CMK to use for decryption     |
-| tag size        | u32                 | Can be 0, 1, ..., 16          |
-| tag             | u8[tag size]        |                               |
 | iv              | u8[12]              |                               |
 | aad size        | u32                 |                               |
-|                 |                     |                               |
 | aad             | u8[aad size]        | Additional authenticated data |
-| ciphertext size | u32                 |                               |
-| ciphertext      | u8[ciphertext size] | Data to decrypt               |
 
 *Table: `CM_AES_GCM_DECRYPT_INIT` output arguments*
 | **Name**       | **Type**           | **Description**           |
 | -------------- | ------------------ | ------------------------- |
 | chksum         | u32                |                           |
 | fips_status    | u32                | FIPS approved or an error |
-| context size   | u32                |                           |
-| context        | u8[context size]   |                           |
-| plaintext size | u32                | MAY be 0                  |
-| plaintext      | u8[plaintext size] |                           |
+| context        | AES_GCM_CONTEXT    |                           |
 
-The encrypted and authenticated context's internal structure will be:
-
-*Table: internal context for `CM_AES_GCM_DECRYPT_*` operations*
-| **Name**        | **Type** | **Description** |
-| --------------- | -------- | --------------- |
-| tag size        | u32      |                 |
-| tag             | u8[16]   | padded with 0s  |
-| last length     | u32      |                 |
-| last iv         | u8[16]   |                 |
-| last GHASH      | u8[16]   |                 |
-| last ciphertext | u8[16]   |                 |
+The encrypted and authenticated context's internal structure will be the same as for encryption.
 
 ### CM_AES_GCM_DECRYPT_UPDATE
 
@@ -1485,8 +1469,7 @@ Command Code: `0x434D_4455` ("CMDU")
 | **Name**        | **Type**            | **Description**  |
 | --------------- | ------------------- | ---------------- |
 | chksum          | u32                 |                  |
-| context size    | u32                 |                  |
-| context         | u8[context size]    |                  |
+| context         | AES_GCM_CONTEXT     |                  |
 | ciphertext size | u32                 | MUST be non-zero |
 | ciphertext      | u8[ciphertext size] | Data to decrypt  |
 
@@ -1495,8 +1478,7 @@ Command Code: `0x434D_4455` ("CMDU")
 | -------------- | ------------------ | ------------------------- |
 | chksum         | u32                |                           |
 | fips_status    | u32                | FIPS approved or an error |
-| context size   | u32                |                           |
-| context        | u8[context size]   |                           |
+| context        | AES_GCM_CONTEXT    |                           |
 | plaintext size | u32                | MAY be 0                  |
 | plaintext      | u8[plaintext size] |                           |
 
@@ -1506,6 +1488,8 @@ This finalizes the computation of the AES GCM decryption and produces the final 
 
 The context MUST be passed in from `CM_AES_GCM_DECRYPT_INIT` or `CM_AES_GCM_DECRYPT_UPDATE`.
 
+Tags between 0 and 16 bytes are supported but must be passed (on the right) with zeroes to 16 bytes.
+
 The caller MUST verify that the tag verified field is set to 1 before using the result.
 
 Command Code: `0x434D_4446` ("CMDF")
@@ -1514,9 +1498,9 @@ Command Code: `0x434D_4446` ("CMDF")
 | **Name**        | **Type**            | **Description**                   |
 | --------------- | ------------------- | --------------------------------- |
 | chksum          | u32                 |                                   |
-| flags           | u32                 | Bit 0 = this is the final message |
-| context size    | u32                 |                                   |
-| context         | u8[context size]    |                                   |
+| context         | AES_GCM_CONTEXT     |                                   |
+| tag size        | u32                 | Can be 0, 1, ..., 16              |
+| tag             | u8[16]              | Right-padded with zeroes          |
 | ciphertext size | u32                 | MAY be 0                          |
 | ciphertext      | u8[ciphertext size] | Data to decrypt                   |
 

@@ -42,6 +42,8 @@ caliptra-gen-linker-scripts.workspace = true
 cfg-if.workspace = true
 
 [dev-dependencies]
+aes.workspace = true
+aes-gcm.workspace = true
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-emu-bus.workspace = true
@@ -57,6 +59,7 @@ caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 cms.workspace = true
+rand.workspace = true
 wycheproof.workspace = true
 x509-parser.workspace = true
 
@@ -74,5 +77,8 @@ no-cfi = [
     "caliptra-drivers/no-cfi",
     "dpe/no-cfi",
 ]
-fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
+fpga_realtime = [
+    "caliptra-drivers/fpga_realtime",
+    "caliptra-hw-model/fpga_realtime",
+]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]

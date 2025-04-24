@@ -2,7 +2,7 @@
 
 use caliptra_emu_bus::{BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
-use caliptra_emu_crypto::Aes256Gcm;
+use caliptra_emu_crypto::{Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use rand::Rng;
@@ -71,13 +71,13 @@ register_bitfields! [
 #[derive(Bus)]
 #[warm_reset_fn(warm_reset)]
 pub struct Aes {
-    #[register_array(offset = 0x4, item_size = 4, len = 8)]
+    #[register_array(offset = 0x4, item_size = 4, len = 8, write_fn = write_key_share0)]
     key_share0: [u32; 8],
 
-    #[register_array(offset = 0x24, item_size = 4, len = 8)]
+    #[register_array(offset = 0x24, item_size = 4, len = 8, write_fn = write_key_share1)]
     key_share1: [u32; 8],
 
-    #[register_array(offset = 0x44, item_size = 4, len = 4)]
+    #[register_array(offset = 0x44, item_size = 4, len = 4, write_fn = write_iv)]
     iv: [u32; 4],
 
     #[register_array(offset = 0x54, item_size = 4, len = 4, write_fn = write_data_in)]
@@ -104,9 +104,8 @@ pub struct Aes {
     #[register(offset = 0x88, write_fn = write_ctrl_gcm_shadowed)]
     ctrl_gcm_shadowed: ReadOnlyRegister<u32, GcmCtrl::Register>,
 
-    aad: Vec<u8>,
-    buffer: Vec<u8>,
     data_in_written: [bool; 4],
+    ghash: GHash,
 }
 
 impl Default for Aes {
@@ -133,14 +132,13 @@ impl Aes {
                     .into(),
             ),
             ctrl_gcm_shadowed: ReadOnlyRegister::new(0),
-            aad: vec![],
-            buffer: vec![],
             data_in_written: [false; 4],
+            ghash: GHash::default(),
         }
     }
 
     fn write_trigger(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
-        // Writes have to be Word aligned
+        // Writes have to be word-aligned
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
@@ -153,8 +151,7 @@ impl Aes {
             rand::thread_rng().fill(&mut self.iv[..]);
             rand::thread_rng().fill(&mut self.data_in[..]);
             self.data_in_written.fill(false);
-            self.aad.clear();
-            self.buffer.clear();
+            self.ghash = GHash::default();
         }
         if self.trigger.reg.is_set(Trigger::DATA_OUT_CLEAR) {
             rand::thread_rng().fill(&mut self.data_out[..]);
@@ -179,13 +176,12 @@ impl Aes {
             (Status::INPUT_READY.val(1) + Status::OUTPUT_VALID.val(1) + Status::IDLE.val(1)).into(),
         );
         self.ctrl_gcm_shadowed.reg.set(0);
-        self.aad.clear();
-        self.buffer.clear();
         self.data_in_written.fill(false);
+        self.ghash = GHash::default();
     }
 
     fn write_ctrl_gcm_shadowed(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
-        // Writes have to be Word aligned
+        // Writes have to be word-aligned
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
@@ -194,16 +190,23 @@ impl Aes {
 
         match self.gcm_phase() {
             GcmCtrl::PHASE::Value::INIT => {
-                self.buffer.clear();
-                self.aad.clear();
                 self.data_in_written.fill(false);
                 self.data_in.fill(0);
                 self.data_out.fill(0);
+                self.ghash = GHash::new(&self.key());
+                self.iv.fill(0);
+                self.iv[3] = 1;
             }
-            GcmCtrl::PHASE::Value::RESTORE => todo!(),
+            GcmCtrl::PHASE::Value::RESTORE => {}
             GcmCtrl::PHASE::Value::AAD => {}
             GcmCtrl::PHASE::Value::TEXT => {}
-            GcmCtrl::PHASE::Value::SAVE => todo!(),
+            GcmCtrl::PHASE::Value::SAVE => {
+                let ghash = self.ghash.state();
+                self.data_out[0] = u32::from_le_bytes(ghash[0..4].try_into().unwrap());
+                self.data_out[1] = u32::from_le_bytes(ghash[4..8].try_into().unwrap());
+                self.data_out[2] = u32::from_le_bytes(ghash[8..12].try_into().unwrap());
+                self.data_out[3] = u32::from_le_bytes(ghash[12..16].try_into().unwrap());
+            }
             GcmCtrl::PHASE::Value::TAG => {}
         }
         Ok(())
@@ -242,40 +245,49 @@ impl Aes {
         iv
     }
 
-    fn update_data_out(&mut self) {
-        // populate the data_out register
-        // TODO: use a proper streaming AES implementation
+    fn update(&mut self, buffer: &[u8; 16], num_valid: usize) {
+        // populate the data_out and iv registers
+        // There is not proper AES streaming implementation, so we do this the slow way
+        // and recompute the GHASH ourselves.
         let key = self.key();
         let iv = self.iv();
 
         match self.gcm_phase() {
+            GcmCtrl::PHASE::Value::AAD => {
+                self.ghash.update(buffer);
+            }
+            GcmCtrl::PHASE::Value::RESTORE => {
+                let mut state = [0u8; AES_256_BLOCK_SIZE];
+                state[0..4].copy_from_slice(&self.data_in[0].to_le_bytes());
+                state[4..8].copy_from_slice(&self.data_in[1].to_le_bytes());
+                state[8..12].copy_from_slice(&self.data_in[2].to_le_bytes());
+                state[12..16].copy_from_slice(&self.data_in[3].to_le_bytes());
+                self.ghash.restore(state);
+            }
             GcmCtrl::PHASE::Value::TEXT => {
                 // in GCM encryption and decryption result in the same output
-                let (_, output, _) =
-                    Aes256Gcm::encrypt(&key, Some(&iv), &self.aad, &self.buffer).unwrap();
-                let len = output.len();
-                self.data_out[0] =
-                    u32::from_le_bytes(output[len - 16..len - 12].try_into().unwrap());
-                self.data_out[1] =
-                    u32::from_le_bytes(output[len - 12..len - 8].try_into().unwrap());
-                self.data_out[2] = u32::from_le_bytes(output[len - 8..len - 4].try_into().unwrap());
-                self.data_out[3] = u32::from_le_bytes(output[len - 4..].try_into().unwrap());
+                if self.iv[3] == 0 {
+                    self.iv[3] = 2;
+                }
+                let output = Aes256Gcm::crypt_block(&key, &iv, self.iv[3] as usize - 2, buffer);
+
+                self.data_out[0] = u32::from_le_bytes(output[0..4].try_into().unwrap());
+                self.data_out[1] = u32::from_le_bytes(output[4..8].try_into().unwrap());
+                self.data_out[2] = u32::from_le_bytes(output[8..12].try_into().unwrap());
+                self.data_out[3] = u32::from_le_bytes(output[12..16].try_into().unwrap());
+
+                // update GHASH
+                let ciphertext = if self.is_encrypt() { &output } else { buffer };
+                let mut ciphertext = *ciphertext;
+                if num_valid != 16 {
+                    ciphertext[num_valid..].fill(0);
+                }
+                self.ghash.update(&ciphertext);
+                self.iv[3] += 1;
             }
             GcmCtrl::PHASE::Value::TAG => {
-                let tag = if self.is_encrypt() {
-                    let (_, _, tag) =
-                        Aes256Gcm::encrypt(&key, Some(&iv), &self.aad, &self.buffer).unwrap();
-                    tag
-                } else {
-                    // the hardware doesn't care if the tag is correct, but returns what it would be
-                    // so "encrypt" the ciphertext to get the plaintext
-                    let (_, plaintext, _) =
-                        Aes256Gcm::encrypt(&key, Some(&iv), &self.aad, &self.buffer).unwrap();
-                    // now encrypt again to get the correct tag
-                    let (_, _, tag) =
-                        Aes256Gcm::encrypt(&key, Some(&iv), &self.aad, &plaintext).unwrap();
-                    tag
-                };
+                self.ghash.update(buffer);
+                let tag = self.ghash.finalize(&key, &iv);
                 self.data_out[0] = u32::from_le_bytes(tag[0..4].try_into().unwrap());
                 self.data_out[1] = u32::from_le_bytes(tag[4..8].try_into().unwrap());
                 self.data_out[2] = u32::from_le_bytes(tag[8..12].try_into().unwrap());
@@ -286,33 +298,71 @@ impl Aes {
     }
 
     fn write_data_in(&mut self, size: RvSize, idx: usize, val: RvData) -> Result<(), BusError> {
-        // Writes have to be Word aligned
+        // Writes have to be word-aligned
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
 
         self.data_in[idx] = val;
         self.data_in_written[idx] = true;
+
         // All data_in registers have been written
         if self.data_in_written.iter().copied().all(|x| x) {
             self.data_in_written = [false; 4];
-            // copy to the buffer
-            match self.gcm_phase() {
-                GcmCtrl::PHASE::Value::AAD => {
-                    for i in 0..4 {
-                        self.aad
-                            .extend_from_slice(&self.data_in[i].to_le_bytes()[..]);
-                    }
-                }
-                GcmCtrl::PHASE::Value::TEXT => {
-                    for i in 0..4 {
-                        self.buffer
-                            .extend_from_slice(&self.data_in[i].to_le_bytes()[..]);
-                    }
-                }
-                _ => {}
+            let mut buffer: Vec<u8> = vec![];
+            for i in 0..4 {
+                buffer.extend_from_slice(&self.data_in[i].to_le_bytes()[..]);
             }
-            self.update_data_out();
+            let num_valid = self.ctrl_gcm_shadowed.reg.read(GcmCtrl::NUM_VALID_BYTES) as usize;
+            let num_valid = if num_valid == 0 || num_valid > 16 {
+                16
+            } else {
+                num_valid
+            };
+            buffer[num_valid..].fill(0);
+            let buffer: [u8; 16] = buffer.try_into().unwrap();
+            self.update(&buffer, num_valid);
+        }
+        Ok(())
+    }
+
+    fn write_key_share0(&mut self, size: RvSize, idx: usize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be word-aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        self.key_share0[idx] = val;
+        self.ghash = GHash::new(&self.key());
+        Ok(())
+    }
+
+    fn write_key_share1(&mut self, size: RvSize, idx: usize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be word-aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        self.key_share1[idx] = val;
+        self.ghash = GHash::new(&self.key());
+        Ok(())
+    }
+
+    fn write_iv(&mut self, size: RvSize, idx: usize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be word-aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        self.iv[idx] = val;
+        if idx == 3 {
+            // hardware quirk: IV[3] is loaded as big-endian, unlike all other registers
+            self.iv[3] = val.swap_bytes();
+            if val == 0 {
+                self.iv[3] = 2;
+            }
+        } else {
+            self.iv[idx] = val;
         }
         Ok(())
     }
