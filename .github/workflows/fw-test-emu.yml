@@ -77,14 +77,30 @@ jobs:
           name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-unified
 
-      - name: Debug List Downloads
+      - name: Update rustup
         run: |
-          ls -la /tmp/ 
-
+          rustup toolchain install nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup default nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup target add riscv32imc-unknown-none-elf --toolchain nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup component add rust-src --toolchain nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup show
+          cargo version
+          ls -la /tmp/
+          df -hi
+      
       - name: Run tests
         run: |
           export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/
           export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.bin
+          export RUST_BACKTRACE=full
+
+          rustup toolchain install nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup default nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup target add riscv32imc-unknown-none-elf --toolchain nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup component add rust-src --toolchain nightly-2023-04-15-x86_64-unknown-linux-gnu
+          rustup show
+          cargo version
+
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
           fi
