@@ -340,32 +340,28 @@ impl Mldsa87 {
         Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
 
         // Reset the message strobe register.
-        mldsa.msg_strobe().write(|_| 0xF.into());
+        mldsa.msg_strobe().write(|s| s.strobe(0xF));
 
         // Stream the message to the hardware.
-        let count = msg.len() / size_of::<u32>();
-        let mut last_dword_len = 0u32;
-        let (buf_words, suffix) = <[Unalign<u32>]>::ref_from_prefix_with_elems(msg, count).unwrap();
-        if suffix.is_empty() {
-        } else {
-            last_dword_len = suffix.len() as u32;
-        }
-        for word in buf_words.iter().take(count) {
-            mldsa.msg().at(0).write(|_| word.get());
+        let dwords = msg.chunks_exact(size_of::<u32>());
+        let remainder = dwords.remainder();
+        for dword in dwords {
+            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
+            mldsa.msg().at(0).write(|_| dw.get());
         }
 
-        // Write the strobe register to indicate the end of the message.
-        mldsa.msg_strobe().write(|_| last_dword_len.into());
-
-        // Write the last incomplete word.
-        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
-            let mut last_word = 0_u32;
-            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
-            mldsa.msg().at(0).write(|_| last_word);
-        } else if suffix.is_empty() {
-            // Write dummy data into msg[0].
-            mldsa.msg().at(0).write(|_| 0);
-        }
+        let last_strobe = match remainder.len() {
+            0 => 0b0000,
+            1 => 0b0001,
+            2 => 0b0011,
+            3 => 0b0111,
+            _ => 0b0000, // should never happen
+        };
+        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+        // write last dword, (0 for no remainder)
+        let mut last_word = 0_u32;
+        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+        mldsa.msg().at(0).write(|_| last_word);
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
