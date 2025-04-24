@@ -197,7 +197,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_MLDSA87_CERT => {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
         }
-        CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
@@ -217,9 +216,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // MLDSA87 versions
         CommandId::GET_IDEV_MLDSA87_CERT => {
             IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87)
-        }
-        CommandId::GET_LDEV_MLDSA87_CERT => {
-            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
         }
         CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
             GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
