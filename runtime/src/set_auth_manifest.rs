@@ -544,16 +544,19 @@ mod tests {
                 fw_id: 5,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 48,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
         ];
         let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);
@@ -568,16 +571,19 @@ mod tests {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 5,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
             AuthManifestImageMetadata {
                 fw_id: 127,
                 flags: 0,
                 digest: [0u8; 48],
+                ..Default::default()
             },
         ];
         let resp = SetAuthManifestCmd::sort_and_check_duplicate_fwid(&mut list);

@@ -1423,8 +1423,18 @@ impl CaliptraError {
             "Runtime Error: Crypto mailbox system not initialized"
         ),
         (
-            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_SUPPORTED,
+            RUNTIME_REVOKE_EXPORTED_CDI_HANDLE_NOT_FOUND,
             0x000E0060,
+            "Runtime Error: CDI Handle not found"
+        ),
+        (
+            RUNTIME_IMAGE_METADATA_NOT_FOUND,
+            0x000E0061,
+            "Runtime Error: Image metadata not found"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_SUPPORTED,
+            0x000E0062,
             "Runtime Error: Sign with exported MLDSA not supported"
         ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

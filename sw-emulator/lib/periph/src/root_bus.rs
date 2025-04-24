@@ -231,6 +231,9 @@ pub struct CaliptraRootBusArgs<'a> {
 
     pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+
+    // Initial contents of the test sram
+    pub test_sram: Option<&'a [u8]>,
 }
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
@@ -250,6 +253,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
+            test_sram: None,
         }
     }
 }
@@ -336,6 +340,7 @@ impl CaliptraRootBus {
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
+        let test_sram = std::mem::take(&mut args.test_sram);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -349,6 +354,7 @@ impl CaliptraRootBus {
             soc_reg.clone(),
             sha512_acc.clone(),
             prod_dbg_unlock_keypairs,
+            test_sram,
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());

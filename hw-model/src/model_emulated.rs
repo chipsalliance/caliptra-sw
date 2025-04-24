@@ -181,6 +181,7 @@ impl HwModel for ModelEmulated {
 
             itrng_nibbles: Some(params.itrng_nibbles),
             etrng_responses: params.etrng_responses,
+            test_sram: params.test_sram,
             ..CaliptraRootBusArgs::default()
         };
         let mut root_bus = CaliptraRootBus::new(&clock, bus_args);

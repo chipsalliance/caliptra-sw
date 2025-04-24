@@ -137,15 +137,25 @@ bitfield! {
     pub ignore_auth_check, set_ignore_auth_check: 2;
 }
 
+#[repr(C)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct Addr64 {
+    pub lo: u32,
+    pub hi: u32,
+}
+
 /// Caliptra Authorization Manifest Image Metadata
 #[repr(C)]
 #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestImageMetadata {
     pub fw_id: u32,
-
+    pub component_id: u32,
+    pub classification: u32,
     pub flags: u32, // ImageMetadataFlags(image_source, ignore_auth_check)
-
+    pub image_load_address: Addr64,
+    pub image_staging_address: Addr64,
     pub digest: [u8; 48],
 }
 
@@ -153,7 +163,11 @@ impl Default for AuthManifestImageMetadata {
     fn default() -> Self {
         AuthManifestImageMetadata {
             fw_id: u32::MAX,
+            component_id: u32::MAX,
+            classification: 0,
             flags: 0,
+            image_load_address: Addr64 { lo: 0, hi: 0 },
+            image_staging_address: Addr64 { lo: 0, hi: 0 },
             digest: [0; 48],
         }
     }

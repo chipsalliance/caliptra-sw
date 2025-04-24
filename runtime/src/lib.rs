@@ -25,14 +25,17 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
+mod get_image_info;
 pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
 pub mod key_ladder;
+pub mod manifest;
 mod pcr;
 mod populate_idev;
 mod recovery_flow;
+mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
 mod sign_with_exported_mldsa;
@@ -52,6 +55,7 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
@@ -67,6 +71,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
+pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
@@ -258,6 +263,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
         }
+        CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
+            RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
+        }
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers),
@@ -270,6 +278,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };
@@ -301,8 +310,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
-    let cmd_busy = drivers.mbox.cmd_busy();
-    if cmd_busy {
+    let mailbox_flow_is_active = !drivers.soc_ifc.flow_status_mailbox_flow_done();
+    if mailbox_flow_is_active {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -322,20 +331,23 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
         }
     } else {
-        cfi_assert!(!cmd_busy);
+        cfi_assert!(!mailbox_flow_is_active);
     }
     #[cfg(feature = "riscv")]
     setup_mailbox_wfi(drivers);
     caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
     loop {
+        if drivers.is_shutdown {
+            return Err(CaliptraError::RUNTIME_SHUTDOWN);
+        }
+
+        // No command is executing, set the mailbox flow done to true before beginning idle.
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
+
         enter_idle(drivers);
 
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
-
-        if drivers.is_shutdown {
-            return Err(CaliptraError::RUNTIME_SHUTDOWN);
-        }
 
         // The hardware will set this interrupt high when the mbox_fsm_ps
         // transitions to state MBOX_EXECUTE_UC (same state as mbox.is_cmd_ready()),
@@ -343,6 +355,10 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         // transitions away from MBOX_EXECUTE_UC and back.
         let cmd_ready = drivers.soc_ifc.has_mbox_notif_status();
         if cmd_ready {
+            // We have woken from idle and have a command ready, set the mailbox flow done to false until we return to
+            // idle.
+            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+
             // Acknowledge the interrupt so we go back to sleep after
             // processing the mailbox. After this point, if the mailbox is
             // still in the MBOX_EXECUTE_UC state before going back to

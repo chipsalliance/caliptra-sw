@@ -28,14 +28,7 @@ use core::hint::black_box;
 #[cfg(feature = "std")]
 pub fn main() {}
 
-const BANNER: &str = r#"
-  ____      _ _       _               ____ _____
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
-| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
-| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|
-               |_|
-"#;
+const BANNER: &str = "Caliptra RT";
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
@@ -57,7 +50,7 @@ pub extern "C" fn entry_point() -> ! {
 
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            cprintln!("[rt] Runtime can't load drivers");
+            cprintln!("[rt] RT can't load drivers");
             handle_fatal_error(e.into());
         })
     };
@@ -79,15 +72,15 @@ pub extern "C" fn entry_point() -> ! {
     }
 
     drivers.run_reset_flow().unwrap_or_else(|e| {
-        cprintln!("[rt] Runtime failed reset flow");
+        cprintln!("[rt] RT failed reset flow");
         handle_fatal_error(e.into());
     });
 
     if !drivers.persistent_data.get().fht.is_valid() {
-        cprintln!("[rt] Runtime can't load FHT");
+        cprintln!("[rt] RT can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
-    cprintln!("[rt] Runtime listening for mailbox commands...");
+    cprintln!("[rt] RT listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
