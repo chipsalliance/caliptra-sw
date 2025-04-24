@@ -25,11 +25,13 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
+mod get_image_info;
 pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
 pub mod key_ladder;
+pub mod manifest;
 mod pcr;
 mod populate_idev;
 mod recovery_flow;
@@ -66,6 +68,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
+pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
@@ -268,6 +271,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
 
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     };

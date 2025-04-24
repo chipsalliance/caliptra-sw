@@ -11,6 +11,7 @@ mod test_ecdsa;
 mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
+mod test_get_image_info;
 mod test_info;
 mod test_invoke_dpe;
 mod test_lms;

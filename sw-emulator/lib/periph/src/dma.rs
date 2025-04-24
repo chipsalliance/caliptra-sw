@@ -205,6 +205,7 @@ impl Dma {
         soc_reg: SocRegistersInternal,
         sha512_acc: Sha512Accelerator,
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
+        test_sram: Option<&[u8]>,
     ) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
@@ -224,7 +225,7 @@ impl Dma {
             op_complete_action: None,
             op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
-            axi: AxiRootBus::new(soc_reg, sha512_acc, prod_dbg_unlock_keypairs),
+            axi: AxiRootBus::new(soc_reg, sha512_acc, prod_dbg_unlock_keypairs, test_sram),
             mailbox,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
@@ -636,6 +637,7 @@ mod tests {
             soc_reg,
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
             vec![],
+            None,
         );
 
         assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), 0xaabbccdd); // Initial test value
