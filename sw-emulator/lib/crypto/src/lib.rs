@@ -36,5 +36,5 @@ pub use ecc384::Ecc384Signature;
 pub const AES_256_BLOCK_SIZE: usize = 16;
 pub const AES_256_KEY_SIZE: usize = 32;
 pub use aes256cbc::Aes256Cbc;
-pub use aes256gcm::Aes256Gcm;
+pub use aes256gcm::{Aes256Gcm, GHash};
 pub use helpers::EndianessTransform;

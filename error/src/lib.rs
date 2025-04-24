@@ -2063,6 +2063,11 @@ impl CaliptraError {
             0xa004_0010,
             "Driver Error: AES engine is busy"
         ),
+        (
+            RUNTIME_DRIVER_AES_INVALID_TAG,
+            0xa004_0011,
+            "Driver Error: AES tag is invalid"
+        ),
     ];
 }
 
