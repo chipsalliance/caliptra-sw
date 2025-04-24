@@ -14,7 +14,8 @@ Abstract:
 
 use caliptra_common::mailbox_api::{
     AlgorithmType, GetFmcAliasEcc384CertResp, GetFmcAliasMlDsa87CertResp, GetIdevCertResp,
-    GetIdevEcc384CertReq, GetLdevCertResp, GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
+    GetIdevEcc384CertReq, GetIdevMldsa87CertReq, GetLdevCertResp, GetRtAliasCertResp, MailboxResp,
+    MailboxRespHeader,
 };
 
 use crate::Drivers;
@@ -66,9 +67,40 @@ impl IDevIdCertCmd {
                 }
             }
             AlgorithmType::Mldsa87 => {
-                // MLDSA87 implementation would go here
-                // This is just a placeholder - actual implementation would depend on MLDSA87 specifics
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+                if cmd_args.len() <= core::mem::size_of::<GetIdevMldsa87CertReq>() {
+                    let mut cmd = GetIdevMldsa87CertReq::default();
+                    cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
+
+                    // Validate tbs
+                    if cmd.tbs_size as usize > cmd.tbs.len() {
+                        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                    }
+
+                    let sig = caliptra_x509::Mldsa87Signature {
+                        sig: cmd.signature[..4627]
+                            .try_into()
+                            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+                    };
+
+                    let Some(builder) =
+                        MlDsa87CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig)
+                    else {
+                        return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+                    };
+
+                    let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
+                    let Some(cert_size) = builder.build(&mut cert) else {
+                        return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+                    };
+
+                    Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
+                        hdr: MailboxRespHeader::default(),
+                        data_size: cert_size as u32,
+                        data: cert,
+                    }))
+                } else {
+                    Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+                }
             }
         }
     }
@@ -89,9 +121,10 @@ impl GetLdevCertCmd {
                 Ok(MailboxResp::GetLdevCert(resp))
             }
             AlgorithmType::Mldsa87 => {
-                // MLDSA87 implementation would go here
-                // This is just a placeholder - actual implementation would depend on MLDSA87 specifics
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+                let mut resp = GetLdevCertResp::default();
+                resp.data_size =
+                    copy_ldevid_mldsa87_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+                Ok(MailboxResp::GetLdevCert(resp))
             }
         }
     }
@@ -159,6 +192,19 @@ pub fn ldevid_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
     persistent_data.data_vault.ldev_dice_ecc_signature()
 }
 
+/// Return the LDevId MLDSA87 cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+///
+/// # Returns
+///
+/// * `Mldsa87Signature` - The formed signature
+pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Signature {
+    persistent_data.data_vault.ldev_dice_mldsa_signature()
+}
+
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
@@ -179,6 +225,29 @@ pub fn copy_ldevid_cert(
         .get(..persistent_data.fht.ecc_ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data);
     ecc384_cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
+}
+
+/// Copy LDevID certificate produced by ROM to `cert` buffer
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
+#[inline(never)]
+pub fn copy_ldevid_mldsa87_cert(
+    persistent_data: &PersistentData,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    let tbs = persistent_data
+        .mldsa_ldevid_tbs
+        .get(..persistent_data.fht.mldsa_ldevid_tbs_size.into());
+    let sig = ldevid_dice_mldsa87_sign(persistent_data);
+    mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
 }
 

@@ -2,7 +2,9 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_image_types::{MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
+use caliptra_image_types::{
+    MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE,
+};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
@@ -33,7 +35,7 @@ pub enum AlgorithmType {
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
-    pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
+    pub const GET_IDEV_ECC384_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_ECC384_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const GET_FMC_ALIAS_ECC384_CERT: Self = Self(0x43455246); // "CERF"
@@ -45,6 +47,7 @@ impl CommandId {
     pub const GET_LDEV_MLDSA87_CERT: Self = Self(0x4C444D43); // "LDMC"
     pub const GET_FMC_ALIAS_MLDSA87_CERT: Self = Self(0x434D4346); // "CMCF"
     pub const GET_RT_ALIAS_MLDSA87_CERT: Self = Self(0x434D4352); // "CMCR"
+    pub const GET_IDEV_MLDSA87_INFO: Self = Self(0x49444D49); // "IDMI"
     pub const ECDSA384_VERIFY: Self = Self(0x45435632); // "ECV2"
     pub const LMS_VERIFY: Self = Self(0x4C4D5632); // "LMV2"
     pub const MLDSA87_VERIFY: Self = Self(0x4d4c5632); // "MLV2"
@@ -99,6 +102,9 @@ impl CommandId {
 
     // The revoke exported CDI handle command.
     pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
+
+    // The sign with exported mldsa command.
+    pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
@@ -208,6 +214,7 @@ pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
     GetIdevInfo(GetIdevInfoResp),
+    GetIdevMldsa87Info(GetIdevMldsa87InfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
@@ -222,7 +229,7 @@ pub enum MailboxResp {
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
-    GetIdevMldsaCsr(GetIdevMldsaCsrResp),
+    GetIdevMldsaCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
@@ -246,6 +253,7 @@ impl MailboxResp {
             MailboxResp::Header(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
@@ -284,6 +292,7 @@ impl MailboxResp {
             MailboxResp::Header(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
@@ -355,12 +364,14 @@ pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
     LmsVerify(LmsVerifyReq),
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
+    GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq),
     GetIdevEcc384Cert(GetIdevEcc384CertReq),
+    GetIdevMldsa87Cert(GetIdevMldsa87CertReq),
     TagTci(TagTciReq),
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasEcc384Cert(GetFmcAliasEcc384CertReq),
@@ -399,8 +410,10 @@ impl MailboxReq {
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevEcc384Cert(req) => req.as_bytes_partial(),
+            MailboxReq::GetIdevMldsa87Cert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_bytes()),
@@ -435,12 +448,14 @@ impl MailboxReq {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevEcc384Cert(req) => req.as_bytes_partial_mut(),
+            MailboxReq::GetIdevMldsa87Cert(req) => req.as_bytes_partial_mut(),
             MailboxReq::TagTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
@@ -475,12 +490,14 @@ impl MailboxReq {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
             MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
+            MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_CERT,
             MailboxReq::GetIdevEcc384Cert(_) => CommandId::GET_IDEV_ECC384_CERT,
+            MailboxReq::GetIdevMldsa87Cert(_) => CommandId::GET_IDEV_MLDSA87_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_ECC384_CERT,
@@ -587,7 +604,7 @@ impl Default for VarSizeDataResp {
     }
 }
 
-// GET_IDEV_CERT
+// GET_IDEV_ECC384_CERT
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetIdevEcc384CertReq {
@@ -628,10 +645,49 @@ impl Default for GetIdevEcc384CertReq {
     }
 }
 
+// GET_IDEV_MLDSA87_CERT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetIdevMldsa87CertReq {
+    pub hdr: MailboxReqHeader,
+    pub tbs_size: u32,
+    pub signature: [u8; 4628],
+    pub tbs: [u8; GetIdevMldsa87CertReq::DATA_MAX_SIZE], // variable length
+}
+impl GetIdevMldsa87CertReq {
+    pub const DATA_MAX_SIZE: usize = 2820;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for GetIdevMldsa87CertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            tbs_size: 0,
+            signature: [0u8; 4628],
+            tbs: [0u8; GetIdevMldsa87CertReq::DATA_MAX_SIZE],
+        }
+    }
+}
+
 // Use the generic VarSizeDataResp for certificate responses
 pub type GetIdevCertResp = VarSizeDataResp;
 
-// GET_IDEV_INFO
+// GET_IDEV_ECC384_INFO
 // No command-specific input args
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -639,6 +695,15 @@ pub struct GetIdevInfoResp {
     pub hdr: MailboxRespHeader,
     pub idev_pub_x: [u8; 48],
     pub idev_pub_y: [u8; 48],
+}
+
+// GET_IDEV_MLDSA87_INFO
+// No command-specific input args
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetIdevMldsa87InfoResp {
+    pub hdr: MailboxRespHeader,
+    pub idev_pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
 }
 
 // GET_LDEV_CERT
@@ -650,6 +715,18 @@ pub struct GetLdevEcc384CertReq {
 
 impl Request for GetLdevEcc384CertReq {
     const ID: CommandId = CommandId::GET_LDEV_ECC384_CERT;
+    type Resp = GetLdevCertResp;
+}
+
+// GET_LDEV_MLDSA87_CERT
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetLdevMldsa87CertReq {
+    pub header: MailboxReqHeader,
+}
+
+impl Request for GetLdevMldsa87CertReq {
+    const ID: CommandId = CommandId::GET_LDEV_MLDSA87_CERT;
     type Resp = GetLdevCertResp;
 }
 
@@ -1154,27 +1231,7 @@ impl Request for GetIdevMldsaCsrReq {
     type Resp = GetIdevMldsaCsrResp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct GetIdevMldsaCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; Self::DATA_MAX_SIZE],
-}
-impl GetIdevMldsaCsrResp {
-    pub const DATA_MAX_SIZE: usize = 7680;
-}
-impl ResponseVarSize for GetIdevMldsaCsrResp {}
-
-impl Default for GetIdevMldsaCsrResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; Self::DATA_MAX_SIZE],
-        }
-    }
-}
+pub type GetIdevMldsaCsrResp = VarSizeDataResp;
 
 // GET_FMC_ALIAS_CSR
 #[repr(C)]
@@ -1281,6 +1338,60 @@ impl Response for RevokeExportedCdiHandleResp {}
 #[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct RevokeExportedCdiHandleResp {
     pub hdr: MailboxRespHeader,
+}
+
+// SIGN_WITH_EXPORTED_MLDSA
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedMldsaReq {
+    pub hdr: MailboxReqHeader,
+    pub exported_cdi_handle: [u8; Self::EXPORTED_CDI_MAX_SIZE],
+    pub tbs: [u8; Self::MAX_DIGEST_SIZE],
+}
+
+impl Default for SignWithExportedMldsaReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            exported_cdi_handle: [0u8; Self::EXPORTED_CDI_MAX_SIZE],
+            tbs: [0u8; Self::MAX_DIGEST_SIZE],
+        }
+    }
+}
+
+impl SignWithExportedMldsaReq {
+    pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
+    pub const MAX_DIGEST_SIZE: usize = 64;
+}
+
+impl Request for SignWithExportedMldsaReq {
+    const ID: CommandId = CommandId::SIGN_WITH_EXPORTED_MLDSA;
+    type Resp = SignWithExportedMldsaResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct SignWithExportedMldsaResp {
+    pub hdr: MailboxRespHeader,
+    pub derived_pubkey: [u8; Self::PUBKEY_SIZE],
+    pub signature: [u8; Self::SIG_SIZE],
+}
+
+impl SignWithExportedMldsaResp {
+    pub const SIG_SIZE: usize = 4628;
+    pub const PUBKEY_SIZE: usize = 2592;
+}
+
+impl ResponseVarSize for SignWithExportedMldsaResp {}
+
+impl Default for SignWithExportedMldsaResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            signature: [0u8; Self::SIG_SIZE],
+            derived_pubkey: [0u8; Self::PUBKEY_SIZE],
+        }
+    }
 }
 
 #[repr(u32)]
