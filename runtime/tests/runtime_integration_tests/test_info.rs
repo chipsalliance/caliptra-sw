@@ -9,8 +9,8 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     mailbox_api::{
-        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, MailboxReqHeader,
-        MailboxRespHeader,
+        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp,
+        MailboxReqHeader, MailboxRespHeader,
     },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
@@ -186,13 +186,38 @@ fn test_fw_info() {
 fn test_idev_id_info() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_ECC384_INFO),
+            &[],
+        ),
     };
     let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_ECC384_INFO),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
     GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+}
+
+#[test]
+fn test_idev_id_mldsa87_info() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    GetIdevMldsa87InfoResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]

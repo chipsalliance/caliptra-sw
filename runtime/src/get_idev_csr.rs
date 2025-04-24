@@ -4,7 +4,7 @@ use crate::Drivers;
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
 
-use caliptra_common::mailbox_api::{GetIdevCsrResp, GetIdevMldsaCsrResp, MailboxResp};
+use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxResp};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::{Ecc384IdevIdCsr, Mldsa87IdevIdCsr};
@@ -62,7 +62,7 @@ impl GetIdevMldsaCsrCmd {
                     .get()
                     .ok_or(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)?;
 
-                let mut resp = GetIdevMldsaCsrResp {
+                let mut resp = GetIdevCsrResp {
                     data_size: len,
                     ..Default::default()
                 };

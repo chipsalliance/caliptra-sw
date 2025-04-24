@@ -38,6 +38,7 @@ mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod sign_with_exported_ecdsa;
+mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -195,8 +196,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_ECC384_CERT => IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384),
-        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
+        CommandId::GET_IDEV_ECC384_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_IDEV_MLDSA87_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87),
         CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
+        CommandId::GET_LDEV_MLDSA87_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
@@ -216,9 +221,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // MLDSA87 versions
         CommandId::GET_IDEV_MLDSA87_CERT => {
             IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87)
-        }
-        CommandId::GET_LDEV_MLDSA87_CERT => {
-            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
         }
         CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
             GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
