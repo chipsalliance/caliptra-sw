@@ -876,6 +876,7 @@ dependencies = [
  "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
+ "cbc",
  "cfg-if",
  "cms",
  "crypto",

@@ -12,17 +12,54 @@ Abstract:
 
 --*/
 
-use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 
 use crate::{helpers::EndianessTransform, AES_256_BLOCK_SIZE, AES_256_KEY_SIZE};
 
-pub enum Aes256Cbc {}
+pub struct Aes256Cbc {
+    last: [u8; AES_256_BLOCK_SIZE],
+    encryptor: Aes256Encryptor,
+    decryptor: Aes256Decryptor,
+}
+
+impl Default for Aes256Cbc {
+    fn default() -> Self {
+        Self::new(&[0u8; AES_256_IV_SIZE], &[0u8; AES_256_KEY_SIZE])
+    }
+}
 
 const AES_256_IV_SIZE: usize = AES_256_BLOCK_SIZE;
 
+type Aes256Encryptor = cbc::Encryptor<aes::Aes256>;
 type Aes256Decryptor = cbc::Decryptor<aes::Aes256>;
 
 impl Aes256Cbc {
+    pub fn new(iv: &[u8; AES_256_IV_SIZE], key: &[u8; AES_256_KEY_SIZE]) -> Self {
+        Self {
+            last: *iv,
+            encryptor: Aes256Encryptor::new(key.into(), iv.into()),
+            decryptor: Aes256Decryptor::new(key.into(), iv.into()),
+        }
+    }
+
+    /// Streaming mode: encrypt a single block and return the ciphertext.
+    pub fn encrypt_block(&mut self, block: &[u8; AES_256_BLOCK_SIZE]) -> [u8; AES_256_BLOCK_SIZE] {
+        let mut out_block = [0u8; AES_256_BLOCK_SIZE].into();
+        self.encryptor
+            .encrypt_block_b2b_mut(block.into(), &mut out_block);
+        self.last = out_block.into();
+        out_block.into()
+    }
+
+    /// Streaming mode: decrypt a single block and return the plaintext.
+    pub fn decrypt_block(&mut self, block: &[u8; AES_256_BLOCK_SIZE]) -> [u8; AES_256_BLOCK_SIZE] {
+        let mut out_block = [0u8; AES_256_BLOCK_SIZE].into();
+        self.decryptor
+            .decrypt_block_b2b_mut(block.into(), &mut out_block);
+        self.last = *block;
+        out_block.into()
+    }
+
     /// Decrypt the cipher text
     ///
     /// # Arguments
@@ -58,7 +95,38 @@ impl Aes256Cbc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{helpers::EndianessTransform, Aes256Cbc};
+    use crate::{helpers::EndianessTransform, Aes256Cbc, AES_256_BLOCK_SIZE};
+
+    #[test]
+    fn test_encrypt_decrypt_streaming() {
+        let mut cbc = Aes256Cbc::new(&[0u8; 16], &[0u8; 32]);
+
+        let plaintext: [u8; 128] = [
+            0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB, 0xF, 0x8F, 0xBB, 0xB3, 0x66, 0xB5,
+            0x31, 0xB4, 0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB, 0xF, 0x8F, 0xBB, 0xB3,
+            0x66, 0xB5, 0x31, 0xB4, 0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB, 0xF, 0x8F,
+            0xBB, 0xB3, 0x66, 0xB5, 0x31, 0xB4, 0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB,
+            0x0F, 0x8F, 0xBB, 0xB3, 0x66, 0xB5, 0x31, 0xB4, 0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91,
+            0xDD, 0xEB, 0x0F, 0x8F, 0xBB, 0xB3, 0x66, 0xB5, 0x31, 0xB4, 0x67, 0x67, 0x1C, 0xE1,
+            0xFA, 0x91, 0xDD, 0xEB, 0x0F, 0x8F, 0xBB, 0xB3, 0x66, 0xB5, 0x31, 0xB4, 0x67, 0x67,
+            0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB, 0x0F, 0x8F, 0xBB, 0xB3, 0x66, 0xB5, 0x31, 0xB4,
+            0x67, 0x67, 0x1C, 0xE1, 0xFA, 0x91, 0xDD, 0xEB, 0x0F, 0x8F, 0xBB, 0xB3, 0x66, 0xB5,
+            0x31, 0xB4,
+        ];
+
+        for pblock in plaintext.chunks_exact(AES_256_BLOCK_SIZE) {
+            assert_eq!(
+                [0; AES_256_BLOCK_SIZE],
+                cbc.encrypt_block(pblock.try_into().unwrap())
+            );
+        }
+
+        let mut cbc = Aes256Cbc::new(&[0u8; 16], &[0u8; 32]);
+
+        for pblock in plaintext.chunks_exact(AES_256_BLOCK_SIZE) {
+            assert_eq!(pblock, cbc.decrypt_block(&[0u8; AES_256_BLOCK_SIZE]));
+        }
+    }
 
     #[test]
     fn test_decrypt_1024bit() {

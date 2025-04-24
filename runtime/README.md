@@ -1330,6 +1330,129 @@ Command Code: `0x434D_4B50` ("CMKP")
 | OKM CMK     | CMK      | CMK that stores the output key material |
 
 
+### CM_AES_CBC_ENCRYPT_INIT
+
+Currently only supports AES-256-CBC with a random 128-bit IV.
+
+The CMK must have been created for AES usage.
+
+Command Code: `0x434D_4349` ("CMCI")
+
+*Table: `CM_AES_CBC_ENCRYPT_INIT` input arguments*
+| **Name**       | **Type**           | **Description**                       |
+| -------------- | ------------------ | ------------------------------------- |
+| chksum         | u32                |                                       |
+| CMK            | CMK                | CMK of the key to use to encrypt      |
+| plaintext size | u32                | MUST be non-zero multiple of 16 bytes |
+| plaintext      | u8[plaintext size] | Data to encrypt                       |
+
+*Table: `CM_AES_CBC_ENCRYPT_INIT` output arguments*
+| **Name**        | **Type**            | **Description**                  |
+| --------------- | ------------------- | -------------------------------- |
+| chksum          | u32                 |                                  |
+| fips_status     | u32                 | FIPS approved or an error        |
+| context         | AES_CBC_CONTEXT     |                                  |
+| iv              | u8[16]              |                                  |
+| ciphertext size | u32                 | MUST be equal to plaintext size  |
+| ciphertext      | u8[ciphertext size] | Output encrypted data            |
+
+The encrypted and authenticated context's internal structure will be:
+
+*Table: internal context for CM_AES_CBC_* operations*
+| **Name**       | **Type** | **Description**             |
+| -------------- | -------- | --------------------------- |
+| key            | u8[32]   |                             |
+| iv             | u8[16]   |                             |
+
+The size of the (encrypted) context is always exactly 76 bytes,
+and we will use the type `AES_CBC_CONTEXT` to represent `u8[76]`.
+
+### CM_AES_CBC_ENCRYPT_UPDATE
+
+This continues (or finishes) an AES computation started by `CM_AES_CBC_ENCRYPT_INIT` or from another `CM_AES_CBC_ENCRYPT_UPDATE`.
+
+There is no `CM_AES_CBC_ENCRYPT_FINISH` since CBC does not output a final tag.
+
+The context MUST be passed in from `CM_AES_CBC_ENCRYPT_INIT` or `CM_AES_CBC_ENCRYPT_UPDATE`.
+
+Command Code: `0x434D_4355` ("CMCU")
+
+*Table: `CM_AES_CBC_ENCRYPT_UPDATE` input arguments*
+| **Name**       | **Type**           | **Description**                       |
+| -------------- | ------------------ | ------------------------------------- |
+| chksum         | u32                |                                       |
+| context        | AES_CBC_CONTEXT    |                                       |
+| plaintext size | u32                | MUST be non-zero multiple of 16 bytes |
+| plaintext      | u8[plaintext size] | Data to encrypt                       |
+
+*Table: `CM_AES_CBC_ENCRYPT_UPDATE` output arguments*
+| **Name**       | **Type**            | **Description**                 |
+| -------------- | ------------------- | ------------------------------- |
+| chksum         | u32                 |                                 |
+| fips_status    | u32                 | FIPS approved or an error       |
+| context        | AES_CBC_CONTEXT     |                                 |
+| cipertext size | u32                 | MUST be equal to plaintext size |
+| ciphertext     | u8[ciphertext size] |                                 |
+
+### CM_AES_CBC_DECRYPT_INIT
+
+Starts an AES-256-CBC decryption computation.
+
+Currently only supports AES-256-GCM with a 96-bit IV.
+
+The CMK must have been created for AES usage.
+
+The IV must match what was passed and returned from the encryption operation.
+
+Command Code: `0x434D_434A` ("CMCJ")
+
+*Table: `CM_AES_CBC_DECRYPT_INIT` input arguments*
+| **Name**        | **Type**            | **Description**           |
+| --------------- | ------------------- | ------------------------- |
+| chksum          | u32                 |                           |
+| CMK             | CMK                 | CMK to use for decryption |
+| iv              | u8[16]              |                           |
+| ciphertext size | u32                 | MUST be non-zero multiple of 16 bytes |
+| ciphertext      | u8[ciphertext size] | Data to decrypt           |
+
+*Table: `CM_AES_CBC_DECRYPT_INIT` output arguments*
+| **Name**       | **Type**           | **Description**                  |
+| -------------- | ------------------ | -------------------------------- |
+| chksum         | u32                |                                  |
+| fips_status    | u32                | FIPS approved or an error        |
+| context        | AES_GCM_CONTEXT    |                                  |
+| plaintext size | u32                | MUST be equal to ciphertext size |
+| plaintext      | u8[plaintext size] | Decrypted data                   |
+
+The encrypted and authenticated context's internal structure will be the same as for encryption.
+
+### CM_AES_CBC_DECRYPT_UPDATE
+
+This continues an AES computation started by `CM_AES_CBC_DECRYPT_INIT` or from another `CM_AES_CBC_DECRYPT_UPDATE`.
+
+There is no `CM_AES_CBC_DECRYPT_FINISH` since CBC does not output a final tag.
+
+The context MUST be passed in from `CM_AES_CBC_DECRYPT_INIT` or `CM_AES_CBC_DECRYPT_UPDATE`.
+
+Command Code: `0x434D_4455` ("CMDU")
+
+*Table: `CM_AES_CBC_DECRYPT_UPDATE` input arguments*
+| **Name**        | **Type**            | **Description**  |
+| --------------- | ------------------- | ---------------- |
+| chksum          | u32                 |                  |
+| context         | AES_CBC_CONTEXT     |                  |
+| ciphertext size | u32                 | MUST be non-zero multiple of 16 bytes |
+| ciphertext      | u8[ciphertext size] | Data to decrypt  |
+
+*Table: `CM_AES_CBC_DECRYPT_UPDATE` output arguments*
+| **Name**       | **Type**           | **Description**           |
+| -------------- | ------------------ | ------------------------- |
+| chksum         | u32                |                                  |
+| fips_status    | u32                | FIPS approved or an error        |
+| context        | AES_GCM_CONTEXT    |                                  |
+| plaintext size | u32                | MUST be equal to ciphertext size |
+| plaintext      | u8[plaintext size] | Decrypted data                   |
+
 ### CM_AES_GCM_ENCRYPT_INIT
 
 Currently only supports AES-256-GCM with a random 96-bit IV.
@@ -1394,8 +1517,8 @@ Command Code: `0x434D_4755` ("CMGU")
 | -------------- | ------------------- | ------------------------------- |
 | chksum         | u32                 |                                 |
 | fips_status    | u32                 | FIPS approved or an error       |
-| context        | AES_GCM_CONTEXT     |                  |
-| cipertext size | u32                 | MUST be equal to plaintext size |
+| context        | AES_GCM_CONTEXT     |                                 |
+| cipertext size | u32                 | could be greater than plaintext by 16 bytes |
 | ciphertext     | u8[ciphertext size] |                                 |
 
 ### CM_AES_GCM_ENCRYPT_FINAL
@@ -1420,14 +1543,14 @@ Command Code: `0x434D_4746` ("CMGF")
 | chksum         | u32                 |                                  |
 | fips_status    | u32                 | FIPS approved or an error        |
 | tag            | u8[16]              |                                  |
-| cipertext size | u32                 | MUST be equal to ciphertext size |
+| cipertext size | u32                 | could be greater than plaintext by 16 bytes |
 | ciphertext     | u8[ciphertext size] |                                  |
 
 The tag returned will always be 16 bytes. Shorter tags can be constructed by truncating.
 
 ### CM_AES_GCM_DECRYPT_INIT
 
-Starts an AES-256-GCM computation.
+Starts an AES-256-GCM decryption computation.
 
 Currently only supports AES-256-GCM with a 96-bit IV.
 

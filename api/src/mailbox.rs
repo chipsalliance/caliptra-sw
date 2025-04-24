@@ -14,12 +14,17 @@ use ureg::MmioMut;
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
-/// Maximum output size for AES encrypt or decrypt operations.
-pub const MAX_CMB_AES_MAX_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
+/// Maximum output size for AES GCM encrypt or decrypt operations.
+pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size
 pub const MAX_RESP_DATA_SIZE: usize = 9216; // 9K
+/// Unencrypted context size for the CMB AES CBC commands.
+pub const _CMB_AES_CBC_CONTEXT_SIZE: usize = 48;
+/// Encrypted context size for the CMB AES CBC commands.
+pub const CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE: usize = 76; // = unencrypted size + 12 bytes IV + 16 bytes tag
+const _: () = assert!(_CMB_AES_CBC_CONTEXT_SIZE + 12 + 16 == CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE);
 /// Encrypted context size for the CMB AES GCM commands.
 pub const CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE: usize = 128;
 // ECDH context (unencrypted) size
@@ -130,6 +135,10 @@ impl CommandId {
     pub const CM_SHA_FINAL: Self = Self(0x434D_5346); // "CMSF"
     pub const CM_RANDOM_GENERATE: Self = Self(0x434D_5247); // "CMRG"
     pub const CM_RANDOM_STIR: Self = Self(0x434D_5253); // "CMRS"
+    pub const CM_AES_CBC_ENCRYPT_INIT: Self = Self(0x434D_4349); // "CMCI"
+    pub const CM_AES_CBC_ENCRYPT_UPDATE: Self = Self(0x434D_4355); // "CMCU"
+    pub const CM_AES_CBC_DECRYPT_INIT: Self = Self(0x434D_434A); // "CMCJ"
+    pub const CM_AES_CBC_DECRYPT_UPDATE: Self = Self(0x434D_4356); // "CMCV"
     pub const CM_AES_GCM_ENCRYPT_INIT: Self = Self(0x434D_4749); // "CMGI"
     pub const CM_AES_GCM_ENCRYPT_UPDATE: Self = Self(0x434D_4755); // "CMGU"
     pub const CM_AES_GCM_ENCRYPT_FINAL: Self = Self(0x434D_4746); // "CMGF"
@@ -249,6 +258,10 @@ pub enum MailboxResp {
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
     CmRandomGenerate(CmRandomGenerateResp),
+    CmAesCbcEncryptInit(CmAesCbcEncryptInitResp),
+    CmAesCbcEncryptUpdate(CmAesCbcResp),
+    CmAesCbcDecryptInit(CmAesCbcResp),
+    CmAesCbcDecryptUpdate(CmAesCbcResp),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitResp),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateResp),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalResp),
@@ -290,6 +303,10 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmAesCbcEncryptInit(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmAesCbcEncryptUpdate(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmAesCbcDecryptInit(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmAesCbcDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial(),
@@ -331,6 +348,10 @@ impl MailboxResp {
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmRandomGenerate(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmAesCbcEncryptInit(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmAesCbcEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmAesCbcDecryptInit(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmAesCbcDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial_mut(),
@@ -408,6 +429,10 @@ pub enum MailboxReq {
     CmShaFinal(CmShaFinalReq),
     CmRandomGenerate(CmRandomGenerateReq),
     CmRandomStir(CmRandomStirReq),
+    CmAesCbcEncryptInit(CmAesCbcEncryptInitReq),
+    CmAesCbcEncryptUpdate(CmAesCbcEncryptUpdateReq),
+    CmAesCbcDecryptInit(CmAesCbcDecryptInitReq),
+    CmAesCbcDecryptUpdate(CmAesCbcDecryptUpdateReq),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitReq),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateReq),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalReq),
@@ -452,6 +477,10 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesCbcEncryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesCbcEncryptUpdate(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesCbcDecryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesCbcDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial(),
@@ -496,6 +525,10 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmRandomGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmRandomStir(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesCbcEncryptInit(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesCbcEncryptUpdate(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesCbcDecryptInit(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesCbcDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial_mut(),
@@ -540,6 +573,10 @@ impl MailboxReq {
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
             MailboxReq::CmRandomGenerate(_) => CommandId::CM_RANDOM_GENERATE,
             MailboxReq::CmRandomStir(_) => CommandId::CM_RANDOM_STIR,
+            MailboxReq::CmAesCbcEncryptInit(_) => CommandId::CM_AES_CBC_ENCRYPT_INIT,
+            MailboxReq::CmAesCbcEncryptUpdate(_) => CommandId::CM_AES_CBC_ENCRYPT_UPDATE,
+            MailboxReq::CmAesCbcDecryptInit(_) => CommandId::CM_AES_CBC_DECRYPT_INIT,
+            MailboxReq::CmAesCbcDecryptUpdate(_) => CommandId::CM_AES_CBC_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptInit(_) => CommandId::CM_AES_GCM_ENCRYPT_INIT,
             MailboxReq::CmAesGcmEncryptUpdate(_) => CommandId::CM_AES_GCM_ENCRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptFinal(_) => CommandId::CM_AES_GCM_ENCRYPT_FINAL,
@@ -1995,6 +2032,291 @@ pub struct GetImageInfoResp {
 }
 impl Response for GetImageInfoResp {}
 
+// CM_AES_CBC_ENCRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcEncryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub plaintext_size: u32,
+    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesCbcEncryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            plaintext_size: 0,
+            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesCbcEncryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesCbcEncryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_CBC_ENCRYPT_INIT;
+    type Resp = CmAesCbcEncryptInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcEncryptInitResp {
+    pub hdr: CmAesCbcEncryptInitRespHeader,
+    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcEncryptInitRespHeader {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+    pub iv: [u8; 16],
+    pub ciphertext_size: u32,
+}
+
+impl Default for CmAesCbcEncryptInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: CmAesCbcEncryptInitRespHeader::default(),
+            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl Default for CmAesCbcEncryptInitRespHeader {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+            iv: [0u8; 16],
+            ciphertext_size: 0,
+        }
+    }
+}
+
+impl ResponseVarSize for CmAesCbcEncryptInitResp {
+    fn data(&self) -> CaliptraResult<&[u8]> {
+        // Will panic if sizeof<Self>() is smaller than CmAesCbcEncryptInitRespHeader
+        // or Self doesn't have compatible alignment with
+        // CmAesCbcEncryptInitRespHeader (should be impossible)
+        let (hdr, data) = CmAesCbcEncryptInitRespHeader::ref_from_prefix(self.as_bytes())
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        data.get(..hdr.ciphertext_size as usize)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)
+    }
+
+    fn partial_len(&self) -> CaliptraResult<usize> {
+        let (hdr, _) = CmAesCbcEncryptInitRespHeader::ref_from_prefix(self.as_bytes())
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        Ok(size_of::<CmAesCbcEncryptInitRespHeader>() + hdr.ciphertext_size as usize)
+    }
+}
+
+// CM_AES_CBC_ENCRYPT_UPDATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcEncryptUpdateReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+    pub plaintext_size: u32,
+    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesCbcEncryptUpdateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+            plaintext_size: 0,
+            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesCbcEncryptUpdateReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesCbcEncryptUpdateReq {
+    const ID: CommandId = CommandId::CM_AES_CBC_ENCRYPT_UPDATE;
+    type Resp = CmAesCbcResp;
+}
+
+// CM_AES_CBC_DECRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcDecryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub iv: [u8; 16],
+    pub ciphertext_size: u32,
+    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesCbcDecryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            iv: [0u8; 16],
+            ciphertext_size: 0,
+            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesCbcDecryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesCbcDecryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_CBC_DECRYPT_INIT;
+    type Resp = CmAesCbcResp;
+}
+
+// CM_AES_CBC_DECRYPT_UPDATE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcDecryptUpdateReq {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+    pub ciphertext_size: u32,
+    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesCbcDecryptUpdateReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+            ciphertext_size: 0,
+            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesCbcDecryptUpdateReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesCbcDecryptUpdateReq {
+    const ID: CommandId = CommandId::CM_AES_CBC_DECRYPT_UPDATE;
+    type Resp = CmAesCbcResp;
+}
+
+// Generic update response for CBC encrypt update and all CBC decrypt operations
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcResp {
+    pub hdr: CmAesCbcRespHeader,
+    pub output: [u8; MAX_CMB_DATA_SIZE],
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesCbcRespHeader {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+    pub output_size: u32,
+}
+
+impl Default for CmAesCbcResp {
+    fn default() -> Self {
+        Self {
+            hdr: CmAesCbcRespHeader::default(),
+            output: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl Default for CmAesCbcRespHeader {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_CBC_ENCRYPTED_CONTEXT_SIZE],
+            output_size: 0,
+        }
+    }
+}
+
+impl ResponseVarSize for CmAesCbcResp {
+    fn data(&self) -> CaliptraResult<&[u8]> {
+        // Will panic if sizeof<Self>() is smaller than CmAesCbcRespHeader
+        // or Self doesn't have compatible alignment with
+        // CmAesCbcRespHeader (should be impossible)
+        let (hdr, data) = CmAesCbcRespHeader::ref_from_prefix(self.as_bytes())
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        data.get(..hdr.output_size as usize)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)
+    }
+
+    fn partial_len(&self) -> CaliptraResult<usize> {
+        let (hdr, _) = CmAesCbcRespHeader::ref_from_prefix(self.as_bytes())
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        Ok(size_of::<CmAesCbcRespHeader>() + hdr.output_size as usize)
+    }
+}
+
 // CM_AES_GCM_ENCRYPT_INIT
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -2107,7 +2429,7 @@ impl Request for CmAesGcmEncryptUpdateReq {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmEncryptUpdateResp {
     pub hdr: CmAesGcmEncryptUpdateRespHeader,
-    pub ciphertext: [u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+    pub ciphertext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
 }
 
 #[repr(C)]
@@ -2122,7 +2444,7 @@ impl Default for CmAesGcmEncryptUpdateResp {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmEncryptUpdateRespHeader::default(),
-            ciphertext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+            ciphertext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
         }
     }
 }
@@ -2203,7 +2525,7 @@ impl Request for CmAesGcmEncryptFinalReq {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmEncryptFinalResp {
     pub hdr: CmAesGcmEncryptFinalRespHeader,
-    pub ciphertext: [u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+    pub ciphertext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
 }
 
 #[repr(C)]
@@ -2218,7 +2540,7 @@ impl Default for CmAesGcmEncryptFinalResp {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmEncryptFinalRespHeader::default(),
-            ciphertext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+            ciphertext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
         }
     }
 }
@@ -2355,7 +2677,7 @@ impl Request for CmAesGcmDecryptUpdateReq {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmDecryptUpdateResp {
     pub hdr: CmAesGcmDecryptUpdateRespHeader,
-    pub plaintext: [u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+    pub plaintext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
 }
 
 #[repr(C)]
@@ -2370,7 +2692,7 @@ impl Default for CmAesGcmDecryptUpdateResp {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmDecryptUpdateRespHeader::default(),
-            plaintext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+            plaintext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
         }
     }
 }
@@ -2455,7 +2777,7 @@ impl Request for CmAesGcmDecryptFinalReq {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmDecryptFinalResp {
     pub hdr: CmAesGcmDecryptFinalRespHeader,
-    pub plaintext: [u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+    pub plaintext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
 }
 
 #[repr(C)]
@@ -2471,7 +2793,7 @@ impl Default for CmAesGcmDecryptFinalResp {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmDecryptFinalRespHeader::default(),
-            plaintext: [0u8; MAX_CMB_AES_MAX_OUTPUT_SIZE],
+            plaintext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
         }
     }
 }
