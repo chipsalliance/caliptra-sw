@@ -77,8 +77,17 @@ const ML_DSA87_SIGN_RND_SIZE: usize = 32;
 /// ML_DSA87 MSG size
 const ML_DSA87_MSG_SIZE: usize = 64;
 
+/// ML_DSA87 MSG MAX size (for streaming mode)
+const ML_DSA87_MSG_MAX_SIZE: usize = 1024; // Reasonable buffer size for streamed messages
+
+/// ML_DSA87 external mu size
+const ML_DSA87_EXTERNAL_MU_SIZE: usize = 64;
+
 /// ML_DSA87 VERIFICATION size
 const ML_DSA87_VERIFICATION_SIZE_BYTES: usize = 64;
+
+/// ML_DSA87 CTX_CONFIG size
+const ML_DSA87_CTX_SIZE: usize = 256;
 
 /// ML_DSA87 PUBKEY size
 const ML_DSA87_PUBKEY_SIZE: usize = PK_LEN;
@@ -109,13 +118,26 @@ register_bitfields! [
             KEYGEN_AND_SIGN = 0b100,
         ],
         ZEROIZE OFFSET(3) NUMBITS(1) [],
-        PCR_SIGN OFFSET(4) NUMBITS(1) []
+        PCR_SIGN OFFSET(4) NUMBITS(1) [],
+        EXTERNAL_MU OFFSET(5) NUMBITS(1) [],
+        STREAM_MSG OFFSET(6) NUMBITS(1) [],
     ],
 
     /// Status Register Fields
     Status [
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
+        MSG_STREAM_READY OFFSET(2) NUMBITS(1) [],
+    ],
+
+    /// Context Config Register Fields
+    CtxConfig [
+        CTX_SIZE OFFSET(0) NUMBITS(7) [],
+    ],
+
+    /// Strobe Register Fields
+    Strobe [
+        STROBE OFFSET(0) NUMBITS(4) [],
     ],
 
     /// Key Vault Read Control Fields
@@ -133,7 +155,7 @@ register_bitfields! [
             KV_READ_FAIL = 1,
             KV_WRITE_FAIL = 2,
         ],
-    ],
+    ]
 ];
 
 #[derive(Bus)]
@@ -170,12 +192,28 @@ pub struct Mldsa87 {
     sign_rnd: [u32; ML_DSA87_SIGN_RND_SIZE / 4],
 
     /// Message
-    #[register_array(offset = 0x0000_0098)]
+    #[register_array(offset = 0x0000_0098, write_fn = on_write_msg)]
     msg: [u32; ML_DSA87_MSG_SIZE / 4],
 
     /// Verification result
     #[register_array(offset = 0x0000_00d8, write_fn = write_access_fault)]
     verify_res: [u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4],
+
+    /// External mu
+    #[register_array(offset = 0x0000_0118)]
+    external_mu: [u32; ML_DSA87_EXTERNAL_MU_SIZE / 4],
+
+    /// Message Strobe
+    #[register(offset = 0x0000_0158)]
+    msg_strobe: ReadWriteRegister<u32, Strobe::Register>,
+
+    /// Context config
+    #[register(offset = 0x0000_015c)]
+    ctx_config: ReadWriteRegister<u32, CtxConfig::Register>,
+
+    /// Context
+    #[register_array(offset = 0x0000_0160)]
+    ctx: [u32; ML_DSA87_CTX_SIZE / 4],
 
     /// Public key
     #[register_array(offset = 0x0000_1000)]
@@ -228,6 +266,12 @@ pub struct Mldsa87 {
 
     /// Zeroize complete callback
     op_zeroize_complete_action: Option<ActionHandle>,
+
+    /// Msg stream ready callback
+    op_msg_stream_ready_action: Option<ActionHandle>,
+
+    /// Streaming message buffer
+    streamed_msg: Vec<u8>,
 }
 
 impl Mldsa87 {
@@ -254,6 +298,10 @@ impl Mldsa87 {
             sign_rnd: Default::default(),
             msg: Default::default(),
             verify_res: Default::default(),
+            external_mu: Default::default(),
+            msg_strobe: ReadWriteRegister::new(0xf),
+            ctx_config: ReadWriteRegister::new(0),
+            ctx: [0; ML_DSA87_CTX_SIZE / 4],
             pubkey: [0; ML_DSA87_PUBKEY_SIZE / 4],
             signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
             privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
@@ -269,6 +317,8 @@ impl Mldsa87 {
             op_complete_action: None,
             op_seed_read_complete_action: None,
             op_zeroize_complete_action: None,
+            op_msg_stream_ready_action: None,
+            streamed_msg: Vec::with_capacity(ML_DSA87_MSG_MAX_SIZE),
         }
     }
 
@@ -281,12 +331,21 @@ impl Mldsa87 {
         Err(BusError::StoreAccessFault)
     }
 
+    fn set_msg_stream_ready(&mut self) {
+        // Set the MSG_STREAM_READY bit unconditionally when called
+        self.status.reg.modify(Status::MSG_STREAM_READY::SET);
+    }
+
     fn zeroize(&mut self) {
         self.control.reg.set(0);
         self.seed = Default::default();
         self.sign_rnd = Default::default();
         self.msg = Default::default();
         self.verify_res = Default::default();
+        self.external_mu = Default::default();
+        self.msg_strobe.reg.set(0xf); // Reset to all bytes valid
+        self.ctx_config.reg.set(0);
+        self.ctx = [0; ML_DSA87_CTX_SIZE / 4];
         self.pubkey = [0; ML_DSA87_PUBKEY_SIZE / 4];
         self.signature = [0; ML_DSA87_SIGNATURE_SIZE / 4];
         self.privkey_out = [0; ML_DSA87_PRIVKEY_SIZE / 4];
@@ -294,13 +353,15 @@ impl Mldsa87 {
         self.kv_rd_seed_ctrl.reg.set(0);
         self.kv_rd_seed_status.reg.write(KvRdSeedStatus::READY::SET);
         self.private_key = [0; ML_DSA87_PRIVKEY_SIZE];
+        self.streamed_msg.clear();
         // Stop actions
         self.op_complete_action = None;
         self.op_seed_read_complete_action = None;
         self.op_zeroize_complete_action = None;
+        self.op_msg_stream_ready_action = None;
         self.status
             .reg
-            .modify(Status::READY::SET + Status::VALID::CLEAR);
+            .modify(Status::READY::SET + Status::VALID::CLEAR + Status::MSG_STREAM_READY::CLEAR);
     }
 
     /// On Write callback for `control` register
@@ -332,7 +393,25 @@ impl Mldsa87 {
                     .reg
                     .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
-                self.op_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
+                // If streaming message mode is enabled, set the MSG_STREAM_READY bit
+                // and wait for the message to be streamed in
+                if self.control.reg.is_set(Control::STREAM_MSG)
+                    && (self.control.reg.read_as_enum(Control::CTRL)
+                        == Some(Control::CTRL::Value::SIGNING)
+                        || self.control.reg.read_as_enum(Control::CTRL)
+                            == Some(Control::CTRL::Value::VERIFYING)
+                        || self.control.reg.read_as_enum(Control::CTRL)
+                            == Some(Control::CTRL::Value::KEYGEN_AND_SIGN))
+                {
+                    // Clear any previous streamed message
+                    self.streamed_msg.clear();
+                    self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
+                    // Schedule an action to set the MSG_STREAM_READY bit after a short delay
+                    self.op_msg_stream_ready_action = Some(self.timer.schedule_poll_in(10));
+                } else {
+                    // Not waiting for message streaming, proceed with operation
+                    self.op_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
+                }
             }
             _ => {}
         }
@@ -406,11 +485,36 @@ impl Mldsa87 {
         } else {
             PrivateKey::try_from_bytes(self.private_key).unwrap()
         };
-        let message = bytes_from_words_le(&self.msg);
+
+        // Get message data based on streaming mode
+        let message = if self.control.reg.is_set(Control::STREAM_MSG) {
+            // Use the streamed message
+            self.streamed_msg.as_slice()
+        } else {
+            // Use the fixed message register
+            &bytes_from_words_le(&self.msg)
+        };
+
+        // Get context if specified
+        let mut ctx: Vec<u8> = Vec::new();
+        if self.control.reg.is_set(Control::STREAM_MSG) {
+            // Make sure we're not still expecting more message data
+            assert!(!self.status.reg.is_set(Status::MSG_STREAM_READY));
+            let ctx_size = self.ctx_config.reg.read(CtxConfig::CTX_SIZE) as usize;
+            if ctx_size > 0 {
+                // Convert context array to bytes using functional approach
+                let ctx_bytes: Vec<u8> = self
+                    .ctx
+                    .iter()
+                    .flat_map(|word| word.to_le_bytes().to_vec())
+                    .collect();
+                ctx = ctx_bytes[..ctx_size].to_vec();
+            }
+        }
 
         // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
         let signature = secret_key
-            .try_sign_with_seed(&[0u8; 32], &message, &[])
+            .try_sign_with_seed(&[0u8; 32], message, &ctx)
             .unwrap();
         let signature_extended = {
             let mut sig = [0; SIG_LEN + 1];
@@ -446,8 +550,15 @@ impl Mldsa87 {
     }
 
     fn verify(&mut self) {
-        // Unlike ECC, no dword endianness reversal is needed.
-        let message = bytes_from_words_le(&self.msg);
+        // Get message data based on streaming mode
+        let message = if self.control.reg.is_set(Control::STREAM_MSG) {
+            // Use the streamed message
+            self.streamed_msg.as_slice()
+        } else {
+            // Unlike ECC, no dword endianness reversal is needed.
+            // Use the fixed message register
+            &bytes_from_words_le(&self.msg)
+        };
 
         let public_key = {
             let key_bytes = bytes_from_words_le(&self.pubkey);
@@ -456,7 +567,24 @@ impl Mldsa87 {
 
         let signature = bytes_from_words_le(&self.signature);
 
-        let success = public_key.verify(&message, &signature[..SIG_LEN].try_into().unwrap(), &[]);
+        // Get context if specified
+        let mut ctx: Vec<u8> = Vec::new();
+        if self.control.reg.is_set(Control::STREAM_MSG) {
+            // Make sure we're not still expecting more message data
+            assert!(!self.status.reg.is_set(Status::MSG_STREAM_READY));
+            let ctx_size = self.ctx_config.reg.read(CtxConfig::CTX_SIZE) as usize;
+            if ctx_size > 0 {
+                // Convert context array to bytes using functional approach
+                let ctx_bytes: Vec<u8> = self
+                    .ctx
+                    .iter()
+                    .flat_map(|word| word.to_le_bytes().to_vec())
+                    .collect();
+                ctx = ctx_bytes[..ctx_size].to_vec();
+            }
+        }
+
+        let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &ctx);
 
         if success {
             self.verify_res
@@ -486,7 +614,7 @@ impl Mldsa87 {
 
         self.status
             .reg
-            .modify(Status::READY::SET + Status::VALID::SET);
+            .modify(Status::READY::SET + Status::VALID::SET + Status::MSG_STREAM_READY::CLEAR);
     }
 
     fn read_seed_from_keyvault(&mut self, key_id: u32) -> u32 {
@@ -530,6 +658,67 @@ impl Mldsa87 {
         );
     }
 
+    /// On Write callback for message register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `index` - Index of the dword being written
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_msg(
+        &mut self,
+        size: RvSize,
+        index: usize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Regular write for non-streaming mode
+        if !self.control.reg.is_set(Control::STREAM_MSG) {
+            self.msg[index] = val;
+            return Ok(());
+        }
+
+        // We're in streaming mode
+        assert!(index == 0);
+
+        // Streaming message mode - handle write to index 0
+        let strobe_value = self.msg_strobe.reg.read(Strobe::STROBE);
+        let mut bytes_to_add: Vec<u8> = Vec::new();
+
+        // Handle the strobe for valid bytes
+        if strobe_value == 0xF {
+            // All bytes valid
+            bytes_to_add.extend_from_slice(&val.to_le_bytes());
+        } else {
+            let val_bytes = val.to_le_bytes();
+            for (i, &byte) in val_bytes.iter().enumerate() {
+                if (strobe_value & (1 << i)) != 0 {
+                    bytes_to_add.push(byte);
+                }
+            }
+
+            // Reset the strobe and mark end of message
+            self.msg_strobe.reg.write(Strobe::STROBE.val(0xF));
+
+            // If this was the last segment, start processing
+            self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
+            self.op_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
+        }
+
+        // Add the bytes to the streamed message
+        self.streamed_msg.extend_from_slice(&bytes_to_add);
+
+        Ok(())
+    }
+
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
@@ -540,6 +729,9 @@ impl Mldsa87 {
         }
         if self.timer.fired(&mut self.op_zeroize_complete_action) {
             self.zeroize();
+        }
+        if self.timer.fired(&mut self.op_msg_stream_ready_action) {
+            self.set_msg_stream_ready();
         }
     }
 
