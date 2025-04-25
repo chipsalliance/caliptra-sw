@@ -56,8 +56,8 @@ mod trng;
 mod trng_ext;
 
 pub use aes::{
-    Aes, AesCbcContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, AES_BLOCK_SIZE_BYTES,
-    AES_CBC_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
+    Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, AES_BLOCK_SIZE_BYTES,
+    AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
 };
 pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;

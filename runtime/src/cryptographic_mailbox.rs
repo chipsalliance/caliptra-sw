@@ -16,15 +16,15 @@ use crate::Drivers;
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmAesCbcDecryptInitReq, CmAesCbcDecryptUpdateReq, CmAesCbcEncryptInitReq,
-    CmAesCbcEncryptInitResp, CmAesCbcEncryptInitRespHeader, CmAesCbcEncryptUpdateReq, CmAesCbcResp,
-    CmAesCbcRespHeader, CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp,
-    CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp,
-    CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader,
-    CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader,
-    CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-    CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
-    CmEcdhGenerateReq, CmEcdhGenerateResp, CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage,
+    CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
+    CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq,
+    CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq,
+    CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
+    CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
+    CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp,
+    CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader,
+    CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+    CmEcdhGenerateResp, CmHashAlgorithm, CmImportReq, CmImportResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
     CmShaInitResp, CmShaUpdateReq, CmStatusResp, MailboxResp, MailboxRespHeader,
     MailboxRespHeaderVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE,
@@ -33,10 +33,9 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
-    Aes, AesCbcContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
+    Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Seed, Sha2_512_384,
-    Trng, AES_BLOCK_SIZE_BYTES, AES_CBC_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
-    MAX_SEED_WORDS,
+    Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -192,12 +191,12 @@ impl CmStorage {
         &mut self,
         aes: &mut Aes,
         trng: &mut Trng,
-        unencrypted_context: &AesCbcContext,
+        unencrypted_context: &AesContext,
     ) -> CaliptraResult<EncryptedAesCbcContext> {
         let context_iv: [u8; 12] = self.context_next_iv.to_le_bytes()[..12].try_into().unwrap();
         self.context_next_iv += 1;
 
-        let mut ciphertext = [0u8; AES_CBC_CONTEXT_SIZE_BYTES];
+        let mut ciphertext = [0u8; AES_CONTEXT_SIZE_BYTES];
         // Encrypt the context using the context key
         let (iv, tag) = aes.aes_256_gcm_encrypt(
             trng,
@@ -220,9 +219,9 @@ impl CmStorage {
         aes: &mut Aes,
         trng: &mut Trng,
         encrypted_context: &EncryptedAesCbcContext,
-    ) -> CaliptraResult<AesCbcContext> {
+    ) -> CaliptraResult<AesContext> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; AES_CBC_CONTEXT_SIZE_BYTES];
+        let mut plaintext = [0u8; AES_CONTEXT_SIZE_BYTES];
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
@@ -399,7 +398,7 @@ impl Default for ShaContext {
 pub struct EncryptedAesCbcContext {
     pub iv: [u8; 12],
     pub tag: [u8; 16],
-    pub ciphertext: [u8; AES_CBC_CONTEXT_SIZE_BYTES],
+    pub ciphertext: [u8; AES_CONTEXT_SIZE_BYTES],
 }
 
 #[repr(C)]
@@ -764,10 +763,10 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
-        if cmd_bytes.len() > core::mem::size_of::<CmAesCbcEncryptInitReq>() {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesCbcEncryptInitReq::default();
+        let mut cmd = CmAesEncryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -800,8 +799,8 @@ impl Commands {
             &unencrypted_context,
         )?;
 
-        Ok(MailboxResp::CmAesCbcEncryptInit(CmAesCbcEncryptInitResp {
-            hdr: CmAesCbcEncryptInitRespHeader {
+        Ok(MailboxResp::CmAesEncryptInit(CmAesEncryptInitResp {
+            hdr: CmAesEncryptInitRespHeader {
                 hdr: MailboxRespHeader::default(),
                 iv,
                 context: transmute!(encrypted_context),
@@ -817,10 +816,10 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
-        if cmd_bytes.len() > core::mem::size_of::<CmAesCbcEncryptUpdateReq>() {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesCbcEncryptUpdateReq::default();
+        let mut cmd = CmAesEncryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -836,7 +835,7 @@ impl Commands {
 
         let resp =
             Self::aes_256_cbc_op(drivers, encrypted_context, plaintext, AesOperation::Encrypt)?;
-        Ok(MailboxResp::CmAesCbcEncryptUpdate(resp))
+        Ok(MailboxResp::CmAesEncryptUpdate(resp))
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -844,10 +843,10 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
-        if cmd_bytes.len() > core::mem::size_of::<CmAesCbcDecryptInitReq>() {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesCbcDecryptInitReq::default();
+        let mut cmd = CmAesDecryptInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -880,8 +879,8 @@ impl Commands {
             &unencrypted_context,
         )?;
 
-        Ok(MailboxResp::CmAesCbcDecryptInit(CmAesCbcResp {
-            hdr: CmAesCbcRespHeader {
+        Ok(MailboxResp::CmAesDecryptInit(CmAesResp {
+            hdr: CmAesRespHeader {
                 hdr: MailboxRespHeader::default(),
                 context: transmute!(encrypted_context),
                 output_size: ciphertext.len() as u32,
@@ -896,10 +895,10 @@ impl Commands {
         drivers: &mut Drivers,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<MailboxResp> {
-        if cmd_bytes.len() > core::mem::size_of::<CmAesCbcDecryptUpdateReq>() {
+        if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesCbcDecryptUpdateReq::default();
+        let mut cmd = CmAesDecryptUpdateReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -911,7 +910,7 @@ impl Commands {
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
         let encrypted_context = EncryptedAesCbcContext::ref_from_bytes(&cmd.context[..])
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        Ok(MailboxResp::CmAesCbcDecryptUpdate(Self::aes_256_cbc_op(
+        Ok(MailboxResp::CmAesDecryptUpdate(Self::aes_256_cbc_op(
             drivers,
             encrypted_context,
             ciphertext,
@@ -925,7 +924,7 @@ impl Commands {
         encrypted_context: &EncryptedAesCbcContext,
         input: &[u8],
         op: AesOperation,
-    ) -> CaliptraResult<CmAesCbcResp> {
+    ) -> CaliptraResult<CmAesResp> {
         let context = &drivers.cryptographic_mailbox.decrypt_aes_cbc_context(
             &mut drivers.aes,
             &mut drivers.trng,
@@ -946,8 +945,8 @@ impl Commands {
             &new_unencrypted_context,
         )?;
 
-        Ok(CmAesCbcResp {
-            hdr: CmAesCbcRespHeader {
+        Ok(CmAesResp {
+            hdr: CmAesRespHeader {
                 hdr: MailboxRespHeader::default(),
                 context: transmute!(new_encrypted_context),
                 output_size: input.len() as u32,

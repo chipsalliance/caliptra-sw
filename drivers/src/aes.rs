@@ -29,7 +29,7 @@ const AES_IV_SIZE_BYTES: usize = 12;
 const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
 const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
-pub const AES_CBC_CONTEXT_SIZE_BYTES: usize = 48;
+pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
@@ -109,12 +109,14 @@ pub struct AesGcmContext {
 const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_SIZE_BYTES);
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
-pub struct AesCbcContext {
+pub struct AesContext {
+    pub mode: u32, // TODO: will update and use this when we support other modes
     pub key: [u8; 32],
     pub last_ciphertext: [u8; 16],
+    _padding: [u8; 76],
 }
 
-const _: () = assert!(core::mem::size_of::<AesCbcContext>() == AES_CBC_CONTEXT_SIZE_BYTES);
+const _: () = assert!(core::mem::size_of::<AesContext>() == AES_CONTEXT_SIZE_BYTES);
 
 #[inline(never)]
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -886,12 +888,14 @@ impl Aes {
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
-    ) -> CaliptraResult<AesCbcContext> {
+    ) -> CaliptraResult<AesContext> {
         // trivial case is allowed
         if input.is_empty() {
-            return Ok(AesCbcContext {
+            return Ok(AesContext {
+                mode: 1,
                 key: *key,
                 last_ciphertext: *iv,
+                _padding: [0; 76],
             });
         }
         if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
@@ -944,9 +948,11 @@ impl Aes {
         };
 
         self.zeroize_internal();
-        Ok(AesCbcContext {
+        Ok(AesContext {
+            mode: 1,
             key: *key,
             last_ciphertext,
+            _padding: [0; 76],
         })
     }
 

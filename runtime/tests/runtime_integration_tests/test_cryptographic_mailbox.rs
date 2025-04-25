@@ -3,19 +3,19 @@
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use caliptra_api::mailbox::{
-    CmAesCbcDecryptInitReq, CmAesCbcDecryptUpdateReq, CmAesCbcEncryptInitReq,
-    CmAesCbcEncryptInitResp, CmAesCbcEncryptInitRespHeader, CmAesCbcEncryptUpdateReq, CmAesCbcResp,
-    CmAesCbcRespHeader, CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp,
-    CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp,
-    CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader,
-    CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader,
-    CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-    CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
-    CmEcdhGenerateReq, CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
-    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize,
-    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
+    CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq,
+    CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq,
+    CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
+    CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
+    CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp,
+    CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader,
+    CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+    CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
+    CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
+    CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader,
+    MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE,
+    CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -1049,29 +1049,29 @@ fn mailbox_cbc_encrypt(
     split: usize,
 ) -> ([u8; 16], Vec<u8>) {
     let init_len = plaintext.len().min(split);
-    let mut cm_aes_encrypt_init = CmAesCbcEncryptInitReq {
+    let mut cm_aes_encrypt_init = CmAesEncryptInitReq {
         hdr: MailboxReqHeader::default(),
         cmk: cmk.clone(),
+        mode: 1,
         plaintext_size: init_len as u32,
         plaintext: [0; MAX_CMB_DATA_SIZE],
     };
     cm_aes_encrypt_init.plaintext[..init_len].copy_from_slice(&plaintext[..init_len]);
     plaintext = &plaintext[init_len..];
-    let mut cm_aes_encrypt_init = MailboxReq::CmAesCbcEncryptInit(cm_aes_encrypt_init);
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesEncryptInit(cm_aes_encrypt_init);
     cm_aes_encrypt_init.populate_chksum().unwrap();
 
     let resp_bytes = model
         .mailbox_execute(
-            u32::from(CommandId::CM_AES_CBC_ENCRYPT_INIT),
+            u32::from(CommandId::CM_AES_ENCRYPT_INIT),
             cm_aes_encrypt_init.as_bytes().unwrap(),
         )
         .expect("Should have succeeded")
         .unwrap();
 
-    const INIT_HEADER_SIZE: usize = size_of::<CmAesCbcEncryptInitRespHeader>();
-    let mut resp = CmAesCbcEncryptInitResp {
-        hdr: CmAesCbcEncryptInitRespHeader::read_from_bytes(&resp_bytes[..INIT_HEADER_SIZE])
-            .unwrap(),
+    const INIT_HEADER_SIZE: usize = size_of::<CmAesEncryptInitRespHeader>();
+    let mut resp = CmAesEncryptInitResp {
+        hdr: CmAesEncryptInitRespHeader::read_from_bytes(&resp_bytes[..INIT_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
     let len = resp.hdr.ciphertext_size as usize;
@@ -1085,7 +1085,7 @@ fn mailbox_cbc_encrypt(
 
     while !plaintext.is_empty() {
         let len = plaintext.len().min(split);
-        let mut cm_aes_encrypt_update = CmAesCbcEncryptUpdateReq {
+        let mut cm_aes_encrypt_update = CmAesEncryptUpdateReq {
             hdr: MailboxReqHeader::default(),
             context,
             plaintext_size: len as u32,
@@ -1093,22 +1093,22 @@ fn mailbox_cbc_encrypt(
         };
         cm_aes_encrypt_update.plaintext[..len].copy_from_slice(&plaintext[..len]);
         let mut cm_aes_encrypt_update: MailboxReq =
-            MailboxReq::CmAesCbcEncryptUpdate(cm_aes_encrypt_update);
+            MailboxReq::CmAesEncryptUpdate(cm_aes_encrypt_update);
         plaintext = &plaintext[len..];
         cm_aes_encrypt_update.populate_chksum().unwrap();
 
         let update_resp_bytes = model
             .mailbox_execute(
-                u32::from(CommandId::CM_AES_CBC_ENCRYPT_UPDATE),
+                u32::from(CommandId::CM_AES_ENCRYPT_UPDATE),
                 cm_aes_encrypt_update.as_bytes().unwrap(),
             )
             .expect("Should have succeeded")
             .unwrap();
 
-        const UPDATE_HEADER_SIZE: usize = size_of::<CmAesCbcRespHeader>();
+        const UPDATE_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
 
-        let mut update_resp = CmAesCbcResp {
-            hdr: CmAesCbcRespHeader::read_from_bytes(&update_resp_bytes[..UPDATE_HEADER_SIZE])
+        let mut update_resp = CmAesResp {
+            hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..UPDATE_HEADER_SIZE])
                 .unwrap(),
             ..Default::default()
         };
@@ -1131,30 +1131,31 @@ fn mailbox_cbc_decrypt(
     split: usize,
 ) -> Vec<u8> {
     let init_len = ciphertext.len().min(split);
-    let mut cm_aes_decrypt_init = CmAesCbcDecryptInitReq {
+    let mut cm_aes_decrypt_init = CmAesDecryptInitReq {
         hdr: MailboxReqHeader::default(),
         cmk: cmk.clone(),
+        mode: 1,
         iv: *iv,
         ciphertext_size: init_len as u32,
         ciphertext: [0; MAX_CMB_DATA_SIZE],
     };
     cm_aes_decrypt_init.ciphertext[..init_len].copy_from_slice(&ciphertext[..init_len]);
     ciphertext = &ciphertext[init_len..];
-    let mut cm_aes_encrypt_init = MailboxReq::CmAesCbcDecryptInit(cm_aes_decrypt_init);
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesDecryptInit(cm_aes_decrypt_init);
     cm_aes_encrypt_init.populate_chksum().unwrap();
 
     let resp_bytes = model
         .mailbox_execute(
-            u32::from(CommandId::CM_AES_CBC_DECRYPT_INIT),
+            u32::from(CommandId::CM_AES_DECRYPT_INIT),
             cm_aes_encrypt_init.as_bytes().unwrap(),
         )
         .expect("Should have succeeded")
         .unwrap();
 
-    const RESP_HEADER_SIZE: usize = size_of::<CmAesCbcRespHeader>();
+    const RESP_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
 
-    let mut resp = CmAesCbcResp {
-        hdr: CmAesCbcRespHeader::read_from_bytes(&resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
+    let mut resp = CmAesResp {
+        hdr: CmAesRespHeader::read_from_bytes(&resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
     let len = resp.hdr.output_size as usize;
@@ -1166,28 +1167,27 @@ fn mailbox_cbc_decrypt(
 
     while !ciphertext.is_empty() {
         let len = split.min(ciphertext.len());
-        let mut cm_aes_decrypt_update = CmAesCbcDecryptUpdateReq {
+        let mut cm_aes_decrypt_update = CmAesDecryptUpdateReq {
             hdr: MailboxReqHeader::default(),
             context,
             ciphertext_size: len as u32,
             ciphertext: [0; MAX_CMB_DATA_SIZE],
         };
         cm_aes_decrypt_update.ciphertext[..len].copy_from_slice(&ciphertext[..len]);
-        let mut cm_aes_decrypt_update = MailboxReq::CmAesCbcDecryptUpdate(cm_aes_decrypt_update);
+        let mut cm_aes_decrypt_update = MailboxReq::CmAesDecryptUpdate(cm_aes_decrypt_update);
         ciphertext = &ciphertext[len..];
         cm_aes_decrypt_update.populate_chksum().unwrap();
 
         let update_resp_bytes = model
             .mailbox_execute(
-                u32::from(CommandId::CM_AES_CBC_DECRYPT_UPDATE),
+                u32::from(CommandId::CM_AES_DECRYPT_UPDATE),
                 cm_aes_decrypt_update.as_bytes().unwrap(),
             )
             .expect("Should have succeeded")
             .unwrap();
 
-        let mut update_resp = CmAesCbcResp {
-            hdr: CmAesCbcRespHeader::read_from_bytes(&update_resp_bytes[..RESP_HEADER_SIZE])
-                .unwrap(),
+        let mut update_resp = CmAesResp {
+            hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
             ..Default::default()
         };
         let update_len = update_resp.hdr.output_size as usize;
