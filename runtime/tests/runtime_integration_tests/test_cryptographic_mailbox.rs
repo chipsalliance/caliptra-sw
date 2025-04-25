@@ -1,15 +1,16 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
-use aes::cipher::KeyInit;
-use aes_gcm::{aead::AeadMutInPlace, Key};
+use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use caliptra_api::mailbox::{
-    CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader,
-    CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
-    CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
-    CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
-    CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
-    CmAesGcmEncryptUpdateRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+    CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
+    CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq,
+    CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq,
+    CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
+    CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
+    CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp,
+    CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader,
+    CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
     CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
     CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
     CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader,
@@ -20,6 +21,7 @@ use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
 use caliptra_runtime::RtBootStatus;
+use cbc::cipher::{BlockEncryptMut, KeyIvInit};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use sha2::{Digest, Sha384, Sha512};
@@ -550,7 +552,7 @@ fn test_random_stir_etrng_not_supported() {
 }
 
 #[test]
-fn test_aes_edge_cases() {
+fn test_aes_gcm_edge_cases() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -575,7 +577,7 @@ fn test_aes_edge_cases() {
 
 // Check a simle encryption with 4 bytes of data.
 #[test]
-fn test_aes_simple() {
+fn test_aes_gcm_simple() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -648,9 +650,9 @@ fn test_aes_simple() {
     assert_eq!(ciphertext, &buffer);
 }
 
-// Random encrypt and decrypt stress test.
+// Random encrypt and decrypt GCM stress test.
 #[test]
-fn test_aes_random_encrypt_decrypt() {
+fn test_aes_gcm_random_encrypt_decrypt() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
@@ -680,17 +682,17 @@ fn test_aes_random_encrypt_decrypt() {
         let mut aad = vec![0u8; aad_len];
         seeded_rng.fill_bytes(&mut aad);
 
-        let (iv, tag, ciphertext) = mailbox_encrypt(
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
             &mut model,
             &cmks[key_idx],
             &aad,
             &plaintext,
             MAX_CMB_DATA_SIZE,
         );
-        let (rtag, rciphertext) = rustcrypto_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+        let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
         assert_eq!(tag, rtag);
-        let (dtag, dplaintext) = mailbox_decrypt(
+        let (dtag, dplaintext) = mailbox_gcm_decrypt(
             &mut model,
             &cmks[key_idx],
             &iv,
@@ -707,7 +709,7 @@ fn test_aes_random_encrypt_decrypt() {
 // Check encrypting and decrypting a single byte at a time.
 // This checks the internal buffering is working correctly.
 #[test]
-fn test_aes_random_encrypt_decrypt_1() {
+fn test_aes_gcm_random_encrypt_decrypt_1() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
@@ -738,18 +740,68 @@ fn test_aes_random_encrypt_decrypt_1() {
         seeded_rng.fill_bytes(&mut aad);
 
         let (iv, tag, ciphertext) =
-            mailbox_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
-        let (rtag, rciphertext) = rustcrypto_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
+            mailbox_gcm_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
+        let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
         assert_eq!(tag, rtag);
         let (dtag, dplaintext) =
-            mailbox_decrypt(&mut model, &cmks[key_idx], &iv, &aad, &ciphertext, &tag, 1);
+            mailbox_gcm_decrypt(&mut model, &cmks[key_idx], &iv, &aad, &ciphertext, &tag, 1);
         assert_eq!(dplaintext, plaintext);
         assert_eq!(dtag, tag);
     }
 }
 
-fn rustcrypto_encrypt(key: &[u8], iv: &[u8], aad: &[u8], plaintext: &[u8]) -> ([u8; 16], Vec<u8>) {
+// Random encrypt and decrypt CBC stress test.
+#[test]
+fn test_aes_cbc_random_encrypt_decrypt() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    const KEYS: usize = 16;
+    let mut keys = vec![];
+    let mut cmks = vec![];
+    for _ in 0..KEYS {
+        let mut key = [0u8; 32];
+        seeded_rng.fill_bytes(&mut key);
+        keys.push(key);
+        cmks.push(import_aes_key(&mut model, &key));
+    }
+
+    for _ in 0..100 {
+        let key_idx = seeded_rng.gen_range(0..KEYS);
+        let len = seeded_rng
+            .gen_range(0..MAX_CMB_DATA_SIZE * 3)
+            .next_multiple_of(AES_BLOCK_SIZE_BYTES);
+        let mut plaintext = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut plaintext);
+
+        let (iv, ciphertext) =
+            mailbox_cbc_encrypt(&mut model, &cmks[key_idx], &plaintext, MAX_CMB_DATA_SIZE);
+        let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
+        assert_eq!(ciphertext, rciphertext);
+        let dplaintext = mailbox_cbc_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &ciphertext,
+            MAX_CMB_DATA_SIZE,
+        );
+        assert_eq!(dplaintext, plaintext);
+    }
+}
+
+fn rustcrypto_gcm_encrypt(
+    key: &[u8],
+    iv: &[u8],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> ([u8; 16], Vec<u8>) {
     let key: &Key<aes_gcm::Aes256Gcm> = key.into();
     let mut cipher = aes_gcm::Aes256Gcm::new(key);
     let mut buffer = plaintext.to_vec();
@@ -759,7 +811,21 @@ fn rustcrypto_encrypt(key: &[u8], iv: &[u8], aad: &[u8], plaintext: &[u8]) -> ([
     (tag.into(), buffer)
 }
 
-fn mailbox_encrypt(
+fn rustcrypto_cbc_encrypt(key: &[u8], iv: &[u8], mut plaintext: &[u8]) -> Vec<u8> {
+    let mut encryptor = cbc::Encryptor::<aes::Aes256>::new(key.into(), iv.into());
+
+    let mut output = vec![];
+    while !plaintext.is_empty() {
+        let block = plaintext[..AES_BLOCK_SIZE_BYTES].into();
+        let mut out_block = [0u8; AES_BLOCK_SIZE_BYTES].into();
+        encryptor.encrypt_block_b2b_mut(block, &mut out_block);
+        output.extend_from_slice(&out_block);
+        plaintext = &plaintext[AES_BLOCK_SIZE_BYTES..];
+    }
+    output
+}
+
+fn mailbox_gcm_encrypt(
     model: &mut DefaultHwModel,
     cmk: &Cmk,
     aad: &[u8],
@@ -865,7 +931,7 @@ fn mailbox_encrypt(
     (resp.iv, final_resp.hdr.tag, ciphertext)
 }
 
-fn mailbox_decrypt(
+fn mailbox_gcm_decrypt(
     model: &mut DefaultHwModel,
     cmk: &Cmk,
     iv: &[u8; 12],
@@ -976,6 +1042,164 @@ fn mailbox_decrypt(
     (final_resp.hdr.tag, plaintext)
 }
 
+fn mailbox_cbc_encrypt(
+    model: &mut DefaultHwModel,
+    cmk: &Cmk,
+    mut plaintext: &[u8],
+    split: usize,
+) -> ([u8; 16], Vec<u8>) {
+    let init_len = plaintext.len().min(split);
+    let mut cm_aes_encrypt_init = CmAesEncryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+        mode: 1,
+        plaintext_size: init_len as u32,
+        plaintext: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_encrypt_init.plaintext[..init_len].copy_from_slice(&plaintext[..init_len]);
+    plaintext = &plaintext[init_len..];
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesEncryptInit(cm_aes_encrypt_init);
+    cm_aes_encrypt_init.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_ENCRYPT_INIT),
+            cm_aes_encrypt_init.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    const INIT_HEADER_SIZE: usize = size_of::<CmAesEncryptInitRespHeader>();
+    let mut resp = CmAesEncryptInitResp {
+        hdr: CmAesEncryptInitRespHeader::read_from_bytes(&resp_bytes[..INIT_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.ciphertext_size as usize;
+    assert_eq!(len, init_len);
+    resp.ciphertext[..len].copy_from_slice(&resp_bytes[INIT_HEADER_SIZE..INIT_HEADER_SIZE + len]);
+
+    let mut ciphertext = vec![];
+    ciphertext.extend_from_slice(&resp.ciphertext[..resp.hdr.ciphertext_size as usize]);
+
+    let mut context = resp.hdr.context;
+
+    while !plaintext.is_empty() {
+        let len = plaintext.len().min(split);
+        let mut cm_aes_encrypt_update = CmAesEncryptUpdateReq {
+            hdr: MailboxReqHeader::default(),
+            context,
+            plaintext_size: len as u32,
+            plaintext: [0; MAX_CMB_DATA_SIZE],
+        };
+        cm_aes_encrypt_update.plaintext[..len].copy_from_slice(&plaintext[..len]);
+        let mut cm_aes_encrypt_update: MailboxReq =
+            MailboxReq::CmAesEncryptUpdate(cm_aes_encrypt_update);
+        plaintext = &plaintext[len..];
+        cm_aes_encrypt_update.populate_chksum().unwrap();
+
+        let update_resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_ENCRYPT_UPDATE),
+                cm_aes_encrypt_update.as_bytes().unwrap(),
+            )
+            .expect("Should have succeeded")
+            .unwrap();
+
+        const UPDATE_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
+
+        let mut update_resp = CmAesResp {
+            hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..UPDATE_HEADER_SIZE])
+                .unwrap(),
+            ..Default::default()
+        };
+        let update_len = update_resp.hdr.output_size as usize;
+        assert_eq!(len, update_len);
+        update_resp.output[..len]
+            .copy_from_slice(&update_resp_bytes[UPDATE_HEADER_SIZE..UPDATE_HEADER_SIZE + len]);
+        ciphertext.extend_from_slice(&update_resp.output[..len]);
+        context = update_resp.hdr.context;
+    }
+
+    (resp.hdr.iv, ciphertext)
+}
+
+fn mailbox_cbc_decrypt(
+    model: &mut DefaultHwModel,
+    cmk: &Cmk,
+    iv: &[u8; 16],
+    mut ciphertext: &[u8],
+    split: usize,
+) -> Vec<u8> {
+    let init_len = ciphertext.len().min(split);
+    let mut cm_aes_decrypt_init = CmAesDecryptInitReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+        mode: 1,
+        iv: *iv,
+        ciphertext_size: init_len as u32,
+        ciphertext: [0; MAX_CMB_DATA_SIZE],
+    };
+    cm_aes_decrypt_init.ciphertext[..init_len].copy_from_slice(&ciphertext[..init_len]);
+    ciphertext = &ciphertext[init_len..];
+    let mut cm_aes_encrypt_init = MailboxReq::CmAesDecryptInit(cm_aes_decrypt_init);
+    cm_aes_encrypt_init.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_DECRYPT_INIT),
+            cm_aes_encrypt_init.as_bytes().unwrap(),
+        )
+        .expect("Should have succeeded")
+        .unwrap();
+
+    const RESP_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
+
+    let mut resp = CmAesResp {
+        hdr: CmAesRespHeader::read_from_bytes(&resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.output_size as usize;
+    assert_eq!(len, init_len);
+    resp.output[..len].copy_from_slice(&resp_bytes[RESP_HEADER_SIZE..RESP_HEADER_SIZE + len]);
+    let mut plaintext = vec![];
+    plaintext.extend_from_slice(&resp.output[..resp.hdr.output_size as usize]);
+    let mut context = resp.hdr.context;
+
+    while !ciphertext.is_empty() {
+        let len = split.min(ciphertext.len());
+        let mut cm_aes_decrypt_update = CmAesDecryptUpdateReq {
+            hdr: MailboxReqHeader::default(),
+            context,
+            ciphertext_size: len as u32,
+            ciphertext: [0; MAX_CMB_DATA_SIZE],
+        };
+        cm_aes_decrypt_update.ciphertext[..len].copy_from_slice(&ciphertext[..len]);
+        let mut cm_aes_decrypt_update = MailboxReq::CmAesDecryptUpdate(cm_aes_decrypt_update);
+        ciphertext = &ciphertext[len..];
+        cm_aes_decrypt_update.populate_chksum().unwrap();
+
+        let update_resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_DECRYPT_UPDATE),
+                cm_aes_decrypt_update.as_bytes().unwrap(),
+            )
+            .expect("Should have succeeded")
+            .unwrap();
+
+        let mut update_resp = CmAesResp {
+            hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let update_len = update_resp.hdr.output_size as usize;
+        assert_eq!(len, update_len);
+        update_resp.output[..len]
+            .copy_from_slice(&update_resp_bytes[RESP_HEADER_SIZE..RESP_HEADER_SIZE + len]);
+        plaintext.extend_from_slice(&update_resp.output[..update_resp.hdr.output_size as usize]);
+        context = update_resp.hdr.context;
+    }
+    plaintext
+}
+
 fn import_aes_key(model: &mut DefaultHwModel, key: &[u8]) -> Cmk {
     let mut input = [0u8; 64];
     input[..key.len()].copy_from_slice(key);
@@ -1063,9 +1287,9 @@ fn test_ecdh() {
     // use the CMK shared secret to AES encrypt a known plaintext.
     let plaintext = [0u8; 16];
     let (iv, tag, ciphertext) =
-        mailbox_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
     // encrypt with RustCrypto and check if everything matches
-    let (rtag, rciphertext) = rustcrypto_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
 
     // check that ciphertext and tags match, meaning the shared secret is the same on both sides
     assert_eq!(ciphertext, rciphertext);

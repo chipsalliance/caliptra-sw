@@ -279,6 +279,18 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
+        CommandId::CM_AES_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_init(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_ENCRYPT_UPDATE => {
+            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_update(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_init(drivers, cmd_bytes)
+        }
+        CommandId::CM_AES_DECRYPT_UPDATE => {
+            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_update(drivers, cmd_bytes)
+        }
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes)
         }
@@ -297,7 +309,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_AES_GCM_DECRYPT_FINAL => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_final(drivers, cmd_bytes)
         }
-
         CommandId::CM_ECDH_GENERATE => {
             cryptographic_mailbox::Commands::ecdh_generate(drivers, cmd_bytes)
         }

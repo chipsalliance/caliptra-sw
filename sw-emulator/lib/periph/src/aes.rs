@@ -2,10 +2,11 @@
 
 use caliptra_emu_bus::{BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
-use caliptra_emu_crypto::{Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
+use caliptra_emu_crypto::{Aes256Cbc, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use rand::Rng;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::mpsc;
 use tock_registers::interfaces::{Readable, Writeable};
@@ -83,7 +84,7 @@ pub struct Aes {
     #[register_array(offset = 0x54, item_size = 4, len = 4, write_fn = write_data_in)]
     data_in: [u32; 4],
 
-    #[register_array(offset = 0x64, item_size = 4, len = 4)]
+    #[register_array(offset = 0x64, item_size = 4, len = 4, read_fn = read_data_out)]
     data_out: [u32; 4],
 
     #[register(offset = 0x74)]
@@ -106,6 +107,9 @@ pub struct Aes {
 
     data_in_written: [bool; 4],
     ghash: GHash,
+    cbc: Aes256Cbc,
+    data_out_read: [bool; 4],
+    data_out_block_queue: VecDeque<u32>,
 }
 
 impl Default for Aes {
@@ -115,7 +119,7 @@ impl Default for Aes {
 }
 
 impl Aes {
-    /// Create a new AES CLP peripheral instance
+    /// Create a new AES peripheral instance
     pub fn new() -> Self {
         Self {
             key_share0: [0; 8],
@@ -134,6 +138,9 @@ impl Aes {
             ctrl_gcm_shadowed: ReadOnlyRegister::new(0),
             data_in_written: [false; 4],
             ghash: GHash::default(),
+            cbc: Aes256Cbc::default(),
+            data_out_read: [true; 4],
+            data_out_block_queue: VecDeque::new(),
         }
     }
 
@@ -152,6 +159,9 @@ impl Aes {
             rand::thread_rng().fill(&mut self.data_in[..]);
             self.data_in_written.fill(false);
             self.ghash = GHash::default();
+            self.cbc = Aes256Cbc::default();
+            self.data_out_read.fill(true);
+            self.data_out_block_queue.clear();
         }
         if self.trigger.reg.is_set(Trigger::DATA_OUT_CLEAR) {
             rand::thread_rng().fill(&mut self.data_out[..]);
@@ -178,6 +188,9 @@ impl Aes {
         self.ctrl_gcm_shadowed.reg.set(0);
         self.data_in_written.fill(false);
         self.ghash = GHash::default();
+        self.cbc = Aes256Cbc::default();
+        self.data_out_read.fill(true);
+        self.data_out_block_queue.clear();
     }
 
     fn write_ctrl_gcm_shadowed(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -236,7 +249,7 @@ impl Aes {
         key
     }
 
-    fn iv(&self) -> [u8; 12] {
+    fn gcm_iv(&self) -> [u8; 12] {
         let mut iv = [0u8; 12];
         for i in 0..3 {
             let word = self.iv[i].to_le_bytes();
@@ -245,12 +258,79 @@ impl Aes {
         iv
     }
 
-    fn update(&mut self, buffer: &[u8; 16], num_valid: usize) {
+    fn iv(&self) -> [u8; 16] {
+        let mut iv = [0u8; 16];
+        for i in 0..4 {
+            let word = self.iv[i].to_le_bytes();
+            iv[i * 4..(i + 1) * 4].copy_from_slice(&word);
+        }
+        iv
+    }
+
+    fn read_data_out(&mut self, size: RvSize, index: usize) -> Result<RvData, BusError> {
+        // Writes have to be word-aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+        if index >= 4 {
+            Err(BusError::LoadAccessFault)?
+        }
+        self.data_out_read[index] = true;
+        match self.mode() {
+            Ctrl::MODE::Value::CBC => {
+                // block modes write data out only after 2 blocks are written
+                if self.data_out_read.iter().copied().all(|x| x) {
+                    if self.data_out_block_queue.is_empty() {
+                        Err(BusError::LoadAccessFault)?
+                    }
+                    self.data_out_read.fill(false);
+                    self.data_out[0] = self.data_out_block_queue.pop_front().unwrap();
+                    self.data_out[1] = self.data_out_block_queue.pop_front().unwrap();
+                    self.data_out[2] = self.data_out_block_queue.pop_front().unwrap();
+                    self.data_out[3] = self.data_out_block_queue.pop_front().unwrap();
+                }
+            }
+            Ctrl::MODE::Value::GCM => (), // streaming mode can directly read the register
+            _ => todo!(),
+        }
+
+        let data = self.data_out[index];
+        Ok(data)
+    }
+
+    fn update_cbc(&mut self, data: &[u8]) {
+        assert_eq!(data.len(), 16);
+        let data: &[u8; 16] = data.try_into().unwrap();
+        let output = if self.is_encrypt() {
+            self.cbc.encrypt_block(data)
+        } else {
+            self.cbc.decrypt_block(data)
+        };
+        self.data_out_block_queue
+            .push_back(u32::from_le_bytes(output[0..4].try_into().unwrap()));
+        self.data_out_block_queue
+            .push_back(u32::from_le_bytes(output[4..8].try_into().unwrap()));
+        self.data_out_block_queue
+            .push_back(u32::from_le_bytes(output[8..12].try_into().unwrap()));
+        self.data_out_block_queue
+            .push_back(u32::from_le_bytes(output[12..16].try_into().unwrap()));
+    }
+
+    fn update_gcm(&mut self, data: &[u8]) {
+        let num_valid = self.ctrl_gcm_shadowed.reg.read(GcmCtrl::NUM_VALID_BYTES) as usize;
+        let num_valid = if num_valid == 0 || num_valid > 16 {
+            16
+        } else {
+            num_valid
+        };
+        let mut buffer = [0u8; 16];
+        buffer[..num_valid].copy_from_slice(&data[..num_valid]);
+        let buffer = &buffer;
         // populate the data_out and iv registers
         // There is not proper AES streaming implementation, so we do this the slow way
         // and recompute the GHASH ourselves.
         let key = self.key();
-        let iv = self.iv();
+        let gcm_iv = self.gcm_iv();
 
         match self.gcm_phase() {
             GcmCtrl::PHASE::Value::AAD => {
@@ -269,7 +349,7 @@ impl Aes {
                 if self.iv[3] == 0 {
                     self.iv[3] = 2;
                 }
-                let output = Aes256Gcm::crypt_block(&key, &iv, self.iv[3] as usize - 2, buffer);
+                let output = Aes256Gcm::crypt_block(&key, &gcm_iv, self.iv[3] as usize - 2, buffer);
 
                 self.data_out[0] = u32::from_le_bytes(output[0..4].try_into().unwrap());
                 self.data_out[1] = u32::from_le_bytes(output[4..8].try_into().unwrap());
@@ -287,7 +367,7 @@ impl Aes {
             }
             GcmCtrl::PHASE::Value::TAG => {
                 self.ghash.update(buffer);
-                let tag = self.ghash.finalize(&key, &iv);
+                let tag = self.ghash.finalize(&key, &gcm_iv);
                 self.data_out[0] = u32::from_le_bytes(tag[0..4].try_into().unwrap());
                 self.data_out[1] = u32::from_le_bytes(tag[4..8].try_into().unwrap());
                 self.data_out[2] = u32::from_le_bytes(tag[8..12].try_into().unwrap());
@@ -295,6 +375,13 @@ impl Aes {
             }
             _ => {}
         }
+    }
+
+    fn mode(&self) -> Ctrl::MODE::Value {
+        self.ctrl_shadowed
+            .reg
+            .read_as_enum(Ctrl::MODE)
+            .unwrap_or(Ctrl::MODE::Value::NONE)
     }
 
     fn write_data_in(&mut self, size: RvSize, idx: usize, val: RvData) -> Result<(), BusError> {
@@ -313,15 +400,15 @@ impl Aes {
             for i in 0..4 {
                 buffer.extend_from_slice(&self.data_in[i].to_le_bytes()[..]);
             }
-            let num_valid = self.ctrl_gcm_shadowed.reg.read(GcmCtrl::NUM_VALID_BYTES) as usize;
-            let num_valid = if num_valid == 0 || num_valid > 16 {
-                16
-            } else {
-                num_valid
-            };
-            buffer[num_valid..].fill(0);
-            let buffer: [u8; 16] = buffer.try_into().unwrap();
-            self.update(&buffer, num_valid);
+            match self.mode() {
+                Ctrl::MODE::Value::CBC => {
+                    self.update_cbc(&buffer);
+                }
+                Ctrl::MODE::Value::GCM => {
+                    self.update_gcm(&buffer);
+                }
+                _ => todo!(),
+            }
         }
         Ok(())
     }
@@ -333,7 +420,15 @@ impl Aes {
         }
 
         self.key_share0[idx] = val;
-        self.ghash = GHash::new(&self.key());
+        match self.mode() {
+            Ctrl::MODE::Value::CBC => {
+                self.cbc = Aes256Cbc::new(&self.iv(), &self.key());
+            }
+            Ctrl::MODE::Value::GCM => {
+                self.ghash = GHash::new(&self.key());
+            }
+            _ => (),
+        }
         Ok(())
     }
 
@@ -344,7 +439,15 @@ impl Aes {
         }
 
         self.key_share1[idx] = val;
-        self.ghash = GHash::new(&self.key());
+        match self.mode() {
+            Ctrl::MODE::Value::CBC => {
+                self.cbc = Aes256Cbc::new(&self.iv(), &self.key());
+            }
+            Ctrl::MODE::Value::GCM => {
+                self.ghash = GHash::new(&self.key());
+            }
+            _ => (),
+        }
         Ok(())
     }
 
@@ -355,14 +458,23 @@ impl Aes {
         }
 
         self.iv[idx] = val;
-        if idx == 3 {
-            // hardware quirk: IV[3] is loaded as big-endian, unlike all other registers
-            self.iv[3] = val.swap_bytes();
-            if val == 0 {
-                self.iv[3] = 2;
+
+        match self.mode() {
+            Ctrl::MODE::Value::CBC => {
+                self.cbc = Aes256Cbc::new(&self.iv(), &self.key());
             }
-        } else {
-            self.iv[idx] = val;
+            Ctrl::MODE::Value::GCM => {
+                if idx == 3 {
+                    // hardware quirk: IV[3] is loaded as big-endian, unlike all other registers
+                    self.iv[3] = val.swap_bytes();
+                    if val == 0 {
+                        self.iv[3] = 2;
+                    }
+                } else {
+                    self.iv[idx] = val;
+                }
+            }
+            _ => todo!(),
         }
         Ok(())
     }
