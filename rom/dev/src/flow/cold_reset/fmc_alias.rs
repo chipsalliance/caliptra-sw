@@ -256,9 +256,8 @@ impl FmcAliasLayer {
 
         // Clear the authority private key
         cprintln!("[afmc] ECC Erase AUTHORITY.KEYID = {}", auth_priv_key as u8);
-        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+        env.key_vault.erase_key(auth_priv_key).inspect_err(|_err| {
             sig.zeroize();
-            err
         })?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
@@ -360,9 +359,8 @@ impl FmcAliasLayer {
             "[afmc] MLDSA Erase AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+        env.key_vault.erase_key(auth_priv_key).inspect_err(|_err| {
             sig.zeroize();
-            err
         })?;
 
         // Set the FMC Certificate Signature in data vault.

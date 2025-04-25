@@ -312,7 +312,7 @@ impl Csrng {
                 let nibble = self.health_tester.next().expect(
                     "itrng iterator should provide at least two 2048 bit windows in FIPS mode",
                 );
-                packed | u64::from(nibble) << (i * BITS_PER_NIBBLE)
+                packed | (u64::from(nibble) << (i * BITS_PER_NIBBLE))
             });
             hasher.update(packed_entropy.to_le_bytes());
         }

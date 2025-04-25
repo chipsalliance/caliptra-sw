@@ -986,7 +986,7 @@ mod tests {
             ControlRegWriteVal((self.0 & !0x1) | u32::from(val))
         }
         pub fn pull(self, f: impl FnOnce(PullSelector) -> Pull) -> ControlRegWriteVal {
-            ControlRegWriteVal((self.0 & !(0x3 << 1)) | (f(PullSelector()) as u32) << 1)
+            ControlRegWriteVal((self.0 & !(0x3 << 1)) | ((f(PullSelector()) as u32) << 1))
         }
     }
     impl From<u32> for ControlRegWriteVal {
