@@ -88,7 +88,7 @@ pub use pcr_bank::{PcrBank, PcrId};
 pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
-pub use persistent::AuthManifestImageMetadataList;
+pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 
 pub use persistent::{
     FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
