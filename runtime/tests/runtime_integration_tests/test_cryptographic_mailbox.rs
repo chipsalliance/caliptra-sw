@@ -9,10 +9,12 @@ use caliptra_api::mailbox::{
     CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
-    CmAesGcmEncryptUpdateRespHeader, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
+    CmAesGcmEncryptUpdateRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+    CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
     CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
     CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader,
-    MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE,
+    CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -246,7 +248,6 @@ fn test_sha_many() {
             let original_input_data = input_copy.as_bytes();
             let mut input_data = input_str.as_bytes().to_vec();
             let mut input_data = input_data.as_mut_slice();
-            println!("Checking size {}", input_str.len());
 
             let process = input_data.len().min(MAX_CMB_DATA_SIZE);
 
@@ -644,9 +645,6 @@ fn test_aes_simple() {
         .encrypt_in_place_detached(iv.into(), aad, &mut buffer)
         .expect("Encryption failed");
 
-    println!("Ciphertext {:x?}", ciphertext);
-    println!("Known ciphertext {:x?}", &buffer);
-
     assert_eq!(ciphertext, &buffer);
 }
 
@@ -738,8 +736,6 @@ fn test_aes_random_encrypt_decrypt_1() {
         let aad_len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
         let mut aad = vec![0u8; aad_len];
         seeded_rng.fill_bytes(&mut aad);
-
-        println!("submitting test aad_len = {} len = {}", aad_len, len);
 
         let (iv, tag, ciphertext) =
             mailbox_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
@@ -1002,4 +998,76 @@ fn import_aes_key(model: &mut DefaultHwModel, key: &[u8]) -> Cmk {
 
     let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
     cm_import_resp.cmk.clone()
+}
+
+#[test]
+fn test_ecdh() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp = CmEcdhGenerateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    // Calculate our side of the exchange and the shared secret.
+    // Based on the flow in https://wiki.openssl.org/index.php/Elliptic_Curve_Diffie_Hellman.
+    let mut bn_ctx = openssl::bn::BigNumContext::new().unwrap();
+    let curve = openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::SECP384R1).unwrap();
+    let mut a_exchange_data = vec![4];
+    a_exchange_data.extend_from_slice(&resp.exchange_data);
+    let a_public_point =
+        openssl::ec::EcPoint::from_bytes(&curve, &a_exchange_data, &mut bn_ctx).unwrap();
+    let a_key = openssl::ec::EcKey::from_public_key(&curve, &a_public_point).unwrap();
+
+    let b_key = openssl::ec::EcKey::generate(&curve).unwrap();
+    let b_exchange_data = &b_key
+        .public_key()
+        .to_bytes(
+            &curve,
+            openssl::ec::PointConversionForm::UNCOMPRESSED,
+            &mut bn_ctx,
+        )
+        .unwrap()[1..];
+    let a_pkey = openssl::pkey::PKey::from_ec_key(a_key).unwrap();
+    let b_pkey = openssl::pkey::PKey::from_ec_key(b_key).unwrap();
+    let mut deriver = openssl::derive::Deriver::new(&b_pkey).unwrap();
+    deriver.set_peer(&a_pkey).unwrap();
+    let shared_secret = deriver.derive_to_vec().unwrap();
+
+    // calculate the shared secret using the cryptographic mailbox
+    let mut send_exchange_data = [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE];
+    send_exchange_data[..b_exchange_data.len()].copy_from_slice(b_exchange_data);
+    let req = CmEcdhFinishReq {
+        context: resp.context,
+        key_usage: CmKeyUsage::AES.into(),
+        incoming_exchange_data: send_exchange_data,
+        ..Default::default()
+    };
+    let mut fin = MailboxReq::CmEcdhFinish(req);
+    fin.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(fin.cmd_code().into(), fin.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+
+    let resp = CmEcdhFinishResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let cmk = Cmk::ref_from_bytes(resp.output_cmk.as_slice()).unwrap();
+
+    // use the CMK shared secret to AES encrypt a known plaintext.
+    let plaintext = [0u8; 16];
+    let (iv, tag, ciphertext) =
+        mailbox_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+    // encrypt with RustCrypto and check if everything matches
+    let (rtag, rciphertext) = rustcrypto_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
+
+    // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+    assert_eq!(ciphertext, rciphertext);
+    assert_eq!(tag, rtag);
 }

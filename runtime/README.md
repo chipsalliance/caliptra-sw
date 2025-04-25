@@ -1530,21 +1530,21 @@ Command Code: `0x434D_4547` ("CMEG")
 | **Name**    | **Type** | **Description**      |
 | ----------- | -------- | -------------------- |
 | chksum      | u32      |                      |
-| curve/flags | u32      | Must be 0. Reserved. |
 
 *Table: `CM_ECDH_GENERATE` output arguments*
-| **Name**      | **Type**         | **Description**                       |
-| ------------- | ---------------- | ------------------------------------- |
-| chksum        | u32              |                                       |
-| fips_status   | u32              | FIPS approved or an error             |
-| context size  | u32              | size of context                       |
-| context       | u8[context size] | Used as the input to `CM_ECDH_FINISH` |
-| exchange data | u8[96]           | i.e., the public point                |
+| **Name**      | **Type** | **Description**                       |
+| ------------- | -------- | ------------------------------------- |
+| chksum        | u32      |                                       |
+| fips_status   | u32      | FIPS approved or an error             |
+| context       | u8[76]   | Used as the input to `CM_ECDH_FINISH` |
+| exchange data | u8[96]   | i.e., the public point                |
 
 *Table: `CM_ECDH_GENERATE` / `CM_ECDH_FINISH` internal context*
 | **Name**           | **Type** | **Description** |
 | ------------------ | -------- | --------------- |
 | Secret coefficient | u8[48]   |                 |
+
+The encrypted context size (76 bytes) is the size of the internal context (48 bytes) plus as 12-byte IV and a 16-byte authentication tag.
 
 ### CM_ECDH_FINISH
 
@@ -1561,15 +1561,14 @@ The produced shared secret is 384 bits.
 Command Code: `0x434D_4546` ("CMEF")
 
 *Table: `CM_ECDH_FINISH` input arguments*
-| **Name**               | **Type**         | **Description**                                          |
-| ---------------------- | ---------------- | -------------------------------------------------------- |
-| chksum                 | u32              |                                                          |
-| context size           | u32              |                                                          |
-| context                | u8[context size] | This MUST come from the output of the `CM_ECDH_GENERATE` |
-| key usage              | u32              | usage tag of the kind of key that will be output         |
-|                        |                  | Note that this must be compatible with the 384-bit key,  |
-|                        |                  | i.e., it should be HMAC or HKDF, and not AES             |
-| incoming exchange data | u8[96]           | the other side's public point                            |
+| **Name**               | **Type** | **Description**                                          |
+| ---------------------- | -------- | -------------------------------------------------------- |
+| chksum                   |          |                                                              |
+| context                | u8[76]   | This MUST come from the output of the `CM_ECDH_GENERATE` |
+| key usage              | u32      | usage tag of the kind of key that will be output             |
+| incoming exchange data | u8[96]   | the other side's public point              |
+
+The context used as an input is the same as the output context from `CM_ECDH_GENERATE` above.
 
 *Table: `CM_ECDH_FINISH` output arguments*
 | **Name**    | **Type** | **Description**                 |
@@ -1729,7 +1728,7 @@ When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for
 
 Command Code: `0x5357_4545` ("SWEE")
 
-**Note**: This command is only available in the locality of the PL0 PAUSER. 
+**Note**: This command is only available in the locality of the PL0 PAUSER.
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
@@ -1753,7 +1752,7 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 
 Command Code: `5256_4348` ("RVCH")
 
-**Note**: This command is only available in the locality of the PL0 PAUSER. 
+**Note**: This command is only available in the locality of the PL0 PAUSER.
 
 *Table: `REVOKE_EXPORTED_CDI_HANDLE` input arguments*
 
@@ -1764,7 +1763,7 @@ Command Code: `5256_4348` ("RVCH")
 
 The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
-The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle` 
+The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 ## Checksum
@@ -1912,7 +1911,7 @@ Caliptra DPE supports the following commands:
 * GetProfile
 * InitializeContext
 * DeriveContext
-    * **Note**: The "export-cdi" flag is only available in the locality of the PL0 PAUSER. 
+    * **Note**: The "export-cdi" flag is only available in the locality of the PL0 PAUSER.
 * CertifyKey
   * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
     X.509 is only available to PL0 PAUSERs.

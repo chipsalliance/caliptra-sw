@@ -247,7 +247,7 @@ impl Ecc384 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn key_pair(
         &mut self,
-        seed: &Ecc384Seed,
+        seed: Ecc384Seed,
         nonce: &Array4x12,
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
@@ -277,7 +277,7 @@ impl Ecc384 {
         let seed = Array4x12::new([0u32; 12]);
         let nonce = Array4x12::new([0u32; 12]);
         self.key_pair_base(
-            &Ecc384Seed::from(&seed),
+            Ecc384Seed::from(&seed),
             &nonce,
             trng,
             priv_key,
@@ -291,7 +291,7 @@ impl Ecc384 {
     #[inline(never)]
     fn key_pair_base(
         &mut self,
-        seed: &Ecc384Seed,
+        seed: Ecc384Seed,
         nonce: &Array4x12,
         trng: &mut Trng,
         priv_key: Ecc384PrivKeyOut,
@@ -331,7 +331,7 @@ impl Ecc384 {
         match seed {
             Ecc384Seed::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.seed())?,
             Ecc384Seed::Key(key) => {
-                KvAccess::copy_from_kv(*key, ecc.kv_rd_seed_status(), ecc.kv_rd_seed_ctrl())
+                KvAccess::copy_from_kv(key, ecc.kv_rd_seed_status(), ecc.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
         }
@@ -374,7 +374,7 @@ impl Ecc384 {
             )
         };
 
-        match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
+        match self.sign(priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => {
                 // Return the signature from this test if requested (only used for KAT)
                 if let Some(output_sig) = pct_sig {
@@ -441,7 +441,7 @@ impl Ecc384 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn sign_internal(
         &mut self,
-        priv_key: &Ecc384PrivKeyIn,
+        priv_key: Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
         trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
@@ -454,7 +454,7 @@ impl Ecc384 {
         match priv_key {
             Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey_in())?,
             Ecc384PrivKeyIn::Key(key) => {
-                KvAccess::copy_from_kv(*key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
+                KvAccess::copy_from_kv(key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
                     .map_err(|err| err.into_read_priv_key_err())?
             }
         }
@@ -500,7 +500,7 @@ impl Ecc384 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sign(
         &mut self,
-        priv_key: &Ecc384PrivKeyIn,
+        priv_key: Ecc384PrivKeyIn,
         pub_key: &Ecc384PubKey,
         data: &Ecc384Scalar,
         trng: &mut Trng,
@@ -646,7 +646,7 @@ impl Ecc384 {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdh(
         &mut self,
-        priv_key: &Ecc384PrivKeyIn,
+        priv_key: Ecc384PrivKeyIn,
         pub_key: &Ecc384PubKey,
         trng: &mut Trng,
         shared_key_out: Ecc384PrivKeyOut,
@@ -676,7 +676,7 @@ impl Ecc384 {
         match priv_key {
             Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey_in())?,
             Ecc384PrivKeyIn::Key(key) => {
-                KvAccess::copy_from_kv(*key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
+                KvAccess::copy_from_kv(key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
                     .map_err(|err| err.into_read_priv_key_err())?
             }
         }

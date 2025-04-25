@@ -52,7 +52,7 @@ fn test_sign_validation_failure() {
 
     // This line will jump to cfi_panic_handler
     let _ = ecc.sign(
-        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
         &wrong_pub_key,
         &digest,
         &mut trng,

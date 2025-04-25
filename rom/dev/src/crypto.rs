@@ -159,7 +159,7 @@ impl Crypto {
         ));
 
         let pub_key = env.ecc384.key_pair(
-            &KeyReadArgs::new(KEY_ID_TMP).into(),
+            KeyReadArgs::new(KEY_ID_TMP).into(),
             &Array4x12::default(),
             &mut env.trng,
             key_out,
@@ -198,7 +198,7 @@ impl Crypto {
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
+        let result = env.ecc384.sign(priv_key, pub_key, digest, &mut env.trng);
         digest.0.zeroize();
         result
     }

@@ -86,7 +86,7 @@ impl DisableAttestationCmd {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pub_key = drivers.ecc384.key_pair(
-            &Ecc384Seed::Key(KeyReadArgs::new(key_id_rt_cdi)),
+            Ecc384Seed::Key(KeyReadArgs::new(key_id_rt_cdi)),
             &Array4x12::default(),
             &mut drivers.trng,
             KeyWriteArgs::new(
