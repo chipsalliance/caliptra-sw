@@ -1544,6 +1544,8 @@ Command Code: `0x434D_4547` ("CMEG")
 | ------------------ | -------- | --------------- |
 | Secret coefficient | u8[48]   |                 |
 
+The encrypted context size (76 bytes) is the size of the internal context (48 bytes) plus as 12-byte IV and a 16-byte authentication tag.
+
 ### CM_ECDH_FINISH
 
 This computes the second half of an Elliptic Curve Diffie-Hellman exchange.
@@ -1565,6 +1567,8 @@ Command Code: `0x434D_4546` ("CMEF")
 | context                | u8[76]   | This MUST come from the output of the `CM_ECDH_GENERATE` |
 | key usage              | u32      | usage tag of the kind of key that will be output             |
 | incoming exchange data | u8[96]   | the other side's public point              |
+
+The context used as an input is the same as the output context from `CM_ECDH_GENERATE` above.
 
 *Table: `CM_ECDH_FINISH` output arguments*
 | **Name**    | **Type** | **Description**                 |
