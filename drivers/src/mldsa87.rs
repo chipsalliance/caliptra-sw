@@ -15,7 +15,6 @@ Abstract:
 
 use crate::{
     array::{Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8},
-    cprintln,
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
@@ -126,11 +125,6 @@ impl Mldsa87 {
         wait::until(|| (condition() || err_condition()));
 
         if err_condition() {
-            cprintln!(
-                "MLDSA-87 HW Error: error_internal_intr_r: {:#2x}, error_global_intr_r: {:#2x}",
-                u32::from(regs.intr_block_rf().error_internal_intr_r().read()),
-                u32::from(regs.intr_block_rf().error_global_intr_r().read())
-            );
             // Clear the errors
             // error_global_intr_r is RO
             regs.intr_block_rf()
@@ -302,28 +296,22 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        cprintln!("Waiting for hardware ready");
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Clear the hardware before start
-        cprintln!("Clearing the hardware");
         mldsa.ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        cprintln!("Waiting for hardware ready(2)");
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Sign RND.
-        cprintln!("Copying sign_rnd");
         KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
 
         // Generate an IV.
-        cprintln!("Generating IV");
         let iv = Self::generate_iv(trng)?;
         KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
 
         // Copy seed or the private key to the hardware
-        cprintln!("Copying seed");
         match seed {
             Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
             Mldsa87Seed::Key(key) => {
@@ -336,13 +324,7 @@ impl Mldsa87 {
             }
         }
 
-        // TOOD: Merge these two writes into one
-        // Set the read mode to stream the message.
-        cprintln!("Setting stream mode");
-        mldsa.ctrl().write(|w| w.stream_msg(true));
-
         // Program the command register for key generation
-        cprintln!("Setting command register");
         mldsa.ctrl().write(|w| {
             w.ctrl(|w| {
                 if gen_keypair {
@@ -351,52 +333,47 @@ impl Mldsa87 {
                     w.signing()
                 }
             })
+            .stream_msg(true)
         });
 
         // Wait for stream ready.
-        cprintln!("Waiting for stream ready");
         Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
 
+        // Reset the message strobe register.
+        mldsa.msg_strobe().write(|_| 0xF.into());
+
         // Stream the message to the hardware.
-        let mut count = msg.len() / size_of::<u32>();
-        cprintln!("Count: {}", count);
+        let count = msg.len() / size_of::<u32>();
         let mut last_dword_len = 0u32;
         let (buf_words, suffix) = <[Unalign<u32>]>::ref_from_prefix_with_elems(msg, count).unwrap();
         if suffix.is_empty() {
-            count -= 1;
-            cprintln!("Suffix is empty, new count: {}", count);
         } else {
             last_dword_len = suffix.len() as u32;
-            cprintln!("Suffix is not empty, last dword len: {}", last_dword_len);
         }
         for word in buf_words.iter().take(count) {
             mldsa.msg().at(0).write(|_| word.get());
         }
 
         // Write the strobe register to indicate the end of the message.
-        cprintln!("Writing strobe register");
         mldsa.msg_strobe().write(|_| last_dword_len.into());
 
         // Write the last incomplete word.
         if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
-            cprintln!("Writing last incomplete word");
             let mut last_word = 0_u32;
             last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
             mldsa.msg().at(0).write(|_| last_word);
         } else if suffix.is_empty() {
-            // Write the last complete word.
-            cprintln!("Writing last complete word");
-            mldsa.msg().at(0).write(|_| buf_words[count].get());
+            // Write dummy data into msg[0].
+            mldsa.msg().at(0).write(|_| 0);
         }
 
         // Wait for hardware ready
-        cprintln!("Waiting for hardware ready(3)");
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy signature
-        cprintln!("Copying signature");
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
+        // [TODO][CAP2] Verify the signature
         // // No need to zeroize here, as the hardware will be zeroized by verify.
         // let result = self.verify(pub_key, msg, &signature)?;
         // if result == Mldsa87Result::Success {
@@ -405,7 +382,6 @@ impl Mldsa87 {
         // } else {
         //     Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
         // }
-        // [TODO][CAP2] Verify the signature
         Ok(signature)
     }
 

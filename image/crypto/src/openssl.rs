@@ -17,7 +17,7 @@ use std::path::Path;
 use anyhow::Context;
 
 use caliptra_image_gen::{
-    from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
+    from_hw_format, to_hw_format, u8_to_u32_le, ImageGeneratorCrypto, ImageGeneratorHasher,
 };
 use caliptra_image_types::*;
 
@@ -148,16 +148,22 @@ impl ImageGeneratorCrypto for OsslCrypto {
         Ok(to_hw_format(&priv_key))
     }
 
+    /// Read MLDSA Public Key from file. Library format is same as hardware format.
     fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read public key file {}", path.display()))?;
-        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+        Ok(ImageMldsaPubKey(
+            u8_to_u32_le(&key_bytes).try_into().unwrap(),
+        ))
     }
 
+    /// Read MLDSA Private Key from file. Library format is same as hardware format.
     fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read private key file {}", path.display()))?;
-        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
+        Ok(ImageMldsaPrivKey(
+            u8_to_u32_le(&key_bytes).try_into().unwrap(),
+        ))
     }
 }
 

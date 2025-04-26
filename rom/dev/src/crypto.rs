@@ -260,13 +260,16 @@ impl Crypto {
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        let result = env.mldsa87.sign_var(
+        let mut digest = env.sha2_512_384.sha512_digest(data);
+        let digest = okmutref(&mut digest)?;
+        let result = env.mldsa87.sign(
             &Mldsa87Seed::Key(KeyReadArgs::new(priv_key)),
             pub_key,
-            data,
+            digest,
             &Mldsa87SignRnd::default(),
             &mut env.trng,
         );
+        digest.0.zeroize();
         result
     }
 }

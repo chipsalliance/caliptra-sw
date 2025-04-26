@@ -90,18 +90,22 @@ pub trait ImageGeneratorCrypto {
     /// Read ECC-384 Private Key from PEM file
     fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
 
-    /// Read MLDSA Public Key from file
+    /// Read MLDSA Public Key from file. Library format is same as hardware format.
     fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read public key file {}", path.display()))?;
-        Ok(ImageMldsaPubKey(to_hw_format(&key_bytes)))
+        Ok(ImageMldsaPubKey(
+            u8_to_u32_le(&key_bytes).try_into().unwrap(),
+        ))
     }
 
-    /// Read MLDSA Private Key from file
+    /// Read MLDSA Private Key from file. Library format is same as hardware format.
     fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read private key file {}", path.display()))?;
-        Ok(ImageMldsaPrivKey(to_hw_format(&key_bytes)))
+        Ok(ImageMldsaPrivKey(
+            u8_to_u32_le(&key_bytes).try_into().unwrap(),
+        ))
     }
 }
 
@@ -121,6 +125,17 @@ pub fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCA
         *<&mut [u8; 4]>::try_from(&mut result[i * 4..][..4]).unwrap() = value[i].to_be_bytes();
     }
     result
+}
+
+pub fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
+    input
+        .chunks(4)
+        .map(|chunk| {
+            let mut array = [0u8; 4];
+            array.copy_from_slice(chunk);
+            u32::from_le_bytes(array)
+        })
+        .collect()
 }
 
 /// Image Generator Vendor Configuration
