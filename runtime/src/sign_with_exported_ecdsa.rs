@@ -73,7 +73,7 @@ impl SignWithExportedEcdsaCmd {
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut drivers.persistent_data.get_mut().fht.rt_dice_pub_key,
+            &mut drivers.persistent_data.get_mut().fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut drivers.exported_cdi_slots,

@@ -340,8 +340,8 @@ pub fn copy_rt_alias_cert(
 ) -> CaliptraResult<usize> {
     let tbs = persistent_data
         .ecc_rtalias_tbs
-        .get(..persistent_data.fht.rtalias_tbs_size.into());
-    ecc384_cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_sign, cert)
+        .get(..persistent_data.fht.rtalias_ecc_tbs_size.into());
+    ecc384_cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_ecc_sign, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)
 }
 

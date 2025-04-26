@@ -64,7 +64,6 @@ pub struct DiceOutput {
     pub ecc_subj_key_id: [u8; 20],
 
     /// MLDSA Subject key pair for this layer
-    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_subj_key_pair: MlDsaKeyPair,
 
     /// MLDSA Subject Serial Number

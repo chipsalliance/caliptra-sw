@@ -32,12 +32,13 @@ use caliptra_common::keyids::{
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
     okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId,
-    PersistentData, ResetReason,
+    Mldsa87Result, PersistentData, ResetReason,
 };
 use caliptra_x509::{
-    NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params,
+    NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params, RtAliasCertTbsMlDsa87,
     RtAliasCertTbsMlDsa87Params,
 };
+use zerocopy::IntoBytes;
 
 const SHA384_HASH_SIZE: usize = 48;
 
@@ -401,31 +402,98 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
-        HandOff::set_rt_dice_signature(env, sig);
+        HandOff::set_rt_dice_ecc_signature(env, sig);
 
         //  Copy TBS to DCCM and set size in FHT.
-        Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
-        HandOff::set_rtalias_tbs_size(env, tbs.tbs().len());
+        Self::copy_ecc_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        HandOff::set_rtalias_ecc_tbs_size(env, tbs.tbs().len());
 
         Ok(())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_mldsa_cert_sig(
-        _env: &mut FmcEnv,
-        _input: &DiceInput,
-        _output: &DiceOutput,
-        _not_before: &[u8; RtAliasCertTbsMlDsa87Params::NOT_BEFORE_LEN],
-        _not_after: &[u8; RtAliasCertTbsMlDsa87Params::NOT_AFTER_LEN],
+        env: &mut FmcEnv,
+        input: &DiceInput,
+        output: &DiceOutput,
+        not_before: &[u8; RtAliasCertTbsMlDsa87Params::NOT_BEFORE_LEN],
+        not_after: &[u8; RtAliasCertTbsMlDsa87Params::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
-        // [TODO][CAP2] Create MLDSA RtAliasCertTbsParams
+        let key_pair_seed = input.mldsa_auth_key_pair.key_pair_seed;
+        let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
+        let pub_key = &output.mldsa_subj_key_pair.pub_key;
+
+        let serial_number = &x509::mldsa_cert_sn(&mut env.sha256, pub_key)?;
+
+        let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
+        let fw_svn = HandOff::fw_svn(env) as u8;
+
+        // Certificate `To Be Signed` Parameters
+        let params = RtAliasCertTbsMlDsa87Params {
+            ueid: &x509::ueid(&env.soc_ifc)?,
+            subject_sn: &output.mldsa_subj_sn,
+            subject_key_id: &output.mldsa_subj_key_id,
+            issuer_sn: &input.mldsa_auth_sn,
+            authority_key_id: &input.mldsa_auth_key_id,
+            serial_number,
+            public_key: pub_key
+                .as_bytes()
+                .try_into()
+                .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)?,
+            not_before,
+            not_after,
+            tcb_info_fw_svn: &fw_svn.to_be_bytes(),
+            tcb_info_rt_tci: &rt_tci,
+        };
+
+        // Generate the `To Be Signed` portion of the CSR
+        let tbs = RtAliasCertTbsMlDsa87::new(&params);
+
+        // Sign the `To Be Signed` portion
+        cprintln!(
+            "[alias rt] Signing MLDSA Cert with AUTHORITY.KEYID = {}",
+            key_pair_seed as u8
+        );
+
+        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        let sig = Crypto::mldsa_sign(env, key_pair_seed, auth_pub_key, tbs.tbs());
+        let sig = okref(&sig)?;
+        // Clear the authority private key
+        cprintln!(
+            "[alias rt] Erasing MLDSA AUTHORITY.KEYID = {}",
+            key_pair_seed as u8
+        );
+        // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
+        env.key_vault.set_key_use_lock(key_pair_seed);
+        env.key_vault.set_key_use_lock(input.cdi);
+
+        // Verify the signature of the `To Be Signed` portion
+        if Crypto::mldsa_verify(env, auth_pub_key, tbs.tbs(), sig)? != Mldsa87Result::Success {
+            return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
+        }
+
+        HandOff::set_rt_dice_mldsa_signature(env, sig);
+
+        //  Copy TBS to DCCM and set size in FHT.
+        Self::copy_mldsa_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        HandOff::set_rtalias_mldsa_tbs_size(env, tbs.tbs().len());
+
         Ok(())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+    fn copy_ecc_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.ecc_rtalias_tbs.get_mut(..tbs.len()) else {
-            return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
+            return Err(CaliptraError::FMC_RT_ALIAS_ECC_TBS_SIZE_EXCEEDED);
+        };
+        dest.copy_from_slice(tbs);
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn copy_mldsa_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+        let Some(dest) = persistent_data.mldsa_rtalias_tbs.get_mut(..tbs.len()) else {
+            return Err(CaliptraError::FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED);
         };
         dest.copy_from_slice(tbs);
         Ok(())

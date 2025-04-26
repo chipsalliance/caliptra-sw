@@ -18,7 +18,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey,
+    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey, Mldsa87Signature,
 };
 
 #[cfg(feature = "runtime")]
@@ -48,6 +48,7 @@ pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
+pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
@@ -270,6 +271,10 @@ pub struct PersistentData {
     pub mldsa_fmcalias_tbs: [u8; MLDSA_FMCALIAS_TBS_SIZE as usize],
     pub mldsa_rtalias_tbs: [u8; MLDSA_RTALIAS_TBS_SIZE as usize],
 
+    pub rtalias_mldsa_tbs_size: u16,
+    reserved2_2: [u8; 2],
+    pub rt_dice_mldsa_sign: Mldsa87Signature,
+
     pub pcr_log: PcrLogArray,
     reserved3: [u8; PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
 
@@ -386,6 +391,18 @@ impl PersistentData {
             );
 
             persistent_data_offset += MLDSA_RTALIAS_TBS_SIZE;
+            assert_eq!(
+                addr_of!((*P).rtalias_mldsa_tbs_size) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += 4;
+            assert_eq!(
+                addr_of!((*P).rt_dice_mldsa_sign) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += MLDSA_SIGNATURE_SIZE;
             assert_eq!(
                 addr_of!((*P).pcr_log) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

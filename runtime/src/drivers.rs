@@ -348,7 +348,7 @@ impl Drivers {
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
-        let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
+        let key = self.persistent_data.get().fht.rt_dice_ecc_pub_key.to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
         let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
@@ -387,7 +387,7 @@ impl Drivers {
             &mut drivers.ecc384,
             &mut drivers.hmac,
             &mut drivers.key_vault,
-            &mut pdata.fht.rt_dice_pub_key,
+            &mut pdata.fht.rt_dice_ecc_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
             &mut drivers.exported_cdi_slots,

@@ -1460,9 +1460,9 @@ impl CaliptraError {
             "FMC Error: RT alias cert verify"
         ),
         (
-            FMC_RT_ALIAS_TBS_SIZE_EXCEEDED,
+            FMC_RT_ALIAS_ECC_TBS_SIZE_EXCEEDED,
             0x000F0007,
-            "FMC Error: RT alias TBS size exceeded"
+            "FMC Error: RT alias ECC TBS size exceeded"
         ),
         (
             FMC_CDI_KV_COLLISION,
@@ -1519,6 +1519,11 @@ impl CaliptraError {
             FMC_ALIAS_CSR_OVERFLOW,
             0x000F0013,
             "FMC Alias CSR Error: Overflow"
+        ),
+        (
+            FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED,
+            0x000F00014,
+            "FMC Error: RT alias MLDSA TBS size exceeded"
         ),
         (
             DRIVER_TRNG_EXT_TIMEOUT,

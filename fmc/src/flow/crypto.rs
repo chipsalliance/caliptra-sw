@@ -15,7 +15,7 @@ use caliptra_common::{
 use caliptra_drivers::{
     okmutref, okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
     Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
-    Mldsa87Seed,
+    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature,
 };
 use caliptra_x509::Ecdsa384Signature;
 use zeroize::Zeroize;
@@ -218,5 +218,61 @@ impl Crypto {
             key_pair_seed,
             pub_key,
         })
+    }
+
+    /// Sign data using MLDSA Private Key
+    ///
+    /// This routine calculates the digest of the `data` and signs the hash
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `priv_key` - Key slot to retrieve the private key
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa87Signature` - Signature
+    pub fn mldsa_sign(
+        env: &mut FmcEnv,
+        key_pair_seed: KeyId,
+        pub_key: &Mldsa87PubKey,
+        data: &[u8],
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let mut digest = env.sha2_512_384.sha512_digest(data);
+        let digest = okmutref(&mut digest)?;
+        env.mldsa.sign(
+            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            pub_key,
+            digest,
+            &Mldsa87SignRnd::default(),
+            &mut env.trng,
+        )
+    }
+
+    /// Verify the MLDSA Signature
+    ///
+    /// This routine calculates the digest and verifies the signature
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to hash
+    /// * `sig` - Signature to verify
+    ///
+    /// # Returns
+    ///
+    /// *  `Mldsa87Result` - Mldsa87Result::Success if the signature verification passed else an error code.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn mldsa_verify(
+        env: &mut FmcEnv,
+        pub_key: &Mldsa87PubKey,
+        data: &[u8],
+        sig: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        let digest = env.sha2_512_384.sha512_digest(data);
+        let digest = okref(&digest)?;
+        env.mldsa.verify(pub_key, digest, sig)
     }
 }
