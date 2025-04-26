@@ -405,7 +405,7 @@ impl RtAliasLayer {
         HandOff::set_rt_dice_ecc_signature(env, sig);
 
         //  Copy TBS to DCCM and set size in FHT.
-        Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        Self::copy_ecc_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
         HandOff::set_rtalias_ecc_tbs_size(env, tbs.tbs().len());
 
         Ok(())
@@ -475,16 +475,25 @@ impl RtAliasLayer {
         HandOff::set_rt_dice_mldsa_signature(env, sig);
 
         //  Copy TBS to DCCM and set size in FHT.
-        Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        Self::copy_mldsa_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
         HandOff::set_rtalias_mldsa_tbs_size(env, tbs.tbs().len());
 
         Ok(())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+    fn copy_ecc_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.ecc_rtalias_tbs.get_mut(..tbs.len()) else {
-            return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
+            return Err(CaliptraError::FMC_RT_ALIAS_ECC_TBS_SIZE_EXCEEDED);
+        };
+        dest.copy_from_slice(tbs);
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn copy_mldsa_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+        let Some(dest) = persistent_data.mldsa_rtalias_tbs.get_mut(..tbs.len()) else {
+            return Err(CaliptraError::FMC_RT_ALIAS_MLDSA_TBS_SIZE_EXCEEDED);
         };
         dest.copy_from_slice(tbs);
         Ok(())

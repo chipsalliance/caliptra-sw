@@ -172,7 +172,6 @@ impl HandOff {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rtalias_mldsa_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
-        // Self::fht_mut(env).rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
         env.persistent_data.get_mut().rtalias_mldsa_tbs_size = rtalias_tbs_size as u16;
     }
 
