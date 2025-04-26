@@ -95,7 +95,7 @@ impl DisableAttestationCmd {
             )
             .into(),
         )?;
-        drivers.persistent_data.get_mut().fht.rt_dice_pub_key = pub_key;
+        drivers.persistent_data.get_mut().fht.rt_dice_ecc_pub_key = pub_key;
 
         Ok(())
     }

@@ -197,10 +197,10 @@ pub struct FirmwareHandoffTable {
     pub fuse_log_addr: u32,
 
     /// RtAlias public key.
-    pub rt_dice_pub_key: Ecc384PubKey,
+    pub rt_dice_ecc_pub_key: Ecc384PubKey,
 
     /// RtAlias certificate signature.
-    pub rt_dice_sign: Ecc384Signature,
+    pub rt_dice_ecc_sign: Ecc384Signature,
 
     /// IDevID ECDSA public key
     pub idev_dice_ecdsa_pub_key: Ecc384PubKey,
@@ -212,7 +212,7 @@ pub struct FirmwareHandoffTable {
     pub rom_info_addr: RomAddr<RomInfo>,
 
     /// ECC RtAlias TBS Size
-    pub rtalias_tbs_size: u16,
+    pub rtalias_ecc_tbs_size: u16,
 
     /// Maximum value FW SVN can take.
     pub fw_key_ladder_max_svn: u16,
@@ -250,12 +250,12 @@ impl Default for FirmwareHandoffTable {
             meas_log_addr: 0,
             meas_log_index: 0,
             fuse_log_addr: 0,
-            rt_dice_pub_key: Ecc384PubKey::default(),
-            rt_dice_sign: Ecc384Signature::default(),
+            rt_dice_ecc_pub_key: Ecc384PubKey::default(),
+            rt_dice_ecc_sign: Ecc384Signature::default(),
             idev_dice_ecdsa_pub_key: Ecc384PubKey::default(),
             idev_dice_mldsa_pub_key_load_addr: 0,
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
-            rtalias_tbs_size: 0,
+            rtalias_ecc_tbs_size: 0,
             fw_key_ladder_max_svn: 0,
             fw_key_ladder_kv_hdl: HandOffDataHandle(0),
             reserved: [0u8; FHT_RESERVED_SIZE],
@@ -298,7 +298,7 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ecc_ldevid_tbs_size);
     crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.ecc_fmcalias_tbs_addr);
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.ecc_fmcalias_tbs_size);
-    crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
+    crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_ecc_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
     crate::cprintln!("PCR log Index: {}", fht.pcr_log_index);
     crate::cprintln!("Measurement log Address: {}", fht.meas_log_addr);
@@ -383,7 +383,7 @@ mod tests {
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
             && fht.ecc_ldevid_tbs_size == 0
             && fht.ecc_fmcalias_tbs_size == 0
-            && fht.rtalias_tbs_size == 0
+            && fht.rtalias_ecc_tbs_size == 0
             && fht.ecc_ldevid_tbs_addr != 0
             && fht.ecc_fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0
