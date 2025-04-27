@@ -143,54 +143,35 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         digest: &ImageDigest512,
         priv_key: &ImageMldsaPrivKey,
     ) -> anyhow::Result<ImageMldsaSignature> {
-        pub fn from_hw_format<const NUM_BYTES: usize>(value: &[u32]) -> [u8; NUM_BYTES] {
-            let mut result = [0u8; NUM_BYTES];
-            for (i, &item) in value.iter().enumerate() {
-                let bytes = item.to_be_bytes();
-                let start = i * 4;
-                if start + 4 <= NUM_BYTES {
-                    result[start..start + 4].copy_from_slice(&bytes);
-                } else {
-                    break; // Prevent overflow if the input slice is larger than NUM_BYTES / 4
-                }
-            }
-            result
-        }
+        // Private key is received in hw format which is also the library format.
+        // Unlike ECC, no reversal of the DWORD endianess needed.
+        let priv_key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] = priv_key
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid private key size"))?;
+        let priv_key = { PrivateKey::try_from_bytes(priv_key_bytes).unwrap() };
 
-        // Private key is received in hw format. Reverse the DWORD endianess for signing.
-        let priv_key = {
-            let mut key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] =
-                from_hw_format::<MLDSA87_PRIV_KEY_BYTE_SIZE>(&priv_key.0);
-
-            // Reverse the private key bytes per the endianess needed by the FIPS204 library.
-            key_bytes.reverse();
-
-            PrivateKey::try_from_bytes(key_bytes).unwrap()
-        };
-
-        // Digest is received in hw format. Reverse the DWORD endianess for signing.
-        let mut digest: [u8; MLDSA87_MSG_BYTE_SIZE] =
-            from_hw_format::<MLDSA87_MSG_BYTE_SIZE>(digest);
-
-        // Reverse the digest bytes per the endianess needed by the FIPS204 library.
-        digest.reverse();
+        // Digest is received in hw format. Since the library and hardware format are the same, no endianess conversion needed.
+        let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = digest
+            .as_bytes()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid digest size"))?;
 
         let signature = priv_key
             .try_sign_with_seed(&[0u8; 32], &digest, &[])
             .unwrap();
-        let mut signature_extended = {
+        let signature_extended = {
             let mut sig = [0u8; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
 
-        // Reverse the signature bytes per the endianess needed by the FIPS204 library.
-        signature_extended.reverse();
-
-        // Return the signature in hw format.
+        // Return the signature in hw format (which is also the library format)
+        // Unlike ECC, no reversal of the DWORD endianess needed.
         let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();
         for (i, chunk) in signature_extended.chunks(4).enumerate() {
-            sig.0[i] = u32::from_be_bytes(chunk.try_into().unwrap());
+            sig.0[i] = u32::from_le_bytes(chunk.try_into().unwrap());
         }
         Ok(sig)
     }

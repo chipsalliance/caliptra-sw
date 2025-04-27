@@ -249,6 +249,17 @@ fn u8_to_u32_be(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
+fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
+    input
+        .chunks(4)
+        .map(|chunk| {
+            let mut array = [0u8; 4];
+            array.copy_from_slice(chunk);
+            u32::from_le_bytes(array)
+        })
+        .collect()
+}
+
 // [TODO][CAP2] test_dbg_unlock_manuf_req_in_passive_mode
 
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
@@ -265,19 +276,15 @@ fn test_dbg_unlock_prod_success() {
         pk
     };
 
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    let mldsa_pub_key_reversed = {
-        let mut key = mldsa_pub_key_bytes;
-        key.reverse();
-        key
-    };
 
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -349,7 +356,7 @@ fn test_dbg_unlock_prod_success() {
         .unwrap();
     let ecc_signature = ecc_signature.to_bytes();
     let ecc_signature = ecc_signature.as_slice();
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_signature = u8_to_u32_be(ecc_signature);
 
     let mut sha512 = sha2::Sha512::new();
@@ -357,22 +364,20 @@ fn test_dbg_unlock_prod_success() {
     sha512.update([unlock_level]);
     sha512.update(reserved);
     sha512.update(challenge.challenge);
-    let mut sha512_digest = sha512.finalize();
-    let msg = {
-        let msg: &mut [u8] = sha512_digest.as_mut_slice();
-        msg.reverse();
-        msg
-    };
+    let sha512_digest = sha512.finalize();
+
+    // Convert to hardware format i.e. big endian before signing for MLDSA.
+    let binding = u8_to_u32_be(&sha512_digest);
+    let msg = binding.as_bytes();
 
     let mldsa_signature = signing_mldsa_key
         .try_sign_with_seed(&[0; 32], msg, &[])
         .unwrap();
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. little endian for MLDSA
     let mldsa_signature = {
         let mut sig = [0; 4628];
         sig[..4627].copy_from_slice(&mldsa_signature);
-        sig.reverse();
-        u8_to_u32_be(&sig)
+        u8_to_u32_le(&sig)
     };
 
     let token = ProductionAuthDebugUnlockToken {
@@ -447,13 +452,14 @@ fn test_dbg_unlock_prod_invalid_length() {
         pk
     };
 
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -651,13 +657,9 @@ fn test_dbg_unlock_prod_invalid_signature() {
 
     let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    let mldsa_pub_key_reversed = {
-        let mut key = mldsa_pub_key_bytes;
-        key.reverse();
-        key
-    };
+
     // Convert to hardware format i.e. little endian.
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     let security_state = *SecurityState::default()
@@ -720,7 +722,6 @@ fn test_dbg_unlock_prod_invalid_signature() {
     let mut sha512_digest = sha512.finalize();
     let msg = {
         let msg: &mut [u8] = sha512_digest.as_mut_slice();
-        msg.reverse();
         msg
     };
 
@@ -730,8 +731,7 @@ fn test_dbg_unlock_prod_invalid_signature() {
     let mldsa_signature = {
         let mut sig = [0; 4628];
         sig[..4627].copy_from_slice(&mldsa_signature);
-        sig.reverse();
-        u8_to_u32_be(&sig)
+        u8_to_u32_le(&sig)
     };
 
     let token = ProductionAuthDebugUnlockToken {
@@ -788,14 +788,14 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         pk[48..].copy_from_slice(ecc_key.y().unwrap());
         pk
     };
-    // Convert to hardware format i.e. little endian.
+    // Convert to hardware format i.e. big endian for ECC.
     let ecc_pub_key = u8_to_u32_be(&ecc_pub_key_bytes);
     let ecc_pub_key_bytes = ecc_pub_key.as_bytes();
 
     let (verifying_mldsa_key, _signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
     let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-    // Convert to hardware format i.e. little endian.
-    let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_bytes);
+    // Convert to hardware format i.e. little endian for MLDSA.
+    let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
     let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
     // Generate a different set of keys that aren't registered with the hardware
@@ -1002,12 +1002,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
 
         let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
         let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-        let mldsa_pub_key_reversed = {
-            let mut key = mldsa_pub_key_bytes;
-            key.reverse();
-            key
-        };
-        let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+        let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
         let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
         let security_state = *SecurityState::default()
@@ -1089,12 +1084,11 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         sha512.update([unlock_level]);
         sha512.update(reserved);
         sha512.update(challenge.challenge);
-        let mut sha512_digest = sha512.finalize();
-        let msg = {
-            let msg: &mut [u8] = sha512_digest.as_mut_slice();
-            msg.reverse();
-            msg
-        };
+        let sha512_digest = sha512.finalize();
+
+        // Convert to hardware format i.e. big endian before signing for MLDSA.
+        let binding = u8_to_u32_be(&sha512_digest);
+        let msg = binding.as_bytes();
 
         let mldsa_signature = signing_mldsa_key
             .try_sign_with_seed(&[0; 32], msg, &[])
@@ -1102,8 +1096,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
         let mldsa_signature = {
             let mut sig = [0; 4628];
             sig[..4627].copy_from_slice(&mldsa_signature);
-            sig.reverse();
-            u8_to_u32_be(&sig)
+            u8_to_u32_le(&sig)
         };
 
         let token = ProductionAuthDebugUnlockToken {
@@ -1166,12 +1159,7 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
 
         let (verifying_mldsa_key, signing_mldsa_key) = fips204::ml_dsa_87::try_keygen().unwrap();
         let mldsa_pub_key_bytes = verifying_mldsa_key.into_bytes();
-        let mldsa_pub_key_reversed = {
-            let mut key = mldsa_pub_key_bytes;
-            key.reverse();
-            key
-        };
-        let mldsa_pub_key = u8_to_u32_be(&mldsa_pub_key_reversed);
+        let mldsa_pub_key = u8_to_u32_le(&mldsa_pub_key_bytes);
         let mldsa_pub_key_bytes = mldsa_pub_key.as_bytes();
 
         let security_state = *SecurityState::default()
@@ -1255,7 +1243,6 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
         let mut sha512_digest = sha512.finalize();
         let msg = {
             let msg: &mut [u8] = sha512_digest.as_mut_slice();
-            msg.reverse();
             msg
         };
 
@@ -1265,8 +1252,7 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
         let mldsa_signature = {
             let mut sig = [0; 4628];
             sig[..4627].copy_from_slice(&mldsa_signature);
-            sig.reverse();
-            u8_to_u32_be(&sig)
+            u8_to_u32_le(&sig)
         };
 
         let token = ProductionAuthDebugUnlockToken {

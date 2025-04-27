@@ -19,12 +19,9 @@ use rand::rngs::StdRng;
 use std::fs::{self, File};
 use std::io::Write;
 
-fn write_as_dword(filename: &str, bytes: &[u8]) {
+fn write_to_file(filename: &str, bytes: &[u8]) {
     let mut w = File::create(filename).unwrap();
-    for chunk in bytes.chunks(4) {
-        let dword = u32::from_be_bytes(chunk.try_into().unwrap());
-        w.write_all(&dword.to_be_bytes()).unwrap();
-    }
+    w.write_all(bytes).unwrap();
 }
 
 fn main() {
@@ -36,12 +33,10 @@ fn main() {
 
     for i in 0..5 {
         let (pk, sk) = try_keygen_with_rng(&mut seeded_rng).unwrap();
-        let mut pk = pk.into_bytes();
-        let mut sk = sk.into_bytes();
-        pk.reverse();
-        sk.reverse();
+        let pk = pk.into_bytes();
+        let sk = sk.into_bytes();
 
-        let dir = "mldsa_keys";
+        let dir = "../mldsa_keys";
         fs::create_dir_all(dir).unwrap();
 
         let mut pub_file = format!("{}/vnd-mldsa-pub-key-{}.bin", dir, i);
@@ -52,7 +47,9 @@ fn main() {
             priv_file = format!("{}/own-mldsa-priv-key.bin", dir);
         }
 
-        write_as_dword(&pub_file, &pk);
-        write_as_dword(&priv_file, &sk);
+        // Write the keys in the library format.
+        // For MLDSA, library format is same as hardware format.
+        write_to_file(&pub_file, &pk);
+        write_to_file(&priv_file, &sk);
     }
 }
