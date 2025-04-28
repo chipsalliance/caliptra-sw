@@ -25,11 +25,13 @@ use caliptra_cfi_lib_git::cfi_launder;
 use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
-    HashValue, Lms, Sha256, Sha2_512_384,
+    HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
 };
 use caliptra_image_types::{
-    ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
-    ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
+    FwVerificationPqcKeyType, ImageDigest384, ImageDigest512, ImageEccPubKey, ImageEccSignature,
+    ImageLmsPublicKey, ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
+    MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA192_DIGEST_WORD_SIZE,
+    SHA384_DIGEST_BYTE_SIZE,
 };
 use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
@@ -55,6 +57,21 @@ impl SetAuthManifestCmd {
             .get(..len as usize)
             .ok_or(err)?;
         Ok(sha2.sha384_digest(data)?.0)
+    }
+
+    fn sha512_digest(
+        sha2: &mut Sha2_512_384,
+        buf: &[u8],
+        offset: u32,
+        len: u32,
+    ) -> CaliptraResult<ImageDigest512> {
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
+        let data = buf
+            .get(offset as usize..)
+            .ok_or(err)?
+            .get(..len as usize)
+            .ok_or(err)?;
+        Ok(sha2.sha512_digest(data)?.0)
     }
 
     fn ecc384_verify(
@@ -91,12 +108,46 @@ impl SetAuthManifestCmd {
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
+    fn mldsa87_verify(
+        mldsa: &mut Mldsa87,
+        digest: &ImageDigest512,
+        pub_key: &ImageMldsaPubKey,
+        sig: &ImageMldsaSignature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        // Public Key is received in hw format from the image. No conversion needed.
+        let pub_key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] = pub_key
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        let pub_key = Mldsa87PubKey::read_from_bytes(pub_key_bytes.as_bytes()).or(Err(
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
+        ))?;
+
+        // Signature is received in hw format from the image. No conversion needed.
+        let sig_bytes: [u8; MLDSA87_SIGNATURE_BYTE_SIZE] = sig
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
+        let sig = Mldsa87Signature::read_from_bytes(sig_bytes.as_bytes()).or(Err(
+            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
+        ))?;
+
+        // digest is received in hw format. No conversion needed.
+        let msg = digest.into();
+
+        mldsa.verify(&pub_key, &msg, &sig)
+    }
+
     fn verify_vendor_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        mldsa: &mut Mldsa87,
+        pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::vendor_signed_data_range();
         let digest_vendor = Self::sha384_digest(
@@ -127,25 +178,68 @@ impl SetAuthManifestCmd {
             );
         }
 
-        // Verify vendor LMS signature.
-        let (vendor_fw_lms_key, _) =
-            ImageLmsPublicKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
-                .or(Err(
-                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID,
-                ))?;
+        // Verify vendor PQC signature.
+        if pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let (vendor_fw_lms_key, _) = ImageLmsPublicKey::ref_from_prefix(
+                fw_preamble.vendor_pqc_active_pub_key.0.as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID,
+            ))?;
 
-        let candidate_key = Self::lms_verify(
-            sha256,
-            &digest_vendor,
-            vendor_fw_lms_key,
-            &auth_manifest_preamble.vendor_pub_keys_signatures.lms_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-        let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
-        if candidate_key != pub_key_digest {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+            let (lms_sig, _) = ImageLmsSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_pub_keys_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+            ))?;
+
+            let candidate_key =
+                Self::lms_verify(sha256, &digest_vendor, vendor_fw_lms_key, lms_sig).map_err(
+                    |_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+                )?;
+
+            let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
+            if candidate_key != pub_key_digest {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            let digest_vendor = Self::sha512_digest(
+                sha2,
+                auth_manifest_preamble.as_bytes(),
+                range.start,
+                range.len() as u32,
+            )?;
+
+            let (vendor_fw_mldsa_key, _) = ImageMldsaPubKey::ref_from_prefix(
+                fw_preamble.vendor_pqc_active_pub_key.0.as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+            ))?;
+
+            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_pub_keys_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
+            ))?;
+
+            let result =
+                Self::mldsa87_verify(mldsa, &digest_vendor, vendor_fw_mldsa_key, mldsa_sig)?;
+            if cfi_launder(result) != Mldsa87Result::Success {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
+            }
         }
 
         Ok(())
@@ -157,6 +251,8 @@ impl SetAuthManifestCmd {
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        mldsa: &mut Mldsa87,
+        pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
         let range = AuthManifestPreamble::owner_pub_keys_range();
         let digest_owner = Self::sha384_digest(
@@ -189,34 +285,78 @@ impl SetAuthManifestCmd {
         }
 
         // Verify owner LMS signature.
-        let (owner_fw_lms_key, _) =
-            ImageLmsPublicKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
-                .or(Err(
-                    CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID,
-                ))?;
+        if pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let (owner_fw_lms_key, _) = ImageLmsPublicKey::ref_from_prefix(
+                fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID,
+            ))?;
 
-        let candidate_key = Self::lms_verify(
-            sha256,
-            &digest_owner,
-            owner_fw_lms_key,
-            &auth_manifest_preamble.owner_pub_keys_signatures.lms_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-        let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
-        if candidate_key != pub_key_digest {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+            let (lms_sig, _) = ImageLmsSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_pub_keys_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+            ))?;
+
+            let candidate_key = Self::lms_verify(sha256, &digest_owner, owner_fw_lms_key, lms_sig)
+                .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+            let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
+            if candidate_key != pub_key_digest {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            let digest_owner = Self::sha512_digest(
+                sha2,
+                auth_manifest_preamble.as_bytes(),
+                range.start,
+                range.len() as u32,
+            )?;
+
+            let (owner_fw_mldsa_key, _) = ImageMldsaPubKey::ref_from_prefix(
+                fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+            ))?;
+
+            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_pub_keys_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
+            ))?;
+
+            let result = Self::mldsa87_verify(mldsa, &digest_owner, owner_fw_mldsa_key, mldsa_sig)?;
+            if cfi_launder(result) != Mldsa87Result::Success {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
+            }
         }
 
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn verify_vendor_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        mldsa: &mut Mldsa87,
+        sha2: &mut Sha2_512_384,
+        pqc_key_type: FwVerificationPqcKeyType,
+        metadata_col: &[u8],
     ) -> CaliptraResult<()> {
         let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
         if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
@@ -251,31 +391,86 @@ impl SetAuthManifestCmd {
             );
         }
 
-        // Verify vendor LMS signature over the image metadata collection.
-        let candidate_key = Self::lms_verify(
-            sha256,
-            image_metadata_col_digest,
-            &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
-            &auth_manifest_preamble
-                .vendor_image_metdata_signatures
-                .lms_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-        let pub_key_digest =
-            HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
-        if candidate_key != pub_key_digest {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+        // Verify vendor PQC signature over the image metadata collection.
+        if pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let (lms_pub_key, _) = ImageLmsPublicKey::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_pub_keys
+                    .pqc_pub_key
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_VENDOR_PUB_KEY_INVALID,
+            ))?;
+
+            let (lms_sig, _) = ImageLmsSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+            ))?;
+
+            let candidate_key =
+                Self::lms_verify(sha256, image_metadata_col_digest, lms_pub_key, lms_sig).map_err(
+                    |_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+                )?;
+            let pub_key_digest = HashValue::from(lms_pub_key.digest);
+            if candidate_key != pub_key_digest {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            let digest_metadata_col =
+                Self::sha512_digest(sha2, metadata_col, 0, metadata_col.len() as u32)?;
+
+            let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_pub_keys
+                    .pqc_pub_key
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+            ))?;
+
+            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .vendor_image_metdata_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
+            ))?;
+
+            let result =
+                Self::mldsa87_verify(mldsa, &digest_metadata_col, mldsa_pub_key, mldsa_sig)?;
+            if cfi_launder(result) != Mldsa87Result::Success {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
+            }
         }
+
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn verify_owner_image_metadata_col(
         auth_manifest_preamble: &AuthManifestPreamble,
         image_metadata_col_digest: &ImageDigest384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        mldsa: &mut Mldsa87,
+        sha2: &mut Sha2_512_384,
+        pqc_key_type: FwVerificationPqcKeyType,
+        metadata_col: &[u8],
     ) -> CaliptraResult<()> {
         // Verify the owner ECC signature.
         let verify_r = Self::ecc384_verify(
@@ -306,27 +501,77 @@ impl SetAuthManifestCmd {
             );
         }
 
-        // Verify owner LMS signature.
-        let candidate_key = Self::lms_verify(
-            sha256,
-            image_metadata_col_digest,
-            &auth_manifest_preamble.owner_pub_keys.lms_pub_key,
-            &auth_manifest_preamble
-                .owner_image_metdata_signatures
-                .lms_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-        let pub_key_digest =
-            HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
-        if candidate_key != pub_key_digest {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+        // Verify owner PQC signature.
+        if pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let (lms_pub_key, _) = ImageLmsPublicKey::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_pub_keys
+                    .pqc_pub_key
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_LMS_OWNER_PUB_KEY_INVALID,
+            ))?;
+
+            let (lms_sig, _) = ImageLmsSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+            ))?;
+
+            let candidate_key =
+                Self::lms_verify(sha256, image_metadata_col_digest, lms_pub_key, lms_sig).map_err(
+                    |_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+                )?;
+            let pub_key_digest = HashValue::from(lms_pub_key.digest);
+            if candidate_key != pub_key_digest {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
+            } else {
+                caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
         } else {
-            caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            let digest_metadata_col =
+                Self::sha512_digest(sha2, metadata_col, 0, metadata_col.len() as u32)?;
+
+            let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_pub_keys
+                    .pqc_pub_key
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+            ))?;
+
+            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+                auth_manifest_preamble
+                    .owner_image_metdata_signatures
+                    .pqc_sig
+                    .0
+                    .as_bytes(),
+            )
+            .or(Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
+            ))?;
+
+            let result =
+                Self::mldsa87_verify(mldsa, &digest_metadata_col, mldsa_pub_key, mldsa_sig)?;
+            if cfi_launder(result) != Mldsa87Result::Success {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
+            }
         }
 
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_image_metadata_col(
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
@@ -334,6 +579,8 @@ impl SetAuthManifestCmd {
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        mldsa: &mut Mldsa87,
+        pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
         if cmd_buf.len() < size_of::<u32>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
@@ -375,6 +622,10 @@ impl SetAuthManifestCmd {
             &digest_metadata_col,
             ecc384,
             sha256,
+            mldsa,
+            sha2,
+            pqc_key_type,
+            buf,
         )?;
 
         Self::verify_owner_image_metadata_col(
@@ -382,6 +633,10 @@ impl SetAuthManifestCmd {
             &digest_metadata_col,
             ecc384,
             sha256,
+            mldsa,
+            sha2,
+            pqc_key_type,
+            buf,
         )?;
 
         // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
@@ -484,6 +739,10 @@ impl SetAuthManifestCmd {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
         }
 
+        let pqc_key_type =
+            FwVerificationPqcKeyType::from_u8(drivers.soc_ifc.fuse_bank().pqc_key_type() as u8)
+                .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
+
         let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
@@ -492,6 +751,8 @@ impl SetAuthManifestCmd {
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
+            &mut drivers.mldsa87,
+            pqc_key_type,
         )?;
 
         // Verify the owner public keys.
@@ -501,6 +762,8 @@ impl SetAuthManifestCmd {
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
+            &mut drivers.mldsa87,
+            pqc_key_type,
         )?;
 
         Self::process_image_metadata_col(
@@ -512,6 +775,8 @@ impl SetAuthManifestCmd {
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
             &mut drivers.sha256,
+            &mut drivers.mldsa87,
+            pqc_key_type,
         )?;
         Ok(())
     }

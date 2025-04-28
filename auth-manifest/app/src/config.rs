@@ -14,8 +14,10 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_auth_man_gen::AuthManifestGeneratorKeyConfig;
-use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, AuthManifestPrivKeys};
-use caliptra_auth_man_types::{AuthManifestPubKeys, ImageMetadataFlags};
+use caliptra_auth_man_types::ImageMetadataFlags;
+use caliptra_auth_man_types::{
+    Addr64, AuthManifestImageMetadata, AuthManifestPrivKeysConfig, AuthManifestPubKeysConfig,
+};
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -35,6 +37,10 @@ pub(crate) struct AuthManifestKeyConfigFromFile {
     pub lms_pub_key: String,
 
     pub lms_priv_key: Option<String>,
+
+    pub mldsa_pub_key: String,
+
+    pub mldsa_priv_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,7 +87,7 @@ fn key_config_from_file(
     config: &AuthManifestKeyConfigFromFile,
 ) -> anyhow::Result<AuthManifestGeneratorKeyConfig> {
     // Get the Private Keys.
-    let mut priv_keys = AuthManifestPrivKeys::default();
+    let mut priv_keys = AuthManifestPrivKeysConfig::default();
     if let Some(pem_file) = &config.ecc_priv_key {
         let priv_key_path = path.join(pem_file);
         priv_keys.ecc_priv_key = Crypto::ecc_priv_key_from_pem(&priv_key_path)?;
@@ -93,9 +99,10 @@ fn key_config_from_file(
     }
 
     Ok(AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
+        pub_keys: AuthManifestPubKeysConfig {
             ecc_pub_key: Crypto::ecc_pub_key_from_pem(&path.join(&config.ecc_pub_key))?,
             lms_pub_key: lms_pub_key_from_pem(&path.join(&config.lms_pub_key))?,
+            mldsa_pub_key: Crypto::mldsa_pub_key_from_file(&path.join(&config.mldsa_pub_key))?,
         },
 
         priv_keys: Some(priv_keys),

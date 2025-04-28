@@ -13,6 +13,12 @@ Abstract:
 --*/
 
 use caliptra_image_gen::ImageGeneratorCrypto;
+use caliptra_image_types::{
+    ImageDigest512, ImageMldsaPrivKey, ImageMldsaSignature, MLDSA87_MSG_BYTE_SIZE,
+    MLDSA87_PRIV_KEY_BYTE_SIZE,
+};
+use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
+use fips204::traits::{SerDes, Signer};
 use zerocopy::IntoBytes;
 
 use crate::*;
@@ -56,7 +62,21 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.flags = config.flags.bits();
 
         // Sign the vendor manifest public keys.
-        auth_manifest.preamble.vendor_pub_keys = config.vendor_man_key_info.pub_keys;
+        auth_manifest.preamble.vendor_pub_keys.ecc_pub_key =
+            config.vendor_man_key_info.pub_keys.ecc_pub_key;
+        let pqc_pub_key = match config.pqc_key_type {
+            FwVerificationPqcKeyType::LMS => {
+                config.vendor_man_key_info.pub_keys.lms_pub_key.as_bytes()
+            }
+            FwVerificationPqcKeyType::MLDSA => config
+                .vendor_man_key_info
+                .pub_keys
+                .mldsa_pub_key
+                .0
+                .as_bytes(),
+        };
+        auth_manifest.preamble.vendor_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+            .copy_from_slice(pqc_pub_key);
 
         let range = AuthManifestPreamble::vendor_signed_data_range();
 
@@ -70,25 +90,53 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                 "Failed to get vendor signed data range length"
             ))?;
 
-        let digest = self.crypto.sha384_digest(data)?;
+        let digest_sha384 = self.crypto.sha384_digest(data)?;
+        let digest_sha512 = if config.pqc_key_type == FwVerificationPqcKeyType::MLDSA {
+            let digest = self.crypto.sha512_digest(data)?;
+            Some(digest)
+        } else {
+            None
+        };
 
         if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
-                &digest,
+                &digest_sha384,
                 &priv_keys.ecc_priv_key,
                 &config.vendor_fw_key_info.pub_keys.ecc_pub_key,
             )?;
             auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
 
-            let lms_sig = self.crypto.lms_sign(&digest, &priv_keys.lms_priv_key)?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
+            if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                let lms_sig = self
+                    .crypto
+                    .lms_sign(&digest_sha384, &priv_keys.lms_priv_key)?;
+                let sig = lms_sig.as_bytes();
+                auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                    .copy_from_slice(sig);
+            } else {
+                let mldsa_sig =
+                    self.mldsa_sign(&digest_sha512.unwrap(), &priv_keys.mldsa_priv_key)?;
+
+                let sig = mldsa_sig.as_bytes();
+                auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                    .copy_from_slice(sig);
+            }
         }
 
         // Sign the owner manifest public keys.
         if let (Some(owner_fw_config), Some(owner_man_config)) =
             (&config.owner_fw_key_info, &config.owner_man_key_info)
         {
-            auth_manifest.preamble.owner_pub_keys = owner_man_config.pub_keys;
+            auth_manifest.preamble.owner_pub_keys.ecc_pub_key =
+                owner_man_config.pub_keys.ecc_pub_key;
+            let pqc_pub_key = match config.pqc_key_type {
+                FwVerificationPqcKeyType::LMS => owner_man_config.pub_keys.lms_pub_key.as_bytes(),
+                FwVerificationPqcKeyType::MLDSA => {
+                    owner_man_config.pub_keys.mldsa_pub_key.0.as_bytes()
+                }
+            };
+            auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+                .copy_from_slice(pqc_pub_key);
 
             let digest = self
                 .crypto
@@ -101,10 +149,24 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     &owner_fw_config.pub_keys.ecc_pub_key,
                 )?;
                 auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
-                auth_manifest.preamble.owner_pub_keys_signatures.lms_sig = lms_sig;
+
+                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                    let lms_sig = self
+                        .crypto
+                        .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
+                    let sig = lms_sig.as_bytes();
+                    auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                        .copy_from_slice(sig);
+                } else {
+                    let digest = self
+                        .crypto
+                        .sha512_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
+
+                    let mldsa_sig = self.mldsa_sign(&digest, &owner_fw_priv_keys.mldsa_priv_key)?;
+                    let sig = mldsa_sig.as_bytes();
+                    auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                        .copy_from_slice(sig);
+                }
             }
         }
 
@@ -129,13 +191,32 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     .vendor_image_metdata_signatures
                     .ecc_sig = sig;
 
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .lms_sig = lms_sig;
+                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                    let lms_sig = self
+                        .crypto
+                        .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
+                    let sig = lms_sig.as_bytes();
+                    auth_manifest
+                        .preamble
+                        .vendor_image_metdata_signatures
+                        .pqc_sig
+                        .0[..sig.len()]
+                        .copy_from_slice(sig);
+                } else {
+                    let digest = self
+                        .crypto
+                        .sha512_digest(auth_manifest.image_metadata_col.as_bytes())?;
+
+                    let mldsa_sig =
+                        self.mldsa_sign(&digest, &vendor_man_priv_keys.mldsa_priv_key)?;
+                    let sig = mldsa_sig.as_bytes();
+                    auth_manifest
+                        .preamble
+                        .vendor_image_metdata_signatures
+                        .pqc_sig
+                        .0[..sig.len()]
+                        .copy_from_slice(sig);
+                }
             }
         }
 
@@ -152,16 +233,75 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     .owner_image_metdata_signatures
                     .ecc_sig = sig;
 
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
-                auth_manifest
-                    .preamble
-                    .owner_image_metdata_signatures
-                    .lms_sig = lms_sig;
+                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                    let lms_sig = self
+                        .crypto
+                        .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
+
+                    let sig = lms_sig.as_bytes();
+                    auth_manifest
+                        .preamble
+                        .owner_image_metdata_signatures
+                        .pqc_sig
+                        .0[..sig.len()]
+                        .copy_from_slice(sig);
+                } else {
+                    let digest = self
+                        .crypto
+                        .sha512_digest(auth_manifest.image_metadata_col.as_bytes())?;
+
+                    let mldsa_sig =
+                        self.mldsa_sign(&digest, &owner_man_priv_keys.mldsa_priv_key)?;
+                    let sig = mldsa_sig.as_bytes();
+                    auth_manifest
+                        .preamble
+                        .owner_image_metdata_signatures
+                        .pqc_sig
+                        .0[..sig.len()]
+                        .copy_from_slice(sig);
+                }
             }
         }
 
         Ok(auth_manifest)
+    }
+
+    // [TODO][CAP2] Make this a common function in the crypto library.
+    fn mldsa_sign(
+        &self,
+        digest: &ImageDigest512,
+        priv_key: &ImageMldsaPrivKey,
+    ) -> anyhow::Result<ImageMldsaSignature> {
+        // Private key is received in hw format which is also the library format.
+        // Unlike ECC, no reversal of the DWORD endianess needed.
+        let priv_key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] = priv_key
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid private key size"))?;
+        let priv_key = { PrivateKey::try_from_bytes(priv_key_bytes).unwrap() };
+
+        // Digest is received in hw format. Since the library and hardware format are the same, no endianess conversion needed.
+        let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = digest
+            .as_bytes()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid digest size"))?;
+
+        let signature = priv_key
+            .try_sign_with_seed(&[0u8; 32], &digest, &[])
+            .unwrap();
+        let signature_extended = {
+            let mut sig = [0u8; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature);
+            sig
+        };
+
+        // Return the signature in hw format (which is also the library format)
+        // Unlike ECC, no reversal of the DWORD endianess needed.
+        let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();
+        for (i, chunk) in signature_extended.chunks(4).enumerate() {
+            sig.0[i] = u32::from_le_bytes(chunk.try_into().unwrap());
+        }
+        Ok(sig)
     }
 }

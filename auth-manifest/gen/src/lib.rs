@@ -13,6 +13,7 @@ Abstract:
 --*/
 mod generator;
 
+use caliptra_image_types::FwVerificationPqcKeyType;
 pub use generator::AuthManifestGenerator;
 
 use caliptra_auth_man_types::*;
@@ -20,9 +21,9 @@ use caliptra_auth_man_types::*;
 /// Image Generator Vendor Configuration
 #[derive(Default, Clone)]
 pub struct AuthManifestGeneratorKeyConfig {
-    pub pub_keys: AuthManifestPubKeys,
+    pub pub_keys: AuthManifestPubKeysConfig,
 
-    pub priv_keys: Option<AuthManifestPrivKeys>,
+    pub priv_keys: Option<AuthManifestPrivKeysConfig>,
 }
 
 /// Authorization Manifest Generator Configuration
@@ -31,6 +32,8 @@ pub struct AuthManifestGeneratorConfig {
     pub version: u32,
 
     pub flags: AuthManifestFlags,
+
+    pub pqc_key_type: FwVerificationPqcKeyType,
 
     pub vendor_fw_key_info: AuthManifestGeneratorKeyConfig,
 

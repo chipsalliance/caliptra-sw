@@ -24,7 +24,7 @@ use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x4154_4D4E;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 127;
-pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 7168;
+pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24288;
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
@@ -41,20 +41,29 @@ impl From<u32> for AuthManifestFlags {
 }
 
 #[repr(C)]
-#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Default, Debug, Clone, Copy, Zeroize)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub struct AuthManifestPubKeys {
+#[derive(IntoBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
+pub struct AuthManifestPubKeysConfig {
     pub ecc_pub_key: ImageEccPubKey,
     #[zeroize(skip)]
     pub lms_pub_key: ImageLmsPublicKey,
+    pub mldsa_pub_key: ImageMldsaPubKey,
 }
 
 #[repr(C)]
 #[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Default, Debug, Clone, Copy, Zeroize)]
-pub struct AuthManifestPrivKeys {
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct AuthManifestPubKeys {
+    pub ecc_pub_key: ImageEccPubKey,
+    pub pqc_pub_key: ImagePqcPubKey,
+}
+
+#[repr(C)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Default, Debug, Clone, Copy, Zeroize)]
+pub struct AuthManifestPrivKeysConfig {
     pub ecc_priv_key: ImageEccPrivKey,
     #[zeroize(skip)]
     pub lms_priv_key: ImageLmsPrivKey,
+    pub mldsa_priv_key: ImageMldsaPrivKey,
 }
 
 #[repr(C)]
@@ -62,8 +71,7 @@ pub struct AuthManifestPrivKeys {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct AuthManifestSignatures {
     pub ecc_sig: ImageEccSignature,
-    #[zeroize(skip)]
-    pub lms_sig: ImageLmsSignature,
+    pub pqc_sig: ImagePqcSignature,
 }
 
 /// Caliptra Authorization Image Manifest Preamble

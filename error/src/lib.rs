@@ -1437,6 +1437,36 @@ impl CaliptraError {
             0x000E0062,
             "Runtime Error: Sign with exported MLDSA not supported"
         ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+            0x000E0063,
+            "Runtime Error: Auth manifest MLDSA vendor public key read failed"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
+            0x000E0064,
+            "Runtime Error: Auth manifest MLDSA vendor signature read failed"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID,
+            0x000E0065,
+            "Runtime Error: Auth manifest MLDSA vendor signature invalid"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+            0x000E0066,
+            "Runtime Error: Auth manifest MLDSA owner public key read failed"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
+            0x000E0067,
+            "Runtime Error: Auth manifest MLDSA owner signature read failed"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID,
+            0x000E0068,
+            "Runtime Error: Auth manifest MLDSA owner signature invalid"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,

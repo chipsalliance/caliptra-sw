@@ -38,7 +38,10 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     let auth_manifest = if let Some(auth_manifest) = auth_manifest {
         auth_manifest
     } else {
-        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
+        create_auth_manifest(
+            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            FwVerificationPqcKeyType::LMS,
+        )
     };
 
     let buf = auth_manifest.as_bytes();
