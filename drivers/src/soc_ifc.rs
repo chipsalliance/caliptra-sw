@@ -118,12 +118,12 @@ impl SocIfc {
         let lifecycle = self.lifecycle();
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         match lifecycle {
-            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
                 w.tap_mailbox_available(in_progress)
                     .manuf_dbg_unlock_in_progress(in_progress)
             }),
             DeviceLifecycleE::Production => {
-                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
                     w.tap_mailbox_available(in_progress)
                         .prod_dbg_unlock_in_progress(in_progress)
                 })
@@ -137,7 +137,7 @@ impl SocIfc {
         let lifecycle = self.lifecycle();
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         match lifecycle {
-            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
                 if success {
                     w.manuf_dbg_unlock_success(true)
                 } else {
@@ -145,7 +145,7 @@ impl SocIfc {
                 }
             }),
             DeviceLifecycleE::Production => {
-                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().write(|w| {
+                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
                     if success {
                         w.prod_dbg_unlock_success(true)
                     } else {
