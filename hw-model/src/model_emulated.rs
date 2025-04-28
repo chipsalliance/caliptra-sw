@@ -195,7 +195,7 @@ impl HwModel for ModelEmulated {
             .into(),
         );
 
-        let input_wires = (params.uds_granularity_64 as u32) << 31;
+        let input_wires = (!params.uds_granularity_64 as u32) << 31;
         root_bus.soc_reg.set_generic_input_wires(&[input_wires, 0]);
 
         {
