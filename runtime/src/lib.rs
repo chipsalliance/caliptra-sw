@@ -183,13 +183,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     }
 
     // Get the command bytes
-    let req_packet = Packet::copy_from_mbox(drivers)?;
+    let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
 
     cprintln!(
         "[rt] Received command=0x{:x}, len={}",
         req_packet.cmd,
-        req_packet.len
+        req_packet.payload().len()
     );
 
     // Handle the request and generate the response

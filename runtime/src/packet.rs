@@ -16,68 +16,49 @@ use caliptra_drivers::CaliptraResult;
 
 use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
 use caliptra_drivers::CaliptraError;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Packet {
     pub cmd: u32,
-    pub payload: [u32; MAX_PAYLOAD_SIZE],
-    pub len: usize, // Length in bytes
-}
-
-const MAX_PAYLOAD_SIZE: usize = 4354; // in dwords
-
-impl Default for Packet {
-    fn default() -> Self {
-        Self {
-            cmd: 0,
-            payload: [0u32; MAX_PAYLOAD_SIZE],
-            len: 0,
-        }
-    }
+    // Using raw pointer to avoid lifetime issues
+    payload_ptr: *const u8,
+    payload_len: usize,
 }
 
 impl Packet {
     /// Retrieves the data in the mailbox and converts it into a Packet
-    pub fn copy_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<Self> {
+    pub fn get_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<Self> {
         let mbox = &mut drivers.mbox;
         let cmd = mbox.cmd();
-        let dlen_words = mbox.dlen_words() as usize;
+        let dlen = mbox.dlen() as usize;
 
-        if dlen_words > MAX_PAYLOAD_SIZE {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
+        // Get reference to raw mailbox contents
+        let raw_data = mbox.raw_mailbox_contents();
 
-        let mut packet = Packet {
+        // Create the packet with raw pointers to the mailbox data
+        let packet = Packet {
             cmd: cmd.into(),
-            len: mbox.dlen() as usize,
-            ..Default::default()
+            payload_ptr: raw_data.as_ptr(),
+            payload_len: dlen,
         };
-
-        mbox.copy_from_mbox(
-            packet
-                .payload
-                .get_mut(..dlen_words)
-                .ok_or(CaliptraError::RUNTIME_INTERNAL)?,
-        );
 
         // Verify incoming checksum
         // Make sure enough data was sent to even have a checksum
-        if packet.len < core::mem::size_of::<MailboxReqHeader>() {
+        if packet.payload().len() < core::mem::size_of::<MailboxReqHeader>() {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
         // Assumes chksum is always offset 0
-        let payload_bytes = packet.as_bytes()?;
         let req_hdr: &MailboxReqHeader = MailboxReqHeader::ref_from_bytes(
-            &payload_bytes[..core::mem::size_of::<MailboxReqHeader>()],
+            &packet.payload()[..core::mem::size_of::<MailboxReqHeader>()],
         )
         .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         if !caliptra_common::checksum::verify_checksum(
             req_hdr.chksum,
             packet.cmd,
-            &payload_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
+            &packet.payload()[core::mem::size_of_val(&req_hdr.chksum)..],
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
@@ -104,11 +85,18 @@ impl Packet {
         mbox.write_response(resp.as_bytes()?)
     }
 
-    /// Retrieves the byte representation of the packet's payload
+    /// Returns the byte representation of the packet's payload
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
-        self.payload
-            .as_bytes()
-            .get(..self.len)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+        Ok(self.payload())
+    }
+
+    /// Get a reference to the payload data
+    pub fn payload(&self) -> &[u8] {
+        unsafe {
+            // Safety: This is safe because:
+            // 1. None of the mailbox request handlers use the mailbox in a way that
+            //    modifies the mailbox sram content before sending back a reply.
+            core::slice::from_raw_parts(self.payload_ptr, self.payload_len)
+        }
     }
 }
