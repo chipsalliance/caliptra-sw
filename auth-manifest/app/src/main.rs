@@ -19,6 +19,7 @@ use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
 use caliptra_image_crypto::RustCrypto as Crypto;
+use caliptra_image_types::FwVerificationPqcKeyType;
 use clap::ArgMatches;
 use clap::{arg, value_parser, Command};
 use std::io::Write;
@@ -82,6 +83,15 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
             .with_context(|| "flags arg not specified")?,
     );
 
+    let pqc_key_type: &u32 = args
+        .get_one::<u32>("pqc-key-type")
+        .with_context(|| "Type of PQC key validation: 1: MLDSA; 3: LMS")?;
+    let pqc_key_type = match *pqc_key_type {
+        1 => FwVerificationPqcKeyType::MLDSA,
+        3 => FwVerificationPqcKeyType::LMS,
+        _ => return Err(anyhow::anyhow!("Invalid PQC key type")),
+    };
+
     let config_path: &PathBuf = args
         .get_one::<PathBuf>("config")
         .with_context(|| "config arg not specified")?;
@@ -109,6 +119,7 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let gen_config = AuthManifestGeneratorConfig {
         version: *version,
         flags,
+        pqc_key_type,
         vendor_man_key_info: config::vendor_config_from_file(
             key_dir,
             &config.vendor_man_key_config,

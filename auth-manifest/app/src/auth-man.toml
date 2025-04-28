@@ -5,24 +5,32 @@ ecc_pub_key = "vnd-pub-key-3.pem"
 ecc_priv_key = "vnd-priv-key-3.pem"
 lms_pub_key = "vnd-lms-pub-key-3.pem"
 lms_priv_key = "vnd-lms-priv-key-3.pem"
+mldsa_pub_key = "vnd-mldsa-pub-key-3.bin"
+mldsa_priv_key = "vnd-mldsa-priv-key-3.bin"
 
 [vendor_man_key_config]
 ecc_pub_key = "vnd-pub-key-3.pem"
 ecc_priv_key = "vnd-priv-key-3.pem"
 lms_pub_key = "vnd-lms-pub-key-3.pem"
 lms_priv_key = "vnd-lms-priv-key-3.pem"
+mldsa_pub_key = "vnd-mldsa-pub-key-3.bin"
+mldsa_priv_key = "vnd-mldsa-priv-key-3.bin"
 
 [owner_fw_key_config]
 ecc_pub_key = "own-pub-key.pem"
 ecc_priv_key = "own-priv-key.pem"
 lms_pub_key = "own-lms-pub-key.pem"
 lms_priv_key = "own-lms-priv-key.pem"
+mldsa_pub_key = "own-mldsa-pub-key.bin"
+mldsa_priv_key = "own-mldsa-priv-key.bin"
 
 [owner_man_key_config]
 ecc_pub_key = "own-pub-key.pem"
 ecc_priv_key = "own-priv-key.pem"
 lms_pub_key = "own-lms-pub-key.pem"
 lms_priv_key = "own-lms-priv-key.pem"
+mldsa_pub_key = "own-mldsa-pub-key.bin"
+mldsa_priv_key = "own-mldsa-priv-key.bin"
 
 [[image_metadata_list]]
 digest = "C120EED0004B4CF6C344B00F5F501E7B7167C7010B6EA1D36AEE20CC90F1AE373DF1EC91C9AD9E0A5A969326A54E2517"
