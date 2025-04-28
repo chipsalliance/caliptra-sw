@@ -12,25 +12,18 @@ Abstract:
 
 --*/
 
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::ManuallyDrop;
 
 use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::CaliptraResult;
 use caliptra_api::mailbox::{
-    MailboxReqHeader, MailboxRespHeader, ManufDebugUnlockTokenReq,
-    ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
-    ProductionAuthDebugUnlockToken,
+    MailboxRespHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
+    ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
 use caliptra_cfi_lib::{cfi_launder, CfiCounter};
-use caliptra_common::{cprintln, mailbox_api::CommandId};
-#[allow(unused_imports)]
-use caliptra_drivers::{
-    sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Ecc384PubKey, Ecc384Result,
-    Ecc384Scalar, Ecc384Signature, Lifecycle, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
-    ShaAccLockState,
-};
+use caliptra_common::{cprintln, debug_unlock, mailbox_api::CommandId};
+use caliptra_drivers::Lifecycle;
 use caliptra_error::CaliptraError;
-use memoffset::{offset_of, span_of};
 use zerocopy::IntoBytes;
 
 use crate::rom_env::RomEnv;
@@ -152,53 +145,26 @@ fn handle_auth_debug_unlock_request(
     }
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
-    let mut send_mailbox_response = || -> Result<(ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockChallenge), CaliptraError> {
-        let mut request = ProductionAuthDebugUnlockReq::default();
-        FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
-        // Validate payload
-        if request.length as usize * size_of::<u32>()
-            != size_of::<ProductionAuthDebugUnlockReq>() - size_of::<MailboxReqHeader>()
-        {
-            cprintln!("Invalid ProductionAuthDebugUnlockReq payload length: {}", request.length);
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+    // Process request and create challenge
+    let mut request = ProductionAuthDebugUnlockReq::default();
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+
+    // Use common function to create challenge
+    let challenge =
+        debug_unlock::create_debug_unlock_challenge(&mut env.trng, &env.soc_ifc, &request);
+
+    // Send response
+    match challenge {
+        Err(err) => {
+            txn.send_response(MailboxRespHeader::default().as_bytes())?;
+            Err(err)
         }
-
-        // Check if the debug level is valid.
-        let dbg_level = request.unlock_level as u32;
-        if dbg_level > env.soc_ifc.debug_unlock_pk_hash_count() {
-            cprintln!("Invalid debug level: Received level: {}, Fuse PK Hash Count: {}",
-            dbg_level, env.soc_ifc.debug_unlock_pk_hash_count());
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ)?;
+        Ok(challenge_resp) => {
+            txn.send_response(challenge_resp.as_bytes())?;
+            Ok((request, challenge_resp))
         }
-
-        let length = ((size_of::<ProductionAuthDebugUnlockChallenge>()
-            - size_of::<MailboxReqHeader>())
-            / size_of::<u32>()) as u32;
-        let challenge = env.trng.generate()?.as_bytes().try_into().unwrap();
-
-        let challenge_resp: ProductionAuthDebugUnlockChallenge =
-            ProductionAuthDebugUnlockChallenge {
-                length,
-                unique_device_identifier: {
-                    let mut id = [0u8; 32];
-                    id[..17].copy_from_slice(&env.soc_ifc.fuse_bank().ueid());
-                    id
-                },
-                challenge,
-                ..Default::default()
-            };
-        Ok((request, challenge_resp))
-    };
-
-    // Call the closure and handle the result
-    let result = send_mailbox_response();
-    match &result {
-        Ok((_, challenge_resp)) => txn.send_response(challenge_resp.as_bytes())?,
-        Err(_) => txn.send_response(MailboxRespHeader::default().as_bytes())?,
-    };
-
-    result
+    }
 }
 
 fn handle_auth_debug_unlock_token(
@@ -226,130 +192,25 @@ fn handle_auth_debug_unlock_token(
     }
 
     let mut txn = ManuallyDrop::new(txn.start_txn());
-    let mut auth_debug_unlock_token_op = || -> Result<(), CaliptraError> {
-        // Hash the ECC and MLDSA public keys in the payload.
-        let pub_keys_digest = {
-            let ecc_public_key_offset = offset_of!(ProductionAuthDebugUnlockToken, ecc_public_key);
-            let combined_len = span_of!(
-                ProductionAuthDebugUnlockToken,
-                ecc_public_key..=mldsa_public_key
-            )
-            .len();
 
-            let mut request_digest = Array4x12::default();
-            let mut acc_op = env
-                .sha2_512_384_acc
-                .try_start_operation(ShaAccLockState::AssumedLocked)?
-                .ok_or(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
+    // Copy token from mailbox
+    let mut token = ProductionAuthDebugUnlockToken::default();
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
 
-            acc_op.digest_384(
-                combined_len as u32,
-                ecc_public_key_offset as u32,
-                false,
-                &mut request_digest,
-            )?;
-            request_digest
-        };
+    // Use common validation function
+    let result = debug_unlock::validate_debug_unlock_token(
+        &env.soc_ifc,
+        &mut env.sha2_512_384,
+        &mut env.sha2_512_384_acc,
+        &mut env.ecc384,
+        &mut env.mldsa87,
+        &mut env.dma,
+        request,
+        challenge,
+        &token,
+    );
 
-        let mut token = ProductionAuthDebugUnlockToken::default();
-        FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
-
-        // Validate the payload size.
-        if token.length as usize * size_of::<u32>()
-            != size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>()
-        {
-            cprintln!(
-                "Invalid ProductionAuthDebugUnlockToken payload length: {}",
-                token.length
-            );
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
-        }
-
-        // Check if the debug level is same as the request.
-        if token.unlock_level != request.unlock_level {
-            cprintln!("Invalid unlock level: {}", token.unlock_level);
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
-        }
-
-        // Check if the challenge is same as the request.
-        if cfi_launder(token.challenge) != challenge.challenge {
-            cprintln!("Challenge mismatch");
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &Array4x12::from(token.challenge).0,
-                &Array4x12::from(challenge.challenge).0,
-            );
-        }
-
-        let debug_auth_pk_offset =
-            env.soc_ifc
-                .debug_unlock_pk_hash_offset(token.unlock_level as u32)? as u64;
-        let mci_base = env.soc_ifc.ss_mci_axi_base();
-        let debug_auth_pk_hash_base = mci_base + AxiAddr::from(debug_auth_pk_offset);
-
-        let dma = &mut env.dma;
-        let mut fuse_digest: [u32; 12] = [0; 12];
-        dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
-
-        // Verify the fuse digest matches with the ECC and MLDSA public key digest.
-        let fuse_digest = Array4x12::from(fuse_digest);
-
-        if cfi_launder(pub_keys_digest) != fuse_digest {
-            cprintln!("Public keys hash mismatch");
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&pub_keys_digest.0, &fuse_digest.0);
-        }
-
-        // Verify that the Unique Device Identifier, Unlock Category and Challenge signature is valid.
-        let pubkey = Ecc384PubKey {
-            x: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_public_key[..12]).unwrap()),
-            y: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_public_key[12..]).unwrap()),
-        };
-        let signature = Ecc384Signature {
-            r: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_signature[..12]).unwrap()),
-            s: Ecc384Scalar::from(<[u32; 12]>::try_from(&token.ecc_signature[12..]).unwrap()),
-        };
-        // [TODO][CAP2] Use the SHA-ACC to hash the data.
-        let mut digest_op = env.sha2_512_384.sha384_digest_init()?;
-        digest_op.update(&token.unique_device_identifier)?;
-        digest_op.update(&[token.unlock_level])?;
-        digest_op.update(&token.reserved)?;
-        digest_op.update(&token.challenge)?;
-
-        let mut ecc_msg = Array4x12::default();
-        digest_op.finalize(&mut ecc_msg)?;
-        let result = env.ecc384.verify(&pubkey, &ecc_msg, &signature)?;
-        if result == Ecc384Result::SigVerifyFailed {
-            cprintln!("ECC Signature verification failed");
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
-        }
-
-        let mut digest_op = env.sha2_512_384.sha512_digest_init()?;
-        digest_op.update(&token.unique_device_identifier)?;
-        digest_op.update(&[token.unlock_level])?;
-        digest_op.update(&token.reserved)?;
-        digest_op.update(&token.challenge)?;
-        let mut mldsa_msg = Array4x16::default();
-        digest_op.finalize(&mut mldsa_msg)?;
-
-        let result = env.mldsa87.verify(
-            &Mldsa87PubKey::from(&token.mldsa_public_key),
-            &mldsa_msg,
-            &Mldsa87Signature::from(&token.mldsa_signature),
-        )?;
-
-        if result == Mldsa87Result::SigVerifyFailed {
-            cprintln!("MLDSA Signature verification failed");
-            Err(CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
-        }
-
-        Ok(())
-    };
-
-    // Call the closure.
-    let result = auth_debug_unlock_token_op();
+    // Send response
     let _ = txn.send_response(MailboxRespHeader::default().as_bytes());
     result
 }
