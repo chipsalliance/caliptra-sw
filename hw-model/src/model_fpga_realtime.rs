@@ -519,7 +519,7 @@ impl HwModel for ModelFpgaRealtime {
         writeln!(m.output().logger(), "new_unbooted")?;
 
         // Set generic input wires.
-        let input_wires = [(params.uds_granularity_64 as u32) << 31, 0];
+        let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
 
         // Set Security State signal wires
