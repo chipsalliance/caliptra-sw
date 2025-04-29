@@ -64,7 +64,7 @@ fn test_dbg_unlock_manuf_req_in_passive_mode() {
             token.as_bytes(),
         ),
         Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE.into()
+            CaliptraError::SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE.into()
         ))
     );
 }
@@ -172,7 +172,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     assert_eq!(
         hw.mailbox_execute(0, token.as_bytes(),),
         Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD.into()
+            CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD.into()
         ))
     );
 
@@ -978,7 +978,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
     assert_eq!(
         hw.mailbox_execute(0, request.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
-            CaliptraError::ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD.into()
+            CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD.into()
         ))
     );
 }
