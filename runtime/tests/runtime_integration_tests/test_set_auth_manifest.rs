@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{
-    common::{assert_error, run_rt_test_lms, run_rt_test_pqc, RuntimeTestArgs},
+    common::{assert_error, run_rt_test_lms, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
 };
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
@@ -198,7 +198,10 @@ pub fn create_auth_manifest_with_metadata(
     gen.generate(&gen_config).unwrap()
 }
 
-fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationManifest {
+fn create_auth_manifest_of_metadata_size(
+    metadata_size: usize,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> AuthorizationManifest {
     let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
         pub_keys: AuthManifestPubKeysConfig {
             ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
@@ -278,7 +281,7 @@ fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationM
         image_metadata_list,
         version: 1,
         flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        pqc_key_type,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());
@@ -351,58 +354,71 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 
 #[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default());
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut model = match pqc_key_type {
+            FwVerificationPqcKeyType::LMS => run_rt_test_lms(RuntimeTestArgs::default()),
+            FwVerificationPqcKeyType::MLDSA => {
+                run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA)
+            }
+        };
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
 
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: 0xffff_ffff,
-        manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
+        let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: 0xffff_ffff,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        });
+        set_auth_manifest_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::SET_AUTH_MANIFEST),
+                set_auth_manifest_cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
 
-    assert_error(
-        &mut model,
-        CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
-        resp,
-    );
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+            resp,
+        );
 
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: 1_u32,
-        manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
+        let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: 1_u32,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        });
+        set_auth_manifest_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::SET_AUTH_MANIFEST),
-            set_auth_manifest_cmd.as_bytes().unwrap(),
-        )
-        .unwrap_err();
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::SET_AUTH_MANIFEST),
+                set_auth_manifest_cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
 
-    assert_error(
-        &mut model,
-        CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN,
-        resp,
-    );
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN,
+            resp,
+        );
+    }
 }
 
 fn set_manifest_command_execute(
     manifest: AuthorizationManifest,
+    pqc_key_type: FwVerificationPqcKeyType,
     expected_err: Option<CaliptraError>,
 ) {
-    let mut model = run_rt_test_lms(RuntimeTestArgs::default());
+    let mut model = match pqc_key_type {
+        FwVerificationPqcKeyType::LMS => run_rt_test_lms(RuntimeTestArgs::default()),
+        FwVerificationPqcKeyType::MLDSA => {
+            run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA)
+        }
+    };
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -432,190 +448,264 @@ fn set_manifest_command_execute(
 
 #[test]
 fn test_set_auth_manifest_cmd_zero_metadata_entry() {
-    let auth_manifest = create_auth_manifest_of_metadata_size(0);
-    set_manifest_command_execute(
-        auth_manifest,
-        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
-    );
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let auth_manifest = create_auth_manifest_of_metadata_size(0, *pqc_key_type);
+        set_manifest_command_execute(
+            auth_manifest,
+            *pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
+        );
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_cmd_max_metadata_entry_limit() {
-    let auth_manifest =
-        create_auth_manifest_of_metadata_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
-    set_manifest_command_execute(auth_manifest, None);
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let auth_manifest = create_auth_manifest_of_metadata_size(
+            AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+            *pqc_key_type,
+        );
+        set_manifest_command_execute(auth_manifest, *pqc_key_type, None);
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_cmd_max_plus_one_metadata_entry_limit() {
-    let mut auth_manifest =
-        create_auth_manifest_of_metadata_size(AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT);
-    auth_manifest.image_metadata_col.entry_count += 1;
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut auth_manifest = create_auth_manifest_of_metadata_size(
+            AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+            *pqc_key_type,
+        );
+        auth_manifest.image_metadata_col.entry_count += 1;
 
-    set_manifest_command_execute(
-        auth_manifest,
-        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
-    );
+        set_manifest_command_execute(
+            auth_manifest,
+            *pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
+        );
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_marker() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
-    auth_manifest.preamble.marker = Default::default();
-    set_manifest_command_execute(
-        auth_manifest,
-        Some(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER),
-    );
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut auth_manifest =
+            create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, *pqc_key_type);
+        auth_manifest.preamble.marker = Default::default();
+        set_manifest_command_execute(
+            auth_manifest,
+            *pqc_key_type,
+            Some(CaliptraError::RUNTIME_INVALID_AUTH_MANIFEST_MARKER),
+        );
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_preamble_size() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
-    auth_manifest.preamble.size -= 1;
-    set_manifest_command_execute(
-        auth_manifest,
-        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH),
-    );
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut auth_manifest =
+            create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, *pqc_key_type);
+        auth_manifest.preamble.size -= 1;
+        set_manifest_command_execute(
+            auth_manifest,
+            *pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH),
+        );
+    }
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
     );
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_lms_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID),
     );
 }
 
 #[test]
-fn test_set_auth_manifest_invalid_owner_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
+fn test_set_auth_manifest_invalid_vendor_mldsa_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
+    auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig = Default::default();
+    set_manifest_command_execute(
+        auth_manifest,
+        pqc_key_type,
+        Some(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE),
     );
+}
+
+#[test]
+fn test_set_auth_manifest_invalid_owner_ecc_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID),
     );
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID),
     );
 }
 
 #[test]
-fn test_set_auth_manifest_invalid_metadata_list_count() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
-    auth_manifest.image_metadata_col.entry_count = 0;
+fn test_set_auth_manifest_invalid_owner_mldsa_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
+    auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
-        Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
+        pqc_key_type,
+        Some(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE),
     );
 }
 
 #[test]
+fn test_set_auth_manifest_invalid_metadata_list_count() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut auth_manifest =
+            create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, *pqc_key_type);
+        auth_manifest.image_metadata_col.entry_count = 0;
+        set_manifest_command_execute(
+            auth_manifest,
+            *pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT),
+        );
+    }
+}
+
+#[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
         .ecc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
     );
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_vendor_metadata_lms_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest
         .preamble
         .vendor_image_metdata_signatures
         .pqc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID),
     );
 }
 
 #[test]
-fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
+fn test_set_auth_manifest_invalid_vendor_metadata_mldsa_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .pqc_sig = Default::default();
+    set_manifest_command_execute(
+        auth_manifest,
+        pqc_key_type,
+        Some(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE),
     );
+}
+
+#[test]
+fn test_set_auth_manifest_invalid_owner_metadata_ecc_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
         .ecc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID),
     );
 }
 
 #[test]
 fn test_set_auth_manifest_invalid_owner_metadata_lms_sig() {
-    let mut auth_manifest = create_auth_manifest(
-        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        FwVerificationPqcKeyType::LMS,
-    );
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
     auth_manifest
         .preamble
         .owner_image_metdata_signatures
         .pqc_sig = Default::default();
     set_manifest_command_execute(
         auth_manifest,
+        pqc_key_type,
         Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID),
     );
 }
 
 #[test]
+fn test_set_auth_manifest_invalid_owner_metadata_mldsa_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let mut auth_manifest =
+        create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED, pqc_key_type);
+    auth_manifest
+        .preamble
+        .owner_image_metdata_signatures
+        .pqc_sig = Default::default();
+    set_manifest_command_execute(
+        auth_manifest,
+        pqc_key_type,
+        Some(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE),
+    );
+}
+
+#[test]
 fn test_set_auth_manifest_cmd_ignore_vendor_ecc_sig() {
-    let mut auth_manifest = create_auth_manifest(0.into(), FwVerificationPqcKeyType::LMS);
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest = create_auth_manifest(0.into(), pqc_key_type);
 
     // Erase the vendor manifest ECC signature.
     auth_manifest
@@ -623,12 +713,13 @@ fn test_set_auth_manifest_cmd_ignore_vendor_ecc_sig() {
         .vendor_image_metdata_signatures
         .ecc_sig = Default::default();
 
-    set_manifest_command_execute(auth_manifest, None);
+    set_manifest_command_execute(auth_manifest, pqc_key_type, None);
 }
 
 #[test]
 fn test_set_auth_manifest_cmd_ignore_vendor_lms_sig() {
-    let mut auth_manifest = create_auth_manifest(0.into(), FwVerificationPqcKeyType::LMS);
+    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let mut auth_manifest = create_auth_manifest(0.into(), pqc_key_type);
 
     // Erase the vendor manifest LMS signature.
     auth_manifest
@@ -636,5 +727,19 @@ fn test_set_auth_manifest_cmd_ignore_vendor_lms_sig() {
         .vendor_image_metdata_signatures
         .pqc_sig = Default::default();
 
-    set_manifest_command_execute(auth_manifest, None);
+    set_manifest_command_execute(auth_manifest, pqc_key_type, None);
+}
+
+#[test]
+fn test_set_auth_manifest_cmd_ignore_vendor_mldsa_sig() {
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let mut auth_manifest = create_auth_manifest(0.into(), pqc_key_type);
+
+    // Erase the vendor manifest LMS signature.
+    auth_manifest
+        .preamble
+        .vendor_image_metdata_signatures
+        .pqc_sig = Default::default();
+
+    set_manifest_command_execute(auth_manifest, pqc_key_type, None);
 }
