@@ -770,14 +770,6 @@ mod tests {
     const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
     const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x8004;
 
-    fn make_word(idx: usize, arr: &[u8]) -> RvData {
-        let mut res: RvData = 0;
-        for i in 0..4 {
-            res |= (arr[idx + i] as RvData) << (i * 8);
-        }
-        res
-    }
-
     #[test]
     fn test_name() {
         let clock = Clock::new();
@@ -841,9 +833,13 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        for i in (0..seed.len()).step_by(4) {
+        for (i, chunk) in seed.chunks_exact(4).enumerate() {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .write(
+                    RvSize::Word,
+                    OFFSET_SEED + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
                 .unwrap();
         }
 
@@ -880,9 +876,13 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        for i in (0..seed.len()).step_by(4) {
+        for (i, chunk) in seed.chunks_exact(4).enumerate() {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                .write(
+                    RvSize::Word,
+                    OFFSET_SEED + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
                 .unwrap();
         }
 
@@ -893,20 +893,24 @@ mod tests {
             concat.as_slice().try_into().unwrap()
         };
 
-        for i in (0..msg.len()).step_by(4) {
+        for (i, chunk) in msg.chunks_exact(4).enumerate() {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
+                .write(
+                    RvSize::Word,
+                    OFFSET_MSG + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
                 .unwrap();
         }
 
         let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
 
-        for i in (0..sign_rnd.len()).step_by(4) {
+        for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGN_RND + i as RvAddr,
-                    make_word(i, &sign_rnd),
+                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
@@ -967,19 +971,23 @@ mod tests {
             .try_sign_with_seed(&[0u8; 32], &msg, &[])
             .unwrap();
 
-        for i in (0..msg.len()).step_by(4) {
+        for (i, chunk) in msg.chunks_exact(4).enumerate() {
             ml_dsa87
-                .write(RvSize::Word, OFFSET_MSG + i as RvAddr, make_word(i, &msg))
+                .write(
+                    RvSize::Word,
+                    OFFSET_MSG + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
                 .unwrap();
         }
 
         let pk_for_hw = pk_from_lib.into_bytes();
-        for i in (0..pk_for_hw.len()).step_by(4) {
+        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_PK + i as RvAddr,
-                    make_word(i, &pk_for_hw),
+                    OFFSET_PK + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
@@ -991,12 +999,12 @@ mod tests {
             sig
         };
 
-        for i in (0..sig_for_hw.len()).step_by(4) {
+        for (i, chunk) in sig_for_hw.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGNATURE + i as RvAddr,
-                    make_word(i, &sig_for_hw),
+                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
@@ -1035,12 +1043,12 @@ mod tests {
 
         rng.fill(&mut signature[..64]);
 
-        for i in (0..signature.len()).step_by(4) {
+        for (i, chunk) in signature.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGNATURE + i as RvAddr,
-                    make_word(i, &signature),
+                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
@@ -1101,9 +1109,13 @@ mod tests {
             // We expect the output to match the generated random seed.
             // Write a different seed first to make sure the Kv seed is used
             let seed = [0xABu8; 32];
-            for i in (0..seed.len()).step_by(4) {
+            for (i, chunk) in seed.chunks_exact(4).enumerate() {
                 ml_dsa87
-                    .write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
+                    .write(
+                        RvSize::Word,
+                        OFFSET_SEED + (i * 4) as RvAddr,
+                        u32::from_le_bytes(chunk.try_into().unwrap()),
+                    )
                     .unwrap();
             }
 
