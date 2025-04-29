@@ -22,7 +22,7 @@ use caliptra_common::{
 };
 use caliptra_drivers::{CaliptraResult, Lifecycle};
 use caliptra_error::CaliptraError;
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::FromBytes;
 
 /// Handle production debug unlock for runtime firmware
 pub struct ProductionDebugUnlock {
