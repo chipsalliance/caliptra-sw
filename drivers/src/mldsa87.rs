@@ -369,16 +369,14 @@ impl Mldsa87 {
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
-        // [TODO][CAP2] Verify the signature
-        // // No need to zeroize here, as the hardware will be zeroized by verify.
-        // let result = self.verify(pub_key, msg, &signature)?;
-        // if result == Mldsa87Result::Success {
-        //     cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
-        //     Ok(signature)
-        // } else {
-        //     Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
-        // }
-        Ok(signature)
+        // No need to zeroize here, as the hardware will be zeroized by verify.
+        let result = self.verify_var(_pub_key, msg, &signature)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
     }
 
     /// Verify the signature with specified public key and message.
@@ -451,6 +449,99 @@ impl Mldsa87 {
         }
 
         let verify_res = self.verify_res(pub_key, msg, signature)?;
+
+        let result = if verify_res.0 == truncated_signature {
+            // We only have a 6, 8 and 12 dword cfi assert
+            cfi_assert_eq_12_words(
+                &verify_res.0[..12].try_into().unwrap(),
+                &truncated_signature[..12].try_into().unwrap(),
+            );
+            cfi_assert_eq_8_words(
+                &verify_res.0[8..].try_into().unwrap(),
+                &truncated_signature[8..].try_into().unwrap(),
+            );
+            Mldsa87Result::Success
+        } else {
+            Mldsa87Result::SigVerifyFailed
+        };
+
+        Ok(result)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn verify_var(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        msg: &[u8],
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
+        }
+
+        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
+            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
+        }
+
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Clear the hardware before start
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Copy pubkey
+        pub_key.write_to_reg(mldsa.pubkey());
+
+        // Copy signature
+        signature.write_to_reg(mldsa.signature());
+
+        // Program the command register for signature verification with streaming
+        mldsa
+            .ctrl()
+            .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+
+        // Wait for stream ready.
+        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
+
+        // Reset the message strobe register.
+        mldsa.msg_strobe().write(|s| s.strobe(0xF));
+
+        // Stream the message to the hardware.
+        let dwords = msg.chunks_exact(size_of::<u32>());
+        let remainder = dwords.remainder();
+        for dword in dwords {
+            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
+            mldsa.msg().at(0).write(|_| dw.get());
+        }
+
+        let last_strobe = match remainder.len() {
+            0 => 0b0000,
+            1 => 0b0001,
+            2 => 0b0011,
+            3 => 0b0111,
+            _ => 0b0000, // should never happen
+        };
+        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+        // write last dword, (0 for no remainder)
+        let mut last_word = 0_u32;
+        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+        mldsa.msg().at(0).write(|_| last_word);
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+        // Copy the result
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+
+        // Clear the hardware when done
+        mldsa.ctrl().write(|w| w.zeroize(true));
 
         let result = if verify_res.0 == truncated_signature {
             // We only have a 6, 8 and 12 dword cfi assert
