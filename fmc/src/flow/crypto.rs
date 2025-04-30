@@ -15,7 +15,7 @@ use caliptra_common::{
 use caliptra_drivers::{
     okmutref, okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
     Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
-    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature,
+    LEArray4x16, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature,
 };
 use caliptra_x509::Ecdsa384Signature;
 use zeroize::Zeroize;
@@ -241,10 +241,11 @@ impl Crypto {
     ) -> CaliptraResult<Mldsa87Signature> {
         let mut digest = env.sha2_512_384.sha512_digest(data);
         let digest = okmutref(&mut digest)?;
+        let digest: LEArray4x16 = (*digest).into();
         env.mldsa.sign(
             &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
-            digest,
+            &digest,
             &Mldsa87SignRnd::default(),
             &mut env.trng,
         )
@@ -273,6 +274,7 @@ impl Crypto {
     ) -> CaliptraResult<Mldsa87Result> {
         let digest = env.sha2_512_384.sha512_digest(data);
         let digest = okref(&digest)?;
-        env.mldsa.verify(pub_key, digest, sig)
+        let digest: LEArray4x16 = (*digest).into();
+        env.mldsa.verify(pub_key, &digest, sig)
     }
 }

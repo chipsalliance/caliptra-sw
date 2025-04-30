@@ -262,10 +262,11 @@ impl Crypto {
     ) -> CaliptraResult<Mldsa87Signature> {
         let mut digest = env.sha2_512_384.sha512_digest(data);
         let digest = okmutref(&mut digest)?;
+        let mut digest: LEArray4x16 = (*digest).into();
         let result = env.mldsa87.sign(
             &Mldsa87Seed::Key(KeyReadArgs::new(priv_key)),
             pub_key,
-            digest,
+            &digest,
             &Mldsa87SignRnd::default(),
             &mut env.trng,
         );

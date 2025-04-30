@@ -21,8 +21,8 @@ use caliptra_api::mailbox::{
 use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_launder};
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, AxiAddr, Dma, Ecc384, Ecc384PubKey,
-    Ecc384Result, Ecc384Scalar, Ecc384Signature, Mldsa87, Mldsa87PubKey, Mldsa87Result,
-    Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
+    Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
+    Mldsa87Result, Mldsa87Signature, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use memoffset::{offset_of, span_of};
@@ -204,6 +204,7 @@ pub fn validate_debug_unlock_token(
     digest_op.update(&token.challenge)?;
     let mut mldsa_msg = Array4x16::default();
     digest_op.finalize(&mut mldsa_msg)?;
+    let mldsa_msg: LEArray4x16 = mldsa_msg.into();
 
     let result = mldsa87.verify(
         &Mldsa87PubKey::from(&token.mldsa_public_key),

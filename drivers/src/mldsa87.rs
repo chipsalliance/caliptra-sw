@@ -14,7 +14,7 @@ Abstract:
 #![allow(dead_code)]
 
 use crate::{
-    array::{Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8},
+    array::{LEArray4x1157, LEArray4x1224, LEArray4x16, LEArray4x648, LEArray4x8},
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
@@ -35,21 +35,21 @@ pub enum Mldsa87Result {
 }
 
 /// MLDSA-87 Public Key
-pub type Mldsa87PubKey = Array4x648;
+pub type Mldsa87PubKey = LEArray4x648;
 
 /// MLDSA-87 Private Key
-pub type Mldsa87PrivKey = Array4x1224;
+pub type Mldsa87PrivKey = LEArray4x1224;
 
 /// MLDSA-87 Signature
-pub type Mldsa87Signature = Array4x1157;
+pub type Mldsa87Signature = LEArray4x1157;
 
 /// MLDSA-87 Message (64 Bytes)
-pub type Mldsa87Msg = Array4x16;
+pub type Mldsa87Msg = LEArray4x16;
 
 /// MLDSA-87 Signature RND
-pub type Mldsa87SignRnd = Array4x8;
+pub type Mldsa87SignRnd = LEArray4x8;
 
-type Mldsa87VerifyRes = Array4x16;
+type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 
@@ -57,7 +57,7 @@ pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 #[derive(Debug, Copy, Clone)]
 pub enum Mldsa87Seed<'a> {
     /// Array
-    Array4x8(&'a Array4x8),
+    Array4x8(&'a LEArray4x8),
 
     /// Key Vault Key
     Key(KeyReadArgs),
@@ -66,9 +66,9 @@ pub enum Mldsa87Seed<'a> {
     PrivKey(&'a Mldsa87PrivKey),
 }
 
-impl<'a> From<&'a Array4x8> for Mldsa87Seed<'a> {
+impl<'a> From<&'a LEArray4x8> for Mldsa87Seed<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a Array4x8) -> Self {
+    fn from(value: &'a LEArray4x8) -> Self {
         Self::Array4x8(value)
     }
 }
@@ -98,14 +98,14 @@ impl Mldsa87 {
     }
 
     // The trng only generates 12 dwords
-    fn generate_iv(trng: &mut Trng) -> CaliptraResult<Array4x16> {
+    fn generate_iv(trng: &mut Trng) -> CaliptraResult<LEArray4x16> {
         let iv = {
             let mut iv = [0; 16];
             let iv1 = trng.generate()?;
             let iv2 = trng.generate()?;
             iv[..12].copy_from_slice(&iv1.0);
             iv[12..16].copy_from_slice(&iv2.0[0..4]);
-            Array4x16::from(iv)
+            LEArray4x16::from(iv)
         };
         Ok(iv)
     }
@@ -425,7 +425,7 @@ impl Mldsa87 {
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy the random value
-        let verify_res = Array4x16::read_from_reg(mldsa.verify_res());
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
 
         // Clear the hardware when done
         mldsa.ctrl().write(|w| w.zeroize(true));
