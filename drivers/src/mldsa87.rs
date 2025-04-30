@@ -166,7 +166,7 @@ impl Mldsa87 {
 
         // Copy seed to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
@@ -176,7 +176,7 @@ impl Mldsa87 {
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen()));
@@ -236,26 +236,26 @@ impl Mldsa87 {
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+                priv_key.write_to_reg(mldsa.privkey_in())
             }
         }
 
         // Copy digest
-        KvAccess::copy_from_arr(msg, mldsa.msg())?;
+        msg.write_to_reg(mldsa.msg());
 
         // Sign RND, TODO do we want deterministic?
-        KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.ctrl().write(|w| {
@@ -305,22 +305,22 @@ impl Mldsa87 {
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Sign RND.
-        KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+                priv_key.write_to_reg(mldsa.privkey_in())
             }
         }
 
@@ -495,7 +495,7 @@ impl Mldsa87 {
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         mldsa
             .ctrl()
