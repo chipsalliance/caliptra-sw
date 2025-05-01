@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::{mailbox::RevokeExportedCdiHandleReq, SocManager};
+use caliptra_api::{
+    mailbox::{MailboxRespHeader, RevokeExportedCdiHandleReq},
+    SocManager,
+};
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
@@ -432,4 +435,79 @@ fn test_sign_with_revoked_exported_cdi() {
         CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED,
         result.err().unwrap(),
     );
+}
+
+#[test]
+fn test_sign_with_disabled_attestation() {
+    // This tests the following sequence:
+    // 1. Create an exported-cdi
+    // 2. Check that we can create a valid signature with it.
+    // 3. Disable attestation
+    // 4. Verify that the signature is no longer valid.
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let export_cdi_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&export_cdi_cmd),
+        DpeResult::Success,
+    ) else { panic!("expected derive context resp!") };
+
+    let mut sign_cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        exported_cdi_handle: cdi_resp.exported_cdi,
+        tbs: TEST_DIGEST,
+    });
+    sign_cmd.populate_chksum().unwrap();
+
+    let result = model
+        .mailbox_execute(
+            CommandId::SIGN_WITH_EXPORTED_ECDSA.into(),
+            sign_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let sign_resp = SignWithExportedEcdsaResp::ref_from_bytes(result.as_bytes()).unwrap();
+    assert!(check_certificate_signature(sign_resp, &cdi_resp));
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    let resp_hdr = MailboxRespHeader::read_from_bytes(resp.as_bytes()).unwrap();
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    let result = model
+        .mailbox_execute(
+            CommandId::SIGN_WITH_EXPORTED_ECDSA.into(),
+            sign_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let sign_resp = SignWithExportedEcdsaResp::ref_from_bytes(result.as_bytes()).unwrap();
+    assert!(!check_certificate_signature(sign_resp, &cdi_resp));
 }
