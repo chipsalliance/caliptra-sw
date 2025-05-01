@@ -27,8 +27,8 @@ use caliptra_test::image_pk_desc_hash;
 use dpe::{
     commands::{Command, CommandHdr, DeriveContextCmd, DeriveContextFlags},
     response::{
-        CertifyKeyResp, DeriveContextExportedCdiResp, DeriveContextResp, GetCertificateChainResp,
-        GetProfileResp, NewHandleResp, Response, ResponseHdr, SignResp,
+        CertifyKeyResp, DeriveContextExportedCdiResp, DeriveContextResp, DpeErrorCode,
+        GetCertificateChainResp, GetProfileResp, NewHandleResp, Response, ResponseHdr, SignResp,
     },
 };
 use openssl::{
@@ -214,7 +214,20 @@ fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
     }
 }
 
+fn check_dpe_status(resp_bytes: &[u8], expected_status: DpeErrorCode) {
+    if let Ok(&ResponseHdr { status, .. }) =
+        ResponseHdr::ref_from_bytes(&resp_bytes[..core::mem::size_of::<ResponseHdr>()])
+    {
+        if status != expected_status.get_error_code() {
+            panic!("Unexpected DPE Status: 0x{:X}", status);
+        }
+    }
+}
+
 fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
+    // Peek response header so we can panic with an error code in case the command failed.
+    check_dpe_status(resp_bytes, DpeErrorCode::NoError);
+
     match dpe_cmd {
         Command::CertifyKey(_) => {
             Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())

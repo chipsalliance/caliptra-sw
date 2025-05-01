@@ -11,19 +11,6 @@ use core::mem::size_of_val;
 use std::ffi::*;
 use std::slice;
 
-use caliptra_emu_types::RvSize;
-
-// These are needed if CFI is enabled.
-#[no_mangle]
-pub extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    std::process::exit(code as i32);
-}
-
-#[allow(unused)]
-#[no_mangle]
-static mut CFI_STATE_ORG: [u8; std::mem::size_of::<CfiState>()] =
-    [0; std::mem::size_of::<CfiState>()];
-
 // These are needed if CFI is enabled.
 #[no_mangle]
 pub extern "C" fn cfi_panic_handler(code: u32) -> ! {
