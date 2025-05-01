@@ -16,9 +16,7 @@ use crate::{
     mutrefbytes, CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    InvokeDpeReq, InvokeDpeResp, MailboxRespHeader, ResponseVarSize,
-};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, ResponseVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
