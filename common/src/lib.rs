@@ -10,6 +10,7 @@ pub mod checksum {
     pub use caliptra_api::{calc_checksum, verify_checksum};
 }
 pub mod crypto;
+pub mod debug_unlock;
 pub mod dice;
 pub mod error_handler;
 pub mod fips;

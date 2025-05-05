@@ -1467,6 +1467,21 @@ impl CaliptraError {
             0x000E0068,
             "Runtime Error: Auth manifest MLDSA owner signature invalid"
         ),
+        (
+            RUNTIME_DEBUG_UNLOCK_INVALID_LIFECYCLE,
+            0x000E0069,
+            "Runtime Error: Debug unlock invalid lifecycle"
+        ),
+        (
+            RUNTIME_DEBUG_UNLOCK_NO_CHALLENGE,
+            0x000E006A,
+            "Runtime Error: Debug unlock no challenge available"
+        ),
+        (
+            RUNTIME_DEBUG_UNLOCK_NO_REQUEST,
+            0x000E006B,
+            "Runtime Error: Debug unlock no request available"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
@@ -1996,59 +2011,64 @@ impl CaliptraError {
             "FIPS Hooks: Injected error"
         ),
         (
-            ROM_SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE,
+            SS_DBG_UNLOCK_INVALID_REQ_REG_VALUE,
             0xa0000000,
             "Debug unlock error: Invalid request register value"
         ),
         (
-            ROM_SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD,
+            SS_DBG_UNLOCK_MANUF_INVALID_MBOX_CMD,
             0xa0000001,
             "Debug unlock error: Manufacturing invalid mailbox command"
         ),
         (
-            ROM_SS_DBG_UNLOCK_MANUF_INVALID_TOKEN,
+            SS_DBG_UNLOCK_MANUF_INVALID_TOKEN,
             0xa0000002,
             "Debug unlock error: Manufacturing invalid token"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD,
+            SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD,
             0xa0000003,
             "Debug unlock error: Production invalid request mailbox command"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_REQ,
+            SS_DBG_UNLOCK_PROD_INVALID_REQ,
             0xa0000004,
             "Debug unlock error: Production invalid request"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_LEVEL,
+            SS_DBG_UNLOCK_PROD_INVALID_LEVEL,
             0xa0000005,
             "Debug unlock error: Production invalid level"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE,
+            SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE,
             0xa0000006,
             "Debug unlock error: Production invalid token challenge"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD,
+            SS_DBG_UNLOCK_PROD_INVALID_TOKEN_MBOX_CMD,
             0xa0000007,
             "Debug unlock error: Production invalid token mailbox command"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS,
+            SS_DBG_UNLOCK_PROD_INVALID_TOKEN_WRONG_PUBLIC_KEYS,
             0xa0000008,
             "Debug unlock error: Production invalid token wrong public keys"
         ),
         (
-            ROM_SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE,
+            SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE,
             0xa0000009,
             "Debug unlock error: Production invalid token invalid signature"
         ),
         (
-            ROM_SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE,
+            SS_DBG_UNLOCK_REQ_IN_PASSIVE_MODE,
             0xa000000a,
             "Debug unlock error: Request in passive mode"
+        ),
+        (
+            SS_DBG_UNLOCK_REQ_BIT_NOT_SET,
+            0xa000000b,
+            "Debug unlock error: Req bit not set in soc_ifc"
         ),
         (
             RUNTIME_DRIVER_AES_READ_KEY_KV_READ,

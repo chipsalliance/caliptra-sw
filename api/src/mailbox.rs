@@ -270,6 +270,7 @@ pub enum MailboxResp {
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalResp),
     CmEcdhGenerate(CmEcdhGenerateResp),
     CmEcdhFinish(CmEcdhFinishResp),
+    ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
 }
 
 impl MailboxResp {
@@ -315,6 +316,7 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_bytes()),
+            MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -360,6 +362,7 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -441,6 +444,8 @@ pub enum MailboxReq {
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq),
     CmEcdhGenerate(CmEcdhGenerateReq),
     CmEcdhFinish(CmEcdhFinishReq),
+    ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
+    ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
 }
 
 impl MailboxReq {
@@ -489,6 +494,8 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_bytes()),
+            MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
+            MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -537,6 +544,8 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -585,6 +594,12 @@ impl MailboxReq {
             MailboxReq::CmAesGcmDecryptFinal(_) => CommandId::CM_AES_GCM_DECRYPT_FINAL,
             MailboxReq::CmEcdhGenerate(_) => CommandId::CM_ECDH_GENERATE,
             MailboxReq::CmEcdhFinish(_) => CommandId::CM_ECDH_FINISH,
+            MailboxReq::ProductionAuthDebugUnlockReq(_) => {
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
+            }
+            MailboxReq::ProductionAuthDebugUnlockToken(_) => {
+                CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
+            }
         }
     }
 
@@ -616,7 +631,7 @@ pub struct MailboxReqHeader {
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone)]
 pub struct MailboxRespHeader {
     pub chksum: u32,
     pub fips_status: u32,
@@ -1574,7 +1589,7 @@ impl Request for ProductionAuthDebugUnlockReq {
 
 // PRODUCTION_AUTH_DEBUG_UNLOCK_CHALLENGE
 #[repr(C)]
-#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Clone)]
 pub struct ProductionAuthDebugUnlockChallenge {
     pub hdr: MailboxRespHeader,
     pub length: u32,                        // Length (in DWORDs)
