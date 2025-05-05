@@ -2,7 +2,6 @@
 # Default settings:
 set BUILD FALSE
 set GUI   FALSE
-set JTAG  TRUE
 set ITRNG TRUE
 set CG_EN FALSE
 set RTL_VERSION latest
@@ -32,7 +31,6 @@ file mkdir $caliptrapackageDir
 
 # Path to rtl
 set rtlDir $fpgaDir/../$RTL_VERSION/rtl
-puts "JTAG: $JTAG"
 puts "ITRNG: $ITRNG"
 puts "CG_EN: $CG_EN"
 puts "RTL_VERSION: $RTL_VERSION"
