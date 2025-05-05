@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{
-    common::{assert_error, run_rt_test_lms, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
+    common::{assert_error, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
 };
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
@@ -355,12 +355,7 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 #[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let mut model = match pqc_key_type {
-            FwVerificationPqcKeyType::LMS => run_rt_test_lms(RuntimeTestArgs::default()),
-            FwVerificationPqcKeyType::MLDSA => {
-                run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA)
-            }
-        };
+        let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), *pqc_key_type);
 
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -413,12 +408,7 @@ fn set_manifest_command_execute(
     pqc_key_type: FwVerificationPqcKeyType,
     expected_err: Option<CaliptraError>,
 ) {
-    let mut model = match pqc_key_type {
-        FwVerificationPqcKeyType::LMS => run_rt_test_lms(RuntimeTestArgs::default()),
-        FwVerificationPqcKeyType::MLDSA => {
-            run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA)
-        }
-    };
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), pqc_key_type);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
