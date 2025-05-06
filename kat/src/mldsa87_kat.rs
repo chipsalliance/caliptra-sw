@@ -13,14 +13,14 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Array4x16, Array4x8, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PrivKey, Mldsa87Seed,
+    Array4x16, CaliptraError, CaliptraResult, LEArray4x8, Mldsa87, Mldsa87PrivKey, Mldsa87Seed,
     Mldsa87SignRnd, Sha2_512_384, Trng,
 };
 use caliptra_registers::sha512::Sha512Reg;
 
 use zerocopy::IntoBytes;
 
-const SEED: Array4x8 = Array4x8::new([
+const SEED: LEArray4x8 = LEArray4x8::new([
     0x0a004093, 0x27d15f67, 0x121d0737, 0xd5e4ce3f, 0x28fe43a2, 0xd4f06807, 0x858a7646, 0x9cf85c2d,
 ]);
 

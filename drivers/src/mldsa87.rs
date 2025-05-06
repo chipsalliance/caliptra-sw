@@ -14,7 +14,7 @@ Abstract:
 #![allow(dead_code)]
 
 use crate::{
-    array::{Array4x1157, Array4x1224, Array4x16, Array4x648, Array4x8},
+    array::{LEArray4x1157, LEArray4x1224, LEArray4x16, LEArray4x648, LEArray4x8},
     kv_access::{KvAccess, KvAccessErr},
     wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
@@ -35,21 +35,21 @@ pub enum Mldsa87Result {
 }
 
 /// MLDSA-87 Public Key
-pub type Mldsa87PubKey = Array4x648;
+pub type Mldsa87PubKey = LEArray4x648;
 
 /// MLDSA-87 Private Key
-pub type Mldsa87PrivKey = Array4x1224;
+pub type Mldsa87PrivKey = LEArray4x1224;
 
 /// MLDSA-87 Signature
-pub type Mldsa87Signature = Array4x1157;
+pub type Mldsa87Signature = LEArray4x1157;
 
 /// MLDSA-87 Message (64 Bytes)
-pub type Mldsa87Msg = Array4x16;
+pub type Mldsa87Msg = LEArray4x16;
 
 /// MLDSA-87 Signature RND
-pub type Mldsa87SignRnd = Array4x8;
+pub type Mldsa87SignRnd = LEArray4x8;
 
-type Mldsa87VerifyRes = Array4x16;
+type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 
@@ -57,7 +57,7 @@ pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 #[derive(Debug, Copy, Clone)]
 pub enum Mldsa87Seed<'a> {
     /// Array
-    Array4x8(&'a Array4x8),
+    Array4x8(&'a LEArray4x8),
 
     /// Key Vault Key
     Key(KeyReadArgs),
@@ -66,9 +66,9 @@ pub enum Mldsa87Seed<'a> {
     PrivKey(&'a Mldsa87PrivKey),
 }
 
-impl<'a> From<&'a Array4x8> for Mldsa87Seed<'a> {
+impl<'a> From<&'a LEArray4x8> for Mldsa87Seed<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a Array4x8) -> Self {
+    fn from(value: &'a LEArray4x8) -> Self {
         Self::Array4x8(value)
     }
 }
@@ -98,14 +98,14 @@ impl Mldsa87 {
     }
 
     // The trng only generates 12 dwords
-    fn generate_iv(trng: &mut Trng) -> CaliptraResult<Array4x16> {
+    fn generate_iv(trng: &mut Trng) -> CaliptraResult<LEArray4x16> {
         let iv = {
             let mut iv = [0; 16];
             let iv1 = trng.generate()?;
             let iv2 = trng.generate()?;
             iv[..12].copy_from_slice(&iv1.0);
             iv[12..16].copy_from_slice(&iv2.0[0..4]);
-            Array4x16::from(iv)
+            LEArray4x16::from(iv)
         };
         Ok(iv)
     }
@@ -166,7 +166,7 @@ impl Mldsa87 {
 
         // Copy seed to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
@@ -176,7 +176,7 @@ impl Mldsa87 {
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen()));
@@ -236,26 +236,26 @@ impl Mldsa87 {
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+                priv_key.write_to_reg(mldsa.privkey_in())
             }
         }
 
         // Copy digest
-        KvAccess::copy_from_arr(msg, mldsa.msg())?;
+        msg.write_to_reg(mldsa.msg());
 
         // Sign RND, TODO do we want deterministic?
-        KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
         mldsa.ctrl().write(|w| {
@@ -284,10 +284,45 @@ impl Mldsa87 {
         }
     }
 
+    fn program_var_msg(mldsa: RegisterBlock<ureg::RealMmioMut>, msg: &[u8]) -> CaliptraResult<()> {
+        // Wait for stream ready.
+        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
+
+        // Reset the message strobe register.
+        mldsa.msg_strobe().write(|s| s.strobe(0xF));
+
+        // Stream the message to the hardware.
+        let dwords = msg.chunks_exact(size_of::<u32>());
+        let remainder = dwords.remainder();
+        for dword in dwords {
+            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
+            mldsa.msg().at(0).write(|_| dw.get());
+        }
+
+        let last_strobe = match remainder.len() {
+            0 => 0b0000,
+            1 => 0b0001,
+            2 => 0b0011,
+            3 => 0b0111,
+            _ => 0b0000, // should never happen
+        };
+        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+
+        // Write last dword; 0 for no remainder.
+        let mut last_word = 0_u32;
+        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+        mldsa.msg().at(0).write(|_| last_word);
+
+        // Wait for status to be valid
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+        Ok(())
+    }
+
     pub fn sign_var(
         &mut self,
         seed: &Mldsa87Seed,
-        _pub_key: &Mldsa87PubKey,
+        pub_key: &Mldsa87PubKey,
         msg: &[u8],
         sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
@@ -305,22 +340,22 @@ impl Mldsa87 {
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
 
         // Sign RND.
-        KvAccess::copy_from_arr(sign_rnd, mldsa.sign_rnd())?;
+        sign_rnd.write_to_reg(mldsa.sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => KvAccess::copy_from_arr(arr, mldsa.seed())?,
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
                 KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                KvAccess::copy_from_arr(priv_key, mldsa.privkey_in())?
+                priv_key.write_to_reg(mldsa.privkey_in())
             }
         }
 
@@ -336,53 +371,20 @@ impl Mldsa87 {
             .stream_msg(true)
         });
 
-        // Wait for stream ready.
-        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
-
-        // Reset the message strobe register.
-        mldsa.msg_strobe().write(|_| 0xF.into());
-
-        // Stream the message to the hardware.
-        let count = msg.len() / size_of::<u32>();
-        let mut last_dword_len = 0u32;
-        let (buf_words, suffix) = <[Unalign<u32>]>::ref_from_prefix_with_elems(msg, count).unwrap();
-        if suffix.is_empty() {
-        } else {
-            last_dword_len = suffix.len() as u32;
-        }
-        for word in buf_words.iter().take(count) {
-            mldsa.msg().at(0).write(|_| word.get());
-        }
-
-        // Write the strobe register to indicate the end of the message.
-        mldsa.msg_strobe().write(|_| last_dword_len.into());
-
-        // Write the last incomplete word.
-        if !suffix.is_empty() && suffix.len() <= size_of::<u32>() {
-            let mut last_word = 0_u32;
-            last_word.as_mut_bytes()[..suffix.len()].copy_from_slice(suffix);
-            mldsa.msg().at(0).write(|_| last_word);
-        } else if suffix.is_empty() {
-            // Write dummy data into msg[0].
-            mldsa.msg().at(0).write(|_| 0);
-        }
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
 
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
-        // [TODO][CAP2] Verify the signature
-        // // No need to zeroize here, as the hardware will be zeroized by verify.
-        // let result = self.verify(pub_key, msg, &signature)?;
-        // if result == Mldsa87Result::Success {
-        //     cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
-        //     Ok(signature)
-        // } else {
-        //     Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
-        // }
-        Ok(signature)
+        // No need to zeroize here, as the hardware will be zeroized by verify.
+        let result = self.verify_var(pub_key, msg, &signature)?;
+        if result == Mldsa87Result::Success {
+            cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
+            Ok(signature)
+        } else {
+            Err(CaliptraError::DRIVER_MLDSA87_SIGN_VALIDATION_FAILED)
+        }
     }
 
     /// Verify the signature with specified public key and message.
@@ -425,11 +427,11 @@ impl Mldsa87 {
         // Program the command register for signature verification
         mldsa.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
-        // Wait for hardware ready
+        // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy the random value
-        let verify_res = Array4x16::read_from_reg(mldsa.verify_res());
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
 
         // Clear the hardware when done
         mldsa.ctrl().write(|w| w.zeroize(true));
@@ -474,6 +476,72 @@ impl Mldsa87 {
         Ok(result)
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn verify_var(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        msg: &[u8],
+        signature: &Mldsa87Signature,
+    ) -> CaliptraResult<Mldsa87Result> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::MLDSA_VERIFY_FAILURE)?
+        }
+
+        let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
+            Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
+        }
+
+        let mldsa = self.mldsa87.regs_mut();
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Clear the hardware before start
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        // Wait for hardware ready
+        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+
+        // Copy pubkey
+        pub_key.write_to_reg(mldsa.pubkey());
+
+        // Copy signature
+        signature.write_to_reg(mldsa.signature());
+
+        // Program the command register for signature verification with streaming
+        mldsa
+            .ctrl()
+            .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
+
+        // Copy the result
+        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+
+        // Clear the hardware when done
+        mldsa.ctrl().write(|w| w.zeroize(true));
+
+        let result = if verify_res.0 == truncated_signature {
+            // We only have a 6, 8 and 12 dword cfi assert
+            cfi_assert_eq_12_words(
+                &verify_res.0[..12].try_into().unwrap(),
+                &truncated_signature[..12].try_into().unwrap(),
+            );
+            cfi_assert_eq_8_words(
+                &verify_res.0[8..].try_into().unwrap(),
+                &truncated_signature[8..].try_into().unwrap(),
+            );
+            Mldsa87Result::Success
+        } else {
+            Mldsa87Result::SigVerifyFailed
+        };
+
+        Ok(result)
+    }
+
     /// Sign the PCR digest with PCR signing private key (seed) in keyvault slot 8 (KV8).
     /// KV8 contains the Alias FMC MLDSA keypair seed.
     ///
@@ -499,7 +567,7 @@ impl Mldsa87 {
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
-        KvAccess::copy_from_arr(&iv, mldsa.entropy())?;
+        iv.write_to_reg(mldsa.entropy());
 
         mldsa
             .ctrl()

@@ -222,13 +222,12 @@ impl Crypto {
 
     /// Sign data using MLDSA Private Key
     ///
-    /// This routine calculates the digest of the `data` and signs the hash
-    ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `priv_key` - Key slot to retrieve the private key
-    /// * `data` - Input data to hash
+    /// * `key_pair_seed` - Key slot to retrieve the keypair generation seed
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to sign
     ///
     /// # Returns
     ///
@@ -239,12 +238,10 @@ impl Crypto {
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        let mut digest = env.sha2_512_384.sha512_digest(data);
-        let digest = okmutref(&mut digest)?;
-        env.mldsa.sign(
+        env.mldsa.sign_var(
             &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
-            digest,
+            data,
             &Mldsa87SignRnd::default(),
             &mut env.trng,
         )
@@ -252,13 +249,11 @@ impl Crypto {
 
     /// Verify the MLDSA Signature
     ///
-    /// This routine calculates the digest and verifies the signature
-    ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
     /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to hash
+    /// * `data` - Input data to verify the signature on
     /// * `sig` - Signature to verify
     ///
     /// # Returns
@@ -271,8 +266,6 @@ impl Crypto {
         data: &[u8],
         sig: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
-        let digest = env.sha2_512_384.sha512_digest(data);
-        let digest = okref(&digest)?;
-        env.mldsa.verify(pub_key, digest, sig)
+        env.mldsa.verify_var(pub_key, data, sig)
     }
 }
