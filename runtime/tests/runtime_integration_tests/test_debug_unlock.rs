@@ -195,12 +195,8 @@ fn test_dbg_unlock_prod_success() {
     sha512.update(challenge.challenge);
     let sha512_digest = sha512.finalize();
 
-    // Convert to hardware format i.e. big endian before signing for MLDSA.
-    let binding = u8_to_u32_be(&sha512_digest);
-    let msg = binding.as_bytes();
-
     let mldsa_signature = signing_mldsa_key
-        .try_sign_with_seed(&[0; 32], msg, &[])
+        .try_sign_with_seed(&[0; 32], &sha512_digest, &[])
         .unwrap();
     // Convert to hardware format i.e. little endian for MLDSA
     let mldsa_signature = {
