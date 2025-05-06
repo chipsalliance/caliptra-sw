@@ -31,12 +31,14 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
 
 ### Versal ###
 #### Processing system one time setup: ####
-1. Download VCK190 SD card image and install to a microSD card.
-   - Insert the SD card into the slot on top of the board. The slot below the board is for the System Controller.
+1. Download VCK190 SD card image and install to a microSD card. The Versal is packaged with a blank microSD card in the box that can be used for the OS.
+   - Insert the SD card into the slot on top of the board.
+     - The slot below the board is for the System Controller and the card there should be left inserted.
    - https://ubuntu.com/download/amd-xilinx
 1. Configure SW1 to boot from SD1: [Image](./images/versal_boot_switch.jpg)
    - Mode SW1[4:1]: OFF, OFF, OFF, ON
-1. Boot from the SD card. (Suggest using the serial port for initial setup)
+1. Boot from the SD card.
+   - Initial boot requires connecting over serial. The first serial port is for the PS. See below for settings.
    - Initial credentials
      - User: ubuntu Pass: ubuntu
    - Install software dependencies - *Do not update the system*
@@ -51,9 +53,13 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
      - Issue 'saveenv' command to uboot, which creates an env file in the boot partition for use in subsequent boots.
 
 #### Serial port configuration: ####
-The USB Type-C connecter J207 provides UART and JTAG access to the board. The first UART connection should be for the PS.
+The USB Type-C connecter J207 provides UART and JTAG access to the board.
+1. VCK190 JTAG chain
+2. PS UART (First COM port)
+3. PL UART (Currently unused)
+4. System Controller UART (Third COM port)
 
-Serial port settings:
+Serial port settings for the PS UART:
  - Speed: 115200
  - Data bits: 8
  - Stop bits: 1
@@ -68,7 +74,6 @@ This script provides a number of configuration options for features that can be 
 | ------      | -------
 | BUILD       | Automatically start building the FPGA.
 | GUI         | Open the Vivado GUI.
-| JTAG        | Assign JTAG signals to PS GPIO.
 | ITRNG       | Enable Caliptra's ITRNG.
 | CG_EN       | Removes FPGA optimizations and allows clock gating.
 | RTL_VERSION | RTL directory under hw/. latest or 1.0.
@@ -76,10 +81,7 @@ This script provides a number of configuration options for features that can be 
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
-    - Above command creates a bitstream located at: caliptra_build/caliptra_fpga.bin
-    - To check the git revision a bitstream was generated with
-      - `xxd -s 0x88 -l 8 caliptra_build/caliptra_fpga.bin`
-      - Result should be `3001 a001 xxxx xxxx`. 3001 a001 is a command to write the USR_ACCESS register and the rest is the hash.
+    - Above command creates a Vivado Hardware Platform located at: caliptra_build/caliptra_fpga.xsa
  - Launch Vivado with GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs GUI=TRUE`
     - Run Synthesis: `launch_runs synth_1`
@@ -89,10 +91,12 @@ This script provides a number of configuration options for features that can be 
     - Export hardware: `write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa`
 
 ### Build boot.bin: ###
- - Source PetaLinux tools from the PetaLinux installation directory.
-   `source settings.sh`
- - Run steps from [create_boot_bin.sh](create_boot_bin.sh) to create a BOOT.BIN
+ - Source PetaLinux tools from the PetaLinux installation directory. *PetaLinux Tools must match Vivado version*
+   - `source settings.sh`
+ - Execute [create_boot_bin.sh](create_boot_bin.sh) to create a BOOT.BIN
    - `./create_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
+ - (Optional) After the BOOT.BIN is created once, update_boot_bin.sh can be used to incorporate a new xsa.
+   - `./update_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
  - Copy petalinux_project/images/linux/BOOT.BIN to the boot partition as boot1900.bin
    - If the Ubuntu image is booted, it will mount the boot partition at /boot/firmware/
    - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
