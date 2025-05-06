@@ -67,6 +67,16 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+    }
+
     loop {
         unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
     }
@@ -230,6 +240,12 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_000E => {
             validate_fmc_rt_load_in_iccm(mbox);
         }
+        0x1000_0010 => {
+            test_datavault_pmp(true);
+        }
+        0x1000_0011 => {
+            test_datavault_pmp(false);
+        }
         _ => {}
     }
 }
@@ -247,6 +263,24 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn test_datavault_pmp(start: bool) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let data_vault = &persistent_data.get().data_vault;
+
+    let dv_bytes: &mut [u8] = unsafe {
+        core::slice::from_raw_parts_mut(
+            data_vault as *const _ as *mut u8,
+            core::mem::size_of_val(data_vault),
+        )
+    };
+
+    if start {
+        dv_bytes[0] = 0xFF;
+    } else {
+        dv_bytes[dv_bytes.len() - 1] = 0xFF;
+    }
 }
 
 fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
