@@ -949,12 +949,17 @@ dependencies = [
  "caliptra-image-verify",
  "caliptra-runtime",
  "caliptra_common",
+ "der",
  "dpe",
  "elf",
+ "ml-dsa",
  "openssl",
  "rand",
  "regex",
+ "signature",
+ "spki",
  "ureg",
+ "x509-cert",
  "zerocopy",
 ]
 
