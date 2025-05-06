@@ -115,37 +115,30 @@ impl Default for Mldsa87Signature {
 
 impl Signature<4641> for Mldsa87Signature {
     fn to_der(&self, buf: &mut [u8; 4641]) -> Option<usize> {
-        let ml_dsa_signature_len = der_uint_len(&self.sig);
-
         //
         // Signature DER Sequence encoding
         //
-        // sig_seq_len = TAG (1 byte) + LEN (3 byte) + ml_dsa_signature_len
-        //
-        let sig_seq_len = 4 + ml_dsa_signature_len;
+        let sig_seq_len = self.sig.len();
         let mut pos = 0;
 
         // Encode Signature DER Bit String
         *buf.get_mut(pos)? = DER_BIT_STR_TAG;
         pos += 1;
         pos += der_encode_len(1 + sig_seq_len, buf.get_mut(pos..)?)?;
-        // Not sure?
         *buf.get_mut(pos)? = 0x0;
         pos += 1;
 
-        // Encode Signature DER Sequence
-        *buf.get_mut(pos)? = DER_SEQ_TAG;
-        pos += 1;
-        pos += der_encode_len(ml_dsa_signature_len, buf.get_mut(pos..)?)?;
-
-        // Encode Ml-Dsa87 signature
-        pos += der_encode_uint(&self.sig, buf.get_mut(pos..)?)?;
+        buf.get_mut(pos..pos + self.sig.len())?
+            .copy_from_slice(&self.sig);
+        pos += sig_seq_len;
 
         Some(pos)
     }
 
     fn oid_der() -> &'static [u8] {
-        &[0x06, 0x08, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03]
+        &[
+            0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x13,
+        ]
     }
 }
 
