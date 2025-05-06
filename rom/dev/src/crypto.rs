@@ -244,8 +244,9 @@ impl Crypto {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `priv_key` - Key slot to retrieve the private key
-    /// * `data` - Input data to hash
+    /// * `key_pair_seed` - Key slot to retrieve the keypair generation seed
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to sign
     ///
     /// # Returns
     ///
@@ -253,12 +254,12 @@ impl Crypto {
     #[inline(always)]
     pub fn mldsa87_sign_and_verify(
         env: &mut RomEnv,
-        priv_key: KeyId,
+        key_pair_seed: KeyId,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
         env.mldsa87.sign_var(
-            &Mldsa87Seed::Key(KeyReadArgs::new(priv_key)),
+            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
             data,
             &Mldsa87SignRnd::default(),

@@ -204,6 +204,8 @@ pub fn validate_debug_unlock_token(
     digest_op.update(&token.challenge)?;
     let mut mldsa_msg = Array4x16::default();
     digest_op.finalize(&mut mldsa_msg)?;
+
+    // Convert the digest to little endian format for MLDSA.
     let mldsa_msg: LEArray4x16 = mldsa_msg.into();
 
     let result = mldsa87.verify(

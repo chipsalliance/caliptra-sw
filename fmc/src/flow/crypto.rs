@@ -225,8 +225,9 @@ impl Crypto {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `priv_key` - Key slot to retrieve the private key
-    /// * `data` - Input data to hash
+    /// * `key_pair_seed` - Key slot to retrieve the keypair generation seed
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to sign
     ///
     /// # Returns
     ///
@@ -252,7 +253,7 @@ impl Crypto {
     ///
     /// * `env` - ROM Environment
     /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to hash
+    /// * `data` - Input data to verify the signature on
     /// * `sig` - Signature to verify
     ///
     /// # Returns

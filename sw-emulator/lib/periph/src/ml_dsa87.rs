@@ -78,7 +78,7 @@ const ML_DSA87_SIGN_RND_SIZE: usize = 32;
 const ML_DSA87_MSG_SIZE: usize = 64;
 
 /// ML_DSA87 MSG MAX size (for streaming mode)
-const ML_DSA87_MSG_MAX_SIZE: usize = 1024; // Reasonable buffer size for streamed messages
+const ML_DSA87_MSG_MAX_SIZE: usize = 8192; // Message limit for streamed messages
 
 /// ML_DSA87 external mu size
 const ML_DSA87_EXTERNAL_MU_SIZE: usize = 64;

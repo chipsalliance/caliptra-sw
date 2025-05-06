@@ -284,10 +284,45 @@ impl Mldsa87 {
         }
     }
 
+    fn program_var_msg(mldsa: RegisterBlock<ureg::RealMmioMut>, msg: &[u8]) -> CaliptraResult<()> {
+        // Wait for stream ready.
+        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
+
+        // Reset the message strobe register.
+        mldsa.msg_strobe().write(|s| s.strobe(0xF));
+
+        // Stream the message to the hardware.
+        let dwords = msg.chunks_exact(size_of::<u32>());
+        let remainder = dwords.remainder();
+        for dword in dwords {
+            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
+            mldsa.msg().at(0).write(|_| dw.get());
+        }
+
+        let last_strobe = match remainder.len() {
+            0 => 0b0000,
+            1 => 0b0001,
+            2 => 0b0011,
+            3 => 0b0111,
+            _ => 0b0000, // should never happen
+        };
+        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+
+        // Write last dword; 0 for no remainder.
+        let mut last_word = 0_u32;
+        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
+        mldsa.msg().at(0).write(|_| last_word);
+
+        // Wait for status to be valid
+        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+
+        Ok(())
+    }
+
     pub fn sign_var(
         &mut self,
         seed: &Mldsa87Seed,
-        _pub_key: &Mldsa87PubKey,
+        pub_key: &Mldsa87PubKey,
         msg: &[u8],
         sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
@@ -336,41 +371,14 @@ impl Mldsa87 {
             .stream_msg(true)
         });
 
-        // Wait for stream ready.
-        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
-
-        // Reset the message strobe register.
-        mldsa.msg_strobe().write(|s| s.strobe(0xF));
-
-        // Stream the message to the hardware.
-        let dwords = msg.chunks_exact(size_of::<u32>());
-        let remainder = dwords.remainder();
-        for dword in dwords {
-            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
-            mldsa.msg().at(0).write(|_| dw.get());
-        }
-
-        let last_strobe = match remainder.len() {
-            0 => 0b0000,
-            1 => 0b0001,
-            2 => 0b0011,
-            3 => 0b0111,
-            _ => 0b0000, // should never happen
-        };
-        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
-        // write last dword, (0 for no remainder)
-        let mut last_word = 0_u32;
-        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
-        mldsa.msg().at(0).write(|_| last_word);
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
 
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
 
         // No need to zeroize here, as the hardware will be zeroized by verify.
-        let result = self.verify_var(_pub_key, msg, &signature)?;
+        let result = self.verify_var(pub_key, msg, &signature)?;
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -419,7 +427,7 @@ impl Mldsa87 {
         // Program the command register for signature verification
         mldsa.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
-        // Wait for hardware ready
+        // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
 
         // Copy the random value
@@ -507,35 +515,8 @@ impl Mldsa87 {
             .ctrl()
             .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
 
-        // Wait for stream ready.
-        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
-
-        // Reset the message strobe register.
-        mldsa.msg_strobe().write(|s| s.strobe(0xF));
-
-        // Stream the message to the hardware.
-        let dwords = msg.chunks_exact(size_of::<u32>());
-        let remainder = dwords.remainder();
-        for dword in dwords {
-            let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
-            mldsa.msg().at(0).write(|_| dw.get());
-        }
-
-        let last_strobe = match remainder.len() {
-            0 => 0b0000,
-            1 => 0b0001,
-            2 => 0b0011,
-            3 => 0b0111,
-            _ => 0b0000, // should never happen
-        };
-        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
-        // write last dword, (0 for no remainder)
-        let mut last_word = 0_u32;
-        last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
-        mldsa.msg().at(0).write(|_| last_word);
-
-        // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        // Program the message to the hardware
+        Mldsa87::program_var_msg(mldsa, msg)?;
 
         // Copy the result
         let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
