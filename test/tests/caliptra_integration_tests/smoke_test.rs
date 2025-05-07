@@ -111,20 +111,39 @@ fn retrieve_csr_test() {
     let ecc_csr = openssl::x509::X509Req::from_der(ecc_csr_der).unwrap();
     let ecc_csr_txt = String::from_utf8(ecc_csr.to_text().unwrap()).unwrap();
 
+    let mldsa_csr_der = &csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize];
+    let mldsa_csr = openssl::x509::X509Req::from_der(mldsa_csr_der).unwrap();
+    let mldsa_csr_txt = String::from_utf8(mldsa_csr.to_text().unwrap()).unwrap();
+
     // To update the CSR testdata:
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &mldsa_csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &mldsa_csr_der).unwrap();
 
     println!("ecc csr: {}", ecc_csr_txt);
+    println!("mldsa csr: {}", mldsa_csr_txt);
 
     assert_eq!(
         ecc_csr_txt.as_str(),
         include_str!("smoke_testdata/idevid_csr.txt")
     );
+    assert_eq!(
+        mldsa_csr_txt.as_str(),
+        include_str!("smoke_testdata/idevid_csr_mldsa.txt")
+    );
     assert_eq!(ecc_csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
+    assert_eq!(
+        mldsa_csr_der,
+        include_bytes!("smoke_testdata/idevid_csr_mldsa.der")
+    );
 
     assert!(
         ecc_csr.verify(&ecc_csr.public_key().unwrap()).unwrap(),
+        "ECC CSR's self signature failed to validate"
+    );
+    assert!(
+        mldsa_csr.verify(&mldsa_csr.public_key().unwrap()).unwrap(),
         "ECC CSR's self signature failed to validate"
     );
 }
