@@ -374,16 +374,15 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
 
     fn mldsa87_verify(
         &mut self,
-        digest: &ImageDigest512,
+        msg: &[u8],
         pub_key: &ImageMldsaPubKey,
         sig: &ImageMldsaSignature,
     ) -> CaliptraResult<Mldsa87Result> {
         if self.soc_ifc.verify_in_fake_mode() {
             let pub_key = Mldsa87PubKey::from(pub_key.0);
             let sig = Mldsa87Signature::from(sig.0);
-            let msg: Mldsa87Msg = Mldsa87Msg::from(digest);
 
-            self.mldsa87.verify(&pub_key, &msg, &sig)
+            self.mldsa87.verify_var(&pub_key, &msg, &sig)
         } else {
             // Mock verify, just always return success
             Ok(Mldsa87Result::Success)
