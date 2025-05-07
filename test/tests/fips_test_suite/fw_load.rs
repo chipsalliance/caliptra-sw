@@ -16,7 +16,7 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_types::{
-    FwVerificationPqcKeyType, ImageBundle, ImageDigestHolder, ImageLmsPublicKey, ImageMldsaPubKey,
+    FwVerificationPqcKeyType, ImageBundle, ImageLmsPublicKey, ImageMldsaPubKey, ImageSignData,
     MLDSA87_PUB_KEY_WORD_SIZE, SHA384_DIGEST_WORD_SIZE, VENDOR_ECC_MAX_KEY_COUNT,
     VENDOR_LMS_MAX_KEY_COUNT, VENDOR_MLDSA_MAX_KEY_COUNT,
 };
@@ -76,23 +76,19 @@ fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_di
         let vendor_header_digest_384 = gen
             .vendor_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
-        let vendor_header_digest_512 = gen
-            .vendor_header_digest_512(&image_bundle.manifest.header)
-            .unwrap();
-        let vendor_header_digest_holder = ImageDigestHolder {
+        let vendor_header_bytes = gen.vendor_header_bytes(&image_bundle.manifest.header);
+        let vendor_header_digest_holder = ImageSignData {
             digest_384: &vendor_header_digest_384,
-            digest_512: Some(&vendor_header_digest_512),
+            mldsa_msg: Some(vendor_header_bytes),
         };
 
         let owner_header_digest_384 = gen
             .owner_header_digest_384(&image_bundle.manifest.header)
             .unwrap();
-        let owner_header_digest_512 = gen
-            .owner_header_digest_512(&image_bundle.manifest.header)
-            .unwrap();
-        let owner_header_digest_holder = ImageDigestHolder {
+        let owner_header_bytes = image_bundle.manifest.header.as_bytes();
+        let owner_header_digest_holder = ImageSignData {
             digest_384: &owner_header_digest_384,
-            digest_512: Some(&owner_header_digest_512),
+            mldsa_msg: Some(owner_header_bytes),
         };
 
         // Update preamble

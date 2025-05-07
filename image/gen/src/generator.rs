@@ -86,34 +86,29 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         // Create Preamble
         let vendor_header_digest_384 = self.vendor_header_digest_384(&header)?;
-        let mut vendor_header_digest_holder = ImageDigestHolder {
+        let mut vendor_header_signdata_holder = ImageSignData {
             digest_384: &vendor_header_digest_384,
-            digest_512: None,
+            mldsa_msg: None,
         };
 
         let owner_header_digest_384 = self.owner_header_digest_384(&header)?;
-        let mut owner_header_digest_holder = ImageDigestHolder {
+        let mut owner_header_signdata_holder = ImageSignData {
             digest_384: &owner_header_digest_384,
-            digest_512: None,
+            mldsa_msg: None,
         };
 
-        let (vendor_header_digest_512, owner_header_digest_512);
-
-        // Update vendor_digest_holder and owner_digest_holder with SHA512 digests if MLDSA validation is required.
+        // Update vendor_header_signdata_holder and owner_header_signdata_holder with data if MLDSA validation is required.
         if config.pqc_key_type == FwVerificationPqcKeyType::MLDSA {
-            vendor_header_digest_512 = self.vendor_header_digest_512(&header)?;
-            vendor_header_digest_holder.digest_512 = Some(&vendor_header_digest_512);
-
-            owner_header_digest_512 = self.owner_header_digest_512(&header)?;
-            owner_header_digest_holder.digest_512 = Some(&owner_header_digest_512);
+            vendor_header_signdata_holder.mldsa_msg = Some(self.vendor_header_bytes(&header));
+            owner_header_signdata_holder.mldsa_msg = Some(header.as_bytes());
         }
 
         let preamble = self.gen_preamble(
             config,
             ecc_key_idx,
             pqc_key_idx,
-            &vendor_header_digest_holder,
-            &owner_header_digest_holder,
+            &vendor_header_signdata_holder,
+            &owner_header_signdata_holder,
         )?;
 
         // Create Manifest
@@ -140,7 +135,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
     fn mldsa_sign(
         &self,
-        digest: &ImageDigest512,
+        msg: &[u8],
         priv_key: &ImageMldsaPrivKey,
         pub_key: &ImageMldsaPubKey,
     ) -> anyhow::Result<ImageMldsaSignature> {
@@ -153,15 +148,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             .map_err(|_| anyhow::anyhow!("Invalid private key size"))?;
         let priv_key = { PrivateKey::try_from_bytes(priv_key_bytes).unwrap() };
 
-        // Digest is received in hw format. Since the library and hardware format are the same, no endianess conversion needed.
-        let digest: [u8; MLDSA87_MSG_BYTE_SIZE] = digest
-            .as_bytes()
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid digest size"))?;
-
-        let signature = priv_key
-            .try_sign_with_seed(&[0u8; 32], &digest, &[])
-            .unwrap();
+        let signature = priv_key.try_sign_with_seed(&[0u8; 32], msg, &[]).unwrap();
         let signature_extended = {
             let mut sig = [0u8; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
@@ -176,7 +163,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                 .map_err(|_| anyhow::anyhow!("Invalid public key size"))?;
             PublicKey::try_from_bytes(pub_key_bytes).unwrap()
         };
-        if !pub_key.verify(&digest, &signature, &[]) {
+        if !pub_key.verify(msg, &signature, &[]) {
             bail!("MLDSA public key verification failed");
         }
 
@@ -196,8 +183,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         config: &ImageGeneratorConfig<E>,
         ecc_vendor_key_idx: u32,
         pqc_vendor_key_idx: u32,
-        vendor_digest_holder: &ImageDigestHolder,
-        owner_digest_holder: &ImageDigestHolder,
+        vendor_signdata_holder: &ImageSignData,
+        owner_signdata_holder: &ImageSignData,
     ) -> anyhow::Result<ImagePreamble>
     where
         E: ImageGeneratorExecutable,
@@ -208,21 +195,21 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Add Vendor Header Signatures.
         if let Some(priv_keys) = config.vendor_config.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
-                vendor_digest_holder.digest_384,
+                vendor_signdata_holder.digest_384,
                 &priv_keys.ecc_priv_keys[ecc_vendor_key_idx as usize],
                 &config.vendor_config.pub_keys.ecc_pub_keys[ecc_vendor_key_idx as usize],
             )?;
             vendor_sigs.ecc_sig = sig;
             if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
                 let lms_sig = self.crypto.lms_sign(
-                    vendor_digest_holder.digest_384,
+                    vendor_signdata_holder.digest_384,
                     &priv_keys.lms_priv_keys[pqc_vendor_key_idx as usize],
                 )?;
                 let sig = lms_sig.as_bytes();
                 vendor_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
             } else {
                 let mldsa_sig = self.mldsa_sign(
-                    vendor_digest_holder.digest_512.unwrap(),
+                    vendor_signdata_holder.mldsa_msg.unwrap(),
                     &priv_keys.mldsa_priv_keys[pqc_vendor_key_idx as usize],
                     &config.vendor_config.pub_keys.mldsa_pub_keys[pqc_vendor_key_idx as usize],
                 )?;
@@ -236,7 +223,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         if let Some(owner_config) = &config.owner_config {
             if let Some(priv_keys) = &owner_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
-                    owner_digest_holder.digest_384,
+                    owner_signdata_holder.digest_384,
                     &priv_keys.ecc_priv_key,
                     &owner_config.pub_keys.ecc_pub_key,
                 )?;
@@ -244,12 +231,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                 if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
                     let lms_sig = self
                         .crypto
-                        .lms_sign(owner_digest_holder.digest_384, &priv_keys.lms_priv_key)?;
+                        .lms_sign(owner_signdata_holder.digest_384, &priv_keys.lms_priv_key)?;
                     let sig = lms_sig.as_bytes();
                     owner_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
                 } else {
                     let mldsa_sig = self.mldsa_sign(
-                        owner_digest_holder.digest_512.unwrap(),
+                        owner_signdata_holder.mldsa_msg.unwrap(),
                         &priv_keys.mldsa_priv_key,
                         &config.owner_config.as_ref().unwrap().pub_keys.mldsa_pub_key,
                     )?;
@@ -393,16 +380,9 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         self.crypto.sha384_digest(header.as_bytes())
     }
 
-    /// Vendor digest is calculated up to the `owner_data` field.
-    pub fn vendor_header_digest_512(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest512> {
+    pub fn vendor_header_bytes<'a>(&self, header: &'a ImageHeader) -> &'a [u8] {
         let offset = offset_of!(ImageHeader, owner_data);
-        self.crypto
-            .sha512_digest(header.as_bytes().get(..offset).unwrap())
-    }
-
-    /// Calculate header digest for owner.
-    pub fn owner_header_digest_512(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest512> {
-        self.crypto.sha512_digest(header.as_bytes())
+        header.as_bytes().get(..offset).unwrap()
     }
 
     /// Calculate owner public key descriptor digest.

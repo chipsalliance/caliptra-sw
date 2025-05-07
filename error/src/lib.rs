@@ -757,14 +757,14 @@ impl CaliptraError {
             "Image Verifier Error: MLDSA owner signature read failed"
         ),
         (
-            IMAGE_VERIFIER_ERR_VENDOR_MLDSA_DIGEST_MISSING,
+            IMAGE_VERIFIER_ERR_VENDOR_MLDSA_MSG_MISSING,
             0x000b0052,
-            "Image Verifier Error: Vendor MLDSA digest missing"
+            "Image Verifier Error: Vendor MLDSA message missing"
         ),
         (
-            IMAGE_VERIFIER_ERR_OWNER_MLDSA_DIGEST_MISSING,
+            IMAGE_VERIFIER_ERR_OWNER_MLDSA_MSG_MISSING,
             0x000b0053,
-            "Image Verifier Error: Owner MLDSA digest missing"
+            "Image Verifier Error: Owner MLDSA message missing"
         ),
         (
             IMAGE_VERIFIER_ERR_VENDOR_MLDSA_VERIFY_FAILURE,

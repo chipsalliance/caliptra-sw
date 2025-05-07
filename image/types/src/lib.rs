@@ -393,9 +393,9 @@ impl FwVerificationPqcKeyType {
 }
 
 #[derive(Debug)]
-pub struct ImageDigestHolder<'a> {
+pub struct ImageSignData<'a> {
     pub digest_384: &'a ImageDigest384,
-    pub digest_512: Option<&'a ImageDigest512>,
+    pub mldsa_msg: Option<&'a [u8]>,
 }
 
 /// Caliptra Image Bundle
