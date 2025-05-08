@@ -99,17 +99,17 @@ fn open_block_dev(path: &Path) -> std::io::Result<File> {
 fn verify_image(dev: &mut File, image: &mut File) -> std::io::Result<bool> {
     dev.seek(SeekFrom::Start(0))?;
     let file_len = image.metadata()?.len();
-    let mut buf1 = vec![0_u8; 1024 * 1024];
-    let mut buf2 = vec![0_u8; 1024 * 1024];
+    let mut want = vec![0_u8; 1024 * 1024];
+    let mut have = vec![0_u8; 1024 * 1024];
     let mut total_read: u64 = 0;
     let start_time = Instant::now();
     loop {
-        let bytes_read = image.read(&mut buf1)?;
+        let bytes_read = image.read(&mut want)?;
         if bytes_read == 0 {
             return Ok(true);
         }
-        dev.read_exact(&mut buf2[..bytes_read])?;
-        if buf1[..bytes_read] != buf2[..bytes_read] {
+        dev.read_exact(&mut have[..bytes_read])?;
+        if want[..bytes_read] != have[..bytes_read] {
             return Ok(false);
         }
         total_read += u64::try_from(bytes_read).unwrap();
