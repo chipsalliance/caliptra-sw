@@ -11,6 +11,7 @@ pub struct UsbPortPath {
     pub bus: u8,
     pub ports: Vec<u8>,
 }
+
 impl UsbPortPath {
     #[allow(unused)]
     pub fn new(bus: u8, ports: Vec<u8>) -> Self {
@@ -57,6 +58,7 @@ impl Display for UsbPortPath {
         Ok(())
     }
 }
+
 impl Debug for UsbPortPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.to_string())
