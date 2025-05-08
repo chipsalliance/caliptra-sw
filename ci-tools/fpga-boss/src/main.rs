@@ -9,7 +9,6 @@ mod tty;
 mod usb_port_path;
 
 use anyhow::{anyhow, Context};
-use find_usb_block_device::find_usb_block_device;
 
 use clap::{arg, value_parser};
 use libftdi1_sys::ftdi_interface;
@@ -24,15 +23,18 @@ use std::{
 
 pub(crate) use fpga_jtag::{FpgaJtag, FpgaReset};
 pub(crate) use ftdi::FtdiCtx;
-pub(crate) use sd_mux::{SdMux, SdMuxTarget};
+use sd_mux::{SDWire, SdMux, SdMuxModel, SdMuxTarget, UsbsdMux};
 pub(crate) use usb_port_path::UsbPortPath;
 
 fn cli() -> clap::Command<'static> {
     clap::Command::new("fpga-boss")
         .about("FPGA boss tool")
         .arg(
-            arg!(--"sdwire" [PORT_PATH] "USB port path to the hub chip on the SDWire (ex: 3-1.2)")
-                .value_parser(value_parser!(UsbPortPath))
+            arg!(--"sdmux_model" [SDMUXMODEL] "Type of SD mux to use (sdwire, usbsdmux)")
+                .value_parser(value_parser!(SdMuxModel))
+        )
+        .arg(arg!(--"sdmux_id" [PORT_PATH] "ID of the SD mux to use (sdwire: e.g. 3-1.2, usbsdmux: e.g. 00048.00643)")
+            .value_parser(value_parser!(String))
         )
         .arg(
             arg!(--"zcu104" [PORT_PATH] "USB port path to the FTDI chip on the ZCU104 dev board (ex: 3-1.2)")
@@ -93,7 +95,7 @@ fn open_block_dev(path: &Path) -> std::io::Result<File> {
     }
 }
 
-/// Returns true if the device alread contains the image.
+/// Returns true if the device already contains the image.
 fn verify_image(dev: &mut File, image: &mut File) -> std::io::Result<bool> {
     dev.seek(SeekFrom::Start(0))?;
     let file_len = image.metadata()?.len();
@@ -162,7 +164,10 @@ fn active_runner_error_checks(input: &str) -> std::io::Result<()> {
 /// to recover the FPGA.
 fn check_for_github_runner_exception(input: &str) -> std::io::Result<()> {
     if input.contains("Unhandled exception") {
-        Err(Error::new(ErrorKind::BrokenPipe, "Github runner had an unhandled exception"))?;
+        Err(Error::new(
+            ErrorKind::BrokenPipe,
+            "Github runner had an unhandled exception",
+        ))?;
     }
     Ok(())
 }
@@ -232,7 +237,11 @@ fn log_uart_until_helper<R: BufRead>(
 
 fn main_impl() -> anyhow::Result<()> {
     let matches = cli().get_matches();
-    let sdwire_hub_path = matches.get_one::<UsbPortPath>("sdwire");
+    let sdmux_model = matches.get_one::<SdMuxModel>("sdmux_model");
+    let sdmux_id = matches
+        .get_one::<String>("sdmux_id")
+        .ok_or(anyhow!("--sdmux_id flag required"))?;
+
     let zcu104_path = matches.get_one::<UsbPortPath>("zcu104");
     let boss_ftdi_path = matches.get_one::<UsbPortPath>("boss_ftdi");
 
@@ -251,28 +260,17 @@ fn main_impl() -> anyhow::Result<()> {
             .ok_or(anyhow!("--zcu104 flag required"))
             .cloned()
     };
-    let get_sd_mux = || {
-        SdMux::open(
-            sdwire_hub_path
-                .ok_or(anyhow!("--sdwire flag required"))?
-                .child(2),
-        )
-    };
-    let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
-    let get_sd_dev_path = || {
-        let sdwire_hub_path = sdwire_hub_path.ok_or(anyhow!("--sdwire flag required"))?;
-        find_usb_block_device(&sdwire_hub_path.child(1)).with_context(|| {
-            format!(
-                "Could not find block device associated with {}",
-                sdwire_hub_path.child(1)
-            )
-        })
+
+    let mut sd_mux: Box<dyn SdMux> = match sdmux_model {
+        Some(SdMuxModel::SDWire) => Box::new(SDWire::open(sdmux_id.clone())?),
+        Some(SdMuxModel::UsbSDMux) => Box::new(UsbsdMux::open(sdmux_id.clone())?),
+        None => return Err(anyhow!("--sdmux_model flag required")),
     };
 
+    let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
     match matches.subcommand() {
         Some(("mode", sub_matches)) => {
             let mut fpga = get_fpga_ftdi();
-            let mut sd_mux = get_sd_mux()?;
             match sub_matches.get_one::<SdMuxTarget>("MODE").unwrap() {
                 SdMuxTarget::Dut => {
                     if let Ok(fpga) = &mut fpga {
@@ -335,8 +333,7 @@ fn main_impl() -> anyhow::Result<()> {
         }
         Some(("flash", sub_matches)) => {
             let mut fpga = get_fpga_ftdi();
-            let mut sd_mux = get_sd_mux()?;
-            let sd_dev_path = get_sd_dev_path()?;
+            let sd_dev_path = sd_mux.get_sd_dev_path()?;
             if let Ok(fpga) = &mut fpga {
                 fpga.set_reset(FpgaReset::Reset)?;
             }
@@ -362,14 +359,14 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?
             }
         }
+
         Some(("serve", sub_matches)) => {
             // Reuse the previous token if we never connect to GitHub.
             // This avoids creating a bunch of offline runners if the FPGA fails to establish a
             // connection.
             let mut cached_token: Option<Vec<u8>> = None;
             let mut fpga = get_fpga_ftdi()?;
-            let mut sd_mux = get_sd_mux()?;
-            let sd_dev_path = get_sd_dev_path()?;
+            let sd_dev_path = sd_mux.get_sd_dev_path()?;
             'outer: loop {
                 println!("Putting FPGA into reset");
                 fpga.set_reset(FpgaReset::Reset)?;
