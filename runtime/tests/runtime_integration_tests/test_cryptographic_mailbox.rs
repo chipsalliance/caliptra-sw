@@ -3,19 +3,19 @@
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use caliptra_api::mailbox::{
-    CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
-    CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq,
-    CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader, CmAesGcmDecryptInitReq,
-    CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
-    CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
-    CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp,
-    CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp, CmAesGcmEncryptUpdateRespHeader,
-    CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
-    CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage, CmRandomGenerateReq,
-    CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
-    CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader,
-    MailboxResp, MailboxRespHeader, MailboxRespHeaderVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE,
-    CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    populate_checksum, CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq,
+    CmAesEncryptInitResp, CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq,
+    CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptFinalRespHeader,
+    CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
+    CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
+    CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
+    CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
+    CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
+    CmEcdhGenerateReq, CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
+    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq,
+    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -227,9 +227,8 @@ fn test_sha384_simple() {
     hasher.update(input_data);
     let expected_hash = hasher.finalize();
     expected_resp.hash[..48].copy_from_slice(expected_hash.as_bytes());
-    let mut expected_resp = MailboxResp::CmShaFinal(expected_resp);
-    expected_resp.populate_chksum().unwrap();
-    let expected_bytes = expected_resp.as_bytes().unwrap();
+    populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+    let expected_bytes = expected_resp.as_bytes_partial().unwrap();
     assert_eq!(expected_bytes, resp_bytes);
 }
 
@@ -320,9 +319,8 @@ fn test_sha_many() {
                 expected_resp.hash.copy_from_slice(expected_hash.as_bytes());
                 expected_resp.hdr.data_len = 64;
             };
-            let mut expected_resp = MailboxResp::CmShaFinal(expected_resp);
-            expected_resp.populate_chksum().unwrap();
-            let expected_bytes = expected_resp.as_bytes().unwrap();
+            populate_checksum(expected_resp.as_bytes_partial_mut().unwrap());
+            let expected_bytes = expected_resp.as_bytes_partial().unwrap();
             assert_eq!(expected_bytes, resp_bytes);
         }
     }

@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_drivers::CaliptraResult;
 
-use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
+use caliptra_common::mailbox_api::MailboxReqHeader;
 use caliptra_drivers::CaliptraError;
 use zerocopy::FromBytes;
 
@@ -64,25 +64,6 @@ impl Packet {
         }
 
         Ok(packet)
-    }
-
-    /// Writes `resp` to the mailbox
-    ///
-    /// # Arguments
-    ///
-    /// * `drivers` - Drivers
-    /// * `resp` - Response from a mailbox command that is to be copied to mailbox
-    pub fn copy_to_mbox(
-        drivers: &mut crate::Drivers,
-        resp: &mut MailboxResp,
-    ) -> CaliptraResult<()> {
-        let mbox = &mut drivers.mbox;
-
-        // Generate response checksum
-        resp.populate_chksum()?;
-
-        // Send the payload
-        mbox.write_response(resp.as_bytes()?)
     }
 
     /// Returns the byte representation of the packet's payload

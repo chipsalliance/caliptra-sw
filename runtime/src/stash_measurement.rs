@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
-use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges};
-use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+use crate::{
+    dpe_crypto::DpeCrypto, mutrefbytes, CptraDpeTypes, DpePlatform, Drivers, PauserPrivileges,
 };
+use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
@@ -115,15 +115,19 @@ impl StashMeasurementCmd {
         Ok(dpe_result)
     }
 
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
         let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
 
-        Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
-            hdr: MailboxRespHeader::default(),
-            dpe_result: dpe_result.get_error_code(),
-        }))
+        let resp = mutrefbytes::<StashMeasurementResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.dpe_result = dpe_result.get_error_code();
+        Ok(core::mem::size_of::<StashMeasurementResp>())
     }
 }

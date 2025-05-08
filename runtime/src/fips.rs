@@ -13,7 +13,6 @@ Abstract:
 --*/
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
-use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -221,10 +220,10 @@ pub struct FipsShutdownCmd;
 impl FipsShutdownCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<usize> {
         FipsModule::zeroize(env);
         env.is_shutdown = true;
 
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 }
