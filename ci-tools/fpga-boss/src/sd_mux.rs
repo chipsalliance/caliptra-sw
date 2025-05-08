@@ -255,7 +255,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "sdmux_usbsdmux")]
     fn test_usbsdmux() {
         /// This test assumes that the usbsdmux is connected and the SCSI generic device is /dev/sg0.
         /// It also assumes that the block device is /dev/sda and that the USBSDMUX ID is 00048.00643.
