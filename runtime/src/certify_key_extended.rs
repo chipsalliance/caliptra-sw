@@ -12,9 +12,11 @@ Abstract:
 
 --*/
 
+use crate::{
+    mutrefbytes, CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges,
+};
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxResp,
-    MailboxRespHeader,
+    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CertifyKeyExtendedResp, MailboxRespHeader,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
@@ -23,12 +25,14 @@ use dpe::{
 };
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
-
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        mbox_resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let cmd = CertifyKeyExtendedReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
@@ -98,14 +102,12 @@ impl CertifyKeyExtendedCmd {
             }
         };
 
-        let certify_key_extended_resp = CertifyKeyExtendedResp {
-            hdr: MailboxRespHeader::default(),
-            certify_key_resp: certify_key_resp
-                .as_bytes()
-                .try_into()
-                .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?,
-        };
-
-        Ok(MailboxResp::CertifyKeyExtended(certify_key_extended_resp))
+        let certify_key_extended_resp = mutrefbytes::<CertifyKeyExtendedResp>(mbox_resp)?;
+        certify_key_extended_resp.hdr = MailboxRespHeader::default();
+        certify_key_extended_resp.certify_key_resp = certify_key_resp
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
+        Ok(core::mem::size_of::<CertifyKeyExtendedResp>())
     }
 }

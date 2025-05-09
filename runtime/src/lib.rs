@@ -52,6 +52,7 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder
 use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
+use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
@@ -61,6 +62,7 @@ use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
+use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
@@ -81,14 +83,14 @@ pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::{AlgorithmType, CommandId, MailboxResp};
+use caliptra_common::mailbox_api::{AlgorithmType, CommandId};
 use packet::Packet;
 pub mod tagging;
 use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, ResetReason};
+use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 use dpe::{
@@ -128,6 +130,15 @@ pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+
+#[inline(always)]
+pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
+    resp: &mut [u8],
+) -> CaliptraResult<&mut R> {
+    // the error should be impossible but check to avoid panic
+    let (resp, _) = R::mut_from_prefix(resp).map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+    Ok(resp)
+}
 
 pub struct CptraDpeTypes;
 
@@ -193,57 +204,78 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         req_packet.payload().len()
     );
 
-    // Handle the request and generate the response
-    let mut resp = match CommandId::from(req_packet.cmd) {
+    // The mailbox is much larger than the request and response buffers.
+    // We can use the second half of the mailbox to stage the response, which we
+    // can copy to the first half of the mailbox before sending it. This saves us
+    // ~10 KB of stack space.
+    let mbox = Mailbox::raw_mailbox_contents_mut();
+    let mbox_len = mbox.len();
+    let (_, resp) = mbox.split_at_mut(mbox_len / 2);
+    let resp = &mut resp[..MAX_RESP_SIZE];
+    // zero the response buffer to avoid pre-existing data in our response
+    resp.fill(0);
+
+    let len = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_IDEV_ECC384_CERT => IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384),
-        CommandId::GET_IDEV_ECC384_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384),
-        CommandId::GET_IDEV_MLDSA87_INFO => IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87),
-        CommandId::GET_LDEV_ECC384_CERT => GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384),
-        CommandId::GET_LDEV_MLDSA87_CERT => {
-            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+        CommandId::GET_IDEV_ECC384_CERT => {
+            IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384, resp)
         }
-        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_ECC384_INFO => {
+            IDevIdInfoCmd::execute(drivers, AlgorithmType::Ecc384, resp)
+        }
+
+        CommandId::GET_IDEV_MLDSA87_INFO => {
+            IDevIdInfoCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
+        }
+
+        CommandId::GET_IDEV_MLDSA87_CERT => {
+            IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87, resp)
+        }
+        CommandId::GET_LDEV_ECC384_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Ecc384, resp)
+        }
+        CommandId::GET_LDEV_MLDSA87_CERT => {
+            GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
+        }
+        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
-        CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
+        CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
-        CommandId::FW_INFO => FwInfoCmd::execute(drivers),
+        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::CAPABILITIES => CapabilitiesCmd::execute(resp),
+        CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
-        CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
+        CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes, resp),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_ECC384_CERT => {
-            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
-        }
-        CommandId::GET_RT_ALIAS_ECC384_CERT => {
-            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Ecc384)
-        }
-        // MLDSA87 versions
-        CommandId::GET_IDEV_MLDSA87_CERT => {
-            IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Mldsa87)
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384, resp)
         }
         CommandId::GET_FMC_ALIAS_MLDSA87_CERT => {
-            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+            GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
+        }
+        CommandId::GET_RT_ALIAS_ECC384_CERT => {
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Ecc384, resp)
         }
         CommandId::GET_RT_ALIAS_MLDSA87_CERT => {
-            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87)
+            GetRtAliasCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
-        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
+        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes, resp),
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
-        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
-        CommandId::VERSION => {
-            FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
-        }
-        CommandId::CAPABILITIES => CapabilitiesCmd::execute(),
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc)
+            .write_to_prefix(resp)
+            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            .map(|_| core::mem::size_of::<FipsVersionResp>()),
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {
                 drivers.self_test_status = SelfTestStatus::InProgress(fips_self_test_cmd::execute);
-                Ok(MailboxResp::default())
+                Ok(0)
             }
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
         },
@@ -251,76 +283,82 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::SELF_TEST_GET_RESULTS => match drivers.self_test_status {
             SelfTestStatus::Done => {
                 drivers.self_test_status = SelfTestStatus::Idle;
-                Ok(MailboxResp::default())
+                Ok(0)
             }
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
-        CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
-            SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes)
+            SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes, resp)
         }
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => {
             RevokeExportedCdiHandleCmd::execute(drivers, cmd_bytes)
         }
-        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes),
+        CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
-        CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes),
-        CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers),
-        CommandId::CM_SHA_INIT => cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes),
-        CommandId::CM_SHA_UPDATE => cryptographic_mailbox::Commands::sha_update(drivers, cmd_bytes),
-        CommandId::CM_SHA_FINAL => cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes),
+        CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
+        CommandId::CM_SHA_INIT => {
+            cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_SHA_UPDATE => {
+            cryptographic_mailbox::Commands::sha_update(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_SHA_FINAL => {
+            cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_RANDOM_GENERATE => {
-            cryptographic_mailbox::Commands::random_generate(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::random_generate(drivers, cmd_bytes, resp)
         }
         CommandId::CM_RANDOM_STIR => {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
         CommandId::CM_AES_ENCRYPT_INIT => {
-            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_init(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_ENCRYPT_UPDATE => {
-            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_update(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_update(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_DECRYPT_INIT => {
-            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_init(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_DECRYPT_UPDATE => {
-            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_update(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_cbc_decrypt_update(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
-            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
-            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_ENCRYPT_FINAL => {
-            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_final(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_encrypt_final(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_INIT => {
-            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
-            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_FINAL => {
-            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_final(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::aes_256_gcm_decrypt_final(drivers, cmd_bytes, resp)
         }
         CommandId::CM_ECDH_GENERATE => {
-            cryptographic_mailbox::Commands::ecdh_generate(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::ecdh_generate(drivers, cmd_bytes, resp)
         }
         CommandId::CM_ECDH_FINISH => {
-            cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes)
+            cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes, resp)
         }
-        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => {
-            drivers
-                .debug_unlock
-                .handle_request(&mut drivers.trng, &drivers.soc_ifc, cmd_bytes)
-        }
+        CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
+            &mut drivers.trng,
+            &drivers.soc_ifc,
+            cmd_bytes,
+            resp,
+        ),
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN => drivers.debug_unlock.handle_token(
             &mut drivers.soc_ifc,
             &mut drivers.sha2_512_384,
@@ -331,12 +369,21 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             cmd_bytes,
         ),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-    };
-    let resp = okmutref(&mut resp)?;
+    }?;
 
-    // Send the response
-    Packet::copy_to_mbox(drivers, resp)?;
-
+    let len = len.max(8); // guarantee it is big enough to hold the header
+    if len > MAX_RESP_SIZE {
+        // should be impossible
+        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+    }
+    let mbox = &mut drivers.mbox;
+    let resp = &mut resp[..len];
+    // Generate response checksum
+    populate_checksum(resp);
+    // Send the payload
+    mbox.write_response(resp)?;
+    // zero the original resp buffer so as not to leak sensitive data
+    resp.fill(0);
     Ok(MboxStatusE::DataReady)
 }
 
