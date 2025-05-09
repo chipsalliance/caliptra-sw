@@ -130,6 +130,15 @@ const FAKE_LDEV_MLDSA_PUB_KEY: [u32; 648] =
 
 const FAKE_LDEV_MLDSA_TBS: [u8; 3048] = include!(concat!(env!("OUT_DIR"), "/ldevid_mldsa_tbs.txt"));
 
+const FAKE_FMC_ALIAS_MLDSA_SIG: [u32; 1157] =
+    include!(concat!(env!("OUT_DIR"), "/fmc_alias_mldsa_sig.txt"));
+
+const FAKE_FMC_ALIAS_MLDSA_PUB_KEY: [u32; 648] =
+    include!(concat!(env!("OUT_DIR"), "/fmc_alias_mldsa_pub_key.txt"));
+
+const FAKE_FMC_ALIAS_MLDSA_TBS: [u8; 3247] =
+    include!(concat!(env!("OUT_DIR"), "/fmc_alias_mldsa_tbs.txt"));
+
 pub struct FakeRomFlow {}
 
 impl FakeRomFlow {
@@ -248,9 +257,11 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Store signature
     data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_ECC_SIG);
+    data_vault.set_fmc_dice_mldsa_signature(&LEArray4x1157::from(&FAKE_FMC_ALIAS_MLDSA_SIG));
 
     // Store pub key
     data_vault.set_fmc_ecc_pub_key(&FAKE_FMC_ALIAS_ECC_PUB_KEY);
+    data_vault.set_fmc_mldsa_pub_key(&LEArray4x648::from(&FAKE_FMC_ALIAS_MLDSA_PUB_KEY));
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_ECC_TBS;
@@ -259,6 +270,18 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
         .persistent_data
         .get_mut()
         .ecc_fmcalias_tbs
+        .get_mut(..tbs.len())
+    else {
+        return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
+    };
+    dst.copy_from_slice(tbs);
+
+    let tbs = &FAKE_FMC_ALIAS_MLDSA_TBS;
+    env.persistent_data.get_mut().fht.mldsa_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    let Some(dst) = env
+        .persistent_data
+        .get_mut()
+        .mldsa_fmcalias_tbs
         .get_mut(..tbs.len())
     else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
