@@ -570,6 +570,41 @@ fn test_aes_gcm_edge_cases() {
         .populate_chksum()
         .expect_err("Should have failed");
 
+    // check tag too large or small
+    let mut cm_aes_decrypt_final = MailboxReq::CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq {
+        tag_len: 7,
+        ..Default::default()
+    });
+    cm_aes_decrypt_final.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_FINAL),
+            cm_aes_decrypt_final.as_bytes().unwrap(),
+        )
+        .expect_err("Should have failed");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
+    let mut cm_aes_decrypt_final = MailboxReq::CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq {
+        tag_len: 17,
+        ..Default::default()
+    });
+    cm_aes_decrypt_final.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_AES_GCM_DECRYPT_FINAL),
+            cm_aes_decrypt_final.as_bytes().unwrap(),
+        )
+        .expect_err("Should have failed");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
     // TODO: check the rest of the edge cases
 }
 
@@ -700,7 +735,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
             MAX_CMB_DATA_SIZE,
         );
         assert_eq!(dplaintext, plaintext);
-        assert_eq!(dtag, tag);
+        assert!(dtag);
     }
 }
 
@@ -745,7 +780,7 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
         let (dtag, dplaintext) =
             mailbox_gcm_decrypt(&mut model, &cmks[key_idx], &iv, &aad, &ciphertext, &tag, 1);
         assert_eq!(dplaintext, plaintext);
-        assert_eq!(dtag, tag);
+        assert!(dtag);
     }
 }
 
@@ -937,7 +972,7 @@ fn mailbox_gcm_decrypt(
     mut ciphertext: &[u8],
     tag: &[u8; 16],
     split: usize,
-) -> ([u8; 16], Vec<u8>) {
+) -> (bool, Vec<u8>) {
     let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
         cmk: cmk.clone(),
@@ -1036,8 +1071,7 @@ fn mailbox_gcm_decrypt(
     final_resp.plaintext[..len]
         .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
     plaintext.extend_from_slice(&final_resp.plaintext[..final_resp.hdr.plaintext_size as usize]);
-
-    (final_resp.hdr.tag, plaintext)
+    (final_resp.hdr.tag_verified == 1, plaintext)
 }
 
 fn mailbox_cbc_encrypt(
