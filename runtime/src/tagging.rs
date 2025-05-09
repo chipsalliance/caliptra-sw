@@ -12,21 +12,20 @@ Abstract:
 
 --*/
 
+use crate::{mutrefbytes, Drivers};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
+    GetTaggedTciReq, GetTaggedTciResp, MailboxRespHeader, TagTciReq,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{context::ContextHandle, U8Bool, MAX_HANDLES};
 use zerocopy::FromBytes;
 
-use crate::Drivers;
-
 pub struct TagTciCmd;
 impl TagTciCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let pdata_mut = drivers.persistent_data.get_mut();
@@ -57,7 +56,7 @@ impl TagTciCmd {
         context_has_tag[idx] = U8Bool::new(true);
         context_tags[idx] = cmd.tag;
 
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 }
 
@@ -65,7 +64,11 @@ pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &Drivers,
+        cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let cmd = GetTaggedTciReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let persistent_data = drivers.persistent_data.get();
@@ -84,10 +87,10 @@ impl GetTaggedTciCmd {
         }
         let context = persistent_data.dpe.contexts[idx];
 
-        Ok(MailboxResp::GetTaggedTci(GetTaggedTciResp {
-            hdr: MailboxRespHeader::default(),
-            tci_cumulative: context.tci.tci_cumulative.0,
-            tci_current: context.tci.tci_current.0,
-        }))
+        let resp = mutrefbytes::<GetTaggedTciResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.tci_cumulative = context.tci.tci_cumulative.0;
+        resp.tci_current = context.tci.tci_current.0;
+        Ok(core::mem::size_of::<GetTaggedTciResp>())
     }
 }

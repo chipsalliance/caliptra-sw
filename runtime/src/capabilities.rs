@@ -12,22 +12,23 @@ Abstract:
 
 --*/
 
+use crate::mutrefbytes;
 use caliptra_common::{
     capabilities::Capabilities,
-    mailbox_api::{CapabilitiesResp, MailboxResp, MailboxRespHeader},
+    mailbox_api::{CapabilitiesResp, MailboxRespHeader},
 };
-use caliptra_error::CaliptraResult;
+use caliptra_drivers::CaliptraResult;
 
 pub struct CapabilitiesCmd;
 impl CapabilitiesCmd {
     #[inline(never)]
-    pub(crate) fn execute() -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(resp: &mut [u8]) -> CaliptraResult<usize> {
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::RT_BASE;
 
-        Ok(MailboxResp::Capabilities(CapabilitiesResp {
-            hdr: MailboxRespHeader::default(),
-            capabilities: capabilities.to_bytes(),
-        }))
+        let resp = mutrefbytes::<CapabilitiesResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.capabilities = capabilities.to_bytes();
+        Ok(core::mem::size_of::<CapabilitiesResp>())
     }
 }

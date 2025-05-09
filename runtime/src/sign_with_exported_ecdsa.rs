@@ -1,13 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
+use crate::{dpe_crypto::DpeCrypto, mutrefbytes, Drivers, PauserPrivileges};
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 
 use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{
-    MailboxResp, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
+    MailboxRespHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -52,7 +52,11 @@ impl SignWithExportedEcdsaCmd {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let cmd = SignWithExportedEcdsaReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
@@ -84,7 +88,8 @@ impl SignWithExportedEcdsaCmd {
         let (EcdsaSig { ref r, ref s }, EcdsaPub { ref x, ref y }) =
             Self::ecdsa_sign(&mut crypto, &digest, &cmd.exported_cdi_handle)?;
 
-        let mut resp = SignWithExportedEcdsaResp::default();
+        let resp = mutrefbytes::<SignWithExportedEcdsaResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
 
         if r.len() <= resp.signature_r.len() {
             resp.signature_r[..r.len()].copy_from_slice(r.bytes());
@@ -109,6 +114,6 @@ impl SignWithExportedEcdsaCmd {
         } else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         }
-        Ok(MailboxResp::SignWithExportedEcdsa(resp))
+        Ok(core::mem::size_of::<SignWithExportedEcdsaResp>())
     }
 }

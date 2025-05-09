@@ -22,7 +22,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::mailbox_api::{MailboxResp, SetAuthManifestReq};
+use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
@@ -683,7 +683,7 @@ impl SetAuthManifestCmd {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         // Validate cmd length
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
@@ -711,7 +711,7 @@ impl SetAuthManifestCmd {
         };
 
         Self::set_auth_manifest(drivers, AuthManifestSource::Slice(manifest_buf))?;
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 
     pub(crate) fn set_auth_manifest(

@@ -12,14 +12,12 @@ Abstract:
 
 --*/
 
+use crate::{mutrefbytes, Drivers};
 use caliptra_common::mailbox_api::{
     AlgorithmType, GetFmcAliasEcc384CertResp, GetFmcAliasMlDsa87CertResp, GetIdevCertResp,
-    GetIdevEcc384CertReq, GetIdevMldsa87CertReq, GetLdevCertResp, GetRtAliasCertResp, MailboxResp,
-    MailboxRespHeader,
+    GetIdevEcc384CertReq, GetIdevMldsa87CertReq, GetLdevCertResp, GetRtAliasCertResp,
+    MailboxRespHeader, ResponseVarSize,
 };
-
-use crate::Drivers;
-
 use caliptra_drivers::{
     CaliptraError, CaliptraResult, Ecc384Signature, Mldsa87Signature, PersistentData,
 };
@@ -29,7 +27,13 @@ use zerocopy::IntoBytes;
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(cmd_args: &[u8], alg_type: AlgorithmType) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        cmd_args: &[u8],
+        alg_type: AlgorithmType,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let resp = mutrefbytes::<GetIdevCertResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
         match alg_type {
             AlgorithmType::Ecc384 => {
                 if cmd_args.len() <= core::mem::size_of::<GetIdevEcc384CertReq>() {
@@ -52,16 +56,11 @@ impl IDevIdCertCmd {
                         return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
                     };
 
-                    let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
-                    let Some(cert_size) = builder.build(&mut cert) else {
+                    let Some(cert_size) = builder.build(&mut resp.data) else {
                         return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
                     };
-
-                    Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
-                        hdr: MailboxRespHeader::default(),
-                        data_size: cert_size as u32,
-                        data: cert,
-                    }))
+                    resp.data_size = cert_size as u32;
+                    Ok(resp.partial_len()?)
                 } else {
                     Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
                 }
@@ -88,16 +87,11 @@ impl IDevIdCertCmd {
                         return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
                     };
 
-                    let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
-                    let Some(cert_size) = builder.build(&mut cert) else {
+                    let Some(cert_size) = builder.build(&mut resp.data) else {
                         return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
                     };
-
-                    Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
-                        hdr: MailboxRespHeader::default(),
-                        data_size: cert_size as u32,
-                        data: cert,
-                    }))
+                    resp.data_size = cert_size as u32;
+                    Ok(resp.partial_len()?)
                 } else {
                     Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
                 }
@@ -112,21 +106,22 @@ impl GetLdevCertCmd {
     pub(crate) fn execute(
         drivers: &mut Drivers,
         alg_type: AlgorithmType,
-    ) -> CaliptraResult<MailboxResp> {
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let resp = mutrefbytes::<GetLdevCertResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+
         match alg_type {
             AlgorithmType::Ecc384 => {
-                let mut resp = GetLdevCertResp::default();
                 resp.data_size =
                     copy_ldevid_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
-                Ok(MailboxResp::GetLdevCert(resp))
             }
             AlgorithmType::Mldsa87 => {
-                let mut resp = GetLdevCertResp::default();
                 resp.data_size =
                     copy_ldevid_mldsa87_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
-                Ok(MailboxResp::GetLdevCert(resp))
             }
         }
+        resp.partial_len()
     }
 }
 
@@ -136,21 +131,24 @@ impl GetFmcAliasCertCmd {
     pub(crate) fn execute(
         drivers: &mut Drivers,
         alg_type: AlgorithmType,
-    ) -> CaliptraResult<MailboxResp> {
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         match alg_type {
             AlgorithmType::Ecc384 => {
-                let mut resp = GetFmcAliasEcc384CertResp::default();
+                let resp = mutrefbytes::<GetFmcAliasEcc384CertResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
                 resp.data_size =
                     copy_fmc_alias_ecc384_cert(drivers.persistent_data.get(), &mut resp.data)?
                         as u32;
-                Ok(MailboxResp::GetFmcAliasEcc384Cert(resp))
+                resp.partial_len()
             }
             AlgorithmType::Mldsa87 => {
-                let mut resp = GetFmcAliasMlDsa87CertResp::default();
+                let resp = mutrefbytes::<GetFmcAliasMlDsa87CertResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
                 resp.data_size =
                     copy_fmc_alias_mldsa87_cert(drivers.persistent_data.get(), &mut resp.data)?
                         as u32;
-                Ok(MailboxResp::GetFmcAliasMlDsa87Cert(resp))
+                resp.partial_len()
             }
         }
     }
@@ -162,13 +160,15 @@ impl GetRtAliasCertCmd {
     pub(crate) fn execute(
         drivers: &mut Drivers,
         alg_type: AlgorithmType,
-    ) -> CaliptraResult<MailboxResp> {
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         match alg_type {
             AlgorithmType::Ecc384 => {
-                let mut resp = GetRtAliasCertResp::default();
+                let resp = mutrefbytes::<GetRtAliasCertResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
                 resp.data_size =
                     copy_rt_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
-                Ok(MailboxResp::GetRtAliasCert(resp))
+                resp.partial_len()
             }
             AlgorithmType::Mldsa87 => {
                 // MLDSA87 implementation would go here

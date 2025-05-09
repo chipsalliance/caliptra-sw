@@ -14,7 +14,6 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
     hmac_kdf, Array4x12, CaliptraResult, Ecc384Seed, HmacKey, HmacMode, KeyReadArgs, KeyUsage,
     KeyWriteArgs,
@@ -25,12 +24,12 @@ pub struct DisableAttestationCmd;
 impl DisableAttestationCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<usize> {
         Self::erase_keys(drivers)?;
         Self::zero_rt_cdi(drivers)?;
         Self::generate_dice_key(drivers)?;
         drivers.persistent_data.get_mut().attestation_disabled = U8Bool::new(true);
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 
     /// Erase the RT CDI and RT Private Key from the key vault

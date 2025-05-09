@@ -140,7 +140,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
 
     fn mldsa87_verify(
         &mut self,
-        digest: &ImageDigest512,
+        msg: &[u8],
         pub_key: &ImageMldsaPubKey,
         sig: &ImageMldsaSignature,
     ) -> CaliptraResult<Mldsa87Result> {
@@ -164,10 +164,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
         ))?;
 
-        // digest is received in hw format. No conversion needed.
-        let msg = digest.into();
-
-        self.mldsa87.verify(&pub_key, &msg, &sig)
+        self.mldsa87.verify_var(&pub_key, msg, &sig)
     }
 
     /// Retrieve Vendor Public Key Info Digest

@@ -12,12 +12,13 @@ Abstract:
 
 --*/
 
+use crate::mutrefbytes;
 use caliptra_cfi_lib_git::CfiCounter;
 use caliptra_common::{
     cprintln,
     mailbox_api::{
-        MailboxResp, MailboxRespHeader, ProductionAuthDebugUnlockChallenge,
-        ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
+        ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
+        ProductionAuthDebugUnlockToken,
     },
 };
 use caliptra_drivers::{CaliptraResult, Lifecycle};
@@ -53,7 +54,8 @@ impl ProductionDebugUnlock {
         trng: &mut caliptra_drivers::Trng,
         soc_ifc: &caliptra_drivers::SocIfc,
         cmd_bytes: &[u8],
-    ) -> CaliptraResult<MailboxResp> {
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         if !soc_ifc.ss_debug_unlock_req()? {
             Err(CaliptraError::SS_DBG_UNLOCK_REQ_BIT_NOT_SET)?;
         }
@@ -81,7 +83,9 @@ impl ProductionDebugUnlock {
 
         cprintln!("[rt] Production debug unlock challenge generated");
 
-        Ok(MailboxResp::ProductionAuthDebugUnlockChallenge(challenge))
+        let resp = mutrefbytes::<ProductionAuthDebugUnlockChallenge>(resp)?;
+        *resp = challenge;
+        Ok(core::mem::size_of::<ProductionAuthDebugUnlockChallenge>())
     }
 
     /// Handle the production debug unlock token verification
@@ -95,7 +99,7 @@ impl ProductionDebugUnlock {
         mldsa87: &mut caliptra_drivers::Mldsa87,
         dma: &mut caliptra_drivers::Dma,
         cmd_bytes: &[u8],
-    ) -> CaliptraResult<MailboxResp> {
+    ) -> CaliptraResult<usize> {
         // Parse the token
         let token = ProductionAuthDebugUnlockToken::read_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
@@ -143,7 +147,7 @@ impl ProductionDebugUnlock {
                 soc_ifc.set_ss_dbg_unlock_level(request.unlock_level);
                 cprintln!("[rt] Debug unlock successful");
                 soc_ifc.set_ss_dbg_unlock_result(true);
-                Ok(MailboxResp::Header(MailboxRespHeader::default()))
+                Ok(0)
             }
             Err(e) => {
                 cprintln!("[rt] Debug unlock failed: {}", e.0);

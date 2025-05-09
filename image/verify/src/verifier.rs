@@ -675,9 +675,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
         )?;
 
-        let mut vendor_digest_holder = ImageDigestHolder {
+        let mut vendor_signdata_holder = ImageSignData {
             digest_384: &vendor_digest_384,
-            digest_512: None,
+            mldsa_msg: None,
         };
 
         let owner_digest_384 = self.env.sha384_acc_digest(
@@ -686,34 +686,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
         )?;
 
-        let mut owner_digest_holder = ImageDigestHolder {
+        let mut owner_signdata_holder = ImageSignData {
             digest_384: &owner_digest_384,
-            digest_512: None,
+            mldsa_msg: None,
         };
 
-        let vendor_digest_512: [u32; 16];
-        let owner_digest_512: [u32; 16];
-
-        // Update vendor_digest_holder and owner_digest_holder with SHA512 digests if MLDSA validation i required.
+        // Update vendor_signdata_holder and owner_signdata_holder with data if MLDSA validation is required.
         if let PqcKeyInfo::Mldsa(_, _) = info.vendor_pqc_info {
-            vendor_digest_512 = self.env.sha512_acc_digest(
-                range.start,
-                vendor_header_len as u32,
-                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
-            )?;
-            vendor_digest_holder.digest_512 = Some(&vendor_digest_512);
-
-            owner_digest_512 = self.env.sha512_acc_digest(
-                range.start,
-                range.len() as u32,
-                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
-            )?;
-            owner_digest_holder.digest_512 = Some(&owner_digest_512);
+            vendor_signdata_holder.mldsa_msg =
+                Some(header.as_bytes().get(..vendor_header_len).unwrap());
+            owner_signdata_holder.mldsa_msg = Some(header.as_bytes());
         }
 
         // Verify vendor signatures.
         self.verify_vendor_sig(
-            &vendor_digest_holder,
+            &vendor_signdata_holder,
             info.vendor_ecc_info,
             &info.vendor_pqc_info,
         )?;
@@ -736,7 +723,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify owner signatures.
         self.verify_owner_sig(
-            &owner_digest_holder,
+            &owner_signdata_holder,
             info.owner_ecc_info,
             &info.owner_pqc_info,
         )?;
@@ -817,7 +804,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Verify Vendor Signature
     fn verify_vendor_sig(
         &mut self,
-        digest_holder: &ImageDigestHolder,
+        digest_holder: &ImageSignData,
         ecc_info: (&ImageEccPubKey, &ImageEccSignature),
         pqc_info: &PqcKeyInfo,
     ) -> CaliptraResult<()> {
@@ -857,10 +844,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 self.verify_lms_sig(digest_holder.digest_384, lms_pub_key, lms_sig, false)?;
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
-                if let Some(digest_512) = digest_holder.digest_512 {
-                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, false)?;
+                if let Some(mldsa_msg) = digest_holder.mldsa_msg {
+                    self.verify_mldsa_sig(mldsa_msg, mldsa_pub_key, mldsa_sig, false)?;
                 } else {
-                    Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_DIGEST_MISSING)?;
+                    Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_MLDSA_MSG_MISSING)?;
                 }
             }
         }
@@ -870,7 +857,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     fn verify_owner_sig(
         &mut self,
-        digest_holder: &ImageDigestHolder,
+        digest_holder: &ImageSignData,
         ecc_info: (&ImageEccPubKey, &ImageEccSignature),
         pqc_info: &PqcKeyInfo,
     ) -> CaliptraResult<()> {
@@ -884,10 +871,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 self.verify_lms_sig(digest_holder.digest_384, lms_pub_key, lms_sig, true)?;
             }
             PqcKeyInfo::Mldsa(mldsa_pub_key, mldsa_sig) => {
-                if let Some(digest_512) = digest_holder.digest_512 {
-                    self.verify_mldsa_sig(digest_512, mldsa_pub_key, mldsa_sig, true)?;
+                if let Some(mldsa_msg) = digest_holder.mldsa_msg {
+                    self.verify_mldsa_sig(mldsa_msg, mldsa_pub_key, mldsa_sig, true)?;
                 } else {
-                    Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_DIGEST_MISSING)?;
+                    Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_MLDSA_MSG_MISSING)?;
                 }
             }
         }
@@ -949,7 +936,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Verify MLDSA Signature
     fn verify_mldsa_sig(
         &mut self,
-        digest: &ImageDigest512,
+        msg: &[u8],
         mldsa_pub_key: &ImageMldsaPubKey,
         mldsa_sig: &ImageMldsaSignature,
         is_owner: bool,
@@ -981,7 +968,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let result = self
             .env
-            .mldsa87_verify(digest, mldsa_pub_key, mldsa_sig)
+            .mldsa87_verify(msg, mldsa_pub_key, mldsa_sig)
             .map_err(|err| {
                 self.env.set_fw_extended_error(err.into());
                 verify_failure
@@ -2409,7 +2396,7 @@ mod tests {
 
         fn mldsa87_verify(
             &mut self,
-            _digest: &ImageDigest512,
+            _msg: &[u8],
             _pub_key: &ImageMldsaPubKey,
             _sig: &ImageMldsaSignature,
         ) -> CaliptraResult<Mldsa87Result> {

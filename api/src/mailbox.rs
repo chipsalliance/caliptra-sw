@@ -220,7 +220,7 @@ impl<T: ResponseVarSize> Response for T {
     const MIN_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
 }
 
-fn populate_checksum(msg: &mut [u8]) {
+pub fn populate_checksum(msg: &mut [u8]) {
     let (checksum_bytes, payload_bytes) = msg.split_at_mut(size_of::<u32>());
     let checksum = crate::checksum::calc_checksum(0, payload_bytes);
     checksum_bytes.copy_from_slice(&checksum.to_le_bytes());
@@ -272,6 +272,8 @@ pub enum MailboxResp {
     CmEcdhFinish(CmEcdhFinishResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
 }
+
+pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
 
 impl MailboxResp {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {

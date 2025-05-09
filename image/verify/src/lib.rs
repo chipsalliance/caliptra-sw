@@ -142,7 +142,7 @@ pub trait ImageVerificationEnv {
 
     fn mldsa87_verify(
         &mut self,
-        digest: &ImageDigest512,
+        msg: &[u8],
         pub_key: &ImageMldsaPubKey,
         sig: &ImageMldsaSignature,
     ) -> CaliptraResult<Mldsa87Result>;

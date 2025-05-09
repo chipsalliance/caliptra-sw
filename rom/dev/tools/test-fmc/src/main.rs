@@ -93,6 +93,16 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+    }
+
     loop {
         unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
     }

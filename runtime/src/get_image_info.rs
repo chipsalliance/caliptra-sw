@@ -12,13 +12,11 @@ Abstract:
 
 --*/
 
-use crate::manifest::find_metadata_entry;
 use crate::Drivers;
+use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    GetImageInfoReq, GetImageInfoResp, MailboxResp, MailboxRespHeader,
-};
+use caliptra_common::mailbox_api::{GetImageInfoReq, GetImageInfoResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -26,19 +24,23 @@ pub struct GetImageInfoCmd;
 impl GetImageInfoCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         if let Ok(cmd) = GetImageInfoReq::ref_from_bytes(cmd_args) {
             let metadata = Self::get_image_metadata(drivers, cmd)?;
 
-            Ok(MailboxResp::GetImageInfo(GetImageInfoResp {
-                hdr: MailboxRespHeader::default(),
-                component_id: metadata.component_id,
-                flags: metadata.flags,
-                image_load_address_high: metadata.image_load_address.hi,
-                image_load_address_low: metadata.image_load_address.lo,
-                image_staging_address_high: metadata.image_staging_address.hi,
-                image_staging_address_low: metadata.image_staging_address.lo,
-            }))
+            let resp = mutrefbytes::<GetImageInfoResp>(resp)?;
+            resp.hdr = MailboxRespHeader::default();
+            resp.component_id = metadata.component_id;
+            resp.flags = metadata.flags;
+            resp.image_load_address_high = metadata.image_load_address.hi;
+            resp.image_load_address_low = metadata.image_load_address.lo;
+            resp.image_staging_address_high = metadata.image_staging_address.hi;
+            resp.image_staging_address_low = metadata.image_staging_address.lo;
+            Ok(core::mem::size_of::<GetImageInfoResp>())
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
