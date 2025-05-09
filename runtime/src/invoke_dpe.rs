@@ -12,9 +12,13 @@ Abstract:
 
 --*/
 
-use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges};
+use crate::{
+    mutrefbytes, CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PauserPrivileges,
+};
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    InvokeDpeReq, InvokeDpeResp, MailboxRespHeader, ResponseVarSize,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, InitCtxCmd},
@@ -28,7 +32,11 @@ pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        mbox_resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
@@ -155,14 +163,13 @@ impl InvokeDpeCmd {
 
             let resp_bytes = resp_struct.as_bytes();
             let data_size = resp_bytes.len();
-            let mut invoke_resp = InvokeDpeResp {
-                hdr: MailboxRespHeader::default(),
-                data_size: data_size as u32,
-                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
-            };
+
+            let invoke_resp = mutrefbytes::<InvokeDpeResp>(mbox_resp)?;
+            invoke_resp.hdr = MailboxRespHeader::default();
+            invoke_resp.data_size = data_size as u32;
             invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
 
-            Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
+            Ok(invoke_resp.partial_len()?)
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }

@@ -14,7 +14,7 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxResp};
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, LmsResult,
@@ -28,7 +28,7 @@ pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let digest = Array4x12::from(cmd.hash);
@@ -48,7 +48,7 @@ impl EcdsaVerifyCmd {
             return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
 
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 }
 
@@ -56,7 +56,7 @@ pub struct LmsVerifyCmd;
 impl LmsVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         // Re-run LMS KAT once (since LMS is more SW-based than other crypto)
         if let Err(e) =
             caliptra_kat::LmsKat::default().execute_once(&mut drivers.sha256, &mut drivers.lms)
@@ -115,6 +115,6 @@ impl LmsVerifyCmd {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
         }
 
-        Ok(MailboxResp::default())
+        Ok(0)
     }
 }

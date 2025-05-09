@@ -1,10 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::Drivers;
+use crate::{mutrefbytes, Drivers};
 
 use caliptra_cfi_derive_git::cfi_impl_fn;
-
-use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxResp};
+use caliptra_common::mailbox_api::{GetIdevCsrResp, MailboxRespHeader, ResponseVarSize};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_drivers::{Ecc384IdevIdCsr, Mldsa87IdevIdCsr};
@@ -13,7 +12,11 @@ pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, _cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        _cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
 
         match csr_persistent_mem.get_csr_len() {
@@ -26,10 +29,9 @@ impl GetIdevCsrCmd {
                     .get()
                     .ok_or(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)?;
 
-                let mut resp = GetIdevCsrResp {
-                    data_size: len,
-                    ..Default::default()
-                };
+                let resp = mutrefbytes::<GetIdevCsrResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
+                resp.data_size = len;
                 // NOTE: This code will not panic.
                 //
                 // csr is guranteed to be the same size as `len`, and therefore
@@ -39,7 +41,7 @@ impl GetIdevCsrCmd {
                 // size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
-                Ok(MailboxResp::GetIdevCsr(resp))
+                Ok(resp.partial_len()?)
             }
         }
     }
@@ -49,7 +51,11 @@ pub struct GetIdevMldsaCsrCmd;
 impl GetIdevMldsaCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, _cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        _cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.mldsa_csr;
 
         match csr_persistent_mem.get_csr_len() {
@@ -62,10 +68,9 @@ impl GetIdevMldsaCsrCmd {
                     .get()
                     .ok_or(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED)?;
 
-                let mut resp = GetIdevCsrResp {
-                    data_size: len,
-                    ..Default::default()
-                };
+                let resp = mutrefbytes::<GetIdevCsrResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
+                resp.data_size = len;
                 // NOTE: This code will not panic.
                 //
                 // csr is guranteed to be the same size as `len`, and therefore
@@ -75,7 +80,7 @@ impl GetIdevMldsaCsrCmd {
                 // size of the buffer in `GetIdevCsrResp`
                 resp.data[..resp.data_size as usize].copy_from_slice(csr);
 
-                Ok(MailboxResp::GetIdevMldsaCsr(resp))
+                Ok(resp.partial_len()?)
             }
         }
     }

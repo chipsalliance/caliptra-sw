@@ -257,7 +257,7 @@ impl FirmwareProcessor {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
-                        let mut resp = FipsVersionCmd::execute(soc_ifc)?;
+                        let mut resp = FipsVersionCmd::execute(soc_ifc);
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }

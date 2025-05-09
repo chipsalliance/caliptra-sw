@@ -13,12 +13,12 @@ Abstract:
 --*/
 
 use crate::manifest::find_metadata_entry;
-use crate::{Drivers, StashMeasurementCmd};
+use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::mailbox_api::{
-    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource, MailboxResp,
+    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
 use caliptra_drivers::DmaImage;
@@ -34,13 +34,16 @@ pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
-            let auth_req_result = Self::authorize_and_stash(drivers, cmd)?;
-            Ok(MailboxResp::AuthorizeAndStash(AuthorizeAndStashResp {
-                hdr: MailboxRespHeader::default(),
-                auth_req_result,
-            }))
+            let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
+            resp.hdr = MailboxRespHeader::default();
+            resp.auth_req_result = Self::authorize_and_stash(drivers, cmd)?;
+            Ok(core::mem::size_of::<AuthorizeAndStashResp>())
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }

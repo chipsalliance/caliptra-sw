@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use arrayvec::ArrayVec;
-use caliptra_common::mailbox_api::{MailboxResp, PopulateIdevEcc384CertReq};
+use caliptra_common::mailbox_api::PopulateIdevEcc384CertReq;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::IntoBytes;
 
@@ -22,7 +22,7 @@ use crate::{Drivers, MAX_CERT_CHAIN_SIZE, PL0_PAUSER_FLAG};
 pub struct PopulateIDevIdCertCmd;
 impl PopulateIDevIdCertCmd {
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         if cmd_args.len() <= core::mem::size_of::<PopulateIdevEcc384CertReq>() {
             let mut cmd = PopulateIdevEcc384CertReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
@@ -47,7 +47,7 @@ impl PopulateIDevIdCertCmd {
                 .map_err(|_| CaliptraError::RUNTIME_IDEV_CERT_POPULATION_FAILED)?;
             drivers.cert_chain = tmp_chain;
 
-            Ok(MailboxResp::default())
+            Ok(0)
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }

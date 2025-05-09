@@ -7,9 +7,7 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq};
 
-use caliptra_common::mailbox_api::{
-    MailboxResp, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
-};
+use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -17,7 +15,7 @@ pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = RevokeExportedCdiHandleReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
@@ -36,9 +34,7 @@ impl RevokeExportedCdiHandleCmd {
                     cfi_assert!(*handle == cmd.exported_cdi_handle);
 
                     *slot = None;
-                    return Ok(MailboxResp::RevokeExportedCdiHandle(
-                        RevokeExportedCdiHandleResp::default(),
-                    ));
+                    return Ok(0);
                 }
                 _ => (),
             }

@@ -2,7 +2,6 @@
 
 use crate::cprintln;
 use crate::mailbox_api::{FipsVersionResp, MailboxRespHeader};
-use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::SocIfc;
 
 pub struct FipsVersionCmd;
@@ -11,14 +10,14 @@ impl FipsVersionCmd {
     pub const MODE: u32 = 0x46495053;
 
     #[cfg_attr(feature = "runtime", inline(never))]
-    pub fn execute(soc_ifc: &SocIfc) -> CaliptraResult<FipsVersionResp> {
+    pub fn execute(soc_ifc: &SocIfc) -> FipsVersionResp {
         cprintln!("[rt] FIPS Version");
 
-        Ok(FipsVersionResp {
+        FipsVersionResp {
             hdr: MailboxRespHeader::default(),
             mode: Self::MODE,
             fips_rev: soc_ifc.get_version(),
             name: Self::NAME,
-        })
+        }
     }
 }
