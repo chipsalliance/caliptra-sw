@@ -35,8 +35,8 @@ use caliptra_image_verify::ImageVerificationEnv;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 use core::ops::Range;
 
-const FAKE_LDEV_TBS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ldev_tbs.der"));
-const FAKE_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
+const FAKE_LDEV_ECC_TBS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ldev_tbs.der"));
+const FAKE_LDEV_ECC_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
         0x842C00AF, 0x05ACCCEB, 0x14514E2D, 0x37B0C3AA, 0xA218F150, 0x57F1DCB8, 0x24A21498,
         0x0B744688, 0xA0888A02, 0x97FA7DC5, 0xE1EAD8CA, 0x1291DB22,
@@ -46,12 +46,12 @@ const FAKE_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
         0xDF668A74, 0x628999D2, 0x22B40159, 0xD8076FAF, 0xBB8C5EDB,
     ]),
 };
-const FAKE_LDEV_SIG: Ecc384Signature = Ecc384Signature {
+const FAKE_LDEV_ECC_SIG: Ecc384Signature = Ecc384Signature {
     r: Array4xN(include!(concat!(env!("OUT_DIR"), "/ldev_sig_r_words.txt"))),
     s: Array4xN(include!(concat!(env!("OUT_DIR"), "/ldev_sig_s_words.txt"))),
 };
 
-const FAKE_FMC_ALIAS_TBS: [u8; 745] = [
+const FAKE_FMC_ALIAS_ECC_TBS: [u8; 745] = [
     0x30, 0x82, 0x02, 0xe5, 0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x14, 0x06, 0xb0, 0xfb, 0xb6, 0x60,
     0x59, 0xb8, 0x54, 0x55, 0xea, 0xc8, 0x95, 0x65, 0xc0, 0xc3, 0x7b, 0x67, 0x0f, 0xb1, 0x87, 0x30,
     0x0a, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03, 0x30, 0x65, 0x31, 0x18, 0x30,
@@ -101,7 +101,7 @@ const FAKE_FMC_ALIAS_TBS: [u8; 745] = [
     0xea, 0x46, 0xf9, 0xa1, 0x2a, 0xc6, 0x88, 0x7c, 0xe2,
 ];
 
-const FAKE_FMC_ALIAS_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
+const FAKE_FMC_ALIAS_ECC_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
         0xD74C25C3, 0x71BB0F48, 0x9B1E202C, 0x6757CF47, 0xD282C528, 0x70C99A55, 0xFCD06276,
         0x1F83A4C3, 0x8B518216, 0x01CD2BAB, 0x15FFE666, 0xE2ED62A4,
@@ -111,7 +111,7 @@ const FAKE_FMC_ALIAS_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
         0xF1703A56, 0x348BD106, 0xE99CF7D2, 0x48B63F0F, 0x8604BCD0,
     ]),
 };
-const FAKE_FMC_ALIAS_SIG: Ecc384Signature = Ecc384Signature {
+const FAKE_FMC_ALIAS_ECC_SIG: Ecc384Signature = Ecc384Signature {
     r: Array4xN([
         0x5BA93B47, 0x21912443, 0x9475C1EB, 0xD4029FA6, 0x3C81D138, 0xE8B7F4A5, 0x55F39BF2,
         0x2233DD74, 0x93CE6FA8, 0xDCF70CD7, 0x00581DFF, 0x12427FF5,
@@ -208,15 +208,15 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     let data_vault = &mut env.persistent_data.get_mut().data_vault;
 
     // Store signature
-    data_vault.set_ldev_dice_ecc_signature(&FAKE_LDEV_SIG);
+    data_vault.set_ldev_dice_ecc_signature(&FAKE_LDEV_ECC_SIG);
     data_vault.set_ldev_dice_mldsa_signature(&LEArray4x1157::from(&FAKE_LDEV_MLDSA_SIG));
 
     // Store pub key
-    data_vault.set_ldev_dice_ecc_pub_key(&FAKE_LDEV_PUB_KEY);
+    data_vault.set_ldev_dice_ecc_pub_key(&FAKE_LDEV_ECC_PUB_KEY);
     data_vault.set_ldev_dice_mldsa_pub_key(&LEArray4x648::from(&FAKE_LDEV_MLDSA_PUB_KEY));
 
     // Copy TBS to DCCM
-    let tbs = &FAKE_LDEV_TBS;
+    let tbs = &FAKE_LDEV_ECC_TBS;
     env.persistent_data.get_mut().fht.ecc_ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
@@ -247,13 +247,13 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     let data_vault = &mut env.persistent_data.get_mut().data_vault;
 
     // Store signature
-    data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_SIG);
+    data_vault.set_fmc_dice_ecc_signature(&FAKE_FMC_ALIAS_ECC_SIG);
 
     // Store pub key
-    data_vault.set_fmc_ecc_pub_key(&FAKE_FMC_ALIAS_PUB_KEY);
+    data_vault.set_fmc_ecc_pub_key(&FAKE_FMC_ALIAS_ECC_PUB_KEY);
 
     // Copy TBS to DCCM
-    let tbs = &FAKE_FMC_ALIAS_TBS;
+    let tbs = &FAKE_FMC_ALIAS_ECC_TBS;
     env.persistent_data.get_mut().fht.ecc_fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env
         .persistent_data
