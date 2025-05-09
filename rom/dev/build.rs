@@ -121,5 +121,13 @@ fn main() {
             format!("{:?}", s_words),
         )
         .unwrap();
+
+        // MLDSA
+        let ldev_mldsa_dir =
+            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/mldsa/");
+        for f in ["sig", "pub_key", "tbs"] {
+            let file_name = format!("ldevid_mldsa_{}.txt", f);
+            std::fs::copy(ldev_mldsa_dir.join(&file_name), out_dir.join(&file_name)).unwrap();
+        }
     }
 }
