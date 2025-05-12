@@ -450,6 +450,8 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
 }
 
+pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
+
 impl MailboxReq {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
@@ -2806,7 +2808,6 @@ pub struct CmAesGcmDecryptFinalResp {
 pub struct CmAesGcmDecryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
     pub tag_verified: u32,
-    pub tag: [u8; 16],
     pub plaintext_size: u32,
 }
 
