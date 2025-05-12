@@ -603,6 +603,7 @@ dependencies = [
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model",
+ "caliptra-hw-model-types",
  "cbindgen",
 ]
 
