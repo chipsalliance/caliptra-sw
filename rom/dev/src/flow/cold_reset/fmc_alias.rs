@@ -32,8 +32,8 @@ use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{dice, x509};
 use caliptra_drivers::{
-    okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
-    HmacMode, KeyId, Lifecycle,
+    okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraError,
+    CaliptraResult, HmacMode, KeyId, Lifecycle,
 };
 use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
@@ -46,21 +46,6 @@ use zeroize::Zeroize;
 pub struct FmcAliasLayer {}
 
 impl FmcAliasLayer {
-    /// Convert GeneralTime (15 bytes) to UTCTime (13 bytes)
-    fn generaltime_to_utctime(general_time: &[u8; 15]) -> [u8; 13] {
-        // GeneralTime format: YYYYMMDDHHMMSSZ (15 bytes)
-        // UTCTime format:       YYMMDDHHMMSSZ (13 bytes)
-        // We need to drop the first two characters (century)
-        let mut utc_time = [0u8; 13];
-
-        // Copy YY part (drop the century)
-        utc_time[0..2].copy_from_slice(&general_time[2..4]);
-        // Copy the rest (MMDDHHMMSSZ)
-        utc_time[2..13].copy_from_slice(&general_time[4..15]);
-
-        utc_time
-    }
-
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(
@@ -341,10 +326,14 @@ impl FmcAliasLayer {
         hasher.finalize(&mut fuse_info_digest)?;
 
         // Convert GeneralTime to UTCTime for MLDSA certificate
-        let utc_not_before =
-            Self::generaltime_to_utctime(&fw_proc_info.fmc_cert_valid_not_before.value);
-        let utc_not_after =
-            Self::generaltime_to_utctime(&fw_proc_info.fmc_cert_valid_not_after.value);
+        let utc_not_before = fw_proc_info
+            .fmc_cert_valid_not_before
+            .as_utc_time()
+            .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?;
+        let utc_not_after = fw_proc_info
+            .fmc_cert_valid_not_after
+            .as_utc_time()
+            .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsMlDsa87Params {

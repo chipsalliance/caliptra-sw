@@ -113,7 +113,7 @@ impl RtAliasLayer {
         let (nb, nf) = Self::get_cert_validity_info(manifest);
 
         // Generate Rt Alias Certificate
-        Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
+        Self::generate_cert_sig(env, input, &output, &nb, &nf)?;
         Ok(output)
     }
 
@@ -321,18 +321,11 @@ impl RtAliasLayer {
         env: &mut FmcEnv,
         input: &DiceInput,
         output: &DiceOutput,
-        not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
-        not_after: &[u8; RtAliasCertTbsEcc384Params::NOT_AFTER_LEN],
+        not_before: &NotBefore,
+        not_after: &NotAfter,
     ) -> CaliptraResult<()> {
         Self::generate_ecc_cert_sig(env, input, output, not_before, not_after)?;
-        // [CAP2][TODO] properly adapt to UTC time
-        Self::generate_mldsa_cert_sig(
-            env,
-            input,
-            output,
-            not_before[2..].try_into().unwrap(),
-            &not_after[2..].try_into().unwrap(),
-        )?;
+        Self::generate_mldsa_cert_sig(env, input, output, not_before, not_after)?;
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 
@@ -344,8 +337,8 @@ impl RtAliasLayer {
         env: &mut FmcEnv,
         input: &DiceInput,
         output: &DiceOutput,
-        not_before: &[u8; RtAliasCertTbsEcc384Params::NOT_BEFORE_LEN],
-        not_after: &[u8; RtAliasCertTbsEcc384Params::NOT_AFTER_LEN],
+        not_before: &NotBefore,
+        not_after: &NotAfter,
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.ecc_auth_key_pair.priv_key;
         let auth_pub_key = &input.ecc_auth_key_pair.pub_key;
@@ -366,8 +359,8 @@ impl RtAliasLayer {
             authority_key_id: &input.ecc_auth_key_id,
             serial_number,
             public_key: &pub_key.to_der(),
-            not_before,
-            not_after,
+            not_before: &not_before.value,
+            not_after: &not_after.value,
             tcb_info_fw_svn: &fw_svn.to_be_bytes(),
             tcb_info_rt_tci: &rt_tci,
             // Are there any fields missing?
@@ -423,8 +416,8 @@ impl RtAliasLayer {
         env: &mut FmcEnv,
         input: &DiceInput,
         output: &DiceOutput,
-        not_before: &[u8; RtAliasCertTbsMlDsa87Params::NOT_BEFORE_LEN],
-        not_after: &[u8; RtAliasCertTbsMlDsa87Params::NOT_AFTER_LEN],
+        not_before: &NotBefore,
+        not_after: &NotAfter,
     ) -> CaliptraResult<()> {
         let key_pair_seed = input.mldsa_auth_key_pair.key_pair_seed;
         let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
@@ -447,8 +440,12 @@ impl RtAliasLayer {
                 .as_bytes()
                 .try_into()
                 .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)?,
-            not_before,
-            not_after,
+            not_before: &not_before
+                .as_utc_time()
+                .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?,
+            not_after: &not_after
+                .as_utc_time()
+                .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?,
             tcb_info_fw_svn: &fw_svn.to_be_bytes(),
             tcb_info_rt_tci: &rt_tci,
         };

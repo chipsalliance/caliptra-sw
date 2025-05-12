@@ -2128,6 +2128,11 @@ impl CaliptraError {
             0xa004_0011,
             "Driver Error: AES tag is invalid"
         ),
+        (
+            X509_INVALID_UTC_TIME,
+            0xb0000000,
+            "X509 Error: Invalid UTC time format"
+        ),
     ];
 }
 

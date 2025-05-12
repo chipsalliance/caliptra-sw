@@ -41,21 +41,6 @@ use zeroize::Zeroize;
 pub struct LocalDevIdLayer {}
 
 impl LocalDevIdLayer {
-    /// Convert GeneralTime (15 bytes) to UTCTime (13 bytes)
-    fn generaltime_to_utctime(general_time: &[u8; 15]) -> [u8; 13] {
-        // GeneralTime format: YYYYMMDDHHMMSSZ (15 bytes)
-        // UTCTime format:       YYMMDDHHMMSSZ (13 bytes)
-        // We need to drop the first two characters (century)
-        let mut utc_time = [0u8; 13];
-
-        // Copy YY part (drop the century)
-        utc_time[0..2].copy_from_slice(&general_time[2..4]);
-        // Copy the rest (MMDDHHMMSSZ)
-        utc_time[2..13].copy_from_slice(&general_time[4..15]);
-
-        utc_time
-    }
-
     /// Perform derivations for the DICE layer
     ///
     /// # Arguments
@@ -294,8 +279,13 @@ impl LocalDevIdLayer {
         let mldsa_serial_number = okref(&mldsa_serial_number)?;
 
         // Convert GeneralTime to UTCTime for MLDSA certificate
-        let utc_not_before = Self::generaltime_to_utctime(&NotBefore::default().value);
-        let utc_not_after = Self::generaltime_to_utctime(&NotAfter::default().value);
+        // this won't panic
+        let utc_not_before = NotBefore::default()
+            .as_utc_time()
+            .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?;
+        let utc_not_after = NotAfter::default()
+            .as_utc_time()
+            .ok_or(CaliptraError::X509_INVALID_UTC_TIME)?;
 
         // CSR `To Be Signed` Parameters
         let mldsa_tbs_params = LocalDevIdCertTbsMlDsa87Params {
