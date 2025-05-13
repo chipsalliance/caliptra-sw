@@ -883,6 +883,7 @@ dependencies = [
  "crypto",
  "dpe",
  "fips204",
+ "hmac",
  "memoffset 0.8.0",
  "openssl",
  "p384",

@@ -125,11 +125,11 @@ impl LocalDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac_mac(env, cdi, &b"ldevid_cdi".into(), cdi, HmacMode::Hmac512)?;
+        Crypto::hmac_mac(env, cdi, b"ldevid_cdi".into(), cdi, HmacMode::Hmac512)?;
         Crypto::hmac_mac(
             env,
             cdi,
-            &KeyReadArgs::new(fe).into(),
+            KeyReadArgs::new(fe).into(),
             cdi,
             HmacMode::Hmac512,
         )?;

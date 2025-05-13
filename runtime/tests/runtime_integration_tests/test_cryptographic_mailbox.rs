@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
-use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
+use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
     populate_checksum, CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq,
     CmAesEncryptInitResp, CmAesEncryptInitRespHeader, CmAesEncryptUpdateReq,
@@ -11,17 +11,18 @@ use caliptra_api::mailbox::{
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
     CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
-    CmEcdhGenerateReq, CmEcdhGenerateResp, CmImportReq, CmImportResp, CmKeyUsage,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
-    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmEcdhGenerateReq, CmEcdhGenerateResp, CmHashAlgorithm, CmHmacReq, CmHmacResp, CmImportReq,
+    CmImportResp, CmKeyUsage, CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq,
+    CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk,
+    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
+    ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
 use caliptra_runtime::RtBootStatus;
 use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use hmac::{Hmac, Mac};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use sha2::{Digest, Sha384, Sha512};
@@ -60,7 +61,7 @@ fn test_import() {
     // check too large of an input
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: CmKeyUsage::Aes.into(),
         input_size: 1000,
         input: [0xaa; 64],
     });
@@ -72,7 +73,7 @@ fn test_import() {
     // wrong size
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: CmKeyUsage::Aes.into(),
         input_size: 64,
         input: [0xaa; 64],
     });
@@ -92,7 +93,7 @@ fn test_import() {
     // AES key import
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: CmKeyUsage::Aes.into(),
         input_size: 32,
         input: [0xaa; 64],
     });
@@ -135,7 +136,7 @@ fn test_import_full() {
     // AES key import
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: CmKeyUsage::Aes.into(),
         input_size: 32,
         input: [0xaa; 64],
     });
@@ -557,7 +558,7 @@ fn test_aes_gcm_edge_cases() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let cmk = import_aes_key(&mut model, &[0xaa; 32]);
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
 
     // check too large of an input
     let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
@@ -608,9 +609,10 @@ fn test_aes_gcm_edge_cases() {
     // TODO: check the rest of the edge cases
 }
 
-// Check a simle encryption with 4 bytes of data.
+// Check a simple encryption with 4 bytes of data.
 #[test]
 fn test_aes_gcm_simple() {
+    use aes_gcm::KeyInit;
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -619,7 +621,7 @@ fn test_aes_gcm_simple() {
 
     let key = [0xaa; 32];
 
-    let cmk = import_aes_key(&mut model, &key);
+    let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
 
     let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
         hdr: MailboxReqHeader::default(),
@@ -702,7 +704,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
         let mut key = [0u8; 32];
         seeded_rng.fill_bytes(&mut key);
         keys.push(key);
-        cmks.push(import_aes_key(&mut model, &key));
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
     }
 
     for _ in 0..100 {
@@ -759,7 +761,7 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
         let mut key = [0u8; 32];
         seeded_rng.fill_bytes(&mut key);
         keys.push(key);
-        cmks.push(import_aes_key(&mut model, &key));
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
     }
 
     for _ in 0..10 {
@@ -803,7 +805,7 @@ fn test_aes_cbc_random_encrypt_decrypt() {
         let mut key = [0u8; 32];
         seeded_rng.fill_bytes(&mut key);
         keys.push(key);
-        cmks.push(import_aes_key(&mut model, &key));
+        cmks.push(import_key(&mut model, &key, CmKeyUsage::Aes));
     }
 
     for _ in 0..100 {
@@ -835,6 +837,7 @@ fn rustcrypto_gcm_encrypt(
     aad: &[u8],
     plaintext: &[u8],
 ) -> ([u8; 16], Vec<u8>) {
+    use aes_gcm::KeyInit;
     let key: &Key<aes_gcm::Aes256Gcm> = key.into();
     let mut cipher = aes_gcm::Aes256Gcm::new(key);
     let mut buffer = plaintext.to_vec();
@@ -1232,13 +1235,13 @@ fn mailbox_cbc_decrypt(
     plaintext
 }
 
-fn import_aes_key(model: &mut DefaultHwModel, key: &[u8]) -> Cmk {
+fn import_key(model: &mut DefaultHwModel, key: &[u8], key_usage: CmKeyUsage) -> Cmk {
     let mut input = [0u8; 64];
     input[..key.len()].copy_from_slice(key);
 
     let mut cm_import_cmd = MailboxReq::CmImport(CmImportReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: key_usage.into(),
         input_size: key.len() as u32,
         input,
     });
@@ -1302,7 +1305,7 @@ fn test_ecdh() {
     send_exchange_data[..b_exchange_data.len()].copy_from_slice(b_exchange_data);
     let req = CmEcdhFinishReq {
         context: resp.context,
-        key_usage: CmKeyUsage::AES.into(),
+        key_usage: CmKeyUsage::Aes.into(),
         incoming_exchange_data: send_exchange_data,
         ..Default::default()
     };
@@ -1326,4 +1329,118 @@ fn test_ecdh() {
     // check that ciphertext and tags match, meaning the shared secret is the same on both sides
     assert_eq!(ciphertext, rciphertext);
     assert_eq!(tag, rtag);
+}
+
+// We can't do HMAC-SHA-512 on a 384-bit key in HW.
+#[test]
+fn test_hmac_cant_use_sha512_on_384_key() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_key(&mut model, &[0u8; 48], CmKeyUsage::Hmac);
+
+    let cm_hmac = CmHmacReq {
+        cmk: cmk.clone(),
+        hash_algorithm: CmHashAlgorithm::Sha512.into(),
+        ..Default::default()
+    };
+    let mut cm_hmac = MailboxReq::CmHmac(cm_hmac);
+    cm_hmac.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(u32::from(CommandId::CM_HMAC), cm_hmac.as_bytes().unwrap())
+        .expect_err("Should have failed");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+        err,
+    );
+}
+
+type HmacSha384 = Hmac<Sha384>;
+type HmacSha512 = Hmac<Sha512>;
+
+#[test]
+fn test_hmac_random() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac = CmHmacReq {
+                cmk: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                data_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac.data[..len].copy_from_slice(&data);
+            let mut cm_hmac = MailboxReq::CmHmac(cm_hmac);
+            cm_hmac.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(u32::from(CommandId::CM_HMAC), cm_hmac.as_bytes().unwrap())
+                .expect("Should have succeeded")
+                .unwrap();
+            const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+            let mut resp = CmHmacResp {
+                hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE])
+                    .unwrap(),
+                ..Default::default()
+            };
+            let len = resp.hdr.data_len as usize;
+            assert!(len < MAX_CMB_DATA_SIZE);
+            resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+            assert_eq!(len, resp.hdr.data_len as usize);
+            let expected_hmac = rustcrypto_hmac(hash_algorithm, &keys[key_idx], &data);
+            assert_eq!(resp.mac[..len], expected_hmac);
+        }
+    }
+}
+
+fn rustcrypto_hmac(hash_algorithm: CmHashAlgorithm, key: &[u8], data: &[u8]) -> Vec<u8> {
+    match hash_algorithm {
+        CmHashAlgorithm::Sha384 => {
+            let mut mac = HmacSha384::new_from_slice(key).unwrap();
+            mac.update(data);
+            let result = mac.finalize();
+            let x: [u8; 48] = result.into_bytes().into();
+            x.into()
+        }
+        CmHashAlgorithm::Sha512 => {
+            let mut mac = HmacSha512::new_from_slice(key).unwrap();
+            mac.update(data);
+            let result = mac.finalize();
+            let x: [u8; 64] = result.into_bytes().into();
+            x.into()
+        }
+        _ => panic!("Invalid hash algorithm"),
+    }
 }

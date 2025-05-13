@@ -1258,94 +1258,28 @@ Command Code: `0x434D_5346` ("CMSF")
 | hash size   | u32           |                           |
 | hash        | u8[hash size] |                           |
 
-### CM_HMAC_INIT
+### CM_HMAC
 
-Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data may be larger than a single mailbox command allows.
-
-The sequence to use these are:
-* 1 `CM_HMAC_INIT` command
-* 0 or more `CM_HMAC_UPDATE` commands
-* 1 `CM_HMAC_FINAL` command
-
-For each command, the context from the previous command's output must be passed as an input.
+Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data must fit into a single mailbox command.
 
 The CMK must have been created for HMAC / HKDF usage.
 
-Command Code: `0x434D_4849` ("CMHI")
+Command Code: `0x434D_484D` ("CMHM")
 
-*Table: `CM_HMAC_INIT` input arguments*
+*Table: `CM_HMAC` input arguments*
 | **Name**       | **Type**      | **Description**   |
 | -------------- | ------------- | ----------------- |
 | chksum         | u32           |                   |
 | CMK            | CMK           | CMK to use as key |
 | hash algorithm | u32           | Enum.             |
 |                |               | 0 = reserved      |
-|                |               | 1 = SHA2-256      |
-|                |               | 2 = SHA2-384      |
-|                |               | 3 = SHA2-512      |
+|                |               | 1 = SHA2-384      |
+|                |               | 2 = SHA2-512      |
 | data size      | u32           |                   |
 | data           | u8[data size] | Data to MAC       |
 
-*Table: `CM_HMAC_INIT` output arguments*
-| **Name**     | **Type** | **Description**           |
-| ------------ | -------- | ------------------------- |
-| chksum       | u32      |                           |
-| fips_status  | u32      | FIPS approved or an error |
-| context size | u32      |                           |
-| context      | u8[...]  |                           |
 
-*Table: `CM_HMAC_INIT` internal context*
-| **Name**          | **Type** | **Description** |
-| ----------------- | -------- | --------------- |
-| input buffer      | u8[128]  |                 |
-| intermediate hash | u8[64]   |                 |
-| length            | u64      |                 |
-| hash algorithm    | u32      |                 |
-
-Note that although the `CM_HMAC` context is the same as the `CM_SHA` context, the `CM_HMAC` SHALL be encrypted.
-
-### CM_HMAC_UPDATE
-
-This continues an HMAC computation started by `CM_HMAC_INIT` or from another `CM_HMAC_UPDATE`.
-
-The context MUST be passed in from `CM_HMAC_INIT` or `CM_HMAC_UPDATE`.
-
-Command Code: `0x434D_4855` ("CMHU")
-
-*Table: `CM_HMAC_UPDATE` input arguments*
-| **Name**     | **Type**         | **Description**                                  |
-| ------------ | ---------------- | ------------------------------------------------ |
-| chksum       | u32              |                                                  |
-| context size | u32              |                                                  |
-| context      | u8[context size] | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-| data size    | u32              |                                                  |
-| data         | u8[data size]    | Data to MAC                                      |
-
-*Table: `CM_HMAC_UPDATE` output arguments*
-| **Name**     | **Type**         | **Description**                              |
-| ------------ | ---------------- | -------------------------------------------- |
-| chksum       | u32              |                                              |
-| fips_status  | u32              | FIPS approved or an error                    |
-| context size | u32              |                                              |
-| context      | u8[context size] | Passed to `CM_HMAC_UPDATE` / `CM_HMAC_FINAL` |
-
-### CM_HMAC_FINAL
-
-This finalizes the computation of an HMAC and produces the MAC of all of the data.
-
-The context MUST be passed in from `CM_HMAC_INIT` or `CMA_HMAC_UPDATE`.
-
-Command Code: `0x434D_4846` ("CMHF")
-
-*Table: `CM_HMAC_FINAL` input arguments*
-
-| **Name**     | **Type**         | **Description**                                  |
-| ------------ | ---------------- | ------------------------------------------------ |
-| chksum       | u32              |                                                  |
-| context size | u32              |                                                  |
-| context      | u8[context size] | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-
-*Table: `CM_HMAC_FINAL` output arguments*
+*Table: `CM_HMAC` output arguments*
 | **Name**    | **Type**     | **Description**           |
 | ----------- | ------------ | ------------------------- |
 | chksum      | u32          |                           |
