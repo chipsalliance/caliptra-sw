@@ -19,6 +19,7 @@ use caliptra_drivers::memory_layout::ROM_ORG;
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
 
 pub fn highlight_covered_instructions_in_objdump_output(
+    addr_loader: addr2line::Loader,
     base_address: usize,
     bitmap: &BitVec,
     output: String,
@@ -26,6 +27,11 @@ pub fn highlight_covered_instructions_in_objdump_output(
     let mut is_disassembly = false;
     let re = regex::Regex::new(r"^\s*(?P<address>[0-9a-f]+):\s*(?P<instruction>[0-9a-f]+\s+.+)")
         .unwrap();
+
+    let mut gaps = vec![];
+
+    let cwd = std::env::current_dir().unwrap();
+    let cwd = cwd.to_str().unwrap_or_default().to_string() + "/";
 
     for line in output.lines() {
         if line.contains("Disassembly of section") {
@@ -36,16 +42,41 @@ pub fn highlight_covered_instructions_in_objdump_output(
         if is_disassembly && re.is_match(line) {
             if let Some(captures) = re.captures(line) {
                 let pc = usize::from_str_radix(&captures["address"], 16).unwrap();
+                let loc = addr_loader
+                    .find_location(pc as u64)
+                    .map(|loc| {
+                        loc.map(|l| {
+                            format!(
+                                "{}:{}",
+                                l.file
+                                    .unwrap_or_default()
+                                    .strip_prefix(&cwd)
+                                    .unwrap_or(l.file.unwrap_or_default()),
+                                l.line.unwrap_or_default()
+                            )
+                        })
+                        .unwrap_or_default()
+                    })
+                    .unwrap_or_default();
+
                 if bitmap.get(pc - base_address).unwrap_or(false) {
                     let s = format!("[*]{}", line);
                     println!("{s}");
                 } else {
                     println!("   {}", line);
+                    gaps.push((loc, line.to_string()));
                 }
             }
         } else {
             println!("   {}", line);
         }
+    }
+    println!("\nGaps:");
+    for (loc, line) in gaps {
+        if loc.starts_with("/rust") || loc.contains(".rustup") | loc.contains("crates.io") {
+            continue;
+        }
+        println!("{} | {}", loc, line);
     }
 }
 
@@ -85,9 +116,11 @@ fn main() -> std::io::Result<()> {
 
     if let Some(fw_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
         let path = std::path::PathBuf::from(fw_dir).join(ROM_WITH_UART.elf_filename());
+        let addr_loader = addr2line::Loader::new(&path).unwrap();
 
         let objdump_output = invoke_objdump(&path.to_string_lossy());
         highlight_covered_instructions_in_objdump_output(
+            addr_loader,
             caliptra_drivers::memory_layout::ROM_ORG as usize,
             bv,
             objdump_output.unwrap(),
@@ -138,9 +171,11 @@ fn main() -> std::io::Result<()> {
 
         if let Some(fw_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
             let path = std::path::PathBuf::from(fw_dir).join(e.elf_filename());
+            let addr_loader = addr2line::Loader::new(&path).unwrap();
 
             let objdump_output = invoke_objdump(&path.to_string_lossy());
             highlight_covered_instructions_in_objdump_output(
+                addr_loader,
                 ICCM_ORG as usize,
                 iccm_bitmap,
                 objdump_output.unwrap(),

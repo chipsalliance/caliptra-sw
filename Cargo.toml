@@ -85,6 +85,7 @@ members = [
 ]
 
 [workspace.dependencies]
+addr2line = "0.24.2"
 aes = "0.8.4"
 aes-gcm = "0.10.3"
 anyhow = "1.0.70"

@@ -8,9 +8,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+addr2line.workspace = true
 anyhow.workspace = true
-serde = {workspace = true, features = ["derive"]}
-serde_json.workspace  = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 hex.workspace = true
 rand.workspace = true
 bit-vec = { workspace = true, features = ["serde"] }
@@ -18,4 +19,4 @@ caliptra-builder.workspace = true
 elf.workspace = true
 regex.workspace = true
 caliptra-image-types.workspace = true
-caliptra-drivers.workspace=true
+caliptra-drivers.workspace = true
