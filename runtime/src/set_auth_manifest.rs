@@ -28,8 +28,8 @@ use caliptra_drivers::{
     HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
 };
 use caliptra_image_types::{
-    FwVerificationPqcKeyType, ImageDigest384, ImageDigest512, ImageEccPubKey, ImageEccSignature,
-    ImageLmsPublicKey, ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
+    FwVerificationPqcKeyType, ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
+    ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
     MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA192_DIGEST_WORD_SIZE,
     SHA384_DIGEST_BYTE_SIZE,
 };
@@ -65,21 +65,6 @@ impl SetAuthManifestCmd {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)
-    }
-
-    fn sha512_digest(
-        sha2: &mut Sha2_512_384,
-        buf: &[u8],
-        offset: u32,
-        len: u32,
-    ) -> CaliptraResult<ImageDigest512> {
-        let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        let data = buf
-            .get(offset as usize..)
-            .ok_or(err)?
-            .get(..len as usize)
-            .ok_or(err)?;
-        Ok(sha2.sha512_digest(data)?.0)
     }
 
     fn ecc384_verify(
@@ -358,7 +343,7 @@ impl SetAuthManifestCmd {
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         mldsa: &mut Mldsa87,
-        sha2: &mut Sha2_512_384,
+        _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
     ) -> CaliptraResult<()> {
@@ -471,7 +456,7 @@ impl SetAuthManifestCmd {
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         mldsa: &mut Mldsa87,
-        sha2: &mut Sha2_512_384,
+        _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
     ) -> CaliptraResult<()> {
