@@ -44,17 +44,6 @@ pub fn ueid(soc_ifc: &SocIfc) -> CaliptraResult<[u8; 17]> {
 #[inline(always)]
 #[allow(clippy::cast_ptr_alignment)]
 pub fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
-    fn copy_and_swap_endianess(src: &[u8], dst: &mut [u8]) {
-        for i in (0..src.len()).step_by(4) {
-            if i + 3 < src.len() && i + 3 < dst.len() {
-                dst[i] = src[i + 3];
-                dst[i + 1] = src[i + 2];
-                dst[i + 2] = src[i + 1];
-                dst[i + 3] = src[i];
-            }
-        }
-    }
-
     match pub_key {
         PubKey::Ecc(pub_key) => {
             let ecc_pubkey_der = pub_key.to_der();
@@ -62,8 +51,8 @@ pub fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
             ecc_pubkey_der.len()
         }
         PubKey::Mldsa(pub_key) => {
-            // pub_key is in Caliptra Hw format (big-endian DWORDs). Convert it to little-endian DWORDs.
-            copy_and_swap_endianess(pub_key.0.as_bytes(), pub_key_bytes);
+            let mldsa_pubkey: &[u8; 2592] = &(*pub_key).into();
+            pub_key_bytes.copy_from_slice(mldsa_pubkey);
             pub_key_bytes.len()
         }
     }

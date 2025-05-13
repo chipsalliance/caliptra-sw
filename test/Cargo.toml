@@ -28,14 +28,10 @@ caliptra_common = { workspace = true, default-features = false }
 der.workspace = true
 dpe.workspace = true
 elf.workspace = true
-ml-dsa.workspace = true
 openssl.workspace = true
 rand.workspace = true
 regex.workspace = true
-signature.workspace = true
-spki.workspace = true
 ureg.workspace = true
-x509-cert.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]

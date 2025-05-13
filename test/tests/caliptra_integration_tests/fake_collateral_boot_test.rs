@@ -154,7 +154,7 @@ fn fake_boot_test() {
     // intentional, and then make the same change to
     // caliptra_test::LDevId::derive().
     assert!(expected_ldevid_key
-        .derive_public_key()
+        .derive_ecc_public_key()
         .public_eq(&ldev_pubkey));
 
     println!("ldev-cert: {}", ldev_cert_txt);
