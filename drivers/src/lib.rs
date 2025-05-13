@@ -60,7 +60,8 @@ pub use aes::{
     AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
 };
 pub use array::{
-    Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN, LEArray4x16, LEArray4x8,
+    Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN, LEArray4x1157, LEArray4x16,
+    LEArray4x648, LEArray4x8,
 };
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
