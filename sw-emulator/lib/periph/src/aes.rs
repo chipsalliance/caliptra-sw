@@ -2,7 +2,7 @@
 
 use caliptra_emu_bus::{BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
-use caliptra_emu_crypto::{Aes256Cbc, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
+use caliptra_emu_crypto::{Aes256Cbc, Aes256Ctr, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use rand::Rng;
@@ -108,6 +108,7 @@ pub struct Aes {
     data_in_written: [bool; 4],
     ghash: GHash,
     cbc: Aes256Cbc,
+    ctr: Aes256Ctr,
     data_out_read: [bool; 4],
     data_out_block_queue: VecDeque<u32>,
 }
@@ -139,6 +140,7 @@ impl Aes {
             data_in_written: [false; 4],
             ghash: GHash::default(),
             cbc: Aes256Cbc::default(),
+            ctr: Aes256Ctr::default(),
             data_out_read: [true; 4],
             data_out_block_queue: VecDeque::new(),
         }
@@ -290,7 +292,8 @@ impl Aes {
                     self.data_out[3] = self.data_out_block_queue.pop_front().unwrap();
                 }
             }
-            Ctrl::MODE::Value::GCM => (), // streaming mode can directly read the register
+            // streaming modes can directly read the register
+            Ctrl::MODE::Value::CTR | Ctrl::MODE::Value::GCM => (),
             _ => todo!(),
         }
 
@@ -314,6 +317,16 @@ impl Aes {
             .push_back(u32::from_le_bytes(output[8..12].try_into().unwrap()));
         self.data_out_block_queue
             .push_back(u32::from_le_bytes(output[12..16].try_into().unwrap()));
+    }
+
+    fn update_ctr(&mut self, data: &[u8]) {
+        assert_eq!(data.len(), 16);
+        let data: &[u8; 16] = data.try_into().unwrap();
+        let output = self.ctr.crypt_block(data);
+        self.data_out[0] = u32::from_le_bytes(output[0..4].try_into().unwrap());
+        self.data_out[1] = u32::from_le_bytes(output[4..8].try_into().unwrap());
+        self.data_out[2] = u32::from_le_bytes(output[8..12].try_into().unwrap());
+        self.data_out[3] = u32::from_le_bytes(output[12..16].try_into().unwrap());
     }
 
     fn update_gcm(&mut self, data: &[u8]) {
@@ -404,6 +417,9 @@ impl Aes {
                 Ctrl::MODE::Value::CBC => {
                     self.update_cbc(&buffer);
                 }
+                Ctrl::MODE::Value::CTR => {
+                    self.update_ctr(&buffer);
+                }
                 Ctrl::MODE::Value::GCM => {
                     self.update_gcm(&buffer);
                 }
@@ -462,6 +478,9 @@ impl Aes {
         match self.mode() {
             Ctrl::MODE::Value::CBC => {
                 self.cbc = Aes256Cbc::new(&self.iv(), &self.key());
+            }
+            Ctrl::MODE::Value::CTR => {
+                self.ctr = Aes256Ctr::new(&self.iv(), &self.key());
             }
             Ctrl::MODE::Value::GCM => {
                 if idx == 3 {

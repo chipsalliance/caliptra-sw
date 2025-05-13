@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 mod aes256cbc;
+mod aes256ctr;
 mod aes256gcm;
 mod ecc384;
 mod helpers;
@@ -36,5 +37,6 @@ pub use ecc384::Ecc384Signature;
 pub const AES_256_BLOCK_SIZE: usize = 16;
 pub const AES_256_KEY_SIZE: usize = 32;
 pub use aes256cbc::Aes256Cbc;
+pub use aes256ctr::Aes256Ctr;
 pub use aes256gcm::{Aes256Gcm, GHash};
 pub use helpers::EndianessTransform;

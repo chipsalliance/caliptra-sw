@@ -19,6 +19,7 @@ Abstract:
 --*/
 
 use crate::{CaliptraError, CaliptraResult, Trng};
+use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::aes::AesReg;
@@ -62,12 +63,13 @@ impl<'a> From<&'a [u8; 32]> for AesKey<'a> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum AesMode {
     _Ecb = 1 << 0,
     Cbc = 1 << 1,
     _Cfb = 1 << 2,
     _Ofb = 1 << 3,
-    _Ctr = 1 << 4,
+    Ctr = 1 << 4,
     Gcm = 1 << 5,
     _None = (1 << 6) - 1,
 }
@@ -110,10 +112,23 @@ const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_S
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
-    pub mode: u32, // TODO: will update and use this when we support other modes
+    pub mode: u32,
     pub key: [u8; 32],
     pub last_ciphertext: [u8; 16],
-    _padding: [u8; 76],
+    pub last_block_index: u8,
+    _padding: [u8; 75],
+}
+
+impl Default for AesContext {
+    fn default() -> Self {
+        Self {
+            mode: 0,
+            key: [0; 32],
+            last_ciphertext: [0; 16],
+            last_block_index: 0,
+            _padding: [0; 75],
+        }
+    }
 }
 
 const _: () = assert!(core::mem::size_of::<AesContext>() == AES_CONTEXT_SIZE_BYTES);
@@ -697,20 +712,21 @@ impl Aes {
         });
     }
 
-    /// Initializes the AES engine for CBC mode
+    /// Initializes the AES engine for CBC or CTR mode
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn initialize_aes_cbc(
+    fn initialize_aes_cbc_ctr(
         &mut self,
         iv: &[u8; AES_BLOCK_SIZE_BYTES],
         key: AesKey,
         op: AesOperation,
+        mode: AesMode,
     ) {
         self.with_aes(|aes| {
             wait_for_idle(&aes);
             for _ in 0..2 {
                 aes.ctrl_shadowed().write(|w| {
                     w.key_len(AesKeyLen::_256 as u32)
-                        .mode(AesMode::Cbc as u32)
+                        .mode(mode as u32)
                         .operation(op as u32)
                         .manual_operation(false)
                 });
@@ -892,10 +908,10 @@ impl Aes {
         // trivial case is allowed
         if input.is_empty() {
             return Ok(AesContext {
-                mode: 1,
+                mode: CmAesMode::Cbc as u32,
                 key: *key,
                 last_ciphertext: *iv,
-                _padding: [0; 76],
+                ..Default::default()
             });
         }
         if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
@@ -904,7 +920,7 @@ impl Aes {
         if output.len() < input.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
-        self.initialize_aes_cbc(iv, AesKey::Array(key), op);
+        self.initialize_aes_cbc_ctr(iv, AesKey::Array(key), op, AesMode::Cbc);
 
         let num_blocks = input.len() / AES_BLOCK_SIZE_BYTES;
         // the compiler cannot reason that this is impossible so
@@ -949,10 +965,134 @@ impl Aes {
 
         self.zeroize_internal();
         Ok(AesContext {
-            mode: 1,
+            mode: CmAesMode::Cbc as u32,
             key: *key,
             last_ciphertext,
-            _padding: [0; 76],
+            ..Default::default()
+        })
+    }
+
+    fn add_iv(iv: &[u8; AES_BLOCK_SIZE_BYTES], ctr: u32) -> [u8; AES_BLOCK_SIZE_BYTES] {
+        // We write the IV as 4 32-bit words in little-endian order, but we have
+        // to increment them as if they were big-endian.
+        (u128::from_be_bytes(iv[0..16].try_into().unwrap()) + (ctr as u128)).to_be_bytes()
+    }
+
+    pub fn aes_256_ctr(
+        &mut self,
+        key: &[u8; 32],
+        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        block_index: usize, // index within a block
+        mut input: &[u8],
+        mut output: &mut [u8],
+    ) -> CaliptraResult<AesContext> {
+        // trivial case is allowed
+        if input.is_empty() {
+            return Ok(AesContext {
+                mode: CmAesMode::Ctr as u32,
+                key: *key,
+                last_ciphertext: *iv,
+                last_block_index: block_index as u8,
+                ..Default::default()
+            });
+        }
+        if output.len() < input.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if block_index >= AES_BLOCK_SIZE_BYTES {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+
+        let mut iv = *iv;
+        // encryption and decryption are the same in CTR mode
+        self.initialize_aes_cbc_ctr(&iv, AesKey::Array(key), AesOperation::Encrypt, AesMode::Ctr);
+
+        // handle partial first block
+        if block_index > 0 {
+            let mut partial_input = [0u8; AES_BLOCK_SIZE_BYTES];
+            let mut partial_output = [0u8; AES_BLOCK_SIZE_BYTES];
+
+            // check if there are not enough bytes to fill this partial block
+            if input.len() + block_index < AES_BLOCK_SIZE_BYTES {
+                partial_input[block_index..block_index + input.len()].copy_from_slice(input);
+                self.load_data_block(&partial_input, 0)?;
+                self.read_data_block(&mut partial_output, 0)?;
+                output[..input.len()]
+                    .copy_from_slice(&partial_output[block_index..block_index + input.len()]);
+                self.zeroize_internal();
+                return Ok(AesContext {
+                    mode: CmAesMode::Ctr as u32,
+                    key: *key,
+                    last_ciphertext: iv,
+                    last_block_index: (block_index + input.len()) as u8,
+                    ..Default::default()
+                });
+            }
+
+            partial_input[block_index..]
+                .copy_from_slice(&input[..AES_BLOCK_SIZE_BYTES - block_index]);
+            self.load_data_block(&partial_input, 0)?;
+            self.read_data_block(&mut partial_output, 0)?;
+            output[..AES_BLOCK_SIZE_BYTES - block_index]
+                .copy_from_slice(&partial_output[block_index..]);
+
+            input = &input[AES_BLOCK_SIZE_BYTES - block_index..];
+            output = &mut output[AES_BLOCK_SIZE_BYTES - block_index..];
+
+            iv = Self::add_iv(&iv, 1);
+
+            // check if that was the last block
+            if input.is_empty() {
+                self.zeroize_internal();
+                return Ok(AesContext {
+                    mode: CmAesMode::Ctr as u32,
+                    key: *key,
+                    last_ciphertext: iv,
+                    last_block_index: 0,
+                    ..Default::default()
+                });
+            }
+        }
+
+        let num_blocks = input.len().div_ceil(AES_BLOCK_SIZE_BYTES);
+        for i in 0..num_blocks - 1 {
+            self.load_data_block(input, i)?;
+            self.read_data_block(output, i)?;
+        }
+
+        // do the last block separately as it may be a partial block
+
+        // checks needed to prevent panic
+        if (num_blocks - 1) * AES_BLOCK_SIZE_BYTES >= input.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if (num_blocks - 1) * AES_BLOCK_SIZE_BYTES >= output.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        let increment_iv = input.len() / AES_BLOCK_SIZE_BYTES;
+        let input = &input[(num_blocks - 1) * AES_BLOCK_SIZE_BYTES..];
+        let output = &mut output[(num_blocks - 1) * AES_BLOCK_SIZE_BYTES..];
+        let mut last_input = [0u8; AES_BLOCK_SIZE_BYTES];
+        let mut last_output = [0u8; AES_BLOCK_SIZE_BYTES];
+        // checks needed to prevent panic
+        if input.len() > AES_BLOCK_SIZE_BYTES {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if input.len() > output.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        last_input[..input.len()].copy_from_slice(input);
+        self.load_data_block(&last_input, 0)?;
+        self.read_data_block(&mut last_output, 0)?;
+        output[..input.len()].copy_from_slice(&last_output[..input.len()]);
+        let iv = Self::add_iv(&iv, increment_iv as u32);
+        self.zeroize_internal();
+        Ok(AesContext {
+            mode: CmAesMode::Ctr as u32,
+            key: *key,
+            last_ciphertext: iv,
+            last_block_index: (input.len() % AES_BLOCK_SIZE_BYTES) as u8,
+            ..Default::default()
         })
     }
 
