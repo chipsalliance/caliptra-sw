@@ -886,9 +886,8 @@ test_suite! {
     test_gen_key_pair,
     test_sign,
     test_sign_caller_provided_private_key,
-    // [TODO][CAP2] Enable when the emulator change is ready.
-    //test_sign_caller_provided_private_key_var_msg,
-    //test_keygen_caller_provided_seed_var_msg,
+    test_sign_caller_provided_private_key_var_msg,
+    test_keygen_caller_provided_seed_var_msg,
     test_keygen_caller_provided_seed,
     test_verify,
     test_verify_failure,
