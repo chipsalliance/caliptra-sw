@@ -54,12 +54,12 @@ impl Crypto {
     pub fn hmac_mac(
         env: &mut RomEnv,
         key: KeyId,
-        data: &HmacData,
+        data: HmacData,
         tag: KeyId,
         mode: HmacMode,
     ) -> CaliptraResult<()> {
         env.hmac.hmac(
-            &KeyReadArgs::new(key).into(),
+            KeyReadArgs::new(key).into(),
             data,
             &mut env.trng,
             KeyWriteArgs::new(

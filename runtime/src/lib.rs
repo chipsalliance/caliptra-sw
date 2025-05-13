@@ -362,6 +362,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_ECDH_FINISH => {
             cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_HMAC => cryptographic_mailbox::Commands::hmac(drivers, cmd_bytes, resp),
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,
             &drivers.soc_ifc,

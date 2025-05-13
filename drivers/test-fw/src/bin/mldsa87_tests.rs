@@ -691,8 +691,8 @@ fn test_gen_key_pair() {
     };
 
     hmac.hmac(
-        &HmacKey::from(&Array4x12::default()),
-        &HmacData::from(&[0]),
+        HmacKey::from(&Array4x12::default()),
+        HmacData::from(&[0]),
         &mut trng,
         HmacTag::Key(key_out_1),
         HmacMode::Hmac384,

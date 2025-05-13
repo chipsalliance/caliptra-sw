@@ -58,6 +58,7 @@ caliptra-test.workspace = true
 caliptra-cfi-lib-git = { workspace = true, features = ["cfi-test"] }
 cbc.workspace = true
 fips204.workspace = true
+hmac.workspace = true
 openssl.workspace = true
 p384.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }

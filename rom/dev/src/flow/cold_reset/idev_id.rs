@@ -285,8 +285,8 @@ impl InitDevIdLayer {
         // Generate the CSR MAC.
         let mut tag = Array4x16::default();
         env.hmac.hmac(
-            &HmacKey::CsrMode(),
-            &HmacData::Slice(envlope_slice),
+            HmacKey::CsrMode(),
+            HmacData::Slice(envlope_slice),
             &mut env.trng,
             (&mut tag).into(),
             HmacMode::Hmac512,

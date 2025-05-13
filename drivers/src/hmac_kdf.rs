@@ -48,7 +48,7 @@ pub fn hmac_kdf(
         crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::HMAC384_FAILURE)?
     }
 
-    let mut hmac_op = hmac.hmac_init(&key, trng, output, mode)?;
+    let mut hmac_op = hmac.hmac_init(key, trng, output, mode)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;
