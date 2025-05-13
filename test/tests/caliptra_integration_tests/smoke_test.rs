@@ -1,3 +1,4 @@
+use caliptra_api::mailbox::{GetFmcAliasMlDsa87CertReq, GetLdevMldsa87CertReq};
 // Licensed under the Apache-2.0 license
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
@@ -19,7 +20,7 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
-use der::Encode;
+use der::{Decode, Encode};
 use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
@@ -28,6 +29,7 @@ use rand::SeedableRng;
 use regex::Regex;
 use spki::DecodePublicKey;
 use std::mem;
+use x509_cert::certificate::Certificate;
 use x509_cert::request::CertReq;
 use zerocopy::{IntoBytes, TryFromBytes};
 
@@ -175,11 +177,11 @@ fn retrieve_csr_test_rustcrypto() {
     let mldsa_csr_der = &csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize];
 
     // To update the CSR testdata:
-    std::fs::write(
-        "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der",
-        mldsa_csr_der,
-    )
-    .unwrap();
+    // std::fs::write(
+    //     "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der",
+    //     mldsa_csr_der,
+    // )
+    // .unwrap();
 
     // Parse the CSR using RustCrypto
     let mldsa_csr = CertReq::try_from(mldsa_csr_der).unwrap();
@@ -200,21 +202,50 @@ fn retrieve_csr_test_rustcrypto() {
     )
 }
 
-fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
+fn get_ecc_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
     let csr =
         openssl::x509::X509Req::from_der(include_bytes!("smoke_testdata/idevid_csr.der")).unwrap();
     csr.public_key().unwrap()
 }
 
-fn get_ldevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
+fn get_ecc_ldevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
     let cert =
         openssl::x509::X509::from_der(include_bytes!("smoke_testdata/ldevid_cert.der")).unwrap();
     cert.public_key().unwrap()
 }
 
+fn get_mldsa_idevid_pubkey_openssl() -> openssl::pkey::PKey<openssl::pkey::Public> {
+    let csr =
+        openssl::x509::X509Req::from_der(include_bytes!("smoke_testdata/idevid_csr_mldsa.der"))
+            .unwrap();
+    csr.public_key().unwrap()
+}
+
+fn get_mldsa_idevid_pubkey() -> VerifyingKey<MlDsa87> {
+    let mldsa_csr =
+        CertReq::try_from(include_bytes!("smoke_testdata/idevid_csr_mldsa.der").as_slice())
+            .unwrap();
+    // Get the raw encoded public key bytes
+    let pk = mldsa_csr.info.public_key.to_der().unwrap();
+    VerifyingKey::<MlDsa87>::from_public_key_der(&pk).unwrap()
+}
+
+fn get_mldsa_ldevid_pubkey() -> VerifyingKey<MlDsa87> {
+    let mldsa_cert =
+        Certificate::from_der(include_bytes!("smoke_testdata/ldevid_cert_mldsa.der").as_slice())
+            .unwrap();
+    // Get the raw encoded public key bytes
+    let pk = mldsa_cert
+        .tbs_certificate
+        .subject_public_key_info
+        .to_der()
+        .unwrap();
+    VerifyingKey::<MlDsa87>::from_public_key_der(&pk).unwrap()
+}
+
 #[test]
 fn test_golden_idevid_pubkey_matches_generated() {
-    let idevid_pubkey = get_idevid_pubkey();
+    let ecc_idevid_pubkey = get_ecc_idevid_pubkey();
 
     let doe_out = DoeOutput::generate(&DoeInput::default());
     let generated_idevid = IDevId::derive(&doe_out);
@@ -227,13 +258,19 @@ fn test_golden_idevid_pubkey_matches_generated() {
         ]
     );
     assert!(generated_idevid
-        .derive_public_key()
-        .public_eq(&idevid_pubkey));
+        .derive_ecc_public_key()
+        .public_eq(&ecc_idevid_pubkey));
+
+    let mldsa_idevid_pubkey = get_mldsa_idevid_pubkey();
+    assert_eq!(
+        generated_idevid.derive_mldsa_public_key(),
+        mldsa_idevid_pubkey
+    );
 }
 
 #[test]
 fn test_golden_ldevid_pubkey_matches_generated() {
-    let ldevid_pubkey = get_ldevid_pubkey();
+    let ldevid_pubkey = get_ecc_ldevid_pubkey();
 
     let doe_out = DoeOutput::generate(&DoeInput::default());
     let generated_ldevid = LDevId::derive(&doe_out);
@@ -248,15 +285,27 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert!(generated_ldevid
         .derive_public_key()
         .public_eq(&ldevid_pubkey));
+
+    let mldsa_ldevid_pubkey = get_mldsa_ldevid_pubkey();
+    assert_eq!(
+        generated_ldevid.derive_mldsa_public_key(),
+        mldsa_ldevid_pubkey
+    );
 }
 
 #[test]
 fn smoke_test() {
+    let builder = std::thread::Builder::new().stack_size(80 * 1024 * 1024);
+    let handler = builder.spawn(|| smoke_test_fn).unwrap();
+    handler.join().unwrap();
+}
+
+fn smoke_test_fn() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let security_state = *SecurityState::default()
             .set_debug_locked(true)
             .set_device_lifecycle(DeviceLifecycle::Production);
-        let idevid_pubkey = get_idevid_pubkey();
+        let idevid_pubkey = get_ecc_idevid_pubkey();
 
         let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
         let image = caliptra_builder::build_and_sign_image(
@@ -359,6 +408,35 @@ fn smoke_test() {
 
         println!("ldev-cert: {}", ldev_cert_txt);
 
+        let mldsa_ldev_cert_resp = hw
+            .mailbox_execute_req(GetLdevMldsa87CertReq::default())
+            .unwrap();
+
+        // Extract the certificate from the response
+        let mldsa_ldev_cert_der = mldsa_ldev_cert_resp.data().unwrap();
+        let mldsa_ldev_cert = openssl::x509::X509::from_der(mldsa_ldev_cert_der).unwrap();
+        let mldsa_ldev_cert_txt = String::from_utf8(mldsa_ldev_cert.to_text().unwrap()).unwrap();
+        let mldsa_ldev_pubkey = mldsa_ldev_cert.public_key().unwrap();
+
+        // To update the ldev cert testdata:
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_mldsa.der", mldsa_ldev_cert_der, ).unwrap();
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_mldsa.txt", mldsa_ldev_cert_txt, ).unwrap();
+
+        assert_eq!(
+            mldsa_ldev_cert_txt.as_str(),
+            include_str!("smoke_testdata/ldevid_cert_mldsa.txt")
+        );
+        assert_eq!(
+            mldsa_ldev_cert_der,
+            include_bytes!("smoke_testdata/ldevid_cert_mldsa.der")
+        );
+
+        let mldsa_idevid_pubkey = get_mldsa_idevid_pubkey_openssl();
+        assert!(
+            mldsa_ldev_cert.verify(&mldsa_idevid_pubkey).unwrap(),
+            "ldev cert failed to validate with idev pubkey"
+        );
+
         // Execute command
         let fmc_alias_cert_resp = hw
             .mailbox_execute_req(GetFmcAliasEcc384CertReq::default())
@@ -371,6 +449,19 @@ fn smoke_test() {
         println!(
             "fmc-alias cert: {}",
             String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
+        );
+
+        let mldsa_fmc_alias_cert_resp = hw
+            .mailbox_execute_req(GetFmcAliasMlDsa87CertReq::default())
+            .unwrap();
+
+        // Extract the certificate from the response
+        let mldsa_fmc_alias_cert_der = mldsa_fmc_alias_cert_resp.data().unwrap();
+        let mldsa_fmc_alias_cert = openssl::x509::X509::from_der(mldsa_fmc_alias_cert_der).unwrap();
+
+        println!(
+            "mldsa fmc-alias cert: {}",
+            String::from_utf8_lossy(&mldsa_fmc_alias_cert.to_text().unwrap())
         );
 
         let mut hasher = Sha384::new();
@@ -455,51 +546,81 @@ fn smoke_test() {
             "fmc_alias cert failed to validate with ldev pubkey"
         );
 
+        let mldsa_fmc_alias_cert_rustcrypto =
+            Certificate::from_der(mldsa_fmc_alias_cert_der).unwrap();
+        let mldsa_fmc_pk_bytes = mldsa_fmc_alias_cert_rustcrypto
+            .tbs_certificate
+            .subject_public_key_info
+            .to_der()
+            .unwrap();
+        let mldsa_fmc_pk =
+            VerifyingKey::<MlDsa87>::from_public_key_der(&mldsa_fmc_pk_bytes).unwrap();
+        assert_eq!(
+            mldsa_fmc_pk,
+            expected_fmc_alias_key.derive_mldsa_public_key()
+        );
+        assert!(
+            mldsa_fmc_alias_cert.verify(&mldsa_ldev_pubkey).unwrap(),
+            "mldsa fmc_alias cert failed to validate with ldev pubkey"
+        );
+
         let fmc_alias_pubkey = fmc_alias_cert.public_key().unwrap();
 
-        // Validate the fmc-alias fields (this are redacted in the testdata because they can change):
-        assert_eq!(
-            fmc_alias_cert
-                .serial_number()
-                .to_bn()
-                .unwrap()
-                .to_vec_padded(20)
-                .unwrap(),
-            derive::cert_serial_number(&fmc_alias_pubkey)
-        );
-        assert_eq!(
-            fmc_alias_cert.subject_key_id().unwrap().as_slice(),
-            derive::key_id(&fmc_alias_pubkey),
-        );
-        assert_eq!(
-            fmc_alias_cert.authority_key_id().unwrap().as_slice(),
-            ldev_cert.subject_key_id().unwrap().as_slice(),
-        );
-        assert_eq!(
-            &fmc_alias_cert
-                .subject_name()
-                .entries_by_nid(Nid::SERIALNUMBER)
-                .unwrap_single()
-                .data()
-                .as_utf8()
-                .unwrap()[..],
-            derive::serial_number_str(&fmc_alias_pubkey)
-        );
-        assert_eq!(
-            &fmc_alias_cert
-                .issuer_name()
-                .entries_by_nid(Nid::SERIALNUMBER)
-                .unwrap_single()
-                .data()
-                .as_utf8()
-                .unwrap()[..],
-            &ldev_cert
-                .subject_name()
-                .entries_by_nid(Nid::SERIALNUMBER)
-                .unwrap_single()
-                .data()
-                .as_utf8()
-                .unwrap()[..],
+        // Validate the cert fields (these are redacted in the testdata because they can change)
+        let validate_cert_fields =
+            |cert: &openssl::x509::X509,
+             pubkey: &openssl::pkey::PKey<openssl::pkey::Public>,
+             issuer_cert: &openssl::x509::X509| {
+                assert_eq!(
+                    cert.serial_number()
+                        .to_bn()
+                        .unwrap()
+                        .to_vec_padded(20)
+                        .unwrap(),
+                    derive::cert_serial_number(pubkey)
+                );
+                assert_eq!(
+                    cert.subject_key_id().unwrap().as_slice(),
+                    derive::key_id(pubkey),
+                );
+                assert_eq!(
+                    cert.authority_key_id().unwrap().as_slice(),
+                    issuer_cert.subject_key_id().unwrap().as_slice(),
+                );
+                assert_eq!(
+                    &cert
+                        .subject_name()
+                        .entries_by_nid(Nid::SERIALNUMBER)
+                        .unwrap_single()
+                        .data()
+                        .as_utf8()
+                        .unwrap()[..],
+                    derive::serial_number_str(pubkey)
+                );
+                assert_eq!(
+                    &cert
+                        .issuer_name()
+                        .entries_by_nid(Nid::SERIALNUMBER)
+                        .unwrap_single()
+                        .data()
+                        .as_utf8()
+                        .unwrap()[..],
+                    &issuer_cert
+                        .subject_name()
+                        .entries_by_nid(Nid::SERIALNUMBER)
+                        .unwrap_single()
+                        .data()
+                        .as_utf8()
+                        .unwrap()[..],
+                );
+            };
+
+        // Validate both ECC and MLDSA certificate fields
+        validate_cert_fields(&fmc_alias_cert, &fmc_alias_pubkey, &ldev_cert);
+        validate_cert_fields(
+            &mldsa_fmc_alias_cert,
+            &mldsa_fmc_alias_cert.public_key().unwrap(),
+            &mldsa_ldev_cert,
         );
 
         {
