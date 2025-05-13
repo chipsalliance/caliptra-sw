@@ -37,8 +37,8 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 }
 
 fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
-    let csr =
-        openssl::x509::X509Req::from_der(include_bytes!("smoke_testdata/idevid_csr.der")).unwrap();
+    let csr = openssl::x509::X509Req::from_der(include_bytes!("smoke_testdata/idevid_csr_ecc.der"))
+        .unwrap();
     csr.public_key().unwrap()
 }
 
@@ -127,16 +127,16 @@ fn fake_boot_test() {
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
     // To update the ldev cert testdata:
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.txt", &ldev_cert_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der", ldev_cert_der).unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),
-        include_str!("smoke_testdata/ldevid_cert.txt")
+        include_str!("smoke_testdata/ldevid_cert_ecc.txt")
     );
     assert_eq!(
         ldev_cert_der,
-        include_bytes!("smoke_testdata/ldevid_cert.der")
+        include_bytes!("smoke_testdata/ldevid_cert_ecc.der")
     );
 
     assert!(
@@ -154,7 +154,7 @@ fn fake_boot_test() {
     // intentional, and then make the same change to
     // caliptra_test::LDevId::derive().
     assert!(expected_ldevid_key
-        .derive_public_key()
+        .derive_ecc_public_key()
         .public_eq(&ldev_pubkey));
 
     println!("ldev-cert: {}", ldev_cert_txt);

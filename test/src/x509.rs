@@ -176,7 +176,7 @@ fn test_tcb_info_parse() {
 #[test]
 fn test_tcb_info_find_multiple_in_cert_when_no_tcb_info() {
     let cert_der =
-        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der");
     assert_eq!(Ok(vec![]), DiceTcbInfo::find_multiple_in_cert(cert_der));
 }
 
@@ -232,7 +232,8 @@ pub(crate) fn get_cert_extension<'a>(
 
 #[test]
 fn test_get_cert_extension() {
-    let cert = include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+    let cert =
+        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der");
 
     assert_eq!(get_cert_extension(cert, &asn1::oid!(5, 3)), Ok(None));
     assert_eq!(
@@ -268,7 +269,7 @@ pub(crate) fn replace_sig<'a>(
 fn test_replace_sig() {
     const REPLACED_KEY: &[u8] = &[0x01, 0x2, 0x3, 0x4];
     let cert_der =
-        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der");
     let cert_der_replaced = replace_sig(cert_der, REPLACED_KEY).unwrap();
     let cert = openssl::x509::X509::from_der(&cert_der_replaced).unwrap();
     assert_eq!(cert.signature().as_slice(), REPLACED_KEY);

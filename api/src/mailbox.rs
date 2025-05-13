@@ -661,7 +661,7 @@ impl Default for MailboxRespHeader {
 
 // Generic variable-sized data response type
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
 pub struct VarSizeDataResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
