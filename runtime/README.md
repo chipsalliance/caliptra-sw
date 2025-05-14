@@ -662,7 +662,7 @@ Command Code: `0x494E_464F` ("INFO")
 | **Name**               | **Type**       | **Description**
 | --------               | --------       | ---------------
 | chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| fips\_status           | u32            | Indicates if the command is FIPS approved or an error.
+| fips\_status           | u32            | Indicates if Caliptra has been operating in FIPS-approved mode since boot.
 | pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header).
 | runtime_svn            | u32            | Runtime SVN.
 | min_runtime_svn        | u32            | Min Runtime SVN.
