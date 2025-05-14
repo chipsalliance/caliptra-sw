@@ -1,16 +1,15 @@
 // Licensed under the Apache-2.0 license
 
+use crate::CaliptraApiError;
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{
     MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE,
 };
-use core::mem::size_of;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
-
-use crate::CaliptraApiError;
 use caliptra_registers::mbox;
+use core::mem::size_of;
 use ureg::MmioMut;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 
 /// Maximum input data size for cryptographic mailbox commands.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
@@ -149,6 +148,9 @@ impl CommandId {
     pub const CM_ECDH_GENERATE: Self = Self(0x434D_4547); // "CMEG"
     pub const CM_ECDH_FINISH: Self = Self(0x434D_4546); // "CMEF"
     pub const CM_HMAC: Self = Self(0x434D_484D); // "CMHM"
+    pub const CM_MLDSA_PUBLIC_KEY: Self = Self(0x434D_4D50); // "CMMP"
+    pub const CM_MLDSA_SIGN: Self = Self(0x434D_4D53); // "CMMS"
+    pub const CM_MLDSA_VERIFY: Self = Self(0x434D_4D56); // "CMMV"
 }
 
 impl From<u32> for CommandId {
@@ -273,6 +275,8 @@ pub enum MailboxResp {
     CmEcdhGenerate(CmEcdhGenerateResp),
     CmEcdhFinish(CmEcdhFinishResp),
     CmHmac(CmHmacResp),
+    CmMldsaPublicKey(CmMldsaPublicKeyResp),
+    CmMldsaSign(CmMldsaSignResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
 }
 
@@ -322,6 +326,8 @@ impl MailboxResp {
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmHmac(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmMldsaPublicKey(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmMldsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
         }
     }
@@ -369,6 +375,8 @@ impl MailboxResp {
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmHmac(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmMldsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmMldsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
         }
     }
@@ -452,6 +460,9 @@ pub enum MailboxReq {
     CmEcdhGenerate(CmEcdhGenerateReq),
     CmEcdhFinish(CmEcdhFinishReq),
     CmHmac(CmHmacReq),
+    CmMldsaPublicKey(CmMldsaPublicKeyReq),
+    CmMldsaSign(CmMldsaSignReq),
+    CmMldsaVerify(CmMldsaVerifyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
 }
@@ -505,6 +516,9 @@ impl MailboxReq {
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_bytes()),
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_bytes()),
             MailboxReq::CmHmac(req) => req.as_bytes_partial(),
+            MailboxReq::CmMldsaPublicKey(req) => Ok(req.as_bytes()),
+            MailboxReq::CmMldsaSign(req) => req.as_bytes_partial(),
+            MailboxReq::CmMldsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
         }
@@ -556,6 +570,9 @@ impl MailboxReq {
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmHmac(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmMldsaPublicKey(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmMldsaSign(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmMldsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
         }
@@ -607,6 +624,9 @@ impl MailboxReq {
             MailboxReq::CmEcdhGenerate(_) => CommandId::CM_ECDH_GENERATE,
             MailboxReq::CmEcdhFinish(_) => CommandId::CM_ECDH_FINISH,
             MailboxReq::CmHmac(_) => CommandId::CM_HMAC,
+            MailboxReq::CmMldsaPublicKey(_) => CommandId::CM_MLDSA_PUBLIC_KEY,
+            MailboxReq::CmMldsaSign(_) => CommandId::CM_MLDSA_SIGN,
+            MailboxReq::CmMldsaVerify(_) => CommandId::CM_MLDSA_VERIFY,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -1679,6 +1699,7 @@ pub enum CmKeyUsage {
     Hmac = 1,
     Hkdf = 2,
     Aes = 3,
+    Mldsa = 5,
 }
 
 impl From<u32> for CmKeyUsage {
@@ -1687,6 +1708,7 @@ impl From<u32> for CmKeyUsage {
             1_u32 => CmKeyUsage::Hmac,
             2_u32 => CmKeyUsage::Hkdf,
             3_u32 => CmKeyUsage::Aes,
+            5_u32 => CmKeyUsage::Mldsa,
             _ => CmKeyUsage::Reserved,
         }
     }
@@ -1698,6 +1720,7 @@ impl From<CmKeyUsage> for u32 {
             CmKeyUsage::Hmac => 1,
             CmKeyUsage::Hkdf => 2,
             CmKeyUsage::Aes => 3,
+            CmKeyUsage::Mldsa => 5,
             _ => 0,
         }
     }
@@ -2985,6 +3008,145 @@ impl Default for CmHmacResp {
 }
 
 impl ResponseVarSize for CmHmacResp {}
+
+// CM_MLDSA_PUBLIC_KEY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct CmMldsaPublicKeyReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+}
+
+impl Request for CmMldsaPublicKeyReq {
+    const ID: CommandId = CommandId::CM_MLDSA_PUBLIC_KEY;
+    type Resp = CmMldsaPublicKeyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMldsaPublicKeyResp {
+    pub hdr: MailboxRespHeader,
+    pub public_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+}
+
+impl Default for CmMldsaPublicKeyResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            public_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+        }
+    }
+}
+
+impl Response for CmMldsaPublicKeyResp {}
+
+// CM_MLDSA_SIGN
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMldsaSignReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub message_size: u32,
+    pub message: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmMldsaSignReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            message_size: 0,
+            message: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmMldsaSignReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmMldsaSignReq {
+    const ID: CommandId = CommandId::CM_MLDSA_SIGN;
+    type Resp = CmMldsaSignResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMldsaSignResp {
+    pub hdr: MailboxRespHeader,
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+}
+
+impl Default for CmMldsaSignResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+        }
+    }
+}
+
+impl Response for CmMldsaSignResp {}
+
+// CM_MLDSA_VERIFY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMldsaVerifyReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub message_size: u32,
+    pub message: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmMldsaVerifyReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+            message_size: 0,
+            message: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmMldsaVerifyReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmMldsaVerifyReq {
+    const ID: CommandId = CommandId::CM_MLDSA_VERIFY;
+    type Resp = MailboxRespHeader;
+}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

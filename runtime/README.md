@@ -91,8 +91,12 @@ These commands are not meant to be high-performance as they are accessed via mai
 
 CM itself does not provide any storage for the keys: when generated, they are returned to the caller in encrypted form, and must be passed back to be used.
 
-These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
-Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
+These mailbox commands provide SHA, HMAC, HKDF, AES, RNG, MLDSA, and ECDSA services.
+
+Note that while MLDSA and ECDSA keys can be imported, generated, and used in the cryptographic mailbox commands (i.e., `CM_*` commands) through CMKs, these keys are *NOT* tied DICE or DPE, so their use may be restricted for certain purposes.
+
+MLDSA and ECDSA keys managed by DPE use the separate `ECDSA384_SIGNATURE_VERIFY`, `LMS_SIGNATURE_VERIFY`, and `MLDSA87_SIGNATURE_VERIFY` mailbox commands, which do not use the cryptographic mailbox system and are not managed by CMKs.
+
 
 ### References
 
@@ -1348,6 +1352,76 @@ Command Code: `0x434D_4B50` ("CMKP")
 | fips_status | u32      | FIPS approved or an error               |
 | OKM CMK     | CMK      | CMK that stores the output key material |
 
+### CM_MLDSA_PUBLIC_KEY
+
+Returns the public key associated with the MLDSA-87 key (seed) in a CMK.
+
+The public key format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+Command Code: `0x434D_4D50` ("CMMP")
+
+*Table: `CM_MLDSA_PUBLIC_KEY` input arguments*
+| **Name** | **Type** | **Description**   |
+| -------- | -------- | ----------------- |
+| chksum   | u32      |                   |
+| CMK      | CMK      | Private key seed  |
+
+*Table: `CM_MLDSA_PUBLIC_KEY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| Public key  | u8[2592] | Public key                 |
+
+### CM_MLDSA_SIGN
+
+Signs the message with the MLDSA87 key.
+
+The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+Command Code: `0x434D_4D53` ("CMMS")
+
+*Table: `CM_MLDSA_SIGN` input arguments*
+| **Name** | **Type**     | **Description**   |
+| -------- | ------------ | ----------------- |
+| chksum   | u32          |                   |
+| CMK      | CMK          | Private key seed  |
+| data len | u32          | Length of message |
+| data     | u8[data len] | Message to sign   |
+
+*Table: `CM_MLDSA_SIGN` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| signature   | u8[4627] | Signature                  |
+| padding     | u8[1]    |                            |
+
+### CM_MLDSA_VERIFY
+
+Verifies the signature against the message and and MLDSA87 key.
+
+The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x434D_4D56` ("CMMV")
+
+*Table: `CM_MLDSA_VERIFY` input arguments*
+| **Name**  | **Type**     | **Description**    |
+| --------- | ------------ | ------------------ |
+| chksum    | u32          |                    |
+| CMK       | CMK          | Private key seed   |
+| signature | u8[4627]     | Signature to check |
+| padding   | u8[1]        |                    |
+| data len  | u32          | Length of message  |
+| data      | u8[data len] | Message to check   |
+
+*Table: `CM_MLDSA_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
 
 ### CM_AES_ENCRYPT_INIT
 

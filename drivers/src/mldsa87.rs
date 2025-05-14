@@ -149,7 +149,7 @@ impl Mldsa87 {
     /// * `Mldsa87PubKey` - Generated MLDSA-87 Public Key
     pub fn key_pair(
         &mut self,
-        seed: &Mldsa87Seed,
+        seed: Mldsa87Seed,
         trng: &mut Trng,
         priv_key_out: Option<&mut Mldsa87PrivKey>,
     ) -> CaliptraResult<Mldsa87PubKey> {
@@ -168,7 +168,7 @@ impl Mldsa87 {
         match seed {
             Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(_) => Err(CaliptraError::DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE)?,
@@ -216,7 +216,7 @@ impl Mldsa87 {
     /// * `Mldsa87Signature` - Generated signature
     pub fn sign(
         &mut self,
-        seed: &Mldsa87Seed,
+        seed: Mldsa87Seed,
         pub_key: &Mldsa87PubKey,
         msg: &Mldsa87Msg,
         sign_rnd: &Mldsa87SignRnd,
@@ -238,7 +238,7 @@ impl Mldsa87 {
         match seed {
             Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {
@@ -321,7 +321,7 @@ impl Mldsa87 {
 
     pub fn sign_var(
         &mut self,
-        seed: &Mldsa87Seed,
+        seed: Mldsa87Seed,
         pub_key: &Mldsa87PubKey,
         msg: &[u8],
         sign_rnd: &Mldsa87SignRnd,
@@ -350,7 +350,7 @@ impl Mldsa87 {
         match seed {
             Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
             Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(*key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
+                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
             Mldsa87Seed::PrivKey(priv_key) => {

@@ -700,7 +700,7 @@ fn test_gen_key_pair() {
     .unwrap();
 
     let public_key = ml_dsa87
-        .key_pair(&Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)), &mut trng, None)
+        .key_pair(Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)), &mut trng, None)
         .unwrap();
     assert_eq!(public_key, Mldsa87PubKey::from(PUBKEY));
 }
@@ -722,7 +722,7 @@ fn test_sign() {
 
     let signature = ml_dsa87
         .sign(
-            &Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)),
+            Mldsa87Seed::Key(KeyReadArgs::new(KEY_ID)),
             &Mldsa87PubKey::from(PUBKEY), // Reuse SEED
             &MESSAGE.into(),
             &sign_rnd,
@@ -749,7 +749,7 @@ fn test_sign_caller_provided_private_key() {
 
     let signature = ml_dsa87
         .sign(
-            &Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+            Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
             &Mldsa87PubKey::from(MLDSA_PUBKEY),
             &MLDSA_MSG.into(),
             &sign_rnd,
@@ -793,7 +793,7 @@ fn test_sign_and_verify_var() {
     for msg in msgs {
         let signature = ml_dsa87
             .sign_var(
-                &Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+                Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
                 &Mldsa87PubKey::from(MLDSA_PUBKEY),
                 &msg,
                 &sign_rnd,
@@ -834,7 +834,7 @@ fn test_sign_caller_provided_private_key_var_msg() {
 
     let signature = ml_dsa87
         .sign_var(
-            &Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+            Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
             &Mldsa87PubKey::from(MLDSA_PUBKEY),
             temp.as_bytes(),
             &sign_rnd,
@@ -862,7 +862,7 @@ fn test_keygen_caller_provided_seed() {
 
     let signature = ml_dsa87
         .sign(
-            &Mldsa87Seed::Array4x8(&LEArray4x8::from(MLDSA_SEED)),
+            Mldsa87Seed::Array4x8(&LEArray4x8::from(MLDSA_SEED)),
             &Mldsa87PubKey::from(MLDSA_PUBKEY),
             &MLDSA_MSG.into(),
             &sign_rnd,
@@ -893,7 +893,7 @@ fn test_keygen_caller_provided_seed_var_msg() {
 
     let signature = ml_dsa87
         .sign_var(
-            &Mldsa87Seed::Array4x8(&LEArray4x8::from(MLDSA_SEED)),
+            Mldsa87Seed::Array4x8(&LEArray4x8::from(MLDSA_SEED)),
             &Mldsa87PubKey::from(MLDSA_PUBKEY),
             &temp,
             &sign_rnd,
