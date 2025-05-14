@@ -11,12 +11,14 @@ use caliptra_api::mailbox::{
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
     CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
-    CmEcdhGenerateReq, CmEcdhGenerateResp, CmHashAlgorithm, CmHmacReq, CmHmacResp, CmImportReq,
-    CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq,
-    CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq,
-    CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk,
-    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
-    ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
+    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacReq, CmHmacResp,
+    CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
+    CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp,
+    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
+    CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+    MailboxRespHeaderVarSize, ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES,
+    MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -26,6 +28,8 @@ use cbc::cipher::{BlockEncryptMut, KeyIvInit};
 use fips204::ml_dsa_87;
 use fips204::traits::Signer;
 use hmac::{Hmac, Mac};
+use p384::ecdsa::signature::hazmat::PrehashSigner;
+use p384::ecdsa::{Signature, SigningKey};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
@@ -1776,3 +1780,142 @@ fn test_mldsa_sign_verify() {
             .unwrap();
     }
 }
+
+#[test]
+fn test_ecdsa_public_key() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let seed_bytes = [0u8; 48];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Ecdsa);
+
+    let mut req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    });
+    req.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let resp = CmEcdsaPublicKeyResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+    let expected_pub_key_x: [u8; 48] = [
+        0xd7, 0xdd, 0x94, 0xe0, 0xbf, 0xfc, 0x4c, 0xad, 0xe9, 0x90, 0x2b, 0x7f, 0xdb, 0x15, 0x42,
+        0x60, 0xd5, 0xec, 0x5d, 0xfd, 0x57, 0x95, 0xe, 0x83, 0x59, 0x1, 0x5a, 0x30, 0x2c, 0x8b,
+        0xf7, 0xbb, 0xa7, 0xe5, 0xf6, 0xdf, 0xfc, 0x16, 0x85, 0x16, 0x2b, 0xdd, 0x35, 0xf9, 0xf5,
+        0xc1, 0xb0, 0xff,
+    ];
+
+    let expected_pub_key_y: [u8; 48] = [
+        0xbb, 0x9c, 0x3a, 0x2f, 0x6, 0x1e, 0x8d, 0x70, 0x14, 0x27, 0x8d, 0xd5, 0x1e, 0x66, 0xa9,
+        0x18, 0xa6, 0xb6, 0xf9, 0xf1, 0xc1, 0x93, 0x73, 0x12, 0xd4, 0xe7, 0xa9, 0x21, 0xb1, 0x8e,
+        0xf0, 0xf4, 0x1f, 0xdd, 0x40, 0x1d, 0x9e, 0x77, 0x18, 0x50, 0x9f, 0x87, 0x31, 0xe9, 0xee,
+        0xc9, 0xc3, 0x1d,
+    ];
+
+    assert_eq!(expected_pub_key_x, resp.public_key_x);
+    assert_eq!(expected_pub_key_y, resp.public_key_y);
+}
+
+fn rustcrypto_ecdsa_sign(priv_key: &[u8; 48], hash: &[u8; 48]) -> ([u8; 48], [u8; 48]) {
+    let signing_key = SigningKey::from_slice(priv_key).unwrap();
+    let ecc_sig: Signature = signing_key.sign_prehash(hash).unwrap();
+    let ecc_sig = ecc_sig.to_vec();
+    let r = ecc_sig[..48].try_into().unwrap();
+    let s = ecc_sig[48..].try_into().unwrap();
+    (r, s)
+}
+
+#[test]
+fn test_ecdsa_sign_verify() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let seed_bytes = [0u8; 48];
+    let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Ecdsa);
+
+    let seed_rng_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_rng_bytes);
+
+    let privkey: [u8; 48] = [
+        0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
+        0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
+        0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
+        0x89, 0x46, 0xd6,
+    ];
+
+    for _ in 0..25 {
+        let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+        let mut data = vec![0u8; len];
+        seeded_rng.fill_bytes(&mut data);
+
+        let mut req = CmEcdsaSignReq {
+            cmk: cmk.clone(),
+            message_size: len as u32,
+            ..Default::default()
+        };
+        req.message[..data.len()].copy_from_slice(&data);
+        let mut req = MailboxReq::CmEcdsaSign(req);
+        req.populate_chksum().unwrap();
+        let resp_bytes = model
+            .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+            .unwrap()
+            .expect("Should have gotten a response");
+        let resp = CmEcdsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+
+        let mut hasher = Sha384::new();
+        hasher.update(&data);
+        let hash = hasher.finalize();
+
+        let signature = rustcrypto_ecdsa_sign(&privkey, &hash.into());
+
+        assert_eq!(resp.signature_r, signature.0);
+        assert_eq!(resp.signature_s, signature.1);
+
+        let mut req = CmEcdsaVerifyReq {
+            cmk: cmk.clone(),
+            signature_r: resp.signature_r,
+            signature_s: resp.signature_s,
+            message_size: len as u32,
+            ..Default::default()
+        };
+        req.message[..data.len()].copy_from_slice(&data);
+        // modify the message to test failure
+        req.message[seeded_rng.gen_range(0..len)] ^= seeded_rng.gen_range(1..255);
+        let mut req = MailboxReq::CmEcdsaVerify(req);
+        req.populate_chksum().unwrap();
+        let err = model
+            .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+            .expect_err("Should have failed");
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
+            err,
+        );
+
+        // now check with the correct message
+        let mut req = CmEcdsaVerifyReq {
+            cmk: cmk.clone(),
+            signature_r: resp.signature_r,
+            signature_s: resp.signature_s,
+            message_size: len as u32,
+            ..Default::default()
+        };
+        req.message[..data.len()].copy_from_slice(&data);
+        let mut req = MailboxReq::CmEcdsaVerify(req);
+        req.populate_chksum().unwrap();
+        model
+            .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+            .expect("Should have succeeded")
+            .unwrap();
+    }
+}
+
+// #[test]

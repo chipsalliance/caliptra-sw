@@ -1375,7 +1375,7 @@ Command Code: `0x434D_4D50` ("CMMP")
 
 ### CM_MLDSA_SIGN
 
-Signs the message with the MLDSA87 key.
+Signs the message with the MLDSA-87 key.
 
 The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
 
@@ -1399,7 +1399,7 @@ Command Code: `0x434D_4D53` ("CMMS")
 
 ### CM_MLDSA_VERIFY
 
-Verifies the signature against the message and and MLDSA87 key.
+Verifies the signature against the message and and MLDSA-87 key.
 
 The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
 
@@ -1418,6 +1418,78 @@ Command Code: `0x434D_4D56` ("CMMV")
 | data      | u8[data len] | Message to check   |
 
 *Table: `CM_MLDSA_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+
+### CM_ECDSA_PUBLIC_KEY
+
+Returns the public key associated with the ECDSA-384 key seed in a CMK.
+
+The public key consists of its `x` and `y` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+Command Code: `0x434D_4550` ("CMEP")
+
+*Table: `CM_ECDSA_PUBLIC_KEY` input arguments*
+| **Name** | **Type** | **Description**   |
+| -------- | -------- | ----------------- |
+| chksum   | u32      |                   |
+| CMK      | CMK      | Private key seed  |
+
+*Table: `CM_ECDSA_PUBLIC_KEY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| pubkey_x    | u8[48]   | The X BigNum of the ECDSA public key generated from the seed  |
+| pubkey_y    | u8[48]   | The Y BigNum of the ECDSA public key generated from the seed  |
+
+### CM_ECDSA_SIGN
+
+Signs the SHA384 hash of the message with the ECDSA-384 key.
+
+The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+Command Code: `0x434D_5D53` ("CMES")
+
+*Table: `CM_ECDSA_SIGN` input arguments*
+| **Name** | **Type**     | **Description**   |
+| -------- | ------------ | ----------------- |
+| chksum   | u32          |                   |
+| CMK      | CMK          | Private key seed  |
+| data len | u32          | Length of message |
+| data     | u8[data len] | Message to sign   |
+
+*Table: `CM_ECDSA_SIGN` output arguments*
+| **Name**     | **Type** | **Description**                      |
+| ------------ | -------- | ------------------------------------ |
+| chksum       | u32      |                                      |
+| fips_status  | u32      | FIPS approved or an error            |
+| signature_r  | u8[48]   | The R BigNum of the ECDSA signature  |
+| signature_s  | u8[48]   | The S BigNum of the ECDSA signature  |
+
+### CM_ECDSA_VERIFY
+
+Verifies the signature against the SHA384 hash of the message and and ECDSA-384 key.
+
+The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x434D_4556` ("CMEV")
+
+*Table: `CM_ECDSA_VERIFY` input arguments*
+| **Name**     | **Type**     | **Description**                     |
+| ------------ | ------------ | ----------------------------------- |
+| chksum       | u32          |                                     |
+| CMK          | CMK          | Private key seed                    |
+| signature_r  | u8[48]       | The R BigNum of an ECDSA signature  |
+| signature_s  | u8[48]       | The S BigNum of an ECDSA signature  |
+| data len     | u32          | Length of message  |
+| data         | u8[data len] | Message to check   |
+
+*Table: `CM_ECDSA_VERIFY` output arguments*
 | **Name**    | **Type** | **Description**            |
 | ----------- | -------- | -------------------------- |
 | chksum      | u32      |                            |

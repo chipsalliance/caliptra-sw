@@ -372,6 +372,15 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_MLDSA_VERIFY => {
             cryptographic_mailbox::Commands::mldsa_verify(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_ECDSA_PUBLIC_KEY => {
+            cryptographic_mailbox::Commands::ecdsa_public_key(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_ECDSA_SIGN => {
+            cryptographic_mailbox::Commands::ecdsa_sign(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_ECDSA_VERIFY => {
+            cryptographic_mailbox::Commands::ecdsa_verify(drivers, cmd_bytes, resp)
+        }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,
             &drivers.soc_ifc,
