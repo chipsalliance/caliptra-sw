@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 use caliptra_common::memory_layout::*;
-// [TODO][CAP2] Add MLDSA
 pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
     format!(
         r#"

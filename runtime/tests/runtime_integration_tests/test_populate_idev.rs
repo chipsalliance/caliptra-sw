@@ -103,7 +103,7 @@ fn test_populate_idev_cert_cmd() {
     // call populate idev cert so that the idev cert is added to the certificate chain
     model
         .mailbox_execute(
-            u32::from(CommandId::POPULATE_IDEV_CERT),
+            u32::from(CommandId::POPULATE_IDEV_ECC384_CERT),
             pop_idev_cmd.as_bytes().unwrap(),
         )
         .unwrap()

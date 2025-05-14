@@ -248,7 +248,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
+        CommandId::POPULATE_IDEV_ECC384_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_ECC384_CERT => {
             GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384, resp)
         }
