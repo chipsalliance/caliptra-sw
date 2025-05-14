@@ -1192,7 +1192,7 @@ impl Commands {
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        if cmd.tag_len as usize > 16 {
+        if cmd.tag_len as usize > 16 || (cmd.tag_len as usize) < 8 {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
@@ -1208,14 +1208,13 @@ impl Commands {
             encrypted_context,
         )?;
         let resp = mutrefbytes::<CmAesGcmDecryptFinalResp>(resp)?;
-        let (written, computed_tag, tag_verified) =
+        let (written, _computed_tag, tag_verified) =
             drivers
                 .aes
                 .aes_256_gcm_decrypt_final(context, ciphertext, &mut resp.plaintext, tag)?;
 
         resp.hdr.hdr = MailboxRespHeader::default();
         resp.hdr.tag_verified = tag_verified as u32;
-        resp.hdr.tag = computed_tag;
         resp.hdr.plaintext_size = written as u32;
 
         resp.partial_len()

@@ -1724,7 +1724,7 @@ Command Code: `0x434D_4446` ("CMDF")
 | --------------- | ------------------- | --------------------------------- |
 | chksum          | u32                 |                                   |
 | context         | AES_GCM_CONTEXT     |                                   |
-| tag size        | u32                 | Can be 0, 1, ..., 16              |
+| tag size        | u32                 | Can be 8, 9, ..., 16              |
 | tag             | u8[16]              | Right-padded with zeroes          |
 | ciphertext size | u32                 | MAY be 0                          |
 | ciphertext      | u8[ciphertext size] | Data to decrypt                   |
@@ -1735,7 +1735,6 @@ Command Code: `0x434D_4446` ("CMDF")
 | chksum         | u32                |                                      |
 | fips_status    | u32                | FIPS approved or an error            |
 | tag verified   | u32                | 1 if tags matched, 0 if they did not |
-| tag            | u8[16]             | Computed tag                         |
 | plaintext size | u32                | MAY be 0                             |
 | plaintext      | u8[plaintext size] |                                      |
 

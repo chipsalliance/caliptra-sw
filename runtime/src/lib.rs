@@ -49,7 +49,7 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
-use caliptra_common::cfi_check;
+use caliptra_common::{cfi_check, memory_layout};
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -62,7 +62,9 @@ use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
+use caliptra_common::mailbox_api::{
+    populate_checksum, FipsVersionResp, MAX_REQ_SIZE, MAX_RESP_SIZE,
+};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
@@ -208,6 +210,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // We can use the second half of the mailbox to stage the response, which we
     // can copy to the first half of the mailbox before sending it. This saves us
     // ~10 KB of stack space.
+
+    // Check that the request and response buffers are small enough to fit in half the mailbox.
+    // If this fails in later versions due to mailbox shrinking, we can simply allocate
+    // the response buffer on the stack, though it will increase stack memory usage.
+    const _: () = assert!(MAX_RESP_SIZE as u32 <= memory_layout::MBOX_SIZE / 2);
+    const _: () = assert!(MAX_REQ_SIZE as u32 <= memory_layout::MBOX_SIZE / 2);
+
     let mbox = Mailbox::raw_mailbox_contents_mut();
     let mbox_len = mbox.len();
     let (_, resp) = mbox.split_at_mut(mbox_len / 2);
