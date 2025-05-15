@@ -1311,7 +1311,7 @@ Command Code: `0x434D_4B43` ("CMKC")
 |                |                | Value 1 = SHA2-384        |
 |                |                | Value 2 = SHA2-512        |
 | key usage      | u32            | usage tag of output key   |
-| key size       | u32            | size (in bytes) for the OKM; MUST be valid for the key usage |
+| key size       | u32            | size (in bytes) for the output key; MUST be valid for the key usage |
 | label size     | u32            |                           |
 | label          | u8[label size] |                           |
 
@@ -1331,16 +1331,16 @@ The CMK must have been created for HMAC usage. The output will be tagged for HMA
 Command Code: `0x434D_4B54` ("CMKT")
 
 *Table: `CM_HKDF_EXTRACT` input arguments*
-| **Name**       | **Type** | **Description**        |
-| -------------- | -------- | ---------------------- |
-| chksum         | u32      |                        |
-| IKM CMK        | CMK      | Input key material CMK |
-| hash algorithm | u32      | Enum.                  |
-|                |          | Value 0 = reserved     |
-|                |          | Value 1 = SHA2-384     |
-|                |          | Value 2 = SHA2-512     |
-| salt           | u8[64]   | Salt. Only 48 bytes used
-|                |          | SHA384 mode. Can be 0s |
+| **Name**       | **Type** | **Description**           |
+| -------------- | -------- | ------------------------- |
+| chksum         | u32      |                           |
+| IKM CMK        | CMK      | Input key material CMK    |
+| hash algorithm | u32      | Enum.                     |
+|                |          | Value 0 = reserved        |
+|                |          | Value 1 = SHA2-384        |
+|                |          | Value 2 = SHA2-512        |
+| salt           | u8[64]   | Salt. Only 48 bytes used  |
+|                |          | in SHA384 mode. Can be 0s |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
 | **Name**    | **Type** | **Description**                         |
@@ -1432,7 +1432,7 @@ Command Code: `0x434D_4D53` ("CMMS")
 
 ### CM_MLDSA_VERIFY
 
-Verifies the signature against the message and and MLDSA-87 key.
+Verifies the signature against the message and MLDSA-87 key.
 
 The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
 
@@ -1504,7 +1504,7 @@ Command Code: `0x434D_5D53` ("CMES")
 
 ### CM_ECDSA_VERIFY
 
-Verifies the signature against the SHA384 hash of the message and and ECDSA-384 key.
+Verifies the signature against the SHA384 hash of the message and ECDSA-384 key.
 
 The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
 
