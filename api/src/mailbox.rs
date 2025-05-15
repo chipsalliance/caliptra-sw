@@ -150,6 +150,8 @@ impl CommandId {
     pub const CM_ECDH_FINISH: Self = Self(0x434D_4546); // "CMEF"
     pub const CM_HMAC: Self = Self(0x434D_484D); // "CMHM"
     pub const CM_HMAC_KDF_COUNTER: Self = Self(0x434D_4B43); // "CMKC"
+    pub const CM_HKDF_EXTRACT: Self = Self(0x434D_4B54); // "CMKT"
+    pub const CM_HKDF_EXPAND: Self = Self(0x434D_4B50); // "CMKP"
     pub const CM_MLDSA_PUBLIC_KEY: Self = Self(0x434D_4D50); // "CMMP"
     pub const CM_MLDSA_SIGN: Self = Self(0x434D_4D53); // "CMMS"
     pub const CM_MLDSA_VERIFY: Self = Self(0x434D_4D56); // "CMMV"
@@ -281,6 +283,8 @@ pub enum MailboxResp {
     CmEcdhFinish(CmEcdhFinishResp),
     CmHmac(CmHmacResp),
     CmHmacKdfCounter(CmHmacKdfCounterResp),
+    CmHkdfExtract(CmHkdfExtractResp),
+    CmHkdfExpand(CmHkdfExpandResp),
     CmMldsaPublicKey(CmMldsaPublicKeyResp),
     CmMldsaSign(CmMldsaSignResp),
     CmEcdsaPublicKey(CmEcdsaPublicKeyResp),
@@ -335,6 +339,8 @@ impl MailboxResp {
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmHmac(resp) => resp.as_bytes_partial(),
             MailboxResp::CmHmacKdfCounter(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmHkdfExtract(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmHkdfExpand(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmMldsaPublicKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_bytes()),
@@ -387,6 +393,8 @@ impl MailboxResp {
             MailboxResp::CmEcdhFinish(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmHmac(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmHmacKdfCounter(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmHkdfExtract(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmHkdfExpand(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmMldsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmMldsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
@@ -475,6 +483,8 @@ pub enum MailboxReq {
     CmEcdhFinish(CmEcdhFinishReq),
     CmHmac(CmHmacReq),
     CmHmacKdfCounter(CmHmacKdfCounterReq),
+    CmHkdfExtract(CmHkdfExtractReq),
+    CmHkdfExpand(CmHkdfExpandReq),
     CmMldsaPublicKey(CmMldsaPublicKeyReq),
     CmMldsaSign(CmMldsaSignReq),
     CmMldsaVerify(CmMldsaVerifyReq),
@@ -535,6 +545,8 @@ impl MailboxReq {
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_bytes()),
             MailboxReq::CmHmac(req) => req.as_bytes_partial(),
             MailboxReq::CmHmacKdfCounter(req) => req.as_bytes_partial(),
+            MailboxReq::CmHkdfExtract(req) => Ok(req.as_bytes()),
+            MailboxReq::CmHkdfExpand(req) => req.as_bytes_partial(),
             MailboxReq::CmMldsaPublicKey(req) => Ok(req.as_bytes()),
             MailboxReq::CmMldsaSign(req) => req.as_bytes_partial(),
             MailboxReq::CmMldsaVerify(req) => req.as_bytes_partial(),
@@ -593,6 +605,8 @@ impl MailboxReq {
             MailboxReq::CmEcdhFinish(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmHmac(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmHmacKdfCounter(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmHkdfExtract(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmHkdfExpand(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmMldsaPublicKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmMldsaSign(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmMldsaVerify(req) => req.as_bytes_partial_mut(),
@@ -651,6 +665,8 @@ impl MailboxReq {
             MailboxReq::CmEcdhFinish(_) => CommandId::CM_ECDH_FINISH,
             MailboxReq::CmHmac(_) => CommandId::CM_HMAC,
             MailboxReq::CmHmacKdfCounter(_) => CommandId::CM_HMAC_KDF_COUNTER,
+            MailboxReq::CmHkdfExtract(_) => CommandId::CM_HKDF_EXTRACT,
+            MailboxReq::CmHkdfExpand(_) => CommandId::CM_HKDF_EXPAND,
             MailboxReq::CmMldsaPublicKey(_) => CommandId::CM_MLDSA_PUBLIC_KEY,
             MailboxReq::CmMldsaSign(_) => CommandId::CM_MLDSA_SIGN,
             MailboxReq::CmMldsaVerify(_) => CommandId::CM_MLDSA_VERIFY,
@@ -2961,14 +2977,14 @@ impl Request for CmEcdhFinishReq {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmEcdhFinishResp {
     pub hdr: MailboxRespHeader,
-    pub output_cmk: [u8; CMK_SIZE_BYTES],
+    pub output: [u8; CMK_SIZE_BYTES],
 }
 
 impl Default for CmEcdhFinishResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),
-            output_cmk: [0u8; CMK_SIZE_BYTES],
+            output: [0u8; CMK_SIZE_BYTES],
         }
     }
 }
@@ -3044,7 +3060,7 @@ impl ResponseVarSize for CmHmacResp {}
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmHmacKdfCounterReq {
     pub hdr: MailboxReqHeader,
-    pub kin_cmk: Cmk,
+    pub kin: Cmk,
     pub hash_algorithm: u32,
     pub key_usage: u32,
     pub key_size: u32,
@@ -3056,7 +3072,7 @@ impl Default for CmHmacKdfCounterReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
-            kin_cmk: Cmk::default(),
+            kin: Cmk::default(),
             hash_algorithm: 0,
             key_size: 0,
             key_usage: 0,
@@ -3093,10 +3109,104 @@ impl Request for CmHmacKdfCounterReq {
 #[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmHmacKdfCounterResp {
     pub hdr: MailboxRespHeader,
-    pub kout_cmk: Cmk,
+    pub kout: Cmk,
 }
 
 impl Response for CmHmacKdfCounterResp {}
+
+// CM_HKDF_EXTRACT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHkdfExtractReq {
+    pub hdr: MailboxReqHeader,
+    pub ikm: Cmk,
+    pub hash_algorithm: u32,
+    pub salt: [u8; 64],
+}
+
+impl Default for CmHkdfExtractReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            ikm: Cmk::default(),
+            hash_algorithm: 0,
+            salt: [0u8; 64],
+        }
+    }
+}
+
+impl Request for CmHkdfExtractReq {
+    const ID: CommandId = CommandId::CM_HKDF_EXTRACT;
+    type Resp = CmHkdfExtractResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHkdfExtractResp {
+    pub hdr: MailboxRespHeader,
+    pub prk: Cmk,
+}
+
+impl Response for CmHkdfExtractResp {}
+
+// CM_HKDF_EXPAND
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHkdfExpandReq {
+    pub hdr: MailboxReqHeader,
+    pub prk: Cmk,
+    pub hash_algorithm: u32,
+    pub key_usage: u32,
+    pub key_size: u32,
+    pub info_size: u32,
+    pub info: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmHkdfExpandReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            prk: Cmk::default(),
+            hash_algorithm: 0,
+            key_size: 0,
+            key_usage: 0,
+            info_size: 0,
+            info: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmHkdfExpandReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.info_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.info_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.info_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.info_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmHkdfExpandReq {
+    const ID: CommandId = CommandId::CM_HKDF_EXPAND;
+    type Resp = CmHkdfExpandResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHkdfExpandResp {
+    pub hdr: MailboxRespHeader,
+    pub okm: Cmk,
+}
+
+impl Response for CmHkdfExpandResp {}
 
 // CM_MLDSA_PUBLIC_KEY
 #[repr(C)]

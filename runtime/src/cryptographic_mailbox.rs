@@ -23,8 +23,9 @@ use caliptra_common::mailbox_api::{
     CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
     CmAesGcmEncryptUpdateResp, CmAesResp, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
     CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp,
-    CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacKdfCounterReq, CmHmacKdfCounterResp, CmHmacReq,
-    CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
+    CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq,
+    CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp, CmHmacReq, CmHmacResp,
+    CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
     CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp,
     CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
     Cmk as MailboxCmk, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
@@ -32,13 +33,13 @@ use caliptra_common::mailbox_api::{
     CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
-    hmac_kdf,
+    hkdf_expand, hkdf_extract, hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacData, HmacKey, HmacMode, HmacTag, LEArray4x1157, LEArray4x8,
-    Mldsa87Result, Mldsa87Seed, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
-    AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
+    Ecc384Signature, HmacData, HmacMode, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
+    Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
+    MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -1351,7 +1352,7 @@ impl Commands {
 
         let resp = mutrefbytes::<CmEcdhFinishResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        resp.output_cmk = transmute!(encrypted_cmk);
+        resp.output = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmEcdhFinishResp>())
     }
 
@@ -1413,42 +1414,38 @@ impl Commands {
             CmHashAlgorithm::Sha384 => {
                 let hmac_mode = HmacMode::Hmac384;
                 let arr: [u8; 48] = cmk.key_material[..48].try_into().unwrap();
-                let key12 = arr.into();
-                let key = HmacKey::Array4x12(&key12);
-                let mut tag12 = Array4x12::default();
-                let tag = HmacTag::Array4x12(&mut tag12);
+                let key: Array4x12 = arr.into();
+                let mut tag = Array4x12::default();
                 drivers.hmac.hmac(
-                    key,
+                    (&key).into(),
                     HmacData::Slice(data),
                     &mut drivers.trng,
-                    tag,
+                    (&mut tag).into(),
                     hmac_mode,
                 )?;
                 // convert out of HW format
-                tag12.0.iter_mut().for_each(|x| {
+                tag.0.iter_mut().for_each(|x| {
                     *x = x.swap_bytes();
                 });
-                resp.mac[..tag12.as_bytes().len()].copy_from_slice(tag12.as_bytes())
+                resp.mac[..tag.as_bytes().len()].copy_from_slice(tag.as_bytes())
             }
             CmHashAlgorithm::Sha512 => {
                 let hmac_mode = HmacMode::Hmac512;
                 let arr: [u8; 64] = cmk.key_material[..64].try_into().unwrap();
-                let key16 = arr.into();
-                let key = HmacKey::Array4x16(&key16);
-                let mut tag16 = Array4x16::default();
-                let tag = HmacTag::Array4x16(&mut tag16);
+                let key: Array4x16 = arr.into();
+                let mut tag = Array4x16::default();
                 drivers.hmac.hmac(
-                    key,
+                    (&key).into(),
                     HmacData::Slice(data),
                     &mut drivers.trng,
-                    tag,
+                    (&mut tag).into(),
                     hmac_mode,
                 )?;
                 // convert out of HW format
-                tag16.0.iter_mut().for_each(|x| {
+                tag.0.iter_mut().for_each(|x| {
                     *x = x.swap_bytes();
                 });
-                resp.mac[..tag16.as_bytes().len()].copy_from_slice(tag16.as_bytes())
+                resp.mac[..tag.as_bytes().len()].copy_from_slice(tag.as_bytes())
             }
             _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
@@ -1476,14 +1473,7 @@ impl Commands {
         let key_usage: CmKeyUsage = cmd.key_usage.into();
         let key_size = cmd.key_size as usize;
 
-        match (cm_hash_algorithm, key_usage, key_size) {
-            (_, CmKeyUsage::Aes, 32) => {}
-            (_, CmKeyUsage::Ecdsa, 32) => {}
-            (_, CmKeyUsage::Mldsa, 32) => {}
-            (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
-            (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
-        }
+        Self::validate_hkdf_params(cm_hash_algorithm, key_usage, key_size)?;
 
         if cmd.label_size as usize > cmd.label.len() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -1491,7 +1481,7 @@ impl Commands {
 
         let label = &cmd.label[..cmd.label_size as usize];
 
-        let cmk = Self::decrypt_hmac_key(drivers, &cmd.kin_cmk)?;
+        let cmk = Self::decrypt_hmac_key(drivers, &cmd.kin)?;
 
         let mut unencrypted_cmk = UnencryptedCmk {
             version: 1,
@@ -1509,61 +1499,252 @@ impl Commands {
         match cm_hash_algorithm {
             CmHashAlgorithm::Sha384 => {
                 let arr: [u8; 48] = cmk.key_material[..48].try_into().unwrap();
-                let key12 = arr.into();
-                let key = HmacKey::Array4x12(&key12);
-                let mut tag12 = Array4x12::default();
-                let tag = HmacTag::Array4x12(&mut tag12);
+                let key: Array4x12 = arr.into();
+                let mut tag = Array4x12::default();
                 hmac_kdf(
                     &mut drivers.hmac,
-                    key,
+                    (&key).into(),
                     label,
                     None,
                     &mut drivers.trng,
-                    tag,
+                    (&mut tag).into(),
                     HmacMode::Hmac384,
                 )?;
                 // convert out of HW format
-                tag12.0.iter_mut().for_each(|x| {
+                tag.0.iter_mut().for_each(|x| {
                     *x = x.swap_bytes();
                 });
                 // truncate the key
-                let len = tag12.as_bytes().len().min(key_size);
-                unencrypted_cmk.key_material[..len].copy_from_slice(&tag12.as_bytes()[..len])
+                let len = tag.as_bytes().len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
             }
             CmHashAlgorithm::Sha512 => {
                 let arr: [u8; 64] = cmk.key_material[..64].try_into().unwrap();
-                let key16 = arr.into();
-                let key = HmacKey::Array4x16(&key16);
-                let mut tag16 = Array4x16::default();
-                let tag = HmacTag::Array4x16(&mut tag16);
+                let key: Array4x16 = arr.into();
+                let mut tag = Array4x16::default();
                 hmac_kdf(
                     &mut drivers.hmac,
-                    key,
+                    (&key).into(),
                     label,
                     None,
                     &mut drivers.trng,
-                    tag,
+                    (&mut tag).into(),
                     HmacMode::Hmac512,
                 )?;
                 // convert out of HW format
-                tag16.0.iter_mut().for_each(|x| {
+                tag.0.iter_mut().for_each(|x| {
                     *x = x.swap_bytes();
                 });
                 // truncate the key
-                let len = tag16.as_bytes().len().min(key_size);
-                unencrypted_cmk.key_material[..len].copy_from_slice(&tag16.as_bytes()[..len])
+                let len = tag.as_bytes().len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
             }
             _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
 
         let resp = mutrefbytes::<CmHmacKdfCounterResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
-        resp.kout_cmk = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
+        resp.kout = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
             &unencrypted_cmk,
         )?);
         Ok(core::mem::size_of::<CmHmacKdfCounterResp>())
+    }
+
+    fn validate_hkdf_params(
+        cm_hash_algorithm: CmHashAlgorithm,
+        key_usage: CmKeyUsage,
+        key_size: usize,
+    ) -> CaliptraResult<()> {
+        match (cm_hash_algorithm, key_usage, key_size) {
+            (_, CmKeyUsage::Aes, 32) => {}
+            (_, CmKeyUsage::Ecdsa, 32) => {}
+            (_, CmKeyUsage::Mldsa, 32) => {}
+            (CmHashAlgorithm::Sha384, CmKeyUsage::Hmac, 48) => {}
+            (CmHashAlgorithm::Sha512, CmKeyUsage::Hmac, 64) => {}
+            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        }
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn hkdf_extract(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() != core::mem::size_of::<CmHkdfExtractReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let cmd = CmHkdfExtractReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
+        let cmk = Self::decrypt_hmac_key(drivers, &cmd.ikm)?;
+
+        match (cm_hash_algorithm, cmk.length) {
+            (CmHashAlgorithm::Sha384, 48) => {}
+            (CmHashAlgorithm::Sha512, 64) => {}
+            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        }
+
+        let mut unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: cmk.length,
+            key_usage: CmKeyUsage::Hmac as u32 as u8,
+            id: [0u8; 3],
+            usage_counter: 0,
+            key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
+        };
+
+        match cm_hash_algorithm {
+            CmHashAlgorithm::Sha384 => {
+                let mut tag = Array4x12::default();
+                hkdf_extract(
+                    &mut drivers.hmac,
+                    &cmk.key_material[..48],
+                    &cmd.salt[..48],
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac384,
+                )?;
+                // convert out of HW format
+                tag.0.iter_mut().for_each(|x| {
+                    *x = x.swap_bytes();
+                });
+                let len = tag.as_bytes().len();
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+            }
+            CmHashAlgorithm::Sha512 => {
+                let mut tag = Array4x16::default();
+                hkdf_extract(
+                    &mut drivers.hmac,
+                    &cmk.key_material[..64],
+                    &cmd.salt,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+                // convert out of HW format
+                tag.0.iter_mut().for_each(|x| {
+                    *x = x.swap_bytes();
+                });
+                let len = tag.as_bytes().len();
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+            }
+            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        };
+
+        let resp = mutrefbytes::<CmHkdfExtractResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.prk = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?);
+        Ok(core::mem::size_of::<CmHkdfExtractResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn hkdf_expand(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() > core::mem::size_of::<CmHkdfExpandReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let mut cmd = CmHkdfExpandReq::default();
+        cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
+
+        let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
+        let key_usage: CmKeyUsage = cmd.key_usage.into();
+        let key_size = cmd.key_size as usize;
+
+        Self::validate_hkdf_params(cm_hash_algorithm, key_usage, key_size)?;
+
+        if cmd.info_size as usize > cmd.info.len() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let info = &cmd.info[..cmd.info_size as usize];
+
+        let cmk = Self::decrypt_hmac_key(drivers, &cmd.prk)?;
+
+        let mut unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: key_size as u16,
+            key_usage: key_usage as u32 as u8,
+            id: if matches!(key_usage, CmKeyUsage::Aes) {
+                drivers.cryptographic_mailbox.add_counter()?
+            } else {
+                [0u8; 3]
+            },
+            usage_counter: 0,
+            key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
+        };
+
+        match cm_hash_algorithm {
+            CmHashAlgorithm::Sha384 => {
+                let arr: [u8; 48] = cmk.key_material[..48].try_into().unwrap();
+                let key: Array4x12 = arr.into();
+                let mut tag = Array4x12::default();
+                hkdf_expand(
+                    &mut drivers.hmac,
+                    (&key).into(),
+                    info,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac384,
+                )?;
+                // convert out of HW format
+                tag.0.iter_mut().for_each(|x| {
+                    *x = x.swap_bytes();
+                });
+                // truncate the key
+                let len = tag.as_bytes().len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+            }
+            CmHashAlgorithm::Sha512 => {
+                let arr: [u8; 64] = cmk.key_material[..64].try_into().unwrap();
+                let key: Array4x16 = arr.into();
+                let mut tag = Array4x16::default();
+                hkdf_expand(
+                    &mut drivers.hmac,
+                    (&key).into(),
+                    info,
+                    &mut drivers.trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )?;
+                // convert out of HW format
+                tag.0.iter_mut().for_each(|x| {
+                    *x = x.swap_bytes();
+                });
+                // truncate the key
+                let len = tag.as_bytes().len().min(key_size);
+                unencrypted_cmk.key_material[..len].copy_from_slice(&tag.as_bytes()[..len])
+            }
+            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        };
+
+        let resp = mutrefbytes::<CmHkdfExpandResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.okm = transmute!(drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?);
+        Ok(core::mem::size_of::<CmHkdfExpandResp>())
     }
 
     fn decrypt_mldsa_seed(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<LEArray4x8> {
