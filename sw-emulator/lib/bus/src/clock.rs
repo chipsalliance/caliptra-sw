@@ -12,14 +12,15 @@ Abstract:
     execution for peripherals.
 
 --*/
+use crate::Bus;
 use std::{
-    cell::{Cell, RefCell},
     collections::{BTreeSet, HashSet},
     ptr,
-    rc::Rc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, RwLock,
+    },
 };
-
-use crate::Bus;
 
 /// Peripherals that want to use timer-based deferred execution will typically
 /// store a clone of Timer inside themselves, and use it to schedule future
@@ -57,13 +58,13 @@ use crate::Bus;
 /// ```
 #[derive(Clone)]
 pub struct Timer {
-    clock: Rc<ClockImpl>,
+    clock: Arc<ClockImpl>,
 }
 impl Timer {
     /// Constructs a new timer bound to the specified clock.
     pub fn new(clock: &Clock) -> Self {
         Self {
-            clock: Rc::clone(&clock.clock),
+            clock: Arc::clone(&clock.clock),
         }
     }
 
@@ -81,7 +82,7 @@ impl Timer {
         let has_fired = if let Some(ref action) = action {
             debug_assert_eq!(
                 action.0.id.timer_ptr,
-                Rc::as_ptr(&self.clock),
+                Arc::as_ptr(&self.clock),
                 "Supplied action was not created by this timer."
             );
             self.clock.has_fired(action.0.time)
@@ -126,7 +127,7 @@ impl Timer {
 }
 
 pub struct Clock {
-    clock: Rc<ClockImpl>,
+    clock: Arc<ClockImpl>,
 }
 impl Default for Clock {
     fn default() -> Self {
@@ -186,6 +187,7 @@ impl Clock {
                 | TimerAction::SetExtIntVec { .. }
                 | TimerAction::SetGlobalIntEn { .. }
                 | TimerAction::SetExtIntEn { .. }
+                | TimerAction::InternalTimerLocalInterrupt { .. }
                 | TimerAction::Halt => {}
             }
         }
@@ -230,6 +232,10 @@ struct TimerActionId {
     /// An ID assigned by the TimerImpl
     id: u64,
 }
+/// Safety: the *const ClockImpl is Send safe because it is only used for comparisons.
+unsafe impl Send for TimerActionId {}
+/// Safety: the *const ClockImpl is Sync safe because it is only used for comparisons.
+unsafe impl Sync for TimerActionId {}
 impl Default for TimerActionId {
     fn default() -> Self {
         Self {
@@ -250,28 +256,48 @@ pub enum TimerAction {
     SetExtIntVec { addr: u32 },
     SetGlobalIntEn { en: bool },
     SetExtIntEn { en: bool },
+    InternalTimerLocalInterrupt { timer_id: u8 },
     Halt,
 }
 
+impl TimerAction {
+    /// Sort priority based on VeeR EL2 Programmer's Reference Manual Table 14.1.
+    pub fn priority(&self) -> isize {
+        match self {
+            TimerAction::Poll => 0,
+            TimerAction::Halt => 1,
+            TimerAction::SetExtIntVec { .. } => 2,
+            TimerAction::SetNmiVec { .. } => 3,
+            TimerAction::SetGlobalIntEn { .. } => 4,
+            TimerAction::SetExtIntEn { .. } => 5,
+            TimerAction::WarmReset => 6,
+            TimerAction::UpdateReset => 7,
+            TimerAction::Nmi { .. } => 8,
+            TimerAction::ExtInt { .. } => 9,
+            TimerAction::InternalTimerLocalInterrupt { .. } => 10,
+        }
+    }
+}
+
 struct ClockImpl {
-    now: Cell<u64>,
-    next_action_time: Cell<Option<u64>>,
-    next_action_id: Cell<u64>,
-    action_handles: RefCell<BTreeSet<ActionHandleImpl>>,
+    now: AtomicU64,
+    next_action_time: Mutex<Option<u64>>,
+    next_action_id: AtomicU64,
+    action_handles: Arc<RwLock<BTreeSet<ActionHandleImpl>>>,
 }
 impl ClockImpl {
-    fn new() -> Rc<Self> {
-        Rc::new(Self {
-            now: Cell::new(0),
-            next_action_time: Cell::new(None),
-            next_action_id: Cell::new(0),
-            action_handles: RefCell::new(BTreeSet::new()),
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            now: AtomicU64::new(0),
+            next_action_time: Mutex::new(None),
+            next_action_id: AtomicU64::new(0),
+            action_handles: Arc::new(RwLock::new(BTreeSet::new())),
         })
     }
 
     #[inline]
     fn now(&self) -> u64 {
-        self.now.get()
+        self.now.load(Ordering::Relaxed)
     }
 
     #[inline]
@@ -282,17 +308,18 @@ impl ClockImpl {
             "Cannot increment the current time by more than {} clock cycles.",
             (u64::MAX >> 1)
         );
-        self.now.set(self.now.get().wrapping_add(delta));
-        if let Some(next_action_time) = self.next_action_time.get() {
+        self.now.fetch_add(delta, Ordering::Relaxed);
+        let next_action_time = *self.next_action_time.lock().unwrap();
+        if let Some(next_action_time) = next_action_time {
             if self.has_fired(next_action_time) {
                 self.remove_fired_actions(&mut fired_actions);
                 return fired_actions;
             }
-        }
+        };
         fired_actions
     }
 
-    fn schedule_action_at(self: &Rc<Self>, time: u64, action: TimerAction) -> ActionHandle {
+    fn schedule_action_at(self: &Arc<Self>, time: u64, action: TimerAction) -> ActionHandle {
         assert!(
             time.wrapping_sub(self.now()) < (u64::MAX >> 1),
             "Cannot schedule a timer action more than {} clock cycles from now.",
@@ -303,37 +330,35 @@ impl ClockImpl {
             id: self.next_action_id(),
             action,
         };
-        let mut actions = self.action_handles.borrow_mut();
+        let mut actions = self.action_handles.write().unwrap();
         actions.insert(new_action);
         self.recompute_next_action_time(&actions);
         new_action.into()
     }
-    fn cancel(self: &Rc<Self>, action: ActionHandle) {
+    fn cancel(self: &Arc<Self>, action: ActionHandle) {
         let action = ActionHandleImpl::from(action);
         assert_eq!(
-            Rc::as_ptr(self),
+            Arc::as_ptr(self),
             action.id.timer_ptr,
             "Supplied action was not created by this timer."
         );
-        let mut future_actions = self.action_handles.borrow_mut();
+        let mut future_actions = self.action_handles.write().unwrap();
         future_actions.remove(&action);
         self.recompute_next_action_time(&future_actions)
     }
-    fn next_action_id(self: &Rc<Self>) -> TimerActionId {
-        let result = TimerActionId {
-            timer_ptr: Rc::as_ptr(self),
-            id: self.next_action_id.get(),
-        };
-        self.next_action_id
-            .set(self.next_action_id.get().wrapping_add(1));
-        result
+    fn next_action_id(self: &Arc<Self>) -> TimerActionId {
+        let id = self.next_action_id.fetch_add(1, Ordering::Relaxed);
+        TimerActionId {
+            timer_ptr: Arc::as_ptr(self),
+            id,
+        }
     }
     fn has_fired(&self, action_time: u64) -> bool {
         self.now().wrapping_sub(action_time) < (u64::MAX >> 1)
     }
     fn recompute_next_action_time(&self, future_actions: &BTreeSet<ActionHandleImpl>) {
-        self.next_action_time
-            .set(self.find_next_action(future_actions).map(|a| a.time));
+        *self.next_action_time.lock().unwrap() =
+            self.find_next_action(future_actions).map(|a| a.time);
     }
     fn find_next_action<'a>(
         &self,
@@ -353,7 +378,7 @@ impl ClockImpl {
 
     #[cold]
     fn remove_fired_actions(&self, fired_actions: &mut HashSet<TimerAction>) {
-        let mut future_actions = self.action_handles.borrow_mut();
+        let mut future_actions = self.action_handles.write().unwrap();
         while let Some(action) = self.find_next_action(&future_actions) {
             if !self.has_fired(action.time) {
                 break;
@@ -473,7 +498,7 @@ mod tests {
     fn test_timer_schedule_clock_wraparound() {
         for i in (u64::MAX - 120)..=u64::MAX {
             let clock = Clock::new();
-            clock.clock.now.set(i);
+            clock.clock.now.store(i, Ordering::Relaxed);
             test_timer_schedule_with_clock(clock);
         }
     }
@@ -481,7 +506,7 @@ mod tests {
     fn test_timer_schedule_clock_searchback_wraparound() {
         for i in ((u64::MAX >> 1) - 130)..=((u64::MAX >> 1) + 130) {
             let clock = Clock::new();
-            clock.clock.now.set(i);
+            clock.clock.now.store(i, Ordering::Relaxed);
             test_timer_schedule_with_clock(clock);
         }
     }

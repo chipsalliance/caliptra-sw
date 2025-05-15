@@ -539,10 +539,11 @@ impl Dma {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use tock_registers::registers::InMemoryRegister;
 
     use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
-    use caliptra_emu_cpu::Pic;
 
     use super::*;
 
@@ -624,13 +625,15 @@ mod tests {
 
     #[test]
     fn test_dma_fifo_read_write() {
-        let clock = Clock::new();
+        let clock = Rc::new(Clock::new());
         let mbox_ram = MailboxRam::new();
         let iccm = Iccm::new(&clock);
-        let pic = Pic::new();
-        let args = CaliptraRootBusArgs::default();
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
         let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
-        let soc_reg = SocRegistersInternal::new(&clock, mailbox_internal, iccm, &pic, args);
+        let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, args);
         let mut dma = Dma::new(
             &clock,
             mbox_ram.clone(),
@@ -640,9 +643,15 @@ mod tests {
             None,
         );
 
-        assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), 0xaabbccdd); // Initial test value
+        assert_eq!(
+            dma_read_u32(&mut dma, &clock.clone(), AXI_TEST_OFFSET),
+            0xaabbccdd
+        ); // Initial test value
         let test_value = 0xdeadbeef;
         dma_write_u32(&mut dma, &clock, AXI_TEST_OFFSET, test_value);
-        assert_eq!(dma_read_u32(&mut dma, &clock, AXI_TEST_OFFSET), test_value);
+        assert_eq!(
+            dma_read_u32(&mut dma, &clock.clone(), AXI_TEST_OFFSET),
+            test_value
+        );
     }
 }

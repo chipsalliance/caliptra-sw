@@ -18,6 +18,64 @@ use crate::xreg_file::XReg;
 use bitfield::{bitfield, BitRange, BitRangeMut};
 use caliptra_emu_types::emu_enum;
 
+/// Memory offsets for CPU
+#[derive(Debug, Copy, Clone)]
+pub struct CpuOrgArgs {
+    /// ROM offset
+    pub rom: u32,
+
+    /// ROM size,
+    pub rom_size: u32,
+
+    /// ICCM offset
+    pub iccm: u32,
+
+    /// ICCM size
+    pub iccm_size: u32,
+
+    /// DCCM offset
+    pub dccm: u32,
+
+    /// DCCM size
+    pub dccm_size: u32,
+}
+
+impl CpuOrgArgs {
+    /// Default position of ROM in the memory map
+    pub const DEFAULT_ROM_ORG: u32 = 0x0000_0000;
+    /// Default size of the ROM
+    pub const DEFAULT_ROM_SIZE: u32 = 96 * 1024;
+
+    /// Default position of the ICCM in the memory map
+    pub const DEFAULT_ICCM_ORG: u32 = 0x4000_0000;
+    /// Default size of the ICCM memory
+    pub const DEFAULT_ICCM_SIZE: u32 = 256 * 1024;
+
+    /// Default position of the DCCM in the memory map
+    pub const DEFAULT_DCCM_ORG: u32 = 0x5000_0000;
+    /// Default size of the DCCM memory
+    pub const DEFAULT_DCCM_SIZE: u32 = 256 * 1024;
+}
+
+impl Default for CpuOrgArgs {
+    fn default() -> Self {
+        Self {
+            rom: Self::DEFAULT_ROM_ORG,
+            rom_size: Self::DEFAULT_ROM_SIZE,
+            iccm: Self::DEFAULT_ICCM_ORG,
+            iccm_size: Self::DEFAULT_ICCM_SIZE,
+            dccm: Self::DEFAULT_DCCM_ORG,
+            dccm_size: Self::DEFAULT_DCCM_SIZE,
+        }
+    }
+}
+
+#[derive(Default, Debug, Copy, Clone)]
+pub struct CpuArgs {
+    /// Memory offsets
+    pub org: CpuOrgArgs,
+}
+
 emu_enum! {
     /// RISCV 32-bit instruction opcodes
     #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
@@ -129,10 +187,13 @@ emu_enum! {
 
         // Bitmanip instructions
         Bitmanip = 0b011_0000,
+
         // OR-Combine byte granule
         Orc = 0b001_0100,
+
         // Bit clear
         Bclr = 0b010_0100,
+
         // Byte reverse
         Rev8 = 0b011_0100,
     };
@@ -185,7 +246,7 @@ emu_enum! {
         Four = 0b100,
 
         /// Function Five
-        Five= 0b101,
+        Five = 0b101,
 
         /// Function Six
         Six = 0b110,
