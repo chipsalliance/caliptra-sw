@@ -340,7 +340,7 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
 
         let resp = model
             .mailbox_execute(
-                u32::from(CommandId::POPULATE_IDEV_CERT),
+                u32::from(CommandId::POPULATE_IDEV_ECC384_CERT),
                 pop_idev_cmd.as_bytes().unwrap(),
             )
             .unwrap_err();

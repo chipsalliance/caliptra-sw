@@ -90,11 +90,11 @@ pub struct HashSha256 {
     status: ReadOnlyRegister<u32, Status::Register>,
 
     /// SHA256 Block Memory
-    #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
+    #[peripheral(offset = 0x0000_0080, len = 0x40)]
     block: ReadWriteMemory<SHA256_BLOCK_SIZE>,
 
     /// SHA256 Hash Memory
-    #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
+    #[peripheral(offset = 0x0000_0100, len = 0x20)]
     hash: ReadOnlyMemory<SHA256_HASH_SIZE>,
 
     /// SHA256 engine
