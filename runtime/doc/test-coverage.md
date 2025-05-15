@@ -68,7 +68,7 @@ Checks that the correct error is returned when an unsupported LMS OTS algorithm 
 # **Populate IDev Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
+Calls the POPULATE_IDEV_ECC384_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
 Checks that the populate_idev_cert mailbox command fails if the cert_size is greater than the maximum allowed size | **test_populate_idev_cert_size_too_big** | RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
 
 <br><br>

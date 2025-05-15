@@ -760,6 +760,60 @@ fn test_sign_caller_provided_private_key() {
     assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
 }
 
+fn generate_msg<const N: usize>() -> [u8; N] {
+    let mut arr = [0u8; N];
+    for i in 0..N {
+        arr[i] = i as u8;
+    }
+    arr
+}
+
+fn test_sign_and_verify_var() {
+    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let sign_rnd = Mldsa87SignRnd::default();
+
+    let msgs: [&[u8]; 4] = [
+        &generate_msg::<{ 3 * 1024 }>(),
+        &generate_msg::<{ 3 * 1024 + 1 }>(),
+        &generate_msg::<{ 3 * 1024 + 2 }>(),
+        &generate_msg::<{ 3 * 1024 + 3 }>(),
+    ];
+
+    for msg in msgs {
+        let signature = ml_dsa87
+            .sign_var(
+                &Mldsa87Seed::PrivKey(&Mldsa87PrivKey::from(MLDSA_PRIVKEY)),
+                &Mldsa87PubKey::from(MLDSA_PUBKEY),
+                &msg,
+                &sign_rnd,
+                &mut trng,
+            )
+            .unwrap();
+
+        assert_eq!(
+            ml_dsa87
+                .verify_var(
+                    &Mldsa87PubKey::from(MLDSA_PUBKEY),
+                    &msg,
+                    &Mldsa87Signature::from(signature)
+                )
+                .unwrap(),
+            Mldsa87Result::Success
+        );
+    }
+}
+
 #[allow(dead_code)]
 fn test_sign_caller_provided_private_key_var_msg() {
     let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
@@ -886,6 +940,7 @@ test_suite! {
     test_gen_key_pair,
     test_sign,
     test_sign_caller_provided_private_key,
+    test_sign_and_verify_var,
     test_sign_caller_provided_private_key_var_msg,
     test_keygen_caller_provided_seed_var_msg,
     test_keygen_caller_provided_seed,

@@ -14,12 +14,13 @@ Abstract:
 
 use crate::test_builder::{TestBuilder, TestBuilderConfig};
 use caliptra_emu_bus::{Bus, Clock, Ram};
-use caliptra_emu_cpu::{Cpu, StepAction};
+use caliptra_emu_cpu::{Cpu, CpuArgs, Pic, StepAction};
 use caliptra_emu_types::RvSize;
 use clap::{arg, value_parser};
 use std::error::Error;
 use std::io::ErrorKind;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 mod exec;
 mod fs;
@@ -162,7 +163,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let binary: Vec<u8> = builder.build_test_binary(test)?;
         let reference_txt = builder.get_reference_data(test)?;
 
-        let mut cpu = Cpu::new(Ram::new(binary), Clock::new());
+        let pic = Rc::new(Pic::new());
+        let clock = Rc::new(Clock::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(Ram::new(binary), clock, pic, args);
         cpu.write_pc(0x3000);
         while !is_test_complete(&mut cpu.bus) {
             match cpu.step(None) {
@@ -191,7 +195,9 @@ mod tests {
     fn test_check_reference_data() {
         let mut ram_bytes = vec![0u8; 4096];
         ram_bytes.extend(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
-        let mut cpu = Cpu::new(Ram::new(ram_bytes), Clock::new());
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(Ram::new(ram_bytes), Rc::new(Clock::new()), pic, args);
 
         check_reference_data("03020100\n07060504\n", &mut cpu.bus).unwrap();
         assert_eq!(
