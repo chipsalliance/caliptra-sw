@@ -13,9 +13,6 @@ Abstract:
 --*/
 
 use caliptra_image_gen::ImageGeneratorCrypto;
-use caliptra_image_types::{ImageMldsaPrivKey, ImageMldsaSignature, MLDSA87_PRIV_KEY_BYTE_SIZE};
-use fips204::ml_dsa_87::{PrivateKey, SIG_LEN};
-use fips204::traits::{SerDes, Signer};
 use zerocopy::IntoBytes;
 
 use crate::*;
@@ -113,7 +110,11 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     .ok_or(anyhow::anyhow!(
                         "Failed to get vendor signed data range length"
                     ))?;
-                let mldsa_sig = self.mldsa_sign(data, &priv_keys.mldsa_priv_key)?;
+                let mldsa_sig = self.crypto.mldsa_sign(
+                    data,
+                    &priv_keys.mldsa_priv_key,
+                    &config.vendor_fw_key_info.pub_keys.mldsa_pub_key,
+                )?;
 
                 let sig = mldsa_sig.as_bytes();
                 auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
@@ -156,9 +157,10 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
                         .copy_from_slice(sig);
                 } else {
-                    let mldsa_sig = self.mldsa_sign(
+                    let mldsa_sig = self.crypto.mldsa_sign(
                         auth_manifest.preamble.owner_pub_keys.as_bytes(),
                         &owner_fw_priv_keys.mldsa_priv_key,
+                        &owner_fw_config.pub_keys.mldsa_pub_key,
                     )?;
                     let sig = mldsa_sig.as_bytes();
                     auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
@@ -200,9 +202,10 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                         .0[..sig.len()]
                         .copy_from_slice(sig);
                 } else {
-                    let mldsa_sig = self.mldsa_sign(
+                    let mldsa_sig = self.crypto.mldsa_sign(
                         auth_manifest.image_metadata_col.as_bytes(),
                         &vendor_man_priv_keys.mldsa_priv_key,
+                        &config.vendor_man_key_info.pub_keys.mldsa_pub_key,
                     )?;
                     let sig = mldsa_sig.as_bytes();
                     auth_manifest
@@ -241,9 +244,10 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                         .0[..sig.len()]
                         .copy_from_slice(sig);
                 } else {
-                    let mldsa_sig = self.mldsa_sign(
+                    let mldsa_sig = self.crypto.mldsa_sign(
                         auth_manifest.image_metadata_col.as_bytes(),
                         &owner_man_priv_keys.mldsa_priv_key,
+                        &owner_man_config.pub_keys.mldsa_pub_key,
                     )?;
                     let sig = mldsa_sig.as_bytes();
                     auth_manifest
@@ -257,36 +261,5 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         }
 
         Ok(auth_manifest)
-    }
-
-    // [TODO][CAP2] Make this a common function in the crypto library.
-    fn mldsa_sign(
-        &self,
-        msg: &[u8],
-        priv_key: &ImageMldsaPrivKey,
-    ) -> anyhow::Result<ImageMldsaSignature> {
-        // Private key is received in hw format which is also the library format.
-        // Unlike ECC, no reversal of the DWORD endianess needed.
-        let priv_key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] = priv_key
-            .0
-            .as_bytes()
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid private key size"))?;
-        let priv_key = { PrivateKey::try_from_bytes(priv_key_bytes).unwrap() };
-
-        let signature = priv_key.try_sign_with_seed(&[0u8; 32], msg, &[]).unwrap();
-        let signature_extended = {
-            let mut sig = [0u8; SIG_LEN + 1];
-            sig[..SIG_LEN].copy_from_slice(&signature);
-            sig
-        };
-
-        // Return the signature in hw format (which is also the library format)
-        // Unlike ECC, no reversal of the DWORD endianess needed.
-        let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();
-        for (i, chunk) in signature_extended.chunks(4).enumerate() {
-            sig.0[i] = u32::from_le_bytes(chunk.try_into().unwrap());
-        }
-        Ok(sig)
     }
 }
