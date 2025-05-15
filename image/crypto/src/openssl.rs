@@ -14,12 +14,15 @@ Abstract:
 
 use std::path::Path;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 
 use caliptra_image_gen::{
     from_hw_format, to_hw_format, u8_to_u32_le, ImageGeneratorCrypto, ImageGeneratorHasher,
 };
 use caliptra_image_types::*;
+use fips204::ml_dsa_87::{PrivateKey, PublicKey, SIG_LEN};
+use fips204::traits::{SerDes, Signer, Verifier};
+use zerocopy::IntoBytes;
 
 use openssl::{
     bn::{BigNum, BigNumContext},
@@ -111,6 +114,50 @@ impl ImageGeneratorCrypto for OsslCrypto {
         let mut nonce = [0u8; SHA192_DIGEST_BYTE_SIZE];
         rand_bytes(&mut nonce)?;
         sign_with_lms_key::<OpensslHasher>(priv_key, &message, &nonce, SUPPORTED_LMS_Q_VALUE)
+    }
+
+    fn mldsa_sign(
+        &self,
+        msg: &[u8],
+        priv_key: &ImageMldsaPrivKey,
+        pub_key: &ImageMldsaPubKey,
+    ) -> anyhow::Result<ImageMldsaSignature> {
+        // Private key is received in hw format which is also the library format.
+        // Unlike ECC, no reversal of the DWORD endianess needed.
+        let priv_key_bytes: [u8; MLDSA87_PRIV_KEY_BYTE_SIZE] = priv_key
+            .0
+            .as_bytes()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid private key size"))?;
+        let priv_key = { PrivateKey::try_from_bytes(priv_key_bytes).unwrap() };
+
+        let signature = priv_key.try_sign_with_seed(&[0u8; 32], msg, &[]).unwrap();
+        let signature_extended = {
+            let mut sig = [0u8; SIG_LEN + 1];
+            sig[..SIG_LEN].copy_from_slice(&signature);
+            sig
+        };
+
+        let pub_key = {
+            let pub_key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] = pub_key
+                .0
+                .as_bytes()
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("Invalid public key size"))?;
+            PublicKey::try_from_bytes(pub_key_bytes).unwrap()
+        };
+        if !pub_key.verify(msg, &signature, &[]) {
+            bail!("MLDSA public key verification failed");
+        }
+
+        // Return the signature in hw format (which is also the library format)
+        // Unlike ECC, no reversal of the DWORD endianess needed.
+        let mut sig: ImageMldsaSignature = ImageMldsaSignature::default();
+        for (i, chunk) in signature_extended.chunks(4).enumerate() {
+            sig.0[i] = u32::from_le_bytes(chunk.try_into().unwrap());
+        }
+
+        Ok(sig)
     }
 
     fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey> {
