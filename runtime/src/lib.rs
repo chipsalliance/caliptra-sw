@@ -366,6 +366,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_HMAC_KDF_COUNTER => {
             cryptographic_mailbox::Commands::hmac_kdf_counter(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_HKDF_EXTRACT => {
+            cryptographic_mailbox::Commands::hkdf_extract(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HKDF_EXPAND => {
+            cryptographic_mailbox::Commands::hkdf_expand(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_MLDSA_PUBLIC_KEY => {
             cryptographic_mailbox::Commands::mldsa_public_key(drivers, cmd_bytes, resp)
         }
