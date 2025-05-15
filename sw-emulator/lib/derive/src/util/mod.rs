@@ -12,5 +12,4 @@ Abstract:
 
 --*/
 pub mod literal;
-pub mod sort;
 pub mod token_iter;

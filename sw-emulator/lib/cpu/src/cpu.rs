@@ -14,8 +14,11 @@ Abstract:
 
 use crate::csr_file::{Csr, CsrFile};
 use crate::instr::Instr;
-use crate::types::{RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvMsecCfg, RvPrivMode};
+use crate::types::{
+    CpuArgs, CpuOrgArgs, RvInstr, RvMEIHAP, RvMStatus, RvMemAccessType, RvMsecCfg, RvPrivMode,
+};
 use crate::xreg_file::{XReg, XRegFile};
+use crate::Pic;
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, Event, EventData, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
@@ -147,6 +150,7 @@ impl StackInfo {
 
 #[derive(Clone)]
 pub struct CodeCoverage {
+    org: CpuOrgArgs,
     rom_bit_vec: BitVec,
     iccm_bit_vec: BitVec,
 }
@@ -156,19 +160,12 @@ pub struct CoverageBitmaps<'a> {
     pub iccm: &'a bit_vec::BitVec,
 }
 
-const ICCM_SIZE: usize = 256 * 1024;
-const ICCM_ORG: usize = 0x40000000;
-const ICCM_UPPER: usize = ICCM_ORG + ICCM_SIZE - 1;
-
-const ROM_SIZE: usize = 96 * 1024;
-const ROM_ORG: usize = 0x00000000;
-const ROM_UPPER: usize = ROM_ORG + ROM_SIZE - 1;
-
 impl CodeCoverage {
-    pub fn new(rom_capacity_in_bytes: usize, iccm_capacity_in_bytes: usize) -> Self {
+    pub fn new(org: CpuOrgArgs) -> Self {
         Self {
-            rom_bit_vec: BitVec::from_elem(rom_capacity_in_bytes, false),
-            iccm_bit_vec: BitVec::from_elem(iccm_capacity_in_bytes, false),
+            org,
+            rom_bit_vec: BitVec::from_elem(org.rom_size as usize, false),
+            iccm_bit_vec: BitVec::from_elem(org.iccm_size as usize, false),
         }
     }
 
@@ -178,26 +175,22 @@ impl CodeCoverage {
             Instr::General(_) => 4,
         };
 
-        match pc as usize {
-            ROM_ORG..=ROM_UPPER => {
-                // Mark the bytes corresponding to the executed instruction as true.
-                for i in 0..num_bytes {
-                    let byte_index = (pc as usize - ROM_ORG) + i;
-                    if byte_index < self.rom_bit_vec.len() {
-                        self.rom_bit_vec.set(byte_index, true);
-                    }
+        if (self.org.rom..(self.org.rom + self.org.rom_size)).contains(&pc) {
+            // Mark the bytes corresponding to the executed instruction as true.
+            for i in 0..num_bytes {
+                let byte_index = ((pc - self.org.rom) + i) as usize;
+                if byte_index < self.rom_bit_vec.len() {
+                    self.rom_bit_vec.set(byte_index, true);
                 }
             }
-            ICCM_ORG..=ICCM_UPPER => {
-                // Mark the bytes corresponding to the executed instruction as true.
-                for i in 0..num_bytes {
-                    let byte_index = (pc as usize - ICCM_ORG) + i;
-                    if byte_index < self.iccm_bit_vec.len() {
-                        self.iccm_bit_vec.set(byte_index, true);
-                    }
+        } else if (self.org.iccm..(self.org.iccm + self.org.iccm_size)).contains(&pc) {
+            // Mark the bytes corresponding to the executed instruction as true.
+            for i in 0..num_bytes {
+                let byte_index = ((pc - self.org.iccm) + i) as usize;
+                if byte_index < self.iccm_bit_vec.len() {
+                    self.iccm_bit_vec.set(byte_index, true);
                 }
             }
-            _ => (),
         }
     }
 
@@ -273,7 +266,9 @@ pub struct Cpu<TBus: Bus> {
     // The bus the CPU uses to talk to memory and peripherals.
     pub bus: TBus,
 
-    pub clock: Clock,
+    pub clock: Rc<Clock>,
+
+    pub pic: Rc<Pic>,
 
     /// Current privilege mode
     pub priv_mode: RvPrivMode,
@@ -286,6 +281,14 @@ pub struct Cpu<TBus: Bus> {
 
     pub code_coverage: CodeCoverage,
     stack_info: Option<StackInfo>,
+
+    /// CPU arguments
+    args: CpuArgs,
+
+    #[cfg(test)]
+    internal_timer_local_int_counter: usize,
+    #[cfg(test)]
+    external_int_counter: usize,
 
     // incoming communication with other components
     incoming_events: Option<mpsc::Receiver<Event>>,
@@ -324,14 +327,15 @@ impl<TBus: Bus> Cpu<TBus> {
     const PC_RESET_VAL: RvData = 0;
 
     /// Create a new RISCV CPU
-    pub fn new(bus: TBus, clock: Clock) -> Self {
+    pub fn new(bus: TBus, clock: Rc<Clock>, pic: Rc<Pic>, args: CpuArgs) -> Self {
         Self {
             xregs: XRegFile::new(),
-            csrs: CsrFile::new(&clock),
+            csrs: CsrFile::new(clock.clone(), pic.clone()),
             pc: Self::PC_RESET_VAL,
             next_pc: Self::PC_RESET_VAL,
             bus,
             clock,
+            pic,
             priv_mode: RvPrivMode::M,
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
@@ -342,8 +346,13 @@ impl<TBus: Bus> Cpu<TBus> {
             halted: false,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
-            code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
+            code_coverage: CodeCoverage::new(args.org),
             stack_info: None,
+            args,
+            #[cfg(test)]
+            internal_timer_local_int_counter: 0,
+            #[cfg(test)]
+            external_int_counter: 0,
             incoming_events: None,
             outgoing_events: None,
         }
@@ -497,6 +506,124 @@ impl<TBus: Bus> Cpu<TBus> {
         self.csrs.write(RvPrivMode::M, csr, val)
     }
 
+    /// Check memory privileges of given address
+    ///
+    /// # Arguments
+    ///
+    /// * `addr` - Address to check
+    /// * `access` - Access type to check
+    ///
+    /// # Return
+    ///
+    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
+    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    fn check_mem_priv_addr(
+        &self,
+        addr: RvAddr,
+        access: RvMemAccessType,
+    ) -> Result<(), RvException> {
+        let fault = || match access {
+            RvMemAccessType::Read => RvException::load_access_fault(addr),
+            RvMemAccessType::Write => RvException::store_access_fault(addr),
+            RvMemAccessType::Execute => RvException::instr_access_fault(addr),
+            _ => unreachable!(),
+        };
+
+        let mstatus = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
+        let priv_mode = if mstatus.mprv() != 0
+            && (access == RvMemAccessType::Read || access == RvMemAccessType::Write)
+        {
+            mstatus.mpp()
+        } else {
+            self.priv_mode
+        };
+
+        let mseccfg = RvMsecCfg(self.read_csr_machine(Csr::MSECCFG)?);
+
+        if let Some(pmpicfg) = self.csrs.pmp_match_addr(addr)? {
+            if mseccfg.mml() != 0 {
+                // Perform enhanced privilege check
+                let check_mask = (pmpicfg.execute() & 0x1)
+                    | ((pmpicfg.write() & 0x1) << 1)
+                    | ((pmpicfg.read() & 0x1) << 2)
+                    | ((pmpicfg.lock() & 0x1) << 3);
+
+                // This matches the spec truth table
+                let allowed_mask = match priv_mode {
+                    RvPrivMode::M => match check_mask {
+                        0 | 1 | 4..=8 => 0,
+                        2 | 3 | 14 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
+                        9 | 10 => RvMemAccessType::Execute as u8,
+                        11 | 13 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                        12 | 15 => RvMemAccessType::Read as u8,
+                        _ => unreachable!(),
+                    },
+                    RvPrivMode::U => match check_mask {
+                        0 | 8 | 9 | 12..=14 => 0,
+                        1 | 10 | 11 => RvMemAccessType::Execute as u8,
+                        2 | 4 | 15 => RvMemAccessType::Read as u8,
+                        3 | 6 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
+                        5 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
+                        7 => {
+                            RvMemAccessType::Read as u8
+                                | RvMemAccessType::Write as u8
+                                | RvMemAccessType::Execute as u8
+                        }
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                };
+
+                if (access as u8 & allowed_mask) != access as u8 {
+                    return Err(fault());
+                }
+            } else {
+                let check_bit = match access {
+                    RvMemAccessType::Read => pmpicfg.read(),
+                    RvMemAccessType::Write => pmpicfg.write(),
+                    RvMemAccessType::Execute => pmpicfg.execute(),
+                    _ => unreachable!(),
+                };
+
+                if check_bit == 0 && (priv_mode != RvPrivMode::M || pmpicfg.lock() != 0) {
+                    return Err(fault());
+                }
+            }
+        } else if priv_mode == RvPrivMode::M && mseccfg.mmwp() != 0 {
+            return Err(fault());
+        }
+
+        Ok(())
+    }
+
+    /// Check memory privileges of given address
+    ///
+    /// # Arguments
+    ///
+    /// * `addr` - Address to check
+    /// * `size` - Size of region
+    /// * `access` - Access type to check
+    ///
+    /// # Return
+    ///
+    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
+    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
+    pub fn check_mem_priv(
+        &self,
+        addr: RvAddr,
+        size: RvSize,
+        access: RvMemAccessType,
+    ) -> Result<(), RvException> {
+        self.check_mem_priv_addr(addr, access)?;
+        if size == RvSize::Word && addr & 0x3 != 0 {
+            // If unaligned, check permissions of intermediate addresses
+            for i in 1..RvSize::Word.into() {
+                self.check_mem_priv_addr(addr + i as u32, access)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Read from bus
     ///
     /// # Arguments
@@ -622,38 +749,70 @@ impl<TBus: Bus> Cpu<TBus> {
 
     /// Step a single instruction
     pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
-        let fired_action_types = self
+        let mut fired_action_types: Vec<TimerAction> = self
             .clock
-            .increment_and_process_timer_actions(1, &mut self.bus);
-        for action_type in fired_action_types.iter() {
+            .increment_and_process_timer_actions(1, &mut self.bus)
+            .into_iter()
+            .collect();
+        fired_action_types.sort_by_key(|a| -a.priority());
+        let mut step_action = None;
+        let mut saved = vec![];
+        while let Some(action_type) = fired_action_types.pop() {
+            let mut save = false;
             match action_type {
                 TimerAction::WarmReset => {
-                    self.halted = false;
-                    self.reset_pc();
+                    self.do_reset();
                     break;
                 }
                 TimerAction::UpdateReset => {
-                    self.halted = false;
-                    self.reset_pc();
+                    self.do_reset();
                     break;
                 }
                 TimerAction::Nmi { mcause } => {
                     self.halted = false;
-                    return self.handle_nmi(*mcause, 0);
+                    step_action = Some(self.handle_nmi(mcause, 0));
+                    break;
                 }
-                TimerAction::SetNmiVec { addr } => self.nmivec = *addr,
+                TimerAction::SetNmiVec { addr } => self.nmivec = addr,
                 TimerAction::ExtInt { irq, can_wake } => {
-                    if self.global_int_en && self.ext_int_en && (!self.halted || *can_wake) {
+                    if self.global_int_en && self.ext_int_en && (!self.halted || can_wake) {
                         self.halted = false;
-                        return self.handle_external_int(*irq);
+                        step_action = Some(self.handle_external_int(irq));
+                        break;
+                    } else {
+                        save = true;
                     }
                 }
-                TimerAction::SetExtIntVec { addr } => self.ext_int_vec = *addr,
-                TimerAction::SetGlobalIntEn { en } => self.global_int_en = *en,
-                TimerAction::SetExtIntEn { en } => self.ext_int_en = *en,
+                TimerAction::SetExtIntVec { addr } => self.ext_int_vec = addr,
+                TimerAction::SetGlobalIntEn { en } => self.global_int_en = en,
+                TimerAction::SetExtIntEn { en } => self.ext_int_en = en,
+                TimerAction::InternalTimerLocalInterrupt { timer_id } => {
+                    if self.global_int_en && !self.halted {
+                        step_action = Some(self.handle_internal_timer_local_interrupt(timer_id));
+                        break;
+                    } else {
+                        save = true;
+                    }
+                }
                 TimerAction::Halt => self.halted = true,
                 _ => {}
             }
+            if save {
+                saved.push(action_type);
+            }
+        }
+
+        // reschedule actions that were not processed
+        for action in saved {
+            self.clock.timer().schedule_action_in(1, action);
+        }
+        for action in fired_action_types {
+            self.clock.timer().schedule_action_in(1, action);
+        }
+
+        // if we already processed an interrupt, then return immediately
+        if let Some(returned_action) = step_action {
+            return returned_action;
         }
 
         // We are in a halted state. Don't continue executing but poll the bus for interrupts
@@ -672,6 +831,24 @@ impl<TBus: Bus> Cpu<TBus> {
         action
     }
 
+    fn handle_internal_timer_local_interrupt(&mut self, timer_id: u8) -> StepAction {
+        #[cfg(test)]
+        {
+            self.internal_timer_local_int_counter += 1;
+        }
+        let mcause = 0x8000_001D - (timer_id as u32);
+        match self.handle_trap(
+            self.read_pc(),
+            mcause,
+            0,
+            // Cannot panic; mtvec is a valid CSR
+            self.read_csr_machine(Csr::MTVEC).unwrap() & !0b11,
+        ) {
+            Ok(_) => StepAction::Continue,
+            Err(_) => StepAction::Fatal,
+        }
+    }
+
     /// Handle synchronous exception
     fn handle_exception(&mut self, exception: RvException) -> StepAction {
         let ret = self.handle_trap(
@@ -679,7 +856,7 @@ impl<TBus: Bus> Cpu<TBus> {
             exception.cause().into(),
             exception.info(),
             // Cannot panic; mtvec is a valid CSR
-            self.read_csr(Csr::MTVEC).unwrap() & !0b11,
+            self.read_csr_machine(Csr::MTVEC).unwrap() & !0b11,
         );
         match ret {
             Ok(_) => StepAction::Continue,
@@ -734,26 +911,47 @@ impl<TBus: Bus> Cpu<TBus> {
         self.global_int_en = false;
 
         self.write_pc(next_pc);
-        println!(
-            "handle_trap: cause={:x}, mtval={:x}, pc={:x}, next_pc={:x}",
-            cause, info, pc, next_pc
-        );
+        // println!(
+        //     "handle_trap: cause={:x}, mtval={:x}, pc={:x}, next_pc={:x}",
+        //     cause, info, pc, next_pc
+        // );
         Ok(())
     }
 
     //// Handle external interrupts
     fn handle_external_int(&mut self, irq: u8) -> StepAction {
+        #[cfg(test)]
+        {
+            self.external_int_counter += 1;
+        }
         const REDIRECT_ENTRY_SIZE: u32 = 4;
         const MAX_IRQ: u32 = 32;
-        const DCCM_ORG: u32 = 0x5000_0000;
-        const DCCM_SIZE: u32 = 256 * 1024;
 
         let vec_table = self.ext_int_vec;
-        if vec_table < DCCM_ORG || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE > DCCM_ORG + DCCM_SIZE
+        if vec_table < self.args.org.dccm
+            || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE
+                > self.args.org.dccm + self.args.org.dccm_size
         {
             const NON_DCCM_NMI: u32 = 0xF000_1002;
             return self.handle_nmi(NON_DCCM_NMI, 0);
         }
+
+        // Elevate to M Mode before reading the vector table
+        let mut status = match self.read_csr_machine(Csr::MSTATUS) {
+            Ok(value) => RvMStatus(value),
+            Err(_) => return StepAction::Fatal,
+        };
+        match self.priv_mode {
+            RvPrivMode::U => {
+                self.priv_mode = RvPrivMode::M;
+                status.set_mpp(RvPrivMode::U);
+            }
+            RvPrivMode::M => {
+                status.set_mpp(RvPrivMode::M);
+            }
+            _ => unreachable!(),
+        }
+
         let next_pc_ptr = vec_table + REDIRECT_ENTRY_SIZE * u32::from(irq);
         let mut meihap = RvMEIHAP(vec_table);
         meihap.set_claimid(irq.into());
@@ -795,124 +993,6 @@ impl<TBus: Bus> Cpu<TBus> {
         self.watch_ptr_cfg.hit.as_ref()
     }
 
-    /// Check memory privileges of given address
-    ///
-    /// # Arguments
-    ///
-    /// * `addr` - Address to check
-    /// * `size` - Size of region
-    /// * `access` - Access type to check
-    ///
-    /// # Return
-    ///
-    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
-    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
-    pub fn check_mem_priv(
-        &self,
-        addr: RvAddr,
-        size: RvSize,
-        access: RvMemAccessType,
-    ) -> Result<(), RvException> {
-        self.check_mem_priv_addr(addr, access)?;
-        if size == RvSize::Word && addr & 0x3 != 0 {
-            // If unaligned, check permissions of intermediate addresses
-            for i in 1..RvSize::Word.into() {
-                self.check_mem_priv_addr(addr + i as u32, access)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Check memory privileges of given address
-    ///
-    /// # Arguments
-    ///
-    /// * `addr` - Address to check
-    /// * `access` - Access type to check
-    ///
-    /// # Return
-    ///
-    /// * `RvException` - Exception with cause `RvException::LoadAccessFault`,
-    ///   `RvException::store_access_fault`, or `RvException::instr_access_fault`.
-    fn check_mem_priv_addr(
-        &self,
-        addr: RvAddr,
-        access: RvMemAccessType,
-    ) -> Result<(), RvException> {
-        let fault = || match access {
-            RvMemAccessType::Read => RvException::load_access_fault(addr),
-            RvMemAccessType::Write => RvException::store_access_fault(addr),
-            RvMemAccessType::Execute => RvException::instr_access_fault(addr),
-            _ => unreachable!(),
-        };
-
-        let mstatus = RvMStatus(self.read_csr_machine(Csr::MSTATUS)?);
-        let priv_mode = if mstatus.mprv() != 0
-            && (access == RvMemAccessType::Read || access == RvMemAccessType::Write)
-        {
-            mstatus.mpp()
-        } else {
-            self.priv_mode
-        };
-
-        let mseccfg = RvMsecCfg(self.read_csr_machine(Csr::MSECCFG)?);
-
-        if let Some(pmpicfg) = self.csrs.pmp_match_addr(addr)? {
-            if mseccfg.mml() != 0 {
-                // Perform enhanced privilege check
-                let check_mask = (pmpicfg.execute() & 0x1)
-                    | ((pmpicfg.write() & 0x1) << 1)
-                    | ((pmpicfg.read() & 0x1) << 2)
-                    | ((pmpicfg.lock() & 0x1) << 3);
-
-                // This matches the spec truth table
-                let allowed_mask = match priv_mode {
-                    RvPrivMode::M => match check_mask {
-                        0 | 1 | 4..=8 => 0,
-                        2 | 3 | 14 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
-                        9 | 10 => RvMemAccessType::Execute as u8,
-                        11 | 13 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
-                        12 | 15 => RvMemAccessType::Read as u8,
-                        _ => unreachable!(),
-                    },
-                    RvPrivMode::U => match check_mask {
-                        0 | 8 | 9 | 12..=14 => 0,
-                        1 | 10 | 11 => RvMemAccessType::Execute as u8,
-                        2 | 4 | 15 => RvMemAccessType::Read as u8,
-                        3 | 6 => RvMemAccessType::Read as u8 | RvMemAccessType::Write as u8,
-                        5 => RvMemAccessType::Read as u8 | RvMemAccessType::Execute as u8,
-                        7 => {
-                            RvMemAccessType::Read as u8
-                                | RvMemAccessType::Write as u8
-                                | RvMemAccessType::Execute as u8
-                        }
-                        _ => unreachable!(),
-                    },
-                    _ => unreachable!(),
-                };
-
-                if (access as u8 & allowed_mask) != access as u8 {
-                    return Err(fault());
-                }
-            } else {
-                let check_bit = match access {
-                    RvMemAccessType::Read => pmpicfg.read(),
-                    RvMemAccessType::Write => pmpicfg.write(),
-                    RvMemAccessType::Execute => pmpicfg.execute(),
-                    _ => unreachable!(),
-                };
-
-                if check_bit == 0 && (priv_mode != RvPrivMode::M || pmpicfg.lock() != 0) {
-                    return Err(fault());
-                }
-            }
-        } else if priv_mode == RvPrivMode::M && mseccfg.mmwp() != 0 {
-            return Err(fault());
-        }
-
-        Ok(())
-    }
-
     // returns a sender (that sends events to this CPU)
     // and a receiver (that receives events that this CPU sends)
     pub fn register_events(&mut self) -> (mpsc::Sender<Event>, mpsc::Receiver<Event>) {
@@ -951,20 +1031,29 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
         assert_eq!(cpu.read_pc(), 0);
     }
 
     #[test]
     fn test_pc() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
         cpu.write_pc(0xFF);
         assert_eq!(cpu.read_pc(), 0xFF);
     }
 
     #[test]
     fn test_xreg() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(DynamicBus::new(), clock, pic, args);
         for reg in 1..32u32 {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
@@ -972,7 +1061,8 @@ mod tests {
     }
 
     fn new_pmp_cpu(fill_val: u32) -> Cpu<DynamicBus> {
-        let clock = Clock::new();
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
         let mut bus = DynamicBus::new();
 
         let ram = Ram::new(
@@ -983,7 +1073,9 @@ mod tests {
         );
         bus.attach_dev("RAM", 0..=0x200, Box::new(ram)).unwrap();
 
-        Cpu::new(bus, clock)
+        let args = CpuArgs::default();
+
+        Cpu::new(bus, clock, pic, args)
     }
 
     #[test]
@@ -1815,7 +1907,7 @@ mod tests {
     fn test_bus_poll() {
         const RV32_NO_OP: u32 = 0x00000013;
 
-        let clock = Clock::new();
+        let clock = Rc::new(Clock::new());
         let timer = Timer::new(&clock);
         let mut bus = DynamicBus::new();
 
@@ -1834,7 +1926,9 @@ mod tests {
 
         let mut action0 = Some(timer.schedule_poll_in(31));
 
-        let mut cpu = Cpu::new(bus, clock);
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(bus, clock.clone(), pic, args);
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
             assert_eq!(cpu.step(None), StepAction::Continue);
@@ -1867,7 +1961,8 @@ mod tests {
         ];
 
         // Instantiate coverage with a capacity for the mix of instructions above
-        let mut coverage = CodeCoverage::new(8, 0);
+        let args = CpuOrgArgs::default();
+        let mut coverage = CodeCoverage::new(args);
 
         // Log execution of the instructions above
         coverage.log_execution(0, &instructions[0]);
@@ -1876,5 +1971,65 @@ mod tests {
 
         // Check for expected values
         assert_eq!(count_executed(&coverage), 8);
+    }
+
+    #[test]
+    fn test_multiple_events_not_lost() {
+        const RV32_NO_OP: u32 = 0x00000013;
+
+        let clock = Rc::new(Clock::new());
+        let timer = Timer::new(&clock);
+        let mut bus = DynamicBus::new();
+
+        let rom = Rom::new(
+            std::iter::repeat(RV32_NO_OP)
+                .take(256)
+                .flat_map(u32::to_le_bytes)
+                .collect(),
+        );
+        bus.attach_dev("ROM", 0..=0x3ff, Box::new(rom)).unwrap();
+
+        let mut action0 = Some(timer.schedule_poll_in(31));
+        timer.schedule_action_in(31, TimerAction::InternalTimerLocalInterrupt { timer_id: 0 });
+        timer.schedule_action_in(
+            31,
+            TimerAction::ExtInt {
+                irq: 1,
+                can_wake: true,
+            },
+        );
+
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(bus, clock.clone(), pic, args);
+        cpu.global_int_en = true;
+        cpu.ext_int_en = true;
+
+        for i in 0..30 {
+            assert_eq!(cpu.clock.now(), i);
+            assert_eq!(cpu.step(None), StepAction::Continue);
+        }
+        assert!(!timer.fired(&mut action0));
+
+        assert_eq!(cpu.internal_timer_local_int_counter, 0);
+        assert_eq!(cpu.external_int_counter, 0);
+
+        assert_eq!(cpu.step(None), StepAction::Continue);
+
+        assert!(timer.fired(&mut action0));
+        // the external interrupt should be handled first
+        assert_eq!(cpu.internal_timer_local_int_counter, 0);
+        assert_eq!(cpu.external_int_counter, 1);
+
+        // this will trigger a disabling of the global interrupt enable, which takes priority
+        assert_eq!(cpu.step(None), StepAction::Continue);
+
+        // re-allow global interrupts
+        cpu.global_int_en = true;
+        assert_eq!(cpu.step(None), StepAction::Continue);
+
+        // now the timer interrupt should be processed
+        assert_eq!(cpu.internal_timer_local_int_counter, 1);
+        assert_eq!(cpu.external_int_counter, 1);
     }
 }
