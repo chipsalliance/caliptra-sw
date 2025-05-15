@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    A KDF implementation that is compliant with SP 800-108.
+    A KDF implementation that is compliant with SP 800-108 Section 4.1 (KDF in Counter Mode).
 
 --*/
 

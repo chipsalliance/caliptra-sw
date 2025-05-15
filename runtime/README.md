@@ -1291,26 +1291,56 @@ Command Code: `0x434D_484D` ("CMHM")
 | mac size    | u32          |                           |
 | mac         | u8[mac size] |                           |
 
+### CM_HMAC_KDF_COUNTER
+
+Implements HMAC KDF in Counter Moder as specified in  as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html) and [NIST SP800-108](https://csrc.nist.gov/pubs/sp/800/108/r1/upd1/final) Section 4.1 (KDF in Counter Mode, Section 4.1).
+
+The CMK must have been created for HMAC usage.
+
+The output length will be automatically chosen to match the key usage.
+
+Command Code: `0x434D_4B43` ("CMKC")
+
+*Table: `CM_HMAC_KDF_COUNTER` input arguments*
+| **Name**       | **Type**       | **Description**           |
+| -------------- | -------------- | ------------------------- |
+| chksum         | u32            |                           |
+| KIN CMK        | CMK            | Input key                 |
+| hash algorithm | u32            | Enum.                     |
+|                |                | Value 0 = reserved        |
+|                |                | Value 1 = SHA2-384        |
+|                |                | Value 2 = SHA2-512        |
+| key usage      | u32            | usage tag of output key   |
+| key size       | u32            | size (in bytes) for the OKM; MUST be valid for the key usage |
+| label size     | u32            |                           |
+| label          | u8[label size] |                           |
+
+*Table: `CM_HMAC_KDF_COUNTER` output arguments*
+| **Name**    | **Type** | **Description**                         |
+| ----------- | -------- | --------------------------------------- |
+| chksum      | u32      |                                         |
+| fips_status | u32      | FIPS approved or an error               |
+| KOUT CMK    | CMK      | CMK that stores the output key material |
+
 ### CM_HKDF_EXTRACT
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC / HKDF usage. The output will be tagged for HKDF usage.
+The CMK must have been created for HMAC usage. The output will be tagged for HMAC usage.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
 *Table: `CM_HKDF_EXTRACT` input arguments*
-| **Name**       | **Type**      | **Description**        |
-| -------------- | ------------- | ---------------------- |
-| chksum         | u32           |                        |
-| hash algorithm | u32           | Enum.                  |
-|                |               | Value 0 = reserved     |
-|                |               | Value 1 = SHA2-256     |
-|                |               | Value 2 = SHA2-384     |
-|                |               | Value 3 = SHA2-512     |
-| IKM CMK        | u8[32]        | Input key material CMK |
-| salt size      | u32           | May be 0               |
-| salt           | u8[salt size] |                        |
+| **Name**       | **Type** | **Description**        |
+| -------------- | -------- | ---------------------- |
+| chksum         | u32      |                        |
+| IKM CMK        | CMK      | Input key material CMK |
+| hash algorithm | u32      | Enum.                  |
+|                |          | Value 0 = reserved     |
+|                |          | Value 1 = SHA2-384     |
+|                |          | Value 2 = SHA2-512     |
+| salt           | u8[64]   | Salt. Only 48 bytes used
+|                |          | SHA384 mode. Can be 0s |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
 | **Name**    | **Type** | **Description**                         |
@@ -1324,33 +1354,36 @@ Command Code: `0x434D_4B54` ("CMKT")
 
 Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC / HKDF usage.
+The CMK must have been created for HMAC usage.
 
 The output length will be automatically chosen to match the key usage.
 
 Command Code: `0x434D_4B50` ("CMKP")
 
 *Table: `CM_HKDF_EXPAND` input arguments*
-| **Name**       | **Type**      | **Description**                                              |
-| -------------- | ------------- | ------------------------------------------------------------ |
-| chksum         | u32           |                                                              |
-| hash algorithm | u32           | Enum.                                                        |
-|                |               | Value 0 = reserved                                           |
-|                |               | Value 1 = SHA2-256                                           |
-|                |               | Value 2 = SHA2-384                                           |
-|                |               | Value 3 = SHA2-512                                           |
-| PRK CMK        | CMK           |                                                              |
-| key usage      | u32           | usage tag of the kind of key that will be output             |
-| key size       | u32           | size (in bytes) for the OKM; MUST be valid for the key usage |
-| info size      | u32           |                                                              |
-| info           | u8[info size] |                                                              |
+| **Name**       | **Type**      | **Description**                 |
+| -------------- | ------------- | ------------------------------- |
+| chksum         | u32           |                                 |
+| PRK CMK        | CMK           |                                 |
+| hash algorithm | u32           | Enum.                           |
+|                |               | Value 0 = reserved              |
+|                |               | Value 1 = SHA2-384              |
+|                |               | Value 2 = SHA2-512              |
+| key usage      | u32           | usage tag of output key         |
+| key size       | u32           | size (in bytes) for the OKM;    |
+|                |               | MUST be valid for the key usage |
+| info size      | u32           |                                 |
+| info           | u8[info size] |                                 |
 
 *Table: `CM_HKDF_EXPAND` output arguments*
+Command Code: `0x434D_4B43` ("CMKC")
+
 | **Name**    | **Type** | **Description**                         |
 | ----------- | -------- | --------------------------------------- |
 | chksum      | u32      |                                         |
 | fips_status | u32      | FIPS approved or an error               |
 | OKM CMK     | CMK      | CMK that stores the output key material |
+
 
 ### CM_MLDSA_PUBLIC_KEY
 

@@ -12,13 +12,13 @@ use caliptra_api::mailbox::{
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
     CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
     CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
-    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacReq, CmHmacResp,
-    CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
-    CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp,
-    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
-    CmStatusResp, Cmk, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
-    MailboxRespHeaderVarSize, ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES,
-    MAX_CMB_DATA_SIZE,
+    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacKdfCounterReq,
+    CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
+    CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
+    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq,
+    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -1431,6 +1431,88 @@ fn test_hmac_random() {
             assert_eq!(resp.mac[..len], expected_hmac);
         }
     }
+}
+
+#[test]
+fn test_hmac_kdf_counter_random() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..100 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut data = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut data);
+
+            let mut cm_hmac_kdf = CmHmacKdfCounterReq {
+                kin_cmk: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                label_size: len as u32,
+                ..Default::default()
+            };
+            cm_hmac_kdf.label[..len].copy_from_slice(&data);
+            let mut cm_hmac_kdf = MailboxReq::CmHmacKdfCounter(cm_hmac_kdf);
+            cm_hmac_kdf.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HMAC_KDF_COUNTER),
+                    cm_hmac_kdf.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.kout_cmk;
+
+            let key = rustcrypto_hmac_hkdf_counter(hash_algorithm, &keys[key_idx], &data);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
+    }
+}
+
+fn rustcrypto_hmac_hkdf_counter(
+    hash_algorithm: CmHashAlgorithm,
+    key: &[u8],
+    label: &[u8],
+) -> Vec<u8> {
+    let mut data = vec![];
+    data.extend(1u32.to_be_bytes().as_slice());
+    data.extend(label);
+    rustcrypto_hmac(hash_algorithm, key, &data)
 }
 
 fn rustcrypto_hmac(hash_algorithm: CmHashAlgorithm, key: &[u8], data: &[u8]) -> Vec<u8> {
