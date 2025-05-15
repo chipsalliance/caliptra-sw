@@ -510,7 +510,7 @@ impl Drivers {
         }
 
         // Write rt alias cert to cert chain.
-        let rtalias_cert_size = dice::copy_rt_alias_cert(
+        let rtalias_cert_size = dice::copy_rt_alias_ecc384_cert(
             persistent_data.get(),
             &mut cert[ldevid_cert_size + fmcalias_cert_size..],
         )?;

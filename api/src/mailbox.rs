@@ -418,6 +418,7 @@ pub enum MailboxReq {
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasEcc384Cert(GetFmcAliasEcc384CertReq),
     GetRtAliasEcc384Cert(GetRtAliasEcc384CertReq),
+    GetRtAliasMlDsa87Cert(GetRtAliasMlDsa87CertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
     ExtendPcr(ExtendPcrReq),
@@ -470,6 +471,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_bytes()),
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
@@ -520,6 +522,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
@@ -570,6 +573,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_ECC384_CERT,
             MailboxReq::GetRtAliasEcc384Cert(_) => CommandId::GET_RT_ALIAS_ECC384_CERT,
+            MailboxReq::GetRtAliasMlDsa87Cert(_) => CommandId::GET_RT_ALIAS_MLDSA87_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
@@ -820,6 +824,17 @@ pub struct GetRtAliasEcc384CertReq {
 }
 impl Request for GetRtAliasEcc384CertReq {
     const ID: CommandId = CommandId::GET_RT_ALIAS_ECC384_CERT;
+    type Resp = GetRtAliasCertResp;
+}
+
+// GET_RT_ALIAS_MLDSA87_CERT
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetRtAliasMlDsa87CertReq {
+    pub header: MailboxReqHeader,
+}
+impl Request for GetRtAliasMlDsa87CertReq {
+    const ID: CommandId = CommandId::GET_RT_ALIAS_MLDSA87_CERT;
     type Resp = GetRtAliasCertResp;
 }
 
