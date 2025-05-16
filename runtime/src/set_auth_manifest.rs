@@ -28,8 +28,8 @@ use caliptra_drivers::{
     HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
 };
 use caliptra_image_types::{
-    FwVerificationPqcKeyType, ImageDigest384, ImageDigest512, ImageEccPubKey, ImageEccSignature,
-    ImageLmsPublicKey, ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
+    FwVerificationPqcKeyType, ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
+    ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
     MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA192_DIGEST_WORD_SIZE,
     SHA384_DIGEST_BYTE_SIZE,
 };
@@ -59,19 +59,12 @@ impl SetAuthManifestCmd {
         Ok(sha2.sha384_digest(data)?.0)
     }
 
-    fn sha512_digest(
-        sha2: &mut Sha2_512_384,
-        buf: &[u8],
-        offset: u32,
-        len: u32,
-    ) -> CaliptraResult<ImageDigest512> {
+    fn offset_data(buf: &[u8], offset: u32, len: u32) -> CaliptraResult<&[u8]> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        let data = buf
-            .get(offset as usize..)
+        buf.get(offset as usize..)
             .ok_or(err)?
             .get(..len as usize)
-            .ok_or(err)?;
-        Ok(sha2.sha512_digest(data)?.0)
+            .ok_or(err)
     }
 
     fn ecc384_verify(
@@ -108,9 +101,9 @@ impl SetAuthManifestCmd {
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
-    fn mldsa87_verify(
+    fn mldsa87_verify_var(
         mldsa: &mut Mldsa87,
-        digest: &ImageDigest512,
+        msg: &[u8],
         pub_key: &ImageMldsaPubKey,
         sig: &ImageMldsaSignature,
     ) -> CaliptraResult<Mldsa87Result> {
@@ -134,10 +127,7 @@ impl SetAuthManifestCmd {
             CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
         ))?;
 
-        // digest is received in hw format. No conversion needed.
-        let msg = digest.into();
-
-        mldsa.verify(&pub_key, &msg, &sig)
+        mldsa.verify_var(&pub_key, msg, &sig)
     }
 
     fn verify_vendor_signed_data(
@@ -210,8 +200,7 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let digest_vendor = Self::sha512_digest(
-                sha2,
+            let vendor_data = Self::offset_data(
                 auth_manifest_preamble.as_bytes(),
                 range.start,
                 range.len() as u32,
@@ -236,7 +225,7 @@ impl SetAuthManifestCmd {
             ))?;
 
             let result =
-                Self::mldsa87_verify(mldsa, &digest_vendor, vendor_fw_mldsa_key, mldsa_sig)?;
+                Self::mldsa87_verify_var(mldsa, vendor_data, vendor_fw_mldsa_key, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
             }
@@ -313,8 +302,7 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let digest_owner = Self::sha512_digest(
-                sha2,
+            let owner_data = Self::offset_data(
                 auth_manifest_preamble.as_bytes(),
                 range.start,
                 range.len() as u32,
@@ -338,7 +326,8 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
             ))?;
 
-            let result = Self::mldsa87_verify(mldsa, &digest_owner, owner_fw_mldsa_key, mldsa_sig)?;
+            let result =
+                Self::mldsa87_verify_var(mldsa, owner_data, owner_fw_mldsa_key, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
@@ -354,7 +343,7 @@ impl SetAuthManifestCmd {
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         mldsa: &mut Mldsa87,
-        sha2: &mut Sha2_512_384,
+        _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
     ) -> CaliptraResult<()> {
@@ -426,8 +415,7 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let digest_metadata_col =
-                Self::sha512_digest(sha2, metadata_col, 0, metadata_col.len() as u32)?;
+            let metadata_col_data = Self::offset_data(metadata_col, 0, metadata_col.len() as u32)?;
 
             let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
                 auth_manifest_preamble
@@ -452,7 +440,7 @@ impl SetAuthManifestCmd {
             ))?;
 
             let result =
-                Self::mldsa87_verify(mldsa, &digest_metadata_col, mldsa_pub_key, mldsa_sig)?;
+                Self::mldsa87_verify_var(mldsa, metadata_col_data, mldsa_pub_key, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
             }
@@ -468,7 +456,7 @@ impl SetAuthManifestCmd {
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
         mldsa: &mut Mldsa87,
-        sha2: &mut Sha2_512_384,
+        _sha2: &mut Sha2_512_384,
         pqc_key_type: FwVerificationPqcKeyType,
         metadata_col: &[u8],
     ) -> CaliptraResult<()> {
@@ -536,8 +524,7 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib_git::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let digest_metadata_col =
-                Self::sha512_digest(sha2, metadata_col, 0, metadata_col.len() as u32)?;
+            let metadata_col_data = Self::offset_data(metadata_col, 0, metadata_col.len() as u32)?;
 
             let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
                 auth_manifest_preamble
@@ -562,7 +549,7 @@ impl SetAuthManifestCmd {
             ))?;
 
             let result =
-                Self::mldsa87_verify(mldsa, &digest_metadata_col, mldsa_pub_key, mldsa_sig)?;
+                Self::mldsa87_verify_var(mldsa, metadata_col_data, mldsa_pub_key, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
