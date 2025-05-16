@@ -1420,9 +1420,10 @@ Command Code: `0x434D_4B50` ("CMKP")
 Generic AES operation for unauthenticated AES operations.
 AES GCM operations use separate commands elsewhere.
 
-Currently only supports AES-256-CBC with a random 128-bit IV.
+AES-256-CBC only supports using a random 128-bit IV.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 The CMK must have been created for AES usage.
 
@@ -1436,6 +1437,7 @@ Command Code: `0x434D_4349` ("CMCI")
 | mode/flags     | u32                | Requested mode and flags.             |
 |                |                    | 0 = Reserved                          |
 |                |                    | 1 = CBC                               |
+|                |                    | 2 = CTR                               |
 | plaintext size | u32                | MUST be non-zero                      |
 | plaintext      | u8[plaintext size] | Data to encrypt                       |
 
@@ -1470,7 +1472,8 @@ There is no `CM_AES_ENCRYPT_FINISH` since unauthenticated AES modes do not outpu
 
 The context MUST be passed in from `CM_AES_ENCRYPT_INIT` or `CM_AES_ENCRYPT_UPDATE`.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 Command Code: `0x434D_4355` ("CMCU")
 
@@ -1497,7 +1500,8 @@ Starts an AES-256 unauthenaticed decryption computation.
 
 The CMK must have been created for AES usage.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 The IV must match what was passed and returned from the initial encryption operation.
 
@@ -1511,6 +1515,7 @@ Command Code: `0x434D_414A` ("CMAJ")
 | mode/flags      | u32                 | Requested mode and flags. |
 |                 |                     | 0 = Reserved              |
 |                 |                     | 1 = CBC                   |
+|                 |                     | 2 = CTR                   |
 | iv              | u8[16]              |                           |
 | ciphertext size | u32                 | MUST be non-zero          |
 | ciphertext      | u8[ciphertext size] | Data to decrypt           |
@@ -1534,7 +1539,8 @@ There is no `CM_AES_DECRYPT_FINISH` since unauthenticated modes do not output a 
 
 The context MUST be passed in from `CM_AES_DECRYPT_INIT` or `CM_AES_DECRYPT_UPDATE`.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 Command Code: `0x434D_4155` ("CMAU")
 

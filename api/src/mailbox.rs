@@ -2051,6 +2051,34 @@ pub struct GetImageInfoResp {
 }
 impl Response for GetImageInfoResp {}
 
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CmAesMode {
+    Reserved = 0,
+    Cbc = 1,
+    Ctr = 2,
+}
+
+impl From<u32> for CmAesMode {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => CmAesMode::Cbc,
+            2_u32 => CmAesMode::Ctr,
+            _ => CmAesMode::Reserved,
+        }
+    }
+}
+
+impl From<CmAesMode> for u32 {
+    fn from(value: CmAesMode) -> Self {
+        match value {
+            CmAesMode::Cbc => 1,
+            CmAesMode::Ctr => 2,
+            _ => 0,
+        }
+    }
+}
+
 // CM_AES_ENCRYPT_INIT
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -2067,7 +2095,7 @@ impl Default for CmAesEncryptInitReq {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
-            mode: 0,
+            mode: CmAesMode::Reserved as u32,
             plaintext_size: 0,
             plaintext: [0u8; MAX_CMB_DATA_SIZE],
         }
@@ -2212,7 +2240,7 @@ impl Default for CmAesDecryptInitReq {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
-            mode: 0,
+            mode: CmAesMode::Reserved as u32,
             iv: [0u8; 16],
             ciphertext_size: 0,
             ciphertext: [0u8; MAX_CMB_DATA_SIZE],
