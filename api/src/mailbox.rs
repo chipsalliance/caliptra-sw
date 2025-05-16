@@ -130,6 +130,8 @@ impl CommandId {
 
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
+    pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
+    pub const CM_CLEAR: Self = Self(0x434D_434C); // "CMCL"
     pub const CM_STATUS: Self = Self(0x434D_5354); // "CMST"
     pub const CM_SHA_INIT: Self = Self(0x434D_5349); // "CMSI"
     pub const CM_SHA_UPDATE: Self = Self(0x434D_5355); // "CMSU"
@@ -463,7 +465,10 @@ pub enum MailboxReq {
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
     GetImageInfo(GetImageInfoReq),
+    CmStatus(MailboxReqHeader),
     CmImport(CmImportReq),
+    CmDelete(CmDeleteReq),
+    CmClear(MailboxReqHeader),
     CmShaInit(CmShaInitReq),
     CmShaUpdate(CmShaUpdateReq),
     CmShaFinal(CmShaFinalReq),
@@ -525,7 +530,10 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
             MailboxReq::GetImageInfo(req) => Ok(req.as_bytes()),
+            MailboxReq::CmStatus(req) => Ok(req.as_bytes()),
             MailboxReq::CmImport(req) => req.as_bytes_partial(),
+            MailboxReq::CmDelete(req) => Ok(req.as_bytes()),
+            MailboxReq::CmClear(req) => Ok(req.as_bytes()),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial(),
@@ -585,7 +593,10 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetImageInfo(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmStatus(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmImport(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmDelete(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmClear(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmShaFinal(req) => req.as_bytes_partial_mut(),
@@ -645,7 +656,10 @@ impl MailboxReq {
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
             MailboxReq::GetImageInfo(_) => CommandId::GET_IMAGE_INFO,
+            MailboxReq::CmStatus(_) => CommandId::CM_STATUS,
             MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
+            MailboxReq::CmDelete(_) => CommandId::CM_DELETE,
+            MailboxReq::CmClear(_) => CommandId::CM_CLEAR,
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
             MailboxReq::CmShaUpdate(_) => CommandId::CM_SHA_UPDATE,
             MailboxReq::CmShaFinal(_) => CommandId::CM_SHA_FINAL,
@@ -1826,6 +1840,19 @@ pub struct CmImportResp {
 }
 
 impl Response for CmImportResp {}
+
+// CM_DELETE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct CmDeleteReq {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+}
+
+impl Request for CmDeleteReq {
+    const ID: CommandId = CommandId::CM_DELETE;
+    type Resp = MailboxRespHeader;
+}
 
 /// CM_STATUS response
 #[repr(C)]
