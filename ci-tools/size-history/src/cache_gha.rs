@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use ghac::v1::{self as ghac_types, GetCacheEntryDownloadUrlResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,10 +16,11 @@ pub struct GithubActionCache {
 }
 impl GithubActionCache {
     pub fn new() -> std::io::Result<Self> {
-        let wrap_err = |_| other_err("ACTIONS_CACHE_URL environment variable not set".to_string());
+        let wrap_err =
+            |_| other_err("ACTIONS_RESULTS_URL environment variable not set".to_string());
         let prefix = format!(
-            "{}/_apis/artifactcache",
-            std::env::var("ACTIONS_CACHE_URL").map_err(wrap_err)?
+            "{}/twirp/github.actions.results.api.v1.CacheService",
+            std::env::var("ACTIONS_RESULTS_URL").map_err(wrap_err)?
         );
         Ok(Self { prefix })
     }
@@ -46,21 +48,26 @@ impl Cache for GithubActionCache {
 
     fn get(&self, key: &str) -> std::io::Result<Option<Vec<u8>>> {
         let url_key = format_key(key);
-        let response = http::api_get(&format!(
-            "{}/cache?keys={url_key}&version={VERSION}",
-            self.prefix
-        ))?;
+        let request = ghac_types::GetCacheEntryDownloadUrlRequest {
+            key: url_key.clone(),
+            version: VERSION.into(),
+            metadata: None,
+            restore_keys: vec![],
+        };
+        let body = Buffer::from(request.encode_to_vec());
+        let response = http::api_post(&format!("{}/GetCacheEntryDownloadURL", self.prefix), body)?;
         if response.status == 204 {
             return Ok(None);
         }
-        let response: CacheResponse = json_response(&response)?;
-        if response.cache_key != url_key {
+        let response: GetCacheEntryDownloadUrlResponse =
+            GetCacheEntryDownloadUrlResponse::decode(response.data)?;
+        if response.matched_key != url_key {
             return Err(other_err(format!(
                 "Expected key {url_key:?}, was {:?}",
-                response.cache_key
+                response.matched_key
             )));
         }
-        let response = http::raw_get(&response.archive_location)?;
+        let response = http::raw_get(&response.signed_download_url)?;
         Ok(Some(response.data))
     }
 }
