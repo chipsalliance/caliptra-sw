@@ -98,6 +98,7 @@ impl ImageGeneratorCrypto for RustCrypto {
         sign_with_lms_key::<RustCryptoHasher>(priv_key, &message, &nonce, SUPPORTED_LMS_Q_VALUE)
     }
 
+    // [TODO][CAP2]: Update to use RustCrypto API when available.
     fn mldsa_sign(
         &self,
         msg: &[u8],
