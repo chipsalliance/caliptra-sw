@@ -50,7 +50,7 @@ impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_ECC384_INFO: Self = Self(0x49444549); // "IDEI"
-    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
+    pub const POPULATE_IDEV_ECC384_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_ECC384_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const GET_FMC_ALIAS_ECC384_CERT: Self = Self(0x43455246); // "CERF"
     pub const GET_RT_ALIAS_ECC384_CERT: Self = Self(0x43455252); // "CERR"
@@ -571,7 +571,7 @@ impl MailboxReq {
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
-            MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_CERT,
+            MailboxReq::PopulateIdevEcc384Cert(_) => CommandId::POPULATE_IDEV_ECC384_CERT,
             MailboxReq::GetIdevEcc384Cert(_) => CommandId::GET_IDEV_ECC384_CERT,
             MailboxReq::GetIdevMldsa87Cert(_) => CommandId::GET_IDEV_MLDSA87_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,

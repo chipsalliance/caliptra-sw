@@ -27,34 +27,34 @@ impl From<MyCustomField> for RvData {
 struct MyBus {
     pub log: Log,
 
-    #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x0000_0000, len = 0x0fff_ffff)]
     pub rom: Ram,
 
-    #[peripheral(offset = 0x1000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x1000_0000, len = 0x0fff_ffff)]
     pub sram: Ram,
 
-    #[peripheral(offset = 0x2000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x2000_0000, len = 0x0fff_ffff)]
     pub dram: Ram,
 
-    #[peripheral(offset = 0xaa00_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0xaa00_0000, len = 0x80)]
     pub uart0: Ram,
 
-    #[peripheral(offset = 0xaa01_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0xaa01_0000, len = 0x80)]
     pub uart1: Ram,
 
-    #[peripheral(offset = 0xaa02_0000, mask = 0x0000_00ff)]
+    #[peripheral(offset = 0xaa02_0000, len = 0x80)]
     pub i2c0: Ram,
 
-    #[peripheral(offset = 0xaa02_0400, mask = 0x0000_00ff)]
+    #[peripheral(offset = 0xaa02_0400, len = 0x80)]
     pub i2c1: Ram,
 
-    #[peripheral(offset = 0xaa02_0800, mask = 0x0000_00ff)]
+    #[peripheral(offset = 0xaa02_0800, len = 0x80)]
     pub i2c2: Ram,
 
-    #[peripheral(offset = 0xbb42_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0xbb42_0000, len = 0x10000)]
     pub spi0: Ram,
 
-    #[peripheral(offset = 0xaa05_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0xaa05_0000, len = 0x10000)]
     pub fake: FakeBus,
 
     #[register(offset = 0xcafe_f0d0)]
@@ -517,7 +517,7 @@ fn test_write_dispatch() {
 }
 
 #[test]
-fn test_poll_and_dma() {
+fn test_poll() {
     let mut bus = MyBus {
         rom: Ram::new(vec![0u8; 65536]),
         sram: Ram::new(vec![0u8; 65536]),
@@ -547,5 +547,5 @@ fn test_poll_and_dma() {
     };
     Bus::poll(&mut bus);
     assert_eq!(bus.log.take(), "poll; ");
-    assert_eq!(bus.fake.log.take(), "poll()\n");
+    assert_eq!(bus.fake.log.take(), "poll()\n")
 }

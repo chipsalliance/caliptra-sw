@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_api_types::{DeviceLifecycle, SecurityState};
 use caliptra_emu_bus::Clock;
-use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
+use caliptra_emu_cpu::{Cpu, CpuArgs, Pic, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, MailboxRequester,
@@ -263,7 +263,7 @@ fn main() -> io::Result<()> {
 
     let log_dir = Rc::new(args_log_dir.to_path_buf());
 
-    let clock = Clock::new();
+    let clock = Rc::new(Clock::new());
 
     let req_idevid_csr = args.get_flag("req-idevid-csr");
     let req_ldevid_cert = args.get_flag("req-ldevid-cert");
@@ -322,10 +322,11 @@ fn main() -> io::Result<()> {
             },
         ),
         subsystem_mode,
+        clock: clock.clone(),
         ..Default::default()
     };
 
-    let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+    let mut root_bus = CaliptraRootBus::new(bus_args);
     // Populate the RRI data
     if subsystem_mode {
         root_bus.dma.axi.recovery.cms_data = vec![current_fw_buf.as_ref().clone()];
@@ -425,7 +426,11 @@ fn main() -> io::Result<()> {
         .fuse_pqc_key_type()
         .write(|w| w.key_type(*pqc_key_type));
 
-    let cpu = Cpu::new(root_bus, clock);
+    let pic = Rc::new(Pic::new());
+
+    let cpu_args = CpuArgs::default();
+
+    let cpu = Cpu::new(root_bus, clock.clone(), pic, cpu_args);
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {
