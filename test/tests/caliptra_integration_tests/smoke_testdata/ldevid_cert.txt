@@ -4,11 +4,11 @@ Certificate:
         Serial Number:
             5e:96:a4:50:f2:3a:8e:4a:53:33:00:5e:60:bf:cf:4d:3d:a8:fa:16
         Signature Algorithm: ecdsa-with-SHA384
-        Issuer: CN=Caliptra 1.0 IDevID/serialNumber=7FFEDEF6DCD6697BD0F381AA37B58112F24BDDB5550D2C791B5798AD202A0351
+        Issuer: CN=Caliptra 2.0 Ecc384 IDevID/serialNumber=7FFEDEF6DCD6697BD0F381AA37B58112F24BDDB5550D2C791B5798AD202A0351
         Validity
             Not Before: Jan  1 00:00:00 2023 GMT
             Not After : Dec 31 23:59:59 9999 GMT
-        Subject: CN=Caliptra 1.0 LDevID/serialNumber=DE96A450F23A8E4A5333005E60BFCF4D3DA8FA1603FAFB605D2B22C44F4C2292
+        Subject: CN=Caliptra 2.0 Ecc384 LDevID/serialNumber=DE96A450F23A8E4A5333005E60BFCF4D3DA8FA1603FAFB605D2B22C44F4C2292
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
@@ -35,9 +35,9 @@ Certificate:
                 34:81:C7:4A:AB:11:71:5C:08:03:D8:78:92:AB:8A:2B:7E:B2:2A:90
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
-        30:65:02:30:3b:2b:4e:7e:2d:38:57:1d:90:63:df:ae:62:8d:
-        02:18:d6:d1:7f:17:56:a1:39:83:83:21:99:22:da:4e:b1:5a:
-        82:41:26:a1:1c:f4:cf:bc:11:5b:f6:c0:88:3f:e7:49:02:31:
-        00:97:52:49:d6:b9:70:d1:72:1e:75:df:71:90:55:d1:19:31:
-        d3:9a:81:01:2d:8d:8d:20:33:2b:87:0c:7e:53:8c:d5:55:24:
-        16:e4:eb:24:de:37:4d:68:94:e1:a8:96:e0
+        30:64:02:30:1f:a4:cd:ad:0e:33:1a:fa:eb:89:ae:a4:9a:56:
+        d9:a5:8e:73:ea:99:1c:95:ae:f6:13:74:dc:21:8a:2b:b5:28:
+        93:47:e2:63:7a:40:1c:86:f6:1a:25:48:76:d3:69:a8:02:30:
+        6e:13:23:b5:a8:94:ca:f3:94:6f:ac:89:7f:c7:9c:b5:28:b9:
+        5a:75:30:0b:80:89:c4:90:df:11:cb:35:34:08:5a:76:a1:0d:
+        f9:81:73:62:35:29:af:40:7f:d1:88:c0

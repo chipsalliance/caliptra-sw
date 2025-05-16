@@ -75,7 +75,7 @@ impl IDevIdCertCmd {
                         return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
                     }
 
-                    let sig = caliptra_x509::Mldsa87Signature {
+                    let sig = caliptra_x509::MlDsa87Signature {
                         sig: cmd.signature[..4627]
                             .try_into()
                             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
@@ -402,7 +402,7 @@ fn mldsa87_cert_from_tbs_and_sig(
     };
 
     let sig_bytes = <[u8; 4628]>::from(sig)[..4627].try_into().unwrap();
-    let signature = caliptra_x509::Mldsa87Signature { sig: sig_bytes };
+    let signature = caliptra_x509::MlDsa87Signature { sig: sig_bytes };
 
     let Some(builder) = MlDsa87CertBuilder::new(tbs, &signature) else {
         return Err(CaliptraError::RUNTIME_INTERNAL);

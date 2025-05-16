@@ -46,21 +46,6 @@ use zeroize::Zeroize;
 pub struct FmcAliasLayer {}
 
 impl FmcAliasLayer {
-    /// Convert GeneralTime (15 bytes) to UTCTime (13 bytes)
-    fn generaltime_to_utctime(general_time: &[u8; 15]) -> [u8; 13] {
-        // GeneralTime format: YYYYMMDDHHMMSSZ (15 bytes)
-        // UTCTime format:       YYMMDDHHMMSSZ (13 bytes)
-        // We need to drop the first two characters (century)
-        let mut utc_time = [0u8; 13];
-
-        // Copy YY part (drop the century)
-        utc_time[0..2].copy_from_slice(&general_time[2..4]);
-        // Copy the rest (MMDDHHMMSSZ)
-        utc_time[2..13].copy_from_slice(&general_time[4..15]);
-
-        utc_time
-    }
-
     /// Perform derivations for the DICE layer
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(
@@ -340,12 +325,6 @@ impl FmcAliasLayer {
         hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
         hasher.finalize(&mut fuse_info_digest)?;
 
-        // Convert GeneralTime to UTCTime for MLDSA certificate
-        let utc_not_before =
-            Self::generaltime_to_utctime(&fw_proc_info.fmc_cert_valid_not_before.value);
-        let utc_not_after =
-            Self::generaltime_to_utctime(&fw_proc_info.fmc_cert_valid_not_after.value);
-
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsMlDsa87Params {
             ueid: &x509::ueid(soc_ifc)?,
@@ -360,8 +339,8 @@ impl FmcAliasLayer {
             tcb_info_flags: &flags,
             tcb_info_fw_svn: &svn.to_be_bytes(),
             tcb_info_fw_svn_fuses: &fuse_svn.to_be_bytes(),
-            not_before: &utc_not_before,
-            not_after: &utc_not_after,
+            not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
+            not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };
 
         // Generate the `To Be Signed` portion of the CSR

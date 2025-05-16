@@ -102,18 +102,18 @@ impl Signature<108> for Ecdsa384Signature {
 }
 
 /// Ml-Dsa87 Signature
-pub struct Mldsa87Signature {
+pub struct MlDsa87Signature {
     pub sig: [u8; 4627],
 }
 
-impl Default for Mldsa87Signature {
+impl Default for MlDsa87Signature {
     /// Returns the "default value" for a type.
     fn default() -> Self {
         Self { sig: [0; 4627] }
     }
 }
 
-impl Signature<4641> for Mldsa87Signature {
+impl Signature<4641> for MlDsa87Signature {
     fn to_der(&self, buf: &mut [u8; 4641]) -> Option<usize> {
         //
         // Signature DER Sequence encoding
@@ -248,5 +248,5 @@ pub type Ecdsa384CertBuilder<'a> = CertBuilder<'a, Ecdsa384Signature, 108>;
 pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
 
 // Type alias for Ml-Dsa87 Certificate Builder
-pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, Mldsa87Signature, 4641>;
+pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, MlDsa87Signature, 4641>;
 pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;

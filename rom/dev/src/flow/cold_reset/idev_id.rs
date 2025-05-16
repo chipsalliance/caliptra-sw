@@ -396,7 +396,7 @@ impl InitDevIdLayer {
         )?;
 
         // Build the CSR with `To Be Signed` & `Signature`
-        let mldsa87_signature = caliptra_x509::Mldsa87Signature {
+        let mldsa87_signature = caliptra_x509::MlDsa87Signature {
             sig: sig.as_bytes()[..4627].try_into().unwrap(),
         };
         let csr_envelop = &mut env.persistent_data.get_mut().idevid_csr_envelop;
