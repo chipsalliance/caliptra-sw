@@ -259,6 +259,7 @@ jobs:
   test_artifacts:
     runs-on: vck190
     needs: [check_cache, build_test_binaries, build_kernel_modules]
+    timeout-minutes: 120
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
