@@ -22,7 +22,7 @@ jobs:
       # CPTRA_COVERAGE_PATH: /tmp
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 7b42b6e70ec4
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
