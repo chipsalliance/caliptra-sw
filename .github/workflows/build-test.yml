@@ -12,7 +12,7 @@ on:
 
 jobs:
   build_and_test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     env:
       CARGO_INCREMENTAL: 0
@@ -22,7 +22,7 @@ jobs:
       # CPTRA_COVERAGE_PATH: /tmp
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: a925026a35c3
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
@@ -41,7 +41,7 @@ jobs:
 
       - name: Install required packages
         run: |
-          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.21-go
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
