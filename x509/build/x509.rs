@@ -14,8 +14,6 @@ Abstract:
 
 use caliptra_common::dice;
 
-use hex::ToHex;
-
 use openssl::asn1::{Asn1Object, Asn1OctetString};
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
@@ -32,8 +30,6 @@ use openssl::x509::extension::KeyUsage as Usage;
 use openssl::x509::extension::SubjectKeyIdentifier;
 use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
-
-use crate::tbs::TbsParam;
 
 const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
     | dice::FLAG_BIT_NOT_SECURE
@@ -379,75 +375,4 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
     let der = Asn1OctetString::new_from_bytes(&der).unwrap();
     let oid = Asn1Object::from_str(TCG_TCB_INFO_OID).unwrap();
     X509Extension::new_from_der(&oid, false, &der).unwrap()
-}
-
-/// Retrieve the TBS from DER encoded vector
-///
-/// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
-/// artifact
-pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
-    if der[0] != 0x30 {
-        panic!("Invalid DER start tag");
-    }
-
-    let der_len_offset = 1;
-
-    let tbs_offset = match der[der_len_offset] {
-        0..=0x7F => der_len_offset + 1,
-        0x81 => der_len_offset + 2,
-        0x82 => der_len_offset + 3,
-        _ => panic!("Unsupported DER Length"),
-    };
-
-    if der[tbs_offset] != 0x30 {
-        panic!("Invalid TBS start tag");
-    }
-
-    let tbs_len_offset = tbs_offset + 1;
-    let tbs_len = match der[tbs_len_offset] {
-        0..=0x7F => der[tbs_len_offset] as usize + 2,
-        0x81 => (der[tbs_len_offset + 1]) as usize + 3,
-        0x82 => {
-            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
-                | (((der[tbs_len_offset + 2]) as usize) + 4)
-        }
-        _ => panic!("Invalid DER Length"),
-    };
-
-    der[tbs_offset..tbs_offset + tbs_len].to_vec()
-}
-
-/// Initialize template parameter with its offset
-pub fn init_param(needle: &[u8], haystack: &[u8], param: TbsParam) -> TbsParam {
-    assert_eq!(needle.len(), param.len);
-    eprintln!("{}", param.name);
-    // Throw an error if there are multiple instances of our "needle"
-    // This could lead to incorrect offsets in the cert template
-    if haystack.windows(param.len).filter(|w| *w == needle).count() > 1 {
-        panic!(
-            "Multiple instances of needle '{}' with value\n\n{}\n\nin haystack\n\n{}",
-            param.name,
-            needle.encode_hex::<String>(),
-            haystack.encode_hex::<String>()
-        );
-    }
-    let pos = haystack.windows(param.len).position(|w| w == needle);
-
-    match pos {
-        Some(offset) => TbsParam { offset, ..param },
-        None => panic!(
-            "Could not find needle '{}' with value\n\n{}\n\nin haystack\n\n{}",
-            param.name,
-            needle.encode_hex::<String>(),
-            haystack.encode_hex::<String>()
-        ),
-    }
-}
-
-/// Sanitize the TBS buffer for the specified parameter
-pub fn sanitize(param: TbsParam, buf: &mut [u8]) -> TbsParam {
-    for byte in buf.iter_mut().skip(param.offset).take(param.len) {
-        *byte = 0x5F;
-    }
-    param
 }
