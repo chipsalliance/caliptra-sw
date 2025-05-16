@@ -164,7 +164,7 @@ pub struct HashSha512Regs {
     block: [u32; SHA512_BLOCK_SIZE_WORDS],
 
     /// SHA512 Hash Memory
-    #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
+    #[peripheral(offset = 0x0000_0100, len = 0x40)]
     hash: ReadWriteMemory<SHA512_HASH_SIZE>,
 
     /// Block Read Control register

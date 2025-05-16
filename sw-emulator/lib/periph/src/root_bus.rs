@@ -209,6 +209,8 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
+    pub pic: Rc<Pic>,
+    pub clock: Rc<Clock>,
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
     // The security state wires provided to caliptra_top
@@ -238,6 +240,8 @@ pub struct CaliptraRootBusArgs<'a> {
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
         Self {
+            clock: Default::default(),
+            pic: Default::default(),
             rom: Default::default(),
             log_dir: Default::default(),
             security_state: Default::default(),
@@ -262,67 +266,67 @@ impl Default for CaliptraRootBusArgs<'_> {
 #[incoming_event_fn(incoming_event)]
 #[register_outgoing_events_fn(register_outgoing_events)]
 pub struct CaliptraRootBus {
-    #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x0000_0000, len = 0x18000)]
     pub rom: Rom,
 
-    #[peripheral(offset = 0x1000_0000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1000_0000, len = 0xa14)]
     pub doe: Doe,
 
-    #[peripheral(offset = 0x1000_8000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1000_8000, len = 0xa14)]
     pub ecc384: AsymEcc384,
 
-    #[peripheral(offset = 0x1001_0000, mask = 0x0000_07ff)]
+    #[peripheral(offset = 0x1001_0000, len = 0xa14)]
     pub hmac: HmacSha,
 
-    #[peripheral(offset = 0x1001_1000, mask = 0x0000_07ff)]
+    #[peripheral(offset = 0x1001_1000, len = 0xa14)]
     pub aes: Aes,
 
-    #[peripheral(offset = 0x1001_1800, mask = 0x0000_07ff)]
+    #[peripheral(offset = 0x1001_1800, len = 0xa14)]
     pub aes_clp: AesClp,
 
-    #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1001_8000, len = 0x44c0)]
     pub key_vault: KeyVault,
 
-    #[peripheral(offset = 0x1002_0000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1002_0000, len = 0xa14)]
     pub sha512: HashSha512,
 
-    #[peripheral(offset = 0x1002_8000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1002_8000, len = 0xa14)]
     pub sha256: HashSha256,
 
-    #[peripheral(offset = 0x1003_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0x1003_0000, len = 0x10000)]
     pub ml_dsa87: Mldsa87,
 
-    #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x4000_0000, len = 0x40000)]
     pub iccm: Iccm,
 
-    #[peripheral(offset = 0x2000_1000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x2000_1000, len = 0x34)]
     pub uart: Uart,
 
-    #[peripheral(offset = 0x2000_2000, mask = 0x0000_1fff)]
+    #[peripheral(offset = 0x2000_2000, len = 0x10e4)]
     pub csrng: Csrng,
 
-    #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x2000_f000, len = 0x4)]
     pub ctrl: EmuCtrl,
 
-    #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x3002_0000, len = 0x28)]
     pub mailbox: MailboxInternal,
 
-    #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x3002_1000, len = 0xa14)]
     pub sha512_acc: Sha512Accelerator,
 
-    #[peripheral(offset = 0x3002_2000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x3002_2000, len = 0xa14)]
     pub dma: Dma,
 
-    #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0x3003_0000, len = 0x820)]
     pub soc_reg: SocRegistersInternal,
 
-    #[peripheral(offset = 0x3004_0000, mask = 0x0003_ffff)]
+    #[peripheral(offset = 0x3004_0000, len = 0x40000)]
     pub mailbox_sram: MailboxRam,
 
-    #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x5000_0000, len = 0x40000)]
     pub dccm: Ram,
 
-    #[peripheral(offset = 0x6000_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0x6000_0000, len = 0x507d)]
     pub pic_regs: PicMmioRegisters,
 }
 
@@ -331,17 +335,18 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 256 * 1024;
     pub const DCCM_SIZE: usize = 256 * 1024;
 
-    pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs<'_>) -> Self {
+    pub fn new(mut args: CaliptraRootBusArgs<'_>) -> Self {
+        let clock = &args.clock.clone();
+        let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let prod_dbg_unlock_keypairs = std::mem::take(&mut args.prod_dbg_unlock_keypairs);
         let iccm = Iccm::new(clock);
-        let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
-        let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
+        let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
             // This is necessary to match the behavior of the RTL.
@@ -381,7 +386,7 @@ impl CaliptraRootBus {
             sha512_acc,
             dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
-            pic_regs: pic.mmio_regs(clock),
+            pic_regs: pic.mmio_regs(clock.clone()),
         }
     }
 
@@ -441,10 +446,10 @@ impl CaliptraRootBus {
 
 #[derive(Bus)]
 pub struct SocToCaliptraBus {
-    #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
+    #[peripheral(offset = 0x3002_0000, len = 0x1000)]
     pub mailbox: MailboxExternal,
 
-    #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0x3003_0000, len = 0x1000)]
     soc_ifc: SocRegistersExternal,
 }
 
@@ -456,14 +461,10 @@ mod tests {
 
     #[test]
     fn test_keyvault_init_val_in_debug_unlocked_mode() {
-        let clock = Clock::new();
-        let mut root_bus = CaliptraRootBus::new(
-            &clock,
-            CaliptraRootBusArgs {
-                security_state: *SecurityState::default().set_debug_locked(false),
-                ..CaliptraRootBusArgs::default()
-            },
-        );
+        let mut root_bus = CaliptraRootBus::new(CaliptraRootBusArgs {
+            security_state: *SecurityState::default().set_debug_locked(false),
+            ..CaliptraRootBusArgs::default()
+        });
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_key(true);
 
@@ -488,14 +489,10 @@ mod tests {
 
     #[test]
     fn test_keyvault_init_val_in_debug_locked_mode() {
-        let clock = Clock::new();
-        let mut root_bus = CaliptraRootBus::new(
-            &clock,
-            CaliptraRootBusArgs {
-                security_state: *SecurityState::default().set_debug_locked(true),
-                ..CaliptraRootBusArgs::default()
-            },
-        );
+        let mut root_bus = CaliptraRootBus::new(CaliptraRootBusArgs {
+            security_state: *SecurityState::default().set_debug_locked(true),
+            ..CaliptraRootBusArgs::default()
+        });
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_key(true);
 

@@ -17,7 +17,7 @@ use caliptra_emu_bus::EventData;
 use caliptra_emu_bus::{Bus, BusMmio};
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
-use caliptra_emu_cpu::{Cpu, InstrTracer};
+use caliptra_emu_cpu::{Cpu, CpuArgs, InstrTracer, Pic};
 use caliptra_emu_periph::dma::recovery::RecoveryControl;
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
@@ -147,8 +147,11 @@ impl HwModel for ModelEmulated {
     where
         Self: Sized,
     {
-        let clock = Clock::new();
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
         let timer = clock.timer();
+
+        let args = CpuArgs::default();
 
         let ready_for_fw = Rc::new(Cell::new(false));
         let ready_for_fw_clone = ready_for_fw.clone();
@@ -182,9 +185,11 @@ impl HwModel for ModelEmulated {
             itrng_nibbles: Some(params.itrng_nibbles),
             etrng_responses: params.etrng_responses,
             test_sram: params.test_sram,
+            clock: clock.clone(),
+            pic: pic.clone(),
             ..CaliptraRootBusArgs::default()
         };
-        let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+        let mut root_bus = CaliptraRootBus::new(bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
         root_bus.soc_reg.set_hw_config(
@@ -212,7 +217,7 @@ impl HwModel for ModelEmulated {
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus(params.soc_user);
         let (events_to_caliptra, events_from_caliptra, cpu) = {
-            let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
+            let mut cpu = Cpu::new(BusLogger::new(root_bus), clock, pic, args);
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
             }

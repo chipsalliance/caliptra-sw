@@ -325,7 +325,14 @@ impl RtAliasLayer {
         not_after: &[u8; RtAliasCertTbsEcc384Params::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
         Self::generate_ecc_cert_sig(env, input, output, not_before, not_after)?;
-        Self::generate_mldsa_cert_sig(env, input, output, not_before, not_after)?;
+        // [CAP2][TODO] properly adapt to UTC time
+        Self::generate_mldsa_cert_sig(
+            env,
+            input,
+            output,
+            not_before[2..].try_into().unwrap(),
+            &not_after[2..].try_into().unwrap(),
+        )?;
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 
