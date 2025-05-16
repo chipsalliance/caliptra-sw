@@ -21,16 +21,17 @@ use caliptra_common::mailbox_api::{
     CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
     CmAesGcmDecryptUpdateResp, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
     CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-    CmAesGcmEncryptUpdateResp, CmAesResp, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
-    CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp,
-    CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq,
-    CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp, CmHmacReq, CmHmacResp,
-    CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
-    CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp,
-    CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
-    Cmk as MailboxCmk, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-    CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-    CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmAesGcmEncryptUpdateResp, CmAesResp, CmDeleteReq, CmEcdhFinishReq, CmEcdhFinishResp,
+    CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
+    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq,
+    CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
+    CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
+    CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq,
+    CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk as MailboxCmk, MailboxRespHeader,
+    MailboxRespHeaderVarSize, ResponseVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE,
+    CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
+    CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     hkdf_expand, hkdf_extract, hmac_kdf,
@@ -141,6 +142,22 @@ impl CmStorage {
                 }
             }
         }
+    }
+
+    /// Deletes the counter for the given key id, if it exists.
+    pub fn delete_counter(&mut self, key_id: u32) -> CaliptraResult<()> {
+        match self.counters.binary_search_by_key(&key_id, |k| k.key_id) {
+            Ok(idx) => {
+                self.counters.remove(idx);
+                Ok(())
+            }
+            Err(_) => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
+        }
+    }
+
+    /// Deletes all counters.
+    pub fn clear_counters(&mut self) {
+        self.counters.clear();
     }
 
     fn encrypt_cmk(
@@ -500,6 +517,53 @@ impl Commands {
         resp.hdr = MailboxRespHeader::default();
         resp.cmk = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmImportResp>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn delete(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() != core::mem::size_of::<CmDeleteReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
+        let encrypted_cmk =
+            EncryptedCmk::ref_from_bytes(&cmd_bytes[core::mem::offset_of!(CmDeleteReq, cmk)..])
+                .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let decrypted_cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+
+        drivers
+            .cryptographic_mailbox
+            .delete_counter(decrypted_cmk.key_id())?;
+
+        let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+        *resp = MailboxRespHeader::default();
+        Ok(core::mem::size_of::<MailboxRespHeader>())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn clear(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+
+        drivers.cryptographic_mailbox.clear_counters();
+
+        let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
+        *resp = MailboxRespHeader::default();
+        Ok(core::mem::size_of::<MailboxRespHeader>())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
