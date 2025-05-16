@@ -40,8 +40,7 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
-If Runtime Firmware detects that Caliptra was reset during the execution of an operation, Runtime Firmware calls `DISABLE_ATTESTATION` because the internal state of Caliptra may
-be corrupted.
+If Runtime Firmware detects that Caliptra was reset during the execution of an operation, Runtime Firmware calls `DISABLE_ATTESTATION` because the internal state of Caliptra may be corrupted.
 
 ### Main loop
 
@@ -218,7 +217,7 @@ This feature is accomplished by having the SoC send a manifest to Caliptra Runti
 
 #### Preamble
 
-The manifest begins with the Preamble section, which contains new manifest ECC and LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
+The manifest begins with the Preamble section, which contains new manifest ECC and either MLDSA or LMS public keys of the vendor and the owner. These public keys correspond to the private keys that sign the Image Metadata Collection (IMC) section. These signatures are included in the Preamble. The Caliptra firmware's private keys endorse the manifest's public keys and these endorsements (i.e., signatures) are part of the Preamble as well.
 
 #### Image Metadata Collection (IMC)
 
@@ -337,13 +336,13 @@ Command Code: `0x4341_5053` ("CAPS")
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | capabilities  | u8[16]     | Firmware capabilities
 
-### GET\_IDEV\_CERT
+### GET\_IDEV\_ECC384\_CERT
 
-Exposes a command to reconstruct the IDEVID CERT.
+Exposes a command to reconstruct the ECC384 IDEVID CERT.
 
 Command Code: `0x4944_4543` ("IDEC")
 
-*Table: `GET_IDEV_CERT` input arguments*
+*Table: `GET_IDEV_ECC384_CERT` input arguments*
 
 | **Name**      | **Type**      | **Description**
 | --------      | --------      | ---------------
@@ -353,51 +352,75 @@ Command Code: `0x4944_4543` ("IDEC")
 | tbs\_size     | u32           | Size of the TBS.
 | tbs           | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
 
-*Table: `GET_IDEV_CERT` output arguments*
+*Table: `GET_IDEV_ECC384_CERT` output arguments*
 
 | **Name**      | **Type**   | **Description**
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
-| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId certificate.
-| cert          | u8[1024]   | DER-encoded IDevID CERT.
+| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId ECC384 certificate.
+| cert          | u8[1024]   | DER-encoded IDevID ECC384 CERT.
 
-### POPULATE\_IDEV\_CERT
+### GET\_IDEV\_MLDSA87\_CERT
+
+Exposes a command to reconstruct the MLDSA87 IDEVID CERT.
+
+Command Code: `0x4944_4D43` ("IDMC")
+
+*Table: `GET_IDEV_MLDSA87_CERT` input arguments*
+
+| **Name**      | **Type**      | **Description**
+| --------      | --------      | ---------------
+| chksum        | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| tbs\_size     | u32           | Size of the TBS.
+| signature     | u8[4628]      | MLDSA87 signature bytes.
+| tbs           | u8[2820]      | TBS, with a maximum size of 2820. Only bytes up to tbs_size are used.
+
+*Table: `GET_IDEV_MLDSA87_CERT` output arguments*
+
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId MLDSA87 certificate.
+| cert          | u8[...]    | DER-encoded IDevID MLDSA87 CERT.
+
+### POPULATE\_IDEV\_ECC384\_CERT
 
 Exposes a command that allows the SoC to provide a DER-encoded
-IDevId certificate on every boot. The IDevId certificate is added
+ECC384 IDevId certificate on every boot. The ECC384 IDevId certificate is added
 to the start of the certificate chain.
 
 Command Code: `0x4944_4550` ("IDEP")
 
-*Table: `POPULATE_IDEV_CERT` input arguments*
+*Table: `POPULATE_IDEV_ECC384_CERT` input arguments*
 
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| cert\_size   | u32           | Size of the DER-encoded IDevId certificate.
-| cert         | u8[1024]      | DER-encoded IDevID CERT.
+| cert\_size   | u32           | Size of the DER-encoded ECC384 IDevId certificate.
+| cert         | u8[1024]      | DER-encoded ECC384 IDevID CERT.
 
-*Table: `POPULATE_IDEV_CERT` output arguments*
+*Table: `POPULATE_IDEV_ECC384_CERT` output arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
-### GET\_IDEV\_INFO
+### GET\_IDEV\_ECC384\_INFO
 
-Exposes a command to get an IDEVID public key.
+Exposes a command to get the IDEVID ECC384 public key.
 
 Command Code: `0x4944_4549` ("IDEI")
 
-*Table: `GET_IDEV_INFO` input arguments*
+*Table: `GET_IDEV_ECC384_INFO` input arguments*
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
-*Table: `GET_IDEV_INFO` output arguments*
+*Table: `GET_IDEV_ECC384_INFO` output arguments*
 
 | **Name**      | **Type**   | **Description**
 | --------      | --------   | ---------------
@@ -406,68 +429,130 @@ Command Code: `0x4944_4549` ("IDEI")
 | idev\_pub\_x  | u8[48]     | X portion of ECDSA IDevId key.
 | idev\_pub\_y  | u8[48]     | Y portion of ECDSA IDevId key.
 
-### GET\_LDEV\_CERT
+### GET\_IDEV\_MLDSA87\_INFO
 
-Exposes a command to get a self-signed LDevID certificate signed by IDevID.
+Exposes a command to get the IDEVID MLDSA87 public key.
+
+Command Code: `0x4944_4D49` ("IDMI")
+
+*Table: `GET_IDEV_MLDSA87_INFO` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_IDEV_MLDSA87_INFO` output arguments*
+
+| **Name**       | **Type**   | **Description**
+| --------       | --------   | ---------------
+| chksum         | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status   | u32        | Indicates if the command is FIPS approved or an error.
+| idev\_pub\_key | u8[2592]   | MLDSA IDevId public key.
+
+### GET\_LDEV\_ECC384\_CERT
+
+Exposes a command to get a LDevID ECC384 certificate signed by ECC384 IDevID private key.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
-*Table: `GET_LDEV_CERT` input arguments*
+*Table: `GET_LDEV_ECC384_CERT` input arguments*
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
-*Table: `GET_LDEV_CERT` output arguments*
+*Table: `GET_LDEV_ECC384_CERT` output arguments*
 
 | **Name**      | **Type**   | **Description**
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | data\_size    | u32        | Length in bytes of the valid data in the data field.
-| data          | u8[...]    | DER-encoded LDevID certificate.
+| data          | u8[...]    | DER-encoded ECC384 LDevID certificate.
 
-### GET\_FMC\_ALIAS\_CERT
+### GET\_LDEV\_MLDSA87\_CERT
 
-Exposes a command to get a self-signed FMC alias certificate signed by LDevID.
+Exposes a command to get a LDevID MLDSA87 certificate signed by MLDSA87 IDevID private key.
+
+Command Code: `0x4C44_4D43` ("LDMC")
+
+*Table: `GET_LDEV_MLDSA87_CERT` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_LDEV_MLDSA87_CERT` output arguments*
+
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded MLDSA87 LDevID certificate.
+
+### GET\_FMC\_ALIAS\_ECC384\_CERT
+
+Exposes a command to get a FMC alias ECC384 certificate signed by the ECC384 LDevID private key.
 
 Command Code: `0x4345_5246` ("CERF")
 
-*Table: `GET_FMC_ALIAS_CERT` input arguments*
+*Table: `GET_FMC_ALIAS_ECC384_CERT` input arguments*
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
-*Table: `GET_FMC_ALIAS_CERT` output arguments*
+*Table: `GET_FMC_ALIAS_ECC384_CERT` output arguments*
 
 | **Name**      | **Type**   | **Description**
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | data\_size    | u32        | Length in bytes of the valid data in the data field.
-| data          | u8[...]    | DER-encoded FMC alias certificate.
+| data          | u8[...]    | DER-encoded FMC alias ECC384 certificate.
 
-### GET\_RT\_ALIAS\_CERT
+### GET\_FMC\_ALIAS\_ECC384\_CERT
 
-Exposes a command to get a self-signed Runtime alias certificate signed by the FMC alias.
+Exposes a command to get a FMC alias MLDSA87 certificate signed by the MLDSA87 LDevID private key.
+
+Command Code: `0x434D_4346` ("CMCF")
+
+*Table: `GET_FMC_ALIAS_MLDSA87_CERT` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_FMC_ALIAS_MLDSA87_CERT` output arguments*
+
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded FMC alias MLDSA87 certificate.
+
+### GET\_RT\_ALIAS\_ECC384\_CERT
+
+Exposes a command to get a Runtime alias ECC384 certificate signed by the ECC384 FMC alias private key.
 
 Command Code: `0x4345_5252` ("CERR")
 
-*Table: `GET_RT_ALIAS_CERT` input arguments*
+*Table: `GET_RT_ALIAS_ECC384_CERT` input arguments*
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
-*Table: `GET_RT_ALIAS_CERT` output arguments*
+*Table: `GET_RT_ALIAS_ECC384_CERT` output arguments*
 
 | **Name**      | **Type**   | **Description**
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | data\_size    | u32        | Length in bytes of the valid data in the data field.
-| data          | u8[...]    | DER-encoded Runtime alias certificate.
+| data          | u8[...]    | DER-encoded Runtime alias ECC384 certificate.
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -496,7 +581,7 @@ Command Code: `0x4543_5632` ("ECV2")
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
-### LMS\_SIGNATURE\_VERIFY (new in 1.1)
+### LMS\_SIGNATURE\_VERIFY
 
 Verifies an LMS signature. The hash to be verified is taken from the input (new in 2.0).
 
@@ -945,17 +1030,17 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | preamble\_version             | u32          | Version of the preamble                                                     |
 | preamble\_flags               | u32          | Manifest flags. See AUTH_MANIFEST_FLAGS below |
 | preamble\_vendor\_ecc384\_key | u32[24]      | Vendor ECC384 key with X and Y coordinates in that order                    |
-| preamble\_vendor\_lms\_key    | u32[6]       | Vendor LMS-SHA192-H15 key                                                   |
+| preamble\_vendor\_pqc\_key    | u32[648]       | Vendor MLDSA-87 or LMS-SHA192-H15 key                                                   |
 | preamble\_vendor\_ecc384\_sig | u32[24]      | Vendor ECC384 signature                                                     |
-| preamble\_vendor\_LMS\_sig    | u32[1344]    | Vendor LMOTS-SHA192-W4 signature                                            |
+| preamble\_vendor\_PQC\_sig    | u32[1157]    | Vendor MLDSA-87 or LMOTS-SHA192-W4 signature                                            |
 | preamble\_owner\_ecc384\_key  | u32[24]      | Owner ECC384 key with X and Y coordinates in that order                     |
-| preamble\_owner\_lms\_key     | u32[6]       | Owner LMS-SHA192-H15 key                                                    |
+| preamble\_owner\_pqc\_key     | u32[648]       | Owner MLDSA-87 or LMS-SHA192-H15 key                                                    |
 | preamble\_owner\_ecc384\_sig  | u32[24]      | Owner ECC384 signature                                                      |
-| preamble\_owner\_LMS\_sig     | u32[1344]    | Owner LMOTS-SHA192-W4 signature                                             |
+| preamble\_owner\_PQC\_sig     | u32[1157]    | Owner MLDSA-87 or LMOTS-SHA192-W4 signature                                             |
 | metadata\_vendor\_ecc384\_sig | u32[24]      | Metadata Vendor ECC384 signature                                            |
-| metadata\_vendor\_LMS\_sig    | u32[1344]    | Metadata Vendor LMOTS-SHA192-W4 signature                                   |
+| metadata\_vendor\_PQC\_sig    | u32[1157]    | Metadata Vendor MLDSA-87 or LMOTS-SHA192-W4 signature                                   |
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature                                             |
-| metadata\_owner\_LMS\_sig     | u32[1344]    | Metadata Owner LMOTS-SHA192-W4 signature                                    |
+| metadata\_owner\_PQC\_sig     | u32[1157]    | Metadata Owner MLDSA-87 or LMOTS-SHA192-W4 signature                                    |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
 | metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
 

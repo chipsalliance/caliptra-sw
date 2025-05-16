@@ -40,11 +40,9 @@ pub struct DiceInput {
     pub mldsa_auth_key_pair: MlDsaKeyPair,
 
     /// MLDSA Authority Serial Number
-    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_auth_sn: [u8; 64],
 
     /// MLDSA Authority Key Identifier
-    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_auth_key_id: [u8; 20],
 }
 
@@ -67,10 +65,8 @@ pub struct DiceOutput {
     pub mldsa_subj_key_pair: MlDsaKeyPair,
 
     /// MLDSA Subject Serial Number
-    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_subj_sn: [u8; 64],
 
     /// MLDSA Subject Key Identifier
-    #[allow(dead_code)] // [TODO][CAP2] remove when used
     pub mldsa_subj_key_id: [u8; 20],
 }

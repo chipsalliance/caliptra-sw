@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-use crate::tbs::{TbsParam, TbsTemplate};
+use crate::tbs::{get_tbs, init_param, sanitize, TbsParam, TbsTemplate};
 use crate::x509::{self, AsymKey, KeyUsage, SigningAlgorithm};
 use openssl::stack::Stack;
 use openssl::x509::{X509Extension, X509NameBuilder, X509ReqBuilder};
@@ -128,13 +128,13 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
         let der = csr.to_der().unwrap();
 
         // Retrieve the To be signed portion from the CSR
-        let mut tbs = x509::get_tbs(der);
+        let mut tbs = get_tbs(der);
 
         // Calculate the offset of parameters and sanitize the TBS section
         let params = self
             .params
             .iter()
-            .map(|p| x509::sanitize(x509::init_param(&p.needle, &tbs, p.tbs_param), &mut tbs))
+            .map(|p| sanitize(init_param(&p.needle, &tbs, p.tbs_param), &mut tbs))
             .collect();
         // Create the template
         TbsTemplate::new(tbs, params)

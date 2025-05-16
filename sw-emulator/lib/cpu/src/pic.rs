@@ -60,7 +60,7 @@ impl Pic {
             pic: self.pic.clone(),
         }
     }
-    pub fn mmio_regs(&self, clock: &Clock) -> PicMmioRegisters {
+    pub fn mmio_regs(&self, clock: Rc<Clock>) -> PicMmioRegisters {
         PicMmioRegisters {
             pic: self.pic.clone(),
             timer: clock.timer(),
@@ -70,7 +70,20 @@ impl Pic {
     pub fn highest_priority_irq(&self, prithresh: u8) -> Option<u8> {
         self.pic.highest_priority_irq(prithresh)
     }
+
+    pub fn highest_priority_irq_total(&self) -> Option<u8> {
+        for i in (0..MAX_PRIORITY).rev() {
+            match self.highest_priority_irq(i) {
+                Some(irq) => {
+                    return Some(irq);
+                }
+                None => continue,
+            }
+        }
+        None
+    }
 }
+
 impl Default for Pic {
     fn default() -> Self {
         Pic::new()
@@ -85,23 +98,29 @@ pub struct PicMmioRegisters {
     timer: Timer,
 }
 impl PicMmioRegisters {
+    // priority levels
     const MEIPL_OFFSET: RvAddr = 0x0000;
     const MEIPL_MIN: RvAddr = Self::MEIPL_OFFSET + 4;
     const MEIPL_MAX: RvAddr = Self::MEIPL_OFFSET + 31 * 4;
 
+    // pending interrupts
     #[allow(dead_code)]
     const MEIP_OFFSET: RvAddr = 0x1000;
 
+    // interrupt enable
     const MEIE_OFFSET: RvAddr = 0x2000;
     const MEIE_MIN: RvAddr = Self::MEIE_OFFSET + 4;
     const MEIE_MAX: RvAddr = Self::MEIE_OFFSET + 31 * 4;
 
+    // PIC configuration register
     const MPICCFG_OFFSET: RvAddr = 0x3000;
 
+    // machine external interrupt gateway configuration/control registers
     const MEIGWCTRL_OFFSET: RvAddr = 0x4000;
     const MEIGWCTRL_MIN: RvAddr = Self::MEIGWCTRL_OFFSET + 4;
     const MEIGWCTRL_MAX: RvAddr = Self::MEIGWCTRL_OFFSET + 31 * 4;
 
+    // machine external interrupt gateway clear registers
     const MEIGWCLR_OFFSET: RvAddr = 0x5000;
     const MEIGWCLR_MIN: RvAddr = Self::MEIGWCLR_OFFSET + 4;
     const MEIGWCLR_MAX: RvAddr = Self::MEIGWCLR_OFFSET + 31 * 4;
@@ -170,7 +189,6 @@ impl Bus for PicMmioRegisters {
     fn poll(&mut self) {
         const EXT_INT_DELAY: u64 = 2;
         if let Some(irq) = self.pic.highest_priority_irq(MAX_PRIORITY - 1) {
-            self.pic.irq_set_level(irq, false);
             self.timer.schedule_action_in(
                 EXT_INT_DELAY,
                 TimerAction::ExtInt {
@@ -179,7 +197,6 @@ impl Bus for PicMmioRegisters {
                 },
             );
         } else if let Some(irq) = self.pic.highest_priority_irq(0) {
-            self.pic.irq_set_level(irq, false);
             self.timer.schedule_action_in(
                 EXT_INT_DELAY,
                 TimerAction::ExtInt {
@@ -243,7 +260,7 @@ register_bitfields! [
 struct PicImplRegs {
     // External interrupt priority level register. Irq id #1 starts at
     // meipl[1] (address 0x0004); meipl[0] is reserved.
-    #[peripheral(offset = 0x0000, mask = 0x0fff)]
+    #[peripheral(offset = 0x0000, len = 0x80)]
     meipl: ReadWriteRegisterArray<u32, 32, Meipl::Register>,
 
     // External Interrupt Pending. Irq id #1 starts at meip[1]; meip[0] is
@@ -253,7 +270,7 @@ struct PicImplRegs {
 
     // External Interrupt Enabled. Irq id #1 starts at meie[1] (address 0x2004);
     // meie[0] is reserved.
-    #[peripheral(offset = 0x2000, mask = 0x0fff)]
+    #[peripheral(offset = 0x2000, len = 0x80)]
     meie: ReadWriteRegisterArray<u32, 32, Meie::Register>,
 
     #[register(offset = 0x3000)]
@@ -261,7 +278,7 @@ struct PicImplRegs {
 
     // External Interrupt Gateway Configuration. Irq id #1 starts at
     // meigwctrl[1] (address 0x4004); meigwctrl[0] is reserved.
-    #[peripheral(offset = 0x4000, mask = 0x0fff)]
+    #[peripheral(offset = 0x4000, len = 0x80)]
     meigwctrl: ReadWriteRegisterArray<u32, 32, Meigwctrl::Register>,
 }
 impl PicImplRegs {
@@ -371,6 +388,7 @@ impl PicImpl {
         result.refresh_order();
         result
     }
+
     fn highest_priority_irq(&self, prithresh: u8) -> Option<u8> {
         assert!(prithresh <= MAX_PRIORITY);
         match self.ordered_irq_pending.first_set_index() {
@@ -385,6 +403,7 @@ impl PicImpl {
             None => None,
         }
     }
+
     fn irq_set_level(&self, id: u8, mut is_high: bool) {
         let regs = self.regs.borrow();
 
@@ -402,6 +421,7 @@ impl PicImpl {
         regs.meip.set(id, is_high);
         self.set_ordered_irq_pending(&regs, id, is_high);
     }
+
     fn set_ordered_irq_pending(&self, regs: &PicImplRegs, id: u8, is_pending: bool) {
         let enabled = regs.meie[usize::from(id)].is_set(Meie::INTEN);
         self.ordered_irq_pending.set(
@@ -409,12 +429,15 @@ impl PicImpl {
             enabled && is_pending,
         );
     }
+
     fn refresh_gateway(&self, id: u8) {
         self.irq_set_level(id, self.irq_levels.get(id));
     }
+
     fn refresh_enabled(&self, regs: &PicImplRegs, id: u8) {
         self.set_ordered_irq_pending(regs, id, regs.meip.get(id));
     }
+
     fn refresh_order(&self) {
         let regs = self.regs.borrow();
         let priority_xor = if regs
@@ -442,6 +465,7 @@ impl PicImpl {
         for (index, p) in priorities.iter().enumerate() {
             id_to_order[usize::from(p.id)] = u8::try_from(index).unwrap();
         }
+
         self.priority_xor.set(priority_xor);
         self.priority_order.set(priorities);
         self.id_to_order.set(id_to_order);
@@ -458,7 +482,7 @@ mod tests {
     #[test]
     fn test_interrupt_priority_order() {
         let pic = Pic::new();
-        let mut regs = pic.mmio_regs(&Clock::new());
+        let mut regs = pic.mmio_regs(Rc::new(Clock::new()));
 
         // Register some IRQs; typically these would be given to various peripherals that
         // want to raise IRQ signals
