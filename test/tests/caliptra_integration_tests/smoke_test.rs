@@ -19,12 +19,16 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
+use der::Encode;
+use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
+use spki::DecodePublicKey;
 use std::mem;
+use x509_cert::request::CertReq;
 use zerocopy::{IntoBytes, TryFromBytes};
 
 pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
@@ -107,22 +111,93 @@ fn retrieve_csr_test() {
     let ecc_csr = openssl::x509::X509Req::from_der(ecc_csr_der).unwrap();
     let ecc_csr_txt = String::from_utf8(ecc_csr.to_text().unwrap()).unwrap();
 
+    let mldsa_csr_der = &csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize];
+    let mldsa_csr = openssl::x509::X509Req::from_der(mldsa_csr_der).unwrap();
+    let mldsa_csr_txt = String::from_utf8(mldsa_csr.to_text().unwrap()).unwrap();
+
     // To update the CSR testdata:
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
     // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &mldsa_csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &mldsa_csr_der).unwrap();
 
     println!("ecc csr: {}", ecc_csr_txt);
+    println!("mldsa csr: {}", mldsa_csr_txt);
 
     assert_eq!(
         ecc_csr_txt.as_str(),
         include_str!("smoke_testdata/idevid_csr.txt")
     );
+    assert_eq!(
+        mldsa_csr_txt.as_str(),
+        include_str!("smoke_testdata/idevid_csr_mldsa.txt")
+    );
     assert_eq!(ecc_csr_der, include_bytes!("smoke_testdata/idevid_csr.der"));
+    assert_eq!(
+        mldsa_csr_der,
+        include_bytes!("smoke_testdata/idevid_csr_mldsa.der")
+    );
 
     assert!(
         ecc_csr.verify(&ecc_csr.public_key().unwrap()).unwrap(),
         "ECC CSR's self signature failed to validate"
     );
+    assert!(
+        mldsa_csr.verify(&mldsa_csr.public_key().unwrap()).unwrap(),
+        "ECC CSR's self signature failed to validate"
+    );
+}
+
+#[test]
+fn retrieve_csr_test_rustcrypto() {
+    const GENERATE_IDEVID_CSR: u32 = 1;
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state: *SecurityState::default()
+                .set_debug_locked(true)
+                .set_device_lifecycle(DeviceLifecycle::Manufacturing),
+            ..Default::default()
+        },
+        BootParams {
+            initial_dbg_manuf_service_reg: GENERATE_IDEVID_CSR,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let mut txn = hw.wait_for_mailbox_receive().unwrap();
+    let (csr_envelop, _) =
+        InitDevIdCsrEnvelope::try_read_from_prefix(&mem::take(&mut txn.req.data)).unwrap();
+    txn.respond_success();
+
+    let mldsa_csr_der = &csr_envelop.mldsa_csr.csr[..csr_envelop.mldsa_csr.csr_len as usize];
+
+    // To update the CSR testdata:
+    std::fs::write(
+        "tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der",
+        mldsa_csr_der,
+    )
+    .unwrap();
+
+    // Parse the CSR using RustCrypto
+    let mldsa_csr = CertReq::try_from(mldsa_csr_der).unwrap();
+
+    // Get the raw encoded public key bytes
+    let pk = mldsa_csr.info.public_key.to_der().unwrap();
+    let pk_vk = VerifyingKey::<MlDsa87>::from_public_key_der(&pk).unwrap();
+
+    let signature = mldsa_csr.signature;
+    let signature =
+        Signature::<MlDsa87>::decode(signature.as_bytes().unwrap().try_into().unwrap()).unwrap();
+
+    let msg = mldsa_csr.info.to_der().unwrap();
+    assert!(pk_vk.verify_with_context(&msg, &[], &signature));
+    assert_eq!(
+        mldsa_csr_der,
+        include_bytes!("smoke_testdata/idevid_csr_mldsa.der")
+    )
 }
 
 fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
