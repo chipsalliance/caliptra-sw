@@ -20,6 +20,7 @@ ecdsa = { workspace = true, optional = true }
 sec1 = { workspace = true, optional = true }
 zerocopy.workspace = true
 cfg-if.workspace = true
+fips204.workspace = true
 
 [features]
 default = ["openssl"]

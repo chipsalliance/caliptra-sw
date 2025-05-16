@@ -84,6 +84,14 @@ pub trait ImageGeneratorCrypto {
         priv_key: &ImageLmsPrivKey,
     ) -> anyhow::Result<ImageLmsSignature>;
 
+    /// Calculate MLDSA Signature
+    fn mldsa_sign(
+        &self,
+        msg: &[u8],
+        priv_key: &ImageMldsaPrivKey,
+        pub_key: &ImageMldsaPubKey,
+    ) -> anyhow::Result<ImageMldsaSignature>;
+
     /// Read ECC-384 Public Key from PEM file
     fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey>;
 
