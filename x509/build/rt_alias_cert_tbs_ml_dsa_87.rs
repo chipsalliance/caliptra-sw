@@ -16,8 +16,8 @@ pub struct RtAliasCertTbsMlDsa87Params<'a> {
     pub subject_key_id: &'a [u8; 20usize],
     pub authority_key_id: &'a [u8; 20usize],
     pub ueid: &'a [u8; 17usize],
-    pub not_before: &'a [u8; 13usize],
-    pub not_after: &'a [u8; 13usize],
+    pub not_before: &'a [u8; 15usize],
+    pub not_after: &'a [u8; 15usize],
     pub tcb_info_fw_svn: &'a [u8; 1usize],
 }
 impl RtAliasCertTbsMlDsa87Params<'_> {
@@ -29,25 +29,25 @@ impl RtAliasCertTbsMlDsa87Params<'_> {
     pub const SUBJECT_KEY_ID_LEN: usize = 20usize;
     pub const AUTHORITY_KEY_ID_LEN: usize = 20usize;
     pub const UEID_LEN: usize = 17usize;
-    pub const NOT_BEFORE_LEN: usize = 13usize;
-    pub const NOT_AFTER_LEN: usize = 13usize;
+    pub const NOT_BEFORE_LEN: usize = 15usize;
+    pub const NOT_AFTER_LEN: usize = 15usize;
     pub const TCB_INFO_FW_SVN_LEN: usize = 1usize;
 }
 pub struct RtAliasCertTbsMlDsa87 {
     tbs: [u8; Self::TBS_TEMPLATE_LEN],
 }
 impl RtAliasCertTbsMlDsa87 {
-    const PUBLIC_KEY_OFFSET: usize = 333usize;
-    const SUBJECT_SN_OFFSET: usize = 207usize;
-    const ISSUER_SN_OFFSET: usize = 57usize;
-    const TCB_INFO_RT_TCI_OFFSET: usize = 3042usize;
+    const PUBLIC_KEY_OFFSET: usize = 337usize;
+    const SUBJECT_SN_OFFSET: usize = 251usize;
+    const ISSUER_SN_OFFSET: usize = 98usize;
+    const TCB_INFO_RT_TCI_OFFSET: usize = 3039usize;
     const SERIAL_NUMBER_OFFSET: usize = 11usize;
-    const SUBJECT_KEY_ID_OFFSET: usize = 3110usize;
-    const AUTHORITY_KEY_ID_OFFSET: usize = 3143usize;
-    const UEID_OFFSET: usize = 2986usize;
+    const SUBJECT_KEY_ID_OFFSET: usize = 3107usize;
+    const AUTHORITY_KEY_ID_OFFSET: usize = 3140usize;
+    const UEID_OFFSET: usize = 2987usize;
     const NOT_BEFORE_OFFSET: usize = 166usize;
-    const NOT_AFTER_OFFSET: usize = 181usize;
-    const TCB_INFO_FW_SVN_OFFSET: usize = 3023usize;
+    const NOT_AFTER_OFFSET: usize = 183usize;
+    const TCB_INFO_FW_SVN_OFFSET: usize = 3021usize;
     const PUBLIC_KEY_LEN: usize = 2592usize;
     const SUBJECT_SN_LEN: usize = 64usize;
     const ISSUER_SN_LEN: usize = 64usize;
@@ -56,37 +56,34 @@ impl RtAliasCertTbsMlDsa87 {
     const SUBJECT_KEY_ID_LEN: usize = 20usize;
     const AUTHORITY_KEY_ID_LEN: usize = 20usize;
     const UEID_LEN: usize = 17usize;
-    const NOT_BEFORE_LEN: usize = 13usize;
-    const NOT_AFTER_LEN: usize = 13usize;
+    const NOT_BEFORE_LEN: usize = 15usize;
+    const NOT_AFTER_LEN: usize = 15usize;
     const TCB_INFO_FW_SVN_LEN: usize = 1usize;
-    pub const TBS_TEMPLATE_LEN: usize = 3163usize;
+    pub const TBS_TEMPLATE_LEN: usize = 3160usize;
     const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [
-        48u8, 130u8, 12u8, 87u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
+        48u8, 130u8, 12u8, 84u8, 160u8, 3u8, 2u8, 1u8, 2u8, 2u8, 20u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8, 19u8, 48u8,
-        116u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 30u8, 67u8, 97u8, 108u8,
+        116u8, 49u8, 39u8, 48u8, 37u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 30u8, 67u8, 97u8, 108u8,
         105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 48u8, 32u8, 77u8, 108u8, 68u8, 115u8,
-        97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 48u8,
-        30u8, 23u8, 13u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 23u8, 13u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 48u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8,
+        97u8, 56u8, 55u8, 32u8, 70u8, 77u8, 67u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 49u8,
+        73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 34u8,
+        24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 24u8, 15u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 48u8, 115u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8,
+        12u8, 29u8, 67u8, 97u8, 108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 48u8,
+        32u8, 77u8, 108u8, 68u8, 115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 116u8, 32u8, 65u8, 108u8,
+        105u8, 97u8, 115u8, 49u8, 73u8, 48u8, 71u8, 6u8, 3u8, 85u8, 4u8, 5u8, 19u8, 64u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 49u8, 38u8, 48u8, 36u8, 6u8, 3u8, 85u8, 4u8, 3u8, 12u8, 29u8, 67u8, 97u8,
-        108u8, 105u8, 112u8, 116u8, 114u8, 97u8, 32u8, 50u8, 46u8, 48u8, 32u8, 77u8, 108u8, 68u8,
-        115u8, 97u8, 56u8, 55u8, 32u8, 82u8, 84u8, 32u8, 65u8, 108u8, 105u8, 97u8, 115u8, 48u8,
-        130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 3u8,
-        19u8, 3u8, 130u8, 10u8, 33u8, 0u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 48u8, 130u8, 10u8, 50u8, 48u8, 11u8, 6u8, 9u8, 96u8, 134u8, 72u8, 1u8,
+        101u8, 3u8, 4u8, 3u8, 19u8, 3u8, 130u8, 10u8, 33u8, 0u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
@@ -256,22 +253,25 @@ impl RtAliasCertTbsMlDsa87 {
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 163u8, 129u8, 235u8, 48u8, 129u8, 232u8, 48u8, 18u8, 6u8, 3u8, 85u8,
-        29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8, 2u8, 1u8, 2u8, 48u8,
-        14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8, 2u8, 132u8, 48u8,
-        34u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 1u8, 1u8, 255u8, 4u8, 21u8, 48u8, 19u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 163u8, 129u8, 228u8, 48u8, 129u8, 225u8, 48u8,
+        18u8, 6u8, 3u8, 85u8, 29u8, 19u8, 1u8, 1u8, 255u8, 4u8, 8u8, 48u8, 6u8, 1u8, 1u8, 255u8,
+        2u8, 1u8, 2u8, 48u8, 14u8, 6u8, 3u8, 85u8, 29u8, 15u8, 1u8, 1u8, 255u8, 4u8, 4u8, 3u8, 2u8,
+        2u8, 132u8, 48u8, 31u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 4u8, 4u8, 21u8, 48u8, 19u8,
         4u8, 17u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 48u8, 94u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 1u8, 1u8,
-        255u8, 4u8, 81u8, 48u8, 79u8, 131u8, 2u8, 1u8, 95u8, 166u8, 64u8, 48u8, 62u8, 6u8, 9u8,
-        96u8, 134u8, 72u8, 1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 3u8, 49u8, 0u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 48u8, 90u8, 6u8, 6u8, 103u8, 129u8, 5u8, 5u8, 4u8, 1u8, 4u8, 80u8,
+        48u8, 78u8, 131u8, 2u8, 1u8, 95u8, 166u8, 63u8, 48u8, 61u8, 6u8, 9u8, 96u8, 134u8, 72u8,
+        1u8, 101u8, 3u8, 4u8, 2u8, 2u8, 4u8, 48u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
         95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 137u8,
-        7u8, 82u8, 84u8, 95u8, 73u8, 78u8, 70u8, 79u8, 48u8, 29u8, 6u8, 3u8, 85u8, 29u8, 14u8, 4u8,
-        22u8, 4u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8, 35u8,
-        4u8, 24u8, 48u8, 22u8, 128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
-        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 137u8, 7u8, 82u8, 84u8, 95u8,
+        73u8, 78u8, 70u8, 79u8, 48u8, 29u8, 6u8, 3u8, 85u8, 29u8, 14u8, 4u8, 22u8, 4u8, 20u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 48u8, 31u8, 6u8, 3u8, 85u8, 29u8, 35u8, 4u8, 24u8, 48u8, 22u8,
+        128u8, 20u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
+        95u8, 95u8, 95u8, 95u8, 95u8, 95u8, 95u8,
     ];
     pub fn new(params: &RtAliasCertTbsMlDsa87Params) -> Self {
         let mut template = Self {
@@ -292,7 +292,7 @@ impl RtAliasCertTbsMlDsa87 {
     fn apply(&mut self, params: &RtAliasCertTbsMlDsa87Params) {
         #[inline(always)]
         fn apply_slice<const OFFSET: usize, const LEN: usize>(
-            buf: &mut [u8; 3163usize],
+            buf: &mut [u8; 3160usize],
             val: &[u8; LEN],
         ) {
             buf[OFFSET..OFFSET + LEN].copy_from_slice(val);

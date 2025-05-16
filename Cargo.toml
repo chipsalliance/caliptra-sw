@@ -211,6 +211,8 @@ opt-level = "s"
 codegen-units = 1
 debug = true      # Keep debug symbols in the release ELF so that we can debug more easily.
 
+[patch.crates-io]
+openssl = { git = "https://github.com/teythoon/rust-openssl.git", branch = "justus/pqc" } # MLDSA
 
 # Always optimize the emulator during tests, as it is a major bottleneck for
 # test speed.

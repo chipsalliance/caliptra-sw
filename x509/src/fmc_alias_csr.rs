@@ -163,11 +163,13 @@ mod tests {
     #[test]
     #[cfg(feature = "generate_templates")]
     fn test_idevid_template() {
-        let manual_template =
-            std::fs::read(std::path::Path::new("./build/init_dev_id_csr_tbs.rs")).unwrap();
+        let manual_template = std::fs::read(std::path::Path::new(
+            "./build/init_dev_id_csr_tbs_ecc_384.rs",
+        ))
+        .unwrap();
         let auto_generated_template = std::fs::read(std::path::Path::new(concat!(
             env!("OUT_DIR"),
-            "/init_dev_id_csr_tbs.rs"
+            "/init_dev_id_csr_tbs_ecc_384.rs"
         )))
         .unwrap();
         if auto_generated_template != manual_template {

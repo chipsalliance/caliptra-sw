@@ -116,10 +116,10 @@ fn retrieve_csr_test() {
     let mldsa_csr_txt = String::from_utf8(mldsa_csr.to_text().unwrap()).unwrap();
 
     // To update the CSR testdata:
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &csr_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &csr_der).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &mldsa_csr_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &mldsa_csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.txt", &ecc_csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr.der", &ecc_csr_der).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.txt", &mldsa_csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/idevid_csr_mldsa.der", &mldsa_csr_der).unwrap();
 
     println!("ecc csr: {}", ecc_csr_txt);
     println!("mldsa csr: {}", mldsa_csr_txt);
