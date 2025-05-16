@@ -14,10 +14,10 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::MailboxResp;
+use caliptra_common::{keyids::KEY_ID_EXPORTED_DPE_CDI, mailbox_api::MailboxResp};
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, Hmac384Key, KeyReadArgs,
-    KeyUsage, KeyWriteArgs,
+    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, Hmac384Key, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use dpe::U8Bool;
 
@@ -27,7 +27,9 @@ impl DisableAttestationCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         Self::erase_keys(drivers)?;
-        Self::zero_rt_cdi(drivers)?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        Self::zero_cdi(drivers, key_id_rt_cdi)?;
+        Self::zero_cdi(drivers, KEY_ID_EXPORTED_DPE_CDI)?;
         Self::generate_dice_key(drivers)?;
         drivers.persistent_data.get_mut().attestation_disabled = U8Bool::new(true);
         Ok(MailboxResp::default())
@@ -52,16 +54,16 @@ impl DisableAttestationCmd {
     ///
     /// * `drivers` - Drivers
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn zero_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+    #[inline(never)]
+    fn zero_cdi(drivers: &mut Drivers, key: KeyId) -> CaliptraResult<()> {
         hmac384_kdf(
             &mut drivers.hmac384,
             Hmac384Key::Array4x12(&Array4x12::default()),
-            b"zero_rt_cdi",
+            b"zero_cdi",
             None,
             &mut drivers.trng,
             KeyWriteArgs::new(
-                key_id_rt_cdi,
+                key,
                 KeyUsage::default()
                     .set_hmac_key_en()
                     .set_ecc_key_gen_seed_en(),
