@@ -543,9 +543,14 @@ impl Commands {
             encrypted_cmk,
         )?;
 
-        drivers
-            .cryptographic_mailbox
-            .delete_counter(decrypted_cmk.key_id())?;
+        if matches!(
+            CmKeyUsage::from(decrypted_cmk.key_usage as u32),
+            CmKeyUsage::Aes
+        ) {
+            drivers
+                .cryptographic_mailbox
+                .delete_counter(decrypted_cmk.key_id())?;
+        }
 
         let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
         *resp = MailboxRespHeader::default();
