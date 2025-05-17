@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+use std::collections::VecDeque;
+
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
@@ -10,9 +12,10 @@ use caliptra_api::mailbox::{
     CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
-    CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmEcdhFinishReq, CmEcdhFinishResp,
-    CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
-    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHmacKdfCounterReq,
+    CmAesGcmEncryptUpdateRespHeader, CmAesResp, CmAesRespHeader, CmDeleteReq, CmEcdhFinishReq,
+    CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
+    CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm,
+    CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
     CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
     CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
     CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
@@ -27,6 +30,7 @@ use caliptra_runtime::RtBootStatus;
 use cbc::cipher::{BlockEncryptMut, KeyIvInit};
 use fips204::ml_dsa_87;
 use fips204::traits::Signer;
+use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use p384::ecdsa::signature::hazmat::PrehashSigner;
 use p384::ecdsa::{Signature, SigningKey};
@@ -171,23 +175,108 @@ fn test_import_full() {
         err,
     );
 
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
-    };
-    let status_resp = model
-        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
+    let cm_resp = status(&mut model);
     assert_eq!(cm_resp.used_usage_storage, 256);
     assert_eq!(cm_resp.total_usage_storage, 256);
 }
 
-#[ignore] // this test is very slow so we only test it manually
+// this test is very slow so we only test it manually (on an FPGA, preferably)
+#[ignore]
+// Test that we can import more than 2^24 keys as long as we delete them occasionally.
 #[test]
 fn test_import_wraparound() {
-    // TODO: implement this when we have the clear and delete commands
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..((1 << 24) + 1000) {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+        if keys.len() >= 256 {
+            delete_key(&mut model, &keys.pop_front().unwrap());
+        }
+    }
+}
+
+fn status(model: &mut DefaultHwModel) -> CmStatusResp {
+    let mut req = MailboxReq::CmStatus(MailboxReqHeader::default());
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+    let status_resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), req)
+        .unwrap()
+        .expect("We should have received a response");
+    CmStatusResp::read_from_bytes(status_resp.as_slice()).unwrap()
+}
+
+fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
+    let mut req = MailboxReq::CmDelete(CmDeleteReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+    });
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::CM_DELETE), req)
+        .unwrap()
+        .expect("We should have received a response");
+}
+
+#[test]
+fn test_delete() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 1);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    delete_key(&mut model, &cmk);
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_clear() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmClear(MailboxReqHeader::default());
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..256 {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+    }
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 256);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    model
+        .mailbox_execute(u32::from(CommandId::CM_CLEAR), req)
+        .unwrap()
+        .expect("We should have received a response");
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
 }
 
 #[test]
@@ -1325,7 +1414,7 @@ fn test_ecdh() {
         .expect("Should have gotten a response");
 
     let resp = CmEcdhFinishResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
-    let cmk = Cmk::ref_from_bytes(resp.output_cmk.as_slice()).unwrap();
+    let cmk = Cmk::ref_from_bytes(resp.output.as_slice()).unwrap();
 
     // use the CMK shared secret to AES encrypt a known plaintext.
     let plaintext = [0u8; 16];
@@ -1465,7 +1554,7 @@ fn test_hmac_kdf_counter_random() {
             seeded_rng.fill_bytes(&mut data);
 
             let mut cm_hmac_kdf = CmHmacKdfCounterReq {
-                kin_cmk: cmks[key_idx].clone(),
+                kin: cmks[key_idx].clone(),
                 hash_algorithm: hash_algorithm.into(),
                 key_usage: CmKeyUsage::Aes.into(),
                 key_size: 32,
@@ -1486,7 +1575,7 @@ fn test_hmac_kdf_counter_random() {
             let resp = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_slice())
                 .expect("Response should be correct size");
 
-            let cmk = &resp.kout_cmk;
+            let cmk = &resp.kout;
 
             let key = rustcrypto_hmac_hkdf_counter(hash_algorithm, &keys[key_idx], &data);
 
@@ -1532,6 +1621,124 @@ fn rustcrypto_hmac(hash_algorithm: CmHashAlgorithm, key: &[u8], data: &[u8]) -> 
             x.into()
         }
         _ => panic!("Invalid hash algorithm"),
+    }
+}
+
+type Hkdf384 = Hkdf<Sha384>;
+type Hkdf512 = Hkdf<Sha512>;
+
+fn rustcrypto_hkdf(
+    hash_algorithm: CmHashAlgorithm,
+    ikm: &[u8],
+    salt: &[u8],
+    info: &[u8],
+) -> Vec<u8> {
+    match hash_algorithm {
+        CmHashAlgorithm::Sha384 => {
+            let hk = Hkdf384::new(Some(salt), ikm);
+            let mut okm = [0u8; 48];
+            hk.expand(info, &mut okm).unwrap();
+            Vec::from(&okm)
+        }
+        CmHashAlgorithm::Sha512 => {
+            let hk = Hkdf512::new(Some(salt), ikm);
+            let mut okm = [0u8; 64];
+            hk.expand(info, &mut okm).unwrap();
+            Vec::from(&okm)
+        }
+        _ => panic!("Invalid hash algorithm"),
+    }
+}
+
+#[test]
+fn test_hkdf_random() {
+    let seed_bytes = [1u8; 32];
+    let mut seeded_rng = StdRng::from_seed(seed_bytes);
+
+    for size in [48, 64] {
+        let hash_algorithm = if size == 48 {
+            CmHashAlgorithm::Sha384
+        } else {
+            CmHashAlgorithm::Sha512
+        };
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+        const KEYS: usize = 16;
+        let mut keys = vec![];
+        let mut cmks = vec![];
+        for _ in 0..KEYS {
+            let mut key = vec![0u8; size];
+            seeded_rng.fill_bytes(&mut key);
+            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+            keys.push(key);
+        }
+
+        for _ in 0..25 {
+            let key_idx = seeded_rng.gen_range(0..KEYS);
+            let salt_len = seeded_rng.gen_range(0..size);
+            let mut salt = [0u8; 64];
+            seeded_rng.fill_bytes(&mut salt[..salt_len]);
+
+            let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                ikm: cmks[key_idx].clone(),
+                hash_algorithm: hash_algorithm.into(),
+                salt,
+                ..Default::default()
+            });
+            cm_hkdf_extract.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXTRACT),
+                    cm_hkdf_extract.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+            let mut info = vec![0u8; len];
+            seeded_rng.fill_bytes(&mut info);
+
+            let mut cm_hkdf_expand = CmHkdfExpandReq {
+                prk: resp.prk.clone(),
+                hash_algorithm: hash_algorithm.into(),
+                key_usage: CmKeyUsage::Aes.into(),
+                key_size: 32,
+                info_size: len as u32,
+                ..Default::default()
+            };
+            cm_hkdf_expand.info[..len].copy_from_slice(&info);
+            let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
+            cm_hkdf_expand.populate_chksum().unwrap();
+
+            let resp_bytes = model
+                .mailbox_execute(
+                    u32::from(CommandId::CM_HKDF_EXPAND),
+                    cm_hkdf_expand.as_bytes().unwrap(),
+                )
+                .expect("Should have succeeded")
+                .unwrap();
+            let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
+                .expect("Response should be correct size");
+
+            let cmk = &resp.okm;
+            let key = rustcrypto_hkdf(hash_algorithm, &keys[key_idx], &salt[..salt_len], &info);
+
+            // use the CMK shared secret to AES encrypt a known plaintext.
+            let plaintext = [0u8; 16];
+            let (iv, tag, ciphertext) =
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+            // encrypt with RustCrypto and check if everything matches
+            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+
+            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+            assert_eq!(ciphertext, rciphertext);
+            assert_eq!(tag, rtag);
+        }
     }
 }
 

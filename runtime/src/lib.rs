@@ -200,11 +200,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
 
-    cprintln!(
-        "[rt] Received command=0x{:x}, len={}",
-        req_packet.cmd,
-        req_packet.payload().len()
-    );
+    // cprintln!(
+    //     "[rt] Received command=0x{:x}, len={}",
+    //     req_packet.cmd,
+    //     req_packet.payload().len()
+    // );
 
     // The mailbox is much larger than the request and response buffers.
     // We can use the second half of the mailbox to stage the response, which we
@@ -310,6 +310,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
+        CommandId::CM_CLEAR => cryptographic_mailbox::Commands::clear(drivers, resp),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
         CommandId::CM_SHA_INIT => {
             cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes, resp)
@@ -365,6 +367,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_HMAC => cryptographic_mailbox::Commands::hmac(drivers, cmd_bytes, resp),
         CommandId::CM_HMAC_KDF_COUNTER => {
             cryptographic_mailbox::Commands::hmac_kdf_counter(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HKDF_EXTRACT => {
+            cryptographic_mailbox::Commands::hkdf_extract(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HKDF_EXPAND => {
+            cryptographic_mailbox::Commands::hkdf_expand(drivers, cmd_bytes, resp)
         }
         CommandId::CM_MLDSA_PUBLIC_KEY => {
             cryptographic_mailbox::Commands::mldsa_public_key(drivers, cmd_bytes, resp)
