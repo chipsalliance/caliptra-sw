@@ -45,7 +45,7 @@ static TESTS_TO_RUN: &[TestInfo] = &[
     TestInfo {extension: "I", name: "bne-01"},
     TestInfo {extension: "I", name: "fence-01"},
     TestInfo {extension: "I", name: "jal-01"},
-    TestInfo {extension: "I", name: "jalr-01"},
+    //TestInfo {extension: "I", name: "jalr-01"}, // broken in Ubuntu 24.04 due to assembler rejecting la x0,0x5b
     TestInfo {extension: "I", name: "lb-align-01"},
     TestInfo {extension: "I", name: "lbu-align-01"},
     TestInfo {extension: "I", name: "lh-align-01"},
