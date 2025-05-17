@@ -255,7 +255,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
+    runs-on: vck190-staging
     needs: [check_cache, build_test_binaries, build_kernel_modules]
     timeout-minutes: 120
     if: |
@@ -291,6 +291,9 @@ jobs:
 
       - name: Mount binaries
         run: |
+          sudo insmod squashfs
+          sudo dnf install squashfs-tools -y
+
           # We don't have enough DRAM on the FPGA board to extract a tarball
           # into the overlaid tmpfs, so use squashfs instead
           echo mkdir
@@ -301,9 +304,8 @@ jobs:
 
       - name: Install kernel modules
         run: |
-          ls -l /tmp/caliptra-fpga-kmod
-          sudo insmod /tmp/caliptra-fpga-kmod/io_module.ko
-          sudo insmod /tmp/caliptra-fpga-kmod/rom_backdoor.ko
+          sudo dnf install gcc make -y
+          sudo ./hw/fpga/setup_fpga.sh
 
       - name: Execute tests
         run: |
