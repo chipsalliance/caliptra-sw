@@ -53,8 +53,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # main execution
-echo "[*] Disabling CPU idle for cpu 0-1"
-disable_cpu_idle
+#echo "[*] Disabling CPU idle for cpu 0-1"
+#disable_cpu_idle
 
 echo "[*] Building and installing kernel modules"
 build_and_install_kernel_modules

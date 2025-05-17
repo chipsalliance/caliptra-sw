@@ -255,7 +255,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
+    runs-on: vck190-staging
     needs: [check_cache, build_test_binaries, build_kernel_modules]
     timeout-minutes: 120
     if: |
@@ -301,9 +301,8 @@ jobs:
 
       - name: Install kernel modules
         run: |
-          ls -l /tmp/caliptra-fpga-kmod
-          sudo insmod /tmp/caliptra-fpga-kmod/io_module.ko
-          sudo insmod /tmp/caliptra-fpga-kmod/rom_backdoor.ko
+          sudo apt install gcc make -y
+          sudo ./hw/fpga/setup_fpga.sh
 
       - name: Execute tests
         run: |
