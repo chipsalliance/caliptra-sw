@@ -205,8 +205,8 @@ impl FakeRomFlow {
 fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
     let fake_key = Array4x16::from([0x1234_5678u32; 16]);
     env.hmac.hmac(
-        &HmacKey::Array4x16(&fake_key),
-        &HmacData::Slice(b""),
+        HmacKey::Array4x16(&fake_key),
+        HmacData::Slice(b""),
         &mut env.trng,
         KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
         HmacMode::Hmac512,

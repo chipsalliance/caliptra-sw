@@ -209,7 +209,7 @@ impl Crypto {
 
         // Generate the public key.
         let pub_key = env.mldsa.key_pair(
-            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             &mut env.trng,
             None,
         )?;
@@ -239,7 +239,7 @@ impl Crypto {
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
         env.mldsa.sign_var(
-            &Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
             data,
             &Mldsa87SignRnd::default(),

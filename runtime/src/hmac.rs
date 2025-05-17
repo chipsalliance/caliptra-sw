@@ -158,8 +158,8 @@ impl Hmac {
 
             let mut hmac_output = Array4x12::default();
             drivers.hmac.hmac(
-                &HmacKey::Array4x12(&pubkey_digest),
-                &HmacData::Slice(data),
+                HmacKey::Array4x12(&pubkey_digest),
+                HmacData::Slice(data),
                 &mut drivers.trng,
                 HmacTag::Array4x12(&mut hmac_output),
                 HmacMode::Hmac384,
