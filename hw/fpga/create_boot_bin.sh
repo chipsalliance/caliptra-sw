@@ -37,6 +37,8 @@ sed -i 's|# CONFIG_SUBSYSTEM_ROOTFS_EXT4 is not set|CONFIG_SUBSYSTEM_ROOTFS_EXT4
 sed -i 's|CONFIG_SUBSYSTEM_INITRD_RAMDISK_LOADADDR=0x0|CONFIG_SUBSYSTEM_SDROOT_DEV="/dev/mmcblk0p2"|g' project-spec/configs/config
 sed -i 's|CONFIG_SUBSYSTEM_INITRAMFS_IMAGE_NAME="petalinux-image-minimal"||g' project-spec/configs/config
 sed -i 's|root=/dev/ram0 rw|root=/dev/mmcblk0p2 rw rootwait|g' project-spec/configs/config
+# disabling networking does not work in Ubuntu 24.04
+sed -i 's|bb.utils.disable_network(uid, gid)|# bb.utils.disable_network(uid, gid)|g' components/yocto/layers/poky/bitbake/bin/bitbake-worker
 
 echo Building FW components, only device-tree depends on XSA
 petalinux-build -c device-tree
