@@ -22,7 +22,8 @@ use openssl::ec::PointConversionForm;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::PKey;
-use openssl::pkey::Private;
+use openssl::pkey::{Private, Public};
+use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant};
 use openssl::sha::Sha1;
 use openssl::sha::Sha256;
 use openssl::x509::extension::BasicConstraints;
@@ -30,6 +31,7 @@ use openssl::x509::extension::KeyUsage as Usage;
 use openssl::x509::extension::SubjectKeyIdentifier;
 use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
+use rand::Rng;
 
 const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
     | dice::FLAG_BIT_NOT_SECURE
@@ -166,6 +168,64 @@ pub struct EcdsaSha384Algo {}
 impl SigningAlgorithm for EcdsaSha384Algo {
     type AsymKey = Ecc384AsymKey;
     type Digest = Sha384;
+
+    fn gen_key(&self) -> Self::AsymKey {
+        Self::AsymKey::default()
+    }
+}
+
+/// ML-DSA87 Asymmetric Key Pair
+pub struct MlDsa87AsymKey {
+    priv_key: PKey<Private>,
+    pub_key: Vec<u8>,
+}
+
+impl AsymKey for MlDsa87AsymKey {
+    /// Retrieve Private Key
+    fn priv_key(&self) -> &PKey<Private> {
+        &self.priv_key
+    }
+
+    /// Retrieve Public Key
+    fn pub_key(&self) -> &[u8] {
+        &self.pub_key
+    }
+}
+
+impl Default for MlDsa87AsymKey {
+    /// Returns the "default value" for a type.
+    fn default() -> Self {
+        let mut random_bytes: [u8; 32] = [0; 32];
+        let mut rng = rand::thread_rng();
+        rng.fill(&mut random_bytes);
+        let pk_builder =
+            PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &random_bytes).unwrap();
+        let private_key = pk_builder.build().unwrap();
+        let public_params = PKeyMlDsaParams::<Public>::from_pkey(&private_key).unwrap();
+        let public_key = public_params.public_key().unwrap();
+        Self {
+            priv_key: private_key,
+            pub_key: public_key.to_vec(),
+        }
+    }
+}
+
+/// Nothing as MLDSA has it's internal hashing scheme
+pub struct Noop {}
+
+impl Digest for Noop {
+    /// Retrieve the algorithm
+    fn algo() -> MessageDigest {
+        MessageDigest::null()
+    }
+}
+
+#[derive(Default)]
+pub struct MlDsa87Algo {}
+
+impl SigningAlgorithm for MlDsa87Algo {
+    type AsymKey = MlDsa87AsymKey;
+    type Digest = Noop;
 
     fn gen_key(&self) -> Self::AsymKey {
         Self::AsymKey::default()
