@@ -45,6 +45,7 @@ members = [
   "hw/1.0/registers",
   "hw/latest/registers",
   "hw/verilated",
+  "hw-integration/test-runner-lib",
   "hw-model",
   "hw-model/test-fw",
   "hw-model/types",
@@ -117,6 +118,7 @@ caliptra-emu-types = { path = "sw-emulator/lib/types" }
 caliptra-error = { path = "error", default-features = false }
 caliptra-fpga-boss = { path = "ci-tools/fpga-boss" }
 caliptra-gen-linker-scripts = { path = "cpu/gen" }
+caliptra-hw-integration-test-runner-lib = { path = "hw-integration/test-runner-lib" }
 caliptra-hw-model = { path = "hw-model" }
 caliptra-hw-model-types = { path = "hw-model/types" }
 caliptra-image-elf = { path = "image/elf" }

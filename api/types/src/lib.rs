@@ -21,6 +21,7 @@ pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
 
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde_derive::Deserialize))]
 pub enum DeviceLifecycle {
     #[default]
     Unprovisioned = 0b00,
@@ -83,6 +84,7 @@ impl SecurityState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "std", derive(serde_derive::Deserialize))]
 pub enum U4 {
     #[default]
     X0 = 0x0,
@@ -153,6 +155,8 @@ impl TryFrom<u32> for U4 {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "std", derive(serde_derive::Deserialize))]
+#[cfg_attr(feature = "std", serde(default))]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
