@@ -291,9 +291,8 @@ jobs:
 
       - name: Mount binaries
         run: |
-          sudo insmod squashfs
+          sudo modprobe squashfs
           sudo dnf install squashfs-tools -y
-
           # We don't have enough DRAM on the FPGA board to extract a tarball
           # into the overlaid tmpfs, so use squashfs instead
           echo mkdir

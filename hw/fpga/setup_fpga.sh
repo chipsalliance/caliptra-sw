@@ -36,7 +36,7 @@ function build_and_install_kernel_modules() {
         make
 
         if [[ -f "$CALIPTRA_ROOT/hw/fpga/io_module/io_module.ko" ]]; then
-            insmod "$CALIPTRA_ROOT/hw/fpga/io_module/io_module.ko"
+            modprobe "$CALIPTRA_ROOT/hw/fpga/io_module/io_module.ko"
             chmod 666 /dev/uio0
         else
             echo "[-] error inserting io module. module not found"
