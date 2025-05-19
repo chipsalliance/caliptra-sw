@@ -198,6 +198,11 @@ impl CaliptraError {
             "Driver Error: HMAC index out of bounds"
         ),
         (
+            DRIVER_HKDF_SALT_TOO_LONG,
+            0x0004000f,
+            "Driver Error: HKDF salt is too large"
+        ),
+        (
             DRIVER_ECC384_READ_SEED_KV_READ,
             0x00050001,
             "Driver Error: ECC384 read seed KV read"
