@@ -43,7 +43,7 @@ fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
 }
 
 // [CAP2][TODO] This test is disabled because it needs to be updated.
-//#[test]
+#[test]
 fn fake_boot_test() {
     let idevid_pubkey = get_idevid_pubkey();
 
@@ -200,6 +200,7 @@ fn fake_boot_test() {
     );
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
+    // TODO: This assert fails.
     assert_eq!(
         dice_tcb_info,
         [
@@ -268,6 +269,7 @@ fn fake_boot_test() {
         .derive_public_key()
         .public_eq(&fmc_alias_cert.public_key().unwrap()));*/
 
+    // TODO: This assert also fails.
     assert!(
         fmc_alias_cert.verify(&ldev_pubkey).unwrap(),
         "fmc_alias cert failed to validate with ldev pubkey"
