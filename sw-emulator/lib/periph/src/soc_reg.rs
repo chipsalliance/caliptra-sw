@@ -760,6 +760,9 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x5c8)]
     ss_soc_dbg_unlock_level: [u32; 2],
 
+    #[register(offset = 0x5d0)]
+    staging_sram_addr: ReadOnlyRegister<u32>,
+
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
 
@@ -972,6 +975,7 @@ impl SocRegistersImpl {
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
+            staging_sram_addr: ReadOnlyRegister::new(0xdead_beef),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),

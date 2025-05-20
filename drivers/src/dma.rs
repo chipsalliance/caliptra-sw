@@ -147,6 +147,11 @@ impl Dma {
 
     pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction, block_size: u32) {
         self.with_dma(|dma| {
+            cprintln!(
+                "[dma] Writing source address: {:08x}{:08x}",
+                read_transaction.read_addr.hi,
+                read_transaction.read_addr.lo
+            );
             let read_addr = read_transaction.read_addr;
             dma.src_addr_l().write(|_| read_addr.lo);
             dma.src_addr_h().write(|_| read_addr.hi);
@@ -155,6 +160,11 @@ impl Dma {
             let mut target_addr_hi: u32 = 0;
             match read_transaction.target {
                 DmaReadTarget::AxiWr(target_addr, _) => {
+                    cprintln!(
+                        "[dma] Writing target address: {:08x}{:08x}",
+                        target_addr.hi,
+                        target_addr.lo
+                    );
                     target_addr_lo = target_addr.lo;
                     target_addr_hi = target_addr.hi;
                 }
@@ -168,9 +178,11 @@ impl Dma {
             dma.dst_addr_h().write(|_| target_addr_hi);
 
             // Set the number of bytes to read.
+            cprintln!("[dma] Setting read length: {}", read_transaction.length);
             dma.byte_count().write(|_| read_transaction.length);
 
             // Set the block size.
+            cprintln!("[dma] Setting block size: {}", block_size);
             dma.block_size().write(|f| f.size(block_size));
 
             dma.ctrl().modify(|c| {
@@ -190,6 +202,8 @@ impl Dma {
                 })
                 .go(true)
             });
+
+            cprintln!("[dma] DMA read transaction setup complete");
         })
     }
 
@@ -242,23 +256,28 @@ impl Dma {
     ///
     /// This function will block until the DMA transaction is completed successfully.
     fn wait_for_dma_complete(&self) {
+        cprintln!("[dma] Waiting for DMA transaction to complete...");
         self.with_dma(|dma| while dma.status0().read().busy() {});
+        cprintln!("[dma] DMA transaction completed successfully");
     }
 
-    /// Read data from the DMA FIFO
+    /// Read data from the DMA FIFO and store it in the provided buffer.
     ///
     /// # Arguments
     ///
-    /// * `read_data` - Buffer to store the read data
+    /// * `target_buf` - Buffer to store the read data
     ///
-    fn dma_read_fifo(&self, read_data: &mut [u32]) {
+    fn dma_read_fifo(&self, target_buf: &mut [u32]) {
         self.with_dma(|dma| {
-            for word in read_data.iter_mut() {
+            for word in target_buf.iter_mut() {
                 // Wait until the FIFO has data. fifo_depth is in DWORDs.
                 while dma.status0().read().fifo_depth() == 0 {}
-
                 let read = dma.read_data().read();
                 *word = read;
+                cprintln!(
+                    "[dma] Read data from FIFO: {:08x} and stored in buffer",
+                    read
+                );
             }
         });
     }
@@ -405,7 +424,7 @@ impl<'a> DmaRecovery<'a> {
     const PROT_CAP2_PUSH_C_IMAGE_SUPPORT: u32 = 0x80; // Bit 7 in agent_caps
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
-    const MCU_SRAM_OFFSET: u64 = 0x20_0000;
+    pub const MCU_SRAM_OFFSET: u64 = 0x20_0000;
     const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
@@ -505,6 +524,8 @@ impl<'a> DmaRecovery<'a> {
         block_size: u32,
         write_fixed_addr: bool,
     ) -> CaliptraResult<()> {
+        cprintln!("transfer_payload_to_axi called: read_addr = {:08x}{:08x}, payload_len_bytes = {}, write_addr = {:08x}{:08x}, read_fixed_addr = {}, block_size = {}, write_fixed_addr = {}",
+            read_addr.hi, read_addr.lo, payload_len_bytes, write_addr.hi, write_addr.lo, read_fixed_addr, block_size, write_fixed_addr);
         self.dma.flush();
 
         let read_transaction = DmaReadTransaction {
@@ -515,6 +536,7 @@ impl<'a> DmaRecovery<'a> {
         };
         self.dma.setup_dma_read(read_transaction, block_size);
         self.dma.wait_for_dma_complete();
+        cprintln!("transfer_payload_to_axi completed");
         Ok(())
     }
 
@@ -556,6 +578,41 @@ impl<'a> DmaRecovery<'a> {
             0,
         )?;
         self.wait_for_activation()?;
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        Ok(image_size_bytes)
+    }
+
+    pub fn download_image_to_staging_sram(
+        &self,
+        fw_image_index: u32,
+        caliptra_fw: bool,
+        write_addr: AxiAddr,
+    ) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
+
+        cprintln!(
+            "[fwproc] DMAing image to staging sram addr 0x{:08x}, image size: {} bytes",
+            u64::from(write_addr),
+            image_size_bytes
+        );
+
+        // Transfer the image from the recovery interface to the staging SRAM.
+        let read_addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
+        self.transfer_payload_to_axi(
+            read_addr,
+            image_size_bytes,
+            write_addr,
+            true,
+            //Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+            64,
+            false,
+        )?;
+        cprintln!("[fwproc] DMAing image to staging sram completed; waiting for activation...");
+        self.wait_for_activation()?;
+        cprintln!("[fwproc] Activation completed; setting recovery status to booting recovery image: 0x{:x}",
+            Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE
+        );
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
         self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
         Ok(image_size_bytes)

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, AxiAddr};
+use crate::{dma, Array4x12, AxiAddr};
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -575,6 +575,10 @@ impl SocIfc {
         let low = self.soc_ifc.regs().ss_mci_base_addr_l().read();
         let high = self.soc_ifc.regs().ss_mci_base_addr_h().read();
         ((high as u64) << 32) | low as u64
+    }
+
+    pub fn staging_sram_addr(&self) -> u64 {
+        self.mci_base_addr() + dma::DmaRecovery::MCU_SRAM_OFFSET
     }
 }
 
