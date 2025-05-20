@@ -9,10 +9,15 @@ function set_guest_attr()
 }
 
 set -x
-(
+(  
+    # LTS Ubuntu added a runner user.
+    id runner &> /dev/null
+    if [[ $? -ne 0 ]]; then
+        # Add a user for the Github runner image.
+        useradd runner --shell /bin/bash --create-home
+    fi
+
     set -Eeuox pipefail
-    # Add a user for the 
-    useradd runner --shell /bin/bash --create-home
 
     # Some actions need to install debian packages as part of their work We
     # don't care if they mess up the VM because it's going to be deleted at at
