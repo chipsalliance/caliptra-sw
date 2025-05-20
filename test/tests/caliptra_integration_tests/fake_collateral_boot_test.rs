@@ -16,7 +16,6 @@ use caliptra_test::{
     image_pk_desc_hash, swap_word_bytes,
     x509::{DiceFwid, DiceTcbInfo},
 };
-use openssl::sha::sha384;
 use std::io::Write;
 use zerocopy::IntoBytes;
 
@@ -26,6 +25,11 @@ const RT_READY_FOR_COMMANDS: u32 = 0x600;
 const FMC_CANNED_DIGEST: [u32; 12] = [
     0x06d8f354, 0x3ad268d8, 0xcbb42207, 0x04ec47c9, 0x3301fed8, 0xcbae2740, 0xbf944b0b, 0x84882c0c,
     0xf2db4f76, 0x5b671453, 0xa256de5d, 0xa490d7c8,
+];
+
+const FMC_FIRMWARE_CANNED_DIGEST: [u32; 12] = [
+    0x421275a8, 0x7a71acf4, 0x34b4f107, 0x6acdd683, 0x77d0a315, 0xf9e2a29b, 0x26b39891, 0x3e89ff33,
+    0x006c10dc, 0xc4f1bd74, 0x67f1e2c4, 0x1b0a893a,
 ];
 
 #[track_caller]
@@ -126,9 +130,18 @@ fn fake_boot_test() {
     let ldev_cert = openssl::x509::X509::from_der(ldev_cert_der).unwrap();
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
+    // TODO: Rename certs to include ECC.
     // To update the ldev cert testdata:
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
+    std::fs::write(
+        "tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.txt",
+        &ldev_cert_txt,
+    )
+    .unwrap();
+    std::fs::write(
+        "tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der",
+        ldev_cert_der,
+    )
+    .unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),
@@ -145,6 +158,9 @@ fn fake_boot_test() {
     );
 
     let ldev_pubkey = ldev_cert.public_key().unwrap();
+    let pub_key = ldev_cert.public_key().unwrap().public_key_to_der().unwrap();
+    println!("ldev_pub_key: {:x?}", pub_key);
+    println!("ldev_pub_key_len: {}", pub_key.len());
 
     let expected_ldevid_key = LDevId::derive(&DoeOutput::generate(&DoeInput::default()));
 
@@ -200,7 +216,6 @@ fn fake_boot_test() {
     );
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
-    // TODO: This assert fails.
     assert_eq!(
         dice_tcb_info,
         [
@@ -226,8 +241,9 @@ fn fake_boot_test() {
                     },
                     DiceFwid {
                         hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        // TODO: Compute this...
-                        digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
+                        digest: swap_word_bytes(&FMC_FIRMWARE_CANNED_DIGEST)
+                            .as_bytes()
+                            .to_vec(),
                     },
                 ],
                 ..Default::default()

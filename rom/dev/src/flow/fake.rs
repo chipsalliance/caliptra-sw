@@ -38,14 +38,24 @@ use core::ops::Range;
 const FAKE_LDEV_ECC_TBS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ldev_tbs.der"));
 const FAKE_LDEV_ECC_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
-        0x842C00AF, 0x05ACCCEB, 0x14514E2D, 0x37B0C3AA, 0xA218F150, 0x57F1DCB8, 0x24A21498,
-        0x0B744688, 0xA0888A02, 0x97FA7DC5, 0xE1EAD8CA, 0x1291DB22,
+        0xe01c576c, 0xaebb0fd1, 0xaee108d1, 0x836f5b9a, 0xa0487371, 0xb07150cd, 0xb6ba1237,
+        0x704fffc0, 0x253de450, 0x40954710, 0x00a77561, 0x06427e70,
     ]),
+
     y: Array4xN([
-        0x9C28EB86, 0x78BCE800, 0x822C0722, 0x8F416AE4, 0x9D218E5D, 0xA2F2D1A8, 0xA27DC19A,
-        0xDF668A74, 0x628999D2, 0x22B40159, 0xD8076FAF, 0xBB8C5EDB,
+        0x8cae3f75, 0x0285224a, 0x4ea6b643, 0x73824205, 0xc6424fed, 0xc3c8d344, 0xa6569401,
+        0x0443e351, 0x6b919ee3, 0xb8587150, 0x96b262ff, 0x0f81c665,
     ]),
 };
+// x: Array4xN([
+//     0x842C00AF, 0x05ACCCEB, 0x14514E2D, 0x37B0C3AA, 0xA218F150, 0x57F1DCB8, 0x24A21498,
+//     0x0B744688, 0xA0888A02, 0x97FA7DC5, 0xE1EAD8CA, 0x1291DB22,
+// ]),
+// y: Array4xN([
+//     0x9C28EB86, 0x78BCE800, 0x822C0722, 0x8F416AE4, 0x9D218E5D, 0xA2F2D1A8, 0xA27DC19A,
+//     0xDF668A74, 0x628999D2, 0x22B40159, 0xD8076FAF, 0xBB8C5EDB,
+// ]),
+// };
 const FAKE_LDEV_ECC_SIG: Ecc384Signature = Ecc384Signature {
     r: Array4xN(include!(concat!(env!("OUT_DIR"), "/ldev_sig_r_words.txt"))),
     s: Array4xN(include!(concat!(env!("OUT_DIR"), "/ldev_sig_s_words.txt"))),

@@ -181,6 +181,10 @@ impl LocalDevIdLayer {
             cfi_assert!(result.is_err());
         }
         let ecc_keypair = result?;
+        let _pub_x: [u8; 48] = (&ecc_keypair.pub_key.x).into();
+        let _pub_y: [u8; 48] = (&ecc_keypair.pub_key.y).into();
+        cprintln!("[ldev] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[ldev] PUB.Y = {}", HexBytes(&_pub_y));
 
         // Derive the MLDSA Key Pair.
         let result = Crypto::mldsa_key_gen(env, cdi, b"ldevid_mldsa_key", mldsa_keypair_seed);
