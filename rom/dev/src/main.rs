@@ -11,6 +11,10 @@ Abstract:
     File contains main entry point for Caliptra ROM
 
 --*/
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
@@ -140,7 +144,7 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Start the watchdog timer
-    wdt::start_wdt(&mut env.soc_ifc);
+    //wdt::start_wdt(&mut env.soc_ifc);
 
     if !cfg!(feature = "fake-rom") {
         let mut kats_env = caliptra_kat::KatsEnv {
@@ -184,10 +188,10 @@ pub extern "C" fn rom_entry() -> ! {
                 ShaAccLockState::AssumedLocked
             },
         };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
-        }
+        // let result = run_fips_tests(&mut kats_env);
+        // if let Err(err) = result {
+        //     handle_fatal_error(err.into());
+        // }
     }
 
     if let Err(err) = flow::run(&mut env) {

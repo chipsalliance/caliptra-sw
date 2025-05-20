@@ -10,6 +10,9 @@ Abstract:
     The file contains Fuse-related Implementations.
 
 --*/
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};

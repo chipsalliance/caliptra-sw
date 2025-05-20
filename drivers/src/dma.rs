@@ -405,7 +405,7 @@ impl<'a> DmaRecovery<'a> {
     const PROT_CAP2_PUSH_C_IMAGE_SUPPORT: u32 = 0x80; // Bit 7 in agent_caps
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
-    const MCU_SRAM_OFFSET: u64 = 0x20_0000;
+    pub const MCU_SRAM_OFFSET: u64 = 0x20_0000;
     const SHA_ACC_DATA_IN_OFFSET: u64 = 0x14;
 
     const FLASHLESS_STREAMING_BOOT_VALUE: u32 = 0x12;
@@ -554,6 +554,29 @@ impl<'a> DmaRecovery<'a> {
             true,
             Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
             0,
+        )?;
+        self.wait_for_activation()?;
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        Ok(image_size_bytes)
+    }
+
+    pub fn download_image_to_staging_sram(
+        &self,
+        fw_image_index: u32,
+        caliptra_fw: bool,
+        write_addr: AxiAddr,
+    ) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
+        // Transfer the image from the recovery interface to the staging SRAM.
+        let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
+        self.transfer_payload_to_axi(
+            addr,
+            image_size_bytes,
+            write_addr,
+            true,
+            Self::RECOVERY_DMA_BLOCK_SIZE_BYTES,
+            false,
         )?;
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
