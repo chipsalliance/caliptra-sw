@@ -21,7 +21,9 @@ use crate::{
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
-use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_16_words, cfi_launder};
+use caliptra_cfi_lib::{
+    cfi_assert_eq, cfi_assert_eq_16_words, cfi_assert_ne_16_words, cfi_launder,
+};
 use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
@@ -444,9 +446,11 @@ impl Mldsa87 {
         }
 
         let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
-        if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
+        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == empty_verify_res {
             Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
         }
+        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
 
         let verify_res = self.verify_res(pub_key, msg, signature)?;
 
@@ -473,9 +477,11 @@ impl Mldsa87 {
         }
 
         let truncated_signature = &signature.0[..MLDSA87_VERIFY_RES_WORD_LEN];
-        if truncated_signature == [0; MLDSA87_VERIFY_RES_WORD_LEN] {
+        let empty_verify_res = [0; MLDSA87_VERIFY_RES_WORD_LEN];
+        if truncated_signature == empty_verify_res {
             Err(CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE)?;
         }
+        cfi_assert_ne_16_words(truncated_signature.try_into().unwrap(), &empty_verify_res);
 
         let mldsa = self.mldsa87.regs_mut();
 
