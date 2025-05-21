@@ -41,6 +41,32 @@ fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
     None
 }
 
+pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        info.hdr.chksum,
+        0x0,
+        &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+    ));
+    assert_eq!(
+        info.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    assert_eq!(info.attestation_disabled, 0);
+    info
+}
+
 #[test]
 fn test_fw_info() {
     let mut image_opts = ImageOptions::default();
@@ -84,32 +110,6 @@ fn test_fw_info() {
     .unwrap();
 
     let rom_info = find_rom_info(&rom).unwrap();
-
-    let get_fwinfo = |model: &mut DefaultHwModel| {
-        let payload = MailboxReqHeader {
-            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
-        };
-
-        let resp = model
-            .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
-            .unwrap()
-            .unwrap();
-
-        let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
-
-        // Verify checksum and FIPS status
-        assert!(caliptra_common::checksum::verify_checksum(
-            info.hdr.chksum,
-            0x0,
-            &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
-        ));
-        assert_eq!(
-            info.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
-        );
-        assert_eq!(info.attestation_disabled, 0);
-        info
-    };
 
     let update_to = |model: &mut DefaultHwModel, image: &[u8]| {
         model
