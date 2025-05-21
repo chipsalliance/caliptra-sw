@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 
 mod aes256cbc_kat;
+mod aes256ctr_kat;
 mod aes256gcm_kat;
 mod ecc384_kat;
 mod ecdh_kat;
@@ -30,6 +31,7 @@ mod sha384_kat;
 mod sha512_kat;
 
 pub use aes256cbc_kat::Aes256CbcKat;
+pub use aes256ctr_kat::Aes256CtrKat;
 pub use aes256gcm_kat::Aes256GcmKat;
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
 pub use ecc384_kat::Ecc384Kat;
@@ -96,6 +98,9 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] AES-256-CBC");
     Aes256CbcKat::default().execute(env.aes)?;
+
+    cprintln!("[kat] AES-256-CTR");
+    Aes256CtrKat::default().execute(env.aes)?;
 
     cprintln!("[kat] AES-256-GCM");
     Aes256GcmKat::default().execute(env.aes, env.trng)?;

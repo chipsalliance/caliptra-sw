@@ -260,8 +260,6 @@ fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .collect()
 }
 
-// [TODO][CAP2] test_dbg_unlock_manuf_req_in_passive_mode
-
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
