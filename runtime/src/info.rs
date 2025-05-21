@@ -45,7 +45,7 @@ impl FwInfoCmd {
         resp.fmc_sha384_digest = pdata.manifest1.fmc.digest;
         resp.runtime_sha384_digest = pdata.manifest1.runtime.digest;
         resp.owner_pub_key_hash = pdata.data_vault.owner_pk_hash().into();
-
+        resp.authman_sha384_digest = pdata.auth_manifest_digest;
         Ok(core::mem::size_of::<FwInfoResp>())
     }
 }
