@@ -509,10 +509,7 @@ impl Mldsa87 {
         mldsa.ctrl().write(|w| w.zeroize(true));
 
         let result = if verify_res.0 == truncated_signature {
-            cfi_assert_eq_16_words(
-                &verify_res.0.try_into().unwrap(),
-                &truncated_signature.try_into().unwrap(),
-            );
+            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature.try_into().unwrap());
             Mldsa87Result::Success
         } else {
             Mldsa87Result::SigVerifyFailed
