@@ -290,7 +290,7 @@ jobs:
           sudo dnf install zstd -y
           echo mkdir
           sudo mkdir /tmp/caliptra-test-binaries
-          sudo tar-xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
+          sudo tar -xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           find /tmp/caliptra-test-binaries
 
       - name: Install kernel modules
