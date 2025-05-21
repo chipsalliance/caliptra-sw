@@ -4,7 +4,14 @@ use crate::common::{
     execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
     TEST_LABEL,
 };
-use caliptra_api::SocManager;
+use caliptra_api::{
+    mailbox::{CommandId, FwInfoResp},
+    SocManager,
+};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::HwModel;
@@ -32,6 +39,7 @@ use openssl::{
 };
 use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -363,4 +371,54 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
         false,
     );
+}
+
+#[test]
+fn test_export_cdi_attestation_not_disabled_after_update_reset() {
+    for derive_flags in [
+        DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+    ] {
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+
+        let derive_ctx_cmd = DeriveContextCmd {
+            handle: ContextHandle::default(),
+            data: [0; DPE_PROFILE.get_tci_size()],
+            flags: derive_flags,
+            tci_type: 0,
+            target_locality: 0,
+        };
+
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
+
+        // trigger update reset to same firmware
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART,
+            ImageOptions::default(),
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
+
+        // check attestation is not disabled via FW_INFO
+        let payload = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+        };
+        let resp = model
+            .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+            .unwrap()
+            .unwrap();
+        let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+        assert_eq!(info.attestation_disabled, 0);
+    }
 }

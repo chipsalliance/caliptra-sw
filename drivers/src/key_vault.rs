@@ -17,8 +17,11 @@ use bitfield::bitfield;
 use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::kv::KvReg;
 
+use zerocopy::{IntoBytes, KnownLayout, TryFromBytes};
+
 /// Key Identifier
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromBytes, IntoBytes, KnownLayout)]
+#[repr(u8)]
 pub enum KeyId {
     KeyId0 = 0,
     KeyId1 = 1,
@@ -52,6 +55,13 @@ pub enum KeyId {
     KeyId29 = 29,
     KeyId30 = 30,
     KeyId31 = 31,
+}
+
+impl zeroize::Zeroize for KeyId {
+    fn zeroize(&mut self) {
+        // This is a NOP as these enums are just a handle.
+        // This trait is implemented so the slots can be serialized into `PersistentData`.
+    }
 }
 
 impl TryFrom<u8> for KeyId {

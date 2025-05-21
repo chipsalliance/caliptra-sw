@@ -1,6 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::{mailbox::RevokeExportedCdiHandleReq, SocManager};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SignWithExportedEcdsaReq, SignWithExportedEcdsaResp,
 };
@@ -432,4 +436,95 @@ fn test_sign_with_revoked_exported_cdi() {
         CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED,
         result.err().unwrap(),
     );
+}
+
+#[test]
+fn test_sign_with_exported_cdi_warm_reset() {
+    // 1. Exports a CDI and then signs a well known hash.
+    // 2. Verifies the signature using the CA certificate paired with the export-cdi, as well as the
+    // public key returned by SIGN_WITH_EXPORTED_ECDSA.
+    // 3. Performs a warm reset
+    // 4. Checks that we can still create a valid signature.
+
+    // Make sure that a warm reset works with and without retaining a parent context.
+    for derive_flags in [
+        DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+    ] {
+        let mut model = run_rt_test(RuntimeTestArgs::default());
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let derive_ctx_cmd = DeriveContextCmd {
+            handle: ContextHandle::default(),
+            data: [0; DPE_PROFILE.get_tci_size()],
+            flags: derive_flags,
+            tci_type: 0,
+            target_locality: 0,
+        };
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&derive_ctx_cmd),
+            DpeResult::Success,
+        );
+
+        let derive_resp = match resp {
+            Some(Response::DeriveContextExportedCdi(resp)) => resp,
+            _ => panic!("expected derive context resp!"),
+        };
+
+        let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            exported_cdi_handle: derive_resp.exported_cdi,
+            tbs: TEST_DIGEST,
+        });
+        cmd.populate_chksum().unwrap();
+
+        let result = model.mailbox_execute(
+            CommandId::SIGN_WITH_EXPORTED_ECDSA.into(),
+            cmd.as_bytes().unwrap(),
+        );
+
+        let response = result.unwrap().unwrap();
+        let sign_resp = SignWithExportedEcdsaResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert!(check_certificate_signature(sign_resp, &derive_resp));
+
+        // Wait for command to finish
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+        // trigger update reset to same firmware
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART,
+            ImageOptions::default(),
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
+
+        // Wait for boot
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+        let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            exported_cdi_handle: derive_resp.exported_cdi,
+            tbs: TEST_DIGEST,
+        });
+        cmd.populate_chksum().unwrap();
+
+        let result = model.mailbox_execute(
+            CommandId::SIGN_WITH_EXPORTED_ECDSA.into(),
+            cmd.as_bytes().unwrap(),
+        );
+
+        let response = result.unwrap().unwrap();
+        let sign_resp = SignWithExportedEcdsaResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert!(check_certificate_signature(sign_resp, &derive_resp));
+    }
 }
