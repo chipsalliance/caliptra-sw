@@ -233,7 +233,6 @@ impl Drivers {
             }
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attest: DPE valid fail");
                     // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
                     drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
@@ -263,7 +262,6 @@ impl Drivers {
                 }
                 match result {
                     Ok(_) => {
-                        cprintln!("Disable attest DPE used context limit breach");
                         caliptra_drivers::report_fw_error_non_fatal(e.into());
                     }
                     Err(e) => {
@@ -307,7 +305,6 @@ impl Drivers {
             }
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
                     );
