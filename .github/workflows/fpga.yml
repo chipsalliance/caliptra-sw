@@ -225,15 +225,11 @@ jobs:
             --target=aarch64-unknown-linux-gnu \
             --archive-file=/tmp/caliptra-test-binaries.tar.zst
 
-          mkdir /tmp/caliptra-test-binaries/
-          tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
-          mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
-
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-binaries.sqsh
+          path: /tmp/caliptra-test-binaries.tar.zst
           retention-days: 1
 
       - name: Build test firmware
@@ -281,7 +277,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-test-binaries.sqsh
+          path: /tmp/caliptra-test-binaries.tar.zst
 
       - name: 'Download Test Firmware Artifact'
         uses: actions/download-artifact@v4
@@ -291,14 +287,10 @@ jobs:
 
       - name: Mount binaries
         run: |
-          sudo modprobe squashfs
-          sudo dnf install squashfs-tools -y
-          # We don't have enough DRAM on the FPGA board to extract a tarball
-          # into the overlaid tmpfs, so use squashfs instead
+          sudo dnf install zstd -y
           echo mkdir
           sudo mkdir /tmp/caliptra-test-binaries
-          echo mount squashfs
-          sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          sudo tar-xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
           find /tmp/caliptra-test-binaries
 
       - name: Install kernel modules
