@@ -64,7 +64,6 @@ pub mod fips_self_test_cmd {
     use super::*;
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
     use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
-    use caliptra_common::HexBytes;
     use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
     use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::{ImageTocEntry, RomInfo};
@@ -202,7 +201,6 @@ pub mod fips_self_test_cmd {
             env.persistent_data.get().fht.rom_info_addr.get()? as *const RomInfo as usize / 64;
 
         let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
-        cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
         if digest.0 != rom_info.sha256_digest {
             digest.zeroize();
             cprintln!("ROM integrity test failed");
