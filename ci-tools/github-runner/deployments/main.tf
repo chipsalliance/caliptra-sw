@@ -140,7 +140,7 @@ resource "google_cloudfunctions2_function" "runner_build_image" {
   location = var.region
 
   build_config {
-    runtime     = "go120"
+    runtime     = "go123"
     entry_point = "RunnerBuildImage"
     source {
       storage_source {
@@ -168,7 +168,7 @@ resource "google_cloudfunctions2_function" "runner_launch" {
   location = var.region
 
   build_config {
-    runtime     = "go120"
+    runtime     = "go123"
     entry_point = "RunnerLaunch"
     source {
       storage_source {
@@ -215,7 +215,7 @@ resource "google_cloudfunctions2_function" "runner_cleanup" {
   location = var.region
 
   build_config {
-    runtime     = "go120"
+    runtime     = "go123"
     entry_point = "RunnerCleanup"
     source {
       storage_source {
