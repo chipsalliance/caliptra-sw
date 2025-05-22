@@ -92,10 +92,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
             cprintln!("[dbg_manuf] Token mismatch!");
             Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &input_token_digest.0[..12].try_into().unwrap(),
-                &fuse_token_digest.0[..12].try_into().unwrap(),
-            );
+            caliptra_cfi_lib::cfi_assert_eq_16_words(&input_token_digest.0, &fuse_token_digest.0);
         }
         Ok(())
     })();
