@@ -31,8 +31,9 @@ memoffset.workspace = true
 
 [build-dependencies]
 cfg-if.workspace = true
+const-gen.workspace = true
 hex.workspace = true
-x509-parser.workspace = true
+openssl.workspace = true
 
 [dev-dependencies]
 caliptra-api.workspace = true
