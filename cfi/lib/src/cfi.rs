@@ -395,7 +395,7 @@ pub fn cfi_assert_ne_16_words(a: &[u32; 16], b: &[u32; 16]) {
         core::arch::asm!(
             "j 3f",
             "2:",
-            "li a0, 0x01040055",
+            "li a0, 0x01040056",
             "j cfi_panic_handler",
             "3:",
             "lw {tmp0}, 0(a4)",
