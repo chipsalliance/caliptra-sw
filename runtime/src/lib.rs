@@ -49,7 +49,7 @@ mod verify;
 pub mod mailbox;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
-use caliptra_common::{cfi_check, memory_layout};
+use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -62,9 +62,7 @@ use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{
-    populate_checksum, FipsVersionResp, MAX_REQ_SIZE, MAX_RESP_SIZE,
-};
+use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
@@ -206,23 +204,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         req_packet.payload().len()
     );
 
-    // The mailbox is much larger than the request and response buffers.
-    // We can use the second half of the mailbox to stage the response, which we
-    // can copy to the first half of the mailbox before sending it. This saves us
-    // ~10 KB of stack space.
-
-    // Check that the request and response buffers are small enough to fit in half the mailbox.
-    // If this fails in later versions due to mailbox shrinking, we can simply allocate
-    // the response buffer on the stack, though it will increase stack memory usage.
-    const _: () = assert!(MAX_RESP_SIZE as u32 <= memory_layout::MBOX_SIZE / 2);
-    const _: () = assert!(MAX_REQ_SIZE as u32 <= memory_layout::MBOX_SIZE / 2);
-
-    let mbox = Mailbox::raw_mailbox_contents_mut();
-    let mbox_len = mbox.len();
-    let (_, resp) = mbox.split_at_mut(mbox_len / 2);
-    let resp = &mut resp[..MAX_RESP_SIZE];
-    // zero the response buffer to avoid pre-existing data in our response
-    resp.fill(0);
+    // stage the response once on the stack
+    let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
     let len = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
@@ -310,6 +293,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
+        CommandId::CM_CLEAR => cryptographic_mailbox::Commands::clear(drivers, resp),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
         CommandId::CM_SHA_INIT => {
             cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes, resp)
@@ -327,10 +312,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             cryptographic_mailbox::Commands::random_stir(drivers, cmd_bytes)
         }
         CommandId::CM_AES_ENCRYPT_INIT => {
-            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_init(drivers, cmd_bytes, resp)
+            cryptographic_mailbox::Commands::aes_256_encrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_ENCRYPT_UPDATE => {
-            cryptographic_mailbox::Commands::aes_256_cbc_encrypt_update(drivers, cmd_bytes, resp)
+            cryptographic_mailbox::Commands::aes_256_encrypt_update(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_DECRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_cbc_decrypt_init(drivers, cmd_bytes, resp)
@@ -361,6 +346,34 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_ECDH_FINISH => {
             cryptographic_mailbox::Commands::ecdh_finish(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HMAC => cryptographic_mailbox::Commands::hmac(drivers, cmd_bytes, resp),
+        CommandId::CM_HMAC_KDF_COUNTER => {
+            cryptographic_mailbox::Commands::hmac_kdf_counter(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HKDF_EXTRACT => {
+            cryptographic_mailbox::Commands::hkdf_extract(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_HKDF_EXPAND => {
+            cryptographic_mailbox::Commands::hkdf_expand(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_MLDSA_PUBLIC_KEY => {
+            cryptographic_mailbox::Commands::mldsa_public_key(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_MLDSA_SIGN => {
+            cryptographic_mailbox::Commands::mldsa_sign(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_MLDSA_VERIFY => {
+            cryptographic_mailbox::Commands::mldsa_verify(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_ECDSA_PUBLIC_KEY => {
+            cryptographic_mailbox::Commands::ecdsa_public_key(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_ECDSA_SIGN => {
+            cryptographic_mailbox::Commands::ecdsa_sign(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_ECDSA_VERIFY => {
+            cryptographic_mailbox::Commands::ecdsa_verify(drivers, cmd_bytes, resp)
         }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,

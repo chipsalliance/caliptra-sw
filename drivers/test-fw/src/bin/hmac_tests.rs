@@ -60,8 +60,8 @@ fn test_hmac0() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac.hmac(
-        &(&Array4x12::from(key)).into(),
-        &(&data).into(),
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac384,
@@ -103,8 +103,8 @@ fn test_hmac1() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        &(&Array4x12::from(key)).into(),
-        &(&data).into(),
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac384,
@@ -148,8 +148,8 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
     //
     hmac384
         .hmac(
-            &(KeyReadArgs::new(KeyId::KeyId0).into()),
-            &data.into(),
+            KeyReadArgs::new(KeyId::KeyId0).into(),
+            data.into(),
             &mut trng,
             KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en()).into(),
             HmacMode::Hmac384,
@@ -356,8 +356,8 @@ fn test_hmac5() {
     // Take the Data Generate the Tag in buffer
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        &key.into(),
-        &(&data).into(),
+        key.into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac384,
@@ -370,8 +370,8 @@ fn test_hmac5() {
     // Generate the HMAC of the Tag in to a hmac_step_1
     let mut hmac_step_1 = Array4x12::default();
     let actual = hmac384.hmac(
-        &key.into(),
-        &(&result).into(),
+        key.into(),
+        (&result).into(),
         &mut trng,
         (&mut hmac_step_1).into(),
         HmacMode::Hmac384,
@@ -382,8 +382,8 @@ fn test_hmac5() {
     // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
     let out_tag = KeyWriteArgs::new(KeyId::KeyId5, KeyUsage::default().set_hmac_data_en());
     let actual = hmac384.hmac(
-        &key.into(),
-        &(&data).into(),
+        key.into(),
+        (&data).into(),
         &mut trng,
         out_tag.into(),
         HmacMode::Hmac384,
@@ -395,8 +395,8 @@ fn test_hmac5() {
     let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5);
 
     let actual = hmac384.hmac(
-        &key.into(),
-        &data_input.into(),
+        key.into(),
+        data_input.into(),
         &mut trng,
         (&mut hmac_step_2).into(),
         HmacMode::Hmac384,
@@ -435,8 +435,8 @@ fn test_kdf_hmac384(
 
     hmac384
         .hmac(
-            &(&key_0).into(),
-            &(&msg_0.into()),
+            (&key_0).into(),
+            msg_0.into(),
             &mut trng,
             kdf_key_out.into(),
             HmacMode::Hmac384,
@@ -632,8 +632,8 @@ fn test_hmac_multi_block() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        &(&Array4x12::from(key)).into(),
-        &(&data).into(),
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac384,
@@ -682,8 +682,8 @@ fn test_hmac_exact_single_block() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        &(&Array4x12::from(key)).into(),
-        &(&data).into(),
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac384,
@@ -733,7 +733,7 @@ fn test_hmac_multi_block_two_step() {
     let mut out_tag = Array4x12::default();
     let mut hmac_op = hmac384
         .hmac_init(
-            &(&Array4x12::from(key)).into(),
+            (&Array4x12::from(key)).into(),
             &mut trng,
             (&mut out_tag).into(),
             HmacMode::Hmac384,
@@ -816,8 +816,8 @@ fn test_hmac0_512() {
 
     let mut out_tag = Array4x16::default();
     let actual = hmac.hmac(
-        &(&Array4x16::from(key)).into(),
-        &(&data).into(),
+        (&Array4x16::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac512,
@@ -862,8 +862,8 @@ fn test_hmac1_512() {
 
     let mut out_tag = Array4x16::default();
     let actual = hmac.hmac(
-        &(&Array4x16::from(key)).into(),
-        &(&data).into(),
+        (&Array4x16::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac512,
@@ -910,8 +910,8 @@ fn test_hmac2_512() {
 
     let mut out_tag = Array4x16::default();
     let actual = hmac.hmac(
-        &(&Array4x16::from(key)).into(),
-        &(&data).into(),
+        (&Array4x16::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac512,
@@ -958,8 +958,8 @@ fn test_hmac3_512() {
 
     let mut out_tag = Array4x16::default();
     let actual = hmac.hmac(
-        &(&Array4x16::from(key)).into(),
-        &(&data).into(),
+        (&Array4x16::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac512,
@@ -1013,8 +1013,8 @@ fn test_hmac512_multi_block() {
 
     let mut out_tag = Array4x16::default();
     let actual = hmac.hmac(
-        &(&Array4x16::from(key)).into(),
-        &(&data).into(),
+        (&Array4x16::from(key)).into(),
+        (&data).into(),
         &mut trng,
         (&mut out_tag).into(),
         HmacMode::Hmac512,

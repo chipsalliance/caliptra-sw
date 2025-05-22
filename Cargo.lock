@@ -479,6 +479,8 @@ dependencies = [
  "aes",
  "aes-gcm",
  "cbc",
+ "cipher",
+ "ctr",
  "p384",
  "rfc6979",
  "sha2",
@@ -654,6 +656,7 @@ dependencies = [
  "caliptra-lms-types",
  "cfg-if",
  "ecdsa",
+ "fips204",
  "openssl",
  "p384",
  "rand",
@@ -879,10 +882,14 @@ dependencies = [
  "caliptra_common",
  "cbc",
  "cfg-if",
+ "cipher",
  "cms",
  "crypto",
+ "ctr",
  "dpe",
  "fips204",
+ "hkdf",
+ "hmac",
  "memoffset 0.8.0",
  "openssl",
  "p384",
@@ -1721,9 +1728,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hkdf"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "791a029f6b9fc27657f6f188ec6e5e43f6911f6f878e0dc5501396e09809d437"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
  "hmac",
 ]

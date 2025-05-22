@@ -73,8 +73,8 @@ fn test_decrypt() {
     // Make sure the UDS can be used as a HMAC key
     hmac384
         .hmac(
-            &KeyReadArgs::new(KeyId::KeyId0).into(),
-            &HmacData::Slice("Hello world!".as_bytes()),
+            KeyReadArgs::new(KeyId::KeyId0).into(),
+            HmacData::Slice("Hello world!".as_bytes()),
             &mut trng,
             key_out.into(),
             HmacMode::Hmac384,
@@ -85,8 +85,8 @@ fn test_decrypt() {
     // Make sure the UDS can be used as HMAC data
     hmac384
         .hmac(
-            &HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            &HmacData::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            HmacData::Key(KeyReadArgs { id: KeyId::KeyId0 }),
             &mut trng,
             key_out.into(),
             HmacMode::Hmac384,
@@ -100,8 +100,8 @@ fn test_decrypt() {
     // Make sure the FE can be used as a HMAC key
     hmac384
         .hmac(
-            &HmacKey::Key(KeyReadArgs { id: KeyId::KeyId1 }),
-            &HmacData::Slice("Hello world!".as_bytes()),
+            HmacKey::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            HmacData::Slice("Hello world!".as_bytes()),
             &mut trng,
             key_out.into(),
             HmacMode::Hmac384,
@@ -113,8 +113,8 @@ fn test_decrypt() {
     // Make sure the FE can be used as HMAC data
     hmac384
         .hmac(
-            &HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            &HmacData::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            HmacKey::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            HmacData::Key(KeyReadArgs { id: KeyId::KeyId1 }),
             &mut trng,
             key_out.into(),
             HmacMode::Hmac384,

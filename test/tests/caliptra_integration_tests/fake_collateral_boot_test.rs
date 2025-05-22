@@ -10,13 +10,11 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{
     CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DeviceLifecycle, HwModel, InitParams, SecurityState};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, LDevId},
-    image_pk_desc_hash, swap_word_bytes,
-    x509::{DiceFwid, DiceTcbInfo},
+    image_pk_desc_hash,
 };
-use openssl::sha::sha384;
 use std::io::Write;
 use zerocopy::IntoBytes;
 
@@ -42,8 +40,7 @@ fn get_idevid_pubkey() -> openssl::pkey::PKey<openssl::pkey::Public> {
     csr.public_key().unwrap()
 }
 
-// [CAP2][TODO] This test is disabled because it needs to be updated.
-//#[test]
+#[test]
 fn fake_boot_test() {
     let idevid_pubkey = get_idevid_pubkey();
 
@@ -60,9 +57,14 @@ fn fake_boot_test() {
 
     let (vendor_pk_desc_hash, owner_pk_hash) = image_pk_desc_hash(&image.manifest);
 
+    let canned_cert_security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,
+            security_state: canned_cert_security_state,
             ..Default::default()
         },
         BootParams {
@@ -70,16 +72,19 @@ fn fake_boot_test() {
                 vendor_pk_hash: vendor_pk_desc_hash,
                 owner_pk_hash,
                 fw_svn: [0x7F, 0, 0, 0], // Equals 7
+                fuse_pqc_key_type: 1,    // MLDSA
                 ..Default::default()
             },
             fw_image: Some(&image.to_bytes().unwrap()),
+            initial_dbg_manuf_service_reg: (1 << 30),
             ..Default::default()
         },
     )
     .unwrap();
     let mut output = vec![];
 
-    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    hw.step_until_output_contains("[rt] RT listening for mailbox commands...\n")
+        .unwrap();
     output
         .write_all(hw.output().take(usize::MAX).as_bytes())
         .unwrap();
@@ -199,44 +204,57 @@ fn fake_boot_test() {
         String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
     );
 
-    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
-    assert_eq!(
-        dice_tcb_info,
-        [
-            DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("Device".into()),
-                // This is from the SVN in the fuses (7 bits set)
-                svn: Some(0x107),
+    // [TODO][CAP2] align dice info with cert
+    // let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
+    // assert_eq!(
+    //     dice_tcb_info,
+    //     [
+    //         DiceTcbInfo {
+    //             vendor: None,
+    //             model: None,
 
-                flags: Some(0x80000000),
-                ..Default::default()
-            },
-            DiceTcbInfo {
-                vendor: Some("Caliptra".into()),
-                model: Some("FMC".into()),
-                // This is from the SVN in the image (9)
-                svn: Some(0x109),
-                fwids: vec![
-                    DiceFwid {
-                        // FMC
-                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        digest: swap_word_bytes(&FMC_CANNED_DIGEST).as_bytes().to_vec(),
-                    },
-                    DiceFwid {
-                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        // TODO: Compute this...
-                        digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
-                    },
-                ],
-                ..Default::default()
-            },
-        ]
-    );
+    //             // This is from the SVN in the fuses (7 bits set)
+    //             svn: Some(0x107),
+    //             fwids: vec![
+    //                 DiceFwid {
+    //                     // FMC
+    //                     hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+    //                     digest: swap_word_bytes(&FMC_CANNED_DIGEST).as_bytes().to_vec(),
+    //                 },
+    //                 DiceFwid {
+    //                     hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+    //                     // TODO: Compute this...
+    //                     digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
+    //                 },
+    //             ],
+    //             flags: Some(0x80000000),
+    //             ..Default::default()
+    //         },
+    //         DiceTcbInfo {
+    //             vendor: Some("Caliptra".into()),
+    //             model: Some("FMC".into()),
+    //             // This is from the SVN in the image (9)
+    //             svn: Some(0x109),
+    //             fwids: vec![
+    //                 DiceFwid {
+    //                     // FMC
+    //                     hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+    //                     digest: swap_word_bytes(&FMC_CANNED_DIGEST).as_bytes().to_vec(),
+    //                 },
+    //                 DiceFwid {
+    //                     hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+    //                     // TODO: Compute this...
+    //                     digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
+    //                 },
+    //             ],
+    //             ..Default::default()
+    //         },
+    //     ]
+    // );
 
     // TODO: re-enable when it's easier to update the canned responses
-    /*
     // Need to use production for the canned certs to match the LDEV cert in testdata
+    /*
     let canned_cert_security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
@@ -245,16 +263,16 @@ fn fake_boot_test() {
         &Pcr0::derive(&Pcr0Input {
             security_state: canned_cert_security_state,
             fuse_anti_rollback_disable: false,
-            vendor_pub_key_hash: vendor_pk_hash,
+            vendor_pub_key_hash: vendor_pk_desc_hash,
             owner_pub_key_hash: owner_pk_hash,
-            owner_pub_key_from_fuses: true,
+            owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
-            fmc_digest: FMC_CANNED_DIGEST,
-            fw_svn: image.manifest.fmc.svn,
+            fmc_digest: image.manifest.fmc.digest,
+            cold_boot_fw_svn: image.manifest.header.svn,
             // This is from the SVN in the fuses (7 bits set)
             fw_fuse_svn: 7,
-            lms_vendor_pub_key_index: u32::MAX,
-            pqc_key_type: 0, // RomVerifyConfig::EcdsaOnly
+            pqc_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
+            pqc_key_type: 1 as u32, // MLDSA
         }),
         &expected_ldevid_key,
     );
@@ -266,7 +284,8 @@ fn fake_boot_test() {
     // caliptra_test::Pcr0Input::derive_pcr0().
     assert!(expected_fmc_alias_key
         .derive_public_key()
-        .public_eq(&fmc_alias_cert.public_key().unwrap()));*/
+        .public_eq(&fmc_alias_cert.public_key().unwrap()));
+    */
 
     assert!(
         fmc_alias_cert.verify(&ldev_pubkey).unwrap(),

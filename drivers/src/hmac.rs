@@ -173,7 +173,7 @@ impl Hmac {
     /// * `HmacOp` - Hmac operation
     pub fn hmac_init<'a>(
         &'a mut self,
-        key: &HmacKey,
+        key: HmacKey,
         trng: &mut Trng,
         mut tag: HmacTag<'a>,
         hmac_mode: HmacMode,
@@ -197,7 +197,7 @@ impl Hmac {
                 KvAccess::copy_from_arr(arr, hmac.hmac512_key())?;
                 None
             }
-            HmacKey::Key(key) => Some(*key),
+            HmacKey::Key(key) => Some(key),
             HmacKey::CsrMode() => {
                 csr_mode = true;
                 None
@@ -252,8 +252,8 @@ impl Hmac {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac(
         &mut self,
-        key: &HmacKey,
-        data: &HmacData,
+        key: HmacKey,
+        data: HmacData,
         trng: &mut Trng,
         tag: HmacTag,
         hmac_mode: HmacMode,
@@ -276,7 +276,7 @@ impl Hmac {
         };
 
         // Configure the hardware to use key to use for the HMAC operation
-        let key = match *key {
+        let key = match key {
             HmacKey::Array4x12(arr) => {
                 KvAccess::copy_from_arr(arr, hmac.hmac512_key().truncate::<12>())?;
                 None
@@ -297,7 +297,7 @@ impl Hmac {
         // Calculate the hmac
         match data {
             HmacData::Slice(buf) => self.hmac_buf(buf, key, dest_key, hmac_mode, csr_mode)?,
-            HmacData::Key(data_key) => self.hmac_key(*data_key, key, dest_key, hmac_mode)?,
+            HmacData::Key(data_key) => self.hmac_key(data_key, key, dest_key, hmac_mode)?,
         }
         let hmac = self.hmac.regs();
 

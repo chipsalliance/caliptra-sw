@@ -198,6 +198,11 @@ impl CaliptraError {
             "Driver Error: HMAC index out of bounds"
         ),
         (
+            DRIVER_HKDF_SALT_TOO_LONG,
+            0x0004000f,
+            "Driver Error: HKDF salt is too large"
+        ),
+        (
             DRIVER_ECC384_READ_SEED_KV_READ,
             0x00050001,
             "Driver Error: ECC384 read seed KV read"
@@ -2127,6 +2132,11 @@ impl CaliptraError {
             RUNTIME_DRIVER_AES_INVALID_TAG,
             0xa004_0011,
             "Driver Error: AES tag is invalid"
+        ),
+        (
+            RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
+            0xa005_0000,
+            "Runtime Error: Signaure mismatch"
         ),
     ];
 }

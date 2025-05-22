@@ -71,7 +71,7 @@ impl Mldsa87Kat {
 
         let mut priv_key = Mldsa87PrivKey::default();
         let pub_key = mldsa87
-            .key_pair(&Mldsa87Seed::Array4x8(&SEED), trng, Some(&mut priv_key))
+            .key_pair(Mldsa87Seed::Array4x8(&SEED), trng, Some(&mut priv_key))
             .map_err(|_| CaliptraError::KAT_MLDSA87_KEY_PAIR_GENERATE_FAILURE)?;
 
         let pub_key_digest = sha2
@@ -87,7 +87,7 @@ impl Mldsa87Kat {
 
         let signature = mldsa87
             .sign(
-                &Mldsa87Seed::PrivKey(&priv_key),
+                Mldsa87Seed::PrivKey(&priv_key),
                 &pub_key,
                 &KAT_MESSAGE.into(),
                 &Mldsa87SignRnd::default(),

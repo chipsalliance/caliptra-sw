@@ -91,8 +91,12 @@ These commands are not meant to be high-performance as they are accessed via mai
 
 CM itself does not provide any storage for the keys: when generated, they are returned to the caller in encrypted form, and must be passed back to be used.
 
-These mailbox commands provide SHA, HMAC, HKDF, AES, and RNG services.
-Asymmetric cryptographic services are currently only provided through DPE and the `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY` mailbox commands, which do not use the CM storage system.
+These mailbox commands provide SHA, HMAC, HKDF, AES, RNG, MLDSA, and ECDSA services.
+
+Note that while MLDSA and ECDSA keys can be imported, generated, and used in the cryptographic mailbox commands (i.e., `CM_*` commands) through CMKs, these keys are *NOT* tied DICE or DPE, so their use may be restricted for certain purposes.
+
+MLDSA and ECDSA keys managed by DPE use the separate `ECDSA384_SIGNATURE_VERIFY`, `LMS_SIGNATURE_VERIFY`, and `MLDSA87_SIGNATURE_VERIFY` mailbox commands, which do not use the cryptographic mailbox system and are not managed by CMKs.
+
 
 ### References
 
@@ -1258,94 +1262,28 @@ Command Code: `0x434D_5346` ("CMSF")
 | hash size   | u32           |                           |
 | hash        | u8[hash size] |                           |
 
-### CM_HMAC_INIT
+### CM_HMAC
 
-Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data may be larger than a single mailbox command allows.
-
-The sequence to use these are:
-* 1 `CM_HMAC_INIT` command
-* 0 or more `CM_HMAC_UPDATE` commands
-* 1 `CM_HMAC_FINAL` command
-
-For each command, the context from the previous command's output must be passed as an input.
+Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data must fit into a single mailbox command.
 
 The CMK must have been created for HMAC / HKDF usage.
 
-Command Code: `0x434D_4849` ("CMHI")
+Command Code: `0x434D_484D` ("CMHM")
 
-*Table: `CM_HMAC_INIT` input arguments*
+*Table: `CM_HMAC` input arguments*
 | **Name**       | **Type**      | **Description**   |
 | -------------- | ------------- | ----------------- |
 | chksum         | u32           |                   |
 | CMK            | CMK           | CMK to use as key |
 | hash algorithm | u32           | Enum.             |
 |                |               | 0 = reserved      |
-|                |               | 1 = SHA2-256      |
-|                |               | 2 = SHA2-384      |
-|                |               | 3 = SHA2-512      |
+|                |               | 1 = SHA2-384      |
+|                |               | 2 = SHA2-512      |
 | data size      | u32           |                   |
 | data           | u8[data size] | Data to MAC       |
 
-*Table: `CM_HMAC_INIT` output arguments*
-| **Name**     | **Type** | **Description**           |
-| ------------ | -------- | ------------------------- |
-| chksum       | u32      |                           |
-| fips_status  | u32      | FIPS approved or an error |
-| context size | u32      |                           |
-| context      | u8[...]  |                           |
 
-*Table: `CM_HMAC_INIT` internal context*
-| **Name**          | **Type** | **Description** |
-| ----------------- | -------- | --------------- |
-| input buffer      | u8[128]  |                 |
-| intermediate hash | u8[64]   |                 |
-| length            | u64      |                 |
-| hash algorithm    | u32      |                 |
-
-Note that although the `CM_HMAC` context is the same as the `CM_SHA` context, the `CM_HMAC` SHALL be encrypted.
-
-### CM_HMAC_UPDATE
-
-This continues an HMAC computation started by `CM_HMAC_INIT` or from another `CM_HMAC_UPDATE`.
-
-The context MUST be passed in from `CM_HMAC_INIT` or `CM_HMAC_UPDATE`.
-
-Command Code: `0x434D_4855` ("CMHU")
-
-*Table: `CM_HMAC_UPDATE` input arguments*
-| **Name**     | **Type**         | **Description**                                  |
-| ------------ | ---------------- | ------------------------------------------------ |
-| chksum       | u32              |                                                  |
-| context size | u32              |                                                  |
-| context      | u8[context size] | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-| data size    | u32              |                                                  |
-| data         | u8[data size]    | Data to MAC                                      |
-
-*Table: `CM_HMAC_UPDATE` output arguments*
-| **Name**     | **Type**         | **Description**                              |
-| ------------ | ---------------- | -------------------------------------------- |
-| chksum       | u32              |                                              |
-| fips_status  | u32              | FIPS approved or an error                    |
-| context size | u32              |                                              |
-| context      | u8[context size] | Passed to `CM_HMAC_UPDATE` / `CM_HMAC_FINAL` |
-
-### CM_HMAC_FINAL
-
-This finalizes the computation of an HMAC and produces the MAC of all of the data.
-
-The context MUST be passed in from `CM_HMAC_INIT` or `CMA_HMAC_UPDATE`.
-
-Command Code: `0x434D_4846` ("CMHF")
-
-*Table: `CM_HMAC_FINAL` input arguments*
-
-| **Name**     | **Type**         | **Description**                                  |
-| ------------ | ---------------- | ------------------------------------------------ |
-| chksum       | u32              |                                                  |
-| context size | u32              |                                                  |
-| context      | u8[context size] | Passed in from `CM_HMAC_INIT` / `CM_HMAC_UPDATE` |
-
-*Table: `CM_HMAC_FINAL` output arguments*
+*Table: `CM_HMAC` output arguments*
 | **Name**    | **Type**     | **Description**           |
 | ----------- | ------------ | ------------------------- |
 | chksum      | u32          |                           |
@@ -1353,26 +1291,56 @@ Command Code: `0x434D_4846` ("CMHF")
 | mac size    | u32          |                           |
 | mac         | u8[mac size] |                           |
 
+### CM_HMAC_KDF_COUNTER
+
+Implements HMAC KDF in Counter Moder as specified in  as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html) and [NIST SP800-108](https://csrc.nist.gov/pubs/sp/800/108/r1/upd1/final) Section 4.1 (KDF in Counter Mode, Section 4.1).
+
+The CMK must have been created for HMAC usage.
+
+The output length will be automatically chosen to match the key usage.
+
+Command Code: `0x434D_4B43` ("CMKC")
+
+*Table: `CM_HMAC_KDF_COUNTER` input arguments*
+| **Name**       | **Type**       | **Description**           |
+| -------------- | -------------- | ------------------------- |
+| chksum         | u32            |                           |
+| KIN CMK        | CMK            | Input key                 |
+| hash algorithm | u32            | Enum.                     |
+|                |                | Value 0 = reserved        |
+|                |                | Value 1 = SHA2-384        |
+|                |                | Value 2 = SHA2-512        |
+| key usage      | u32            | usage tag of output key   |
+| key size       | u32            | size (in bytes) for the output key; MUST be valid for the key usage |
+| label size     | u32            |                           |
+| label          | u8[label size] |                           |
+
+*Table: `CM_HMAC_KDF_COUNTER` output arguments*
+| **Name**    | **Type** | **Description**                         |
+| ----------- | -------- | --------------------------------------- |
+| chksum      | u32      |                                         |
+| fips_status | u32      | FIPS approved or an error               |
+| KOUT CMK    | CMK      | CMK that stores the output key material |
+
 ### CM_HKDF_EXTRACT
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC / HKDF usage. The output will be tagged for HKDF usage.
+The CMK must have been created for HMAC usage. The output will be tagged for HMAC usage.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
 *Table: `CM_HKDF_EXTRACT` input arguments*
-| **Name**       | **Type**      | **Description**        |
-| -------------- | ------------- | ---------------------- |
-| chksum         | u32           |                        |
-| hash algorithm | u32           | Enum.                  |
-|                |               | Value 0 = reserved     |
-|                |               | Value 1 = SHA2-256     |
-|                |               | Value 2 = SHA2-384     |
-|                |               | Value 3 = SHA2-512     |
-| IKM CMK        | u8[32]        | Input key material CMK |
-| salt size      | u32           | May be 0               |
-| salt           | u8[salt size] |                        |
+| **Name**       | **Type** | **Description**           |
+| -------------- | -------- | ------------------------- |
+| chksum         | u32      |                           |
+| IKM CMK        | CMK      | Input key material CMK    |
+| hash algorithm | u32      | Enum.                     |
+|                |          | Value 0 = reserved        |
+|                |          | Value 1 = SHA2-384        |
+|                |          | Value 2 = SHA2-512        |
+| salt           | u8[64]   | Salt. Only 48 bytes used  |
+|                |          | in SHA384 mode. Can be 0s |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
 | **Name**    | **Type** | **Description**                         |
@@ -1386,28 +1354,30 @@ Command Code: `0x434D_4B54` ("CMKT")
 
 Implements HKDF-Expand as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC / HKDF usage.
+The CMK must have been created for HMAC usage.
 
 The output length will be automatically chosen to match the key usage.
 
 Command Code: `0x434D_4B50` ("CMKP")
 
 *Table: `CM_HKDF_EXPAND` input arguments*
-| **Name**       | **Type**      | **Description**                                              |
-| -------------- | ------------- | ------------------------------------------------------------ |
-| chksum         | u32           |                                                              |
-| hash algorithm | u32           | Enum.                                                        |
-|                |               | Value 0 = reserved                                           |
-|                |               | Value 1 = SHA2-256                                           |
-|                |               | Value 2 = SHA2-384                                           |
-|                |               | Value 3 = SHA2-512                                           |
-| PRK CMK        | CMK           |                                                              |
-| key usage      | u32           | usage tag of the kind of key that will be output             |
-| key size       | u32           | size (in bytes) for the OKM; MUST be valid for the key usage |
-| info size      | u32           |                                                              |
-| info           | u8[info size] |                                                              |
+| **Name**       | **Type**      | **Description**                 |
+| -------------- | ------------- | ------------------------------- |
+| chksum         | u32           |                                 |
+| PRK CMK        | CMK           |                                 |
+| hash algorithm | u32           | Enum.                           |
+|                |               | Value 0 = reserved              |
+|                |               | Value 1 = SHA2-384              |
+|                |               | Value 2 = SHA2-512              |
+| key usage      | u32           | usage tag of output key         |
+| key size       | u32           | size (in bytes) for the OKM;    |
+|                |               | MUST be valid for the key usage |
+| info size      | u32           |                                 |
+| info           | u8[info size] |                                 |
 
 *Table: `CM_HKDF_EXPAND` output arguments*
+Command Code: `0x434D_4B43` ("CMKC")
+
 | **Name**    | **Type** | **Description**                         |
 | ----------- | -------- | --------------------------------------- |
 | chksum      | u32      |                                         |
@@ -1415,14 +1385,158 @@ Command Code: `0x434D_4B50` ("CMKP")
 | OKM CMK     | CMK      | CMK that stores the output key material |
 
 
+### CM_MLDSA_PUBLIC_KEY
+
+Returns the public key associated with the MLDSA-87 key (seed) in a CMK.
+
+The public key format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+Command Code: `0x434D_4D50` ("CMMP")
+
+*Table: `CM_MLDSA_PUBLIC_KEY` input arguments*
+| **Name** | **Type** | **Description**   |
+| -------- | -------- | ----------------- |
+| chksum   | u32      |                   |
+| CMK      | CMK      | Private key seed  |
+
+*Table: `CM_MLDSA_PUBLIC_KEY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| Public key  | u8[2592] | Public key                 |
+
+### CM_MLDSA_SIGN
+
+Signs the message with the MLDSA-87 key.
+
+The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+Command Code: `0x434D_4D53` ("CMMS")
+
+*Table: `CM_MLDSA_SIGN` input arguments*
+| **Name** | **Type**     | **Description**   |
+| -------- | ------------ | ----------------- |
+| chksum   | u32          |                   |
+| CMK      | CMK          | Private key seed  |
+| data len | u32          | Length of message |
+| data     | u8[data len] | Message to sign   |
+
+*Table: `CM_MLDSA_SIGN` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| signature   | u8[4627] | Signature                  |
+| padding     | u8[1]    |                            |
+
+### CM_MLDSA_VERIFY
+
+Verifies the signature against the message and MLDSA-87 key.
+
+The signature format is described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x434D_4D56` ("CMMV")
+
+*Table: `CM_MLDSA_VERIFY` input arguments*
+| **Name**  | **Type**     | **Description**    |
+| --------- | ------------ | ------------------ |
+| chksum    | u32          |                    |
+| CMK       | CMK          | Private key seed   |
+| signature | u8[4627]     | Signature to check |
+| padding   | u8[1]        |                    |
+| data len  | u32          | Length of message  |
+| data      | u8[data len] | Message to check   |
+
+*Table: `CM_MLDSA_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+
+### CM_ECDSA_PUBLIC_KEY
+
+Returns the public key associated with the ECDSA-384 key seed in a CMK.
+
+The public key consists of its `x` and `y` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+Command Code: `0x434D_4550` ("CMEP")
+
+*Table: `CM_ECDSA_PUBLIC_KEY` input arguments*
+| **Name** | **Type** | **Description**   |
+| -------- | -------- | ----------------- |
+| chksum   | u32      |                   |
+| CMK      | CMK      | Private key seed  |
+
+*Table: `CM_ECDSA_PUBLIC_KEY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+| pubkey_x    | u8[48]   | The X BigNum of the ECDSA public key generated from the seed  |
+| pubkey_y    | u8[48]   | The Y BigNum of the ECDSA public key generated from the seed  |
+
+### CM_ECDSA_SIGN
+
+Signs the SHA384 hash of the message with the ECDSA-384 key.
+
+The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+Command Code: `0x434D_5D53` ("CMES")
+
+*Table: `CM_ECDSA_SIGN` input arguments*
+| **Name** | **Type**     | **Description**   |
+| -------- | ------------ | ----------------- |
+| chksum   | u32          |                   |
+| CMK      | CMK          | Private key seed  |
+| data len | u32          | Length of message |
+| data     | u8[data len] | Message to sign   |
+
+*Table: `CM_ECDSA_SIGN` output arguments*
+| **Name**     | **Type** | **Description**                      |
+| ------------ | -------- | ------------------------------------ |
+| chksum       | u32      |                                      |
+| fips_status  | u32      | FIPS approved or an error            |
+| signature_r  | u8[48]   | The R BigNum of the ECDSA signature  |
+| signature_s  | u8[48]   | The S BigNum of the ECDSA signature  |
+
+### CM_ECDSA_VERIFY
+
+Verifies the signature against the SHA384 hash of the message and ECDSA-384 key.
+
+The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x434D_4556` ("CMEV")
+
+*Table: `CM_ECDSA_VERIFY` input arguments*
+| **Name**     | **Type**     | **Description**                     |
+| ------------ | ------------ | ----------------------------------- |
+| chksum       | u32          |                                     |
+| CMK          | CMK          | Private key seed                    |
+| signature_r  | u8[48]       | The R BigNum of an ECDSA signature  |
+| signature_s  | u8[48]       | The S BigNum of an ECDSA signature  |
+| data len     | u32          | Length of message  |
+| data         | u8[data len] | Message to check   |
+
+*Table: `CM_ECDSA_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+
 ### CM_AES_ENCRYPT_INIT
 
 Generic AES operation for unauthenticated AES operations.
 AES GCM operations use separate commands elsewhere.
 
-Currently only supports AES-256-CBC with a random 128-bit IV.
+AES-256-CBC only supports using a random 128-bit IV.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 The CMK must have been created for AES usage.
 
@@ -1436,6 +1550,7 @@ Command Code: `0x434D_4349` ("CMCI")
 | mode/flags     | u32                | Requested mode and flags.             |
 |                |                    | 0 = Reserved                          |
 |                |                    | 1 = CBC                               |
+|                |                    | 2 = CTR                               |
 | plaintext size | u32                | MUST be non-zero                      |
 | plaintext      | u8[plaintext size] | Data to encrypt                       |
 
@@ -1470,7 +1585,8 @@ There is no `CM_AES_ENCRYPT_FINISH` since unauthenticated AES modes do not outpu
 
 The context MUST be passed in from `CM_AES_ENCRYPT_INIT` or `CM_AES_ENCRYPT_UPDATE`.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 Command Code: `0x434D_4355` ("CMCU")
 
@@ -1497,7 +1613,8 @@ Starts an AES-256 unauthenaticed decryption computation.
 
 The CMK must have been created for AES usage.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 The IV must match what was passed and returned from the initial encryption operation.
 
@@ -1511,6 +1628,7 @@ Command Code: `0x434D_414A` ("CMAJ")
 | mode/flags      | u32                 | Requested mode and flags. |
 |                 |                     | 0 = Reserved              |
 |                 |                     | 1 = CBC                   |
+|                 |                     | 2 = CTR                   |
 | iv              | u8[16]              |                           |
 | ciphertext size | u32                 | MUST be non-zero          |
 | ciphertext      | u8[ciphertext size] | Data to decrypt           |
@@ -1534,7 +1652,8 @@ There is no `CM_AES_DECRYPT_FINISH` since unauthenticated modes do not output a 
 
 The context MUST be passed in from `CM_AES_DECRYPT_INIT` or `CM_AES_DECRYPT_UPDATE`.
 
-For block modes, such as CBC, the size must be a multiple of 16 bytes.
+For CBC, the size must be a multiple of 16 bytes.
+CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
 Command Code: `0x434D_4155` ("CMAU")
 
