@@ -293,6 +293,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
+        CommandId::CM_CLEAR => cryptographic_mailbox::Commands::clear(drivers, resp),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
         CommandId::CM_SHA_INIT => {
             cryptographic_mailbox::Commands::sha_init(drivers, cmd_bytes, resp)

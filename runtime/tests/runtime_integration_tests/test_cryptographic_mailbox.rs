@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+use std::collections::VecDeque;
+
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
@@ -11,8 +13,8 @@ use caliptra_api::mailbox::{
     CmAesGcmDecryptUpdateResp, CmAesGcmDecryptUpdateRespHeader, CmAesGcmEncryptFinalReq,
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
-    CmAesGcmEncryptUpdateRespHeader, CmAesMode, CmAesResp, CmAesRespHeader, CmEcdhFinishReq,
-    CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
+    CmAesGcmEncryptUpdateRespHeader, CmAesMode, CmAesResp, CmAesRespHeader, CmDeleteReq,
+    CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
     CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm,
     CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
     CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
@@ -175,23 +177,108 @@ fn test_import_full() {
         err,
     );
 
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CM_STATUS), &[]),
-    };
-    let status_resp = model
-        .mailbox_execute(u32::from(CommandId::CM_STATUS), payload.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
+    let cm_resp = status(&mut model);
     assert_eq!(cm_resp.used_usage_storage, 256);
     assert_eq!(cm_resp.total_usage_storage, 256);
 }
 
-#[ignore] // this test is very slow so we only test it manually
+// this test is very slow so we only test it manually (on an FPGA, preferably)
+#[ignore]
+// Test that we can import more than 2^24 keys as long as we delete them occasionally.
 #[test]
 fn test_import_wraparound() {
-    // TODO: implement this when we have the clear and delete commands
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..((1 << 24) + 1000) {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+        if keys.len() >= 256 {
+            delete_key(&mut model, &keys.pop_front().unwrap());
+        }
+    }
+}
+
+fn status(model: &mut DefaultHwModel) -> CmStatusResp {
+    let mut req = MailboxReq::CmStatus(MailboxReqHeader::default());
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+    let status_resp = model
+        .mailbox_execute(u32::from(CommandId::CM_STATUS), req)
+        .unwrap()
+        .expect("We should have received a response");
+    CmStatusResp::read_from_bytes(status_resp.as_slice()).unwrap()
+}
+
+fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
+    let mut req = MailboxReq::CmDelete(CmDeleteReq {
+        hdr: MailboxReqHeader::default(),
+        cmk: cmk.clone(),
+    });
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::CM_DELETE), req)
+        .unwrap()
+        .expect("We should have received a response");
+}
+
+#[test]
+fn test_delete() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmk = import_key(&mut model, &[0xaa; 32], CmKeyUsage::Aes);
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 1);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    delete_key(&mut model, &cmk);
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_clear() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut req = MailboxReq::CmClear(MailboxReqHeader::default());
+    req.populate_chksum().unwrap();
+    let req = req.as_bytes().unwrap();
+
+    let raw_key = [0xaa; 32];
+    let mut keys = VecDeque::new();
+    for _ in 0..256 {
+        let cmk = import_key(&mut model, &raw_key, CmKeyUsage::Aes);
+        keys.push_back(cmk);
+    }
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 256);
+    assert_eq!(status_resp.total_usage_storage, 256);
+
+    model
+        .mailbox_execute(u32::from(CommandId::CM_CLEAR), req)
+        .unwrap()
+        .expect("We should have received a response");
+
+    let status_resp = status(&mut model);
+    assert_eq!(status_resp.used_usage_storage, 0);
+    assert_eq!(status_resp.total_usage_storage, 256);
 }
 
 #[test]
