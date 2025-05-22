@@ -399,6 +399,20 @@ fn smoke_test() {
 
             // Extract the certificate from the response
             let fmc_alias_cert_der = fmc_alias_cert_resp.data().unwrap();
+            // For fake rom
+            // std::fs::write(
+            //     format!(
+            //         "tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert{}.der",
+            //         if *algorithm_type == AlgorithmType::Mldsa87 {
+            //             "_mldsa"
+            //         } else {
+            //             ""
+            //         }
+            //     ),
+            //     fmc_alias_cert_der,
+            // )
+            // .unwrap();
+
             let fmc_alias_cert = openssl::x509::X509::from_der(fmc_alias_cert_der).unwrap();
 
             println!(
