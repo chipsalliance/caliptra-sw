@@ -11,7 +11,8 @@ use openssl::{
     bn::{BigNum, BigNumContext},
     ec::{EcGroup, EcKey, EcPoint, PointConversionForm},
     nid::Nid,
-    pkey::{PKey, Public},
+    pkey::{PKey, Private, Public},
+    pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant},
 };
 
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
@@ -84,6 +85,16 @@ pub(crate) fn derive_ecdsa_key(priv_bytes: &[u8; 48]) -> PKey<Public> {
     let key = EcKey::from_private_components(&group, priv_key_bn, &pub_point).unwrap();
     let public_key = EcKey::from_public_key(&group, key.public_key()).unwrap();
     PKey::from_ec_key(public_key).unwrap()
+}
+
+pub(crate) fn derive_mldsa_key(seed: &[u8; 32]) -> PKey<Public> {
+    let builder = PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, seed).unwrap();
+    let private_key = builder.build().unwrap();
+    let public_params = PKeyMlDsaParams::<Public>::from_pkey(&private_key).unwrap();
+    PKeyMlDsaBuilder::<Public>::new(Variant::MlDsa87, public_params.public_key().unwrap(), None)
+        .unwrap()
+        .build()
+        .unwrap()
 }
 
 #[test]
@@ -386,6 +397,11 @@ pub(crate) fn pubkey_ecdsa_der(pub_key: &PKey<Public>) -> Vec<u8> {
         .public_key()
         .to_bytes(&ec_group, PointConversionForm::UNCOMPRESSED, &mut bn_ctx)
         .unwrap()
+}
+
+pub(crate) fn pubkey_mldsa_der(pub_key: &PKey<Public>) -> Vec<u8> {
+    let pkey_param = PKeyMlDsaParams::<Public>::from_pkey(pub_key).unwrap();
+    pkey_param.public_key().unwrap().to_vec()
 }
 
 #[test]

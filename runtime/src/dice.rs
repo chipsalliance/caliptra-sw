@@ -75,7 +75,7 @@ impl IDevIdCertCmd {
                         return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
                     }
 
-                    let sig = caliptra_x509::Mldsa87Signature {
+                    let sig = caliptra_x509::MlDsa87Signature {
                         sig: cmd.signature[..4627]
                             .try_into()
                             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
@@ -167,13 +167,17 @@ impl GetRtAliasCertCmd {
                 let resp = mutrefbytes::<GetRtAliasCertResp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();
                 resp.data_size =
-                    copy_rt_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+                    copy_rt_alias_ecc384_cert(drivers.persistent_data.get(), &mut resp.data)?
+                        as u32;
                 resp.partial_len()
             }
             AlgorithmType::Mldsa87 => {
-                // MLDSA87 implementation would go here
-                // This is just a placeholder - actual implementation would depend on MLDSA87 specifics
-                Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+                let resp = mutrefbytes::<GetRtAliasCertResp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
+                resp.data_size =
+                    copy_rt_alias_mldsa87_cert(drivers.persistent_data.get(), &mut resp.data)?
+                        as u32;
+                resp.partial_len()
             }
         }
     }
@@ -334,7 +338,7 @@ pub fn copy_fmc_alias_mldsa87_cert(
 ///
 /// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
-pub fn copy_rt_alias_cert(
+pub fn copy_rt_alias_ecc384_cert(
     persistent_data: &PersistentData,
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
@@ -342,6 +346,28 @@ pub fn copy_rt_alias_cert(
         .ecc_rtalias_tbs
         .get(..persistent_data.fht.rtalias_ecc_tbs_size.into());
     ecc384_cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_ecc_sign, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)
+}
+
+/// Copy RT Alias MLDSA87 certificate produced by FMC to `cert` buffer
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy RT Alias MLDSA87 certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
+#[inline(never)]
+pub fn copy_rt_alias_mldsa87_cert(
+    persistent_data: &PersistentData,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    let tbs = persistent_data
+        .mldsa_rtalias_tbs
+        .get(..persistent_data.rtalias_mldsa_tbs_size.into());
+    mldsa87_cert_from_tbs_and_sig(tbs, &persistent_data.rt_dice_mldsa_sign, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)
 }
 
@@ -402,7 +428,7 @@ fn mldsa87_cert_from_tbs_and_sig(
     };
 
     let sig_bytes = <[u8; 4628]>::from(sig)[..4627].try_into().unwrap();
-    let signature = caliptra_x509::Mldsa87Signature { sig: sig_bytes };
+    let signature = caliptra_x509::MlDsa87Signature { sig: sig_bytes };
 
     let Some(builder) = MlDsa87CertBuilder::new(tbs, &signature) else {
         return Err(CaliptraError::RUNTIME_INTERNAL);

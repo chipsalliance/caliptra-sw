@@ -29,7 +29,7 @@ mod test_util;
 
 pub use cert_bldr::{
     Ecdsa384CertBuilder, Ecdsa384CsrBuilder, Ecdsa384Signature, MlDsa87CertBuilder,
-    MlDsa87CsrBuilder, Mldsa87Signature,
+    MlDsa87CsrBuilder, MlDsa87Signature,
 };
 pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
 pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
