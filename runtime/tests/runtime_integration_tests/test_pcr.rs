@@ -4,10 +4,10 @@ use crate::common::{get_ecc_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
-    CommandId, ExtendPcrReq, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader,
-    QuotePcrsFlags, QuotePcrsReq, QuotePcrsResp,
+    CommandId, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxReq,
+    MailboxReqHeader, QuotePcrsFlags, QuotePcrsReq, QuotePcrsResp,
 };
-use caliptra_drivers::PcrId;
+use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
@@ -265,4 +265,21 @@ fn test_extend_pcr_cmd_reserved_range() {
             )))
         );
     }
+}
+
+#[test]
+fn test_get_pcr_log() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let mut cmd = MailboxReq::GetPcrLog(MailboxReqHeader::default());
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_PCR_LOG), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let resp = GetPcrLogResp::read_from_bytes(resp.as_slice()).unwrap();
+    let log = PcrLogArray::read_from_bytes(&resp.data[..resp.data_size as usize]);
+    assert!(log.is_ok());
 }

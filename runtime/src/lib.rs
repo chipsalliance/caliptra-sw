@@ -78,7 +78,7 @@ pub use get_image_info::GetImageInfoCmd;
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use key_ladder::KeyLadder;
-pub use pcr::IncrementPcrResetCounterCmd;
+pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
@@ -284,6 +284,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes, resp)
         }
