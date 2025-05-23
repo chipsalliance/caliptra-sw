@@ -959,14 +959,10 @@ dependencies = [
  "der",
  "dpe",
  "elf",
- "ml-dsa",
  "openssl",
  "rand",
  "regex",
- "signature",
- "spki",
  "ureg",
- "x509-cert",
  "zerocopy",
 ]
 
@@ -996,20 +992,13 @@ dependencies = [
  "asn1",
  "bitfield",
  "caliptra_common",
- "const-oid",
  "convert_case",
  "der",
  "hex",
- "ml-dsa",
  "openssl",
  "quote",
  "rand",
- "sha1",
- "sha2",
- "signature",
- "spki",
  "syn 1.0.109",
- "x509-cert",
  "x509-parser",
  "zeroize",
 ]
@@ -1089,11 +1078,11 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.83"
+version = "1.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
+checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
 dependencies = [
- "libc",
+ "shlex",
 ]
 
 [[package]]
@@ -1756,15 +1745,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hybrid-array"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dab50e193aebe510fe0e40230145820e02f48dae0cf339ea4204e6e708ff7bd"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1860,9 +1840,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.152"
+version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
+checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 
 [[package]]
 name = "link-cplusplus"
@@ -1933,21 +1913,6 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
-name = "ml-dsa"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac4a46643af2001eafebcc37031fc459eb72d45057aac5d7a15b00046a2ad6db"
-dependencies = [
- "const-oid",
- "hybrid-array",
- "num-traits",
- "pkcs8",
- "rand_core",
- "sha3",
- "signature",
-]
 
 [[package]]
 name = "mldsa_key_pair_gen"
@@ -2040,9 +2005,8 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "openssl"
-version = "0.10.63"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15c9d69dd87a29568d4d017cfe8ec518706046a05184e5aea92d0af890b803c8"
+version = "0.10.72"
+source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#25b5f99a8c3ee82dbe3b68014b02d50864f4aab0"
 dependencies = [
  "bitflags 2.4.0",
  "cfg-if",
@@ -2055,13 +2019,12 @@ dependencies = [
 
 [[package]]
 name = "openssl-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b501e44f11665960c7e7fcf062c7d96a14ade4aa98116c004b2e37b5be7d736c"
+version = "0.1.1"
+source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#25b5f99a8c3ee82dbe3b68014b02d50864f4aab0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -2076,8 +2039,7 @@ dependencies = [
 [[package]]
 name = "openssl-sys"
 version = "0.9.108"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e145e1651e858e820e4860f7b9c5e169bc1d8ce1c86043be79fa7b7634821847"
+source = "git+https://github.com/teythoon/rust-openssl.git?branch=justus%2Fpqc#25b5f99a8c3ee82dbe3b68014b02d50864f4aab0"
 dependencies = [
  "cc",
  "libc",
@@ -2459,17 +2421,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha1"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest",
-]
-
-[[package]]
 name = "sha2"
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2489,6 +2440,12 @@ dependencies = [
  "digest",
  "keccak",
 ]
+
+[[package]]
+name = "shlex"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "signature"
@@ -2687,27 +2644,6 @@ checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
 dependencies = [
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "tls_codec"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e78c9c330f8c85b2bae7c8368f2739157db9991235123aa1b15ef9502bfb6a"
-dependencies = [
- "tls_codec_derive",
- "zeroize",
-]
-
-[[package]]
-name = "tls_codec_derive"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d9ef545650e79f30233c0003bcc2504d7efac6dad25fca40744de773fe2049c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.48",
 ]
 
 [[package]]
@@ -3205,10 +3141,7 @@ checksum = "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94"
 dependencies = [
  "const-oid",
  "der",
- "sha1",
- "signature",
  "spki",
- "tls_codec",
 ]
 
 [[package]]

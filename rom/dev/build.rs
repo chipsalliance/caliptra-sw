@@ -87,7 +87,7 @@ fn main() {
 
         let ws_dir = workspace_dir();
         let ldev_file_path =
-            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der");
         println!(
             "cargo:rerun-if-changed={}",
             ldev_file_path.to_str().unwrap()

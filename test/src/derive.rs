@@ -18,7 +18,7 @@ use caliptra_api_types::DeviceLifecycle;
 use caliptra_image_types::FwVerificationPqcKeyType;
 
 use crate::{
-    crypto::{self, derive_ecdsa_key, hmac384_drbg_keygen, hmac512, hmac512_kdf},
+    crypto::{self, derive_ecdsa_key, derive_mldsa_key, hmac384_drbg_keygen, hmac512, hmac512_kdf},
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
@@ -156,11 +156,48 @@ fn test_doe_output() {
     );
 }
 
+/// Macro for deriving keys (ECC or MLDSA) consistently
+macro_rules! derive_key {
+    // ECC key derivation
+    (ecc, $cdi:expr, $label:expr) => {{
+        let mut key_seed: [u32; 16] =
+            transmute!(hmac512_kdf(swap_word_bytes($cdi).as_bytes(), $label, None));
+        swap_word_bytes_inplace(&mut key_seed);
+
+        let mut priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
+            &swap_word_bytes(&key_seed).as_bytes()[..48],
+            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
+        ));
+        swap_word_bytes_inplace(&mut priv_key);
+        priv_key
+    }};
+
+    // MLDSA seed derivation
+    (mldsa, $cdi:expr, $label:expr) => {{
+        let mut kdf_result = hmac512_kdf(swap_word_bytes($cdi).as_bytes(), $label, None);
+        let to_reverse_bytes = kdf_result.get_mut(..32).unwrap();
+
+        let seed =
+            to_reverse_bytes
+                .chunks_exact_mut(4)
+                .enumerate()
+                .fold([0; 32], |mut acc, (i, c)| {
+                    let index = 32 - (i + 1) * 4;
+                    c.reverse();
+                    acc[index..index + 4].copy_from_slice(c);
+                    acc
+                });
+        seed
+    }};
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IDevId {
     pub cdi: [u32; 16],
 
     pub ecc_priv_key: [u32; 12],
+
+    pub mldsa_seed: [u8; 32],
 }
 impl IDevId {
     pub fn derive(doe_output: &DoeOutput) -> Self {
@@ -171,28 +208,27 @@ impl IDevId {
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
-            swap_word_bytes(&cdi).as_bytes(),
-            b"idevid_ecc_key",
-            None
-        ));
-        swap_word_bytes_inplace(&mut priv_key_seed);
+        let ecc_priv_key = derive_key!(ecc, &cdi, b"idevid_ecc_key");
+        let mldsa_seed = derive_key!(mldsa, &cdi, b"idevid_mldsa_key");
 
-        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
-            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
-        ));
-        swap_word_bytes_inplace(&mut ecc_priv_key);
-        Self { cdi, ecc_priv_key }
+        Self {
+            cdi,
+            ecc_priv_key,
+            mldsa_seed,
+        }
     }
 
-    pub fn derive_public_key(&self) -> PKey<Public> {
+    pub fn derive_ecc_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
             swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),
         )
+    }
+
+    pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
+        derive_mldsa_key(&self.mldsa_seed)
     }
 }
 
@@ -221,6 +257,10 @@ fn test_idevid() {
                 0x34d9279, 0x2e58660b, 0xcfa3e026, 0x90ac31dc, 0xb97a6b6c, 0xf259f7d4, 0xaa3b7a0d,
                 0x565232ff, 0x38560790, 0x73ff1c04, 0x34501150, 0x48641108,
             ],
+            mldsa_seed: [
+                192, 145, 213, 14, 122, 253, 72, 90, 56, 247, 119, 131, 20, 126, 203, 11, 216, 201,
+                246, 85, 219, 174, 204, 136, 180, 203, 152, 163, 112, 65, 29, 62
+            ], // Add dummy value for test
         }
     );
 }
@@ -230,6 +270,8 @@ pub struct LDevId {
     pub cdi: [u32; 16],
 
     pub ecc_priv_key: [u32; 12],
+
+    pub mldsa_seed: [u8; 32],
 }
 impl LDevId {
     pub fn derive(doe_output: &DoeOutput) -> Self {
@@ -246,28 +288,27 @@ impl LDevId {
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
-            swap_word_bytes(&cdi).as_bytes(),
-            b"ldevid_ecc_key",
-            None
-        ));
-        swap_word_bytes_inplace(&mut priv_key_seed);
+        let ecc_priv_key = derive_key!(ecc, &cdi, b"ldevid_ecc_key");
+        let mldsa_seed = derive_key!(mldsa, &cdi, b"ldevid_mldsa_key");
 
-        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
-            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
-        ));
-        swap_word_bytes_inplace(&mut ecc_priv_key);
-        Self { cdi, ecc_priv_key }
+        Self {
+            cdi,
+            ecc_priv_key,
+            mldsa_seed,
+        }
     }
 
-    pub fn derive_public_key(&self) -> PKey<Public> {
+    pub fn derive_ecc_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
             swap_word_bytes(&self.ecc_priv_key)
                 .as_bytes()
                 .try_into()
                 .unwrap(),
         )
+    }
+
+    pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
+        derive_mldsa_key(&self.mldsa_seed)
     }
 }
 
@@ -295,6 +336,10 @@ fn test_ldevid() {
             ecc_priv_key: [
                 0x15e65daa, 0x3e7dedbb, 0x60eb7ea6, 0xd7e9e441, 0xf2adaa7a, 0x35ca904c, 0x9076d1a1,
                 0x69972589, 0x274a2869, 0x48eb0fb4, 0xee749db1, 0x15cbe26e,
+            ],
+            mldsa_seed: [
+                215, 71, 232, 245, 17, 199, 101, 142, 50, 162, 109, 154, 217, 87, 34, 196, 205, 74,
+                87, 124, 231, 161, 155, 171, 224, 35, 214, 114, 21, 175, 170, 67
             ],
         }
     );
@@ -423,6 +468,8 @@ pub struct FmcAliasKey {
     pub ecc_priv_key: [u32; 12],
 
     pub cdi: [u32; 16],
+
+    pub mldsa_seed: [u8; 32],
 }
 impl FmcAliasKey {
     pub fn derive(pcr0: &Pcr0, ldevid: &LDevId) -> Self {
@@ -433,19 +480,14 @@ impl FmcAliasKey {
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
-            swap_word_bytes(&cdi).as_bytes(),
-            b"alias_fmc_ecc_key",
-            None
-        ));
-        swap_word_bytes_inplace(&mut priv_key_seed);
+        let ecc_priv_key = derive_key!(ecc, &cdi, b"alias_fmc_ecc_key");
+        let mldsa_seed = derive_key!(mldsa, &cdi, b"alias_fmc_mldsa_key");
 
-        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
-            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
-        ));
-        swap_word_bytes_inplace(&mut ecc_priv_key);
-        Self { ecc_priv_key, cdi }
+        Self {
+            ecc_priv_key,
+            cdi,
+            mldsa_seed,
+        }
     }
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
@@ -455,6 +497,10 @@ impl FmcAliasKey {
                 .unwrap(),
         )
     }
+
+    pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
+        derive_mldsa_key(&self.mldsa_seed)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -463,6 +509,8 @@ pub struct RtAliasKey {
 
     // The FMC alias ECC private key as stored in the key-vault
     pub ecc_priv_key: [u32; 12],
+
+    pub mldsa_seed: [u8; 32],
 }
 impl RtAliasKey {
     pub fn derive(tci_input: &PcrRtCurrentInput, fmc_key: &FmcAliasKey) -> Self {
@@ -482,19 +530,14 @@ impl RtAliasKey {
         ));
         swap_word_bytes_inplace(&mut cdi);
 
-        let mut priv_key_seed: [u32; 16] = transmute!(hmac512_kdf(
-            swap_word_bytes(&cdi).as_bytes(),
-            b"alias_rt_ecc_key",
-            None
-        ));
-        swap_word_bytes_inplace(&mut priv_key_seed);
+        let ecc_priv_key = derive_key!(ecc, &cdi, b"alias_rt_ecc_key");
+        let mldsa_seed = derive_key!(mldsa, &cdi, b"alias_rt_mldsa_key");
 
-        let mut ecc_priv_key: [u32; 12] = transmute!(hmac384_drbg_keygen(
-            &swap_word_bytes(&priv_key_seed).as_bytes()[..48],
-            swap_word_bytes(&ECDSA_KEYGEN_NONCE).as_bytes()
-        ));
-        swap_word_bytes_inplace(&mut ecc_priv_key);
-        Self { ecc_priv_key, cdi }
+        Self {
+            ecc_priv_key,
+            cdi,
+            mldsa_seed,
+        }
     }
     pub fn derive_public_key(&self) -> PKey<Public> {
         derive_ecdsa_key(
@@ -503,6 +546,10 @@ impl RtAliasKey {
                 .try_into()
                 .unwrap(),
         )
+    }
+
+    pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
+        derive_mldsa_key(&self.mldsa_seed)
     }
 }
 
@@ -523,6 +570,10 @@ fn test_derive_fmc_alias_key() {
                 0xd3ef1bff, 0x0b52919d, 0xe084ee81, 0x47544a50, 0xf7ff4c2d, 0x18038a26, 0x0695a0b1,
                 0x8103e7f4, 0x30651311, 0xc5658261, 0xe30ae241, 0xa8d9ad51,
             ],
+            mldsa_seed: [
+                192, 145, 213, 14, 122, 253, 72, 90, 56, 247, 119, 131, 20, 126, 203, 11, 216, 201,
+                246, 85, 219, 174, 204, 136, 180, 203, 152, 163, 112, 65, 29, 62,
+            ], // Add dummy value for test
         },
     );
     assert_eq!(
@@ -537,20 +588,36 @@ fn test_derive_fmc_alias_key() {
                 0xf67988dc, 0x14f6ae96, 0xc3dbdaa2, 0xad287006, 0x33a7f284, 0x81d964ce, 0x45af6c6b,
                 0xdd8b95fd, 0x5cbcbc4b,
             ],
+            mldsa_seed: [
+                163, 117, 67, 78, 222, 82, 68, 243, 158, 242, 24, 40, 127, 39, 156, 161, 226, 203,
+                189, 13, 13, 191, 228, 58, 7, 166, 34, 186, 152, 21, 78, 195
+            ],
         }
     );
 }
 
-pub fn key_id(pub_key: &PKey<Public>) -> [u8; 20] {
+pub fn ecc_key_id(pub_key: &PKey<Public>) -> [u8; 20] {
     key_id_from_der(&crypto::pubkey_ecdsa_der(pub_key))
 }
 
-pub fn cert_serial_number(pub_key: &PKey<Public>) -> [u8; 20] {
+pub fn ecc_cert_serial_number(pub_key: &PKey<Public>) -> [u8; 20] {
     cert_serial_number_from_der(&crypto::pubkey_ecdsa_der(pub_key))
 }
 
-pub fn serial_number_str(pub_key: &PKey<Public>) -> String {
+pub fn ecc_serial_number_str(pub_key: &PKey<Public>) -> String {
     serial_number_str_from_der(&crypto::pubkey_ecdsa_der(pub_key))
+}
+
+pub fn mldsa_key_id(pub_key: &PKey<Public>) -> [u8; 20] {
+    key_id_from_der(&crypto::pubkey_mldsa_der(pub_key))
+}
+
+pub fn mldsa_cert_serial_number(pub_key: &PKey<Public>) -> [u8; 20] {
+    cert_serial_number_from_der(&crypto::pubkey_mldsa_der(pub_key))
+}
+
+pub fn mldsa_serial_number_str(pub_key: &PKey<Public>) -> String {
+    serial_number_str_from_der(&crypto::pubkey_mldsa_der(pub_key))
 }
 
 fn key_id_from_der(pub_key_der: &[u8]) -> [u8; 20] {
