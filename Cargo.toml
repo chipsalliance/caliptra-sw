@@ -139,6 +139,7 @@ caliptra-test-harness-types = { path = "test-harness/types" }
 caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
+const-gen = "1.6.6"
 const-oid = "0.9.6"
 ml-dsa = "0.0.4"
 cbindgen = { version = "0.24.0", default-features = false }

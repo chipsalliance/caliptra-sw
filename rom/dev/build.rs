@@ -56,6 +56,42 @@ fn be_bytes_to_words(src: &[u8]) -> Vec<u32> {
     dst
 }
 
+/// Retrieve the TBS from DER encoded vector
+///
+/// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
+/// artifact
+pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
+    if der[0] != 0x30 {
+        panic!("Invalid DER start tag");
+    }
+
+    let der_len_offset = 1;
+
+    let tbs_offset = match der[der_len_offset] {
+        0..=0x7F => der_len_offset + 1,
+        0x81 => der_len_offset + 2,
+        0x82 => der_len_offset + 3,
+        _ => panic!("Unsupported DER Length"),
+    };
+
+    if der[tbs_offset] != 0x30 {
+        panic!("Invalid TBS start tag");
+    }
+
+    let tbs_len_offset = tbs_offset + 1;
+    let tbs_len = match der[tbs_len_offset] {
+        0..=0x7F => der[tbs_len_offset] as usize + 2,
+        0x81 => (der[tbs_len_offset + 1]) as usize + 3,
+        0x82 => {
+            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
+                | (((der[tbs_len_offset + 2]) as usize) + 4)
+        }
+        _ => panic!("Invalid DER Length"),
+    };
+
+    der[tbs_offset..tbs_offset + tbs_len].to_vec()
+}
+
 fn main() {
     if cfg!(not(feature = "std")) {
         use std::fs;
@@ -81,54 +117,135 @@ fn main() {
     }
 
     if cfg!(feature = "fake-rom") {
-        use x509_parser::nom::Parser;
-        use x509_parser::prelude::{FromDer, X509CertificateParser};
-        use x509_parser::signature_value::EcdsaSigValue;
+        use const_gen::*;
+        use openssl::bn::{BigNum, BigNumContext};
+        use openssl::ec::EcGroup;
+        use openssl::ecdsa::EcdsaSig;
+        use openssl::nid::Nid;
+
+        #[derive(CompileConst)]
+        struct Array4xN(pub [u32; 12]);
+
+        #[derive(CompileConst)]
+        struct Ecc384PubKey {
+            pub x: Array4xN,
+            pub y: Array4xN,
+        }
+        #[derive(CompileConst)]
+        pub struct Ecc384Signature {
+            pub r: Array4xN,
+            pub s: Array4xN,
+        }
 
         let ws_dir = workspace_dir();
-        let ldev_file_path =
-            ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der");
-        println!(
-            "cargo:rerun-if-changed={}",
-            ldev_file_path.to_str().unwrap()
+
+        // Create a closure to process ECC certificates
+        let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+        let mut ctx = BigNumContext::new().unwrap();
+
+        let mut process_ecc_cert = |cert_path: &str| -> (Ecc384PubKey, Ecc384Signature, Vec<u8>) {
+            let file_path = ws_dir.join(cert_path);
+            println!("cargo:rerun-if-changed={}", file_path.to_str().unwrap());
+
+            let file_data = std::fs::read(&file_path).unwrap();
+            let cert = openssl::x509::X509::from_der(&file_data).unwrap();
+            let tbs = get_tbs(file_data);
+
+            // Extract public key
+            let pubkey = cert.public_key().unwrap();
+            let pubkey = pubkey.ec_key().unwrap();
+            let pubkey = pubkey.public_key();
+
+            let mut x = BigNum::new().unwrap();
+            let mut y = BigNum::new().unwrap();
+            pubkey
+                .affine_coordinates(&group, &mut x, &mut y, &mut ctx)
+                .unwrap();
+
+            let x_vec = x.to_vec();
+            let x_words = be_bytes_to_words(&x_vec);
+            let y_vec = y.to_vec();
+            let y_words = be_bytes_to_words(&y_vec);
+
+            let ecc_pubkey = Ecc384PubKey {
+                x: Array4xN(x_words.try_into().unwrap()),
+                y: Array4xN(y_words.try_into().unwrap()),
+            };
+
+            // Extract signature
+            let signature = cert.signature().as_slice();
+            let signature = EcdsaSig::from_der(signature).unwrap();
+
+            let r = signature.r().to_vec();
+            let r_words = be_bytes_to_words(&r);
+            let s = signature.s().to_vec();
+            let s_words = be_bytes_to_words(&s);
+
+            let ecc_signature = Ecc384Signature {
+                r: Array4xN(r_words.try_into().unwrap()),
+                s: Array4xN(s_words.try_into().unwrap()),
+            };
+
+            (ecc_pubkey, ecc_signature, tbs)
+        };
+
+        // Process LDEVID ECC certificate
+        let (ecc_ldev_pubkey, ecc_ldev_signature, ecc_ldev_tbs) = process_ecc_cert(
+            "test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_ecc.der",
         );
-        let ldev_file = std::fs::read(ldev_file_path).unwrap();
 
-        let mut parser = X509CertificateParser::new();
-        let (_, cert) = parser.parse(&ldev_file).unwrap();
+        // Process FMC alias ECC certificate
+        let (ecc_fmc_pubkey, ecc_fmc_signature, ecc_fmc_tbs) = process_ecc_cert(
+            "test/tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_ecc.der",
+        );
 
-        let tbs = cert.tbs_certificate.as_ref();
-        let (_, sig) = EcdsaSigValue::from_der(cert.signature_value.as_ref()).unwrap();
+        // Create a closure to process MLDSA certificates
+        let process_mldsa_cert = |cert_path: &str| -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+            let file_path = ws_dir.join(cert_path);
+            println!("cargo:rerun-if-changed={}", file_path.to_str().unwrap());
 
-        // Get words of Signature r and s
-        let mut r = sig.r.as_ref();
-        r = &r[r.len() - 48..];
-        let r_words = be_bytes_to_words(r);
+            let file_data = std::fs::read(&file_path).unwrap();
+            let cert = openssl::x509::X509::from_der(&file_data).unwrap();
+            let tbs = get_tbs(file_data);
 
-        let mut s = sig.s.as_ref();
-        s = &s[s.len() - 48..];
-        let s_words = be_bytes_to_words(s);
+            // Extract public key
+            let pubkey = cert.public_key().unwrap().raw_public_key().unwrap();
+
+            // Pad MLDSA signature
+            let mut signature = vec![0; 4628];
+            signature[..4627].copy_from_slice(cert.signature().as_slice());
+
+            (pubkey, signature, tbs)
+        };
+
+        // Process LDEVID MLDSA certificate
+        let (mldsa_ldev_pubkey, mldsa_ldev_signature, mldsa_ldev_tbs) = process_mldsa_cert(
+            "test/tests/caliptra_integration_tests/smoke_testdata/ldevid_cert_mldsa.der",
+        );
+
+        // Process FMC alias MLDSA certificate
+        let (mldsa_fmc_pubkey, mldsa_fmc_signature, mldsa_fmc_tbs) = process_mldsa_cert(
+            "test/tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_mldsa.der",
+        );
+
+        // Generate Rust constants for all certificates
+        let const_declarations = vec![
+            const_array_declaration!(pub FAKE_FMC_ALIAS_ECC_TBS = ecc_fmc_tbs),
+            const_array_declaration!(pub FAKE_FMC_ALIAS_MLDSA_PUB_KEY = mldsa_fmc_pubkey),
+            const_array_declaration!(pub FAKE_FMC_ALIAS_MLDSA_SIG = mldsa_fmc_signature),
+            const_array_declaration!(pub FAKE_FMC_ALIAS_MLDSA_TBS = mldsa_fmc_tbs),
+            const_array_declaration!(pub FAKE_LDEV_ECC_TBS = ecc_ldev_tbs),
+            const_array_declaration!(pub FAKE_LDEV_MLDSA_PUB_KEY = mldsa_ldev_pubkey),
+            const_array_declaration!(pub FAKE_LDEV_MLDSA_SIG = mldsa_ldev_signature),
+            const_array_declaration!(pub FAKE_LDEV_MLDSA_TBS = mldsa_ldev_tbs),
+            const_declaration!(pub FAKE_FMC_ALIAS_ECC_PUB_KEY = ecc_fmc_pubkey),
+            const_declaration!(pub FAKE_FMC_ALIAS_ECC_SIG = ecc_fmc_signature),
+            const_declaration!(pub FAKE_LDEV_ECC_PUB_KEY = ecc_ldev_pubkey),
+            const_declaration!(pub FAKE_LDEV_ECC_SIG = ecc_ldev_signature),
+        ]
+        .join("\n");
 
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-        std::fs::write(out_dir.join("ldev_tbs.der"), tbs).unwrap();
-        std::fs::write(
-            out_dir.join("ldev_sig_r_words.txt"),
-            format!("{:?}", r_words),
-        )
-        .unwrap();
-        std::fs::write(
-            out_dir.join("ldev_sig_s_words.txt"),
-            format!("{:?}", s_words),
-        )
-        .unwrap();
-
-        // MLDSA
-        let mldsa_dir = ws_dir.join("test/tests/caliptra_integration_tests/smoke_testdata/mldsa/");
-        for t in ["ldevid", "fmc_alias"] {
-            for f in ["sig", "pub_key", "tbs"] {
-                let file_name = format!("{}_mldsa_{}.txt", t, f);
-                std::fs::copy(mldsa_dir.join(&file_name), out_dir.join(&file_name)).unwrap();
-            }
-        }
+        std::fs::write(out_dir.join("fake_consts.rs"), const_declarations).unwrap();
     }
 }
