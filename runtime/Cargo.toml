@@ -62,13 +62,16 @@ ctr.workspace = true
 fips204.workspace = true
 hkdf.workspace = true
 hmac.workspace = true
+ml-dsa.workspace = true
 openssl.workspace = true
 p384.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
+spki.workspace = true
 cms.workspace = true
 rand.workspace = true
 wycheproof.workspace = true
 x509-parser.workspace = true
+x509-cert.workspace = true
 
 [features]
 default = ["std"]
