@@ -25,6 +25,7 @@ exclude = [
 ]
 
 members = [
+  "acvp",
   "api",
   "api/types",
   "auth-manifest/app",
@@ -172,6 +173,7 @@ p384 = "0.13.0"
 proc-macro2 = "1.0.66"
 quote = "1.0"
 rand = "0.8"
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "cookies", "gzip", "json", "rustls-tls"] }
 rfc6979 = "0.4.0"
 rusb = "0.9.3"
 serde = "1.0"

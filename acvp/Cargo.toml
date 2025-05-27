@@ -1,0 +1,20 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-acvp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitflags.workspace = true
+caliptra-api-types.workspace = true
+caliptra-emu-types.workspace = true
+caliptra-error.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
+caliptra-registers.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+ureg.workspace = true
+zerocopy.workspace = true
