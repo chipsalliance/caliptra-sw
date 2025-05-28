@@ -22,7 +22,7 @@ use crate::run_fips_tests;
 use caliptra_api::mailbox::ResponseVarSize;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
@@ -220,6 +220,7 @@ impl FirmwareProcessor {
                 if txn.id() == RESERVED_PAUSER {
                     return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
                 }
+                cfi_assert_ne(txn.id(), RESERVED_PAUSER);
 
                 cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
 
@@ -228,6 +229,7 @@ impl FirmwareProcessor {
                     if subsystem_mode {
                         Err(CaliptraError::FW_PROC_MAILBOX_FW_LOAD_CMD_IN_SUBSYSTEM_MODE)?;
                     }
+                    cfi_assert_bool(!subsystem_mode);
 
                     // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
                     let txn = mbox
@@ -400,6 +402,7 @@ impl FirmwareProcessor {
                             txn.complete(false)?;
                             Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
                         }
+                        cfi_assert_bool(subsystem_mode);
                         // Complete the command indicating success.
                         cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
                         txn.complete(true)?;
