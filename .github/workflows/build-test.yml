@@ -16,9 +16,10 @@ jobs:
 
     env:
       CARGO_INCREMENTAL: 0
-      SCCACHE_VERSION: 0.3.3
+      SCCACHE_VERSION: 0.10.0
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
+      SCCACHE_GHA_ENABLED: "on"
       # CPTRA_COVERAGE_PATH: /tmp
 
       # Change this to a new random value if you suspect the cache is corrupted
@@ -53,7 +54,8 @@ jobs:
       - name: Install sccache
         if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
         run: |
-          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
+          rustup install 1.85
+          cargo +1.85 install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
       # Save the sccache binary immediately so we can reuse it in future runs
       # even if the rest of the current run fails.
@@ -65,12 +67,13 @@ jobs:
           key: ${{ steps.sccache_bin_restore.outputs.cache-primary-key }}
 
       - name: Configure sccache
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('RUSTC_WRAPPER', process.env.HOME + '/.cargo/bin/sccache');
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
 
       - name: Check that Cargo.lock doesn't need to be updated
           # Note: this isn't the same as checking that Cargo.lock is up to date
