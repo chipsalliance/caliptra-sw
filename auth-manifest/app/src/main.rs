@@ -53,6 +53,11 @@ fn main() {
                 .value_parser(value_parser!(PathBuf)),
         )
         .arg(
+            arg!(--"pqc-key-type" <U32> "Type of PQC key validation: 1: MLDSA; 3: LMS")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"out" <FILE> "Output file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),

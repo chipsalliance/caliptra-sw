@@ -120,6 +120,9 @@ impl CommandId {
     // The sign with exported mldsa command.
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
+    // Get PCR log command.
+    pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
+
     // Debug unlock commands
     pub const MANUF_DEBUG_UNLOCK_REQ_TOKEN: Self = Self(0x4d445554); // "MDUT"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
@@ -292,6 +295,7 @@ pub enum MailboxResp {
     CmEcdsaPublicKey(CmEcdsaPublicKeyResp),
     CmEcdsaSign(CmEcdsaSignResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
+    GetPcrLog(GetPcrLogResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -348,6 +352,7 @@ impl MailboxResp {
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -402,6 +407,7 @@ impl MailboxResp {
             MailboxResp::CmEcdsaPublicKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmEcdsaSign(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -455,6 +461,7 @@ pub enum MailboxReq {
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasEcc384Cert(GetFmcAliasEcc384CertReq),
     GetRtAliasEcc384Cert(GetRtAliasEcc384CertReq),
+    GetRtAliasMlDsa87Cert(GetRtAliasMlDsa87CertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
     ExtendPcr(ExtendPcrReq),
@@ -498,6 +505,7 @@ pub enum MailboxReq {
     CmEcdsaVerify(CmEcdsaVerifyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
+    GetPcrLog(MailboxReqHeader),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -520,6 +528,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_bytes()),
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
@@ -563,6 +572,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
+            MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -583,6 +593,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetFmcAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
@@ -626,6 +637,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -646,6 +658,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasEcc384Cert(_) => CommandId::GET_FMC_ALIAS_ECC384_CERT,
             MailboxReq::GetRtAliasEcc384Cert(_) => CommandId::GET_RT_ALIAS_ECC384_CERT,
+            MailboxReq::GetRtAliasMlDsa87Cert(_) => CommandId::GET_RT_ALIAS_MLDSA87_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
@@ -687,6 +700,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaPublicKey(_) => CommandId::CM_ECDSA_PUBLIC_KEY,
             MailboxReq::CmEcdsaSign(_) => CommandId::CM_ECDSA_SIGN,
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
+            MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -746,7 +760,7 @@ impl Default for MailboxRespHeader {
 
 // Generic variable-sized data response type
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
 pub struct VarSizeDataResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
@@ -909,6 +923,17 @@ pub struct GetRtAliasEcc384CertReq {
 }
 impl Request for GetRtAliasEcc384CertReq {
     const ID: CommandId = CommandId::GET_RT_ALIAS_ECC384_CERT;
+    type Resp = GetRtAliasCertResp;
+}
+
+// GET_RT_ALIAS_MLDSA87_CERT
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetRtAliasMlDsa87CertReq {
+    pub header: MailboxReqHeader,
+}
+impl Request for GetRtAliasMlDsa87CertReq {
+    const ID: CommandId = CommandId::GET_RT_ALIAS_MLDSA87_CERT;
     type Resp = GetRtAliasCertResp;
 }
 
@@ -1131,6 +1156,8 @@ impl Request for GetFmcAliasMlDsa87CertReq {
 }
 
 pub type GetFmcAliasMlDsa87CertResp = VarSizeDataResp;
+
+pub type GetPcrLogResp = VarSizeDataResp;
 
 // FIPS_SELF_TEST
 // No command-specific input args
