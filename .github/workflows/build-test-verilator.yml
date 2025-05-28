@@ -17,11 +17,12 @@ jobs:
 
     env:
       CARGO_INCREMENTAL: 0
-      SCCACHE_VERSION: 0.3.3
+      SCCACHE_VERSION: 0.10.0
       VERILATOR_VERSION: v5.006
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
       SCCACHE_GHA_CACHE_TO: sccache-verilator-10000
       SCCACHE_GHA_CACHE_FROM: sccache-verilator-
+      SCCACHE_GHA_ENABLED: "on"
       # Change this to a new random value if you suspect the cache is corrupted
       SCCACHE_C_CUSTOM_CACHE_BUSTER: 3962471045e8
 
@@ -44,7 +45,8 @@ jobs:
       # - name: Install sccache
       #   if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
       #   run: |
-      #     cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
+      #    rustup install 1.85
+      #     cargo +1.85 install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
       # - name: Save sccache binary
       #   uses: actions/cache/save@v3
@@ -57,8 +59,9 @@ jobs:
       #   uses: actions/github-script@v6
       #   with:
       #     script: |
-      #       core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+      #       core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
       #       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      #      core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
 
       # - name: Restore verilator dir
       #   uses: actions/cache/restore@v3
