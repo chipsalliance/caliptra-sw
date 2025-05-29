@@ -57,6 +57,9 @@ impl GetPcrQuoteCmd {
 
         let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
+        let mut pcr_hash_mldsa = pcr_hash;
+        pcr_hash_mldsa.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
+
         let mldsa_signature = if args.flags.contains(QuotePcrsFlags::MLDSA_SIGNATURE) {
             drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?
         } else {
@@ -78,7 +81,14 @@ impl GetPcrQuoteCmd {
             resp.pcrs[i] = p.into()
         }
         resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
-        resp.digest = pcr_hash.into();
+
+        // Change the word endianness for ECC verification. Take lower 48 bytes.
+        resp.ecc_digest
+            .copy_from_slice((&<[_; 64]>::from(pcr_hash))[..48].as_ref());
+
+        // Do not change the word endianness for MLDSA verification.
+        resp.mldsa_digest
+            .copy_from_slice(pcr_hash_mldsa.0.as_bytes());
         resp.ecc_signature_r = ecc_signature.r.into();
         resp.ecc_signature_s = ecc_signature.s.into();
         resp.mldsa_signature = mldsa_signature.into();

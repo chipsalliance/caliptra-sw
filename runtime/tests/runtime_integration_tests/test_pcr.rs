@@ -67,8 +67,13 @@ fn test_pcr_quote() {
     resp.pcrs.iter().for_each(|x| h.update(x).unwrap());
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
-    let digest: [u8; 64] = res.as_bytes().try_into().unwrap();
-    assert_eq!(resp.digest, digest);
+    let mut digest: [u8; 64] = res.as_bytes().try_into().unwrap();
+    assert_eq!(resp.ecc_digest, &digest[..48]);
+
+    // Reverse the sequence of bytes in the digest.
+    // This is the byte order Caliptra hardware uses for MLDSA signing the PCR digest.
+    digest.reverse();
+    assert_eq!(resp.mldsa_digest, digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
     // See if incrementing the reset counter worked
@@ -83,7 +88,7 @@ fn test_pcr_quote() {
     let ecc_fmc_cert: X509 =
         X509::from_der(&ecc_fmc_resp.data[..ecc_fmc_resp.data_size as usize]).unwrap();
     let ecc_pkey = ecc_fmc_cert.public_key().unwrap().ec_key().unwrap();
-    assert!(sig.verify(&resp.digest, &ecc_pkey).unwrap());
+    assert!(sig.verify(&resp.ecc_digest, &ecc_pkey).unwrap());
 
     let mldsa_fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
     let cert =
@@ -96,8 +101,7 @@ fn test_pcr_quote() {
     let mldsa_pk = VerifyingKey::<MlDsa87>::from_public_key_der(&mldsa_pk_bytes).unwrap();
     let signature_bytes: [u8; 4627] = resp.mldsa_signature[..4627].try_into().unwrap();
     let signature = Signature::<MlDsa87>::decode((&signature_bytes).into()).unwrap();
-
-    mldsa_pk.verify(&digest, &signature).unwrap();
+    mldsa_pk.verify(&resp.mldsa_digest, &signature).unwrap();
 }
 
 #[test]
