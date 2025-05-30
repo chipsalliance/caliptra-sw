@@ -308,8 +308,9 @@ jobs:
 
       - name: Install kernel modules
         run: |
-          sudo apt install gcc make -y
-          sudo ./hw/fpga/setup_fpga.sh
+          ls -l /tmp/caliptra-fpga-kmod
+          sudo insmod /tmp/caliptra-fpga-kmod/io_module.ko
+          sudo insmod /tmp/caliptra-fpga-kmod/rom_backdoor.ko
 
       - name: Execute tests
         run: |
