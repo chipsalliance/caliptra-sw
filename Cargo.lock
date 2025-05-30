@@ -807,6 +807,7 @@ dependencies = [
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
+ "const-gen",
  "elf",
  "fips204",
  "hex",
@@ -816,7 +817,6 @@ dependencies = [
  "rand",
  "sha2",
  "ufmt",
- "x509-parser",
  "zerocopy",
  "zeroize",
 ]
@@ -1170,6 +1170,26 @@ dependencies = [
  "caliptra-emu-types",
  "clap",
  "getrandom",
+]
+
+[[package]]
+name = "const-gen"
+version = "1.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d7617801a02ebd66905a39f5a15390bfb7d6ab90316fdbf7dc36a1161ffb56b"
+dependencies = [
+ "const-gen-derive",
+]
+
+[[package]]
+name = "const-gen-derive"
+version = "1.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28bbf64501318336d17ffb2ea6c28c791f2af3975f2c11205228c29e3a232f89"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
