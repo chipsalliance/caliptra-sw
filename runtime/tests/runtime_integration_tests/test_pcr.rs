@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{get_ecc_fmc_alias_cert, run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert, run_rt_test, RuntimeTestArgs,
+};
 use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
@@ -11,12 +13,17 @@ use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
+use ml_dsa::signature::Verifier;
+use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::{
     bn::BigNum,
     ecdsa::EcdsaSig,
     hash::{Hasher, MessageDigest},
     x509::X509,
 };
+use spki::DecodePublicKey;
+use x509_cert::certificate::Certificate;
+use x509_cert::der::{Decode, Encode};
 use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
@@ -43,7 +50,7 @@ fn test_pcr_quote() {
 
     let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::ECC_SIGNATURE,
+        flags: QuotePcrsFlags::ECC_SIGNATURE | QuotePcrsFlags::MLDSA_SIGNATURE,
         nonce: [0xf5; 32],
     });
     cmd.populate_chksum().unwrap();
@@ -60,8 +67,13 @@ fn test_pcr_quote() {
     resp.pcrs.iter().for_each(|x| h.update(x).unwrap());
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
-    let digest: [u8; 64] = res.as_bytes().try_into().unwrap();
-    assert_eq!(resp.digest, digest);
+    let mut digest: [u8; 64] = res.as_bytes().try_into().unwrap();
+    assert_eq!(resp.ecc_digest, &digest[..48]);
+
+    // Reverse the sequence of bytes in the digest.
+    // This is the byte order Caliptra hardware uses for MLDSA signing the PCR digest.
+    digest.reverse();
+    assert_eq!(resp.mldsa_digest, digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
     // See if incrementing the reset counter worked
@@ -72,11 +84,24 @@ fn test_pcr_quote() {
     let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
-    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
-    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
-    let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
+    let ecc_fmc_resp = get_ecc_fmc_alias_cert(&mut model);
+    let ecc_fmc_cert: X509 =
+        X509::from_der(&ecc_fmc_resp.data[..ecc_fmc_resp.data_size as usize]).unwrap();
+    let ecc_pkey = ecc_fmc_cert.public_key().unwrap().ec_key().unwrap();
+    assert!(sig.verify(&resp.ecc_digest, &ecc_pkey).unwrap());
 
-    assert!(sig.verify(&resp.digest, &pkey).unwrap());
+    let mldsa_fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    let cert =
+        Certificate::from_der(&mldsa_fmc_resp.data[..mldsa_fmc_resp.data_size as usize]).unwrap();
+    let mldsa_pk_bytes = cert
+        .tbs_certificate
+        .subject_public_key_info
+        .to_der()
+        .unwrap();
+    let mldsa_pk = VerifyingKey::<MlDsa87>::from_public_key_der(&mldsa_pk_bytes).unwrap();
+    let signature_bytes: [u8; 4627] = resp.mldsa_signature[..4627].try_into().unwrap();
+    let signature = Signature::<MlDsa87>::decode((&signature_bytes).into()).unwrap();
+    mldsa_pk.verify(&resp.mldsa_digest, &signature).unwrap();
 }
 
 #[test]

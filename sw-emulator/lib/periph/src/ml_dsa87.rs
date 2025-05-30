@@ -12,10 +12,9 @@ File contains Ml_Dsa87 peripheral implementation.
 
 --*/
 
-use crate::helpers::{bytes_from_words_le, words_from_bytes_be, words_from_bytes_le};
+use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 use crate::{HashSha512, KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
-use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use fips204::ml_dsa_87::{try_keygen_with_rng, PrivateKey, PublicKey, PK_LEN, SIG_LEN, SK_LEN};
@@ -23,6 +22,7 @@ use fips204::traits::{SerDes, Signer, Verifier};
 use rand::{CryptoRng, RngCore};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
+use zerocopy::IntoBytes;
 
 // RNG that only allows a single call, which returns the fixed seed.
 pub(crate) struct SeedOnlyRng {
@@ -525,28 +525,31 @@ impl Mldsa87 {
     }
 
     /// Sign the PCR digest
-    /// // [TODO][CAP2] Handle the DWORD reversal.
     fn pcr_digest_sign(&mut self) {
         const PCR_SIGN_KEY: u32 = 8;
-        let _ = self.read_seed_from_keyvault(PCR_SIGN_KEY);
+        let _ = self.read_seed_from_keyvault(PCR_SIGN_KEY, true);
 
         // Generate private key from seed.
         self.gen_key();
         let secret_key = PrivateKey::try_from_bytes(self.private_key).unwrap();
 
-        let mut pcr_digest = self.hash_sha512.pcr_hash_digest();
-        pcr_digest.change_endianess(); // Switch from hardware format.
+        let pcr_digest = self.hash_sha512.pcr_hash_digest();
+        let mut temp = words_from_bytes_le(
+            &<[u8; ML_DSA87_MSG_SIZE]>::try_from(&pcr_digest[..ML_DSA87_MSG_SIZE]).unwrap(),
+        );
+        // Reverse the dword order.
+        temp.reverse();
 
         // The Ml_Dsa87 signature is 4595 len but the reg is one byte longer
         let signature = secret_key
-            .try_sign_with_seed(&[0u8; 32], &pcr_digest, &[])
+            .try_sign_with_seed(&[0u8; 32], temp.as_bytes(), &[])
             .unwrap();
         let signature_extended = {
             let mut sig = [0; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-        self.signature = words_from_bytes_be(&signature_extended);
+        self.signature = words_from_bytes_le(&signature_extended);
     }
 
     fn verify(&mut self) {
@@ -617,11 +620,15 @@ impl Mldsa87 {
             .modify(Status::READY::SET + Status::VALID::SET + Status::MSG_STREAM_READY::CLEAR);
     }
 
-    fn read_seed_from_keyvault(&mut self, key_id: u32) -> u32 {
+    fn read_seed_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
         let mut key_usage = KeyUsage::default();
         key_usage.set_mldsa_key_gen_seed(true);
 
-        let result = self.key_vault.read_key(key_id, key_usage);
+        let result = if locked {
+            self.key_vault.read_key_locked(key_id, key_usage)
+        } else {
+            self.key_vault.read_key(key_id, key_usage)
+        };
         let (seed_read_result, seed) = match result.err() {
             Some(BusError::LoadAccessFault)
             | Some(BusError::LoadAddrMisaligned)
@@ -649,7 +656,7 @@ impl Mldsa87 {
 
     fn seed_read_complete(&mut self) {
         let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
-        let seed_read_result = self.read_seed_from_keyvault(key_id);
+        let seed_read_result = self.read_seed_from_keyvault(key_id, false);
 
         self.kv_rd_seed_status.reg.modify(
             KvRdSeedStatus::READY::SET
