@@ -733,11 +733,12 @@ PcrValue is defined as u8[48]
 | fips\_status       | u32          | Indicates if the command is FIPS approved or an error.
 | PCRs               | PcrValue[32] | Values of all PCRs.
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
-| digest             | u8[64]       | Return the digest over the PCR values and the nonce.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
-| ecc_signature\_r   | u8[48]       | ECC P-384 R portion of the signature over the lower 48 bytes of the PCR quote digest. </br> The FMC Alias ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
-| ecc_signature\_s   | u8[48]       | ECC P-384 S portion of the signature over the lower 48 bytes of the PCR quote digest.
-| mldsa_signature\_s | u8[4628]     | MLDSA-87 signature over the PCR quote digest (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
+| ecc_digest         | u8[48]       | Return the lower 48 bytes of SHA2-512 digest over the PCR values and the nonce.
+| ecc_signature\_r   | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The FMC Alias ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
+| ecc_signature\_s   | u8[48]       | ECC P-384 S portion of the signature over the `ecc_digest`.
+| mldsa_digest       | u8[64]       | Return the SHA2-512 digest over the PCR values and the nonce, in byte reversed order.
+| mldsa_signature\_s | u8[4628]     | MLDSA-87 signature over the `mldsa_digest` (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
 
 ### EXTEND\_PCR
 

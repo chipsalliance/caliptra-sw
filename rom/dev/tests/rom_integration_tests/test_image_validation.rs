@@ -171,7 +171,7 @@ fn test_invalid_pqc_key_type() {
 
 #[test]
 fn test_pqc_key_type_mismatch() {
-    for life_cycle in helpers::LIFECYCLES_ALL.iter() {
+    for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
             println!(
                 "lifecycle: {:?}, pqc_key_type: {:?}",
@@ -206,6 +206,37 @@ fn test_pqc_key_type_mismatch() {
                 u32::from(FwProcessorManifestLoadComplete)
             );
         }
+    }
+}
+
+#[test]
+fn test_pqc_key_type_unprovisioned() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        println!("pqc_key_type: {:?}", pqc_key_type);
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = caliptra_hw_model::Fuses {
+            life_cycle: DeviceLifecycle::Unprovisioned,
+            // Key type is set to 0 (which is invalid) on unprovisioned builds.
+            fuse_pqc_key_type: 0,
+            ..Default::default()
+        };
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        assert_eq!(
+            ModelError::MailboxCmdFailed(
+                CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE.into()
+            ),
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err()
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
     }
 }
 
