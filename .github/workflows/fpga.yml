@@ -148,7 +148,7 @@ jobs:
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+      CACHE_BUSTER: 9fffdb888988
 
     steps:
       - name: Checkout repo
@@ -255,7 +255,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
+    runs-on: vck190-staging
     needs: [check_cache, build_test_binaries, build_kernel_modules]
     timeout-minutes: 120
     if: |
@@ -270,6 +270,12 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: 'recursive' 
+
+      - name: Install squahfs
+        run: |
+          cat /proc/filesystems
+          sudo apt install squashfs-tools -y
+
 
       - name: 'Download kernel driver artifacts'
         uses: actions/download-artifact@v4
@@ -297,6 +303,7 @@ jobs:
           sudo mkdir /tmp/caliptra-test-binaries
           echo mount squashfs
           sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          sudo dmesg
           find /tmp/caliptra-test-binaries
 
       - name: Install kernel modules
@@ -347,6 +354,11 @@ jobs:
               --test-threads=1 \
               --no-fail-fast \
               --profile=nightly
+
+      - name: 'dump kernel log'
+        if: failure()
+        run: |
+          sudo dmesg
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
