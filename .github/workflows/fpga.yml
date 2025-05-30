@@ -274,7 +274,7 @@ jobs:
 
       - name: Install squahfs
         run: |
-          sudo apt install squashfs-tools
+          sudo apt install squashfs-tools -y
 
 
       - name: 'Download kernel driver artifacts'
