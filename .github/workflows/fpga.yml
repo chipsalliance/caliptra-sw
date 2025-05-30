@@ -51,6 +51,11 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: 'recursive'
+
+      - name: Install squahfs
+        run: |
+          sudo apt install squashfs-tools
+
       - name: Compute cache-keys
         id: cache_key
         run: |
