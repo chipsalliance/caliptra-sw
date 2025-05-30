@@ -355,7 +355,7 @@ jobs:
               --profile=nightly
 
       - name: 'dump kernel log'
-        if: success() || failure()
+        if: failure()
         run: |
           sudo dmesg
 
