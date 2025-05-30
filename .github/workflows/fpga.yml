@@ -148,7 +148,7 @@ jobs:
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+      CACHE_BUSTER: 9fffdb888988
 
     steps:
       - name: Checkout repo
@@ -303,6 +303,7 @@ jobs:
           sudo mkdir /tmp/caliptra-test-binaries
           echo mount squashfs
           sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          sudo dmesg
           find /tmp/caliptra-test-binaries
 
       - name: Install kernel modules
