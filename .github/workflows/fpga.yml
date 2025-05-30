@@ -273,6 +273,7 @@ jobs:
 
       - name: Install squahfs
         run: |
+          cat /proc/filesystems
           sudo apt install squashfs-tools -y
 
 
