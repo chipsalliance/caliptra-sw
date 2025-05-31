@@ -124,6 +124,8 @@ impl ImageGeneratorCrypto for OsslCrypto {
         priv_key: &ImageMldsaPrivKey,
         pub_key: &ImageMldsaPubKey,
     ) -> anyhow::Result<ImageMldsaSignature> {
+        // Private key is received in hw format which is also the OSSL library format.
+        // Unlike ECC, no reversal of the DWORD endianess needed.
         let private_key = {
             let pub_key = pub_key.0.as_bytes();
             let priv_key = priv_key.0.as_bytes();
