@@ -1350,10 +1350,11 @@ pub struct QuotePcrsResp {
     /// The PCR values
     pub pcrs: [PcrValue; 32],
     pub nonce: [u8; 32],
-    pub digest: [u8; 64],
     pub reset_ctrs: [u32; 32],
+    pub ecc_digest: [u8; 48],
     pub ecc_signature_r: [u8; 48],
     pub ecc_signature_s: [u8; 48],
+    pub mldsa_digest: [u8; 64],
     pub mldsa_signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
 }
 

@@ -39,7 +39,6 @@ use caliptra_x509::{
     FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params, FmcAliasCertTbsMlDsa87,
     FmcAliasCertTbsMlDsa87Params,
 };
-use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 #[derive(Default)]
@@ -299,7 +298,7 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
         let auth_pub_key = &input.mldsa_auth_key_pair.pub_key;
-        let pub_key = &output.mldsa_subj_key_pair.pub_key;
+        let pub_key = output.mldsa_subj_key_pair.pub_key;
         let data_vault = &env.persistent_data.get().data_vault;
         let soc_ifc = &env.soc_ifc;
 
@@ -332,8 +331,8 @@ impl FmcAliasLayer {
             subject_key_id: &output.mldsa_subj_key_id,
             issuer_sn: input.mldsa_auth_sn,
             authority_key_id: input.mldsa_auth_key_id,
-            serial_number: &x509::mldsa_cert_sn(&mut env.sha256, pub_key)?,
-            public_key: pub_key.as_bytes().try_into().unwrap(),
+            serial_number: &x509::mldsa_cert_sn(&mut env.sha256, &pub_key)?,
+            public_key: &pub_key.into(),
             tcb_info_fmc_tci: &(&data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),
             tcb_info_flags: &flags,
@@ -369,7 +368,7 @@ impl FmcAliasLayer {
         sig.zeroize();
 
         // Set the FMC Public key in the data vault.
-        data_vault.set_fmc_mldsa_pub_key(pub_key);
+        data_vault.set_fmc_mldsa_pub_key(&pub_key);
 
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::MldsaFmcalias, env)?;

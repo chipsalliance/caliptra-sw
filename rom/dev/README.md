@@ -1,7 +1,7 @@
 
 # Caliptra - ROM Specification v2.0
 
-*Spec Version: 0.5*
+*Spec Version: 0.9*
 
 ## Scope
 
@@ -23,7 +23,6 @@ following topics:
 
 ## Spec Opens
 - Describe in-memory logs
-- Describe Update Reset Flow
 
 ## Glossary
 
@@ -58,17 +57,21 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_UDS_SEED                   | 512          | Obfuscated UDS                                          |
 | FUSE_FIELD_ENTROPY              | 256          | Obfuscated Field Entropy                                |
 | FUSE_VENDOR_PK_HASH             | 384          | Hash of the ECC and LMS or MLDSA Manufacturer Public Key Descriptors   |
-| FUSE_ECC_REVOCATION             | 32           | Manufacturer ECC Public Key Revocation Mask             |
+| FUSE_ECC_REVOCATION             | 4            | Manufacturer ECC Public Key Revocation Mask             |
 | FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
-| FUSE_MLDSA_REVOCATION           | 32           | Manufacturer MLDSA Public Key Revocation Mask           |
-| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
-| FUSE_FIRMWARE_SVN               | 128          | Firmware Security Version Number                         |
-| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set  |
+| FUSE_MLDSA_REVOCATION           | 4            | Manufacturer MLDSA Public Key Revocation Mask           |
+| FUSE_FIRMWARE_SVN               | 128          | Firmware Security Version Number                        |
+| FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for firmware when bit is set       |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0:bits[0-2]**: ECDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 0:bits[3-5]**: MLDSA X509 Key Id Algorithm (3 bits) 0: SHA1, 1: SHA256, 2: SHA384, 3: SHA512, 4: Fuse <br> **Word 1,2,3,4,5**: ECDSA Subject Key Id <br> **Word 6,7,8,9,10**: MLDSA Subject Key Id <br> **Words 11**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 12,13,14,15**: Manufacturer Serial Number |
-| MANUF_DEBUG_UNLOCK_TOKEN       | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization |
+| FUSE_MANUF_DEBUG_UNLOCK_TOKEN    | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization |
+| FUSE_PQC_KEY_TYPE                | 2             | One-hot encoded selection of PQC key type for firmware validation. <br> **Bit 0**: MLDSA <br> **Bit 1**: LMS |
 
 ### Architectural Registers
-Refer to the following link for SOC interface registers:
+| Register                        | Width (bits) | Description                                             |
+| :------------------------------ | :------------|  :----------------------------------------------------- |
+| CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
+
+For a comprehensive overview of the SOC interface registers, please refer to the following link::
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
 
 ## Firmware image bundle
@@ -111,13 +114,13 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Active ECC Key Index | 4 | Public Key Hash Index for the active ECC key |
 | Active ECC Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes, big endian) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes, big endian) |
 | Active LMS or MLDSA Key Index | 4 | Public Key Hash Index for the active LMS or MLDSA key |
-| Active LMS or MLDSA Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Active LMS or MLDSA Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes, big endian) Must equal 12. <br> **otstype:** LM-OTS Algorithm Type (4 bytes, big endian) Must equal 7. <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes, little endian)|
 | Manufacturer ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Manufacturer LMS or MLDSA Signature | 4628 | Manufacturer LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte)|
+| Manufacturer LMS or MLDSA Signature | 4628 | Manufacturer LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Vendor MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte, little endian)|
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
-| Owner LMS or MLDSA Public Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes)|
+| Owner LMS or MLDSA Public Key | 2592 | LMS public key (48 bytes + 2544 unused bytes) used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) <br><br>**OR**<br><br>MLDSA-87 public key used to verify the Firmware Manifest Header Signature. <br> (2592 bytes, little endian)|
 | Owner ECC Signature | 96 | Manufacturer ECC P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Owner LMS or MLDSA Signature | 4628 | Owner LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Owner MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte) |
+| Owner LMS or MLDSA Signature | 4628 | Owner LMS signature (1620 bytes + 3008 unused bytes) of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) <br><br>**OR**<br><br> Owner MLDSA-87 signature of the Firmware Manifest header hashed using SHA2-512 (4627 bytes + 1 Reserved byte, little endian) |
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
