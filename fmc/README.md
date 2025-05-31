@@ -1,6 +1,6 @@
 # Caliptra - FMC Specification v2.0
 
-*Spec Version: 0.5*
+*Spec Version: 0.9*
 
 ## Scope
 
