@@ -540,12 +540,8 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // Downloads an image from the recovery interface to the mailbox SRAM.
-    pub fn download_image_to_mbox(
-        &self,
-        fw_image_index: u32,
-        caliptra_fw: bool,
-    ) -> CaliptraResult<u32> {
-        let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
+    pub fn download_image_to_mbox(&self, fw_image_index: u32) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index)?;
         // Transfer the image from the recovery interface to the mailbox SRAM.
         let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
         self.transfer_payload_to_mbox(
@@ -577,12 +573,8 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // Downloads an image from the recovery interface to the MCU SRAM.
-    pub fn download_image_to_mcu(
-        &self,
-        fw_image_index: u32,
-        caliptra_fw: bool,
-    ) -> CaliptraResult<u32> {
-        let image_size_bytes = self.request_image(fw_image_index, caliptra_fw)?;
+    pub fn download_image_to_mcu(&self, fw_image_index: u32) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index)?;
         let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
         self.transfer_payload_to_axi(
             addr,
@@ -599,7 +591,7 @@ impl<'a> DmaRecovery<'a> {
     }
 
     // Request the recovery interface load an image.
-    pub fn request_image(&self, fw_image_index: u32, caliptra_fw: bool) -> CaliptraResult<u32> {
+    pub fn request_image(&self, fw_image_index: u32) -> CaliptraResult<u32> {
         cprintln!(
             "[dma-recovery] Requesting recovery image {}",
             fw_image_index
@@ -625,15 +617,12 @@ impl<'a> DmaRecovery<'a> {
                 )
             });
 
-            if caliptra_fw {
-                // the first image is our own firmware, so we need to set up to receive it
-                // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
-                // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
-                recovery.device_status_0().modify(|val| {
-                    val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
-                        .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
-                });
-            }
+            // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
+            // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
+            recovery.device_status_0().modify(|val| {
+                val.rec_reason_code(Self::FLASHLESS_STREAMING_BOOT_VALUE)
+                    .dev_status(Self::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE)
+            });
 
             // Set RECOVERY_STATUS register 'Device Recovery Status' field to 0x1 ('Awaiting recovery image')
             // and 'Recovery Image Index' to recovery image index.

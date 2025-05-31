@@ -654,7 +654,7 @@ Following is the sequence of steps that are performed to download the firmware i
 `Recovery Reason Code` field to 0x12 ('Flashless/Streaming Boot (FSB)').
 3. Set the RI RECOVERY_STATUS register, `Device Recovery Status` field to 0x1 ('Awaiting recovery image') and `Recovery Image Index` field to 0 (Firmware Image).
 4. Loop on the `payload_available` bit in the `DMA Status0` register for the firmware image info to be available.
-5. Read the image size from RI INDIRECT_FIFO_CTRL_1 register. Image size in DWORDs.
+5. Read the image size from RI INDIRECT_FIFO_CTRL_1 register. Image size is in DWORDs.
 6. Initiate image download from the recovery interface to the mailbox sram:
   a. Write the payload length to the DMA widget 'Byte Count' register.
   b. Write the block size with a value of 256 to the DMA widget 'Block Size' register.
@@ -672,7 +672,7 @@ Following is the sequence of steps that are performed to download the firmware i
 10. Validate the image per the [Image Validation Process](#firmware-image-validation-process).
 11. Reset the `RECOVERY_CTRL` register `Activate Recovery Image` field by writing 0x1.
 12. If the validation is succesful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
-13. If the validation is fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xc (`Recovery failed`) and `DEVICE_STATUS` register `Device Status` field to 0xF (`Fatal Error (Recover Reason Code not populated)`).
+13. If the validation fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xc (`Recovery failed`) and `DEVICE_STATUS` register `Device Status` field to 0xF (`Fatal Error (Recover Reason Code not populated)`).
 14. Release the mailbox lock.
 
 #### Image validation
