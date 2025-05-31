@@ -49,7 +49,7 @@ impl RecoveryFlow {
             dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
 
             // download SoC manifest
-            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX, false)
+            dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)
         };
         drivers.mbox.unlock();
         result?;
@@ -66,7 +66,7 @@ impl RecoveryFlow {
             // need to make sure the device status is correct to load the next image
             dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
             cprintln!("[rt] Uploading MCU firmware");
-            let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, false)?;
+            let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX)?;
             cprintln!("[rt] Calculating MCU digest");
             dma_recovery.sha384_mcu_sram(&mut drivers.sha2_512_384_acc, mcu_size_bytes)?
         };
