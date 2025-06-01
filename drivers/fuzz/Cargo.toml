@@ -31,6 +31,10 @@ features = ["arbitrary"]
 path = "../../lms-types"
 features = ["arbitrary"]
 
+[dependencies.caliptra-cfi-lib]
+path = "../../cfi/lib"
+features = ["cfi", "cfi-counter", "cfi-test"]
+
 [features]
 struct-aware = ["arbitrary"]
 
