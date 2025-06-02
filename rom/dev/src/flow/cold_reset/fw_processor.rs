@@ -636,13 +636,13 @@ impl FirmwareProcessor {
         Ok(())
     }
 
-    /// Load the image to ICCM & DCCM
+    /// Load the image to ICCM
     ///
     /// # Arguments
     ///
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
-    /// * `subsystem_mode` - Indicates if ROM is running in the Subsystem mode
+    ///
     // Inlined to reduce ROM size
     #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -913,7 +913,7 @@ impl FirmwareProcessor {
     /// * `soc_ifc` - SOC Interface
     ///
     /// # Returns
-    /// * `()` - Ok
+    /// * `CaliptraResult<u32>` - Size of the image downloaded
     ///   Error code on failure.
     fn retrieve_image_from_recovery_interface(
         dma: &mut Dma,
@@ -923,6 +923,6 @@ impl FirmwareProcessor {
         let mci_base_addr = soc_ifc.mci_base_addr().into();
         const FW_IMAGE_INDEX: u32 = 0x0;
         let dma_recovery = DmaRecovery::new(rri_base_addr, mci_base_addr, dma);
-        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX, true)
+        dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 }
