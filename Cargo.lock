@@ -514,6 +514,7 @@ dependencies = [
  "const-random",
  "fips204",
  "lazy_static",
+ "openssl",
  "rand",
  "sha2",
  "sha3",
