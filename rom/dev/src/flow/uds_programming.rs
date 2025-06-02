@@ -50,11 +50,7 @@ impl UdsProgrammingFlow {
 
         let result = (|| {
             // Generate a 512-bit random value.
-            let mut seed = [0u32; 16];
-            let seed1 = env.trng.generate()?;
-            let seed2 = env.trng.generate()?;
-            seed[..12].copy_from_slice(&seed1.0);
-            seed[12..16].copy_from_slice(&seed2.0[0..4]);
+            let seed: [u32; 16] = env.trng.generate16()?.into();
 
             let uds_fuse_row_granularity_64 = env.soc_ifc.uds_fuse_row_granularity_64();
             let fuse_controller_base_addr = env.soc_ifc.fuse_controller_base_addr();

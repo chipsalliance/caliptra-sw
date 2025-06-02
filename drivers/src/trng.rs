@@ -7,7 +7,7 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
+use crate::{trng_ext::TrngExt, Array4x12, Array4x16, Csrng, MfgFlags};
 
 #[repr(u32)]
 pub enum Trng {
@@ -127,5 +127,14 @@ impl Trng {
                 cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
             },
         }
+    }
+
+    pub fn generate16(&mut self) -> CaliptraResult<Array4x16> {
+        let a = self.generate()?;
+        let b = self.generate()?;
+        let mut result = [0u32; 16];
+        result[..12].copy_from_slice(&a.0);
+        result[12..].copy_from_slice(&b.0[..4]);
+        Ok(Array4x16::from(result))
     }
 }
