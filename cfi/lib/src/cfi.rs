@@ -302,6 +302,160 @@ macro_rules! cfi_assert {
 }
 
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub fn cfi_assert_eq_16_words(a: &[u32; 16], b: &[u32; 16]) {
+    if a != b {
+        cfi_panic(CfiPanicInfo::AssertEqFail)
+    }
+}
+
+/// Unrolled comparison of 16 words
+///
+/// Written in assembly so the trampoline is above the comparisons rather than
+/// below
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[inline(always)]
+pub fn cfi_assert_eq_16_words(a: &[u32; 16], b: &[u32; 16]) {
+    unsafe {
+        core::arch::asm!(
+            "j 3f",
+            "2:",
+            "li a0, 0x01040055",
+            "j cfi_panic_handler",
+            "3:",
+            "lw {tmp0}, 0(a4)",
+            "lw {tmp1}, 0(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 4(a4)",
+            "lw {tmp1}, 4(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 8(a4)",
+            "lw {tmp1}, 8(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 12(a4)",
+            "lw {tmp1}, 12(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 16(a4)",
+            "lw {tmp1}, 16(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 20(a4)",
+            "lw {tmp1}, 20(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 24(a4)",
+            "lw {tmp1}, 24(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 28(a4)",
+            "lw {tmp1}, 28(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 32(a4)",
+            "lw {tmp1}, 32(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 36(a4)",
+            "lw {tmp1}, 36(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 40(a4)",
+            "lw {tmp1}, 40(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 44(a4)",
+            "lw {tmp1}, 44(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 48(a4)",
+            "lw {tmp1}, 48(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 52(a4)",
+            "lw {tmp1}, 52(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 56(a4)",
+            "lw {tmp1}, 56(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 60(a4)",
+            "lw {tmp1}, 60(a5)",
+            "bne {tmp0}, {tmp1}, 2b",
+            in("a4") a.as_ptr(),
+            in("a5") b.as_ptr(),
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _);
+    }
+}
+
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub fn cfi_assert_ne_16_words(a: &[u32; 16], b: &[u32; 16]) {
+    if a == b {
+        cfi_panic(CfiPanicInfo::AssertNeFail)
+    }
+}
+
+/// Unrolled comparison of 16 words
+///
+/// Written in assembly so the trampoline is above the comparisons rather than
+/// below
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[inline(always)]
+pub fn cfi_assert_ne_16_words(a: &[u32; 16], b: &[u32; 16]) {
+    unsafe {
+        core::arch::asm!(
+            "j 3f",
+            "2:",
+            "li a0, 0x01040056",
+            "j cfi_panic_handler",
+            "3:",
+            "lw {tmp0}, 0(a4)",
+            "lw {tmp1}, 0(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 4(a4)",
+            "lw {tmp1}, 4(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 8(a4)",
+            "lw {tmp1}, 8(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 12(a4)",
+            "lw {tmp1}, 12(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 16(a4)",
+            "lw {tmp1}, 16(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 20(a4)",
+            "lw {tmp1}, 20(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 24(a4)",
+            "lw {tmp1}, 24(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 28(a4)",
+            "lw {tmp1}, 28(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 32(a4)",
+            "lw {tmp1}, 32(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 36(a4)",
+            "lw {tmp1}, 36(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 40(a4)",
+            "lw {tmp1}, 40(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 44(a4)",
+            "lw {tmp1}, 44(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 48(a4)",
+            "lw {tmp1}, 48(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 52(a4)",
+            "lw {tmp1}, 52(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 56(a4)",
+            "lw {tmp1}, 56(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "lw {tmp0}, 60(a4)",
+            "lw {tmp1}, 60(a5)",
+            "bne {tmp0}, {tmp1}, 4f",
+            "j 2b",
+            "4:",
+            in("a4") a.as_ptr(),
+            in("a5") b.as_ptr(),
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _,);
+    }
+}
+
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub fn cfi_assert_eq_12_words(a: &[u32; 12], b: &[u32; 12]) {
     if a != b {
         cfi_panic(CfiPanicInfo::AssertEqFail)
