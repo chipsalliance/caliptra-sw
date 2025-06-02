@@ -124,7 +124,7 @@ pub fn exec_cmd_get_idev_info<T: HwModel>(hw: &mut T) {
         ),
     };
 
-    let resp = mbx_send_and_check_resp_hdr::<_, GetIdevInfoResp>(
+    let resp = mbx_send_and_check_resp_hdr::<_, GetIdevEcc384InfoResp>(
         hw,
         u32::from(CommandId::GET_IDEV_ECC384_INFO),
         payload.as_bytes(),

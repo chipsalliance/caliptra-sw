@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{handoff::RtHandoff, mutrefbytes, Drivers};
 use caliptra_common::mailbox_api::{
-    AlgorithmType, FwInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
+    AlgorithmType, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
 };
 use caliptra_drivers::CaliptraResult;
 
@@ -63,11 +63,11 @@ impl IDevIdInfoCmd {
             AlgorithmType::Ecc384 => {
                 let pub_key = pdata.fht.idev_dice_ecdsa_pub_key;
 
-                let resp = mutrefbytes::<GetIdevInfoResp>(resp)?;
+                let resp = mutrefbytes::<GetIdevEcc384InfoResp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();
                 resp.idev_pub_x = pub_key.x.into();
                 resp.idev_pub_y = pub_key.y.into();
-                Ok(core::mem::size_of::<GetIdevInfoResp>())
+                Ok(core::mem::size_of::<GetIdevEcc384InfoResp>())
             }
             AlgorithmType::Mldsa87 => {
                 let pub_key = pdata.idevid_mldsa_pub_key;

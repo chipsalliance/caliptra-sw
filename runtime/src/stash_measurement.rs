@@ -69,7 +69,7 @@ impl StashMeasurementCmd {
                 platform: DpePlatform::new(
                     pdata.manifest1.header.pl0_pauser,
                     &hashed_rt_pub_key,
-                    &drivers.cert_chain,
+                    &drivers.ecc_cert_chain,
                     &nb,
                     &nf,
                     None,

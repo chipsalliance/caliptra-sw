@@ -8,7 +8,7 @@ use crate::common::{
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
-    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevInfoResp, GetIdevMldsa87CertReq,
+    CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
     GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
@@ -741,7 +741,7 @@ fn test_ldev_cert() {
         )
         .unwrap()
         .unwrap();
-    let idev_resp = GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    let idev_resp = GetIdevEcc384InfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Check the LDevID is signed by IDevID
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
