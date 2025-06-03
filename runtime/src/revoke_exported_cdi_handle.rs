@@ -10,9 +10,12 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp,
 };
+use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
+use dpe::U8Bool;
 use zerocopy::{FromBytes, IntoBytes};
+use zeroize::Zeroize;
 
 pub struct RevokeExportedCdiHandleCmd;
 impl RevokeExportedCdiHandleCmd {
@@ -30,13 +33,26 @@ impl RevokeExportedCdiHandleCmd {
             }
         }
 
-        for slot in drivers.exported_cdi_slots.iter_mut() {
+        for slot in drivers
+            .persistent_data
+            .get_mut()
+            .exported_cdi_slots
+            .entries
+            .iter_mut()
+        {
             match slot {
-                Some((cdi, handle)) if *handle == cmd.exported_cdi_handle => {
+                ExportedCdiEntry {
+                    key,
+                    handle,
+                    active,
+                } if *handle == cmd.exported_cdi_handle && active.get() => {
                     #[cfg(not(feature = "no-cfi"))]
                     cfi_assert!(*handle == cmd.exported_cdi_handle);
 
-                    *slot = None;
+                    // Setting to false is redundant with zeroize but included for clarity.
+                    *active = U8Bool::new(false);
+                    slot.zeroize();
+
                     return Ok(MailboxResp::RevokeExportedCdiHandle(
                         RevokeExportedCdiHandleResp::default(),
                     ));
