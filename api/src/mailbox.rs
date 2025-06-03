@@ -248,7 +248,7 @@ pub fn populate_checksum(msg: &mut [u8]) {
 pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
-    GetIdevInfo(GetIdevInfoResp),
+    GetIdevEcc384Info(GetIdevEcc384InfoResp),
     GetIdevMldsa87Info(GetIdevMldsa87InfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
@@ -263,7 +263,7 @@ pub enum MailboxResp {
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
-    GetIdevCsr(GetIdevCsrResp),
+    GetIdevEccCsr(GetIdevCsrResp),
     GetIdevMldsaCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
@@ -305,7 +305,7 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial(),
-            MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevEcc384Info(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes()),
@@ -320,7 +320,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
@@ -360,7 +360,7 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial_mut(),
-            MailboxResp::GetIdevInfo(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetIdevEcc384Info(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevMldsa87Info(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_mut_bytes()),
@@ -375,7 +375,7 @@ impl MailboxResp {
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevMldsaCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
@@ -874,7 +874,7 @@ pub type GetIdevCertResp = VarSizeDataResp;
 // No command-specific input args
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct GetIdevInfoResp {
+pub struct GetIdevEcc384InfoResp {
     pub hdr: MailboxRespHeader,
     pub idev_pub_x: [u8; 48],
     pub idev_pub_y: [u8; 48],
@@ -1243,7 +1243,7 @@ impl Default for AddSubjectAltNameReq {
     }
 }
 
-// POPULATE_IDEV_CERT
+// POPULATE_IDEV_ECC384_CERT
 // No command-specific output args
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -1277,6 +1277,44 @@ impl Default for PopulateIdevEcc384CertReq {
             hdr: MailboxReqHeader::default(),
             cert_size: 0,
             cert: [0u8; PopulateIdevEcc384CertReq::MAX_CERT_SIZE],
+        }
+    }
+}
+
+// POPULATE_IDEV_MLDSA87_CERT
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct PopulateIdevMldsa87CertReq {
+    pub hdr: MailboxReqHeader,
+    pub cert_size: u32,
+    pub cert: [u8; PopulateIdevMldsa87CertReq::MAX_CERT_SIZE], // variable length
+}
+impl PopulateIdevMldsa87CertReq {
+    pub const MAX_CERT_SIZE: usize = 8192;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for PopulateIdevMldsa87CertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cert_size: 0,
+            cert: [0u8; PopulateIdevMldsa87CertReq::MAX_CERT_SIZE],
         }
     }
 }
@@ -1402,7 +1440,7 @@ impl Default for SetAuthManifestReq {
     }
 }
 
-// GET_IDEVID_CSR
+// GET_IDEV_ECC384_CSR
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetIdevCsrReq {

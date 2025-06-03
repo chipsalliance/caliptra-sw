@@ -180,7 +180,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_IMAGE_METADATA`](#set-image-metadata), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -225,7 +225,7 @@ The manifest begins with the Preamble section, which contains new manifest ECC a
 
 #### Image Metadata Collection (IMC)
 
-The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 16 image hashes will be supported.
+The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 127 image hashes will be supported.
 
 #### Caliptra Measurement Manifest Keys Endorsement Verification Steps
 
@@ -406,6 +406,29 @@ Command Code: `0x4944_4550` ("IDEP")
 | cert         | u8[1024]      | DER-encoded ECC384 IDevID CERT.
 
 *Table: `POPULATE_IDEV_ECC384_CERT` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+
+### POPULATE\_IDEV\_MLDSA87\_CERT
+
+Exposes a command that allows the SoC to provide a DER-encoded
+MLDSA87 IDevId certificate on every boot. The MLDSA87 IDevId certificate is added
+to the start of the certificate chain.
+
+Command Code: `0x4944_4D50` ("IDMP")
+
+*Table: `POPULATE_IDEV_MLDSA87_CERT` input arguments*
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| cert\_size   | u32           | Size of the DER-encoded MLDSA87 IDevId certificate.
+| cert         | u8[8192]      | DER-encoded MLDSA87 IDevID CERT.
+
+*Table: `POPULATE_IDEV_MLDSA87_CERT` output arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
@@ -2041,22 +2064,39 @@ Command Code: `0x434D_5354` ("CMST")
 | total usage storage | u32      | Total CMK usage storage (in entries) |
 
 
-### GET\_IDEVID\_CSR
+### GET\_IDEVID\_ECC384\_CSR
 
 Command Code: `0x4944_4352` ("IDCR")
 
-*Table: `GET_IDEVID_CSR` input arguments*
+*Table: `GET_IDEV_ECC384_CSR` input arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
-*Table: `GET_IDEVID_CSR` output arguments*
+*Table: `GET_IDEV_ECC384_CSR` output arguments*
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
-| data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
+| data          | u8[...]  | DER-encoded ECC384 IDevID certificate signing request.                     |
+
+### GET\_IDEVID\_MLDSA87\_CSR
+
+Command Code: `0x4944_4d52` ("IDMR")
+
+*Table: `GET_IDEV_MLDSA87_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_IDEV_MLDSA87_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded MLDSA87 IDevID certificate signing request.                    |
 
 The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR.
 
@@ -2198,7 +2238,7 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
   CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
-  the POPULATE\_IDEV\_CERT mailbox command.
+  the POPULATE\_IDEV\_ECC384\_CERT and POPULATE\_IDEV\_MLDSA384\_CERT mailbox commands.
 * PL1 - Restricted privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.
@@ -2340,7 +2380,7 @@ The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
-* IDevID (optionally added by the SoC via POPULATE\_IDEV\_CERT)
+* IDevID (optionally added by the SoC via POPULATE\_IDEV\_ECC384\_CERT)
 * LDevID
 * FMC Alias
 * Runtime Alias

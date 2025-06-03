@@ -114,7 +114,7 @@ impl GetLdevCertCmd {
         match alg_type {
             AlgorithmType::Ecc384 => {
                 resp.data_size =
-                    copy_ldevid_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+                    copy_ldevid_ecc384_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
             }
             AlgorithmType::Mldsa87 => {
                 resp.data_size =
@@ -209,7 +209,7 @@ pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Sign
     persistent_data.data_vault.ldev_dice_mldsa_signature()
 }
 
-/// Copy LDevID certificate produced by ROM to `cert` buffer
+/// Copy ECC LDevID certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
 ///
@@ -220,7 +220,7 @@ pub fn ldevid_dice_mldsa87_sign(persistent_data: &PersistentData) -> Mldsa87Sign
 ///
 /// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
-pub fn copy_ldevid_cert(
+pub fn copy_ldevid_ecc384_cert(
     persistent_data: &PersistentData,
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
@@ -232,7 +232,7 @@ pub fn copy_ldevid_cert(
         .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
 }
 
-/// Copy LDevID certificate produced by ROM to `cert` buffer
+/// Copy MLDSA LDevID certificate produced by ROM to `cert` buffer
 ///
 /// # Arguments
 ///

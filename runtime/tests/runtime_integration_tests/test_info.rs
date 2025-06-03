@@ -9,7 +9,7 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     mailbox_api::{
-        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, GetIdevMldsa87InfoResp,
+        CapabilitiesResp, CommandId, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp,
         MailboxReqHeader, MailboxRespHeader,
     },
 };
@@ -183,7 +183,7 @@ fn test_fw_info() {
 }
 
 #[test]
-fn test_idev_id_info() {
+fn test_idev_id_ecc384_info() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -198,7 +198,7 @@ fn test_idev_id_info() {
         )
         .unwrap()
         .unwrap();
-    GetIdevInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    GetIdevEcc384InfoResp::read_from_bytes(resp.as_slice()).unwrap();
 }
 
 #[test]
