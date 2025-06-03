@@ -20,7 +20,6 @@ caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
 const-random.workspace = true
-fips204.workspace = true
 lazy_static.workspace = true
 openssl.workspace = true
 rand.workspace = true

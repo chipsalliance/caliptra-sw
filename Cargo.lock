@@ -512,7 +512,6 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-registers",
  "const-random",
- "fips204",
  "lazy_static",
  "openssl",
  "rand",
