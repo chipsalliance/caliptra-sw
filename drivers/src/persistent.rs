@@ -18,7 +18,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, FmcAliasCsr, Mldsa87PubKey, Mldsa87Signature,
+    DataVault, FirmwareHandoffTable, FmcAliasCsrs, Mldsa87PubKey, Mldsa87Signature,
 };
 
 #[cfg(feature = "runtime")]
@@ -42,7 +42,6 @@ pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
-pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
 pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
@@ -185,25 +184,27 @@ impl Default for InitDevIdCsrEnvelope {
 pub mod fmc_alias_csr {
     use super::*;
 
-    const _: () = assert!(size_of::<FmcAliasCsr>() < FMC_ALIAS_CSR_SIZE as usize);
-
-    #[derive(Clone, TryFromBytes, IntoBytes, Zeroize)]
+    #[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
-    pub struct FmcAliasCsr {
-        csr_len: u32,
-        csr: [u8; ECC384_MAX_CSR_SIZE],
+    pub struct FmcAliasCsrs {
+        pub ecc_csr_len: u32,
+        pub ecc_csr: [u8; ECC384_MAX_CSR_SIZE],
+        pub mldsa_csr_len: u32,
+        pub mldsa_csr: [u8; MLDSA87_MAX_CSR_SIZE],
     }
 
-    impl Default for FmcAliasCsr {
+    impl Default for FmcAliasCsrs {
         fn default() -> Self {
             Self {
-                csr_len: Self::UNPROVISIONED_CSR,
-                csr: [0; ECC384_MAX_CSR_SIZE],
+                ecc_csr_len: Self::UNPROVISIONED_CSR,
+                ecc_csr: [0; ECC384_MAX_CSR_SIZE],
+                mldsa_csr_len: Self::UNPROVISIONED_CSR,
+                mldsa_csr: [0; MLDSA87_MAX_CSR_SIZE],
             }
         }
     }
 
-    impl FmcAliasCsr {
+    impl FmcAliasCsrs {
         /// The `csr_len` field is set to this constant when a ROM image supports CSR generation but
         /// the CSR generation flag was not enabled.
         ///
@@ -213,34 +214,34 @@ pub mod fmc_alias_csr {
         /// u32::MAX is too large to be a valid CSR, so we use it to encode this state.
         pub const UNPROVISIONED_CSR: u32 = u32::MAX;
 
-        /// Get the CSR buffer
-        pub fn get(&self) -> Option<&[u8]> {
-            self.csr.get(..self.csr_len as usize)
+        /// Get the ECC CSR
+        pub fn get_ecc_csr(&self) -> Option<&[u8]> {
+            self.ecc_csr.get(..self.ecc_csr_len as usize)
         }
 
-        /// Create `Self` from a csr slice. `csr_len` MUST be the actual length of the csr.
-        pub fn new(csr_buf: &[u8], csr_len: usize) -> CaliptraResult<Self> {
-            if csr_len >= ECC384_MAX_CSR_SIZE {
-                return Err(CaliptraError::FMC_ALIAS_INVALID_CSR);
-            }
-
-            let mut _self = Self {
-                csr_len: csr_len as u32,
-                csr: [0; ECC384_MAX_CSR_SIZE],
-            };
-            _self.csr[..csr_len].copy_from_slice(&csr_buf[..csr_len]);
-
-            Ok(_self)
+        /// Get the MLDSA CSR
+        pub fn get_mldsa_csr(&self) -> Option<&[u8]> {
+            self.mldsa_csr.get(..self.mldsa_csr_len as usize)
         }
 
-        /// Get the length of the CSR in bytes.
-        pub fn get_csr_len(&self) -> u32 {
-            self.csr_len
+        /// Get the length of the ECC CSR in bytes.
+        pub fn get_ecc_csr_len(&self) -> u32 {
+            self.ecc_csr_len
         }
 
-        /// Check if the CSR was unprovisioned
-        pub fn is_unprovisioned(&self) -> bool {
-            self.csr_len == Self::UNPROVISIONED_CSR
+        /// Get the length of the MLDSA CSR in bytes.
+        pub fn get_mldsa_csr_len(&self) -> u32 {
+            self.mldsa_csr_len
+        }
+
+        /// Check if the ECC CSR was unprovisioned
+        pub fn is_ecc_csr_unprovisioned(&self) -> bool {
+            self.ecc_csr_len == Self::UNPROVISIONED_CSR
+        }
+
+        /// Check if the MLDSA CSR was unprovisioned
+        pub fn is_mldsa_csr_unprovisioned(&self) -> bool {
+            self.mldsa_csr_len == Self::UNPROVISIONED_CSR
         }
     }
 }
@@ -316,8 +317,7 @@ pub struct PersistentData {
     pub idevid_csr_envelop: InitDevIdCsrEnvelope,
     reserved10: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
 
-    pub fmc_alias_csr: FmcAliasCsr,
-    reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsr>()],
+    pub fmc_alias_csr: FmcAliasCsrs,
 }
 
 impl PersistentData {

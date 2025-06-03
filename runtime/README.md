@@ -2097,9 +2097,41 @@ When called from ROM, if the CSR was not previously provisioned this command wil
 
 When called from runtime, if the CSR was not previously provisioned this command will return `RUNTIME_GET_IDEV_ID_UNPROVISIONED(0x000E0051)`. If the ROM did not support CSR generation, this command will return `RUNTIME_GET_IDEV_ID_UNSUPPORTED_ROM(0x000E0052)`.
 
-
-
 When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
+
+### GET\_FMC\_ALIAS\_ECC384\_CSR
+
+Command Code: `0x464D_4352` ("FMCR")
+
+*Table: `GET_FMC_ALIAS_ECC384_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_FMC_ALIAS_ECC384_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded ECC384 FMC Alias certificate signing request.                  |
+
+### GET\_FMC\_ALIAS\_MLDSA87\_CSR
+
+Command Code: `0x464d_4452` ("FMDR")
+
+*Table: `GET_FMC_ALIAS_MLDSA87_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_FMC_ALIAS_MLDSA87_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded MLDSA87 FMC Alias certificate signing request.                 |
 
 ### SIGN\_WITH\_EXPORTED\_ECDSA
 

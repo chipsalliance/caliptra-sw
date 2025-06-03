@@ -12,11 +12,7 @@ pub struct GetIdevCsrCmd;
 impl GetIdevCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(
-        drivers: &mut Drivers,
-        _cmd_args: &[u8],
-        resp: &mut [u8],
-    ) -> CaliptraResult<usize> {
+    pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.ecc_csr;
 
         match csr_persistent_mem.get_csr_len() {
@@ -51,11 +47,7 @@ pub struct GetIdevMldsaCsrCmd;
 impl GetIdevMldsaCsrCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(
-        drivers: &mut Drivers,
-        _cmd_args: &[u8],
-        resp: &mut [u8],
-    ) -> CaliptraResult<usize> {
+    pub(crate) fn execute(drivers: &mut Drivers, resp: &mut [u8]) -> CaliptraResult<usize> {
         let csr_persistent_mem = &drivers.persistent_data.get().idevid_csr_envelop.mldsa_csr;
 
         match csr_persistent_mem.get_csr_len() {
