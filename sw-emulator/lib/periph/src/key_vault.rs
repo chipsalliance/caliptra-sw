@@ -249,11 +249,14 @@ bitfield! {
     /// Flag indicating if the key can be used as MLDSA seed
     pub mldsa_seed, set_mldsa_key_gen_seed: 2;
 
-    /// Flag indicating if the key can be used aas ECC Private Key
+    /// Flag indicating if the key can be used as ECC Private Key
     pub ecc_private_key, set_ecc_private_key: 3;
 
-    /// Flag indicating if the key can be used aas ECC Key Generation Seed
+    /// Flag indicating if the key can be used as ECC Key Generation Seed
     pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
+
+    /// Flag indicating if the key can be used as AES key.
+    pub aes_key, set_aes_key: 5;
 }
 
 impl From<KeyUsage> for u32 {

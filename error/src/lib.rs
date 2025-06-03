@@ -203,6 +203,11 @@ impl CaliptraError {
             "Driver Error: HKDF salt is too large"
         ),
         (
+            DRIVER_AES_READ_KEY_KV_READ,
+            0x00040010,
+            "Driver Error: AES read key KV read"
+        ),
+        (
             DRIVER_ECC384_READ_SEED_KV_READ,
             0x00050001,
             "Driver Error: ECC384 read seed KV read"

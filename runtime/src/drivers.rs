@@ -40,6 +40,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
+use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::{
     csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl, entropy_src::EntropySrcReg,
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
@@ -136,7 +137,7 @@ impl Drivers {
             &SocIfcReg::new(),
         )?;
 
-        let aes = Aes::new(AesReg::new());
+        let aes = Aes::new(AesReg::new(), AesClpReg::new());
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),

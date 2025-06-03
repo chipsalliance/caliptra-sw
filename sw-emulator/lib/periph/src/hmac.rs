@@ -48,7 +48,7 @@ register_bitfields! [
     ],
 
     /// Key Read Control Register Fields
-    KeyReadControl[
+    pub KeyReadControl[
         KEY_READ_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
         PCR_HASH_EXTEND OFFSET(6) NUMBITS(1) [],
@@ -56,7 +56,7 @@ register_bitfields! [
     ],
 
     /// Key Read Status Register Fields
-    KeyReadStatus[
+    pub KeyReadStatus[
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
         ERROR OFFSET(2) NUMBITS(8) [
@@ -111,7 +111,7 @@ const INIT_TICKS: u64 = 1000;
 const UPDATE_TICKS: u64 = 1000;
 
 /// The number of CPU clock cycles read and write keys from key vault
-const KEY_RW_TICKS: u64 = 100;
+pub const KEY_RW_TICKS: u64 = 100;
 
 /// LSFR Seed Size.
 const HMAC_LFSR_SEED_SIZE: usize = 48;

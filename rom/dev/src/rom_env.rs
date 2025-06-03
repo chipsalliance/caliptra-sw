@@ -21,9 +21,10 @@ use caliptra_drivers::{
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
-    aes::AesReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
-    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
+    entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg,
+    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Rom Context
@@ -106,7 +107,7 @@ impl RomEnv {
             persistent_data: PersistentDataAccessor::new(),
             mldsa87: Mldsa87::new(MldsaReg::new()),
             dma: Dma::default(),
-            aes: Aes::new(AesReg::new()),
+            aes: Aes::new(AesReg::new(), AesClpReg::new()),
         })
     }
 }

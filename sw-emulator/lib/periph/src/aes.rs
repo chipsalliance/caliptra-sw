@@ -1,11 +1,15 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers::words_from_bytes_be;
+use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt, KeyInit};
+use aes::Aes256;
 use caliptra_emu_bus::{BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_crypto::{Aes256Cbc, Aes256Ctr, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -70,6 +74,7 @@ register_bitfields! [
 
 /// AES peripheral implementation
 #[derive(Bus)]
+#[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 pub struct Aes {
     #[register_array(offset = 0x4, item_size = 4, len = 8, write_fn = write_key_share0)]
@@ -111,17 +116,12 @@ pub struct Aes {
     ctr: Aes256Ctr,
     data_out_read: [bool; 4],
     data_out_block_queue: VecDeque<u32>,
-}
-
-impl Default for Aes {
-    fn default() -> Self {
-        Self::new()
-    }
+    key_vault_key: Rc<RefCell<Option<[u8; 32]>>>,
 }
 
 impl Aes {
     /// Create a new AES peripheral instance
-    pub fn new() -> Self {
+    pub fn new(key_vault_key: Rc<RefCell<Option<[u8; 32]>>>) -> Self {
         Self {
             key_share0: [0; 8],
             key_share1: [0; 8],
@@ -143,6 +143,7 @@ impl Aes {
             ctr: Aes256Ctr::default(),
             data_out_read: [true; 4],
             data_out_block_queue: VecDeque::new(),
+            key_vault_key,
         }
     }
 
@@ -172,6 +173,18 @@ impl Aes {
         }
         self.trigger.reg.set(0);
         Ok(())
+    }
+
+    fn poll(&mut self) {
+        // check if key vault key was loaded
+        let key = self.key_vault_key.borrow_mut().take();
+        if let Some(key) = key {
+            let k = words_from_bytes_be(&key);
+            for (i, ki) in k.into_iter().enumerate() {
+                self.write_key_share0(RvSize::Word, i, ki).unwrap();
+                self.write_key_share1(RvSize::Word, i, 0).unwrap();
+            }
+        }
     }
 
     fn warm_reset(&mut self) {
@@ -292,13 +305,29 @@ impl Aes {
                     self.data_out[3] = self.data_out_block_queue.pop_front().unwrap();
                 }
             }
-            // streaming modes can directly read the register
-            Ctrl::MODE::Value::CTR | Ctrl::MODE::Value::GCM => (),
+            // streaming modes and ECB can directly read the register
+            Ctrl::MODE::Value::CTR | Ctrl::MODE::Value::GCM | Ctrl::MODE::Value::ECB => (),
             _ => todo!(),
         }
 
         let data = self.data_out[index];
         Ok(data)
+    }
+
+    fn update_ecb(&mut self, data: &[u8]) {
+        assert_eq!(data.len(), 16);
+        let data: &[u8; 16] = data.try_into().unwrap();
+        let mut data = GenericArray::from(*data);
+        let cipher = Aes256::new((&self.key()).into());
+        if self.is_encrypt() {
+            cipher.encrypt_block(&mut data);
+        } else {
+            cipher.decrypt_block(&mut data);
+        }
+        self.data_out[0] = u32::from_le_bytes(data[0..4].try_into().unwrap());
+        self.data_out[1] = u32::from_le_bytes(data[4..8].try_into().unwrap());
+        self.data_out[2] = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        self.data_out[3] = u32::from_le_bytes(data[12..16].try_into().unwrap());
     }
 
     fn update_cbc(&mut self, data: &[u8]) {
@@ -422,6 +451,9 @@ impl Aes {
                 }
                 Ctrl::MODE::Value::GCM => {
                     self.update_gcm(&buffer);
+                }
+                Ctrl::MODE::Value::ECB => {
+                    self.update_ecb(&buffer);
                 }
                 _ => todo!(),
             }
