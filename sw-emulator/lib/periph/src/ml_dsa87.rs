@@ -1290,164 +1290,166 @@ mod tests {
     }
 
     // [TODO][CAP2]: Re-enable this test once OpenSSL supports it.
-
     // #[test]
-    // fn test_sign_var_with_streaming_and_context() {
-    //     let clock = Clock::new();
-    //     let key_vault = KeyVault::new();
-    //     let sha512 = HashSha512::new(&clock, key_vault.clone());
+    #[allow(dead_code)]
+    fn test_sign_var_with_streaming_and_context() {
+        let clock = Clock::new();
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-    //     let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
-    //     // Generate a private key directly
-    //     let seed = rand::thread_rng().gen::<[u8; 32]>();
-    //     let (pk, sk) = keygen_with_rng(&seed);
-    //     let private_key = priv_key_to_bytes(&sk);
+        // Generate a private key directly
+        let seed = rand::thread_rng().gen::<[u8; 32]>();
+        let (_pk, sk) = keygen_with_rng(&seed);
+        let private_key = priv_key_to_bytes(&sk);
 
-    //     // Write the private key to hardware
-    //     for (i, chunk) in private_key.chunks_exact(4).enumerate() {
-    //         ml_dsa87
-    //             .write(
-    //                 RvSize::Word,
-    //                 OFFSET_PRIVKEY_IN + (i * 4) as RvAddr,
-    //                 u32::from_le_bytes(chunk.try_into().unwrap()),
-    //             )
-    //             .unwrap();
-    //     }
+        // Write the private key to hardware
+        for (i, chunk) in private_key.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_PRIVKEY_IN + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
 
-    //     // Create a larger message (more than 64 bytes)
-    //     let msg_large: Vec<u8> = (0..100).map(|_| rand::thread_rng().gen::<u8>()).collect();
+        // Create a larger message (more than 64 bytes)
+        let msg_large: Vec<u8> = (0..100).map(|_| rand::thread_rng().gen::<u8>()).collect();
 
-    //     // Generate context data
-    //     let ctx_data: Vec<u8> = (0..16).map(|_| rand::random::<u8>()).collect();
-    //     let ctx_size = ctx_data.len();
+        // Generate context data
+        let ctx_data: Vec<u8> = (0..16).map(|_| rand::random::<u8>()).collect();
+        let ctx_size = ctx_data.len();
 
-    //     // Write context data - need to use little endian format for hardware
-    //     for (i, chunk) in ctx_data.chunks_exact(4).enumerate() {
-    //         ml_dsa87
-    //             .write(
-    //                 RvSize::Word,
-    //                 OFFSET_CTX + (i * 4) as RvAddr,
-    //                 u32::from_le_bytes(chunk.try_into().unwrap()),
-    //             )
-    //             .unwrap();
-    //     }
+        // Write context data - need to use little endian format for hardware
+        for (i, chunk) in ctx_data.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_CTX + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
 
-    //     // Handle any remaining bytes (if ctx_data length is not a multiple of 4)
-    //     let remainder = ctx_data.chunks_exact(4).remainder();
-    //     if !remainder.is_empty() {
-    //         let mut last_word = 0_u32;
-    //         let mut last_bytes = last_word.to_le_bytes();
-    //         last_bytes[..remainder.len()].copy_from_slice(remainder);
-    //         last_word = u32::from_le_bytes(last_bytes);
-    //         ml_dsa87
-    //             .write(
-    //                 RvSize::Word,
-    //                 OFFSET_CTX + (ctx_data.len() / 4 * 4) as RvAddr,
-    //                 last_word,
-    //             )
-    //             .unwrap();
-    //     }
+        // Handle any remaining bytes (if ctx_data length is not a multiple of 4)
+        let remainder = ctx_data.chunks_exact(4).remainder();
+        if !remainder.is_empty() {
+            let mut last_word = 0_u32;
+            let mut last_bytes = last_word.to_le_bytes();
+            last_bytes[..remainder.len()].copy_from_slice(remainder);
+            last_word = u32::from_le_bytes(last_bytes);
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_CTX + (ctx_data.len() / 4 * 4) as RvAddr,
+                    last_word,
+                )
+                .unwrap();
+        }
 
-    //     // Set context size in config register
-    //     ml_dsa87
-    //         .write(RvSize::Word, OFFSET_CTX_CONFIG, ctx_size as u32)
-    //         .unwrap();
+        // Set context size in config register
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_CTX_CONFIG, ctx_size as u32)
+            .unwrap();
 
-    //     // Generate random values for sign_rnd
-    //     let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-    //     for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
-    //         ml_dsa87
-    //             .write(
-    //                 RvSize::Word,
-    //                 OFFSET_SIGN_RND + (i * 4) as RvAddr,
-    //                 u32::from_le_bytes(chunk.try_into().unwrap()),
-    //             )
-    //             .unwrap();
-    //     }
+        // Generate random values for sign_rnd
+        let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
+        for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
 
-    //     // Start signing operation with streaming mode
-    //     let ctrl_value = Control::CTRL::SIGNING.value | Control::STREAM_MSG::SET.value;
-    //     ml_dsa87
-    //         .write(RvSize::Word, OFFSET_CONTROL, ctrl_value)
-    //         .unwrap();
+        // Start signing operation with streaming mode
+        let ctrl_value = Control::CTRL::SIGNING.value | Control::STREAM_MSG::SET.value;
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_CONTROL, ctrl_value)
+            .unwrap();
 
-    //     // Wait for MSG_STREAM_READY status
-    //     loop {
-    //         let status = InMemoryRegister::<u32, Status::Register>::new(
-    //             ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
-    //         );
+        // Wait for MSG_STREAM_READY status
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
 
-    //         if status.is_set(Status::MSG_STREAM_READY) {
-    //             break;
-    //         }
+            if status.is_set(Status::MSG_STREAM_READY) {
+                break;
+            }
 
-    //         clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
-    //     }
+            clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
+        }
 
-    //     // Stream the message in chunks
-    //     let dwords = msg_large.chunks_exact(std::mem::size_of::<u32>());
-    //     let remainder = dwords.remainder();
+        // Stream the message in chunks
+        let dwords = msg_large.chunks_exact(std::mem::size_of::<u32>());
+        let remainder = dwords.remainder();
 
-    //     // Process full dwords
-    //     for chunk in dwords {
-    //         let word = u32::from_le_bytes(chunk.try_into().unwrap());
-    //         ml_dsa87.write(RvSize::Word, OFFSET_MSG, word).unwrap();
-    //     }
+        // Process full dwords
+        for chunk in dwords {
+            let word = u32::from_le_bytes(chunk.try_into().unwrap());
+            ml_dsa87.write(RvSize::Word, OFFSET_MSG, word).unwrap();
+        }
 
-    //     // Handle remainder bytes by setting appropriate strobe pattern
-    //     let last_strobe = match remainder.len() {
-    //         0 => 0b0000,
-    //         1 => 0b0001,
-    //         2 => 0b0011,
-    //         3 => 0b0111,
-    //         _ => 0b0000, // should never happen
-    //     };
-    //     ml_dsa87
-    //         .write(RvSize::Word, OFFSET_MSG_STROBE, last_strobe)
-    //         .unwrap();
+        // Handle remainder bytes by setting appropriate strobe pattern
+        let last_strobe = match remainder.len() {
+            0 => 0b0000,
+            1 => 0b0001,
+            2 => 0b0011,
+            3 => 0b0111,
+            _ => 0b0000, // should never happen
+        };
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_MSG_STROBE, last_strobe)
+            .unwrap();
 
-    //     // Write last dword, even if no remainder (using 0)
-    //     let mut last_word = 0_u32;
-    //     let mut last_bytes = last_word.to_le_bytes();
-    //     last_bytes[..remainder.len()].copy_from_slice(remainder);
-    //     last_word = u32::from_le_bytes(last_bytes);
-    //     ml_dsa87.write(RvSize::Word, OFFSET_MSG, last_word).unwrap();
+        // Write last dword, even if no remainder (using 0)
+        let mut last_word = 0_u32;
+        let mut last_bytes = last_word.to_le_bytes();
+        last_bytes[..remainder.len()].copy_from_slice(remainder);
+        last_word = u32::from_le_bytes(last_bytes);
+        ml_dsa87.write(RvSize::Word, OFFSET_MSG, last_word).unwrap();
 
-    //     // Wait for operation to complete
-    //     loop {
-    //         let status = InMemoryRegister::<u32, Status::Register>::new(
-    //             ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
-    //         );
+        // Wait for operation to complete
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
 
-    //         if status.is_set(Status::VALID) && status.is_set(Status::READY) {
-    //             break;
-    //         }
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
 
-    //         clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
-    //     }
+            clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
+        }
 
-    //     // Get the signature
-    //     let signature = bytes_from_words_le(&ml_dsa87.signature);
+        // Get the signature
+        let _signature = bytes_from_words_le(&ml_dsa87.signature);
 
-    //     // Verify the signature using the crypto library
-    //     let result = pk.verify(
-    //         &msg_large,
-    //         &signature[..SIG_LEN].try_into().unwrap(),
-    //         &ctx_data,
-    //     );
-    //     assert!(result, "Signature verification with context failed");
+        // [TODO][CAP2]: Uncomment these lines when the OpenSSL library supports contexts.
 
-    //     // Now verify that it fails with incorrect context
-    //     let wrong_ctx = Vec::from([0u8; 16]);
-    //     let result_wrong_ctx = pk.verify(
-    //         &msg_large,
-    //         &signature[..SIG_LEN].try_into().unwrap(),
-    //         &wrong_ctx,
-    //     );
-    //     assert!(
-    //         !result_wrong_ctx,
-    //         "Signature shouldn't verify with wrong context"
-    //     );
-    // }
+        // Verify the signature using the crypto library
+        // let result = pk.verify(
+        //     &msg_large,
+        //     &signature[..SIG_LEN].try_into().unwrap(),
+        //     &ctx_data,
+        // );
+        // assert!(result, "Signature verification with context failed");
+
+        // Now verify that it fails with incorrect context
+        // let wrong_ctx = Vec::from([0u8; 16]);
+        // let result_wrong_ctx = pk.verify(
+        //     &msg_large,
+        //     &signature[..SIG_LEN].try_into().unwrap(),
+        //     &wrong_ctx,
+        // );
+        // assert!(
+        //     !result_wrong_ctx,
+        //     "Signature shouldn't verify with wrong context"
+        // );
+    }
 }
