@@ -766,7 +766,7 @@ impl<'a> DmaImage<'a> {
         Ok(digest)
     }
 
-    fn transfer_payload_to_axi(
+    pub fn transfer_payload_to_axi(
         &self,
         read_addr: AxiAddr,
         payload_len_bytes: u32,

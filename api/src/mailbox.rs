@@ -47,6 +47,7 @@ pub enum AlgorithmType {
 }
 
 impl CommandId {
+    pub const ACTIVATE_FIRMWARE: Self = Self(0x41435446); // "ACTF"
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_ECC384_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_ECC384_INFO: Self = Self(0x49444549); // "IDEI"
@@ -446,6 +447,7 @@ impl Default for MailboxResp {
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
+    ActivateFirmware(ActivateFirmwareReq),
     EcdsaVerify(EcdsaVerifyReq),
     LmsVerify(LmsVerifyReq),
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
@@ -513,6 +515,7 @@ pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
 impl MailboxReq {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
+            MailboxReq::ActivateFirmware(req) => Ok(req.as_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
@@ -578,6 +581,7 @@ impl MailboxReq {
 
     pub fn as_mut_bytes(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
+            MailboxReq::ActivateFirmware(req) => Ok(req.as_mut_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
@@ -643,6 +647,7 @@ impl MailboxReq {
 
     pub fn cmd_code(&self) -> CommandId {
         match self {
+            MailboxReq::ActivateFirmware(_) => CommandId::ACTIVATE_FIRMWARE,
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
             MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
@@ -786,6 +791,45 @@ impl Default for VarSizeDataResp {
         }
     }
 }
+
+// ACTIVATE_FIRMWARE
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ActivateFirmwareReq {
+    pub hdr: MailboxReqHeader,
+    pub fw_id_count: u32,
+    pub fw_ids: [u32; ActivateFirmwareReq::MAX_FW_ID_COUNT],
+    pub mcu_fw_image_size: u32,
+}
+impl Request for ActivateFirmwareReq {
+    const ID: CommandId = CommandId::ACTIVATE_FIRMWARE;
+    type Resp = GetImageInfoResp;
+}
+impl ActivateFirmwareReq {
+    pub const MAX_FW_ID_COUNT: usize = 128;
+    pub const MAX_FW_ID_VAL: u32 = 127;
+    pub const RESERVED0_IMAGE_ID: u32 = 0;
+    pub const RESERVED1_IMAGE_ID: u32 = 0;
+    pub const MCU_IMAGE_ID: u32 = 2;
+    pub const SOC_IMAGE_ID_START: u32 = 3;
+}
+impl Default for ActivateFirmwareReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            fw_id_count: 0,
+            mcu_fw_image_size: 0,
+            fw_ids: [0; ActivateFirmwareReq::MAX_FW_ID_COUNT],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct ActivateFirmwareResp {
+    pub hdr: MailboxRespHeader,
+}
+impl Response for ActivateFirmwareResp {}
 
 // GET_IDEV_ECC384_CERT
 #[repr(C)]

@@ -215,6 +215,23 @@ impl SocIfc {
         ]
     }
 
+    pub fn set_ss_generic_fw_exec_ctrl(&mut self, go_bitmap: &[u32; 4]) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        for (i, &bitmap) in go_bitmap.iter().enumerate() {
+            soc_ifc_regs
+                .ss_generic_fw_exec_ctrl()
+                .at(i)
+                .write(|_| bitmap);
+        }
+    }
+
+    pub fn get_ss_generic_fw_exec_ctrl(&self, go_bitmap: &mut [u32; 4]) {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        for (i, bitmap) in go_bitmap.iter_mut().enumerate() {
+            *bitmap = soc_ifc_regs.ss_generic_fw_exec_ctrl().at(i).read();
+        }
+    }
+
     /// Locks or unlocks the ICCM.
     ///
     /// # Arguments
