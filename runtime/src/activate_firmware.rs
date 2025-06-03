@@ -16,13 +16,9 @@ use core::mem::offset_of;
 
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_auth_man_types::AuthManifestImageMetadata;
-use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaImage, DmaMmio};
-use caliptra_registers::soc_ifc::SocIfcReg;
-use ureg::{Mmio, MmioMut, RealMmioMut};
-use zerocopy::FromBytes;
+use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaImage, DmaMmio};
+use ureg::{Mmio, MmioMut};
 
 const IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES: u32 = 256;
 const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
@@ -33,7 +29,6 @@ const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x1;
 
 pub struct ActivateFirmwareCmd;
 impl ActivateFirmwareCmd {
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
@@ -105,7 +100,6 @@ impl ActivateFirmwareCmd {
         Ok(core::mem::size_of::<ActivateFirmwareResp>())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn activate_fw(
         drivers: &mut Drivers,
@@ -182,7 +176,6 @@ impl ActivateFirmwareCmd {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn get_loading_staging_address(
         drivers: &Drivers,
@@ -224,14 +217,6 @@ impl ActivateFirmwareCmd {
             (bitmap[idx] & (1 << offset)) != 0
         } else {
             false
-        }
-    }
-
-    fn clear_bit(bitmap: &mut [u32; 4], bit: usize) {
-        if bit < core::mem::size_of_val(bitmap) * 8 {
-            let idx = bit / 32;
-            let offset = bit % 32;
-            bitmap[idx] &= !(1 << offset);
         }
     }
 }
