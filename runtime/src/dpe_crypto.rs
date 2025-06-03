@@ -20,16 +20,12 @@ use caliptra_common::keyids::{
 use caliptra_drivers::{
     hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, Sha384},
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, Hmac, HmacMode,
-    KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha2DigestOp, Sha2_512_384, Trng,
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed, ExportedCdiEntry,
+    ExportedCdiHandles, Hmac, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
+    Sha2DigestOp, Sha2_512_384, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
-use dpe::{ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE};
-
-// Currently only can export CDI once, but in the future we may want to support multiple exported
-// CDI handles at the cost of using more KeyVault slots.
-pub const EXPORTED_HANDLES_NUM: usize = 1;
-pub type ExportedCdiHandles = [Option<(KeyId, ExportedCdiHandle)>; EXPORTED_HANDLES_NUM];
+use dpe::{ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 
 pub struct DpeCrypto<'a> {
     sha2_512_384: &'a mut Sha2_512_384,
@@ -153,9 +149,13 @@ impl<'a> DpeCrypto<'a> {
         &mut self,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> Option<<DpeCrypto<'a> as crypto::Crypto>::Cdi> {
-        for cdi_slot in self.exported_cdi_slots.iter() {
+        for cdi_slot in self.exported_cdi_slots.entries.iter() {
             match cdi_slot {
-                Some((cdi, handle)) if handle == exported_cdi_handle => return Some(*cdi),
+                ExportedCdiEntry {
+                    key,
+                    handle,
+                    active,
+                } if active.get() && handle == exported_cdi_handle => return Some(*key),
                 _ => (),
             }
         }
@@ -243,18 +243,30 @@ impl Crypto for DpeCrypto<'_> {
         // Currently we only use one slot for export CDIs.
         let cdi_slot = KEY_ID_EXPORTED_DPE_CDI;
         // Copy the CDI slots to work around the borrow checker.
-        let mut slots_clone = *self.exported_cdi_slots;
+        let mut slots_clone = self.exported_cdi_slots.clone();
 
-        for slot in slots_clone.iter_mut() {
+        for slot in slots_clone.entries.iter_mut() {
             match slot {
                 // Matching existing slot
-                Some((cached_cdi, _handle)) if *cached_cdi == cdi_slot => {
+                ExportedCdiEntry {
+                    key,
+                    handle: _,
+                    active,
+                } if active.get() && *key == cdi_slot => {
                     Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
                 }
-                // Empty slot
-                None => {
+                ExportedCdiEntry {
+                    key: _,
+                    handle: _,
+                    active,
+                } if !active.get() => {
+                    // Empty slot
                     let cdi = self.derive_cdi_inner(algs, measurement, info, cdi_slot)?;
-                    *slot = Some((cdi, exported_cdi_handle));
+                    *slot = ExportedCdiEntry {
+                        key: cdi,
+                        handle: exported_cdi_handle,
+                        active: U8Bool::new(true),
+                    };
                     // We need to update `self.exported_cdi_slots` with our mutation.
                     *self.exported_cdi_slots = slots_clone;
                     return Ok(exported_cdi_handle);
@@ -298,10 +310,14 @@ impl Crypto for DpeCrypto<'_> {
     ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
         let cdi = {
             let mut cdi = None;
-            for cdi_slot in self.exported_cdi_slots.iter() {
+            for cdi_slot in self.exported_cdi_slots.entries.iter() {
                 match cdi_slot {
-                    Some((stored_cdi, stored_handle)) if stored_handle == exported_handle => {
-                        cdi = Some(*stored_cdi);
+                    ExportedCdiEntry {
+                        key,
+                        handle,
+                        active,
+                    } if active.get() && handle == exported_handle => {
+                        cdi = Some(*key);
                         break;
                     }
                     _ => (),
