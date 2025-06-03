@@ -61,7 +61,7 @@ impl InvokeDpeCmd {
                 &mut pdata.fht.rt_dice_ecc_pub_key,
                 key_id_rt_cdi,
                 key_id_rt_priv_key,
-                &mut drivers.exported_cdi_slots,
+                &mut pdata.exported_cdi_slots,
             );
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
