@@ -1173,7 +1173,9 @@ Command Code: `0x4143_5446` ("ACTF")
 | **Name** | **Type** | **Description**                                                       |
 | -------------- | -------------- | --------------------------------------------------------------------------- |
 | chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian. |
-| image_id       | u8[4]          | Image id in little-endian format                           |
+| count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
+| mcu_image_size | u32            | Size of MCU image, if included in the activation |
+| image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
 
 *Table: `ACTIVATE_FIRMWARE` output arguments*
 

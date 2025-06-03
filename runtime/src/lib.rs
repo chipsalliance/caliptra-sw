@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 #![no_std]
+mod activate_firmware;
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
@@ -61,6 +62,7 @@ pub use crate::hmac::Hmac;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
+pub use activate_firmware::ActivateFirmwareCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
@@ -210,6 +212,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
     let len = match CommandId::from(req_packet.cmd) {
+        CommandId::ACTIVATE_FIRMWARE => {
+            activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
+        }
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_ECC384_CERT => {
             IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384, resp)
