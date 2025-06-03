@@ -502,7 +502,7 @@ impl Mldsa87 {
             &bytes_from_words_le(&self.msg)
         };
 
-        // TODO: Use this?
+        // [TODO][CAP2]: Use context once OpenSSL supports it.
 
         // Get context if specified
         // let mut ctx: Vec<u8> = Vec::new();
@@ -527,10 +527,6 @@ impl Mldsa87 {
         ctx.sign_message_init(&mut algo).unwrap();
         let mut signature = [0u8; ML_DSA87_SIGNATURE_SIZE];
         ctx.sign(message, Some(&mut signature)).unwrap();
-
-        // let signature = secret_key
-        //     .try_sign_with_seed(&[0u8; 32], message, &ctx)
-        //     .unwrap();
 
         self.signature = words_from_bytes_le(&signature);
     }
@@ -580,7 +576,7 @@ impl Mldsa87 {
 
         let signature = bytes_from_words_le(&self.signature);
 
-        // TODO: How to use this?
+        // [TODO][CAP2]: Use context once OpenSSL supports it.
 
         // Get context if specified
         // let mut ctx: Vec<u8> = Vec::new();
@@ -603,7 +599,6 @@ impl Mldsa87 {
         let mut ctx = PkeyCtx::new(&public_key).unwrap();
         ctx.verify_message_init(&mut algo).unwrap();
         let success = matches!(ctx.verify(message, &signature[..SIG_LEN]), Ok(true));
-        // let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &ctx);
 
         if success {
             self.verify_res
@@ -1293,6 +1288,8 @@ mod tests {
         let valid = ctx.verify(&msg_short, &signature[..SIG_LEN]);
         assert!(matches!(valid, Ok(true)), "Signature verification failed");
     }
+
+    // [TODO][CAP2]: Re-enable this test once OpenSSL supports it.
 
     // #[test]
     // fn test_sign_var_with_streaming_and_context() {
