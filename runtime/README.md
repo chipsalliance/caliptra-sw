@@ -180,7 +180,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_IMAGE_METADATA`](#set-image-metadata), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
+Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash).
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -225,7 +225,7 @@ The manifest begins with the Preamble section, which contains new manifest ECC a
 
 #### Image Metadata Collection (IMC)
 
-The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 16 image hashes will be supported.
+The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 127 image hashes will be supported.
 
 #### Caliptra Measurement Manifest Keys Endorsement Verification Steps
 
@@ -406,6 +406,29 @@ Command Code: `0x4944_4550` ("IDEP")
 | cert         | u8[1024]      | DER-encoded ECC384 IDevID CERT.
 
 *Table: `POPULATE_IDEV_ECC384_CERT` output arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+
+### POPULATE\_IDEV\_MLDSA87\_CERT
+
+Exposes a command that allows the SoC to provide a DER-encoded
+MLDSA87 IDevId certificate on every boot. The MLDSA87 IDevId certificate is added
+to the start of the certificate chain.
+
+Command Code: `0x4944_4D50` ("IDMP")
+
+*Table: `POPULATE_IDEV_MLDSA87_CERT` input arguments*
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| cert\_size   | u32           | Size of the DER-encoded MLDSA87 IDevId certificate.
+| cert         | u8[8192]      | DER-encoded MLDSA87 IDevID CERT.
+
+*Table: `POPULATE_IDEV_MLDSA87_CERT` output arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
@@ -1057,19 +1080,21 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 *Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 
-| **Name**      | **Type** | **Description**                |
-|---------------|----------|--------------------------------|
-| fw\_id        | u32      | Id of the image                |
-| flags         | u32      | See METADATA_ENTRY_FLAGS below |
-| digest        | u32[48]  | Digest of the image            |
 
+| **Name**               | **Type** | **Description** |
+|------------------------|---------|----------------|
+| Image Hash              | u8[48]      | SHA2-384 hash of a SOC image. |
+| Image_id                | u32            | This corresponds to the `Image Identifier` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Component_id            | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| flags                   | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 
-*Table: `METADATA_ENTRY_FLAGS` input flags*
-
-| **Name**            | **Size (Bits)** | **Description** |
-|---------------------|-----------------|-----------------|
-| image\_source       | 2               | 1: InRequest    |
-| ignore\_auth\_check | 1               | If set, the image digest is not compared for the firmware id |
 
 ### AUTHORIZE_AND_STASH
 
@@ -1086,11 +1111,12 @@ Command Code: `0x4154_5348` ("ATSH")
 | ------------| -------- | ---------------
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.       |
 | fw_id       | u8[4]    | Firmware id of the image, in little-endian format |
-| measurement | u8[48]   | Digest of the image requested for authorization |
+| measurement | u8[48]   | Digest of the image requested for authorization. The `source` field needs to be set to '1` for InRequest, otherwise<br />this field is ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | The version of the image |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
-| source      | u32      | Enumeration values: { InRequest(1), ShaAcc (2) } |
+| source      | u32      | This field identifies the source of the digest to be used to compare with the SoC's<br />SHA digest in the SoC Manifest<br /><br />Values<br />1 - InRequest - Use the hash in the 'measurement' field of this command<br /><br />3 - LoadAddress - The image located in the `ImageLoadAddress` will be streamed to the SHA Accelerator to <br />               retrieve the digest that will be used for authorization.<br />4 - ImageStagingAddress - The image located in the `StagingAddress` will be streamed to the SHA Accelerator to<br />               retrieve the digest that will be used for authorization |
+| image_size   | u32      | The size of the image to hash. Only valid if source is `ImageLoadAddress` or `StagingAddress` |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
 | **Name**    | **Value** |
@@ -1104,69 +1130,59 @@ Command Code: `0x4154_5348` ("ATSH")
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
 | auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB)
 
-### GET_IMAGE_LOAD_ADDRESS
+### GET_IMAGE_INFO
 
-The MCU uses this command to retrieve the AXI load address of a SoC Image identified by the firmware id. The address is retrieved from the SoC Manifest loaded by Caliptra.
+The MCU uses this command to retrieve the Image Metadata Entry defined in the SoC Manifest given by an index to the Image Metadata Collection (IMC).
 
-Command Code: `0x494D_4C41` ("IMLA")
+Command Code: `0x494D_4530` ("IME0")
 
-*Table: `GET_IMAGE_LOAD_ADDRESS` input arguments*
+*Table: `GET_IMAGE_INFO` input arguments*
 
-| **Name**       | **Type**       | **Description**
-| -------------- | -------------- | ---------------------------------------------------------------------------
-| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
+| **Name** | **Type** | **Description**                                                                                                                                                                                   |
+| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.                                                                                                                             |
+| fw_id          | u32            | Firmware id of the image, in little-endian format
 
-*Table: `GET_IMAGE_LOAD_ADDRESS` output arguments*
+*Table: `GET_IMAGE_INFO` output arguments*
 
-| **Name**          | **Type**       | **Description**
-| ----------------- | -------------- | --------------------------------------------------------------------------
-| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
-| load_address_high | u32            | The higher 4 bytes of the 64-bit AXI load address.
-| load_address_low  | u32            | The lower 4 bytes of the 64-bit AXI load address.
+| **Name** | **Type** | **Description**                                                                                                                                                                                         |
+| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.                                                                                                                                    |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                                                                                                                                                        |
+| Component_id      | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| flags          | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Staging Address Low     | u32          | This corresponds to the `Staging Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Classification          | u32          | This corresponds to the `Classification` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
+| Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 
-### GET_IMAGE_LOCATION_OFFSET
 
-The MCU uses this command to obtain the offset necessary to locate the image blob for a SoC Image within the flash storage partition or firmware update package.
 
-Command Code: `0x494D_4C4F` ("IMLO")
+### ACTIVATE_FIRMWARE
 
-*Table: `GET_IMAGE_LOCATION_OFFSET` input arguments*
+The MCU uses this command to 'activate' the image that has been previously downloaded through PLDM - T5.
+For the full behavior of this command, refer to the [Subsystem Support for Hitless Updates](https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#subsystem-support-for-hitless-updates) specification.
 
-| **Name**       | **Type**       | **Description**
-| -------------- | -------------- | ---------------------------------------------------------------------------
-| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
+Command Code: `0x4143_5446` ("ACTF")
 
-*Table: `GET_IMAGE_LOCATION_OFFSET` output arguments*
+*Table: `ACTIVATE_FIRMWARE` input arguments*
 
-| **Name**          | **Type**       | **Description**
-| ----------------- | -------------- | --------------------------------------------------------------------------
-| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
-| offset            | u32            | The offset in flash storage partition or firmware update package offset where the SoC image resides.
+| **Name** | **Type** | **Description**                                                       |
+| -------------- | -------------- | --------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian. |
+| count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
+| mcu_image_size | u32            | Size of MCU image, if included in the activation |
+| image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
 
-### GET_IMAGE_SIZE
+*Table: `ACTIVATE_FIRMWARE` output arguments*
 
-The MCU uses this command to retrieve the size (in bytes) of a SoC Image.
-
-Command Code: `0x494D_535A` ("IMSZ")
-
-*Table: `GET_IMAGE_SIZE` input arguments*
-
-| **Name**       | **Type**       | **Description**
-| -------------- | -------------- | ---------------------------------------------------------------------------
-| chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| fw_id          | u8[4]          | Firmware id of the image, in little-endian format
-
-*Table: `GET_IMAGE_SIZE` output arguments*
-
-| **Name**          | **Type**       | **Description**
-| ----------------- | -------------- | --------------------------------------------------------------------------
-| chksum            | u32            | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status       | u32            | Indicates if the command is FIPS approved or an error.
-| size              | u32            | The size in bytes of the SoC Image
+| **Name** | **Type** | **Description**                                                      |
+| -------------- | -------------- | -------------------------------------------------------------------------- |
+| chksum         | u32            | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
 
 ## Mailbox commands: Cryptographic Mailbox (2.0)
 
@@ -2041,22 +2057,39 @@ Command Code: `0x434D_5354` ("CMST")
 | total usage storage | u32      | Total CMK usage storage (in entries) |
 
 
-### GET\_IDEVID\_CSR
+### GET\_IDEVID\_ECC384\_CSR
 
 Command Code: `0x4944_4352` ("IDCR")
 
-*Table: `GET_IDEVID_CSR` input arguments*
+*Table: `GET_IDEV_ECC384_CSR` input arguments*
 
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
 
-*Table: `GET_IDEVID_CSR` output arguments*
+*Table: `GET_IDEV_ECC384_CSR` output arguments*
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
-| data          | u8[...]  | DER-encoded IDevID certificate signing request.                            |
+| data          | u8[...]  | DER-encoded ECC384 IDevID certificate signing request.                     |
+
+### GET\_IDEVID\_MLDSA87\_CSR
+
+Command Code: `0x4944_4d52` ("IDMR")
+
+*Table: `GET_IDEV_MLDSA87_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+
+*Table: `GET_IDEV_MLDSA87_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
+| data          | u8[...]  | DER-encoded MLDSA87 IDevID certificate signing request.                    |
 
 The `mfg_flag_gen_idev_id_csr` manufacturing flag **MUST** have been set to generate a CSR.
 
@@ -2198,7 +2231,7 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
   CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
-  the POPULATE\_IDEV\_CERT mailbox command.
+  the POPULATE\_IDEV\_ECC384\_CERT and POPULATE\_IDEV\_MLDSA384\_CERT mailbox commands.
 * PL1 - Restricted privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.
@@ -2340,7 +2373,7 @@ The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
-* IDevID (optionally added by the SoC via POPULATE\_IDEV\_CERT)
+* IDevID (optionally added by the SoC via POPULATE\_IDEV\_ECC384\_CERT)
 * LDevID
 * FMC Alias
 * Runtime Alias

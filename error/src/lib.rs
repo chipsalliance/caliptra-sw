@@ -817,6 +817,11 @@ impl CaliptraError {
             "Image Verifier Error: PQC key type mismatch"
         ),
         (
+            IMAGE_VERIFIER_ACTIVATION_FAILED,
+            0x000b005d,
+            "Image Verifier Error: Activation failed"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"

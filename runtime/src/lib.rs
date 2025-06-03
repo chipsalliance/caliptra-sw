@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 #![no_std]
+mod activate_firmware;
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
@@ -52,6 +53,7 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder
 use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
+use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 use crate::capabilities::CapabilitiesCmd;
@@ -60,6 +62,7 @@ pub use crate::hmac::Hmac;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
+pub use activate_firmware::ActivateFirmwareCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
@@ -70,7 +73,7 @@ pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
-pub use populate_idev::PopulateIDevIdCertCmd;
+pub use populate_idev::PopulateIDevIdEcc384CertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::{GetIdevCsrCmd, GetIdevMldsaCsrCmd};
@@ -123,7 +126,8 @@ impl From<RtBootStatus> for u32 {
 }
 
 pub const DPE_SUPPORT: Support = Support::all();
-pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
+pub const MAX_ECC_CERT_CHAIN_SIZE: usize = 4096;
+pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 24576;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
 pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
@@ -208,6 +212,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
 
     let len = match CommandId::from(req_packet.cmd) {
+        CommandId::ACTIVATE_FIRMWARE => {
+            activate_firmware::ActivateFirmwareCmd::execute(drivers, cmd_bytes, resp)
+        }
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_ECC384_CERT => {
             IDevIdCertCmd::execute(cmd_bytes, AlgorithmType::Ecc384, resp)
@@ -240,7 +247,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::POPULATE_IDEV_ECC384_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
+        CommandId::POPULATE_IDEV_ECC384_CERT => {
+            PopulateIDevIdEcc384CertCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::POPULATE_IDEV_MLDSA87_CERT => {
+            PopulateIDevIdMldsa87CertCmd::execute(drivers, cmd_bytes)
+        }
         CommandId::GET_FMC_ALIAS_ECC384_CERT => {
             GetFmcAliasCertCmd::execute(drivers, AlgorithmType::Ecc384, resp)
         }

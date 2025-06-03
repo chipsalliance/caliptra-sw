@@ -71,7 +71,7 @@ fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_cert
 }
 
 #[test]
-fn test_populate_idev_cert_cmd() {
+fn test_populate_idev_ecc_cert_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -134,7 +134,7 @@ fn test_populate_idev_cert_cmd() {
 }
 
 #[test]
-fn test_populate_idev_cert_size_too_big() {
+fn test_populate_idev_ecc_cert_size_too_big() {
     // Test with cert_size too big.
     let mut pop_idev_cmd = MailboxReq::PopulateIdevEcc384Cert(PopulateIdevEcc384CertReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -146,3 +146,7 @@ fn test_populate_idev_cert_size_too_big() {
         Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
     );
 }
+
+// [CAP2][TODO]
+// test_populate_idev_mldsa_cert_cmd
+// test_populate_idev_mldsa_cert_size_too_big
