@@ -10,7 +10,7 @@ use caliptra_auth_man_types::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::{ImageManifest, SHA512_DIGEST_BYTE_SIZE};
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
+use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[cfg(feature = "runtime")]
-use crate::pcr_reset::PcrResetCounter;
+use crate::{pcr_reset::PcrResetCounter, KeyId};
 
 pub const ECC384_MAX_IDEVID_CSR_SIZE: usize = 512;
 pub const ECC384_MAX_FMC_ALIAS_CSR_SIZE: usize = 768;
@@ -56,11 +56,30 @@ pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 
 #[cfg(feature = "runtime")]
+// Currently only can export CDI once, but in the future we may want to support multiple exported
+// CDI handles at the cost of using more KeyVault slots.
+pub const EXPORTED_HANDLES_NUM: usize = 1;
+#[cfg(feature = "runtime")]
+#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+pub struct ExportedCdiEntry {
+    pub key: KeyId,
+    pub handle: ExportedCdiHandle,
+    pub active: U8Bool,
+}
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+pub struct ExportedCdiHandles {
+    pub entries: [ExportedCdiEntry; EXPORTED_HANDLES_NUM],
+}
+
+#[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
     + size_of::<U8Bool>()
-    + size_of::<U8Bool>();
+    + size_of::<U8Bool>()
+    + size_of::<ExportedCdiHandles>();
 
 #[cfg(feature = "runtime")]
 const _: () = assert!(DPE_DCCM_STORAGE < DPE_SIZE as usize);
@@ -310,6 +329,8 @@ pub struct PersistentData {
     pub attestation_disabled: U8Bool,
     #[cfg(feature = "runtime")]
     pub runtime_cmd_active: U8Bool,
+    #[cfg(feature = "runtime")]
+    pub exported_cdi_slots: ExportedCdiHandles,
     #[cfg(feature = "runtime")]
     reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
