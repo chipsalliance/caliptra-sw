@@ -1176,7 +1176,7 @@ impl Default for InvokeDpeResp {
     }
 }
 
-// GET_FMC_ALIAS_CERT
+// GET_FMC_ALIAS_ECC384_CERT
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetFmcAliasEcc384CertReq {
@@ -1189,6 +1189,7 @@ impl Request for GetFmcAliasEcc384CertReq {
 
 pub type GetFmcAliasEcc384CertResp = VarSizeDataResp;
 
+// GET_FMC_ALIAS_MLDSA87_CERT
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetFmcAliasMlDsa87CertReq {
@@ -1498,7 +1499,7 @@ impl Request for GetIdevCsrReq {
 
 pub type GetIdevCsrResp = VarSizeDataResp;
 
-// GET_IDEVID_MLDSA_CSR
+// GET_IDEV_MLDSA87_CSR
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetIdevMldsaCsrReq {

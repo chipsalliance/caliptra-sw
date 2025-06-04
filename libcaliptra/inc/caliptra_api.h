@@ -140,7 +140,7 @@ int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async);
 
 // If the SoC cannot buffer the entire FW, the following 3 functions can be used to write chunks at a time
 // Upload Caliptra Firmware Start Request
-// Begin a FW_LOAD command to caliptra. Total FW size is needed at the start per mailbox protocol
+// Begin a FIRMWARE_LOAD command to caliptra. Total FW size is needed at the start per mailbox protocol
 int caliptra_upload_fw_start_req(uint32_t fw_size_in_bytes);
 
 // Upload Caliptra Firmware Send Data
@@ -151,7 +151,7 @@ int caliptra_upload_fw_start_req(uint32_t fw_size_in_bytes);
 int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer);
 
 // Upload Caliptra Firmware End Request
-// End the FW_LOAD request after sending all the FW data
+// End the FIRMWARE_LOAD request after sending all the FW data
 // Waits for Caliptra completion and response if async is false
 int caliptra_upload_fw_end_req(bool async);
 
