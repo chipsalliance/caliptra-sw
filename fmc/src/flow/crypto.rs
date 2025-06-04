@@ -268,4 +268,34 @@ impl Crypto {
     ) -> CaliptraResult<Mldsa87Result> {
         env.mldsa.verify_var(pub_key, data, sig)
     }
+
+    // [TODO][CAP2] Consolidate this with ROM crypto.rs
+    /// Sign the data using MLDSA Private Key.
+    /// Verify the signature using the MLDSA Public Key.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    /// * `key_pair_seed` - Key slot to retrieve the keypair generation seed
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to sign
+    ///
+    /// # Returns
+    ///
+    /// * `Mldsa384Signature` - Signature
+    #[inline(always)]
+    pub fn mldsa87_sign_and_verify(
+        env: &mut FmcEnv,
+        key_pair_seed: KeyId,
+        pub_key: &Mldsa87PubKey,
+        data: &[u8],
+    ) -> CaliptraResult<Mldsa87Signature> {
+        env.mldsa.sign_var(
+            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+            pub_key,
+            data,
+            &Mldsa87SignRnd::default(),
+            &mut env.trng,
+        )
+    }
 }

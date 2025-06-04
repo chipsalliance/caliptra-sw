@@ -293,9 +293,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
-        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
+        CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
+        CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
+        CommandId::GET_FMC_ALIAS_MLDSA87_CSR => {
+            get_fmc_alias_csr::GetFmcAliasMldsaCsrCmd::execute(drivers, resp)
+        }
         CommandId::GET_PCR_LOG => GetPcrLogCmd::execute(drivers, resp),
         CommandId::SIGN_WITH_EXPORTED_ECDSA => {
             SignWithExportedEcdsaCmd::execute(drivers, cmd_bytes, resp)

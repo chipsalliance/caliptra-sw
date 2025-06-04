@@ -17,6 +17,10 @@ Abstract:
 include!(concat!(env!("OUT_DIR"), "/fmc_alias_csr_tbs.rs"));
 #[cfg(not(feature = "generate_templates"))]
 include! {"../build/fmc_alias_csr_tbs.rs"}
+#[cfg(feature = "generate_templates")]
+include!(concat!(env!("OUT_DIR"), "/fmc_alias_tbs_ml_dsa_87.rs"));
+#[cfg(not(feature = "generate_templates"))]
+include! {"../build/fmc_alias_tbs_ml_dsa_87.rs"}
 
 #[cfg(all(test, target_family = "unix"))]
 mod tests {

@@ -34,7 +34,9 @@ pub use cert_bldr::{
 pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
 pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
 pub use fmc_alias_cert_mldsa_87::{FmcAliasCertTbsMlDsa87, FmcAliasCertTbsMlDsa87Params};
-pub use fmc_alias_csr::{FmcAliasCsrTbs, FmcAliasCsrTbsParams};
+pub use fmc_alias_csr::{
+    FmcAliasCsrTbs, FmcAliasCsrTbsParams, FmcAliasTbsMlDsa87, FmcAliasTbsMlDsa87Params,
+};
 pub use idevid_csr_ecc_384::{InitDevIdCsrTbsEcc384, InitDevIdCsrTbsEcc384Params};
 pub use idevid_csr_mldsa_87::{InitDevIdCsrTbsMlDsa87, InitDevIdCsrTbsMlDsa87Params};
 pub use ldevid_cert_ecc_384::{LocalDevIdCertTbsEcc384, LocalDevIdCertTbsEcc384Params};
