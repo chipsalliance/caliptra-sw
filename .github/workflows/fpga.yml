@@ -148,7 +148,7 @@ jobs:
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+      CACHE_BUSTER: 9fffdb888988
 
     steps:
       - name: Checkout repo
@@ -255,14 +255,13 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
-    needs: [check_cache, build_test_binaries, build_kernel_modules]
+    runs-on: vck190-staging
+    needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
-      (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped') &&
-      (needs.build_kernel_modules.result == 'success' || needs.build_kernel_modules.result == 'skipped')
+      (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped')
 
 
     steps:
@@ -271,11 +270,11 @@ jobs:
         with:
           submodules: 'recursive' 
 
-      - name: 'Download kernel driver artifacts'
-        uses: actions/download-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
+      - name: Install squahfs
+        run: |
+          cat /proc/filesystems
+          sudo apt install squashfs-tools -y
+
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -297,13 +296,14 @@ jobs:
           sudo mkdir /tmp/caliptra-test-binaries
           echo mount squashfs
           sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          sudo dmesg
           find /tmp/caliptra-test-binaries
 
       - name: Install kernel modules
         run: |
-          ls -l /tmp/caliptra-fpga-kmod
-          sudo insmod /tmp/caliptra-fpga-kmod/io_module.ko
-          sudo insmod /tmp/caliptra-fpga-kmod/rom_backdoor.ko
+          # sudo insmod /home/runner/io-module.ko
+          sudo lsmod
+          ls /sys/class/uio
 
       - name: Execute tests
         run: |
@@ -347,6 +347,11 @@ jobs:
               --test-threads=1 \
               --no-fail-fast \
               --profile=nightly
+
+      - name: 'dump kernel log'
+        if: failure()
+        run: |
+          sudo dmesg
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
