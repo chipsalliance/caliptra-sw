@@ -257,7 +257,6 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-types",
  "caliptra-lms-types",
- "fips204",
  "memoffset 0.8.0",
  "zerocopy",
 ]

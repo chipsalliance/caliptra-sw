@@ -12,7 +12,7 @@ pub struct FmcAliasTbsMlDsa87Params<'a> {
     pub public_key: &'a [u8; 2592usize],
     pub subject_sn: &'a [u8; 64usize],
 }
-impl<'a> FmcAliasTbsMlDsa87Params<'a> {
+impl FmcAliasTbsMlDsa87Params<'_> {
     pub const UEID_LEN: usize = 17usize;
     pub const PUBLIC_KEY_LEN: usize = 2592usize;
     pub const SUBJECT_SN_LEN: usize = 64usize;

@@ -1,9 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::get_certs;
-use caliptra_api::mailbox::GetFmcAliasCsrReq;
+use caliptra_api::mailbox::GetFmcAliasEccCsrReq;
 use caliptra_common::mailbox_api::GetRtAliasEcc384CertReq;
-use caliptra_drivers::{FmcAliasCsr, ECC384_MAX_CSR_SIZE};
+use caliptra_drivers::{FmcAliasCsrs, ECC384_MAX_CSR_SIZE};
 use caliptra_hw_model::DefaultHwModel;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
@@ -26,10 +26,10 @@ fn test_get_fmc_alias_csr() {
         );
     }
     fn get_fmc_alias_csr(model: &mut DefaultHwModel) -> openssl::x509::X509Req {
-        let get_fmc_alias_csr_resp = get_certs::<GetFmcAliasCsrReq>(model);
+        let get_fmc_alias_csr_resp = get_certs::<GetFmcAliasEccCsrReq>(model);
 
         assert_ne!(
-            FmcAliasCsr::UNPROVISIONED_CSR,
+            FmcAliasCsrs::UNPROVISIONED_CSR,
             get_fmc_alias_csr_resp.data_size
         );
         assert_ne!(0, get_fmc_alias_csr_resp.data_size);
@@ -52,4 +52,6 @@ fn test_get_fmc_alias_csr() {
     );
 
     verify_rt_cert(&mut model, pubkey);
+
+    // [TODO][CAP2] Verify MLDSA CSR.
 }

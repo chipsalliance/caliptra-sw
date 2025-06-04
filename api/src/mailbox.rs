@@ -1512,15 +1512,27 @@ impl Request for GetIdevMldsaCsrReq {
 
 pub type GetIdevMldsaCsrResp = VarSizeDataResp;
 
-// GET_FMC_ALIAS_CSR
+// GET_FMC_ALIAS_ECC384_CSR
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct GetFmcAliasCsrReq {
+pub struct GetFmcAliasEccCsrReq {
     pub hdr: MailboxReqHeader,
 }
 
-impl Request for GetFmcAliasCsrReq {
+impl Request for GetFmcAliasEccCsrReq {
     const ID: CommandId = CommandId::GET_FMC_ALIAS_ECC384_CSR;
+    type Resp = GetFmcAliasCsrResp;
+}
+
+// GET_FMC_ALIAS_MLDSA87_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetFmcAliasMldsaCsrReq {
+    pub hdr: MailboxReqHeader,
+}
+
+impl Request for GetFmcAliasMldsaCsrReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_MLDSA87_CSR;
     type Resp = GetFmcAliasCsrResp;
 }
 
