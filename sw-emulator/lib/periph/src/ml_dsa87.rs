@@ -792,6 +792,18 @@ mod tests {
     const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
     const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x8004;
 
+    fn write_to_reg(ml_dsa87: &mut Mldsa87, buf: &[u8], reg: RvAddr) {
+        for (i, chunk) in buf.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    reg + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
+    }
+
     #[test]
     fn test_name() {
         let clock = Clock::new();
@@ -855,15 +867,7 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        for (i, chunk) in seed.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &seed, OFFSET_SEED);
 
         ml_dsa87
             .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
@@ -897,15 +901,7 @@ mod tests {
         let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        for (i, chunk) in seed.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &seed, OFFSET_SEED);
 
         let msg: [u8; 64] = {
             let part0 = rand::thread_rng().gen::<[u8; 32]>();
@@ -914,27 +910,10 @@ mod tests {
             concat.as_slice().try_into().unwrap()
         };
 
-        for (i, chunk) in msg.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_MSG + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &msg, OFFSET_MSG);
 
         let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-
-        for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &sign_rnd, OFFSET_SIGN_RND);
 
         ml_dsa87
             .write(
@@ -990,37 +969,13 @@ mod tests {
         let mut signature_from_lib = [0u8; ML_DSA87_SIGNATURE_SIZE];
         ctx.sign(&msg, Some(&mut signature_from_lib)).unwrap();
 
-        for (i, chunk) in msg.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_MSG + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &msg, OFFSET_MSG);
 
         let pk_for_hw = pub_key_to_bytes(&pk_from_lib);
-        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_PK + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &pk_for_hw, OFFSET_PK);
 
         // Good signature
-        for (i, chunk) in signature_from_lib.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &signature_from_lib, OFFSET_SIGNATURE);
 
         ml_dsa87
             .write(
@@ -1053,16 +1008,7 @@ mod tests {
         let mut signature = [0u8; ML_DSA87_SIGNATURE_SIZE];
 
         rng.fill(&mut signature[..64]);
-
-        for (i, chunk) in signature.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &signature, OFFSET_SIGNATURE);
 
         ml_dsa87
             .write(
@@ -1119,15 +1065,7 @@ mod tests {
             // We expect the output to match the generated random seed.
             // Write a different seed first to make sure the Kv seed is used
             let seed = [0xABu8; 32];
-            for (i, chunk) in seed.chunks_exact(4).enumerate() {
-                ml_dsa87
-                    .write(
-                        RvSize::Word,
-                        OFFSET_SEED + (i * 4) as RvAddr,
-                        u32::from_le_bytes(chunk.try_into().unwrap()),
-                    )
-                    .unwrap();
-            }
+            write_to_reg(&mut ml_dsa87, &seed, OFFSET_SEED);
 
             // Instruct seed to be read from key-vault.
             let seed_ctrl = InMemoryRegister::<u32, KvRdSeedCtrl::Register>::new(0);
@@ -1185,15 +1123,7 @@ mod tests {
 
         // Generate seed and write to hardware
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        for (i, chunk) in seed.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &seed, OFFSET_SEED);
 
         // Create variable length message (less than 64 bytes)
         let mut msg_short = [0u8; 40];
@@ -1203,15 +1133,7 @@ mod tests {
 
         // Generate random values for sign_rnd
         let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-        for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &sign_rnd, OFFSET_SIGN_RND);
 
         // Save public key for later verification
         let (pk, _sk) = keygen_with_rng(&seed);
@@ -1304,26 +1226,10 @@ mod tests {
 
         // Write public key to hardware.
         let pk_for_hw = pub_key_to_bytes(&pk);
-        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_PK + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &pk_for_hw, OFFSET_PK);
 
         // Write the private key to hardware
-        for (i, chunk) in private_key.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_PRIVKEY_IN + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &private_key, OFFSET_PRIVKEY_IN);
 
         // Create a larger message (more than 64 bytes)
         let msg_large: Vec<u8> = (0..100).map(|_| rand::thread_rng().gen::<u8>()).collect();
@@ -1333,15 +1239,7 @@ mod tests {
         let ctx_size = ctx_data.len();
 
         // Write context data - need to use little endian format for hardware
-        for (i, chunk) in ctx_data.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_CTX + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &ctx_data, OFFSET_CTX);
 
         // Handle any remaining bytes (if ctx_data length is not a multiple of 4)
         let remainder = ctx_data.chunks_exact(4).remainder();
@@ -1366,15 +1264,7 @@ mod tests {
 
         // Generate random values for sign_rnd
         let sign_rnd = rand::thread_rng().gen::<[u8; 32]>();
-        for (i, chunk) in sign_rnd.chunks_exact(4).enumerate() {
-            ml_dsa87
-                .write(
-                    RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
-                    u32::from_le_bytes(chunk.try_into().unwrap()),
-                )
-                .unwrap();
-        }
+        write_to_reg(&mut ml_dsa87, &sign_rnd, OFFSET_SIGN_RND);
 
         // Start signing operation with streaming mode
         let ctrl_value = Control::CTRL::SIGNING.value | Control::STREAM_MSG::SET.value;
