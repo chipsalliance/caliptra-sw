@@ -17,4 +17,3 @@ caliptra-auth-man-types = { workspace = true, features = ["std"] }
 caliptra-lms-types.workspace = true
 memoffset.workspace = true
 zerocopy.workspace = true
-fips204.workspace = true
