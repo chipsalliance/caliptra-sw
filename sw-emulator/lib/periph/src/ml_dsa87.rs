@@ -1289,9 +1289,7 @@ mod tests {
         assert!(matches!(valid, Ok(true)), "Signature verification failed");
     }
 
-    // [TODO][CAP2]: Re-enable this test once OpenSSL supports it.
-    // #[test]
-    #[allow(dead_code)]
+    #[test]
     fn test_sign_var_with_streaming_and_context() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
@@ -1301,8 +1299,20 @@ mod tests {
 
         // Generate a private key directly
         let seed = rand::thread_rng().gen::<[u8; 32]>();
-        let (_pk, sk) = keygen_with_rng(&seed);
+        let (pk, sk) = keygen_with_rng(&seed);
         let private_key = priv_key_to_bytes(&sk);
+
+        // Write public key to hardware.
+        let pk_for_hw = pub_key_to_bytes(&pk);
+        for (i, chunk) in pk_for_hw.chunks_exact(4).enumerate() {
+            ml_dsa87
+                .write(
+                    RvSize::Word,
+                    OFFSET_PK + (i * 4) as RvAddr,
+                    u32::from_le_bytes(chunk.try_into().unwrap()),
+                )
+                .unwrap();
+        }
 
         // Write the private key to hardware
         for (i, chunk) in private_key.chunks_exact(4).enumerate() {
@@ -1428,17 +1438,17 @@ mod tests {
         }
 
         // Get the signature
-        let _signature = bytes_from_words_le(&ml_dsa87.signature);
-
-        // [TODO][CAP2]: Uncomment these lines when the OpenSSL library supports contexts.
+        let signature = bytes_from_words_le(&ml_dsa87.signature);
 
         // Verify the signature using the crypto library
-        // let result = pk.verify(
-        //     &msg_large,
-        //     &signature[..SIG_LEN].try_into().unwrap(),
-        //     &ctx_data,
-        // );
-        // assert!(result, "Signature verification with context failed");
+        let mut algo = Signature::for_ml_dsa(Variant::MlDsa87).unwrap();
+        let mut ctx = PkeyCtx::new(&pk).unwrap();
+        ctx.verify_message_init(&mut algo).unwrap();
+
+        let valid = ctx.verify(&msg_large, &signature[..SIG_LEN]);
+        assert!(matches!(valid, Ok(true)), "Signature verification failed");
+
+        // [TODO][CAP2]: Re-add this functionality when the OpenSSL library supports contexts.
 
         // Now verify that it fails with incorrect context
         // let wrong_ctx = Vec::from([0u8; 16]);
