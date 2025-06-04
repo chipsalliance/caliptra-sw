@@ -85,7 +85,7 @@ fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwM
     model
 }
 
-fn set_auth_manifest_with_test_sram(
+pub fn set_auth_manifest_with_test_sram(
     auth_manifest: Option<AuthorizationManifest>,
     test_sram: &[u8],
 ) -> DefaultHwModel {

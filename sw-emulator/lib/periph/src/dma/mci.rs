@@ -21,11 +21,17 @@ const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 8;
 
 #[derive(Bus)]
 pub struct Mci {
-    #[register(offset = 0x24)]
+    #[register(offset = 0x30)]
     flow_status: u32,
+    #[register(offset = 0x38)]
+    reset_reason: u32,
+    #[register(offset = 0x3c)]
+    reset_status: u32,
     #[register_array(offset = 0xa00)]
     fuses: [u32; SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>()
         * SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES],
+    #[register(offset = 0x1024)]
+    notif0_internal_intr_r: u32,
 }
 
 impl Mci {
@@ -35,6 +41,8 @@ impl Mci {
     pub fn new(key_pairs: Vec<(&[u8; 96], &[u8; 2592])>) -> Self {
         Self {
             flow_status: 0,
+            reset_reason: 0,
+            reset_status: 0x2, // MCU on reset
             fuses: {
                 let mut fuses = [0; SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>()
                     * SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES];
@@ -55,6 +63,7 @@ impl Mci {
                 });
                 fuses
             },
+            notif0_internal_intr_r: 0,
         }
     }
 }
