@@ -73,6 +73,7 @@ fn test_rt_journey_pcr_validation() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_mbox_busy_during_warm_reset() {
     // This test uses the mailbox responder binary to set the mailbox_flow_done register to
     // false.
@@ -143,6 +144,7 @@ fn test_mbox_busy_during_warm_reset() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_mbox_idle_during_warm_reset() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
