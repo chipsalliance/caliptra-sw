@@ -27,7 +27,7 @@ enum caliptra_mailbox_fsm_states {
 };
 
 enum mailbox_command {
-    OP_CALIPTRA_FW_LOAD            = 0x46574C44, // "FWLD"
+    OP_FIRMWARE_LOAD               = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CERT               = 0x49444543, // "IDEC"
     OP_GET_IDEV_INFO               = 0x49444549, // "IDEI"
     OP_POPULATE_IDEV_CERT          = 0x49444550, // "IDEP"
