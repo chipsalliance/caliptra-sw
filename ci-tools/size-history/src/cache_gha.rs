@@ -7,12 +7,13 @@ use ghac::v1::{
 use prost::Message;
 
 use crate::{
-    http::{self, Content, HttpResponse},
+    http::{self, Content},
     util::{hex, other_err},
     Cache,
 };
 
-const VERSION: &str = "caliptra-size-history-cache1";
+// The server complains with an unhelpful message if VERSION is not a hex string
+const VERSION: &str = "a02f6dd76ad9bbe075065ed95abff21f02c1789ecbdbf8753bc823b0be6d99b3";
 
 pub struct GithubActionCache {
     prefix: String,
@@ -22,9 +23,10 @@ impl GithubActionCache {
         let wrap_err =
             |_| other_err("ACTIONS_RESULTS_URL environment variable not set".to_string());
         let prefix = format!(
-            "{}/twirp/github.actions.results.api.v1.CacheService",
+            "{}twirp/github.actions.results.api.v1.CacheService",
             std::env::var("ACTIONS_RESULTS_URL").map_err(wrap_err)?
         );
+        println!("Using GithubActionCache prefix {prefix:?}");
         Ok(Self { prefix })
     }
 }
@@ -38,7 +40,7 @@ impl Cache for GithubActionCache {
         };
         let content = Content::protobuf(request.encode_to_vec());
         let body = Some(&content);
-        let response = http::api_post(&format!("{}/CreateCacheEntry", self.prefix), body)?;
+        let response = http::api_post_ok(&format!("{}/CreateCacheEntry", self.prefix), body)?;
         let response: ghac_types::CreateCacheEntryResponse =
             CreateCacheEntryResponse::decode(response.data.as_ref())?;
         if !response.ok {
@@ -47,7 +49,7 @@ impl Cache for GithubActionCache {
             )));
         }
         let cache_url = response.signed_upload_url;
-        empty_response(http::api_patch(&cache_url, 0, &Content::octet_stream(val))?)?;
+        http::api_put_ok(&cache_url, &Content::octet_stream(val))?;
         let request = ghac_types::FinalizeCacheEntryUploadRequest {
             key: url_key.clone(),
             version: VERSION.into(),
@@ -56,7 +58,8 @@ impl Cache for GithubActionCache {
         };
         let content = Content::protobuf(request.encode_to_vec());
         let body = Some(&content);
-        let response = http::api_post(&format!("{}/FinalizeCacheEntryUpload", self.prefix), body)?;
+        let response =
+            http::api_post_ok(&format!("{}/FinalizeCacheEntryUpload", self.prefix), body)?;
         let response: ghac_types::FinalizeCacheEntryUploadResponse =
             FinalizeCacheEntryUploadResponse::decode(response.data.as_ref())?;
         if !response.ok {
@@ -77,7 +80,8 @@ impl Cache for GithubActionCache {
         };
         let content = Content::protobuf(request.encode_to_vec());
         let body = Some(&content);
-        let response = http::api_post(&format!("{}/GetCacheEntryDownloadURL", self.prefix), body)?;
+        let response =
+            http::api_post_ok(&format!("{}/GetCacheEntryDownloadURL", self.prefix), body)?;
         let response: GetCacheEntryDownloadUrlResponse =
             GetCacheEntryDownloadUrlResponse::decode(response.data.as_ref())?;
         if !response.ok {
@@ -89,18 +93,10 @@ impl Cache for GithubActionCache {
                 response.matched_key
             )));
         }
-        let response = http::raw_get(&response.signed_download_url)?;
+        let url = &response.signed_download_url;
+        let response = http::raw_get_ok(url)?;
         Ok(Some(response.data))
     }
-}
-
-fn empty_response(response: HttpResponse) -> std::io::Result<()> {
-    if !(200..300).contains(&response.status) {
-        return Err(other_err(format!(
-            "Unexpected response from server {response:?}"
-        )));
-    }
-    Ok(())
 }
 
 fn format_key(key: &str) -> String {
