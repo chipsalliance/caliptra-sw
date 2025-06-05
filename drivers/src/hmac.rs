@@ -728,15 +728,20 @@ impl HmacOp<'_> {
         let hmac = self.hmac_engine.hmac.regs();
 
         // Copy the tag to the specified location
-        match &mut self.tag {
+        let result = match &mut self.tag {
             HmacTag::Array4x12(arr) => {
                 KvAccess::end_copy_to_arr(hmac.hmac512_tag().truncate::<12>(), arr)
             }
             HmacTag::Array4x16(arr) => KvAccess::end_copy_to_arr(hmac.hmac512_tag(), arr),
             HmacTag::Key(key) => KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), *key)
                 .map_err(|err| err.into_write_tag_err()),
-        }
+        };
+
+        self.hmac_engine.zeroize_internal();
+
+        result
     }
+
     fn dest_key(&self) -> Option<KeyWriteArgs> {
         match self.tag {
             HmacTag::Key(key) => Some(key),
