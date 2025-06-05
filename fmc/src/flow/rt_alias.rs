@@ -50,7 +50,7 @@ impl RtAliasLayer {
         }
 
         cprintln!("[art] Derive CDI");
-        cprintln!("[art] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
+        cprintln!("[art] Store in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
         // Derive CDI
         Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
@@ -170,7 +170,7 @@ impl RtAliasLayer {
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
-                cprintln!("[aliasrt :skip pcr extension");
+                cprintln!("[art] Skip pcr extension");
                 Ok(())
             }
             ResetReason::Unknown => {
@@ -326,8 +326,7 @@ impl RtAliasLayer {
 
         // Sign the `To Be Signed` portion
         cprintln!(
-            "[art] Signing Cert with AUTHO
-            RITY.KEYID = {}",
+            "[art] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
 
