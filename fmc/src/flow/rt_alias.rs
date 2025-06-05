@@ -297,12 +297,12 @@ impl RtAliasLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"alias_rt_ecc_key", ecc_priv_key);
+        let result = Crypto::env_ecc384_key_gen(env, cdi, b"alias_rt_ecc_key", ecc_priv_key);
         cfi_check!(result);
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa_key_gen(env, cdi, b"alias_rt_mldsa_key", mldsa_keypair_seed);
+        let result = Crypto::env_mldsa_key_gen(env, cdi, b"alias_rt_mldsa_key", mldsa_keypair_seed);
         cfi_check!(result);
         let mldsa_keypair = result?;
 
@@ -376,7 +376,7 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let sig = Crypto::env_ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -398,7 +398,8 @@ impl RtAliasLayer {
         cprintln!("[alias rt] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
+        if Crypto::env_ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success
+        {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
@@ -456,7 +457,7 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::mldsa_sign(env, key_pair_seed, auth_pub_key, tbs.tbs());
+        let sig = Crypto::env_mldsa_sign(env, key_pair_seed, auth_pub_key, tbs.tbs());
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -468,7 +469,7 @@ impl RtAliasLayer {
         env.key_vault.set_key_use_lock(input.cdi);
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::mldsa_verify(env, auth_pub_key, tbs.tbs(), sig)? != Mldsa87Result::Success {
+        if Crypto::env_mldsa_verify(env, auth_pub_key, tbs.tbs(), sig)? != Mldsa87Result::Success {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 

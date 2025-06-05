@@ -8,17 +8,12 @@ Abstract:
 use crate::fmc_env::FmcEnv;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::{
-    crypto::{self, Ecc384KeyPair, MlDsaKeyPair},
-    keyids::KEY_ID_TMP,
-};
+use caliptra_common::crypto::{self, Ecc384KeyPair, MlDsaKeyPair};
 use caliptra_drivers::{
-    okmutref, okref, Array4x12, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
-    Ecc384Result, Ecc384Signature, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
-    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature,
+    CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Signature, HmacMode, KeyId, Mldsa87PubKey,
+    Mldsa87Result, Mldsa87Signature,
 };
 use caliptra_x509::Ecdsa384Signature;
-use zeroize::Zeroize;
 
 pub trait Ecdsa384SignatureAdapter {
     /// Convert to ECDSA Signature
@@ -72,31 +67,21 @@ impl Crypto {
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn ecc384_key_gen(
+    pub fn env_ecc384_key_gen(
         env: &mut FmcEnv,
         cdi: KeyId,
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::env_hmac_kdf(env, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
-
-        let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
-            priv_key,
-            KeyUsage::default().set_ecc_private_key_en(),
-        ));
-
-        let pub_key = env.ecc384.key_pair(
-            KeyReadArgs::new(KEY_ID_TMP).into(),
-            &Array4x12::default(),
+        crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
             &mut env.trng,
-            key_out,
-        );
-        env.key_vault.erase_key(KEY_ID_TMP)?;
-
-        Ok(Ecc384KeyPair {
+            &mut env.key_vault,
+            cdi,
+            label,
             priv_key,
-            pub_key: pub_key?,
-        })
+        )
     }
 
     /// Sign data using ECC Private Key
@@ -113,17 +98,20 @@ impl Crypto {
     ///
     /// * `Ecc384Signature` - Signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn ecdsa384_sign(
+    pub fn env_ecdsa384_sign(
         env: &mut FmcEnv,
         priv_key: KeyId,
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = env.sha2_512_384.sha384_digest(data);
-        let digest = okref(&digest)?;
-        let priv_key_args = KeyReadArgs::new(priv_key);
-        let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384.sign(priv_key, pub_key, digest, &mut env.trng)
+        crypto::ecdsa384_sign(
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            &mut env.trng,
+            priv_key,
+            pub_key,
+            data,
+        )
     }
 
     /// Verify the ECC Signature
@@ -141,15 +129,13 @@ impl Crypto {
     ///
     /// * `bool` - True on success, false otherwise
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn ecdsa384_verify(
+    pub fn env_ecdsa384_verify(
         env: &mut FmcEnv,
         pub_key: &Ecc384PubKey,
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<Ecc384Result> {
-        let digest = env.sha2_512_384.sha384_digest(data);
-        let digest = okref(&digest)?;
-        env.ecc384.verify(pub_key, digest, sig)
+        crypto::ecdsa384_verify(&mut env.sha2_512_384, &mut env.ecc384, pub_key, data, sig)
     }
 
     /// Sign the data using ECC Private Key.
@@ -169,19 +155,20 @@ impl Crypto {
     ///
     /// * `Ecc384Signature` - Signature
     #[inline(always)]
-    pub fn ecdsa384_sign_and_verify(
+    pub fn env_ecdsa384_sign_and_verify(
         env: &mut FmcEnv,
         priv_key: KeyId,
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let mut digest = env.sha2_512_384.sha384_digest(data);
-        let digest = okmutref(&mut digest)?;
-        let priv_key_args = KeyReadArgs::new(priv_key);
-        let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        let result = env.ecc384.sign(priv_key, pub_key, digest, &mut env.trng);
-        digest.0.zeroize();
-        result
+        crypto::ecdsa384_sign_and_verify(
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            &mut env.trng,
+            priv_key,
+            pub_key,
+            data,
+        )
     }
 
     /// Generate MLDSA Key Pair
@@ -198,26 +185,20 @@ impl Crypto {
     /// * `MlDsaKeyPair` - Public Key and keypair generation seed
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(always)]
-    pub fn mldsa_key_gen(
+    pub fn env_mldsa_key_gen(
         env: &mut FmcEnv,
         cdi: KeyId,
         label: &[u8],
         key_pair_seed: KeyId,
     ) -> CaliptraResult<MlDsaKeyPair> {
-        // Generate the seed for key pair generation.
-        Crypto::env_hmac_kdf(env, cdi, label, None, key_pair_seed, HmacMode::Hmac512)?;
-
-        // Generate the public key.
-        let pub_key = env.mldsa.key_pair(
-            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
+        crypto::mldsa_key_gen(
+            &mut env.mldsa,
+            &mut env.hmac,
             &mut env.trng,
-            None,
-        )?;
-
-        Ok(MlDsaKeyPair {
+            cdi,
+            label,
             key_pair_seed,
-            pub_key,
-        })
+        )
     }
 
     /// Sign data using MLDSA Private Key
@@ -232,70 +213,34 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Mldsa87Signature` - Signature
-    pub fn mldsa_sign(
+    pub fn env_mldsa_sign(
         env: &mut FmcEnv,
         key_pair_seed: KeyId,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        env.mldsa.sign_var(
-            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
-            pub_key,
-            data,
-            &Mldsa87SignRnd::default(),
-            &mut env.trng,
-        )
+        crypto::mldsa_sign(&mut env.mldsa, &mut env.trng, key_pair_seed, pub_key, data)
     }
 
-    /// Verify the MLDSA Signature
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to verify the signature on
-    /// * `sig` - Signature to verify
-    ///
-    /// # Returns
-    ///
-    /// *  `Mldsa87Result` - Mldsa87Result::Success if the signature verification passed else an error code.
+    /// Version of mldsa_verify() that takes a FmcEnv.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn mldsa_verify(
+    pub fn env_mldsa_verify(
         env: &mut FmcEnv,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
         sig: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
-        env.mldsa.verify_var(pub_key, data, sig)
+        crypto::mldsa_verify(&mut env.mldsa, pub_key, data, sig)
     }
 
-    // [TODO][CAP2] Consolidate this with ROM crypto.rs
-    /// Sign the data using MLDSA Private Key.
-    /// Verify the signature using the MLDSA Public Key.
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - FMC Environment
-    /// * `key_pair_seed` - Key slot to retrieve the keypair generation seed
-    /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to sign
-    ///
-    /// # Returns
-    ///
-    /// * `Mldsa384Signature` - Signature
+    /// Version of mldsa_sign_and_verify() that takes a FmcEnv.
     #[inline(always)]
-    pub fn mldsa87_sign_and_verify(
+    pub fn env_mldsa_sign_and_verify(
         env: &mut FmcEnv,
         key_pair_seed: KeyId,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        env.mldsa.sign_var(
-            Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
-            pub_key,
-            data,
-            &Mldsa87SignRnd::default(),
-            &mut env.trng,
-        )
+        crypto::mldsa_sign_and_verify(&mut env.mldsa, &mut env.trng, key_pair_seed, pub_key, data)
     }
 }
