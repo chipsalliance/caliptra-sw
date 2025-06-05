@@ -229,3 +229,4 @@ sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
 
 CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
 ```
+
