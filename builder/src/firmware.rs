@@ -45,6 +45,12 @@ pub const FMC_WITH_UART: FwId = FwId {
     features: &["emu"],
 };
 
+pub const FMC_WITH_UART_HW_1_0: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "hw-1.0"],
+};
+
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -73,6 +79,12 @@ pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu", "fips_self_test", "fpga_realtime"],
+};
+
+pub const APP_WITH_UART_HW_1_0: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["emu", "fips_self_test", "hw-1.0"],
 };
 
 pub const APP_ZEROS: FwId = FwId {
@@ -394,11 +406,13 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART,
     &ROM_WITH_FIPS_TEST_HOOKS,
     &FMC_WITH_UART,
+    &FMC_WITH_UART_HW_1_0,
     &FMC_FAKE_WITH_UART,
     &APP,
     &APP_WITH_UART,
     &APP_WITH_UART_FIPS_TEST_HOOKS,
     &APP_WITH_UART_FPGA,
+    &APP_WITH_UART_HW_1_0,
     &APP_ZEROS,
     &FMC_ZEROS,
     &caliptra_builder_tests::FWID,

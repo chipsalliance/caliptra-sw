@@ -52,6 +52,12 @@ pub fn reset_reason() -> ResetReason {
     }
 }
 
+#[allow(dead_code)]
+pub fn is_hw_gen_1_0() -> bool {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_hw_rev_id().read().cptra_generation() == 0x1
+}
+
 /// Device State
 pub struct SocIfc {
     soc_ifc: SocIfcReg,
