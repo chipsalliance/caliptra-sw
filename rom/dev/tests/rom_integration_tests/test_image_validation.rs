@@ -212,7 +212,6 @@ fn test_pqc_key_type_mismatch() {
 #[test]
 fn test_pqc_key_type_unprovisioned() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        println!("pqc_key_type: {:?}", pqc_key_type);
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
@@ -225,18 +224,9 @@ fn test_pqc_key_type_unprovisioned() {
         };
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        assert_eq!(
-            ModelError::MailboxCmdFailed(
-                CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE.into()
-            ),
-            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-                .unwrap_err()
-        );
-
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
     }
 }
 
