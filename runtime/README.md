@@ -19,7 +19,6 @@ v2.0:
 * Add support for passive mode (same as 1.x) and subsystem (or active) mode
 * [MCU Runtime loading](#boot-and-initialization) (subsystem mode)
 * [Cryptographic mailbox commands](#cryptographic-mailbox-commands-new-in-20)
-* `QUOTE_PCRS` now returns a SHA512 of the PCRs instead of a SHA384.
 * `ECDSA384_SIGNATURE_VERIFY` and `LMS_SIGNATURE_VERIFY`require the hash to be included in the message, as the SHA accelerator registers are no longer accessible outside Caliptra.
 
 ## Spec Opens
@@ -169,7 +168,7 @@ Only AES-256-GCM keys need to be tracked in this table, but other keys MAY be tr
 
 This requires 96 bits of storage per AES-256-GCM key. These can stored as a sorted list in the DCCM.
 
-## Manifest-Based Image Authorization (new in 1.2)
+## Manifest-Based Image Authorization
 
 Caliptra's goal is to enable integrators to meet standard security requirements for creating cryptographic identity and securely reporting measurements through DICE and DPE Certificate chains and Caliptra-owned private-public key pairs. In addition, Caliptra 1.0 provides an `ECDSA384_SIGNATURE_VERIFY` command to enable an SoC RoT to verify its own FW signatures so that it can develop an SoC secure boot using Caliptra cryptography. Caliptra 1.1 expanded the verify command to a PQC-safe `LMS_SIGNATURE_VERIFY` command. In each of these cases, it is left up to the vendor to ensure that they build a secure environment for introducing and verifying FW integrity and authenticity and then executing mutable FW.
 
@@ -295,30 +294,30 @@ Relevant registers:
 Mailbox user 0xFFFF_FFFF is reserved for Caliptra internal use. All mailbox
 commands from that user will fail.
 
-### CALIPTRA\_FW\_LOAD
+### FW\_LOAD
 
-The `CALIPTRA_FW_LOAD` command is handled by both ROM and Runtime Firmware.
+The `FIRMWARE_LOAD` command is handled by both ROM and Runtime Firmware.
 
 #### ROM behavior
 
-On cold boot, ROM exposes the `CALIPTRA_FW_LOAD` mailbox command to accept
+On cold boot, ROM exposes the `FIRMWARE_LOAD` mailbox command to accept
 the firmware image that ROM will boot. This image includes Manifest, FMC, and Runtime
 firmware.
 
 #### Runtime Firmware behavior
 
-Caliptra Runtime Firmware also exposes the `CALIPTRA_FW_LOAD` mailbox command for loading
+Caliptra Runtime Firmware also exposes the `FIRMWARE_LOAD` mailbox command for loading
 impactless updates. For more information, see [Runtime Firmware updates](#runtime-firmware-updates).
 
 Command Code: `0x4657_4C44` ("FWLD")
 
-*Table: `CALIPTRA_FW_LOAD` input arguments*
+*Table: `FIRMWARE_LOAD` input arguments*
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
 | data      | u8[...]       | Firmware image to load.
 
-`CALIPTRA_FW_LOAD` returns no output arguments.
+`FIRMWARE_LOAD` returns no output arguments.
 
 ### CAPABILITIES
 
@@ -342,7 +341,7 @@ Command Code: `0x4341_5053` ("CAPS")
 
 ### GET\_IDEV\_ECC384\_CERT
 
-Exposes a command to reconstruct the ECC384 IDEVID CERT.
+Exposes a command to reconstruct the ECC384 IDEV CERT.
 
 Command Code: `0x4944_4543` ("IDEC")
 
@@ -362,12 +361,12 @@ Command Code: `0x4944_4543` ("IDEC")
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
-| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId ECC384 certificate.
-| cert          | u8[1024]   | DER-encoded IDevID ECC384 CERT.
+| cert\_size    | u32        | Length in bytes of the cert field in use for the IDev ECC384 certificate.
+| cert          | u8[1024]   | DER-encoded IDev ECC384 CERT.
 
 ### GET\_IDEV\_MLDSA87\_CERT
 
-Exposes a command to reconstruct the MLDSA87 IDEVID CERT.
+Exposes a command to reconstruct the MLDSA87 IDEV CERT.
 
 Command Code: `0x4944_4D43` ("IDMC")
 
@@ -386,13 +385,13 @@ Command Code: `0x4944_4D43` ("IDMC")
 | --------      | --------   | ---------------
 | chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
-| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId MLDSA87 certificate.
-| cert          | u8[...]    | DER-encoded IDevID MLDSA87 CERT.
+| cert\_size    | u32        | Length in bytes of the cert field in use for the IDev MLDSA87 certificate.
+| cert          | u8[...]    | DER-encoded IDev MLDSA87 CERT.
 
 ### POPULATE\_IDEV\_ECC384\_CERT
 
 Exposes a command that allows the SoC to provide a DER-encoded
-ECC384 IDevId certificate on every boot. The ECC384 IDevId certificate is added
+ECC384 IDev certificate on every boot. The ECC384 IDev certificate is added
 to the start of the certificate chain.
 
 Command Code: `0x4944_4550` ("IDEP")
@@ -403,7 +402,7 @@ Command Code: `0x4944_4550` ("IDEP")
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | cert\_size   | u32           | Size of the DER-encoded ECC384 IDevId certificate.
-| cert         | u8[1024]      | DER-encoded ECC384 IDevID CERT.
+| cert         | u8[1024]      | DER-encoded ECC384 IDev CERT.
 
 *Table: `POPULATE_IDEV_ECC384_CERT` output arguments*
 
@@ -415,7 +414,7 @@ Command Code: `0x4944_4550` ("IDEP")
 ### POPULATE\_IDEV\_MLDSA87\_CERT
 
 Exposes a command that allows the SoC to provide a DER-encoded
-MLDSA87 IDevId certificate on every boot. The MLDSA87 IDevId certificate is added
+MLDSA87 IDev certificate on every boot. The MLDSA87 IDev certificate is added
 to the start of the certificate chain.
 
 Command Code: `0x4944_4D50` ("IDMP")
@@ -425,8 +424,8 @@ Command Code: `0x4944_4D50` ("IDMP")
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| cert\_size   | u32           | Size of the DER-encoded MLDSA87 IDevId certificate.
-| cert         | u8[8192]      | DER-encoded MLDSA87 IDevID CERT.
+| cert\_size   | u32           | Size of the DER-encoded MLDSA87 IDev certificate.
+| cert         | u8[8192]      | DER-encoded MLDSA87 IDev CERT.
 
 *Table: `POPULATE_IDEV_MLDSA87_CERT` output arguments*
 
@@ -539,7 +538,7 @@ Command Code: `0x4345_5246` ("CERF")
 | data\_size    | u32        | Length in bytes of the valid data in the data field.
 | data          | u8[...]    | DER-encoded FMC alias ECC384 certificate.
 
-### GET\_FMC\_ALIAS\_ECC384\_CERT
+### GET\_FMC\_ALIAS\_MLDSA87\_CERT
 
 Exposes a command to get a FMC alias MLDSA87 certificate signed by the MLDSA87 LDevID private key.
 
@@ -580,6 +579,27 @@ Command Code: `0x4345_5252` ("CERR")
 | fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | data\_size    | u32        | Length in bytes of the valid data in the data field.
 | data          | u8[...]    | DER-encoded Runtime alias ECC384 certificate.
+
+### GET\_RT\_ALIAS\_MLDSA87\_CERT
+
+Exposes a command to get a Runtime alias MLDSA87 certificate signed by the MLDSA87 FMC alias private key.
+
+Command Code: `0x434D_4352` ("CMCR")
+
+*Table: `GET_RT_ALIAS_MLDSA87_CERT` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_RT_ALIAS_MLDSA87_CERT` output arguments*
+
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded Runtime alias MLDSA87 certificate.
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -2057,7 +2077,7 @@ Command Code: `0x434D_5354` ("CMST")
 | total usage storage | u32      | Total CMK usage storage (in entries) |
 
 
-### GET\_IDEVID\_ECC384\_CSR
+### GET\_IDEV\_ECC384\_CSR
 
 Command Code: `0x4944_4352` ("IDCR")
 
@@ -2074,7 +2094,7 @@ Command Code: `0x4944_4352` ("IDCR")
 | data\_size    | u32      | Length in bytes of the valid data in the data field.                       |
 | data          | u8[...]  | DER-encoded ECC384 IDevID certificate signing request.                     |
 
-### GET\_IDEVID\_MLDSA87\_CSR
+### GET\_IDEV\_MLDSA87\_CSR
 
 Command Code: `0x4944_4d52` ("IDMR")
 
@@ -2177,7 +2197,7 @@ has been revoked, a new exported CDI can be created by calling `DeriveContext` w
 
 ## Checksum
 
-For every command except for FW_LOAD, the request and response feature a checksum. This
+For every command except for FIRMWARE_LOAD, the request and response feature a checksum. This
 mitigates glitches between clients and Caliptra.
 
 The checksum is a little-endian 32-bit value, defined as:
@@ -2214,7 +2234,7 @@ Caliptra’s firmware without resetting other cores in the SoC.
 
 ### Applying updates
 
-A Runtime Firmware update is triggered by the `CALIPTRA_FW_LOAD` command. Upon
+A Runtime Firmware update is triggered by the `FIRMWARE_LOAD` command. Upon
 receiving this command, Runtime Firmware does the following:
 
 1. Locks the mailbox to writes
@@ -2263,7 +2283,7 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
   CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
-  the POPULATE\_IDEV\_ECC384\_CERT and POPULATE\_IDEV\_MLDSA384\_CERT mailbox commands.
+  the POPULATE\_IDEV\_ECC384\_CERT and POPULATE\_IDEV\_MLDSA87\_CERT mailbox commands.
 * PL1 - Restricted privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.

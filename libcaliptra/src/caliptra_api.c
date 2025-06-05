@@ -840,7 +840,7 @@ int caliptra_complete()
 /**
  * caliptra_upload_fw_start_req
  *
- * Upload Caliptra Firmware Start Request.  Begin a FW_LOAD command to caliptra
+ * Upload Caliptra Firmware Start Request.  Begin a FIRMWARE_LOAD command to caliptra
  *
  * @param[in] fw_size_in_bytes Total size of the FW to be sent in bytes
  *
@@ -849,7 +849,7 @@ int caliptra_complete()
 int caliptra_upload_fw_start_req(uint32_t fw_size_in_bytes)
 {
     // Mailbox send start
-    int status = caliptra_mailbox_send_start(OP_CALIPTRA_FW_LOAD, fw_size_in_bytes);
+    int status = caliptra_mailbox_send_start(OP_FIRMWARE_LOAD, fw_size_in_bytes);
     if (status) {
         return status;
     }
@@ -885,7 +885,7 @@ int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer)
 /**
  * caliptra_upload_fw_end_req
  *
- * End the FW_LOAD request after sending all the FW data
+ * End the FIRMWARE_LOAD request after sending all the FW data
  *
  * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
  *
@@ -922,7 +922,7 @@ int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async)
     if (fw_buffer == NULL)
         return INVALID_PARAMS;
 
-    return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL, async);
+    return caliptra_mailbox_execute(OP_FIRMWARE_LOAD, fw_buffer, NULL, async);
 }
 
 // Generic info for all command wrapper functions below
