@@ -7,6 +7,10 @@
 #include "caliptra_types.h"
 
 #define CALIPTRA_ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
+#define SWAP_B32(x) ((((x) & 0xFF000000) >> 24) | \
+                     (((x) & 0x00FF0000) >> 8)  | \
+                     (((x) & 0x0000FF00) << 8)  | \
+                     (((x) & 0x000000FF) << 24))
 
 #ifdef __cplusplus
 extern "C" {
@@ -245,6 +249,11 @@ void caliptra_req_idev_csr_start();
 
 // Clear IDEV CSR request.
 void caliptra_req_idev_csr_complete();
+
+// SHA ACC (stream mode)
+int caliptra_sha_init(uint32_t mode);
+int caliptra_sha_update(uint8_t* data, uint32_t len); 
+int caliptra_sha_final(uint32_t* hash);
 
 #ifdef __cplusplus
 }
