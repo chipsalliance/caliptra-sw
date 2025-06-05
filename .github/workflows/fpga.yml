@@ -348,11 +348,6 @@ jobs:
               --no-fail-fast \
               --profile=nightly
 
-      - name: 'dump kernel log'
-        if: failure()
-        run: |
-          sudo dmesg
-
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
         if: success() || failure()
