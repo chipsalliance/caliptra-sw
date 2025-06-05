@@ -25,7 +25,9 @@ const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 const FW_HITLESS_UPD_RESET_MASK: u32 = 0x1;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
 const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x24;
-const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x1;
+const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
+const SOC_MCI_TOP_MCI_REG_RESET_STATUS_OFFSET: u32 = 0x3c;
+const MCU_RESET_REQ_STS_MASK: u32 = 0x2;
 
 pub struct ActivateFirmwareCmd;
 impl ActivateFirmwareCmd {
@@ -89,7 +91,7 @@ impl ActivateFirmwareCmd {
             if fw_id == ActivateFirmwareReq::MCU_IMAGE_ID && mcu_image_size == 0 {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            Self::set_bit(&mut images_to_activate_bitmap, i);
+            Self::set_bit(&mut images_to_activate_bitmap, fw_id as usize);
         }
 
         Self::activate_fw(drivers, &images_to_activate_bitmap, mcu_image_size as u32)
@@ -128,13 +130,23 @@ impl ActivateFirmwareCmd {
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
 
-            // Wait until RESET_STATUS.MCU_RESET_STS is cleared
             let mmio = &DmaMmio::new(mci_base_addr, dma);
-            let mut reset_status: u32 = 1;
-            while reset_status != 0 {
-                reset_status =
+
+            // Wait for MCU to clear interrupt
+            let mut intr_status: u32 = 1;
+            while intr_status != 0 {
+                intr_status =
                     unsafe { mmio.read_volatile(NOTIF0_INTERNAL_INTR_R_OFFSET as *const u32) }
                         & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
+            }
+
+            // Wait until RESET_STATUS.MCU_RESET_STS is set
+            let mut reset_status: u32 = 0;
+            while reset_status == 0 {
+                reset_status = unsafe {
+                    mmio.read_volatile(SOC_MCI_TOP_MCI_REG_RESET_STATUS_OFFSET as *const u32)
+                        & MCU_RESET_REQ_STS_MASK
+                };
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
@@ -144,13 +156,13 @@ impl ActivateFirmwareCmd {
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
-                        hi: image_load_address.hi,
-                        lo: image_load_address.lo,
+                        hi: image_staging_address.hi,
+                        lo: image_staging_address.lo,
                     },
                     mcu_image_size,
                     AxiAddr {
-                        hi: image_staging_address.hi,
-                        lo: image_staging_address.lo,
+                        hi: image_load_address.hi,
+                        lo: image_load_address.lo,
                     },
                     false,
                     IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES,
@@ -171,7 +183,7 @@ impl ActivateFirmwareCmd {
             temp_bitmap[i] = go_bitmap[i] | activate_bitmap[i];
         }
 
-        // Caliptra sets FW_EXEC_CTRL[2];
+        // Caliptra sets FW_EXEC_CTRL
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
         Ok(())
     }

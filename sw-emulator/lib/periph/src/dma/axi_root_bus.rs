@@ -54,7 +54,7 @@ impl AxiRootBus {
     pub const RECOVERY_REGISTER_INTERFACE_END: AxiAddr =
         Self::RECOVERY_REGISTER_INTERFACE_OFFSET + 0xff;
     pub const SS_MCI_OFFSET: AxiAddr = const_random!(u64) & 0xffffffff_00000000;
-    pub const SS_MCI_END: AxiAddr = Self::SS_MCI_OFFSET + 0xfff;
+    pub const SS_MCI_END: AxiAddr = Self::SS_MCI_OFFSET + 0x1454; // 0x1454 is last MCI register offset + size
     pub const MCU_SRAM_OFFSET: AxiAddr = Self::SS_MCI_OFFSET + 0x20_0000;
     pub const MCU_SRAM_END: AxiAddr = Self::MCU_SRAM_OFFSET + 2 * 1024 * 1024 - 1; // the aperture size is 2 MB even though the underlying SRAM may be smaller
 
