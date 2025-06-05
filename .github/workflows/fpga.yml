@@ -1,9 +1,9 @@
-
 name: FPGA Build
 
 on:
   push:
     branches: ["main"]
+  pull_request:
   workflow_call:
     inputs:
       artifact-suffix:
@@ -64,7 +64,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: 'recursive'
   
       - name: Compute cache-keys
         id: cache_key
@@ -134,7 +134,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: 'recursive'
 
       - name: Restore sysroot from cache
         uses: actions/cache/restore@v3
@@ -308,12 +308,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: 'recursive'
 
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-  
       - name: Mount FPGA tools
         run: |
           # This is an installation of Vivado 22.2 with support for Zynq Ultrascale+
@@ -381,10 +377,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
+        with:
+          submodules: 'recursive'
 
       - name: 'Download FPGA Bitstream Artifact'
         uses: actions/download-artifact@v4
@@ -404,12 +398,6 @@ jobs:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
-      # - name: 'Download Test Firmware Artifact'
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: caliptra-test-firmware${{ inputs.artifact-suffix }}
-      #     path: /tmp/caliptra-test-firmware
-
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -422,8 +410,6 @@ jobs:
 
       - name: Load FPGA Bitstream
         run: |
-          # sha256sum /tmp/caliptra-fpga/caliptra_fpga.bin
-
           sudo mkdir -p /lib/firmware
           sudo cp /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin /lib/firmware/caliptra_fpga.bin
           sudo bash -c 'echo 0 > /sys/class/fpga_manager/fpga0/flags'
