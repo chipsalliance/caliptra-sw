@@ -1,22 +1,34 @@
 // Licensed under the Apache-2.0 license
 
-use crate::flow::{
-    crypto::{Crypto, Ecdsa384SignatureAdapter},
-    dice::DiceOutput,
-};
+use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::{
-    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
     x509,
 };
-use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
+use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, Ecc384Signature};
 use caliptra_x509::{
-    Ecdsa384CsrBuilder, FmcAliasCsrTbs, FmcAliasCsrTbsParams, FmcAliasTbsMlDsa87,
-    FmcAliasTbsMlDsa87Params, MlDsa87CsrBuilder,
+    Ecdsa384CsrBuilder, Ecdsa384Signature, FmcAliasCsrTbs, FmcAliasCsrTbsParams,
+    FmcAliasTbsMlDsa87, FmcAliasTbsMlDsa87Params, MlDsa87CsrBuilder,
 };
 use zerocopy::IntoBytes;
 use zeroize::Zeroize;
+
+pub trait Ecdsa384SignatureAdapter {
+    /// Convert to ECDSA Signature
+    fn to_ecdsa(&self) -> Ecdsa384Signature;
+}
+
+impl Ecdsa384SignatureAdapter for Ecc384Signature {
+    /// Convert to ECDSA Signature
+    fn to_ecdsa(&self) -> Ecdsa384Signature {
+        Ecdsa384Signature {
+            r: (&self.r).into(),
+            s: (&self.s).into(),
+        }
+    }
+}
 
 /// Retrieve DICE Output from HandOff
 ///
@@ -93,8 +105,14 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let tbs = FmcAliasCsrTbs::new(&params);
 
     // Sign the `To Be Signed` portion
-    let mut sig =
-        Crypto::env_ecdsa384_sign_and_verify(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
+    let mut sig = Crypto::ecdsa384_sign_and_verify(
+        &mut env.sha2_512_384,
+        &mut env.ecc384,
+        &mut env.trng,
+        key_pair.priv_key,
+        &key_pair.pub_key,
+        tbs.tbs(),
+    );
     let sig = okmutref(&mut sig)?;
 
     // Build the ECC CSR with `To Be Signed` & `Signature`
@@ -135,8 +153,9 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let tbs = FmcAliasTbsMlDsa87::new(&params);
 
     // Sign the `To Be Signed` portion
-    let mut sig = Crypto::env_mldsa_sign_and_verify(
-        env,
+    let mut sig = Crypto::mldsa_sign_and_verify(
+        &mut env.mldsa,
+        &mut env.trng,
         key_pair.key_pair_seed,
         &key_pair.pub_key,
         tbs.tbs(),

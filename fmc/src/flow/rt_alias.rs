@@ -16,7 +16,6 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_launder};
 use caliptra_common::x509;
 
-use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
@@ -25,7 +24,7 @@ use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
-use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
 };
@@ -266,8 +265,9 @@ impl RtAliasLayer {
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        Crypto::env_hmac_kdf(
-            env,
+        Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
             fmc_cdi,
             b"alias_rt_cdi",
             Some(&tci),
@@ -297,12 +297,27 @@ impl RtAliasLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::env_ecc384_key_gen(env, cdi, b"alias_rt_ecc_key", ecc_priv_key);
+        let result = Crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"alias_rt_ecc_key",
+            ecc_priv_key,
+        );
         cfi_check!(result);
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::env_mldsa_key_gen(env, cdi, b"alias_rt_mldsa_key", mldsa_keypair_seed);
+        let result = Crypto::mldsa_key_gen(
+            &mut env.mldsa,
+            &mut env.hmac,
+            &mut env.trng,
+            cdi,
+            b"alias_rt_mldsa_key",
+            mldsa_keypair_seed,
+        );
         cfi_check!(result);
         let mldsa_keypair = result?;
 
@@ -376,7 +391,14 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::env_ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let sig = Crypto::ecdsa384_sign(
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            &mut env.trng,
+            auth_priv_key,
+            auth_pub_key,
+            tbs.tbs(),
+        );
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -398,7 +420,13 @@ impl RtAliasLayer {
         cprintln!("[alias rt] ECC SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::env_ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success
+        if Crypto::ecdsa384_verify(
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            auth_pub_key,
+            tbs.tbs(),
+            sig,
+        )? != Ecc384Result::Success
         {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
@@ -457,7 +485,13 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::env_mldsa_sign(env, key_pair_seed, auth_pub_key, tbs.tbs());
+        let sig = Crypto::mldsa_sign(
+            &mut env.mldsa,
+            &mut env.trng,
+            key_pair_seed,
+            auth_pub_key,
+            tbs.tbs(),
+        );
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -469,7 +503,9 @@ impl RtAliasLayer {
         env.key_vault.set_key_use_lock(input.cdi);
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::env_mldsa_verify(env, auth_pub_key, tbs.tbs(), sig)? != Mldsa87Result::Success {
+        if Crypto::mldsa_verify(&mut env.mldsa, auth_pub_key, tbs.tbs(), sig)?
+            != Mldsa87Result::Success
+        {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
