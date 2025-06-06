@@ -324,6 +324,11 @@ fn test_doe_when_debug_locked() {
 }
 
 #[test]
+fn test_aes() {
+    run_driver_test(&firmware::driver_tests::AES);
+}
+
+#[test]
 fn test_ecc384() {
     run_driver_test(&firmware::driver_tests::ECC384);
 }

@@ -151,13 +151,58 @@ fn copy_file(dest: &mut File, src: &mut File) -> std::io::Result<()> {
     Ok(())
 }
 
-fn log_uart_until<R: BufRead>(lines: &mut Lines<R>, needle: &str) -> std::io::Result<()> {
+fn check_for_kernel_panic(input: &str) -> std::io::Result<()> {
+    if input.contains("Kernel panic") {
+        Err(Error::new(ErrorKind::BrokenPipe, "FPGA had a kernel panic"))?;
+    }
+    Ok(())
+}
+
+fn log_uart_until<R: BufRead>(
+    lines: &mut Lines<R>,
+    needle: &str,
+    error_parser: impl Fn(&str) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    log_uart_until_helper(lines, needle, None, Some(error_parser))
+}
+
+fn log_uart_until_with_timeout<R: BufRead>(
+    lines: &mut Lines<R>,
+    needle: &str,
+    timeout: Duration,
+) -> std::io::Result<()> {
+    log_uart_until_helper(
+        lines,
+        needle,
+        Some(timeout),
+        None::<fn(&str) -> std::io::Result<()>>,
+    )
+}
+
+fn log_uart_until_helper<R: BufRead>(
+    lines: &mut Lines<R>,
+    needle: &str,
+    timeout: Option<Duration>,
+    error_parser: Option<impl Fn(&str) -> std::io::Result<()>>,
+) -> std::io::Result<()> {
+    let start = Instant::now();
     for line in lines.by_ref() {
         match line {
             Ok(line) => {
                 println!("UART: {}", line);
                 if line.contains(needle) {
                     return Ok(());
+                }
+                if let Some(ref error_parser) = error_parser {
+                    error_parser(&line)?;
+                }
+            }
+            // If no time out was configured, swallow this error.
+            Err(e) if e.kind() == ErrorKind::TimedOut => {
+                if let Some(timeout) = timeout {
+                    if start.elapsed() > timeout {
+                        return Err(e);
+                    }
                 }
             }
             Err(e) => {
@@ -301,10 +346,14 @@ fn main_impl() -> anyhow::Result<()> {
             }
         }
         Some(("serve", sub_matches)) => {
+            // Reuse the previous token if we never connect to GitHub.
+            // This avoids creating a bunch of offline runners if the FPGA fails to establish a
+            // connection.
+            let mut cached_token: Option<Vec<u8>> = None;
             let mut fpga = get_fpga_ftdi()?;
             let mut sd_mux = get_sd_mux()?;
             let sd_dev_path = get_sd_dev_path()?;
-            loop {
+            'outer: loop {
                 println!("Putting FPGA into reset");
                 fpga.set_reset(FpgaReset::Reset)?;
                 sd_mux.set_target(SdMuxTarget::Host)?;
@@ -323,8 +372,12 @@ fn main_impl() -> anyhow::Result<()> {
                     std::thread::sleep(Duration::from_millis(100));
                 }
 
-                let (uart_rx, mut uart_tx) =
-                    ftdi_uart::open_blocking(get_zcu104_path()?, ftdi_interface::INTERFACE_B)?;
+                let boot_timeout = Duration::from_secs(60);
+                let (uart_rx, mut uart_tx) = ftdi_uart::open_blocking(
+                    get_zcu104_path()?,
+                    ftdi_interface::INTERFACE_B,
+                    Some(boot_timeout),
+                )?;
 
                 println!("Taking FPGA out of reset");
                 sd_mux.set_target(SdMuxTarget::Dut)?;
@@ -332,33 +385,83 @@ fn main_impl() -> anyhow::Result<()> {
                 fpga.set_reset(FpgaReset::Run)?;
 
                 let mut uart_lines = BufReader::new(uart_rx).lines();
-                log_uart_until(
+                // FPGA has `fpga_timeout: Duration` to boot until we reset and try again.
+                match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "36668aa492b1c83cdd3ade8466a0153d --- Command input",
-                )?;
+                    boot_timeout,
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to boot!");
+                        continue 'outer;
+                    }
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
 
-                let command_args: Vec<_> =
-                    sub_matches.get_many::<OsString>("CMD").unwrap().collect();
+                if cached_token.is_none() {
+                    let command_args: Vec<_> =
+                        sub_matches.get_many::<OsString>("CMD").unwrap().collect();
 
-                println!("Executing command {:?} to retrieve jitconfig", command_args);
-                let output = std::process::Command::new(command_args[0])
-                    .args(&command_args[1..])
-                    .stderr(Stdio::inherit())
-                    .output()?;
-                if !output.status.success() {
-                    println!("Error retrieving jitconfig: stdout:");
-                    stdout().write_all(&output.stdout)?;
-                    continue;
+                    println!("Executing command {:?} to retrieve jitconfig", command_args);
+                    let output = std::process::Command::new(command_args[0])
+                        .args(&command_args[1..])
+                        .stderr(Stdio::inherit())
+                        .output()?;
+                    if !output.status.success() {
+                        println!("Error retrieving jitconfig: stdout:");
+                        stdout().write_all(&output.stdout)?;
+                        continue;
+                    }
+                    cached_token = Some(output.stdout);
                 }
 
                 uart_tx.write_all(b"runner-jitconfig ")?;
-                uart_tx.write_all(&output.stdout)?;
+                uart_tx.write_all(
+                    &cached_token
+                        .clone()
+                        .expect("A token should always be cached before sending it over the UART"),
+                )?;
                 uart_tx.write_all(b"\n")?;
 
-                log_uart_until(
+                // FGPA has `boot_timeout: Duration` to connect to GitHub until we reset and try again.
+                match log_uart_until_with_timeout(
+                    &mut uart_lines,
+                    "Listening for Jobs",
+                    boot_timeout,
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to connect to Github!");
+                        continue 'outer;
+                    }
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
+
+                cached_token = None;
+
+                // The period of time we wait to receive a job is undefined so a timeout is not
+                // appropriate.
+                //
+                // As we observe conditions that get the FGPA stuck, add them to the error parser.
+                // Currently I have only observed a watchdog triggering a kernel panic.
+                log_uart_until(&mut uart_lines, "Running job", check_for_kernel_panic)?;
+
+                // Now the job is started, so we want to enforce a timeout with enough time for the
+                // job to complete.
+                let job_timeout = Duration::from_secs(7_200);
+                match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
-                )?;
+                    job_timeout,
+                ) {
+                    Err(e) if e.kind() == ErrorKind::TimedOut => {
+                        eprintln!("Timed out waiting for FPGA to complete job!");
+                        continue 'outer;
+                    }
+                    Err(e) => Err(e)?,
+                    _ => (),
+                }
             }
         }
         _ => unreachable!(),

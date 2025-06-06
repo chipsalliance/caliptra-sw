@@ -10,7 +10,7 @@ use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Array4x12, CaliptraError, CaliptraResult,
+    Array4x12, CaliptraError, CaliptraResult, ResetReason,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
@@ -85,12 +85,26 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
+
+    let command_was_running = drivers.persistent_data.get().runtime_cmd_active.get();
+    if command_was_running {
+        let reset_reason = drivers.soc_ifc.reset_reason();
+        if reset_reason == ResetReason::WarmReset {
+            caliptra_drivers::report_fw_error_non_fatal(
+                CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+            );
+        }
+    }
+
     loop {
         if drivers.is_shutdown {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
 
         if drivers.mbox.is_cmd_ready() {
+            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+
             caliptra_drivers::report_fw_error_non_fatal(0);
             match handle_command(drivers) {
                 Ok(status) => {
@@ -247,7 +261,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .write(|w| w.core_rst(true));
             }
             CommandId(OPCODE_HOLD_COMMAND_BUSY) => {
-                drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+                drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(true);
                 write_response(&mut drivers.mbox, &[]);
             }
             _ => {

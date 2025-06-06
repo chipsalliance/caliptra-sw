@@ -301,7 +301,14 @@ impl Sha512AcceleratorRegs {
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     pub fn on_write_dlen(&mut self, size: RvSize, dlen: RvData) -> Result<(), BusError> {
         // Writes have to be Word aligned
-        if size != RvSize::Word || dlen > (MAX_MAILBOX_CAPACITY_BYTES as RvData) {
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+        let mode = self.mode.reg.read(ShaMode::MODE);
+        if (mode == ShaMode::MODE::SHA512_ACC_MODE_MBOX_512.value
+            || mode == ShaMode::MODE::SHA512_ACC_MODE_MBOX_384.value)
+            && dlen > (MAX_MAILBOX_CAPACITY_BYTES as RvData)
+        {
             Err(BusError::StoreAccessFault)?
         }
 

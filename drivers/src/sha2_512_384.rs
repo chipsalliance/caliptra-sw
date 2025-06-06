@@ -23,7 +23,7 @@ use caliptra_registers::sha512::Sha512Reg;
 pub const SHA512_BLOCK_BYTE_SIZE: usize = 128;
 const SHA512_BLOCK_LEN_OFFSET: usize = 112;
 const SHA512_MAX_DATA_SIZE: usize = 1024 * 1024;
-const SHA384_HASH_SIZE: usize = 48;
+pub const SHA384_HASH_SIZE: usize = 48;
 pub const SHA512_HASH_SIZE: usize = 64;
 
 #[derive(Copy, Clone)]

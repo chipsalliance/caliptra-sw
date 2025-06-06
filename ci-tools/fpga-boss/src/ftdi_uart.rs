@@ -2,7 +2,7 @@
 
 use std::{
     io::{self, ErrorKind},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use libftdi1_sys::{ftdi_bits_type, ftdi_interface, ftdi_parity_type, ftdi_stopbits_type};
@@ -20,6 +20,7 @@ pub struct FtdiUartReader {
 
 pub struct FtdiUartReaderBlocking {
     ftdi: Rc<RefCell<FtdiCtx>>,
+    timeout: Option<Duration>,
 }
 
 pub struct FtdiUartWriter {
@@ -66,9 +67,16 @@ pub fn open(
 pub fn open_blocking(
     port_path: UsbPortPath,
     iface: ftdi_interface,
+    timeout: Option<Duration>,
 ) -> anyhow::Result<(FtdiUartReaderBlocking, FtdiUartWriter)> {
     let (rx, tx) = open(port_path, iface)?;
-    Ok((FtdiUartReaderBlocking { ftdi: rx.ftdi }, tx))
+    Ok((
+        FtdiUartReaderBlocking {
+            ftdi: rx.ftdi,
+            timeout,
+        },
+        tx,
+    ))
 }
 
 impl io::Read for FtdiUartReader {
@@ -82,6 +90,7 @@ impl io::Read for FtdiUartReader {
 
 impl io::Read for FtdiUartReaderBlocking {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let start_time = Instant::now();
         loop {
             let bytes_read = self
                 .ftdi
@@ -90,6 +99,14 @@ impl io::Read for FtdiUartReaderBlocking {
                 .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
             if bytes_read > 0 {
                 return Ok(bytes_read);
+            }
+            if let Some(timeout) = self.timeout {
+                if start_time.elapsed() > timeout {
+                    Err(io::Error::new(
+                        ErrorKind::TimedOut,
+                        "timed out reading from FPGA UART",
+                    ))?
+                }
             }
         }
     }

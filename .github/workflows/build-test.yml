@@ -16,6 +16,10 @@ jobs:
 
     env:
       CARGO_INCREMENTAL: 0
+      SCCACHE_VERSION: 0.10.0
+      SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
+      SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
+      SCCACHE_GHA_ENABLED: "on"
       # CPTRA_COVERAGE_PATH: /tmp
 
       # Compiler warnings should fail to compile

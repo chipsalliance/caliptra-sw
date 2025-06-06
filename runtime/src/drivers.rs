@@ -40,6 +40,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
+use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::{
     csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl, entropy_src::EntropySrcReg,
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg,
@@ -136,7 +137,7 @@ impl Drivers {
             &SocIfcReg::new(),
         )?;
 
-        let aes = Aes::new(AesReg::new());
+        let aes = Aes::new(AesReg::new(), AesClpReg::new());
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -249,7 +250,6 @@ impl Drivers {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attest: DPE valid fail");
                     // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
                     drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
@@ -271,9 +271,6 @@ impl Drivers {
                 cfi_check!(result);
                 match result {
                     Ok(_) => {
-                        cprintln!(
-                            "Disabled attestation due to DPE used context limits being breached"
-                        );
                         caliptra_drivers::report_fw_error_non_fatal(e.into());
                     }
                     Err(e) => {
@@ -313,7 +310,6 @@ impl Drivers {
             cfi_check!(result);
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
                     );
