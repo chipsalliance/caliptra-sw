@@ -266,6 +266,12 @@ where
     }
 }
 
+impl<T: UIntLike, R: RegisterLongName> From<T> for ReadWriteRegister<T, R> {
+    fn from(value: T) -> Self {
+        Self::new(value)
+    }
+}
+
 /// Write Only Register
 pub struct WriteOnlyRegister<T: UIntLike, R: RegisterLongName = ()> {
     pub reg: InMemoryRegister<T, R>,
