@@ -3,6 +3,7 @@
 use crate::{
     common::{assert_error, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
+    test_info::get_fwinfo,
 };
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
 use caliptra_auth_man_gen::{
@@ -20,6 +21,7 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
+use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 pub fn create_auth_manifest(
@@ -350,6 +352,54 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
         )
         .unwrap()
         .expect("We should have received a response");
+}
+
+#[test]
+fn test_set_auth_manifest_fw_info_digest() {
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let auth_manifest = create_auth_manifest(
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        FwVerificationPqcKeyType::MLDSA,
+    );
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut hasher = Sha384::new();
+    hasher.update(buf);
+    let authman_digest = hasher.finalize();
+
+    // Get firmware information
+    let info = get_fwinfo(&mut model);
+
+    // Convert to big endian dwords.
+    let authman_digest: Vec<u32> = authman_digest
+        .as_bytes()
+        .chunks_exact(4)
+        .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()))
+        .collect();
+
+    assert_eq!(info.authman_sha384_digest, authman_digest.as_slice());
 }
 
 #[test]

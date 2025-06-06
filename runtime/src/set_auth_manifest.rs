@@ -765,6 +765,8 @@ impl SetAuthManifestCmd {
             &mut drivers.mldsa87,
             pqc_key_type,
         )?;
+
+        persistent_data.auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
         Ok(())
     }
 }

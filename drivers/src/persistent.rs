@@ -14,6 +14,8 @@ use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
+#[cfg(feature = "runtime")]
+use crate::sha2_512_384::SHA384_HASH_SIZE;
 use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
@@ -53,6 +55,7 @@ pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
+    + size_of::<U8Bool>()
     + size_of::<U8Bool>();
 
 #[cfg(feature = "runtime")]
@@ -294,6 +297,8 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub attestation_disabled: U8Bool,
     #[cfg(feature = "runtime")]
+    pub runtime_cmd_active: U8Bool,
+    #[cfg(feature = "runtime")]
     reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; DPE_SIZE as usize],
@@ -308,8 +313,10 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub auth_manifest_image_metadata_col: AuthManifestImageMetadataCollection,
     #[cfg(feature = "runtime")]
+    pub auth_manifest_digest: [u32; SHA384_HASH_SIZE / 4],
+    #[cfg(feature = "runtime")]
     reserved9: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
-        - size_of::<AuthManifestImageMetadataCollection>()],
+        - (SHA384_HASH_SIZE + size_of::<AuthManifestImageMetadataCollection>())],
 
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],

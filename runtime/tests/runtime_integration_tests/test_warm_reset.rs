@@ -7,7 +7,6 @@ use caliptra_builder::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
-use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_test::image_pk_desc_hash;
 use dpe::DPE_PROFILE;
 
@@ -119,7 +118,7 @@ fn test_mbox_busy_during_warm_reset() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     // 0xE000_0000 == OPCODE_HOLD_COMMAND_BUSY
-    model.start_mailbox_execute(0xE000_0000, &[]).unwrap();
+    model.mailbox_execute(0xE000_0000, &[]).unwrap();
 
     assert!(!model
         .soc_ifc()
@@ -135,13 +134,11 @@ fn test_mbox_busy_during_warm_reset() {
     });
 
     // Wait for boot
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
-
-    assert!(!model
-        .soc_ifc()
-        .cptra_flow_status()
-        .read()
-        .mailbox_flow_done());
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
+    );
 }
 
 // TODO: https://github.com/chipsalliance/caliptra-sw/issues/2225
@@ -195,28 +192,10 @@ fn test_mbox_idle_during_warm_reset() {
         ..Default::default()
     });
 
-    model.soc_mbox().unlock().write(|w| w.unlock(true));
-    if model.soc_mbox().lock().read().lock() {
-        panic!("Failed to lock mailbox after forcing it unlocked.");
-    }
-
-    // Mailbox lock value should read 1 now
-    // If not, the reads are likely being blocked by the PAUSER check or some other issue
-    if !(model.soc_mbox().lock().read().lock()) {
-        panic!("Mailbox should be locked");
-    }
-
-    assert!(model.soc_mbox().status().read().mbox_fsm_ps() != MboxFsmE::MboxIdle);
-    assert!(model.soc_mbox().status().read().status().cmd_busy());
-
-    model.step_until(|m| {
-        if m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
-        {
-            panic!("Did not expect RUNTIME_CMD_BUSY_DURING_WARM_RESET during warm reset!");
-        }
-        m.soc_ifc().cptra_flow_status().read().ready_for_runtime()
-    });
-
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+
+    assert_ne!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET)
+    );
 }
