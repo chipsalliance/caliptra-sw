@@ -1,0 +1,138 @@
+# Reusable workflow to checkout and build a versioned ROM and firmware and merge them into a single directory.
+# The workflow provides the uploaded artifact 'caliptra-unified', containing
+# 1. caliptra-rom.bin
+# 2. caliptra-rom*.elf
+
+name: Versioned Checkout and Build
+
+on:
+  workflow_call:
+    inputs:
+        rom-ref:
+          description: 'The git ref to checkout for building the ROM'
+          type: string
+          default: "main"
+          required: true
+        rom-logging:
+          description: 'Whether to include logging in the ROM'
+          type: boolean
+          default: false
+          required: false
+        fw-ref:
+          description: 'The git ref to checkout for building the firmware (FMC and RT)'
+          type: string
+          default: "main"
+          required: true
+        hw-version:
+          default: "latest"
+          type: string
+          required: false
+        workflow_call:
+          description: 'Set true for workflow_call'
+          default: true
+          type: boolean
+          required: false
+        artifact-suffix:
+          description: 'The suffix to append to the artifact name'
+          type: string
+          required: true
+        
+jobs:
+  build_versioned_rom:
+    runs-on: [e2-standard-16]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+
+    steps:
+      - name: Checkout versioned ROM (${{ inputs.rom-ref }})
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.rom-ref }}
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
+      - name: Build ROM
+        run: |
+          mkdir /tmp/caliptra-rom-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-rom-firmware
+
+          if [ -z "${{ inputs.rom-logging }}" ] || [ "${{ inputs.rom-logging }}" == "false" ]; then
+            cargo run -p caliptra-builder -- --rom-no-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          else
+            cargo run -p caliptra-builder -- --rom-with-log /tmp/caliptra-rom-firmware/caliptra-rom.bin
+          fi
+
+      - name: Upload ROM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-rom-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-rom-firmware/caliptra-rom.bin
+
+  build_versioned_fmc_rt:
+    runs-on: [e2-standard-16]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+
+    steps:
+      - name: Checkout versioned FMC and RT (${{ inputs.fw-ref }})
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          ref: ${{ inputs.fw-ref }}
+
+      - name: Build FMC and RT
+        run: |
+            mkdir -p /tmp/caliptra-fmc-rt-firmware
+            FEATURES=""
+            if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+                FEATURES=hw-${{ inputs.hw-version }}
+            fi
+            cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-fmc-rt-firmware
+
+      - name: Upload FMC and RT artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-fmc-rt-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-fmc-rt-firmware/*
+
+  unify_rom_fmc_rt:
+    runs-on: [e2-standard-16]
+    needs: [build_versioned_rom, build_versioned_fmc_rt]
+    steps:
+      - name: Download FMC and RT artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-fmc-rt-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-fmc-rt-firmware
+
+      - name: Download ROM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-rom-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-rom-firmware
+      
+      - name: Debug List Downloads
+        run: |
+            ls -laR /tmp/caliptra-*
+
+      - name: Merge Rom files and Firmware files
+        run: |
+            mkdir -p /tmp/caliptra
+            cp /tmp/caliptra-fmc-rt-firmware/*.elf /tmp/caliptra
+            cp /tmp/caliptra-rom-firmware/caliptra-rom.bin /tmp/caliptra
+
+      # caliptra-unified-<rom-ref>-<fw-ref>-<hw-version>-<artifact-suffix>
+      - name: Upload unified artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-${{ inputs.hw-version }}-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra/
