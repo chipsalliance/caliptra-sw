@@ -310,7 +310,7 @@ impl RtAliasLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa_key_gen(
+        let result = Crypto::mldsa87_key_gen(
             &mut env.mldsa,
             &mut env.hmac,
             &mut env.trng,
@@ -485,7 +485,7 @@ impl RtAliasLayer {
         );
 
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
-        let sig = Crypto::mldsa_sign(
+        let sig = Crypto::mldsa87_sign(
             &mut env.mldsa,
             &mut env.trng,
             key_pair_seed,
@@ -503,7 +503,7 @@ impl RtAliasLayer {
         env.key_vault.set_key_use_lock(input.cdi);
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::mldsa_verify(&mut env.mldsa, auth_pub_key, tbs.tbs(), sig)?
+        if Crypto::mldsa87_verify(&mut env.mldsa, auth_pub_key, tbs.tbs(), sig)?
             != Mldsa87Result::Success
         {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);

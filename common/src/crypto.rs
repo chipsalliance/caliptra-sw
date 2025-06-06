@@ -14,9 +14,9 @@ Abstract:
 use crate::keyids::KEY_ID_TMP;
 use caliptra_drivers::{
     okmutref, okref, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
-    Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacMode, KeyId, KeyReadArgs, KeyUsage,
-    KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
-    Mldsa87Signature, Sha2_512_384, Trng,
+    Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId, KeyReadArgs,
+    KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
+    Mldsa87SignRnd, Mldsa87Signature, Sha2_512_384, Trng,
 };
 use zeroize::Zeroize;
 
@@ -51,6 +51,40 @@ pub enum PubKey<'a> {
 pub struct Crypto {}
 
 impl Crypto {
+    /// Calculate HMAC
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `key` - HMAC key slot
+    /// * `data` - Input data to hash
+    /// * `tag` - Key slot to store the tag
+    /// * `mode` - HMAC Mode
+    #[inline(always)]
+    pub fn hmac_mac(
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        key: KeyId,
+        data: HmacData,
+        tag: KeyId,
+        mode: HmacMode,
+    ) -> CaliptraResult<()> {
+        hmac.hmac(
+            KeyReadArgs::new(key).into(),
+            data,
+            trng,
+            KeyWriteArgs::new(
+                tag,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en()
+                    .set_mldsa_key_gen_seed_en(),
+            )
+            .into(),
+            mode,
+        )
+    }
+
     /// Calculate HMAC KDF
     ///
     /// # Arguments
@@ -246,8 +280,8 @@ impl Crypto {
     ///
     /// * `MlDsaKeyPair` - Public Key and keypair generation seed
     #[inline(always)]
-    pub fn mldsa_key_gen(
-        mldsa: &mut Mldsa87,
+    pub fn mldsa87_key_gen(
+        mldsa87: &mut Mldsa87,
         hmac: &mut Hmac,
         trng: &mut Trng,
         cdi: KeyId,
@@ -266,7 +300,7 @@ impl Crypto {
         )?;
 
         // Generate the public key.
-        let pub_key = mldsa.key_pair(
+        let pub_key = mldsa87.key_pair(
             Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             trng,
             None,
@@ -292,14 +326,14 @@ impl Crypto {
     ///
     /// * `Mldsa87Signature` - Signature
     #[inline(always)]
-    pub fn mldsa_sign(
-        mldsa: &mut Mldsa87,
+    pub fn mldsa87_sign(
+        mldsa87: &mut Mldsa87,
         trng: &mut Trng,
         key_pair_seed: KeyId,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        mldsa.sign_var(
+        mldsa87.sign_var(
             Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
             data,
@@ -321,13 +355,13 @@ impl Crypto {
     ///
     /// *  `Mldsa87Result` - Mldsa87Result::Success if the signature verification passed else an error code.
     #[inline(always)]
-    pub fn mldsa_verify(
-        mldsa: &mut Mldsa87,
+    pub fn mldsa87_verify(
+        mldsa87: &mut Mldsa87,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
         sig: &Mldsa87Signature,
     ) -> CaliptraResult<Mldsa87Result> {
-        mldsa.verify_var(pub_key, data, sig)
+        mldsa87.verify_var(pub_key, data, sig)
     }
 
     /// Sign the data using MLDSA Private Key.
@@ -345,14 +379,14 @@ impl Crypto {
     ///
     /// * `Mldsa384Signature` - Signature
     #[inline(always)]
-    pub fn mldsa_sign_and_verify(
-        mldsa: &mut Mldsa87,
+    pub fn mldsa87_sign_and_verify(
+        mldsa87: &mut Mldsa87,
         trng: &mut Trng,
         key_pair_seed: KeyId,
         pub_key: &Mldsa87PubKey,
         data: &[u8],
     ) -> CaliptraResult<Mldsa87Signature> {
-        mldsa.sign_var(
+        mldsa87.sign_var(
             Mldsa87Seed::Key(KeyReadArgs::new(key_pair_seed)),
             pub_key,
             data,

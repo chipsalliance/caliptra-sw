@@ -153,7 +153,7 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let tbs = FmcAliasTbsMlDsa87::new(&params);
 
     // Sign the `To Be Signed` portion
-    let mut sig = Crypto::mldsa_sign_and_verify(
+    let mut sig = Crypto::mldsa87_sign_and_verify(
         &mut env.mldsa,
         &mut env.trng,
         key_pair.key_pair_seed,

@@ -15,11 +15,12 @@ Abstract:
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
+use caliptra_common::crypto::Crypto;
 use caliptra_common::keyids::{KEY_ID_FW_KEY_LADDER, KEY_ID_ROM_FMC_CDI};
 use caliptra_drivers::{Hmac, HmacMode, KeyId, Trng};
 use caliptra_error::CaliptraResult;
 
-use crate::{crypto::Crypto, rom_env::RomEnv};
+use crate::rom_env::RomEnv;
 
 // This KeyId only holds the LDevID CDI during a specific phase of cold-boot: after
 // the LDevID has been derived, but before firmware has been verified and executed.
@@ -34,8 +35,9 @@ const LADDER_KEY: KeyId = KEY_ID_FW_KEY_LADDER;
 /// * `ladder_len` - Length of ladder to initialize, based on firmware's SVN
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub(crate) fn initialize_key_ladder(env: &mut RomEnv, ladder_len: u32) -> CaliptraResult<()> {
-    Crypto::env_hmac_kdf(
-        env,
+    Crypto::hmac_kdf(
+        &mut env.hmac,
+        &mut env.trng,
         LDEVID_CDI,
         b"si_init",
         Some(&[
