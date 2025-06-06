@@ -106,8 +106,9 @@ func isMachineType(label string) bool {
 }
 
 type MachineInfo struct {
-	machineType  string
-	hasFpgaTools bool
+	machineType    string
+	hasFpgaTools   bool
+	hasVck190Tools bool
 }
 
 func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
@@ -122,6 +123,9 @@ func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
 		}
 		if item == "fpga-tools" {
 			result.hasFpgaTools = true
+		}
+		if item == "vck190-tools" {
+			result.hasVck190Tools = true
 		}
 	}
 	if result.machineType == "" {
@@ -151,6 +155,12 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 	if machineInfo.hasFpgaTools {
 		disks = append(disks, &computepb.AttachedDisk{
 			Source: proto.String(fmt.Sprintf("zones/%s/disks/fpga-tools", gcpZone)),
+			Mode:   proto.String("READ_ONLY"),
+		})
+	}
+	if machineInfo.hasVck190Tools {
+		disks = append(disks, &computepb.AttachedDisk{
+			Source: proto.String(fmt.Sprintf("zones/%s/disks/vck190-tools", gcpZone)),
 			Mode:   proto.String("READ_ONLY"),
 		})
 	}
