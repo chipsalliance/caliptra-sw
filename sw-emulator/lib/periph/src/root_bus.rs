@@ -27,7 +27,7 @@ use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
-use std::{path::PathBuf, rc::Rc, sync::mpsc};
+use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::mpsc};
 use tock_registers::registers::InMemoryRegister;
 
 /// Default Deobfuscation engine key
@@ -278,10 +278,10 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1001_0000, len = 0xa14)]
     pub hmac: HmacSha,
 
-    #[peripheral(offset = 0x1001_1000, len = 0xa14)]
+    #[peripheral(offset = 0x1001_1000, len = 0x8c)]
     pub aes: Aes,
 
-    #[peripheral(offset = 0x1001_1800, len = 0xa14)]
+    #[peripheral(offset = 0x1001_1800, len = 0x614)]
     pub aes_clp: AesClp,
 
     #[peripheral(offset = 0x1001_8000, len = 0x44c0)]
@@ -317,7 +317,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x3002_2000, len = 0xa14)]
     pub dma: Dma,
 
-    #[peripheral(offset = 0x3003_0000, len = 0x820)]
+    #[peripheral(offset = 0x3003_0000, len = 0xa38)]
     pub soc_reg: SocRegistersInternal,
 
     #[peripheral(offset = 0x3004_0000, len = 0x40000)]
@@ -365,10 +365,12 @@ impl CaliptraRootBus {
         let sha512 = HashSha512::new(clock, key_vault.clone());
         let ml_dsa87 = Mldsa87::new(clock, key_vault.clone(), sha512.clone());
 
+        let aes_key = Rc::new(RefCell::new(None));
+
         Self {
             rom,
-            aes: Aes::new(),
-            aes_clp: AesClp::new(clock, key_vault.clone()),
+            aes: Aes::new(aes_key.clone()),
+            aes_clp: AesClp::new(clock, key_vault.clone(), aes_key),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
             hmac: HmacSha::new(clock, key_vault.clone()),
@@ -398,6 +400,8 @@ impl CaliptraRootBus {
     }
 
     fn incoming_event(&mut self, event: Rc<Event>) {
+        self.aes.incoming_event(event.clone());
+        self.aes_clp.incoming_event(event.clone());
         self.rom.incoming_event(event.clone());
         self.doe.incoming_event(event.clone());
         self.doe.incoming_event(event.clone());
@@ -421,6 +425,8 @@ impl CaliptraRootBus {
     }
 
     fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.aes.register_outgoing_events(sender.clone());
+        self.aes_clp.register_outgoing_events(sender.clone());
         self.rom.register_outgoing_events(sender.clone());
         self.doe.register_outgoing_events(sender.clone());
         self.doe.register_outgoing_events(sender.clone());
