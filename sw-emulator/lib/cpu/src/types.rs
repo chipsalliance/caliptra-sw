@@ -38,6 +38,9 @@ pub struct CpuOrgArgs {
 
     /// DCCM size
     pub dccm_size: u32,
+
+    /// CPU reset vector
+    pub reset_vector: u32,
 }
 
 impl CpuOrgArgs {
@@ -55,6 +58,9 @@ impl CpuOrgArgs {
     pub const DEFAULT_DCCM_ORG: u32 = 0x5000_0000;
     /// Default size of the DCCM memory
     pub const DEFAULT_DCCM_SIZE: u32 = 256 * 1024;
+
+    /// Default CPU reset vector
+    pub const DEFAULT_RESET_VECTOR: u32 = 0;
 }
 
 impl Default for CpuOrgArgs {
@@ -66,6 +72,7 @@ impl Default for CpuOrgArgs {
             iccm_size: Self::DEFAULT_ICCM_SIZE,
             dccm: Self::DEFAULT_DCCM_ORG,
             dccm_size: Self::DEFAULT_DCCM_SIZE,
+            reset_vector: Self::DEFAULT_RESET_VECTOR,
         }
     }
 }
