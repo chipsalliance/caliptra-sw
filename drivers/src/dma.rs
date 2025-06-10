@@ -402,6 +402,8 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
     const RECOVERY_DMA_BLOCK_SIZE_BYTES: u32 = 256;
+    const PROT_CAP2_DEVICE_ID_SUPPORT: u32 = 0x1; // Bit 0 in agent_caps
+    const PROT_CAP2_DEVICE_STATUS_SUPPORT: u32 = 0x10; // Bit 4 in agent_caps
     const PROT_CAP2_PUSH_C_IMAGE_SUPPORT: u32 = 0x80; // Bit 7 in agent_caps
     const PROT_CAP2_FLASHLESS_BOOT_VALUE: u32 = 0x800; // Bit 11 in agent_caps
     const PROT_CAP2_FIFO_CMS_SUPPORT: u32 = 0x1000; // Bit 12 in agent_caps
@@ -606,15 +608,21 @@ impl<'a> DmaRecovery<'a> {
                 .modify(|val| val.reset(Self::RESET_VAL));
 
             // Set PROT_CAP2.AGENT_CAPS
+            // - Bit0  to 1 ('Device ID support')
+            // - Bit4  to 1 ('Device Status support')
             // - Bit7  to 1 ('Push C-image support')
             // - Bit11 to 1 ('Flashless boot')
             // - Bit12 to 1 ('FIFO CMS support')
+            // Set PROT_CAP2.REC_PROT_VERSION to 0x101 (1.1).
             recovery.prot_cap_2().modify(|val| {
                 val.agent_caps(
-                    Self::PROT_CAP2_FIFO_CMS_SUPPORT
+                    Self::PROT_CAP2_DEVICE_ID_SUPPORT // mandatory
+                        | Self::PROT_CAP2_DEVICE_STATUS_SUPPORT // mandatory
+                        | Self::PROT_CAP2_FIFO_CMS_SUPPORT
                         | Self::PROT_CAP2_FLASHLESS_BOOT_VALUE
                         | Self::PROT_CAP2_PUSH_C_IMAGE_SUPPORT,
                 )
+                .rec_prot_version(0x101) // 1.1
             });
 
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').

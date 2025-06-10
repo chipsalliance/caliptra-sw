@@ -646,11 +646,13 @@ There are two modes in which the ROM executes: PASSIVE mode or ACTIVE mode. Foll
 
 Following is the sequence of steps that are performed to download the firmware image into the mailbox in ACTIVE mode.
 
-1. On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register, `Agent Capability` field bits:
+1. On receiving the RI_DOWNLOAD_FIRMWARE mailbox command, set the RI PROT_CAP2 register version to 1.1 and the `Agent Capability` field bits:
+    - `Device ID`
+    - `Device Status`
     - `Push C-image support`
     - `Flashless boot`
     - `FIFO CMS support`
-2. Set the RI DEVICE_STATUS_0 register, `Device Status` field  to 0x3 ('Recovery mode - ready to accept recovery image') and 
+2. Set the RI DEVICE_STATUS_0 register, `Device Status` field  to 0x3 ('Recovery mode - ready to accept recovery image') and
 `Recovery Reason Code` field to 0x12 ('Flashless/Streaming Boot (FSB)').
 3. Set the RI RECOVERY_STATUS register, `Device Recovery Status` field to 0x1 ('Awaiting recovery image') and `Recovery Image Index` field to 0 (Firmware Image).
 4. Loop on the `payload_available` bit in the `DMA Status0` register for the firmware image info to be available.
@@ -1141,6 +1143,3 @@ Fake ROM reduces boot time by doing the following:
 - The image builder exposes the argument "fake" that can be used to generate the fake versions
 
 To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
-
-
-

@@ -20,7 +20,7 @@ use crate::types::{
 use crate::xreg_file::{XReg, XRegFile};
 use crate::Pic;
 use bit_vec::BitVec;
-use caliptra_emu_bus::{Bus, BusError, Clock, Event, EventData, TimerAction};
+use caliptra_emu_bus::{Bus, BusError, Clock, Event, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -234,6 +234,7 @@ impl Default for WatchPtrCfg {
         Self::new()
     }
 }
+
 /// RISCV CPU
 pub struct Cpu<TBus: Bus> {
     /// General Purpose register file
@@ -323,16 +324,13 @@ pub enum StepAction {
 }
 
 impl<TBus: Bus> Cpu<TBus> {
-    /// Default Program counter reset value
-    const PC_RESET_VAL: RvData = 0;
-
     /// Create a new RISCV CPU
     pub fn new(bus: TBus, clock: Rc<Clock>, pic: Rc<Pic>, args: CpuArgs) -> Self {
         Self {
             xregs: XRegFile::new(),
             csrs: CsrFile::new(clock.clone(), pic.clone()),
-            pc: Self::PC_RESET_VAL,
-            next_pc: Self::PC_RESET_VAL,
+            pc: args.org.reset_vector,
+            next_pc: args.org.reset_vector,
             bus,
             clock,
             pic,
@@ -380,8 +378,9 @@ impl<TBus: Bus> Cpu<TBus> {
         self.pc = pc;
     }
 
+    /// Resets program counter to default reset vector
     fn reset_pc(&mut self) {
-        self.pc = 0;
+        self.pc = self.args.org.reset_vector;
     }
 
     /// Returns the next program counter after the current instruction is finished executing.
@@ -1009,15 +1008,6 @@ impl<TBus: Bus> Cpu<TBus> {
     fn handle_incoming_events(&mut self) {
         if let Some(incoming_events) = &self.incoming_events {
             for event in incoming_events.try_iter() {
-                match event.event {
-                    EventData::MemoryRead { .. } => {
-                        panic!("Caliptra core does not support memory read requests");
-                    }
-                    EventData::MemoryWrite { .. } => {
-                        panic!("Caliptra core does not support memory write requests");
-                    }
-                    _ => {}
-                }
                 self.bus.incoming_event(Rc::new(event));
             }
         }
