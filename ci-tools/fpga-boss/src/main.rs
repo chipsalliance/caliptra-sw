@@ -151,6 +151,23 @@ fn copy_file(dest: &mut File, src: &mut File) -> std::io::Result<()> {
     Ok(())
 }
 
+/// As we observe conditions that get the FGPA stuck, add them to the error parser.
+fn active_runner_error_checks(input: &str) -> std::io::Result<()> {
+    check_for_github_runner_exception(input)?;
+    check_for_kernel_panic(input)?;
+    Ok(())
+}
+
+/// If the GitHub runner has an unhandled exception it will crash and get stuck. Add this check
+/// to recover the FPGA.
+fn check_for_github_runner_exception(input: &str) -> std::io::Result<()> {
+    if input.contains("Unhandled exception") {
+        Err(Error::new(ErrorKind::BrokenPipe, "Github runner had an unhandled exception"))?;
+    }
+    Ok(())
+}
+
+/// A kernel panic will cause the FPGA to never complete the job, so we want to reset the FPGA.
 fn check_for_kernel_panic(input: &str) -> std::io::Result<()> {
     if input.contains("Kernel panic") {
         Err(Error::new(ErrorKind::BrokenPipe, "FPGA had a kernel panic"))?;
@@ -442,10 +459,7 @@ fn main_impl() -> anyhow::Result<()> {
 
                 // The period of time we wait to receive a job is undefined so a timeout is not
                 // appropriate.
-                //
-                // As we observe conditions that get the FGPA stuck, add them to the error parser.
-                // Currently I have only observed a watchdog triggering a kernel panic.
-                log_uart_until(&mut uart_lines, "Running job", check_for_kernel_panic)?;
+                log_uart_until(&mut uart_lines, "Running job", active_runner_error_checks)?;
 
                 // Now the job is started, so we want to enforce a timeout with enough time for the
                 // job to complete.
