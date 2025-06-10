@@ -15,7 +15,6 @@ Abstract:
 
 use super::dice::*;
 use crate::cprintln;
-use crate::crypto::Crypto;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -23,7 +22,7 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::{
-    crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey},
+    crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey},
     keyids::{
         KEY_ID_FE, KEY_ID_LDEVID_ECDSA_PRIV_KEY, KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED,
         KEY_ID_ROM_FMC_CDI,
@@ -125,9 +124,17 @@ impl LocalDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac_mac(env, cdi, b"ldevid_cdi".into(), cdi, HmacMode::Hmac512)?;
         Crypto::hmac_mac(
-            env,
+            &mut env.hmac,
+            &mut env.trng,
+            cdi,
+            b"ldevid_cdi".into(),
+            cdi,
+            HmacMode::Hmac512,
+        )?;
+        Crypto::hmac_mac(
+            &mut env.hmac,
+            &mut env.trng,
             cdi,
             KeyReadArgs::new(fe).into(),
             cdi,
@@ -159,7 +166,15 @@ impl LocalDevIdLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_ecc_key", ecc_priv_key);
+        let result = Crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"ldevid_ecc_key",
+            ecc_priv_key,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -168,7 +183,14 @@ impl LocalDevIdLayer {
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa_key_gen(env, cdi, b"ldevid_mldsa_key", mldsa_keypair_seed);
+        let result = Crypto::mldsa87_key_gen(
+            &mut env.mldsa87,
+            &mut env.hmac,
+            &mut env.trng,
+            cdi,
+            b"ldevid_mldsa_key",
+            mldsa_keypair_seed,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -221,7 +243,9 @@ impl LocalDevIdLayer {
             ecc_auth_priv_key as u8
         );
         let mut sig = Crypto::ecdsa384_sign_and_verify(
-            env,
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            &mut env.trng,
             ecc_auth_priv_key,
             ecc_auth_pub_key,
             ecc_tbs.tbs(),
@@ -300,7 +324,8 @@ impl LocalDevIdLayer {
             mldsa_auth_priv_key as u8
         );
         let mut sig = Crypto::mldsa87_sign_and_verify(
-            env,
+            &mut env.mldsa87,
+            &mut env.trng,
             mldsa_auth_priv_key,
             mldsa_auth_pub_key,
             mldsa_tbs.tbs(),

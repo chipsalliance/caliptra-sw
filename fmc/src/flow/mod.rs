@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 
-mod crypto;
 pub mod dice;
 mod fmc_alias_csr;
 mod pcr;
@@ -24,7 +23,7 @@ use crate::flow::rt_alias::RtAliasLayer;
 use crate::fmc_env::FmcEnv;
 use caliptra_drivers::CaliptraResult;
 
-/// Execute FMC Flows based on reset resason
+/// Execute FMC Flows based on reset reason
 ///
 /// # Arguments
 ///

@@ -16,7 +16,6 @@ Abstract:
 use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use crate::cprintln;
-use crate::crypto::Crypto;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
@@ -24,7 +23,7 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::cfi_check;
-use caliptra_common::crypto::{Ecc384KeyPair, MlDsaKeyPair, PubKey};
+use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
     KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
 };
@@ -137,8 +136,9 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        let result = Crypto::env_hmac_kdf(
-            env,
+        let result = Crypto::hmac_kdf(
+            &mut env.hmac,
+            &mut env.trng,
             cdi,
             b"alias_fmc_cdi",
             Some(&measurements),
@@ -170,12 +170,27 @@ impl FmcAliasLayer {
         ecc_priv_key: KeyId,
         mldsa_keypair_seed: KeyId,
     ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"alias_fmc_ecc_key", ecc_priv_key);
+        let result = Crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"alias_fmc_ecc_key",
+            ecc_priv_key,
+        );
         cfi_check!(result);
         let ecc_keypair = result?;
 
         // Derive the MLDSA Key Pair.
-        let result = Crypto::mldsa_key_gen(env, cdi, b"alias_fmc_mldsa_key", mldsa_keypair_seed);
+        let result = Crypto::mldsa87_key_gen(
+            &mut env.mldsa87,
+            &mut env.hmac,
+            &mut env.trng,
+            cdi,
+            b"alias_fmc_mldsa_key",
+            mldsa_keypair_seed,
+        );
         cfi_check!(result);
         let mldsa_keypair = result?;
 
@@ -250,7 +265,14 @@ impl FmcAliasLayer {
             "[afmc] ECC Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign_and_verify(
+            &mut env.sha2_512_384,
+            &mut env.ecc384,
+            &mut env.trng,
+            auth_priv_key,
+            auth_pub_key,
+            tbs.tbs(),
+        );
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
@@ -350,7 +372,13 @@ impl FmcAliasLayer {
             "[afmc] MLDSA Signing Cert w/ AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::mldsa87_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let mut sig = Crypto::mldsa87_sign_and_verify(
+            &mut env.mldsa87,
+            &mut env.trng,
+            auth_priv_key,
+            auth_pub_key,
+            tbs.tbs(),
+        );
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
