@@ -305,9 +305,9 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
 
+        drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(false);
         // No command is executing, set the mailbox flow done to true before beginning idle.
         drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
-        drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(false);
 
         enter_idle(drivers);
 
@@ -322,8 +322,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         if cmd_ready {
             // We have woken from idle and have a command ready, set the mailbox flow done to false until we return to
             // idle.
-            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
             drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(true);
+            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
 
             // Acknowledge the interrupt so we go back to sleep after
             // processing the mailbox. After this point, if the mailbox is
