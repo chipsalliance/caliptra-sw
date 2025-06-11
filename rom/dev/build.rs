@@ -16,6 +16,8 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use caliptra_common::x509::get_tbs;
+
 fn preprocess(filename: &str, defines: &[(String, String)]) -> Vec<u8> {
     let mut cmd = Command::new("cc");
     cmd.arg("-E");
@@ -54,42 +56,6 @@ fn be_bytes_to_words(src: &[u8]) -> Vec<u32> {
     }
 
     dst
-}
-
-/// Retrieve the TBS from DER encoded vector
-///
-/// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
-/// artifact
-pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
-    if der[0] != 0x30 {
-        panic!("Invalid DER start tag");
-    }
-
-    let der_len_offset = 1;
-
-    let tbs_offset = match der[der_len_offset] {
-        0..=0x7F => der_len_offset + 1,
-        0x81 => der_len_offset + 2,
-        0x82 => der_len_offset + 3,
-        _ => panic!("Unsupported DER Length"),
-    };
-
-    if der[tbs_offset] != 0x30 {
-        panic!("Invalid TBS start tag");
-    }
-
-    let tbs_len_offset = tbs_offset + 1;
-    let tbs_len = match der[tbs_len_offset] {
-        0..=0x7F => der[tbs_len_offset] as usize + 2,
-        0x81 => (der[tbs_len_offset + 1]) as usize + 3,
-        0x82 => {
-            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
-                | (((der[tbs_len_offset + 2]) as usize) + 4)
-        }
-        _ => panic!("Invalid DER Length"),
-    };
-
-    der[tbs_offset..tbs_offset + tbs_len].to_vec()
 }
 
 fn main() {

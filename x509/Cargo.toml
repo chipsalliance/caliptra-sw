@@ -15,7 +15,7 @@ zeroize.workspace = true
 [build-dependencies]
 asn1 = { workspace = true, optional = true }
 bitfield = { workspace = true, optional = true }
-caliptra_common = { workspace = true, optional = true }
+caliptra_common = { workspace = true, optional = true, features = ["std"] }
 convert_case = { workspace = true, optional = true }
 der = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }

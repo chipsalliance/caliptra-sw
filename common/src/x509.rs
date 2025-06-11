@@ -145,6 +145,43 @@ pub fn mldsa_cert_sn(sha256: &mut Sha256, pub_key: &Mldsa87PubKey) -> CaliptraRe
     Ok(digest[..20].try_into().unwrap())
 }
 
+/// Retrieve the TBS from DER encoded vector
+///
+/// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
+/// artifact
+#[cfg(feature = "std")]
+pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
+    if der[0] != 0x30 {
+        panic!("Invalid DER start tag");
+    }
+
+    let der_len_offset = 1;
+
+    let tbs_offset = match der[der_len_offset] {
+        0..=0x7F => der_len_offset + 1,
+        0x81 => der_len_offset + 2,
+        0x82 => der_len_offset + 3,
+        _ => panic!("Unsupported DER Length"),
+    };
+
+    if der[tbs_offset] != 0x30 {
+        panic!("Invalid TBS start tag");
+    }
+
+    let tbs_len_offset = tbs_offset + 1;
+    let tbs_len = match der[tbs_len_offset] {
+        0..=0x7F => der[tbs_len_offset] as usize + 2,
+        0x81 => (der[tbs_len_offset + 1]) as usize + 3,
+        0x82 => {
+            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
+                | (((der[tbs_len_offset + 2]) as usize) + 4)
+        }
+        _ => panic!("Invalid DER Length"),
+    };
+
+    der[tbs_offset..tbs_offset + tbs_len].to_vec()
+}
+
 /// Return the hex representation of the input `buf`
 ///
 /// # Arguments

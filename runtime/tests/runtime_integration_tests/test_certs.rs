@@ -11,6 +11,7 @@ use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
     GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
 };
+use caliptra_common::x509::get_tbs;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, Fuses, HwModel, InitParams};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -116,7 +117,7 @@ fn test_idev_id_ecc384_cert() {
     let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
 
     // Extract tbs from cert using the derived TBS size
-    let tbs = crate::common::get_tbs(cert.to_der().unwrap());
+    let tbs = get_tbs(cert.to_der().unwrap());
     let tbs_len = tbs.len();
 
     let mut req = GetIdevEcc384CertReq {
@@ -183,7 +184,7 @@ fn test_idev_id_mldsa87_cert() {
 
     // Extract tbs from cert using the derived TBS size
     let cert_der_vec = cert.to_der().unwrap();
-    let tbs_data = crate::common::get_tbs(cert_der_vec);
+    let tbs_data = get_tbs(cert_der_vec);
     let actual_tbs_size = std::cmp::min(tbs_data.len(), GetIdevMldsa87CertReq::DATA_MAX_SIZE);
 
     let mut req = GetIdevMldsa87CertReq {
