@@ -5,7 +5,7 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    cprintln, hmac_kdf, Aes, AesKey, Array4x12, Array4x16, Array4x8, Ecc384, Ecc384PrivKeyOut,
+    hmac_kdf, Aes, AesKey, Array4x12, Array4x16, Array4x8, Ecc384, Ecc384PrivKeyOut,
     Ecc384Scalar, Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs,
     KeyUsage, KeyWriteArgs, Sha256, Sha256Alg, Sha256DigestOp, Trng,
 };
@@ -169,7 +169,7 @@ fn test_preconditioned_keys() {
     let aes_keys = [KeyId::KeyId20, KeyId::KeyId21, KeyId::KeyId22];
 
     let mut composite_key_checksum = Array4x8::default();
-    let mut digest_op = sha.digest_init().unwrap();
+    let digest_op = sha.digest_init().unwrap();
     let completed_digest_op = aes_keys
         .iter()
         .map(|&key| {
@@ -217,7 +217,7 @@ fn test_preconditioned_keys() {
     let composite_key_slice: [u8; 32] = composite_key_checksum.into();
 
     let mut hkdf_extract = [0; 196];
-    for (&key, chunk) in aes_keys.iter().zip(hkdf_extract.chunks_exact_mut(64)) {
+    for (_, chunk) in aes_keys.iter().zip(hkdf_extract.chunks_exact_mut(64)) {
         let output = Array4x16::mut_from_bytes(chunk).unwrap();
         let hkdf = hmac_kdf(
             &mut hmac,
