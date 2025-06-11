@@ -160,6 +160,7 @@ fn test_mbox_busy_during_warm_reset() {
     );
 }
 
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_mbox_idle_during_warm_reset() {
     let security_state = *SecurityState::default()
