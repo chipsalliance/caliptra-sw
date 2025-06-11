@@ -18,6 +18,7 @@ mod aes256cbc_kat;
 mod aes256cmac_kat;
 mod aes256ctr_kat;
 mod aes256gcm_kat;
+mod cmackdf_kat;
 mod ecc384_kat;
 mod ecdh_kat;
 mod hkdf_kat;
@@ -36,6 +37,7 @@ pub use aes256cmac_kat::Aes256CmacKat;
 pub use aes256ctr_kat::Aes256CtrKat;
 pub use aes256gcm_kat::Aes256GcmKat;
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
+pub use cmackdf_kat::CmacKdfKat;
 pub use ecc384_kat::Ecc384Kat;
 pub use ecdh_kat::EcdhKat;
 pub use hkdf_kat::{Hkdf384Kat, Hkdf512Kat};
@@ -91,6 +93,9 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] HKDF-512");
     Hkdf512Kat::default().execute(env.hmac, env.trng)?;
+
+    cprintln!("[kat] KDF-CMAC");
+    CmacKdfKat::default().execute(env.aes)?;
 
     cprintln!("[kat] LMS");
     LmsKat::default().execute(env.sha256, env.lms)?;

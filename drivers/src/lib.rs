@@ -20,6 +20,7 @@ mod wait;
 
 mod aes;
 mod bounded_address;
+mod cmac_kdf;
 mod csrng;
 mod data_vault;
 mod dma;
@@ -67,6 +68,7 @@ pub use array::{
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
+pub use cmac_kdf::cmac_kdf;
 pub use csrng::{
     Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed, MAX_SEED_WORDS,
 };

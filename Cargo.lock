@@ -395,6 +395,7 @@ dependencies = [
 name = "caliptra-drivers"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "bitfield",
  "bitflags 2.4.0",
  "caliptra-api",

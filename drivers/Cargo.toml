@@ -9,6 +9,7 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+arrayvec.workspace = true
 bitfield.workspace = true
 bitflags.workspace = true
 caliptra-api.workspace = true
