@@ -115,4 +115,22 @@ fn test_missing_csr() {
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
         ),
     };
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA87_CSR),
+            &[],
+        ),
+    };
+
+    let response = model
+        .mailbox_execute(CommandId::GET_IDEV_MLDSA87_CSR.into(), payload.as_bytes())
+        .unwrap_err();
+
+    match get_ci_rom_version() {
+        CiRomVersion::Latest => assert_eq!(
+            response,
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
+        ),
+    };
 }
