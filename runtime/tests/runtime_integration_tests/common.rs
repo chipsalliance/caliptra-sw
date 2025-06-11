@@ -164,7 +164,43 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
 
-pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
+/// Retrieve the TBS from DER encoded vector
+///
+/// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509
+/// artifact
+pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
+    if der[0] != 0x30 {
+        panic!("Invalid DER start tag");
+    }
+
+    let der_len_offset = 1;
+
+    let tbs_offset = match der[der_len_offset] {
+        0..=0x7F => der_len_offset + 1,
+        0x81 => der_len_offset + 2,
+        0x82 => der_len_offset + 3,
+        _ => panic!("Unsupported DER Length"),
+    };
+
+    if der[tbs_offset] != 0x30 {
+        panic!("Invalid TBS start tag");
+    }
+
+    let tbs_len_offset = tbs_offset + 1;
+    let tbs_len = match der[tbs_len_offset] {
+        0..=0x7F => der[tbs_len_offset] as usize + 2,
+        0x81 => (der[tbs_len_offset + 1]) as usize + 3,
+        0x82 => {
+            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
+                | (((der[tbs_len_offset + 2]) as usize) + 4)
+        }
+        _ => panic!("Invalid DER Length"),
+    };
+
+    der[tbs_offset..tbs_offset + tbs_len].to_vec()
+}
+
+pub fn generate_test_x509_cert(private_key: PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();
     cert_builder.set_version(2).unwrap();
     cert_builder
@@ -177,14 +213,21 @@ pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
     let subject_name = X509NameBuilder::build(subj_name_builder);
     cert_builder.set_subject_name(&subject_name).unwrap();
     cert_builder.set_issuer_name(&subject_name).unwrap();
-    cert_builder.set_pubkey(&ec_key).unwrap();
+    cert_builder.set_pubkey(&private_key).unwrap();
     cert_builder
         .set_not_before(&Asn1Time::days_from_now(0).unwrap())
         .unwrap();
     cert_builder
         .set_not_after(&Asn1Time::days_from_now(365).unwrap())
         .unwrap();
-    cert_builder.sign(&ec_key, MessageDigest::sha384()).unwrap();
+
+    // Use appropriate message digest based on key type
+    let digest = match private_key.id() {
+        openssl::pkey::Id::EC => MessageDigest::sha384(),
+        _ => MessageDigest::null(), // For MLDSA and other key types
+    };
+
+    cert_builder.sign(&private_key, digest).unwrap();
     cert_builder.build()
 }
 
