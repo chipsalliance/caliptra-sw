@@ -248,6 +248,30 @@ struct caliptra_capabilities_resp
     uint8_t capabilities[16];
 };
 
+struct caliptra_set_auth_manifest_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t manifest_size;
+    uint8_t manifest[14 * 1024];
+};
+
+struct caliptra_authorize_and_stash_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t fw_id[4];
+    uint8_t measurement[48];
+    uint8_t context[48];
+    uint32_t svn;
+    uint32_t flags;
+    uint32_t source;
+};
+
+struct caliptra_authorize_and_stash_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t auth_req_result;
+};
+
 struct caliptra_get_idev_csr_resp
 {
     struct caliptra_resp_header hdr;
