@@ -2,8 +2,9 @@
 
 use crate::common::PQC_KEY_TYPE;
 use crate::common::{
-    execute_dpe_cmd, generate_test_x509_cert, get_ecc_fmc_alias_cert, get_rt_alias_cert,
-    run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    execute_dpe_cmd, generate_test_x509_cert, get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert,
+    get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert, run_rt_test, run_rt_test_pqc, DpeResult,
+    RuntimeTestArgs, TEST_LABEL,
 };
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
@@ -345,7 +346,7 @@ fn test_get_ldev_mldsa_cert() {
 }
 
 #[test]
-fn test_fmc_alias_cert() {
+fn test_fmc_alias_ecc384_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let ldev_resp = get_ldev_ecc_cert(&mut model);
@@ -366,13 +367,55 @@ fn test_fmc_alias_cert() {
 }
 
 #[test]
-fn test_rt_alias_cert() {
+fn test_fmc_alias_mldsa87_cert() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let ldev_resp = get_ldev_mldsa_cert(&mut model);
+    let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
+
+    let fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+
+    // Check the FMC is signed by LDevID and that subject/issuer names match
+    assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
+    assert_eq!(
+        fmc_cert
+            .issuer_name()
+            .try_cmp(ldev_cert.subject_name())
+            .unwrap(),
+        core::cmp::Ordering::Equal
+    );
+}
+
+#[test]
+fn test_rt_alias_ecc384_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
 
-    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
+
+    // Check that RT Alias is signed by FMC and that subject/issuer names match
+    assert!(rt_cert.verify(&fmc_cert.public_key().unwrap()).unwrap());
+    assert_eq!(
+        rt_cert
+            .issuer_name()
+            .try_cmp(fmc_cert.subject_name())
+            .unwrap(),
+        core::cmp::Ordering::Equal
+    );
+}
+
+#[test]
+fn test_rt_alias_mldsa87_cert() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+
+    let rt_resp = get_rt_alias_mldsa87_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // Check that RT Alias is signed by FMC and that subject/issuer names match
@@ -390,7 +433,7 @@ fn test_rt_alias_cert() {
 fn test_dpe_leaf_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     let certify_key_cmd = CertifyKeyCmd {
@@ -424,7 +467,7 @@ fn test_dpe_leaf_cert() {
 }
 
 #[test]
-fn test_full_cert_chain() {
+fn test_full_cert_chain_ecc384() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     let ldev_resp = get_ldev_ecc_cert(&mut model);
@@ -433,7 +476,41 @@ fn test_full_cert_chain() {
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
 
-    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
+
+    // Verify full cert chain
+    let mut roots_bldr = X509StoreBuilder::new().unwrap();
+    roots_bldr.add_cert(ldev_cert).unwrap();
+    roots_bldr
+        .set_flags(X509VerifyFlags::X509_STRICT | X509VerifyFlags::PARTIAL_CHAIN)
+        .unwrap();
+    let roots = roots_bldr.build();
+    let mut cert_store = X509StoreContext::new().unwrap();
+    let mut chain = Stack::new().unwrap();
+    chain.push(fmc_cert).unwrap();
+    cert_store
+        .init(&roots, &rt_cert, &chain, |c| {
+            let success = c.verify_cert().unwrap();
+            assert_eq!(c.error(), X509VerifyResult::OK);
+            assert!(success);
+
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn test_full_cert_chain_mldsa87() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let ldev_resp = get_ldev_mldsa_cert(&mut model);
+    let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
+
+    let fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+
+    let rt_resp = get_rt_alias_mldsa87_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // Verify full cert chain

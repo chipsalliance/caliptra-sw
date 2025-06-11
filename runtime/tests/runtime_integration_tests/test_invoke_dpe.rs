@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
-    TEST_LABEL,
+    execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
+    TEST_DIGEST, TEST_LABEL,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
@@ -213,7 +213,7 @@ fn test_invoke_dpe_certify_key_csr() {
         panic!("Wrong response type!");
     };
 
-    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     // parse CMS ContentInfo

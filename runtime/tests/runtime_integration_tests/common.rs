@@ -10,8 +10,8 @@ use caliptra_builder::{
 };
 use caliptra_common::{
     mailbox_api::{
-        CommandId, GetFmcAliasEcc384CertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
-        MailboxReq, MailboxReqHeader,
+        CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp, InvokeDpeReq,
+        InvokeDpeResp, MailboxReq, MailboxReqHeader,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -391,7 +391,7 @@ pub fn get_mldsa_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasMlDsa8
     fmc_resp
 }
 
-pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
+pub fn get_rt_alias_ecc384_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
@@ -407,6 +407,26 @@ pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
     let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    rt_resp
+}
+
+pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_MLDSA87_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_RT_ALIAS_MLDSA87_CERT),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }
