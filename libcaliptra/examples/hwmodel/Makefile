@@ -29,7 +29,7 @@ endif
 
 # HW MODEL
 HWMODEL_DIR = $(OUTPUT_DIR)
-HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
+HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/include
 HWMODEL_INCLUDE = -I$(HWMODEL_HEADER_DIR)
 HWMODEL_LIB = -Wl,-L$(HWMODEL_DIR) -lcaliptra_hw_model_c_binding
 HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lrt -lm -lcrypto
