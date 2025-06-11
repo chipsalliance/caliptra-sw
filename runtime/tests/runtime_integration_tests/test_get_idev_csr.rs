@@ -51,7 +51,6 @@ fn test_get_ecc_csr() {
     };
 }
 
-// [TODO][CAP2]: Verify that the data returned from this test is correct.
 #[test]
 fn test_get_mldsa_csr() {
     // `run_rt_test` is responsibly for clearing the CSR bit.
@@ -85,6 +84,8 @@ fn test_get_mldsa_csr() {
 
             let csr_bytes = &get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize];
             assert_ne!([0; 512], csr_bytes);
+
+            assert!(X509Req::from_der(csr_bytes).is_ok());
         }
     };
 }
