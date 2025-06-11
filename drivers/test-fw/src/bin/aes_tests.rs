@@ -5,17 +5,22 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, Trng,
+    cmac_kdf, cprintln, hmac_kdf, Aes, AesKey, Array4x12, Array4x16, Array4x8, Ecc384,
+    Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs, Sha256, Sha256Alg, Sha256DigestOp, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::hmac::HmacReg;
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
+
+use zerocopy::FromBytes;
 
 // From NIST example vector
 const KEY_EMPTY: [u8; 32] = [
@@ -143,7 +148,107 @@ fn test_cmac_kv() {
     assert_eq!(mac1, mac2, "AES CMAC mismatch");
 }
 
+fn test_preconditioned_keys() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut sha = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    // Init CFI
+    let mut entropy_gen = || trng.generate4();
+    CfiCounter::reset(&mut entropy_gen);
+
+    let aes_keys = [KeyId::KeyId20, KeyId::KeyId21, KeyId::KeyId22];
+
+    let mut composite_key_checksum = Array4x8::default();
+    let mut digest_op = sha.digest_init().unwrap();
+    let completed_digest_op = aes_keys
+        .iter()
+        .map(|&key| {
+            // Create key
+            let key_out = KeyWriteArgs {
+                id: key,
+                usage: KeyUsage::default()
+                    .set_ecc_key_gen_seed_en()
+                    .set_ecc_private_key_en()
+                    .set_hmac_key_en()
+                    .set_aes_key_en(),
+            };
+            assert!(ecc
+                .key_pair(
+                    Ecc384Seed::from(&Ecc384Scalar::from([0u8; 48])),
+                    &Array4x12::default(),
+                    &mut trng,
+                    Ecc384PrivKeyOut::from(key_out),
+                )
+                .is_ok());
+            let mut out = [0; 32];
+            let _ = aes
+                .aes_256_gcm_encrypt(
+                    &mut trng,
+                    caliptra_drivers::AesGcmIv::Random,
+                    AesKey::KV(KeyReadArgs::new(key)),
+                    b"key",
+                    &[0; 32],
+                    &mut out,
+                    16,
+                )
+                .unwrap();
+            out
+        })
+        .fold(digest_op, |mut digest_op, digest| {
+            assert!(digest_op.update(&digest).is_ok());
+            digest_op
+        });
+    assert!(completed_digest_op
+        .finalize(&mut composite_key_checksum)
+        .is_ok());
+
+    assert_ne!(composite_key_checksum, Array4x8::default());
+
+    let composite_key_slice: [u8; 32] = composite_key_checksum.into();
+
+    let mut hkdf_extract = [0; 196];
+    let mut cursor = 0;
+    for (&key, chunk) in aes_keys.iter().zip(hkdf_extract.chunks_exact_mut(64)) {
+        let output = cmac_kdf(
+            &mut aes,
+            AesKey::KV(KeyReadArgs::new(key)),
+            &composite_key_slice,
+            None,
+            4,
+        )
+        .unwrap();
+        assert_ne!(output, [0; 64]);
+        chunk.copy_from_slice(&output);
+    }
+
+    assert_ne!(hkdf_extract, [0; 196]);
+    let res = hmac_kdf(
+        &mut hmac,
+        HmacKey::Key(KeyReadArgs::new(KeyId::KeyId20)),
+        &hkdf_extract,
+        None,
+        &mut trng,
+        HmacTag::Key(KeyWriteArgs::new(
+            KeyId::KeyId20,
+            KeyUsage::default().set_hmac_key_en().set_hmac_data_en(),
+        )),
+        HmacMode::Hmac384,
+    );
+    assert!(res.is_ok());
+}
+
 test_suite! {
     test_cmac,
     test_cmac_kv,
+    test_preconditioned_keys,
 }
