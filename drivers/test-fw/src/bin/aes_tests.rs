@@ -233,19 +233,18 @@ fn test_preconditioned_keys() {
     }
 
     assert_ne!(hkdf_extract, [0; 196]);
+    let mut preconditioned_key = Array4x16::default();
     let res = hmac_kdf(
         &mut hmac,
         HmacKey::Key(KeyReadArgs::new(KeyId::KeyId20)),
         &hkdf_extract,
         None,
         &mut trng,
-        HmacTag::Key(KeyWriteArgs::new(
-            KeyId::KeyId20,
-            KeyUsage::default().set_hmac_key_en().set_hmac_data_en(),
-        )),
+        HmacTag::Array4x16(&mut preconditioned_key),
         HmacMode::Hmac384,
     );
     assert!(res.is_ok());
+    assert_ne!(preconditioned_key, Array4x16::default());
 }
 
 test_suite! {
