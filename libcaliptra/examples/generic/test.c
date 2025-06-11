@@ -796,6 +796,43 @@ int rt_test_all_commands(const test_info* info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // Set Auth Manifest
+    struct caliptra_set_auth_manifest_req set_auth_man_req = {};
+    set_auth_man_req.manifest_size = 14*1024;
+
+    status = caliptra_set_auth_manifest(&set_auth_man_req, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_INVALID_AUTH_MANIFEST_MARKER = 0xE0045;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_INVALID_AUTH_MANIFEST_MARKER) {
+        printf("Set Auth Manifest unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Set Auth Manifest: OK\n");
+    }
+
+    // Authorize and Stash
+    struct caliptra_authorize_and_stash_req auth_and_stash_req = {};
+    struct caliptra_authorize_and_stash_resp auth_and_stash_resp;
+
+    status = caliptra_authorize_and_stash(&auth_and_stash_req, &auth_and_stash_resp, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE = 0xE004E;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE) {
+        printf("Authorize and Stash unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Authorize and Stash: OK\n");
+    }
 
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
