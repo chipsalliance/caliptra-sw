@@ -5,9 +5,9 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    cmac_kdf, cprintln, hmac_kdf, Aes, AesKey, Array4x12, Array4x16, Array4x8, Ecc384,
-    Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId,
-    KeyReadArgs, KeyUsage, KeyWriteArgs, Sha256, Sha256Alg, Sha256DigestOp, Trng,
+    cprintln, hmac_kdf, Aes, AesKey, Array4x12, Array4x16, Array4x8, Ecc384, Ecc384PrivKeyOut,
+    Ecc384Scalar, Ecc384Seed, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs,
+    KeyUsage, KeyWriteArgs, Sha256, Sha256Alg, Sha256DigestOp, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -217,18 +217,19 @@ fn test_preconditioned_keys() {
     let composite_key_slice: [u8; 32] = composite_key_checksum.into();
 
     let mut hkdf_extract = [0; 196];
-    let mut cursor = 0;
     for (&key, chunk) in aes_keys.iter().zip(hkdf_extract.chunks_exact_mut(64)) {
-        let output = cmac_kdf(
-            &mut aes,
-            AesKey::KV(KeyReadArgs::new(key)),
+        let output = Array4x16::mut_from_bytes(chunk).unwrap();
+        let hkdf = hmac_kdf(
+            &mut hmac,
+            HmacKey::Array4x16(&Array4x16::default()),
             &composite_key_slice,
             None,
-            4,
-        )
-        .unwrap();
-        assert_ne!(output, [0; 64]);
-        chunk.copy_from_slice(&output);
+            &mut trng,
+            HmacTag::Array4x16(output),
+            HmacMode::Hmac384,
+        );
+        assert!(hkdf.is_ok());
+        assert_ne!(*output, Array4x16::default());
     }
 
     assert_ne!(hkdf_extract, [0; 196]);
