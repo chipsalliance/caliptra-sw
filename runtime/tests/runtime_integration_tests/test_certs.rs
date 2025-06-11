@@ -9,7 +9,8 @@ use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertResp, GetIdevEcc384CertReq, GetIdevEcc384InfoResp, GetIdevMldsa87CertReq,
-    GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader, StashMeasurementReq,
+    GetIdevMldsa87InfoResp, GetLdevCertResp, GetRtAliasCertResp, MailboxReq, MailboxReqHeader,
+    StashMeasurementReq,
 };
 use caliptra_common::x509::get_tbs;
 use caliptra_error::CaliptraError;
@@ -236,7 +237,7 @@ fn test_idev_id_cert_size_too_big() {
     );
 }
 
-fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
+fn get_ldev_ecc_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::GET_LDEV_ECC384_CERT),
@@ -256,11 +257,31 @@ fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     ldev_resp
 }
 
+fn get_ldev_mldsa_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_LDEV_MLDSA87_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_LDEV_MLDSA87_CERT),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut ldev_resp = GetLdevCertResp::default();
+    ldev_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    ldev_resp
+}
+
 #[test]
-fn test_ldev_cert() {
+fn test_ldev_ecc384_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let ldev_resp = get_ldev_cert(&mut model);
+    let ldev_resp = get_ldev_ecc_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
 
     // Get IDev public key
@@ -290,33 +311,44 @@ fn test_ldev_cert() {
         .unwrap());
 }
 
-// [TODO][CAP2]: Verify the cert that is returned.
 #[test]
 fn test_get_ldev_mldsa_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
+    let ldev_resp = get_ldev_mldsa_cert(&mut model);
+    let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
+
+    // Get IDev MLDSA public key
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_LDEV_MLDSA87_CERT),
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
             &[],
         ),
     };
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::GET_LDEV_MLDSA87_CERT),
+            u32::from(CommandId::GET_IDEV_MLDSA87_INFO),
             payload.as_bytes(),
         )
         .unwrap()
         .unwrap();
-    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
-    assert_ne!(resp, [0; GetLdevCertResp::DATA_MAX_SIZE]);
+    let idev_resp = GetIdevMldsa87InfoResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // Check the LDevID is signed by IDevID
+    let idev_public_key =
+        PKeyMlDsaBuilder::<Public>::new(Variant::MlDsa87, &idev_resp.idev_pub_key, None)
+            .unwrap()
+            .build()
+            .unwrap();
+
+    assert!(ldev_cert.verify(&idev_public_key).unwrap());
 }
 
 #[test]
 fn test_fmc_alias_cert() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let ldev_resp = get_ldev_cert(&mut model);
+    let ldev_resp = get_ldev_ecc_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
 
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
@@ -395,7 +427,7 @@ fn test_dpe_leaf_cert() {
 fn test_full_cert_chain() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
-    let ldev_resp = get_ldev_cert(&mut model);
+    let ldev_resp = get_ldev_ecc_cert(&mut model);
     let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
 
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
