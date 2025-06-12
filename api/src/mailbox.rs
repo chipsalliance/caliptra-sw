@@ -73,7 +73,8 @@ impl CommandId {
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
     pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
-    pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
+    pub const QUOTE_PCRS_ECC384: Self = Self(0x50435251); // "PCRQ"
+    pub const QUOTE_PCRS_MLDSA87: Self = Self(0x5043524D); // "PCRM"
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
@@ -261,7 +262,8 @@ pub enum MailboxResp {
     Capabilities(CapabilitiesResp),
     GetTaggedTci(GetTaggedTciResp),
     GetRtAliasCert(GetRtAliasCertResp),
-    QuotePcrs(QuotePcrsResp),
+    QuotePcrsEcc384(QuotePcrsEcc384Resp),
+    QuotePcrsMldsa87(QuotePcrsMldsa87Resp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevEccCsr(GetIdevCsrResp),
@@ -318,7 +320,8 @@ impl MailboxResp {
             MailboxResp::GetFmcAliasEcc384Cert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetFmcAliasMlDsa87Cert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
-            MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
+            MailboxResp::QuotePcrsEcc384(resp) => Ok(resp.as_bytes()),
+            MailboxResp::QuotePcrsMldsa87(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial(),
@@ -373,7 +376,8 @@ impl MailboxResp {
             MailboxResp::GetFmcAliasEcc384Cert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetFmcAliasMlDsa87Cert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
-            MailboxResp::QuotePcrs(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::QuotePcrsEcc384(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::QuotePcrsMldsa87(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevEccCsr(resp) => resp.as_bytes_partial_mut(),
@@ -465,7 +469,8 @@ pub enum MailboxReq {
     GetRtAliasEcc384Cert(GetRtAliasEcc384CertReq),
     GetRtAliasMlDsa87Cert(GetRtAliasMlDsa87CertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
-    QuotePcrs(QuotePcrsReq),
+    QuotePcrsEcc384(QuotePcrsEcc384Req),
+    QuotePcrsMldsa87(QuotePcrsMldsa87Req),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
@@ -533,7 +538,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_bytes()),
             MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
-            MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
+            MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_bytes()),
+            MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
@@ -599,7 +605,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetRtAliasMlDsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
-            MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::QuotePcrsEcc384(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::QuotePcrsMldsa87(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
@@ -665,7 +672,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasEcc384Cert(_) => CommandId::GET_RT_ALIAS_ECC384_CERT,
             MailboxReq::GetRtAliasMlDsa87Cert(_) => CommandId::GET_RT_ALIAS_MLDSA87_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
-            MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
+            MailboxReq::QuotePcrsEcc384(_) => CommandId::QUOTE_PCRS_ECC384,
+            MailboxReq::QuotePcrsMldsa87(_) => CommandId::QUOTE_PCRS_MLDSA87,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
@@ -1404,49 +1412,62 @@ impl Request for IncrementPcrResetCounterReq {
     type Resp = MailboxRespHeader;
 }
 
-#[repr(C)]
-#[derive(Debug, PartialEq, Eq, FromBytes, Immutable, KnownLayout, IntoBytes)]
-pub struct QuotePcrsFlags(u32);
-
-bitflags! {
-    impl QuotePcrsFlags: u32 {
-        const ECC_SIGNATURE = 0b0000_0001;
-        const MLDSA_SIGNATURE = 0b0000_0010;
-    }
-}
-
 /// QUOTE_PCRS input arguments
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct QuotePcrsReq {
+pub struct QuotePcrsEcc384Req {
     pub hdr: MailboxReqHeader,
     pub nonce: [u8; 32],
-    pub flags: QuotePcrsFlags,
 }
 
 pub type PcrValue = [u8; 48];
 
-/// QUOTE_PCRS output
+/// QUOTE_PCRS_ECC384 output
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct QuotePcrsResp {
+pub struct QuotePcrsEcc384Resp {
     pub hdr: MailboxRespHeader,
     /// The PCR values
     pub pcrs: [PcrValue; 32],
     pub nonce: [u8; 32],
     pub reset_ctrs: [u32; 32],
-    pub ecc_digest: [u8; 48],
-    pub ecc_signature_r: [u8; 48],
-    pub ecc_signature_s: [u8; 48],
-    pub mldsa_digest: [u8; 64],
-    pub mldsa_signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub digest: [u8; 48],
+    pub signature_r: [u8; 48],
+    pub signature_s: [u8; 48],
 }
 
-impl Response for QuotePcrsResp {}
+impl Response for QuotePcrsEcc384Resp {}
 
-impl Request for QuotePcrsReq {
-    const ID: CommandId = CommandId::QUOTE_PCRS;
-    type Resp = QuotePcrsResp;
+impl Request for QuotePcrsEcc384Req {
+    const ID: CommandId = CommandId::QUOTE_PCRS_ECC384;
+    type Resp = QuotePcrsEcc384Resp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct QuotePcrsMldsa87Req {
+    pub hdr: MailboxReqHeader,
+    pub nonce: [u8; 32],
+}
+
+/// QUOTE_PCRS_MLDSA87 output
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct QuotePcrsMldsa87Resp {
+    pub hdr: MailboxRespHeader,
+    /// The PCR values
+    pub pcrs: [PcrValue; 32],
+    pub nonce: [u8; 32],
+    pub reset_ctrs: [u32; 32],
+    pub digest: [u8; 64],
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+}
+
+impl Response for QuotePcrsMldsa87Resp {}
+
+impl Request for QuotePcrsMldsa87Req {
+    const ID: CommandId = CommandId::QUOTE_PCRS_MLDSA87;
+    type Resp = QuotePcrsMldsa87Resp;
 }
 
 // SET_AUTH_MANIFEST

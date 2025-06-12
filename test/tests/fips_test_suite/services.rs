@@ -388,21 +388,20 @@ pub fn exec_incr_pcr_rst_counter<T: HwModel>(hw: &mut T) {
     .unwrap();
 }
 
-pub fn exec_cmd_quote_pcrs<T: HwModel>(hw: &mut T) {
-    let mut payload = MailboxReq::QuotePcrs(QuotePcrsReq {
+pub fn exec_cmd_quote_pcrs_ecc384<T: HwModel>(hw: &mut T) {
+    let mut payload = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
         hdr: MailboxReqHeader { chksum: 0 },
         nonce: [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
             0x1c, 0x1d, 0x1e, 0x1f,
         ],
-        flags: QuotePcrsFlags::ECC_SIGNATURE | QuotePcrsFlags::MLDSA_SIGNATURE,
     });
     payload.populate_chksum().unwrap();
 
-    let resp = mbx_send_and_check_resp_hdr::<_, QuotePcrsResp>(
+    let resp = mbx_send_and_check_resp_hdr::<_, QuotePcrsEcc384Resp>(
         hw,
-        u32::from(CommandId::QUOTE_PCRS),
+        u32::from(CommandId::QUOTE_PCRS_ECC384),
         payload.as_bytes().unwrap(),
     )
     .unwrap();
@@ -410,12 +409,36 @@ pub fn exec_cmd_quote_pcrs<T: HwModel>(hw: &mut T) {
     // Verify command-specific response data
     assert!(contains_some_data(&resp.pcrs));
     assert!(contains_some_data(&resp.nonce));
-    assert!(contains_some_data(&resp.ecc_digest));
-    assert!(contains_some_data(&resp.mldsa_digest));
+    assert!(contains_some_data(&resp.digest));
     assert!(contains_some_data(&resp.reset_ctrs));
-    assert!(contains_some_data(&resp.ecc_signature_r));
-    assert!(contains_some_data(&resp.ecc_signature_s));
-    assert!(contains_some_data(&resp.mldsa_signature));
+    assert!(contains_some_data(&resp.signature_r));
+    assert!(contains_some_data(&resp.signature_s));
+}
+
+pub fn exec_cmd_quote_pcrs_mldsa87<T: HwModel>(hw: &mut T) {
+    let mut payload = MailboxReq::QuotePcrsMldsa87(QuotePcrsMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+            0x1c, 0x1d, 0x1e, 0x1f,
+        ],
+    });
+    payload.populate_chksum().unwrap();
+
+    let resp = mbx_send_and_check_resp_hdr::<_, QuotePcrsMldsa87Resp>(
+        hw,
+        u32::from(CommandId::QUOTE_PCRS_MLDSA87),
+        payload.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    // Verify command-specific response data
+    assert!(contains_some_data(&resp.pcrs));
+    assert!(contains_some_data(&resp.nonce));
+    assert!(contains_some_data(&resp.digest));
+    assert!(contains_some_data(&resp.reset_ctrs));
+    assert!(contains_some_data(&resp.signature));
 }
 
 pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {
@@ -717,8 +740,11 @@ pub fn execute_all_services_rt() {
     // INCREMENT_PCR_RESET_COUNTER
     exec_incr_pcr_rst_counter(&mut hw);
 
-    // QUOTE_PCRS
-    exec_cmd_quote_pcrs(&mut hw);
+    // QUOTE_PCRS_ECC384
+    exec_cmd_quote_pcrs_ecc384(&mut hw);
+
+    // QUOTE_PCRS_MLDSA87
+    exec_cmd_quote_pcrs_mldsa87(&mut hw);
 
     // EXTEND_PCR
     exec_cmd_extend_pcr(&mut hw);
