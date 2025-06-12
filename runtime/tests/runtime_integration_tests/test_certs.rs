@@ -109,7 +109,7 @@ fn test_idev_id_ecc384_cert() {
     let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
     let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
 
-    let cert = generate_test_x509_cert(ec_key.clone());
+    let cert = generate_test_x509_cert(&ec_key);
     assert!(cert.verify(&ec_key).unwrap());
 
     // Extract the r and s values of the signature
@@ -176,7 +176,7 @@ fn test_idev_id_mldsa87_cert() {
     .build()
     .unwrap();
 
-    let cert = generate_test_x509_cert(private_key);
+    let cert = generate_test_x509_cert(&private_key);
     assert!(cert.verify(&public_key).unwrap());
 
     // Extract signature from cert

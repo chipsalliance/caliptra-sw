@@ -164,7 +164,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
 
-pub fn generate_test_x509_cert(private_key: PKey<Private>) -> X509 {
+pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();
     cert_builder.set_version(2).unwrap();
     cert_builder
