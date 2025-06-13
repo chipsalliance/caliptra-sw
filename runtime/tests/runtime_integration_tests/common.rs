@@ -177,7 +177,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     let subject_name = X509NameBuilder::build(subj_name_builder);
     cert_builder.set_subject_name(&subject_name).unwrap();
     cert_builder.set_issuer_name(&subject_name).unwrap();
-    cert_builder.set_pubkey(&private_key).unwrap();
+    cert_builder.set_pubkey(private_key).unwrap();
     cert_builder
         .set_not_before(&Asn1Time::days_from_now(0).unwrap())
         .unwrap();
@@ -191,7 +191,7 @@ pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
         _ => MessageDigest::null(), // For MLDSA and other key types
     };
 
-    cert_builder.sign(&private_key, digest).unwrap();
+    cert_builder.sign(private_key, digest).unwrap();
     cert_builder.build()
 }
 
