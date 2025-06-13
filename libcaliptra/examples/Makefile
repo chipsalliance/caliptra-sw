@@ -4,7 +4,7 @@ CROSS_COMPILE ?=
 
 PLAT ?= hwmodel
 
-.PHONY: all clean run 
+.PHONY: all clean run
 
 all:
 	$(Q)make CROSS_COMPILE=$(CROSS_COMPILE) -C $(PLAT)
