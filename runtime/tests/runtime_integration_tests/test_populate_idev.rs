@@ -86,7 +86,7 @@ fn test_populate_idev_ecc_cert_cmd() {
     let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
     let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
 
-    let cert = generate_test_x509_cert(ec_key);
+    let cert = generate_test_x509_cert(&ec_key);
 
     // copy der encoded idev cert
     let cert_bytes = cert.to_der().unwrap();
