@@ -1164,15 +1164,28 @@ int caliptra_increment_pcr_reset_counter(struct caliptra_increment_pcr_reset_cou
     return pack_and_execute_command(&p, async);
 }
 
-// Quote PCRs
-int caliptra_quote_pcrs(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_resp *resp, bool async)
+// Quote PCRs - ECC
+int caliptra_quote_pcrs_ecc384(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_ecc384_resp *resp, bool async)
 {
     if (!req || !resp)
     {
         return INVALID_PARAMS;
     }
 
-    CREATE_PARCEL(p, OP_QUOTE_PCRS, req, resp);
+    CREATE_PARCEL(p, OP_QUOTE_PCRS_ECC384, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Quote PCRs - MLDSA
+int caliptra_quote_pcrs_mldsa87(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_mldsa87_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_QUOTE_PCRS_MLDSA87, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

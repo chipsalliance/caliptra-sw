@@ -194,20 +194,27 @@ struct caliptra_quote_pcrs_req
 {
     struct caliptra_req_header hdr;
     uint8_t nonce[32];
-    uint32_t flags;
 };
 
-struct caliptra_quote_pcrs_resp
+struct caliptra_quote_pcrs_ecc384_resp
 {
     struct caliptra_resp_header hdr;
     uint8_t pcrs[32][48];
     uint8_t nonce[32];
     uint32_t reset_ctrs[32];
-    uint8_t ecc_digest[48];
-    uint8_t ecc_signature_r[48];
-    uint8_t ecc_signature_s[48];
-    uint8_t mldsa_digest[64];
-    uint8_t mldsa_signature[4628];
+    uint8_t digest[48];
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+};
+
+struct caliptra_quote_pcrs_mldsa87_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t pcrs[32][48];
+    uint8_t nonce[32];
+    uint32_t reset_ctrs[32];
+    uint8_t digest[64];
+    uint8_t signature[4628];
 };
 
 struct caliptra_extend_pcr_req
