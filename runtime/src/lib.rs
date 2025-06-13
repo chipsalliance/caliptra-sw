@@ -270,7 +270,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
-        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::QUOTE_PCRS_ECC384 => {
+            GetPcrQuoteCmd::execute(drivers, AlgorithmType::Ecc384, cmd_bytes, resp)
+        }
+        CommandId::QUOTE_PCRS_MLDSA87 => {
+            GetPcrQuoteCmd::execute(drivers, AlgorithmType::Mldsa87, cmd_bytes, resp)
+        }
         CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc)
             .write_to_prefix(resp)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)

@@ -7,12 +7,12 @@ use caliptra_api::SocManager;
 
 use caliptra_common::mailbox_api::{
     CommandId, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxReq,
-    MailboxReqHeader, QuotePcrsFlags, QuotePcrsReq, QuotePcrsResp,
+    MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req,
+    QuotePcrsMldsa87Resp,
 };
 use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
-use caliptra_image_types::MLDSA87_SIGNATURE_BYTE_SIZE;
 use ml_dsa::signature::Verifier;
 use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::{
@@ -27,7 +27,7 @@ use x509_cert::der::{Decode, Encode};
 use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
-fn test_pcr_quote() {
+fn test_pcr_quote_ecc() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     const RESET_PCR: u32 = 7;
@@ -48,19 +48,82 @@ fn test_pcr_quote() {
         .unwrap()
         .unwrap();
 
-    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
+    let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
         hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::ECC_SIGNATURE | QuotePcrsFlags::MLDSA_SIGNATURE,
         nonce: [0xf5; 32],
     });
     cmd.populate_chksum().unwrap();
 
     let resp = model
-        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_ECC384),
+            cmd.as_bytes().unwrap(),
+        )
         .unwrap()
         .unwrap();
 
-    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
+    let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // Compute the digest and compare to mailbox result
+    let mut h = Hasher::new(MessageDigest::sha512()).unwrap();
+    resp.pcrs.iter().for_each(|x| h.update(x).unwrap());
+    h.update(&resp.nonce).unwrap();
+    let res = h.finish().unwrap();
+    let digest: [u8; 64] = res.as_bytes().try_into().unwrap();
+    assert_eq!(resp.digest, &digest[..48]);
+
+    let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
+    // See if incrementing the reset counter worked
+    assert_eq!(pcr7_reset_counter, 1);
+
+    // verify signature
+    let big_r = BigNum::from_slice(&resp.signature_r).unwrap();
+    let big_s = BigNum::from_slice(&resp.signature_s).unwrap();
+    let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
+
+    let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
+    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+    let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
+    assert!(sig.verify(&resp.digest, &pkey).unwrap());
+}
+
+#[test]
+fn test_pcr_quote_mldsa() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    const RESET_PCR: u32 = 7;
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let mut cmd = MailboxReq::IncrementPcrResetCounter(IncrementPcrResetCounterReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        index: RESET_PCR,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let _ = model
+        .mailbox_execute(
+            u32::from(CommandId::INCREMENT_PCR_RESET_COUNTER),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let mut cmd = MailboxReq::QuotePcrsMldsa87(QuotePcrsMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0xf5; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_MLDSA87),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp = QuotePcrsMldsa87Resp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Compute the digest and compare to mailbox result
     let mut h = Hasher::new(MessageDigest::sha512()).unwrap();
@@ -68,109 +131,28 @@ fn test_pcr_quote() {
     h.update(&resp.nonce).unwrap();
     let res = h.finish().unwrap();
     let mut digest: [u8; 64] = res.as_bytes().try_into().unwrap();
-    assert_eq!(resp.ecc_digest, &digest[..48]);
 
     // Reverse the sequence of bytes in the digest.
     // This is the byte order Caliptra hardware uses for MLDSA signing the PCR digest.
     digest.reverse();
-    assert_eq!(resp.mldsa_digest, digest);
+    assert_eq!(resp.digest, digest);
 
     let pcr7_reset_counter: u32 = resp.reset_ctrs[usize::try_from(RESET_PCR).unwrap()];
     // See if incrementing the reset counter worked
     assert_eq!(pcr7_reset_counter, 1);
 
     // verify signature
-    let big_r = BigNum::from_slice(&resp.ecc_signature_r).unwrap();
-    let big_s = BigNum::from_slice(&resp.ecc_signature_s).unwrap();
-    let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
-
-    let ecc_fmc_resp = get_ecc_fmc_alias_cert(&mut model);
-    let ecc_fmc_cert: X509 =
-        X509::from_der(&ecc_fmc_resp.data[..ecc_fmc_resp.data_size as usize]).unwrap();
-    let ecc_pkey = ecc_fmc_cert.public_key().unwrap().ec_key().unwrap();
-    assert!(sig.verify(&resp.ecc_digest, &ecc_pkey).unwrap());
-
-    let mldsa_fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
-    let cert =
-        Certificate::from_der(&mldsa_fmc_resp.data[..mldsa_fmc_resp.data_size as usize]).unwrap();
-    let mldsa_pk_bytes = cert
+    let fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
+    let cert = Certificate::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+    let pk_bytes = cert
         .tbs_certificate
         .subject_public_key_info
         .to_der()
         .unwrap();
-    let mldsa_pk = VerifyingKey::<MlDsa87>::from_public_key_der(&mldsa_pk_bytes).unwrap();
-    let signature_bytes: [u8; 4627] = resp.mldsa_signature[..4627].try_into().unwrap();
+    let pk = VerifyingKey::<MlDsa87>::from_public_key_der(&pk_bytes).unwrap();
+    let signature_bytes: [u8; 4627] = resp.signature[..4627].try_into().unwrap();
     let signature = Signature::<MlDsa87>::decode((&signature_bytes).into()).unwrap();
-    mldsa_pk.verify(&resp.mldsa_digest, &signature).unwrap();
-}
-
-#[test]
-fn test_pcr_quote_mldsa_sig_zero() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::ECC_SIGNATURE,
-        nonce: [0; 32],
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
-        .unwrap()
-        .unwrap();
-
-    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
-
-    assert_ne!(resp.ecc_signature_r, [0u8; 48]);
-    assert_ne!(resp.ecc_signature_s, [0u8; 48]);
-    assert_eq!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
-}
-
-#[test]
-fn test_pcr_quote_ecc_sig_zero() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::MLDSA_SIGNATURE,
-        nonce: [0; 32],
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
-        .unwrap()
-        .unwrap();
-
-    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
-
-    assert_eq!(resp.ecc_signature_r, [0u8; 48]);
-    assert_eq!(resp.ecc_signature_s, [0u8; 48]);
-    assert_ne!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
-}
-
-#[test]
-fn test_pcr_quote_ecc_and_mldsa() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-
-    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::MLDSA_SIGNATURE | QuotePcrsFlags::ECC_SIGNATURE,
-        nonce: [0; 32],
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
-        .unwrap()
-        .unwrap();
-
-    let resp = QuotePcrsResp::read_from_bytes(resp.as_slice()).unwrap();
-
-    assert_ne!(resp.ecc_signature_r, [0u8; 48]);
-    assert_ne!(resp.ecc_signature_s, [0u8; 48]);
-    assert_ne!(resp.mldsa_signature, [0u8; MLDSA87_SIGNATURE_BYTE_SIZE]);
+    pk.verify(&resp.digest, &signature).unwrap();
 }
 
 fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> MailboxReq {
@@ -185,19 +167,21 @@ fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> Ma
 }
 
 pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
-    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
+    let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
         hdr: MailboxReqHeader { chksum: 0 },
-        flags: QuotePcrsFlags::ECC_SIGNATURE,
         nonce: [0u8; 32],
     });
     cmd.populate_chksum().unwrap();
 
     let resp = model
-        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_ECC384),
+            cmd.as_bytes().unwrap(),
+        )
         .unwrap()
         .unwrap();
 
-    QuotePcrsResp::read_from_bytes(resp.as_slice())
+    QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice())
         .unwrap()
         .pcrs
 }

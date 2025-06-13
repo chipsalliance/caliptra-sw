@@ -51,7 +51,6 @@ fn test_get_ecc_csr() {
     };
 }
 
-// [TODO][CAP2]: Verify that the data returned from this test is correct.
 #[test]
 fn test_get_mldsa_csr() {
     // `run_rt_test` is responsibly for clearing the CSR bit.
@@ -85,6 +84,8 @@ fn test_get_mldsa_csr() {
 
             let csr_bytes = &get_idv_csr_resp.data[..get_idv_csr_resp.data_size as usize];
             assert_ne!([0; 512], csr_bytes);
+
+            assert!(X509Req::from_der(csr_bytes).is_ok());
         }
     };
 }
@@ -106,6 +107,24 @@ fn test_missing_csr() {
 
     let response = model
         .mailbox_execute(CommandId::GET_IDEV_ECC384_CSR.into(), payload.as_bytes())
+        .unwrap_err();
+
+    match get_ci_rom_version() {
+        CiRomVersion::Latest => assert_eq!(
+            response,
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
+        ),
+    };
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_IDEV_MLDSA87_CSR),
+            &[],
+        ),
+    };
+
+    let response = model
+        .mailbox_execute(CommandId::GET_IDEV_MLDSA87_CSR.into(), payload.as_bytes())
         .unwrap_err();
 
     match get_ci_rom_version() {

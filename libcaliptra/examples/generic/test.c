@@ -817,21 +817,38 @@ int rt_test_all_commands(const test_info *info)
         printf("Increment PCR Reset Counter: OK\n");
     }
 
-    // Quote PCRs
-    struct caliptra_quote_pcrs_req quote_pcrs_req = {};
-    struct caliptra_quote_pcrs_resp quote_pcrs_resp;
+    // Quote PCRs - ECC
+    struct caliptra_quote_pcrs_req quote_pcrs_ecc_req = {};
+    struct caliptra_quote_pcrs_ecc384_resp quote_pcrs_ecc_resp;
 
-    status = caliptra_quote_pcrs(&quote_pcrs_req, &quote_pcrs_resp, false);
+    status = caliptra_quote_pcrs_ecc384(&quote_pcrs_ecc_req, &quote_pcrs_ecc_resp, false);
 
     if (status)
     {
-        printf("Quote PCRs failed: 0x%x\n", status);
+        printf("Quote PCRs - ECC failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     }
     else
     {
-        printf("Quote PCRs: OK\n");
+        printf("Quote PCRs - ECC: OK\n");
+    }
+
+    // Quote PCRs - MLDSA
+    struct caliptra_quote_pcrs_req quote_pcrs_mldsa_req = {};
+    struct caliptra_quote_pcrs_mldsa87_resp quote_pcrs_mldsa_resp;
+
+    status = caliptra_quote_pcrs_mldsa87(&quote_pcrs_mldsa_req, &quote_pcrs_mldsa_resp, false);
+
+    if (status)
+    {
+        printf("Quote PCRs - MLDSA failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Quote PCRs - MLDSA: OK\n");
     }
 
     // Extend PCR

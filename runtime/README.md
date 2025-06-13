@@ -752,14 +752,14 @@ Command Code: `0x4450_4543` ("DPEC")
 | data\_size    | u32           | Length in bytes of the valid data in the data field.
 | data          | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
-### QUOTE\_PCRS
+### QUOTE\_PCRS\_ECC384
 
-Generates a signed quote over all Caliptra hardware PCRs that are using the Caliptra PCR quoting key.
+Generates a signed quote over all Caliptra hardware PCRs using the Caliptra PCR ECC384 quoting key.
 All PCR values are hashed together with the nonce to produce the quote.
 
 Command Code: `0x5043_5251` ("PCRQ")
 
-*Table: `QUOTE_PCRS` input arguments*
+*Table: `QUOTE_PCRS_ECC384` input arguments*
 
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
@@ -768,7 +768,7 @@ Command Code: `0x5043_5251` ("PCRQ")
 
 PcrValue is defined as u8[48]
 
-*Table: `QUOTE_PCRS` output arguments*
+*Table: `QUOTE_PCRS_ECC384` output arguments*
 
 | **Name**           | **Type**     | **Description**
 | --------           | --------     | ---------------
@@ -777,11 +777,37 @@ PcrValue is defined as u8[48]
 | PCRs               | PcrValue[32] | Values of all PCRs.
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
-| ecc_digest         | u8[48]       | Return the lower 48 bytes of SHA2-512 digest over the PCR values and the nonce.
-| ecc_signature\_r   | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The FMC Alias ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
-| ecc_signature\_s   | u8[48]       | ECC P-384 S portion of the signature over the `ecc_digest`.
-| mldsa_digest       | u8[64]       | Return the SHA2-512 digest over the PCR values and the nonce, in byte reversed order.
-| mldsa_signature\_s | u8[4628]     | MLDSA-87 signature over the `mldsa_digest` (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
+| digest             | u8[48]       | Return the lower 48 bytes of SHA2-512 digest over the PCR values and the nonce.
+| signature\_r       | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The FMC Alias ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
+| signature\_s       | u8[48]       | ECC P-384 S portion of the signature over the `ecc_digest`.
+
+### QUOTE\_PCRS\_MLDSA87
+
+Generates a signed quote over all Caliptra hardware PCRs that are using the Caliptra PCR Mldsa87 quoting key.
+All PCR values are hashed together with the nonce to produce the quote.
+
+Command Code: `0x5043_524D` ("PCRM")
+
+*Table: `QUOTE_PCRS_MLDSA87` input arguments*
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| nonce        | u8[32]        | Caller-supplied nonce to be included in signed data.
+
+PcrValue is defined as u8[48]
+
+*Table: `QUOTE_PCRS_MLDSA87` output arguments*
+
+| **Name**           | **Type**     | **Description**
+| --------           | --------     | ---------------
+| chksum             | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status       | u32          | Indicates if the command is FIPS approved or an error.
+| PCRs               | PcrValue[32] | Values of all PCRs.
+| nonce              | u8[32]       | Return the nonce used as input for convenience.
+| reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
+| digest             | u8[64]       | Return the SHA2-512 digest over the PCR values and the nonce, in byte reversed order.
+| signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
 
 ### EXTEND\_PCR
 

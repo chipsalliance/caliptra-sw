@@ -15,8 +15,8 @@ Abstract:
 use crate::{mutrefbytes, Drivers};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxRespHeader, QuotePcrsFlags,
-    QuotePcrsReq, QuotePcrsResp,
+    AlgorithmType, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxRespHeader,
+    QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req, QuotePcrsMldsa87Resp,
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::{FromBytes, IntoBytes};
@@ -49,51 +49,60 @@ impl GetPcrQuoteCmd {
     #[inline(never)]
     pub(crate) fn execute(
         drivers: &mut Drivers,
+        alg_type: AlgorithmType,
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let args: &QuotePcrsReq = QuotePcrsReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
-        let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
-
-        let mut pcr_hash_mldsa = pcr_hash;
-        pcr_hash_mldsa.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
-
-        let mldsa_signature = if args.flags.contains(QuotePcrsFlags::MLDSA_SIGNATURE) {
-            drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?
-        } else {
-            Default::default()
-        };
-
-        let ecc_signature = if args.flags.contains(QuotePcrsFlags::ECC_SIGNATURE) {
-            drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?
-        } else {
-            Default::default()
-        };
-
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
-        let resp = mutrefbytes::<QuotePcrsResp>(resp)?;
-        resp.hdr = MailboxRespHeader::default();
-        resp.nonce = args.nonce;
-        for (i, p) in raw_pcrs.iter().enumerate() {
-            resp.pcrs[i] = p.into()
+        match alg_type {
+            AlgorithmType::Ecc384 => {
+                let args = QuotePcrsEcc384Req::ref_from_bytes(cmd_bytes)
+                    .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
+
+                let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+
+                let resp = mutrefbytes::<QuotePcrsEcc384Resp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
+                resp.nonce = args.nonce;
+                for (i, p) in raw_pcrs.iter().enumerate() {
+                    resp.pcrs[i] = p.into()
+                }
+                resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
+
+                // Change the word endianness for ECC verification. Take lower 48 bytes.
+                resp.digest
+                    .copy_from_slice((&<[_; 64]>::from(pcr_hash))[..48].as_ref());
+
+                resp.signature_r = signature.r.into();
+                resp.signature_s = signature.s.into();
+
+                Ok(core::mem::size_of::<QuotePcrsEcc384Resp>())
+            }
+            AlgorithmType::Mldsa87 => {
+                let args = QuotePcrsMldsa87Req::ref_from_bytes(cmd_bytes)
+                    .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                let mut pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
+
+                pcr_hash.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
+
+                let signature = drivers.mldsa87.pcr_sign_flow(&mut drivers.trng)?;
+
+                let resp = mutrefbytes::<QuotePcrsMldsa87Resp>(resp)?;
+                resp.hdr = MailboxRespHeader::default();
+                resp.nonce = args.nonce;
+                for (i, p) in raw_pcrs.iter().enumerate() {
+                    resp.pcrs[i] = p.into()
+                }
+                resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
+
+                resp.digest.copy_from_slice(pcr_hash.0.as_bytes());
+                resp.signature = signature.into();
+
+                Ok(core::mem::size_of::<QuotePcrsMldsa87Resp>())
+            }
         }
-        resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
-
-        // Change the word endianness for ECC verification. Take lower 48 bytes.
-        resp.ecc_digest
-            .copy_from_slice((&<[_; 64]>::from(pcr_hash))[..48].as_ref());
-
-        // Do not change the word endianness for MLDSA verification.
-        resp.mldsa_digest
-            .copy_from_slice(pcr_hash_mldsa.0.as_bytes());
-        resp.ecc_signature_r = ecc_signature.r.into();
-        resp.ecc_signature_s = ecc_signature.s.into();
-        resp.mldsa_signature = mldsa_signature.into();
-
-        Ok(core::mem::size_of::<QuotePcrsResp>())
     }
 }
 
