@@ -149,10 +149,6 @@ fn test_populate_idev_ecc_cert_size_too_big() {
     );
 }
 
-// [CAP2][TODO]
-// test_populate_idev_mldsa_cert_cmd
-// test_populate_idev_mldsa_cert_size_too_big
-
 fn mldsa_keygen() -> PKey<Private> {
     let mut rng = rand::thread_rng();
     let seed: [u8; 32] = rng.gen();
