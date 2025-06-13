@@ -127,8 +127,6 @@ impl From<RtBootStatus> for u32 {
 
 pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_ECC_CERT_CHAIN_SIZE: usize = 4096;
-// pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 24576;
-// pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 98_000;
 pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 31_000;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
