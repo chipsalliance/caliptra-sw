@@ -29,9 +29,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_types::{
     FwVerificationPqcKeyType, ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
-    ImageLmsSignature, ImageMldsaPubKey, ImageMldsaSignature, ImagePreamble,
-    MLDSA87_PUB_KEY_BYTE_SIZE, MLDSA87_SIGNATURE_BYTE_SIZE, SHA192_DIGEST_WORD_SIZE,
-    SHA384_DIGEST_BYTE_SIZE,
+    ImageLmsSignature, ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
 use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
@@ -99,35 +97,6 @@ impl SetAuthManifestCmd {
             message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
         }
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
-    }
-
-    fn mldsa87_verify_var(
-        mldsa: &mut Mldsa87,
-        msg: &[u8],
-        pub_key: &ImageMldsaPubKey,
-        sig: &ImageMldsaSignature,
-    ) -> CaliptraResult<Mldsa87Result> {
-        // Public Key is received in hw format from the image. No conversion needed.
-        let pub_key_bytes: [u8; MLDSA87_PUB_KEY_BYTE_SIZE] = pub_key
-            .0
-            .as_bytes()
-            .try_into()
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
-        let pub_key = Mldsa87PubKey::read_from_bytes(pub_key_bytes.as_bytes()).or(Err(
-            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
-        ))?;
-
-        // Signature is received in hw format from the image. No conversion needed.
-        let sig_bytes: [u8; MLDSA87_SIGNATURE_BYTE_SIZE] = sig
-            .0
-            .as_bytes()
-            .try_into()
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED)?;
-        let sig = Mldsa87Signature::read_from_bytes(sig_bytes.as_bytes()).or(Err(
-            CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_TYPE_CONVERSION_FAILED,
-        ))?;
-
-        mldsa.verify_var(&pub_key, msg, &sig)
     }
 
     fn verify_vendor_signed_data(
@@ -206,14 +175,13 @@ impl SetAuthManifestCmd {
                 range.len() as u32,
             )?;
 
-            let (vendor_fw_mldsa_key, _) = ImageMldsaPubKey::ref_from_prefix(
-                fw_preamble.vendor_pqc_active_pub_key.0.as_bytes(),
-            )
-            .or(Err(
-                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
-            ))?;
+            let (vendor_fw_mldsa_key, _) =
+                Mldsa87PubKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
+                    .or(Err(
+                        CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
+                    ))?;
 
-            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+            let (mldsa_sig, _) = Mldsa87Signature::ref_from_prefix(
                 auth_manifest_preamble
                     .vendor_pub_keys_signatures
                     .pqc_sig
@@ -224,8 +192,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
             ))?;
 
-            let result =
-                Self::mldsa87_verify_var(mldsa, vendor_data, vendor_fw_mldsa_key, mldsa_sig)?;
+            let result = mldsa.verify_var(vendor_fw_mldsa_key, vendor_data, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
             }
@@ -308,14 +275,13 @@ impl SetAuthManifestCmd {
                 range.len() as u32,
             )?;
 
-            let (owner_fw_mldsa_key, _) = ImageMldsaPubKey::ref_from_prefix(
-                fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes(),
-            )
-            .or(Err(
-                CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
-            ))?;
+            let (owner_fw_mldsa_key, _) =
+                Mldsa87PubKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
+                    .or(Err(
+                        CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
+                    ))?;
 
-            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+            let (mldsa_sig, _) = Mldsa87Signature::ref_from_prefix(
                 auth_manifest_preamble
                     .owner_pub_keys_signatures
                     .pqc_sig
@@ -326,8 +292,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
             ))?;
 
-            let result =
-                Self::mldsa87_verify_var(mldsa, owner_data, owner_fw_mldsa_key, mldsa_sig)?;
+            let result = mldsa.verify_var(owner_fw_mldsa_key, owner_data, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
@@ -417,7 +382,7 @@ impl SetAuthManifestCmd {
         } else {
             let metadata_col_data = Self::offset_data(metadata_col, 0, metadata_col.len() as u32)?;
 
-            let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
+            let (mldsa_pub_key, _) = Mldsa87PubKey::ref_from_prefix(
                 auth_manifest_preamble
                     .vendor_pub_keys
                     .pqc_pub_key
@@ -428,7 +393,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_PUB_KEY_READ_FAILED,
             ))?;
 
-            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+            let (mldsa_sig, _) = Mldsa87Signature::ref_from_prefix(
                 auth_manifest_preamble
                     .vendor_image_metdata_signatures
                     .pqc_sig
@@ -439,8 +404,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
             ))?;
 
-            let result =
-                Self::mldsa87_verify_var(mldsa, metadata_col_data, mldsa_pub_key, mldsa_sig)?;
+            let result = mldsa.verify_var(mldsa_pub_key, metadata_col_data, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
             }
@@ -526,7 +490,7 @@ impl SetAuthManifestCmd {
         } else {
             let metadata_col_data = Self::offset_data(metadata_col, 0, metadata_col.len() as u32)?;
 
-            let (mldsa_pub_key, _) = ImageMldsaPubKey::ref_from_prefix(
+            let (mldsa_pub_key, _) = Mldsa87PubKey::ref_from_prefix(
                 auth_manifest_preamble
                     .owner_pub_keys
                     .pqc_pub_key
@@ -537,7 +501,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_PUB_KEY_READ_FAILED,
             ))?;
 
-            let (mldsa_sig, _) = ImageMldsaSignature::ref_from_prefix(
+            let (mldsa_sig, _) = Mldsa87Signature::ref_from_prefix(
                 auth_manifest_preamble
                     .owner_image_metdata_signatures
                     .pqc_sig
@@ -548,8 +512,7 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
             ))?;
 
-            let result =
-                Self::mldsa87_verify_var(mldsa, metadata_col_data, mldsa_pub_key, mldsa_sig)?;
+            let result = mldsa.verify_var(mldsa_pub_key, metadata_col_data, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
