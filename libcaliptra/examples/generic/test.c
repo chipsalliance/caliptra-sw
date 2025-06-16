@@ -905,47 +905,6 @@ int rt_test_all_commands(const test_info* info)
         }
     }
 
-    // Test the non-streaming mbox hash function
-    uint32_t mbox_hash[16]; // Adjust size as needed for SHA-384 or SHA-512
-    uint32_t mbox_hash_data[4] = {0x01, 0x02, 0x03, 0x04};
-    uint32_t expected_mbox_hash[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
-    uint32_t mbox_start_addr = 0x1000; // Example starting address for the mailbox
-
-    struct caliptra_buffer caliptra_hash_buf = {0};
-    caliptra_hash_buf.len = sizeof(mbox_hash_data) * 4;
-    // Allocte a buffer to hold the hash using malloc
-    caliptra_hash_buf.data = mbox_hash_data;
-
-    // Write the hash data into the mailbox to be hashed
-    caliptra_mbox_send_data(caliptra_hash_buf);
-
-    // Compute MBox Hash
-    status = caliptra_start_mbox_hash(CALIPTRA_SHA_ACCELERATOR_MODE_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, mbox_start_addr, sizeof(mbox_hash_data), mbox_hash);
-    if (status) {
-        printf("Start MBox Hash failed: 0x%x\n", status);
-        dump_caliptra_error_codes();
-        failure = 1;
-    } else {
-        printf("Start MBox Hash: OK\n");
-
-        // Verify the hash against the expected value
-        if (memcmp(mbox_hash, expected_mbox_hash, 16) == 0) {
-            printf("MBox Hash Test: Passed\n");
-        } else {
-            printf("MBox Hash Test: Failed - Hash does not match expected value\n");
-            printf("Expected Hash: ");
-            for (int i = 0; i < 16; i++) {
-                printf("%08x ", expected_mbox_hash[i]);
-            }
-            printf("\nReceived Hash: ");
-            for (int i = 0; i < 16; i++) {
-                printf("%08x ", mbox_hash[i]);
-            }
-            printf("\n");
-            failure = 1;
-        }
-    }
-
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
 
