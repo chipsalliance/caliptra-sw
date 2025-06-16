@@ -11,7 +11,6 @@
 #include "caliptra_types.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
-#include "caliptra_sha.h"
 
 #define CALIPTRA_STATUS_NOT_READY (0)
 #define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)
@@ -1433,33 +1432,33 @@ int caliptra_compute_mbox_sha(int mode, int endian, uint32_t mbox_start_addr, ui
     }
 
     uint32_t lock_status;
-    caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_LOCK_ADDR, &lock_status);
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
     if (lock_status & 0x1) {
         return MBX_BUSY;
     }
 
     // Zeroize engine registers to start fresh
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_CONTROL_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
     // Set mode and endianess accordingly
     uint32_t control_value = (mode & 0xFFFF) | ((endian & 0xFF) << 16);
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_CONTROL_ADDR, control_value);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, control_value);
     // Write data to the SHA accelerator
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_START_ADDR, mbox_start_addr);
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_DLEN_ADDR, data_len);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_START_ADDRESS, mbox_start_addr);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, data_len);
     // Let engine read out mbox addr
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_EXECUTE_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
     // Wait for the SHA accelerator to complete
     uint32_t status;
     do {
-        caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_STATUS_ADDR, &status);
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
     } while ((status & 0x1) == 0);
     // Read out the DIGEST registers and place into hash struct
     for (int i = 0; i < 16; i++) {
-        caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_DIGEST_ADDR + (i * 4), &hash[i]);
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
     }
 
     // Writing 1 will clear the lock
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_LOCK_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
 
     return NO_ERROR;
 }
@@ -1485,20 +1484,20 @@ int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t 
 
     uint32_t lock_status;
     // By reading the lock register we also start holding the lock if it was not already held
-    caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_LOCK_ADDR, &lock_status);
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
     if (lock_status & 0x1) {
         return MBX_BUSY;
     }
 
     // Zeroize engine registers to start fresh
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_CONTROL_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
     // Set mode and endianess accordingly
     uint32_t control_value = (mode & 0xFFFF) | ((endian & 0xFF) << 16);
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_CONTROL_ADDR, control_value);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, control_value);
 
     // Write initial data to the SHA accelerator
     for (uint32_t i = 0; i < data_len; i++) {
-        caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_DATAIN_ADDR, in_data[i]);
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
     }
 
     return NO_ERROR;
@@ -1515,13 +1514,13 @@ int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t 
  * @return 0 on success, or an error code on failure.
  */
 int caliptra_update_sha_stream(uint32_t* in_data, uint32_t data_len) {
-    if (!data || data_len < 1) {
+    if (!in_data || data_len < 1) {
         return INVALID_PARAMS;
     }
 
     // Write data to the SHA accelerator
     for (uint32_t i = 0; i < data_len; i++) {
-        caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_DATAIN_ADDR, data[i]);
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
     }
 
     return NO_ERROR;
@@ -1542,21 +1541,21 @@ int caliptra_finish_sha_stream(uint32_t* hash) {
     }
 
     // Signal the SHA accelerator to finish the stream
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_EXECUTE_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
 
     // Wait for the SHA accelerator to complete
     uint32_t status;
     do {
-        caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_STATUS_ADDR, &status);
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
     } while ((status & 0x1) == 0);
 
     // Read out the DIGEST registers and place into hash struct
     for (int i = 0; i < 16; i++) {
-        caliptra_read_u32(CALIPTRA_SHA_ACCELERATOR_DIGEST_ADDR + (i * 4), &hash[i]);
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
     }
 
     // Writing 1 will clear the lock
-    caliptra_write_u32(CALIPTRA_SHA_ACCELERATOR_LOCK_ADDR, 0x1);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
 
     return NO_ERROR;
 }
