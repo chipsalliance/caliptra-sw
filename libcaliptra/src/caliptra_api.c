@@ -1359,7 +1359,6 @@ void caliptra_req_idev_csr_complete()
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, dbg_manuf_serv_req & ~0x01);
 }
 
-
 // Check if IDEV CSR is ready.
 bool caliptra_is_idevid_csr_ready() {
     uint32_t status;
@@ -1371,4 +1370,102 @@ bool caliptra_is_idevid_csr_ready() {
     }
 
     return false;
+}
+
+/**
+ * @brief Starts a SHA stream using the specified mode and endianess.
+ *
+ *        This function will lock the SHA accelerator and write the initial data to the SHA accelerator.
+ *        Afterwards either call caliptra_update_sha_stream() to update the SHA stream with additional data,
+ *        or call caliptra_finish_sha_stream() to finish the SHA stream, retrieve the resulting hash and clear the lock.
+ *
+ * @param mode The SHA mode to use (e.g., CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384).
+ * @param endian The endianess to use (e.g., CALIPTRA_SHA_ACCELERATOR_ENDIANESS_BIG).
+ * @param in_data Pointer to the initial data to hash.
+ * @param data_len Length of the initial data to hash.
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t data_len) {
+    if (!in_data || data_len < 1 || (mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384 && mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512) || 
+        (endian != CALIPTRA_SHA_ACCELERATOR_ENDIANESS_BIG && endian != CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE)) {
+        return INVALID_PARAMS;
+    }
+
+    uint32_t lock_status;
+    // By reading the lock register we also start holding the lock if it was not already held
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
+    if (lock_status & 0x1) {
+        return MBX_BUSY;
+    }
+
+    // Zeroize engine registers to start fresh
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
+    // Set mode and endianess accordingly
+    uint32_t control_value = ((mode << SHA512_ACC_CSR_MODE_MODE_LOW) & SHA512_ACC_CSR_MODE_MODE_MASK) |
+                             ((endian << SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_LOW) & SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_MASK);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
+
+    // Write initial data to the SHA accelerator
+    for (uint32_t i = 0; i < data_len; i++) {
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
+    }
+
+    return NO_ERROR;
+}
+
+/**
+ * @brief Updates the SHA stream with additional data.
+ *
+ *        This function will write the data to the SHA accelerator and requires that caliptra_start_sha_stream()
+ *        has been called previously.
+ *
+ * @param in_data Pointer to the data to hash.
+ * @param data_len Length of the data to hash.
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_update_sha_stream(uint32_t* in_data, uint32_t data_len) {
+    if (!in_data || data_len < 1) {
+        return INVALID_PARAMS;
+    }
+
+    // Write data to the SHA accelerator
+    for (uint32_t i = 0; i < data_len; i++) {
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
+    }
+
+    return NO_ERROR;
+}
+
+/**
+ * @brief Finishes the SHA stream and retrieves the resulting hash.
+ *
+ *        This function will signal the SHA accelerator to finish the stream, wait for the SHA accelerator to complete,
+ *        read out the DIGEST registers and clear the lock.
+ *
+ * @param hash Pointer to the buffer to store the resulting hash.
+ * @return 0 on success, or an error code on failure.
+ */
+int caliptra_finish_sha_stream(uint32_t* hash) {
+    if (!hash) {
+        return INVALID_PARAMS;
+    }
+
+    // Signal the SHA accelerator to finish the stream
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
+
+    // Wait for the SHA accelerator to complete
+    uint32_t status;
+    do {
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
+    } while ((status & 0x1) == 0);
+
+    // Read out the DIGEST registers and place into hash struct
+    for (int i = 0; i < 16; i++) {
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
+    }
+
+    // Writing 1 will clear the lock
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
+
+    return NO_ERROR;
 }
