@@ -255,9 +255,6 @@ void caliptra_req_idev_csr_start();
 // Clear IDEV CSR request.
 void caliptra_req_idev_csr_complete();
 
-// Computes the SHA hash of data inside the mailbox using the specified mode, endianess, offset and length.
-int caliptra_compute_mbox_sha(int mode, int endian, uint32_t mbox_start_addr, uint32_t data_len, uint32_t* hash);
-
 // Starts a SHA stream using the specified mode and endianess.
 int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t data_len);
 
