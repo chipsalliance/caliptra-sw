@@ -1440,7 +1440,8 @@ int caliptra_compute_mbox_sha(int mode, int endian, uint32_t mbox_start_addr, ui
     // Zeroize engine registers to start fresh
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
     // Set mode and endianess accordingly
-    uint32_t control_value = (mode & 0xFFFF) | ((endian & 0xFF) << 16);
+    uint32_t control_value = ((mode << SHA512_ACC_CSR_MODE_MODE_LOW) & SHA512_ACC_CSR_MODE_MODE_MASK) |
+                             ((endian << SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_LOW) & SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_MASK);
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
     // Write data to the SHA accelerator
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_START_ADDRESS, mbox_start_addr);
@@ -1492,7 +1493,8 @@ int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t 
     // Zeroize engine registers to start fresh
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
     // Set mode and endianess accordingly
-    uint32_t control_value = (mode & 0xFFFF) | ((endian & 0xFF) << 16);
+    uint32_t control_value = ((mode << SHA512_ACC_CSR_MODE_MODE_LOW) & SHA512_ACC_CSR_MODE_MODE_MASK) |
+                             ((endian << SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_LOW) & SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_MASK);
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
 
     // Write initial data to the SHA accelerator
