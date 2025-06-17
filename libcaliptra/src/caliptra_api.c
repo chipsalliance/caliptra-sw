@@ -1500,7 +1500,7 @@ int caliptra_finish_sha_stream(uint32_t* hash) {
     uint32_t status;
     do {
         caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
-    } while ((status & 0x1) == 0);
+    } while ((status & SHA512_ACC_CSR_STATUS_VALID_MASK) == 0);
 
     // Read out the DIGEST registers and place into hash struct
     for (int i = 0; i < 16; i++) {
