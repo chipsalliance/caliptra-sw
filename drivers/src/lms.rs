@@ -320,7 +320,8 @@ impl Lms {
     ) -> CaliptraResult<HashValue<N>> {
         let iteration_count = ((1u16 << params.w) - 1) as u8;
 
-        #[cfg(any(feature = "fmc", feature = "runtime"))]
+        // Support HW 1.0 RTL (except for ROM)
+        #[cfg(not(feature = "rom"))]
         if crate::soc_ifc::is_hw_gen_1_0() {
             // RTL 1.0 version (no HW acceleration)
             for j in coeff..iteration_count {

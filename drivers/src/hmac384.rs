@@ -176,7 +176,8 @@ impl Hmac384 {
 
         let rand_data = trng.generate()?;
 
-        #[cfg(any(feature = "fmc", feature = "runtime"))]
+        // Support HW 1.0 RTL (except for ROM)
+        #[cfg(not(feature = "rom"))]
         if crate::soc_ifc::is_hw_gen_1_0() {
             use crate::Array4x5;
             let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
