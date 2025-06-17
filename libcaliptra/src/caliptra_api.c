@@ -1425,7 +1425,7 @@ bool caliptra_is_idevid_csr_ready() {
  * @param mode The SHA mode to use (e.g., CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384).
  * @param endian The endianess to use (e.g., CALIPTRA_SHA_ACCELERATOR_ENDIANESS_BIG).
  * @param in_data Pointer to the initial data to hash.
- * @param data_len Length of the initial data to hash.
+ * @param data_len Length of the initial data to hash in bytes.
  * @return 0 on success, or an error code on failure.
  */
 int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t data_len) {
@@ -1448,10 +1448,14 @@ int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t 
                              ((endian << SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_LOW) & SHA512_ACC_CSR_MODE_ENDIAN_TOGGLE_MASK);
     caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
 
+    // Write data length to SHA_DLEN
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, data_len);
+
     // Write initial data to the SHA accelerator
-    for (uint32_t i = 0; i < data_len; i++) {
+    for (uint32_t i = 0; i < data_len/4; i++) {
         caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
     }
+    // TODO: handle data_len%4 != 0
 
     return NO_ERROR;
 }
@@ -1463,18 +1467,25 @@ int caliptra_start_sha_stream(int mode, int endian, uint32_t* in_data, uint32_t 
  *        has been called previously.
  *
  * @param in_data Pointer to the data to hash.
- * @param data_len Length of the data to hash.
+ * @param data_len Length of the additional data to hash in bytes.
  * @return 0 on success, or an error code on failure.
  */
 int caliptra_update_sha_stream(uint32_t* in_data, uint32_t data_len) {
+    uint32_t old_dlen;
+
     if (!in_data || data_len < 1) {
         return INVALID_PARAMS;
     }
 
+    // increase the DLEN by data_len
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, &old_dlen);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, old_dlen + data_len);
+
     // Write data to the SHA accelerator
-    for (uint32_t i = 0; i < data_len; i++) {
+    for (uint32_t i = 0; i < data_len/4; i++) {
         caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, in_data[i]);
     }
+    // TODO: handle data_len%4 != 0
 
     return NO_ERROR;
 }
