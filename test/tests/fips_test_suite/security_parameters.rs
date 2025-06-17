@@ -153,6 +153,7 @@ pub fn attempt_ssp_access_rom() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn attempt_ssp_access_fw_load() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 

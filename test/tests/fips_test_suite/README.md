@@ -42,6 +42,8 @@ Support for additional environments can be done by creating new implementations/
 
 Certain tests require "hooks" into the ROM or FW to cause operation to deviate from the normal flow (ie. injecting errors or halting execution at specific points). This functionality is enabled using a build option called "fips-test-hooks". Then, the specific command codes are written and read from the DBG_MANUF_SERVICE_REG. The ROM/FW can respond back with a status code written to the same field if applicable. See command codes in drivers\src\fips_test_hooks.rs for more details.
 
+Note the ROM with test hooks can only be built for the current ROM within the same git commit. Because of this, the test suite cannot perform these tests against older versions of the HW since it cannot build the compatible ROM. To run those tests, execute the test suite from the same commit as the applicable ROM.
+
 Test hooks are needed to meet the following FIPS 140-3 test requirements:
     TE03.07.02
     TE03.07.04
