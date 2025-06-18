@@ -1250,6 +1250,21 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Get FMC ALias CSR
+int caliptra_get_fmc_alias_csr(struct caliptra_get_fmc_alias_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Sign with Exported
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async)
 {
