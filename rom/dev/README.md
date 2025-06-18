@@ -469,17 +469,17 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `IDevIdCertSigMldsa = mldsa87_sign(KvSlot8, IDevIdTbsDigestMldsa)`
 
-10. Verify the signature of IDevID `To Be Signed` Blob.
+9. Verify the signature of IDevID `To Be Signed` Blob.
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
 
-11. Generate the MACs over the tbs digests as follows:
+10. Generate the MACs over the tbs digests as follows:
 
     `IDevIdTbsEcdsaMac = hmac_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa, HmacMode::Hmac384)`
 
     `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa, HmacMode::Hmac512)`
 
-12. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
+11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
 
 #### IDevID CSR Format
 
@@ -526,7 +526,9 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 **Actions:**
 
-1. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in Key Vault Slot 6.
+1. Derive the stable identity root secret from IDevID and store the resultant MAC in Key Vault Slot 13.
+
+2. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in Key Vault Slot 6.
 
     `hmac512_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 
@@ -534,11 +536,13 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 *(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
-2. Clear the Field Entropy in Key Vault Slot 1.
+3. Clear the Field Entropy in Key Vault Slot 1.
 
     `kv_clear(KvSlot1)`
 
-3. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
+4. Derive the stable identity root secret from LDevID and store the resultant MAC in Key Vault Slot 14.
+
+5. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
     `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_ecc_key", KvSlot3)`
 
@@ -546,62 +550,64 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
     `kv_clear(KvSlot3)`
 
-4. Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 4.
+6. Derive the MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key generation seed in Key Vault Slot 4.
 
     `LDevIDSeed = hmac512_kdf(KvSlot6, b"ldevid_mldsa_key", KvSlot4)`
 
     `LDevIdPubKeyMldsa = mldsa87_keygen(KvSlot4)`
 
-5. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM datavault.
+7. Store and lock (for write) the LDevID ECDSA and MLDSA Public Keys in the DCCM datavault.
 
-6. Generate the `To Be Signed` DER Blob of the ECDSA LDevId Certificate.
+8. Generate the `To Be Signed` DER Blob of the ECDSA LDevId Certificate.
 
     `LDevIdTbsEcdsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyEcdsa, LDevIdPubKeyEcdsa)`
 
-7. Sign the LDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7.
+9. Sign the LDevID `To Be Signed` DER Blob with IDevId ECDSA Private Key in Key Vault Slot 7.
 
     `LDevIdTbsDigestEcdsa = sha384_digest(LDevIdTbsEcdsa)`
 
     `LDevIdCertSigEcdsa = ecc384_sign(KvSlot7, LDevIdTbsDigestEcdsa)`
 
-8. Clear the IDevId ECDSA Private Key in Key Vault Slot 7.
+10. Clear the IDevId ECDSA Private Key in Key Vault Slot 7.
 
     `kv_clear(KvSlot7)`
 
-9. Verify the signature of LDevID `To Be Signed` Blob.
+11. Verify the signature of LDevID `To Be Signed` Blob.
 
     `Result = ecc384_verify(IDevIdPubKeyEcdsa, LDevIdTbsDigestEcdsa, LDevIdCertSigEcdsa)`
 
-10. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate.
+12. Generate the `To Be Signed` DER Blob of the MLDSA LDevId Certificate.
 
     `LDevIdTbsMldsa = gen_cert_tbs(LDEVID_CERT, IDevIdPubKeyMldsa, LDevIdPubKeyMldsa)`
 
-11. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 8.
+13. Sign the LDevID `To Be Signed` DER Blob with the IDevId MLDSA Private Key derived from the seed in Key Vault Slot 8.
 
     `LDevIdTbsDigestMldsa = sha512_digest(LDevIdTbsMldsa)`
 
     `LDevIdCertSigMldsa = mldsa87_sign(KvSlot8, LDevIdTbsDigestMldsa)`
 
-12. Clear the IDevId Mldsa seed in Key Vault Slot 8.
+14. Clear the IDevId Mldsa seed in Key Vault Slot 8.
 
     `kv_clear(KvSlot8)`
 
-13. Verify the signature of LDevID `To Be Signed` Blob.
+15. Verify the signature of LDevID `To Be Signed` Blob.
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, LDevIdTbsDigestMldsa, LDevIdCertSigMldsa)`
 
-14. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
+16. Store and lock (for write) the LDevID Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
 
 
 **Post-conditions:**
 
 - Vault state is as follows:
 
- | Slot | Key Vault                               |
- |------|-----------------------------------------|
- | 4    | LDevID Key Pair Seed - MLDSA (32 bytes) |
- | 5    | LDevID Private Key - ECDSA (48 bytes)   |
- | 6    | LDevID CDI (64 bytes)                   |
+ | Slot | Key Vault                                     |
+ |------|-----------------------------------------------|
+ | 4    | LDevID Key Pair Seed - MLDSA (32 bytes)       |
+ | 5    | LDevID Private Key - ECDSA (48 bytes)         |
+ | 6    | LDevID CDI (64 bytes)                         |
+ | 13   | Stable identity root IDevID secret (64 bytes) |
+ | 14   | Stable identity root LDevID secret (64 bytes) |
 
  | DCCM Datavault                 |
  |--------------------------------|
@@ -836,11 +842,13 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 - Vault state as follows:
 
- | Slot | Key Vault                                  |
- |------|--------------------------------------------|
- | 6    | Alias FMC CDI (48 bytes)                   |
- | 7    | Alias FMC Private Key - ECDSA (48 bytes)   |
- | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+ | Slot | Key Vault                                     |
+ |------|-----------------------------------------------|
+ | 6    | Alias FMC CDI (48 bytes)                      |
+ | 7    | Alias FMC Private Key - ECDSA (48 bytes)      |
+ | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes)    |
+ | 13   | Stable identity root IDevID secret (64 bytes) |
+ | 14   | Stable identity root LDevID secret (64 bytes) |
 
  | DCCM datavault                         |
  |----------------------------------------|

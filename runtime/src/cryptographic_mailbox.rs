@@ -39,8 +39,8 @@ use caliptra_drivers::{
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
     Ecc384Signature, HmacData, HmacMode, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
-    Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
-    MAX_SEED_WORDS,
+    PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
+    AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -81,15 +81,16 @@ impl CmStorage {
 
     /// Initialize the cryptographic mailbox storage key and IV.
     /// This is done after the TRNG is initialized and CFI is configured.
-    pub fn init(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
-        let kek_key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
-        let kek_key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
+    pub fn init(&mut self, pdata: &PersistentDataAccessor, trng: &mut Trng) -> CaliptraResult<()> {
         let kek_random_iv = trng.generate4()?;
         // we mask off the top bit so that we always have at least 2^95 usages left.
         self.context_next_iv = (((kek_random_iv.0 & 0x7fff_ffff) as u128) << 64)
             | ((kek_random_iv.1 as u128) << 32)
             | (kek_random_iv.2 as u128);
-        self.kek = (transmute!(kek_key_share0), transmute!(kek_key_share1));
+        self.kek = (
+            pdata.get().cmb_aes_key_share0,
+            pdata.get().cmb_aes_key_share1,
+        );
 
         let context_key_share0: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
         let context_key_share1: [u32; 8] = trng.generate()?.0[..8].try_into().unwrap();
