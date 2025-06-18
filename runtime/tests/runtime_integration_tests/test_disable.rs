@@ -22,8 +22,8 @@ use openssl::{
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
-    TEST_LABEL,
+    execute_dpe_cmd, get_rt_alias_ecc384_cert, run_rt_test, DpeResult, RuntimeTestArgs,
+    TEST_DIGEST, TEST_LABEL,
 };
 
 #[test]
@@ -147,7 +147,7 @@ fn test_attestation_disabled_flag_after_update_reset() {
 
     // test that attestation is really disabled by checking that
     // the dpe leaf cert cannot be verified by rt alias key
-    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_resp = get_rt_alias_ecc384_cert(&mut model);
     let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     let certify_key_cmd = CertifyKeyCmd {

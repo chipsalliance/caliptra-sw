@@ -279,8 +279,17 @@ impl Mldsa87 {
     }
 
     fn program_var_msg(mldsa: RegisterBlock<ureg::RealMmioMut>, msg: &[u8]) -> CaliptraResult<()> {
-        // Wait for stream ready.
-        Mldsa87::wait(mldsa, || mldsa.status().read().msg_stream_ready())?;
+        // Wait for stream ready or valid status.
+        Mldsa87::wait(mldsa, || {
+            mldsa.status().read().msg_stream_ready() || mldsa.status().read().valid()
+        })?;
+
+        // Check if the operation completed prematurely.
+        // This can happen in case of verification where the signature is invalid.
+        // In this case, we should not proceed with streaming the message.
+        if mldsa.status().read().valid() {
+            return Ok(());
+        }
 
         // Reset the message strobe register.
         mldsa.msg_strobe().write(|s| s.strobe(0xF));

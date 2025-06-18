@@ -83,7 +83,7 @@ impl SocIfc {
     }
 
     /// Subsystem debug intent
-    fn ss_debug_intent(&self) -> bool {
+    pub fn ss_debug_intent(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.ss_debug_intent().read().debug_intent()
     }

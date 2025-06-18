@@ -208,6 +208,16 @@ impl CaliptraError {
             "Driver Error: AES read key KV read"
         ),
         (
+            DRIVER_CMAC_KDF_INVALID_SLICE,
+            0x00040011,
+            "Driver Error: CMAC KDF invalid slice"
+        ),
+        (
+            DRIVER_CMAC_KDF_INVALID_ROUNDS,
+            0x00040012,
+            "Driver Error: CMAC KDF invalid number of rounds"
+        ),
+        (
             DRIVER_ECC384_READ_SEED_KV_READ,
             0x00050001,
             "Driver Error: ECC384 read seed KV read"
@@ -2008,6 +2018,11 @@ impl CaliptraError {
             KAT_AES_PLAINTEXT_MISMATCH,
             0x90090003,
             "ROM KAT Error: AES plaintext mismatch"
+        ),
+        (
+            KAT_CMAC_KDF_OUTPUT_MISMATCH,
+            0x90090004,
+            "ROM KAT Error: CMAC KDF output mismatch"
         ),
         (
             KAT_SHA512_DIGEST_FAILURE,

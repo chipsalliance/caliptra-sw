@@ -10,8 +10,8 @@ use caliptra_builder::{
 };
 use caliptra_common::{
     mailbox_api::{
-        CommandId, GetFmcAliasEcc384CertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
-        MailboxReq, MailboxReqHeader,
+        CommandId, GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp, InvokeDpeReq,
+        InvokeDpeResp, MailboxReq, MailboxReqHeader,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -164,7 +164,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
     run_rt_test_pqc(args, FwVerificationPqcKeyType::LMS)
 }
 
-pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
+pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();
     cert_builder.set_version(2).unwrap();
     cert_builder
@@ -177,14 +177,21 @@ pub fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
     let subject_name = X509NameBuilder::build(subj_name_builder);
     cert_builder.set_subject_name(&subject_name).unwrap();
     cert_builder.set_issuer_name(&subject_name).unwrap();
-    cert_builder.set_pubkey(&ec_key).unwrap();
+    cert_builder.set_pubkey(private_key).unwrap();
     cert_builder
         .set_not_before(&Asn1Time::days_from_now(0).unwrap())
         .unwrap();
     cert_builder
         .set_not_after(&Asn1Time::days_from_now(365).unwrap())
         .unwrap();
-    cert_builder.sign(&ec_key, MessageDigest::sha384()).unwrap();
+
+    // Use appropriate message digest based on key type
+    let digest = match private_key.id() {
+        openssl::pkey::Id::EC => MessageDigest::sha384(),
+        _ => MessageDigest::null(), // For MLDSA and other key types
+    };
+
+    cert_builder.sign(private_key, digest).unwrap();
     cert_builder.build()
 }
 
@@ -384,7 +391,7 @@ pub fn get_mldsa_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasMlDsa8
     fmc_resp
 }
 
-pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
+pub fn get_rt_alias_ecc384_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::GET_RT_ALIAS_ECC384_CERT),
@@ -400,6 +407,26 @@ pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
         .unwrap();
     assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
     let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+    rt_resp
+}
+
+pub fn get_rt_alias_mldsa87_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_MLDSA87_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_RT_ALIAS_MLDSA87_CERT),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut rt_resp = GetLdevCertResp::default();
     rt_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     rt_resp
 }
