@@ -168,7 +168,7 @@ impl LocalDevIdLayer {
         stable_idev: KeyId,
     ) -> CaliptraResult<()> {
         cprintln!(
-            "[idev] Deriving DOT_STABLE_IDEV.KEYID = {}",
+            "[ldev] Deriving DOT_STABLE_IDEV.KEYID = {}",
             stable_idev as u8
         );
         Crypto::hmac_kdf(
@@ -197,7 +197,7 @@ impl LocalDevIdLayer {
         stable_ldev: KeyId,
     ) -> CaliptraResult<()> {
         cprintln!(
-            "[idev] Deriving DOT_STABLE_LDEV.KEYID = {}",
+            "[ldev] Deriving DOT_STABLE_LDEV.KEYID = {}",
             stable_ldev as u8
         );
         Crypto::hmac_kdf(
