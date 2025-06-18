@@ -154,7 +154,7 @@ impl LocalDevIdLayer {
         Ok(())
     }
 
-    /// Derive stable identity root key from LDevID CDI.
+    /// Derive stable identity root key from IDevID CDI.
     ///
     /// # Arguments
     ///
