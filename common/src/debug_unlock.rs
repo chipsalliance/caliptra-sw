@@ -155,8 +155,8 @@ pub fn validate_debug_unlock_token(
 
     let debug_auth_pk_offset =
         soc_ifc.debug_unlock_pk_hash_offset(token.unlock_level as u32)? as u64;
-    let mci_base = soc_ifc.ss_mci_axi_base();
-    let debug_auth_pk_hash_base = mci_base + AxiAddr::from(debug_auth_pk_offset);
+    let mci_base: AxiAddr = soc_ifc.mci_base_addr().into();
+    let debug_auth_pk_hash_base = mci_base + debug_auth_pk_offset;
 
     let mut fuse_digest: [u32; 12] = [0; 12];
     dma.read_buffer(debug_auth_pk_hash_base, &mut fuse_digest);
