@@ -289,7 +289,7 @@ Command Code: `0x4944_4549` ("IDEI")
 
 ### GET\_LDEV\_CERT
 
-Exposes a command to get a self-signed LDevID certificate signed by IDevID.
+Exposes a command to get an LDevID certificate signed by IDevID.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -310,7 +310,7 @@ Command Code: `0x4C44_4556` ("LDEV")
 
 ### GET\_FMC\_ALIAS\_CERT
 
-Exposes a command to get a self-signed FMC alias certificate signed by LDevID.
+Exposes a command to get an FMC alias certificate signed by LDevID.
 
 Command Code: `0x4345_5246` ("CERF")
 
@@ -331,7 +331,7 @@ Command Code: `0x4345_5246` ("CERF")
 
 ### GET\_RT\_ALIAS\_CERT
 
-Exposes a command to get a self-signed Runtime alias certificate signed by the FMC alias.
+Exposes a command to get a Runtime alias certificate signed by the FMC alias.
 
 Command Code: `0x4345_5252` ("CERR")
 
@@ -923,6 +923,25 @@ When called from runtime, if the CSR was not previously provisioned this command
 
 
 When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
+
+### GET\_FMC\_ALIAS\_CSR
+
+Command Code: `0x464D_4352` ("FMCR")
+
+*Table: `GET_FMC_ALIAS_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+
+*Table: `GET_FMC_ALIAS_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.  |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                        |
+| data          | u8[...]  | DER-encoded FMC ALIAS certificate signing request.                          |
+
+The FMC Alias CSR is generated unconditionally on every cold boot.
 
 ### SIGN\_WITH\_EXPORTED\_ECDSA
 
