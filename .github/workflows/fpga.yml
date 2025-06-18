@@ -170,8 +170,11 @@ jobs:
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+          EXCLUDE_ARG=""
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+            # Skip ROM tests when testing with older ROMs
+            EXCLUDE_ARG="--exclude caliptra-rom"
           fi
 
           if [ "${{ inputs.workflow_call }}" ]; then
@@ -183,6 +186,8 @@ jobs:
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
           cargo nextest archive \
+            --workspace \
+            $EXCLUDE_ARG \
             --features=${FEATURES} \
             --release \
             --target=aarch64-unknown-linux-gnu \
