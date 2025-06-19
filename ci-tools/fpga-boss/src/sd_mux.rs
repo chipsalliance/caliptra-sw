@@ -42,37 +42,6 @@ impl FromStr for SdMuxTarget {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SdMuxModel {
-    SDWire,
-    UsbSDMux,
-}
-
-impl FromStr for SdMuxModel {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "sdwire" => Ok(Self::SDWire),
-            "usbsdmux" => Ok(Self::UsbSDMux),
-            _ => Err(()),
-        }
-    }
-}
-
-impl clap::ValueEnum for SdMuxModel {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Self::SDWire, Self::UsbSDMux]
-    }
-
-    fn to_possible_value<'a>(&self) -> Option<clap::PossibleValue<'a>> {
-        match self {
-            Self::SDWire => Some(PossibleValue::new("sdwire").help("SDWire mux")),
-            Self::UsbSDMux => Some(PossibleValue::new("usbsdmux").help("USBSDMUX mux")),
-        }
-    }
-}
-
 // SdMux is a trait for SD muxes. It provides a way to set the target (DUT or host) and open the mux.
 pub trait SdMux {
     fn set_target(&mut self, target: SdMuxTarget) -> anyhow::Result<()>;
