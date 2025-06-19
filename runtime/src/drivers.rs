@@ -173,7 +173,8 @@ impl Drivers {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
         Self::create_cert_chain(self)?;
-        self.cryptographic_mailbox.init(&mut self.trng)?;
+        self.cryptographic_mailbox
+            .init(&self.persistent_data, &mut self.trng)?;
         if self.persistent_data.get().attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
