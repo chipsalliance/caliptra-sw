@@ -104,6 +104,8 @@ pub struct Drivers {
 
     pub pic: Pic,
 
+    // [CAP2][TODO] maybe use the Mbox Resp buffer to construct these are runtime rather than storing them here.
+    // That should reduce the stack size by 28K
     pub ecc_cert_chain: ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
 
     pub mldsa_cert_chain: ArrayVec<u8, MAX_MLDSA_CERT_CHAIN_SIZE>,
