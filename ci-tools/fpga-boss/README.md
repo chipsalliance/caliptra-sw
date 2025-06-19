@@ -29,19 +29,11 @@ sudo dmesg | grep 'idVendor=0403, idProduct=6011'
 In this case, the USB path is `1-14.3`.
 
 
-## How do I determine the `--sdmux_model` parameter for my hardware?
-
-This is the SD Mux hardware that you own. The currently supported models are:
-- `sdwire`
-- `usbsdmux` 
-
-## How do I determine the `--sdmux_id` parameter for my hardware?
-
-### UsbSDMux
+## How do I determine the `--usbsdmux` parameter for my hardware?
 
 If you use the `usbsdmux` please refer to the official documentation and follow all the required steps to set up the udev rules and cli tools appropriately. 
 
-When set up, the connected usbsdmux device(s) will be exposed in `/dev/usb-sd-mux/`.
+When set up, the connected `usbsdmux` device(s) will be exposed in `/dev/usb-sd-mux/`.
 
 ```sh
 $ ls /dev/usb-sd-mux/
@@ -49,9 +41,10 @@ total 0
 lrwxrwxrwx 1 root plugdev 1 Jan 01 00:00 id-00048.00643
 ```
 
-Note this file name and trim the `id` to get the ID needed for the `--sdmux_id` cli parameter.
+Note this file name and trim the `id` to get the ID needed for the `--usbsdmux` cli parameter.
 
-### SDWire
+## How do I determine the `--sdwire` parameter for my hardware?
+
 This is the USB port path of the USB hub built into the SDWire0 (SDWire contains
 a hub connected to a FTDI chip and SD USB controller chip).
 
@@ -90,10 +83,10 @@ $ sudo bash build.sh
 ```
 $ cd ci-tools/fpga-boss
 # SDwire
-$ cargo run -- --zcu104 1-14.3 --sdmux_model sdwire --sdmux_id 1-14.6 flash ../fpga-image/out/image.img
+$ cargo run -- --zcu104 1-14.3 --sdwire 1-14.6 flash ../fpga-image/out/image.img
 
 # usbsdmux
-# $ cargo run -- --zcu104 1-14.3 --sdmux_model usbsdmux --sdmux_id 00048.00643 flash ../fpga-image/out/image.img
+# $ cargo run -- --zcu104 1-14.3 --usbsdmux 00048.00643 flash ../fpga-image/out/image.img
 
 Block device associated with 1-14.2.1 is /dev/sda
 Flashing ../fpga-image/out/image.img to /dev/sda
@@ -106,8 +99,9 @@ fpga-boss as root.
 
 ### To observe the UART output of the now booting FPGA:
 
+Example for `sdwire`
 ```
-$ cargo run -- --zcu104 1-14.3 --sdmux_model sdwire --sdmux_id 1-14.6  console
+$ cargo run -- --zcu104 1-14.3 --sdwire 1-14.6  console
 To exit terminal type Ctrl-T then Q
 
 
@@ -124,8 +118,8 @@ We have four zcu104 boards connected to a Raspberry pi running four instances of
 `fpga-boss serve`:
 
 ```
-# fpga-boss --zcu104 x-x.x --sdmux_model sdwire --sdmux_id x-x.x serve image.img -- /path/to/rtool receive_jitconfig
-# fpga-boss --zcu104 x-x.x --sdmux_model usbsdmux --sdmux_id xxxxx.xxxxx serve image.img -- /path/to/rtool receive_jitconfig
+# fpga-boss --zcu104 x-x.x --sdwire x-x.x serve image.img -- /path/to/rtool receive_jitconfig
+# fpga-boss --zcu104 x-x.x --usbsdmux xxxxx.xxxxx serve image.img -- /path/to/rtool receive_jitconfig
 ```
 
 The serve subcommand runs in a loop that does the following:
