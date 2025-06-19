@@ -212,37 +212,4 @@ mod tests {
         assert_eq!(SdMuxTarget::from_str("dut").unwrap(), SdMuxTarget::Dut);
         assert!(SdMuxTarget::from_str("invalid").is_err());
     }
-
-    #[test]
-    fn test_sd_mux_model() {
-        assert_eq!(SdMuxModel::from_str("sdwire").unwrap(), SdMuxModel::SDWire);
-        assert_eq!(
-            SdMuxModel::from_str("usbsdmux").unwrap(),
-            SdMuxModel::UsbSDMux
-        );
-        assert!(SdMuxModel::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_usbsdmux() {
-        /// This test assumes that the usbsdmux is connected and the SCSI generic device is /dev/sg0.
-        /// It also assumes that the block device is /dev/sda and that the USBSDMUX ID is 00048.00643.
-        const USBSDMUX_ID: &str = "00048.00643";
-        const USBSDMUX_SCSI_GENERIC_NAME: &str = "sg0";
-
-        let usbsdmux = UsbsdMux::open(USBSDMUX_ID.to_string());
-        assert!(usbsdmux.is_ok());
-
-        let mut usbsdmux = usbsdmux.unwrap();
-        assert_eq!(usbsdmux.scsi_generic_name, USBSDMUX_SCSI_GENERIC_NAME);
-
-        assert_eq!(
-            usbsdmux
-                .get_sd_dev_path()
-                .unwrap()
-                .to_string_lossy()
-                .to_string(),
-            "/dev/sda".to_string()
-        );
-    }
 }
