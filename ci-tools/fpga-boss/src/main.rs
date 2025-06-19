@@ -23,18 +23,18 @@ use std::{
 
 pub(crate) use fpga_jtag::{FpgaJtag, FpgaReset};
 pub(crate) use ftdi::FtdiCtx;
-use sd_mux::{SDWire, SdMux, SdMuxModel, SdMuxTarget, UsbsdMux};
+use sd_mux::{SDWire, SdMux, SdMuxTarget, UsbsdMux};
 pub(crate) use usb_port_path::UsbPortPath;
 
 fn cli() -> clap::Command<'static> {
     clap::Command::new("fpga-boss")
         .about("FPGA boss tool")
         .arg(
-            arg!(--"sdmux_model" [SDMUXMODEL] "Type of SD mux to use (sdwire, usbsdmux)")
-                .value_parser(value_parser!(SdMuxModel))
-        )
-        .arg(arg!(--"sdmux_id" [PORT_PATH] "ID of the SD mux to use (sdwire: e.g. 3-1.2, usbsdmux: e.g. 00048.00643)")
-            .value_parser(value_parser!(String))
+            arg!(--"sdwire" [PORT_PATH] "USB port path to the hub chip on the SDWire (ex: 3-1.2)")
+                .value_parser(value_parser!(OsString)))
+        .arg(
+            arg!(--"usbsdmux" [USBID] "USB uniuqe ID for the usbsdmux device (ex: 00048.00643)")
+                .value_parser(value_parser!(OsString))
         )
         .arg(
             arg!(--"zcu104" [PORT_PATH] "USB port path to the FTDI chip on the ZCU104 dev board (ex: 3-1.2)")
@@ -237,10 +237,8 @@ fn log_uart_until_helper<R: BufRead>(
 
 fn main_impl() -> anyhow::Result<()> {
     let matches = cli().get_matches();
-    let sdmux_model = matches.get_one::<SdMuxModel>("sdmux_model");
-    let sdmux_id = matches
-        .get_one::<String>("sdmux_id")
-        .ok_or(anyhow!("--sdmux_id flag required"))?;
+    let sdwire = matches.get_one::<OsString>("sdwire");
+    let usbsdmux = matches.get_one::<OsString>("usbsdmux");
 
     let zcu104_path = matches.get_one::<UsbPortPath>("zcu104");
     let boss_ftdi_path = matches.get_one::<UsbPortPath>("boss_ftdi");
@@ -261,10 +259,14 @@ fn main_impl() -> anyhow::Result<()> {
             .cloned()
     };
 
-    let mut sd_mux: Box<dyn SdMux> = match sdmux_model {
-        Some(SdMuxModel::SDWire) => Box::new(SDWire::open(sdmux_id.clone())?),
-        Some(SdMuxModel::UsbSDMux) => Box::new(UsbsdMux::open(sdmux_id.clone())?),
-        None => return Err(anyhow!("--sdmux_model flag required")),
+    let mut sd_mux: Box<dyn SdMux> = match (sdwire, usbsdmux) {
+        (Some(sdwire), None) => {
+            Box::new(SDWire::open(String::from(sdwire.to_str().unwrap()))?) as Box<dyn SdMux>
+        }
+        (None, Some(usbsdmux)) => {
+            Box::new(UsbsdMux::open(String::from(usbsdmux.to_str().unwrap()))?) as Box<dyn SdMux>
+        }
+        _ => return Err(anyhow!("One of --sdwire or --usbsdmux required")),
     };
 
     let get_fpga_ftdi = || FpgaJtag::open(get_zcu104_path()?);
