@@ -104,6 +104,8 @@ pub struct Drivers {
 
     pub pic: Pic,
 
+    // [CAP2][TODO] maybe use the Mbox Resp buffer to construct these are runtime rather than storing them here.
+    // That should reduce the stack size by 28K
     pub ecc_cert_chain: ArrayVec<u8, MAX_ECC_CERT_CHAIN_SIZE>,
 
     pub mldsa_cert_chain: ArrayVec<u8, MAX_MLDSA_CERT_CHAIN_SIZE>,
@@ -500,88 +502,93 @@ impl Drivers {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_ecc_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
-        let mut cert = [0u8; MAX_ECC_CERT_CHAIN_SIZE];
+
+        // Clear and resize the cert chain to have space for writing
+        drivers.ecc_cert_chain.clear();
+        for _ in 0..MAX_ECC_CERT_CHAIN_SIZE {
+            drivers
+                .ecc_cert_chain
+                .try_push(0)
+                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_ecc384_cert(persistent_data.get(), &mut cert)?;
-        if ldevid_cert_size > cert.len() {
+        let ldevid_cert_size = dice::copy_ldevid_ecc384_cert(
+            persistent_data.get(),
+            drivers.ecc_cert_chain.as_mut_slice(),
+        )?;
+        if ldevid_cert_size > drivers.ecc_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
 
         // Write fmc alias cert to cert chain.
-        let fmcalias_cert_size =
-            dice::copy_fmc_alias_ecc384_cert(persistent_data.get(), &mut cert[ldevid_cert_size..])?;
-        if ldevid_cert_size + fmcalias_cert_size > cert.len() {
+        let fmcalias_cert_size = dice::copy_fmc_alias_ecc384_cert(
+            persistent_data.get(),
+            &mut drivers.ecc_cert_chain.as_mut_slice()[ldevid_cert_size..],
+        )?;
+        if ldevid_cert_size + fmcalias_cert_size > drivers.ecc_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }
 
         // Write rt alias cert to cert chain.
         let rtalias_cert_size = dice::copy_rt_alias_ecc384_cert(
             persistent_data.get(),
-            &mut cert[ldevid_cert_size + fmcalias_cert_size..],
+            &mut drivers.ecc_cert_chain.as_mut_slice()[ldevid_cert_size + fmcalias_cert_size..],
         )?;
         let cert_chain_size = ldevid_cert_size + fmcalias_cert_size + rtalias_cert_size;
-        if cert_chain_size > cert.len() {
+        if cert_chain_size > drivers.ecc_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_RT_ALIAS_CERT_TOO_BIG);
         }
 
-        // Copy cert chain to ArrayVec.
-        let mut cert_chain = ArrayVec::<u8, MAX_ECC_CERT_CHAIN_SIZE>::new();
-        for i in 0..cert_chain_size {
-            cert_chain
-                .try_push(
-                    *cert
-                        .get(i)
-                        .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?,
-                )
-                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-        }
+        // Truncate to actual used size
+        drivers.ecc_cert_chain.truncate(cert_chain_size);
 
-        drivers.ecc_cert_chain = cert_chain;
         Ok(())
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_mldsa_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let persistent_data = &drivers.persistent_data;
-        let mut cert = [0u8; MAX_MLDSA_CERT_CHAIN_SIZE];
+
+        // Clear and resize the cert chain to have space for writing
+        drivers.mldsa_cert_chain.clear();
+        for _ in 0..MAX_MLDSA_CERT_CHAIN_SIZE {
+            drivers
+                .mldsa_cert_chain
+                .try_push(0)
+                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        }
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_mldsa87_cert(persistent_data.get(), &mut cert)?;
-        if ldevid_cert_size > cert.len() {
+        let ldevid_cert_size = dice::copy_ldevid_mldsa87_cert(
+            persistent_data.get(),
+            drivers.mldsa_cert_chain.as_mut_slice(),
+        )?;
+        if ldevid_cert_size > drivers.mldsa_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
 
         // Write fmc alias cert to cert chain.
         let fmcalias_cert_size = dice::copy_fmc_alias_mldsa87_cert(
             persistent_data.get(),
-            &mut cert[ldevid_cert_size..],
+            &mut drivers.mldsa_cert_chain.as_mut_slice()[ldevid_cert_size..],
         )?;
-        if ldevid_cert_size + fmcalias_cert_size > cert.len() {
+        if ldevid_cert_size + fmcalias_cert_size > drivers.mldsa_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }
 
         // Write rt alias cert to cert chain.
         let rtalias_cert_size = dice::copy_rt_alias_mldsa87_cert(
             persistent_data.get(),
-            &mut cert[ldevid_cert_size + fmcalias_cert_size..],
+            &mut drivers.mldsa_cert_chain.as_mut_slice()[ldevid_cert_size + fmcalias_cert_size..],
         )?;
         let cert_chain_size = ldevid_cert_size + fmcalias_cert_size + rtalias_cert_size;
-        if cert_chain_size > cert.len() {
+        if cert_chain_size > drivers.mldsa_cert_chain.len() {
             return Err(CaliptraError::RUNTIME_RT_ALIAS_CERT_TOO_BIG);
         }
 
-        // Copy cert chain to ArrayVec.
-        for i in 0..cert_chain_size {
-            drivers
-                .mldsa_cert_chain
-                .try_push(
-                    *cert
-                        .get(i)
-                        .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?,
-                )
-                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-        }
+        // Truncate to actual used size
+        drivers.mldsa_cert_chain.truncate(cert_chain_size);
 
         Ok(())
     }
