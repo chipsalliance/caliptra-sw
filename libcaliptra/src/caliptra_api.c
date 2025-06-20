@@ -940,21 +940,21 @@ int caliptra_upload_fw(const struct caliptra_buffer *fw_buffer, bool async)
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
 
-// Get IDEV cert
-int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async)
+// Get ECC384 IDEV cert
+int caliptra_get_idev_ecc384_cert(struct caliptra_get_idev_ecc384_cert_req *req, struct caliptra_get_idev_ecc384_cert_resp *resp, bool async)
 {
     if (!req || !resp)
     {
         return INVALID_PARAMS;
     }
 
-    CREATE_PARCEL(p, OP_GET_IDEV_CERT, req, resp);
+    CREATE_PARCEL(p, OP_GET_IDEV_ECC384_CERT, req, resp);
 
     return pack_and_execute_command(&p, async);
 }
 
-// Get IDEV info
-int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async)
+// Get ECC384 IDEV info
+int caliptra_get_idev_ecc384_info(struct caliptra_get_idev_ecc384_info_resp *resp, bool async)
 {
     if (!resp)
     {
@@ -963,13 +963,13 @@ int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_GET_IDEV_INFO, &checksum, resp);
+    CREATE_PARCEL(p, OP_GET_IDEV_ECC384_INFO, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
 
-// Populate IDEV cert
-int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, bool async)
+// Populate ECC384 IDEV cert
+int caliptra_populate_idev_ecc384_cert(struct caliptra_populate_idev_ecc384_cert_req *req, bool async)
 {
     if (!req)
     {
@@ -978,13 +978,13 @@ int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, boo
 
     struct caliptra_resp_header resp_hdr = {};
 
-    CREATE_PARCEL(p, OP_POPULATE_IDEV_CERT, req, &resp_hdr);
+    CREATE_PARCEL(p, OP_POPULATE_IDEV_ECC384_CERT, req, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
 
-// Get LDEV cert
-int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
+// Get ECC384 LDEV cert
+int caliptra_get_ldev_ecc384_cert(struct caliptra_get_ldev_ecc384_cert_resp *resp, bool async)
 {
     if (!resp)
     {
@@ -993,13 +993,13 @@ int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_GET_LDEV_CERT, &checksum, resp);
+    CREATE_PARCEL(p, OP_GET_LDEV_ECC384_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
 
-// Get FMC alias cert
-int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, bool async)
+// Get ECC384 FMC alias cert
+int caliptra_get_fmc_alias_ecc384_cert(struct caliptra_get_fmc_alias_ecc384_cert_resp *resp, bool async)
 {
     if (!resp)
     {
@@ -1008,13 +1008,13 @@ int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, b
 
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_CERT, &checksum, resp);
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_ECC384_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
 
-// Get RT alias cert
-int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async)
+// Get ECC384 RT alias cert
+int caliptra_get_rt_alias_ecc384_cert(struct caliptra_get_rt_alias_ecc384_cert_resp *resp, bool async)
 {
     if (!resp)
     {
@@ -1023,7 +1023,95 @@ int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, boo
 
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_GET_RT_ALIAS_CERT, &checksum, resp);
+    CREATE_PARCEL(p, OP_GET_RT_ALIAS_ECC384_CERT, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 IDEV cert
+int caliptra_get_idev_mldsa87_cert(struct caliptra_get_idev_mldsa87_cert_req *req, struct caliptra_get_idev_mldsa87_cert_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_GET_IDEV_MLDSA87_CERT, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 IDEV info
+int caliptra_get_idev_mldsa87_info(struct caliptra_get_idev_mldsa87_info_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_IDEV_MLDSA87_INFO, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Populate MLDSA87 IDEV cert
+int caliptra_populate_idev_mldsa87_cert(struct caliptra_populate_idev_mldsa87_cert_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_POPULATE_IDEV_MLDSA87_CERT, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 LDEV cert
+int caliptra_get_ldev_mldsa87_cert(struct caliptra_get_ldev_mldsa87_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_LDEV_MLDSA87_CERT, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 FMC alias cert
+int caliptra_get_fmc_alias_mldsa87_cert(struct caliptra_get_fmc_alias_mldsa87_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_MLDSA87_CERT, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 RT alias cert
+int caliptra_get_rt_alias_mldsa87_cert(struct caliptra_get_rt_alias_mldsa87_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_RT_ALIAS_MLDSA87_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1249,7 +1337,7 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
 }
 
 // Get IDev CSR
-int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
+int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp, bool async)
 {
     if (!resp)
     {
@@ -1258,7 +1346,7 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    CREATE_PARCEL(p, OP_GET_IDEV_CSR, &checksum, resp);
+    CREATE_PARCEL(p, OP_GET_IDEV_ECC384_CSR, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }

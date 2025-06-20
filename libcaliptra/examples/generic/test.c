@@ -535,6 +535,110 @@ int rom_test_all_commands(const test_info *info)
     return failure;
 }
 
+int test_all_mldsa87_commands()
+{
+    int failure = 0;
+
+    // GET_IDEV_MLDSA87_CERT
+    struct caliptra_get_idev_mldsa87_cert_req idev_mldsa87_cert_req = {};
+    struct caliptra_get_idev_mldsa87_cert_resp idev_mldsa87_cert_resp;
+
+    int status = caliptra_get_idev_mldsa87_cert(&idev_mldsa87_cert_req, &idev_mldsa87_cert_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 IDEV Cert failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Get MLDSA87 IDEV Cert: OK\n");
+    }
+
+    // GET_IDEV_MLDSA87_INFO
+    struct caliptra_get_idev_mldsa87_info_resp idev_info_resp;
+
+    status = caliptra_get_idev_mldsa87_info(&idev_info_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 IDEV Info: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Get MLDSA87 IDEV Info: OK\n");
+    }
+
+    // POPULATE_IDEV_MLDSA87_CERT
+    struct caliptra_populate_idev_mldsa87_cert_req populate_idev_req = {};
+
+    status = caliptra_populate_idev_mldsa87_cert(&populate_idev_req, false);
+
+    if (status)
+    {
+        printf("Populate MLDSA87 IDEV Cert failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Populate MLDSA87 IDEV Cert: OK\n");
+    }
+
+    // GET_LDEV_MLDSA87_CERT
+    struct caliptra_get_ldev_mldsa87_cert_resp ldev_cert_resp;
+
+    status = caliptra_get_ldev_mldsa87_cert(&ldev_cert_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 LDEV Cert failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Get MLDSA87 LDEV Cert: OK\n");
+    }
+
+    // GET_FMC_ALIAS_MLDSA87_CERT
+    struct caliptra_get_fmc_alias_mldsa87_cert_resp fmc_alias_cert_resp;
+
+    status = caliptra_get_fmc_alias_mldsa87_cert(&fmc_alias_cert_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 FMC Alias Cert failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Get MLDSA87 FMC Alias Cert: OK\n");
+    }
+
+    // GET_RT_ALIAS_MLDSA87_CERT
+    struct caliptra_get_rt_alias_mldsa87_cert_resp rt_alias_cert_resp;
+
+    status = caliptra_get_rt_alias_mldsa87_cert(&rt_alias_cert_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 Runtime Alias Cert failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        printf("Get MLDSA87 Runtime Alias Cert: OK\n");
+    }
+
+    return failure;
+}
+
 // Issue every runtime command
 // Intent is just to make sure FW accepts the command ID and the payload
 // Not attempting to actually test command functionality
@@ -572,27 +676,27 @@ int rt_test_all_commands(const test_info *info)
         failure = 1;
     }
 
-    // GET_IDEV_CERT
-    struct caliptra_get_idev_cert_req idev_cert_req = {};
-    struct caliptra_get_idev_cert_resp idev_cert_resp;
+    // GET_IDEV_ECC384_CERT
+    struct caliptra_get_idev_ecc384_cert_req idev_ecc384_cert_req = {};
+    struct caliptra_get_idev_ecc384_cert_resp idev_ecc384_cert_resp;
 
-    status = caliptra_get_idev_cert(&idev_cert_req, &idev_cert_resp, false);
+    status = caliptra_get_idev_ecc384_cert(&idev_ecc384_cert_req, &idev_ecc384_cert_resp, false);
 
     if (status)
     {
-        printf("Get IDEV Cert failed: 0x%x\n", status);
+        printf("Get IDEV ECC384 Cert failed: 0x%x\n", status);
         dump_caliptra_error_codes();
         failure = 1;
     }
     else
     {
-        printf("Get IDEV Cert: OK\n");
+        printf("Get IDEV ECC384 Cert: OK\n");
     }
 
-    // GET_IDEV_INFO
-    struct caliptra_get_idev_info_resp idev_info_resp;
+    // GET_IDEV_ECC384_INFO
+    struct caliptra_get_idev_ecc384_info_resp idev_info_resp;
 
-    status = caliptra_get_idev_info(&idev_info_resp, false);
+    status = caliptra_get_idev_ecc384_info(&idev_info_resp, false);
 
     if (status)
     {
@@ -605,10 +709,10 @@ int rt_test_all_commands(const test_info *info)
         printf("Get IDEV Info: OK\n");
     }
 
-    // POPULATE_IDEV_CERT
-    struct caliptra_populate_idev_cert_req populate_idev_req = {};
+    // POPULATE_IDEV_ECC384_CERT
+    struct caliptra_populate_idev_ecc384_cert_req populate_idev_req = {};
 
-    status = caliptra_populate_idev_cert(&populate_idev_req, false);
+    status = caliptra_populate_idev_ecc384_cert(&populate_idev_req, false);
 
     if (status)
     {
@@ -621,10 +725,10 @@ int rt_test_all_commands(const test_info *info)
         printf("Populate IDEV Cert: OK\n");
     }
 
-    // GET_LDEV_CERT
-    struct caliptra_get_ldev_cert_resp ldev_cert_resp;
+    // GET_LDEV_ECC384_CERT
+    struct caliptra_get_ldev_ecc384_cert_resp ldev_cert_resp;
 
-    status = caliptra_get_ldev_cert(&ldev_cert_resp, false);
+    status = caliptra_get_ldev_ecc384_cert(&ldev_cert_resp, false);
 
     if (status)
     {
@@ -637,10 +741,10 @@ int rt_test_all_commands(const test_info *info)
         printf("Get LDEV Cert: OK\n");
     }
 
-    // GET_FMC_ALIAS_CERT
-    struct caliptra_get_fmc_alias_cert_resp fmc_alias_cert_resp;
+    // GET_FMC_ALIAS_ECC384_CERT
+    struct caliptra_get_fmc_alias_ecc384_cert_resp fmc_alias_cert_resp;
 
-    status = caliptra_get_fmc_alias_cert(&fmc_alias_cert_resp, false);
+    status = caliptra_get_fmc_alias_ecc384_cert(&fmc_alias_cert_resp, false);
 
     if (status)
     {
@@ -653,10 +757,10 @@ int rt_test_all_commands(const test_info *info)
         printf("Get FMC Alias Cert: OK\n");
     }
 
-    // GET_RT_ALIAS_CERT
-    struct caliptra_get_rt_alias_cert_resp rt_alias_cert_resp;
+    // GET_RT_ALIAS_ECC384_CERT
+    struct caliptra_get_rt_alias_ecc384_cert_resp rt_alias_cert_resp;
 
-    status = caliptra_get_rt_alias_cert(&rt_alias_cert_resp, false);
+    status = caliptra_get_rt_alias_ecc384_cert(&rt_alias_cert_resp, false);
 
     if (status)
     {
@@ -668,6 +772,8 @@ int rt_test_all_commands(const test_info *info)
     {
         printf("Get Runtime Alias Cert: OK\n");
     }
+
+    failure = test_all_mldsa87_commands();
 
     // ECDSA384_VERIFY
     struct caliptra_ecdsa_verify_v2_req ecdsa_req = {};
@@ -1046,9 +1152,9 @@ int rom_test_devid_csr(const test_info *info)
 
     // Test Get Idev CSR now that a CSR is provisioned.
     // GET IDEV CSR
-    struct caliptra_get_idev_csr_resp csr_resp = {0};
+    struct caliptra_get_idev_ecc384_csr_resp csr_resp = {0};
 
-    status = caliptra_get_idev_csr(&csr_resp, false);
+    status = caliptra_get_idev_ecc384_csr(&csr_resp, false);
 
     if (status)
     {
