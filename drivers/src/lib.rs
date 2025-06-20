@@ -74,7 +74,7 @@ pub use csrng::{
 };
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
-    AxiAddr, Dma, DmaImage, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
+    AxiAddr, Dma, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
     DmaWriteOrigin, DmaWriteTransaction,
 };
 pub use doe::DeobfuscationEngine;

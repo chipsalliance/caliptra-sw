@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, AxiAddr};
+use crate::Array4x12;
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -164,15 +164,6 @@ impl SocIfc {
             .ss_soc_dbg_unlock_level()
             .at(0)
             .write(|_| value);
-    }
-
-    /// MCI AXI base address
-    pub fn ss_mci_axi_base(&self) -> AxiAddr {
-        let soc_ifc_regs = self.soc_ifc.regs();
-        AxiAddr {
-            lo: soc_ifc_regs.ss_mci_base_addr_l().read(),
-            hi: soc_ifc_regs.ss_mci_base_addr_h().read(),
-        }
     }
 
     /// Debug unlock memory offset
@@ -588,10 +579,26 @@ impl SocIfc {
         ((high as u64) << 32) | low as u64
     }
 
+    pub fn caliptra_base_axi_addr(&self) -> u64 {
+        let low = self.soc_ifc.regs().ss_caliptra_base_addr_l().read();
+        let high = self.soc_ifc.regs().ss_caliptra_base_addr_h().read();
+        ((high as u64) << 32) | low as u64
+    }
+
     pub fn mci_base_addr(&self) -> u64 {
         let low = self.soc_ifc.regs().ss_mci_base_addr_l().read();
         let high = self.soc_ifc.regs().ss_mci_base_addr_h().read();
         ((high as u64) << 32) | low as u64
+    }
+
+    pub fn set_mcu_firmware_ready(&mut self) {
+        const MCU_FW_READY_WORD: usize = 0;
+        const MCU_FW_READY_BIT: u32 = 1 << 2;
+        self.soc_ifc
+            .regs_mut()
+            .ss_generic_fw_exec_ctrl()
+            .at(MCU_FW_READY_WORD)
+            .modify(|w| w | MCU_FW_READY_BIT);
     }
 }
 

@@ -55,7 +55,7 @@ impl AxiRootBus {
         Self::RECOVERY_REGISTER_INTERFACE_OFFSET + 0xff;
     pub const SS_MCI_OFFSET: AxiAddr = const_random!(u64) & 0xffffffff_00000000;
     pub const SS_MCI_END: AxiAddr = Self::SS_MCI_OFFSET + 0x1454; // 0x1454 is last MCI register offset + size
-    pub const MCU_SRAM_OFFSET: AxiAddr = Self::SS_MCI_OFFSET + 0x20_0000;
+    pub const MCU_SRAM_OFFSET: AxiAddr = Self::SS_MCI_OFFSET + 0xc0_0000;
     pub const MCU_SRAM_END: AxiAddr = Self::MCU_SRAM_OFFSET + 2 * 1024 * 1024 - 1; // the aperture size is 2 MB even though the underlying SRAM may be smaller
 
     pub const OTC_FC_OFFSET: AxiAddr = (const_random!(u64) & 0xffffffff_00000000) + 0x1000;
@@ -158,6 +158,10 @@ impl AxiRootBus {
 
     pub fn read(&mut self, size: RvSize, addr: AxiAddr) -> Result<RvData, BusError> {
         match addr {
+            Self::SHA512_ACC_OFFSET..=Self::SHA512_ACC_END => {
+                let addr = ((addr - Self::SHA512_ACC_OFFSET) & 0xffff_ffff) as RvAddr;
+                return Bus::read(&mut self.sha512_acc, size, addr);
+            }
             Self::TEST_REG_OFFSET => return Register::read(&self.reg, size),
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
                 let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;

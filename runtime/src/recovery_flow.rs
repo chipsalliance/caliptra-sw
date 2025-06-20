@@ -42,29 +42,35 @@ impl RecoveryFlow {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.caliptra_base_axi_addr().into(),
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
             // need to make sure the device status is correct to load the next image
-            dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
+            dma_recovery.set_device_status(
+                DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
+            )?;
 
             // download SoC manifest
             dma_recovery.download_image_to_mbox(SOC_MANIFEST_INDEX)
         };
-        drivers.mbox.unlock();
         result?;
 
         SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
+        drivers.mbox.unlock();
 
         let digest = {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.caliptra_base_axi_addr().into(),
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
             // need to make sure the device status is correct to load the next image
-            dma_recovery.set_device_status(DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE)?;
+            dma_recovery.set_device_status(
+                DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
+            )?;
             cprintln!("[rt] Uploading MCU firmware");
             let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX)?;
             cprintln!("[rt] Calculating MCU digest");
@@ -87,6 +93,7 @@ impl RecoveryFlow {
             let dma = &drivers.dma;
             let dma_recovery = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.caliptra_base_axi_addr().into(),
                 drivers.soc_ifc.mci_base_addr().into(),
                 dma,
             );
@@ -99,9 +106,8 @@ impl RecoveryFlow {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
             }
 
-            // notify MCU that it can boot
-            // [TODO][CAP2]: get the correct value for this
-            dma_recovery.set_mci_flow_status(123)?;
+            // notify MCU that it can boot its firmware
+            drivers.soc_ifc.set_mcu_firmware_ready();
 
             // we're done with recovery
             dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;

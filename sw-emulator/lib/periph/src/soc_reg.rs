@@ -709,6 +709,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x38c)]
     fuse_pqc_key_type: u32,
 
+    #[register(offset = 0x500)]
+    ss_caliptra_base_addr_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x504)]
+    ss_caliptra_base_addr_h: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x508)]
     ss_recovery_mci_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -742,6 +748,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x530)]
     ss_debug_intent: ReadOnlyRegister<u32, SsDebugIntent::Register>,
 
+    #[register(offset = 0x534)]
+    ss_caliptra_dma_axi_user: u32,
+
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
 
@@ -751,7 +760,7 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x5c8)]
     ss_soc_dbg_unlock_level: [u32; 2],
 
-    #[register_array(offset = 0x05d0)]
+    #[register_array(offset = 0x5d0)]
     ss_generic_fw_exec_ctrl: [u32; 4],
 
     /// INTERNAL_OBF_KEY Register
@@ -884,6 +893,7 @@ impl SocRegistersImpl {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
 
+        let cptra_offset = 0x3000_0000u64;
         let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
         let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
         // To make things easy the fuse bank is part of the fuse bank controller emulation
@@ -957,11 +967,14 @@ impl SocRegistersImpl {
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 16],
+            ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
+            ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
+            ss_caliptra_dma_axi_user: 0,
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -1011,7 +1024,7 @@ impl SocRegistersImpl {
                 ss_prod_dbg_unlock_fuse_offset as u32,
             ),
             ss_soc_dbg_unlock_level: [0; 2],
-            ss_generic_fw_exec_ctrl: [0x0; 4],
+            ss_generic_fw_exec_ctrl: [0; 4],
         };
         regs
     }

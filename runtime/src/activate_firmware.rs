@@ -17,10 +17,9 @@ use core::mem::offset_of;
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaImage, DmaMmio};
+use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
 
-const IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES: u32 = 256;
 const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
 const FW_HITLESS_UPD_RESET_MASK: u32 = 0x1;
 const MCI_TOP_REG_INTR_RF_BLOCK_OFFSET: u32 = 0x1000;
@@ -152,7 +151,12 @@ impl ActivateFirmwareCmd {
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
             let (image_load_address, image_staging_address) =
                 Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
-            let dma_image = DmaImage::new(&drivers.dma);
+            let dma_image = DmaRecovery::new(
+                drivers.soc_ifc.recovery_interface_base_addr().into(),
+                drivers.soc_ifc.caliptra_base_axi_addr().into(),
+                drivers.soc_ifc.mci_base_addr().into(),
+                &drivers.dma,
+            );
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
@@ -165,7 +169,6 @@ impl ActivateFirmwareCmd {
                         lo: image_load_address.lo,
                     },
                     false,
-                    IMAGE_TRANSFER_DMA_BLOCK_SIZE_BYTES,
                     true,
                 )
                 .map_err(|_| ())?;

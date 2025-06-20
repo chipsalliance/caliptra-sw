@@ -187,12 +187,19 @@ impl Sha2_512_384AccOp<'_> {
         Ok(())
     }
 
-    /// Finish SHA accelerator streaming operation.
+    /// Execute and finish SHA accelerator streaming operation.
     pub fn stream_finish_384(&mut self, digest: Sha384Digest) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
         // signal that we are done streaming
         sha_acc.execute().write(|w| w.execute(true));
+
+        self.stream_wait_for_done_384(digest)
+    }
+
+    /// Wait for the SHA accelerator streaming operation to finish.
+    pub fn stream_wait_for_done_384(&mut self, digest: Sha384Digest) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
 
         // Wait for the digest operation to finish
         wait::until(|| sha_acc.status().read().valid());
