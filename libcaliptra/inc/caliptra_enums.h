@@ -65,10 +65,63 @@ enum fips_status {
     FIPS_STATUS_APPROVED = 0,
 };
 
+/**
+ * toc_entry_id
+ *
+ * Table of contents entry IDs used in the FW manifest
+ */
 enum toc_entry_id {
     FMC     = 0x00000001,
     Runtime = 0x00000002,
     MAX     = 0xFFFFFFFF,
+};
+
+// Enums used in Caliptra mailbox command requests and responses
+/**
+ * certify_key_extended_flags
+ *
+ * CERTIFY_KEY_EXTENDED flags options.
+ */
+enum certify_key_extended_flags {
+    DMTF_OTHER_NAME = ( 1UL << 31),
+};
+
+/**
+ * set_auth_manifest_manifest_flags
+ *
+ * SET_AUTH_MANIFEST manifest_flags options.
+ */
+enum set_auth_manifest_manifest_flags {
+    VENDOR_SIGNATURE_REQUIRED = ( 1UL << 0),
+};
+
+/**
+ * authorize_and_stash_flags
+ *
+ * AUTHORIZE_AND_STASH flags options.
+ */
+enum authorize_and_stash_flags {
+    SKIP_STASH = ( 1UL << 0),
+};
+
+/**
+ * authorize_and_stash_source
+ *
+ * AUTHORIZE_AND_STASH source values.
+ */
+enum authorize_and_stash_source {
+    IN_REQUEST = 0x1,
+};
+
+/**
+ * authorize_and_stash_auth_req_result
+ *
+ * AUTHORIZE_AND_STASH auth_req_result values.
+ */
+enum authorize_and_stash_auth_req_result {
+    AUTHORIZE_IMAGE      = 0xDEADC0DE,
+    IMAGE_NOT_AUTHORIZED = 0x21523F21,
+    IMAGE_HASH_MISMATCH  = 0x8BFB95CB,
 };
 
 // The below enums are placeholders to set up the baseline
