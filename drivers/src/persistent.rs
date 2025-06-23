@@ -45,11 +45,13 @@ pub const DPE_SIZE: u32 = 5 * 1024;
 pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
 pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
 pub const IDEVID_CSR_ENVELOP_SIZE: u32 = 9 * 1024;
+pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
 pub const MLDSA87_MAX_CSR_SIZE: usize = 7680;
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
+pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
@@ -325,6 +327,10 @@ pub struct PersistentData {
     reserved10: [u8; IDEVID_CSR_ENVELOP_SIZE as usize - size_of::<InitDevIdCsrEnvelope>()],
 
     pub fmc_alias_csr: FmcAliasCsrs,
+    reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
+
+    pub cmb_aes_key_share0: [u8; 32],
+    pub cmb_aes_key_share1: [u8; 32],
 }
 
 impl PersistentData {
@@ -454,6 +460,16 @@ impl PersistentData {
             persistent_data_offset += IDEVID_CSR_ENVELOP_SIZE;
             assert_eq!(
                 addr_of!((*P).fmc_alias_csr) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += FMC_ALIAS_CSR_SIZE;
+            assert_eq!(
+                addr_of!((*P).cmb_aes_key_share0) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
+            assert_eq!(
+                addr_of!((*P).cmb_aes_key_share1) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

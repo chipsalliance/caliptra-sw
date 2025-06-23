@@ -21,7 +21,7 @@ use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
-use caliptra_drivers::DmaImage;
+use caliptra_drivers::DmaRecovery;
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use dpe::response::DpeErrorCode;
 use zerocopy::FromBytes;
@@ -61,7 +61,12 @@ impl AuthorizeAndStashCmd {
         }
         // Check if firmware id is present in the image metadata entry collection.
         let persistent_data = drivers.persistent_data.get();
-        let dma_image = DmaImage::new(&drivers.dma);
+        let dma_image = DmaRecovery::new(
+            drivers.soc_ifc.recovery_interface_base_addr().into(),
+            drivers.soc_ifc.caliptra_base_axi_addr().into(),
+            drivers.soc_ifc.mci_base_addr().into(),
+            &drivers.dma,
+        );
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);

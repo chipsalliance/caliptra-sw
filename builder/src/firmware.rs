@@ -39,6 +39,13 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     features: &["fips-test-hooks"],
 };
 
+// TODO: delete this when AXI DMA is fixed in the FPGA
+pub const ROM_FPGA_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fpga_realtime"],
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -49,6 +56,13 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu", "fake-fmc"],
+};
+
+// TODO: delete this when AXI DMA is fixed in the FPGA
+pub const FMC_FPGA_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "fpga_realtime"],
 };
 
 pub const APP: FwId = FwId {
@@ -420,8 +434,10 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
     &ROM_WITH_FIPS_TEST_HOOKS,
+    &ROM_FPGA_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
+    &FMC_FPGA_WITH_UART,
     &APP,
     &APP_WITH_UART,
     &APP_WITH_UART_FIPS_TEST_HOOKS,

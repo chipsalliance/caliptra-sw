@@ -70,7 +70,7 @@ std = [
   "caliptra-x509/std",
   "ufmt/std",
 ]
-fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
+fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []

@@ -489,7 +489,9 @@ impl FirmwareProcessor {
 
         let dma = venv.dma;
         let recovery_interface_base_addr = venv.soc_ifc.recovery_interface_base_addr().into();
+
         let mci_base_addr = venv.soc_ifc.mci_base_addr().into();
+        let caliptra_base_addr = venv.soc_ifc.caliptra_base_axi_addr().into();
         let subsystem_mode = venv.soc_ifc.subsystem_mode();
 
         let mut verifier = ImageVerifier::new(venv);
@@ -497,7 +499,12 @@ impl FirmwareProcessor {
 
         // If running in subsystem mode, set the recovery status.
         if subsystem_mode {
-            let dma_recovery = DmaRecovery::new(recovery_interface_base_addr, mci_base_addr, dma);
+            let dma_recovery = DmaRecovery::new(
+                recovery_interface_base_addr,
+                caliptra_base_addr,
+                mci_base_addr,
+                dma,
+            );
 
             // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
             dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
@@ -516,7 +523,7 @@ impl FirmwareProcessor {
                 (
                     DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
                     1,
-                    DmaRecovery::DEVICE_STATUS_RUNNING_RECOVERY_IMAGE,
+                    DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
                 )
             };
 
@@ -920,9 +927,10 @@ impl FirmwareProcessor {
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
         let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr = soc_ifc.caliptra_base_axi_addr().into();
         let mci_base_addr = soc_ifc.mci_base_addr().into();
         const FW_IMAGE_INDEX: u32 = 0x0;
-        let dma_recovery = DmaRecovery::new(rri_base_addr, mci_base_addr, dma);
+        let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
         dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 }

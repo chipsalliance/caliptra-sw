@@ -30,6 +30,7 @@ use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
+use zerocopy::transmute;
 use zeroize::Zeroize;
 
 pub enum TbsType {
@@ -74,6 +75,9 @@ impl ColdResetFlow {
         let mut ldevid_layer_output = result?;
         let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
 
+        // Generate the CMB AES key
+        generate_cmb_aes_key(env)?;
+
         // Download and validate firmware.
         let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
@@ -94,6 +98,15 @@ impl ColdResetFlow {
 
         Ok(())
     }
+}
+
+/// Generates the cryptographic mailbox AES key.
+fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
+    let key_share0: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
+    let key_share1: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
+    env.persistent_data.get_mut().cmb_aes_key_share0 = transmute!(key_share0);
+    env.persistent_data.get_mut().cmb_aes_key_share1 = transmute!(key_share1);
+    Ok(())
 }
 
 /// Copies the TBS to DCCM
