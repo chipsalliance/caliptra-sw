@@ -187,6 +187,36 @@ impl Sha2_512_384AccOp<'_> {
         Ok(())
     }
 
+    /// Prepare the SHA accelerator for streaming.
+    ///
+    /// # Arguments
+    ///
+    /// * `dlen` - length of data that will be hashed
+    /// * `maintain_data_endianess` - reorder byte endianess if false, leave as-is if true
+    pub fn stream_start_512(
+        &mut self,
+        dlen: u32,
+        maintain_data_endianess: bool,
+    ) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // Set the SHA accelerator mode and set the option to maintain the DWORD
+        // endianess of the data in the mailbox provided to the SHA384 engine.
+        sha_acc.mode().write(|w| {
+            w.mode(|_| ShaCmdE::ShaStream512)
+                .endian_toggle(maintain_data_endianess)
+        });
+
+        // Set the data length to hash.
+        sha_acc.dlen().write(|_| dlen);
+        Ok(())
+    }
+
+    pub fn stream_write_dword(&mut self, dword: u32) {
+        let sha_acc = self.sha512_acc.regs_mut();
+        sha_acc.datain().write(|_| dword);
+    }
+
     /// Execute and finish SHA accelerator streaming operation.
     pub fn stream_finish_384(&mut self, digest: Sha384Digest) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
@@ -197,6 +227,16 @@ impl Sha2_512_384AccOp<'_> {
         self.stream_wait_for_done_384(digest)
     }
 
+    /// Execute and finish SHA accelerator streaming operation.
+    pub fn stream_finish_512(&mut self, digest: Sha512Digest) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // signal that we are done streaming
+        sha_acc.execute().write(|w| w.execute(true));
+
+        self.stream_wait_for_done_512(digest)
+    }
+
     /// Wait for the SHA accelerator streaming operation to finish.
     pub fn stream_wait_for_done_384(&mut self, digest: Sha384Digest) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
@@ -205,6 +245,23 @@ impl Sha2_512_384AccOp<'_> {
         wait::until(|| sha_acc.status().read().valid());
 
         *digest = Array4x12::read_from_reg(sha_acc.digest().truncate::<12>());
+
+        // Zeroize the hardware registers.
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
+        Ok(())
+    }
+
+    /// Wait for the SHA accelerator streaming operation to finish.
+    pub fn stream_wait_for_done_512(&mut self, digest: Sha512Digest) -> CaliptraResult<()> {
+        let sha_acc = self.sha512_acc.regs_mut();
+
+        // Wait for the digest operation to finish
+        wait::until(|| sha_acc.status().read().valid());
+
+        *digest = Array4x16::read_from_reg(sha_acc.digest().truncate::<16>());
 
         // Zeroize the hardware registers.
         self.sha512_acc

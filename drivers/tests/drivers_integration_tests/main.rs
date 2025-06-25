@@ -35,6 +35,7 @@ fn default_init_params() -> InitParams<'static> {
 
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
+    std::fs::write("rom.bin", &rom).unwrap();
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
