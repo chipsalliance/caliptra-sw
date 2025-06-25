@@ -11,6 +11,10 @@ Abstract:
     File contains main entry point for Caliptra ROM
 
 --*/
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]

@@ -11,6 +11,8 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
@@ -114,7 +116,12 @@ impl FirmwareProcessor {
         };
 
         // Load the manifest into DCCM.
-        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
+        let manifest = Self::load_manifest_proto(
+            &mut env.persistent_data,
+            &mut env.dma,
+            &mut env.soc_ifc,
+            &mut txn,
+        );
         let manifest = okref(&manifest)?;
 
         let mut venv = FirmwareImageVerificationEnv {
@@ -416,7 +423,7 @@ impl FirmwareProcessor {
 
                         // Download the firmware image from the recovery interface.
                         let image_size_bytes =
-                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
+                            Self::retrieve_image_from_recovery_interface_proto(dma, soc_ifc)?;
                         cprintln!(
                             "[fwproc] Received image from the Recovery Interface of size {} bytes",
                             image_size_bytes
@@ -453,6 +460,31 @@ impl FirmwareProcessor {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
         manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
+        report_boot_status(FwProcessorManifestLoadComplete.into());
+        Ok(*manifest)
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_manifest_proto(
+        persistent_data: &mut PersistentDataAccessor,
+        dma: &mut Dma,
+        soc_ifc: &mut SocIfc,
+        _txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<ImageManifest> {
+        let manifest = &mut persistent_data.get_mut().manifest1;
+        let manifest_buf = manifest.as_mut_bytes();
+
+        let ptr = manifest_buf.as_mut_ptr() as *mut u32;
+        let len = manifest_buf.len() / 4;
+        let manifest_buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+
+        cprintln!(
+            "[fwproc] DMAing manifest from staging sram addr 0x{:08x} to 0x{:08x}",
+            soc_ifc.staging_sram_addr(),
+            manifest_buf.as_ptr() as u32
+        );
+        dma.read_buffer(soc_ifc.staging_sram_addr().into(), manifest_buf);
+
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -694,6 +726,67 @@ impl FirmwareProcessor {
         Ok(())
     }
 
+    #[inline(always)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image_proto(
+        manifest: &ImageManifest,
+        dma: &mut Dma,
+        soc_ifc: &mut SocIfc,
+        _txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<()> {
+        cprintln!(
+            "[fwproc] Load FMC at address 0x{:08x} len {}",
+            manifest.fmc.load_addr,
+            manifest.fmc.size
+        );
+
+        let fmc_dest = unsafe {
+            let addr = manifest.fmc.load_addr as *mut u8;
+            let len = manifest.fmc.size as usize;
+            let u32_ptr = addr as *mut u32;
+            let u32_len = len / 4;
+            core::slice::from_raw_parts_mut(u32_ptr, u32_len)
+        };
+
+        let staging_sram_addr = soc_ifc.staging_sram_addr();
+
+        cprintln!(
+            "DMAing FMC to 0x{:08x} from 0x{:08x}",
+            fmc_dest.as_ptr() as u32,
+            staging_sram_addr
+        );
+        dma.read_buffer(staging_sram_addr.into(), fmc_dest);
+
+        cprintln!(
+            "[fwproc] Load Runtime at address 0x{:08x} len {}",
+            manifest.runtime.load_addr,
+            manifest.runtime.size
+        );
+
+        let runtime_dest = unsafe {
+            let addr = manifest.runtime.load_addr as *mut u8;
+            let len = manifest.runtime.size as usize;
+            let u32_ptr = addr as *mut u32;
+            let u32_len = len / 4;
+            core::slice::from_raw_parts_mut(u32_ptr, u32_len)
+        };
+
+        let runtime_start_offset = soc_ifc.staging_sram_addr()
+            + size_of::<ImageManifest>() as u64
+            + manifest.fmc.size as u64;
+
+        cprintln!(
+            "DMAing Runtime to 0x{:08x} from 0x{:08x}",
+            runtime_dest.as_ptr() as u32,
+            runtime_start_offset
+        );
+
+        dma.read_buffer(runtime_start_offset.into(), runtime_dest);
+
+        report_boot_status(FwProcessorLoadImageComplete.into());
+        Ok(())
+    }
+
     /// Populate data vault
     ///
     /// # Arguments
@@ -922,7 +1015,7 @@ impl FirmwareProcessor {
     /// # Returns
     /// * `CaliptraResult<u32>` - Size of the image downloaded
     ///   Error code on failure.
-    fn retrieve_image_from_recovery_interface(
+    fn _retrieve_image_from_recovery_interface(
         dma: &mut Dma,
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
@@ -932,5 +1025,19 @@ impl FirmwareProcessor {
         const FW_IMAGE_INDEX: u32 = 0x0;
         let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
         dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
+    }
+
+    fn retrieve_image_from_recovery_interface_proto(
+        dma: &mut Dma,
+        soc_ifc: &mut SocIfc,
+    ) -> CaliptraResult<u32> {
+        let rri_base_addr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr = soc_ifc.caliptra_base_axi_addr().into();
+        let mci_base_addr = soc_ifc.mci_base_addr().into();
+        let staging_sram_addr = soc_ifc.staging_sram_addr().into();
+
+        const FW_IMAGE_INDEX: u32 = 0x0;
+        let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
+        dma_recovery.download_image_to_staging_sram(FW_IMAGE_INDEX, staging_sram_addr)
     }
 }

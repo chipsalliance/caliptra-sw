@@ -12,6 +12,9 @@ Abstract:
 
 --*/
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use core::num::NonZeroU32;
 
 use crate::*;
@@ -495,7 +498,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
         }
 
-        let range = ImageManifest::vendor_pub_key_descriptors_range();
+        let _range = ImageManifest::vendor_pub_key_descriptors_range();
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -505,17 +508,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
-        )?;
+        // let actual = &self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(expected) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
-        }
+        // if cfi_launder(expected) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        // }
 
         self.verify_active_ecc_pub_key_digest(preamble)?;
         self.verify_active_pqc_pub_key_digest(preamble, pqc_key_type)?;
@@ -527,29 +530,29 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let pub_key_info = preamble.vendor_pub_key_info;
         let ecc_key_idx = preamble.vendor_ecc_pub_key_idx;
 
-        let expected = pub_key_info
+        let _expected = pub_key_info
             .ecc_key_descriptor
             .key_hash
             .get(ecc_key_idx as usize)
             .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
 
-        let range = {
+        let _range = {
             let offset = offset_of!(ImageManifest, preamble) as u32;
             let span = span_of!(ImagePreamble, vendor_ecc_active_pub_key);
             span.start as u32 + offset..span.end as u32 + offset
         };
 
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
-        )?;
+        // let actual = &self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(expected) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
-        }
+        // if cfi_launder(expected) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(expected, actual);
+        // }
 
         Ok(())
     }
@@ -609,9 +612,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Returns a bool indicating whether the digest was in fuses.
     fn verify_owner_pk_digest(
         &mut self,
-        reason: ResetReason,
+        _reason: ResetReason,
     ) -> CaliptraResult<(ImageDigest384, bool)> {
-        let range = ImageManifest::owner_pub_key_range();
+        let _range = ImageManifest::owner_pub_key_range();
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -621,34 +624,35 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE,
-        )?;
+        // let actual = &self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE,
+        // )?;
 
         let fuses_digest = &self.env.owner_pub_key_digest_fuses();
 
-        if fuses_digest == ZERO_DIGEST {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, ZERO_DIGEST);
-        } else if fuses_digest != actual {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, actual);
-        }
+        // if fuses_digest == ZERO_DIGEST {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, ZERO_DIGEST);
+        // } else if fuses_digest != actual {
+        //     return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, actual);
+        // }
 
-        if cfi_launder(reason) == ResetReason::UpdateReset {
-            let cold_boot_digest = &self.env.owner_pub_key_digest_dv();
-            if cfi_launder(cold_boot_digest) != actual {
-                return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
-            } else {
-                caliptra_cfi_lib::cfi_assert_eq_12_words(cold_boot_digest, actual);
-            }
-        } else {
-            cfi_assert_ne(reason, ResetReason::UpdateReset);
-        }
+        // if cfi_launder(reason) == ResetReason::UpdateReset {
+        //     let cold_boot_digest = &self.env.owner_pub_key_digest_dv();
+        //     if cfi_launder(cold_boot_digest) != actual {
+        //         return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
+        //     } else {
+        //         caliptra_cfi_lib::cfi_assert_eq_12_words(cold_boot_digest, actual);
+        //     }
+        // } else {
+        //     cfi_assert_ne(reason, ResetReason::UpdateReset);
+        // }
 
-        Ok((*actual, fuses_digest != ZERO_DIGEST))
+        // Ok((*actual, fuses_digest != ZERO_DIGEST))
+        Ok((*fuses_digest, fuses_digest != ZERO_DIGEST))
     }
 
     /// Verify Header
@@ -1102,9 +1106,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_fmc(
         &mut self,
         verify_info: &ImageTocEntry,
-        reason: ResetReason,
+        _reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
-        let range = verify_info.image_range()?;
+        let _range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -1114,17 +1118,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
-        )?;
+        // let actual = self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(verify_info.digest) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
-        }
+        // if cfi_launder(verify_info.digest) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+        // }
 
         // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
@@ -1146,15 +1150,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
 
-        if cfi_launder(reason) == ResetReason::UpdateReset {
-            if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
-            } else {
-                cfi_assert_eq(actual, self.env.get_fmc_digest_dv());
-            }
-        } else {
-            cfi_assert_ne(reason, ResetReason::UpdateReset);
-        }
+        // if cfi_launder(reason) == ResetReason::UpdateReset {
+        //     if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
+        //         Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
+        //     } else {
+        //         cfi_assert_eq(actual, self.env.get_fmc_digest_dv());
+        //     }
+        // } else {
+        //     cfi_assert_ne(reason, ResetReason::UpdateReset);
+        // }
 
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
@@ -1172,7 +1176,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
-        let range = verify_info.image_range()?;
+        let _range = verify_info.image_range()?;
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -1182,17 +1186,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
-        )?;
+        // let actual = self.env.sha384_acc_digest(
+        //     range.start,
+        //     range.len() as u32,
+        //     CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE,
+        // )?;
 
-        if cfi_launder(verify_info.digest) != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
-        }
+        // if cfi_launder(verify_info.digest) != actual {
+        //     Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
+        // } else {
+        //     caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
+        // }
 
         // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)

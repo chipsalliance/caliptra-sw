@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::Array4x12;
+use crate::{dma, Array4x12};
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -599,6 +599,10 @@ impl SocIfc {
             .ss_generic_fw_exec_ctrl()
             .at(MCU_FW_READY_WORD)
             .modify(|w| w | MCU_FW_READY_BIT);
+    }
+
+    pub fn staging_sram_addr(&self) -> u64 {
+        self.mci_base_addr() + dma::MCU_SRAM_OFFSET
     }
 }
 
