@@ -157,7 +157,7 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(manifest, &mut txn)?;
+        Self::load_image_proto(manifest, &mut env.dma, &mut env.soc_ifc, &mut txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -485,6 +485,14 @@ impl FirmwareProcessor {
         );
         dma.read_buffer(soc_ifc.staging_sram_addr().into(), manifest_buf);
 
+        for i in 0..16 {
+            cprintln!(
+                "Manifest words: {}: {:08x}",
+                i,
+                manifest_buf[i].swap_bytes()
+            );
+        }
+
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -753,9 +761,12 @@ impl FirmwareProcessor {
         cprintln!(
             "DMAing FMC to 0x{:08x} from 0x{:08x}",
             fmc_dest.as_ptr() as u32,
-            staging_sram_addr
+            u64::from(AxiAddr::from(staging_sram_addr) + size_of::<ImageManifest>() as u64)
         );
-        dma.read_buffer(staging_sram_addr.into(), fmc_dest);
+        dma.read_buffer(
+            AxiAddr::from(staging_sram_addr) + size_of::<ImageManifest>() as u64,
+            fmc_dest,
+        );
 
         cprintln!(
             "[fwproc] Load Runtime at address 0x{:08x} len {}",

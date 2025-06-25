@@ -57,7 +57,7 @@ fn main() {
     }
 
     if let Some(path) = args.get_one::<PathBuf>("rom-with-log") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_FPGA_WITH_UART).unwrap();
         std::fs::write(path, rom).unwrap();
     }
     if let Some(path) = args.get_one::<PathBuf>("fake-rom") {

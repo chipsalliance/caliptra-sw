@@ -149,11 +149,11 @@ impl Dma {
 
     pub fn setup_dma_read(&self, read_transaction: DmaReadTransaction, block_size: u32) {
         self.with_dma(|dma| {
-            cprintln!(
-                "[dma] Writing source address: {:08x}{:08x}",
-                read_transaction.read_addr.hi,
-                read_transaction.read_addr.lo
-            );
+            // cprintln!(
+            //     "[dma] Writing source address: {:08x}{:08x}",
+            //     read_transaction.read_addr.hi,
+            //     read_transaction.read_addr.lo
+            // );
             let read_addr = read_transaction.read_addr;
             dma.src_addr_l().write(|_| read_addr.lo);
             dma.src_addr_h().write(|_| read_addr.hi);
@@ -162,11 +162,11 @@ impl Dma {
             let mut target_addr_hi: u32 = 0;
             match read_transaction.target {
                 DmaReadTarget::AxiWr(target_addr, _) => {
-                    cprintln!(
-                        "[dma] Writing target address: {:08x}{:08x}",
-                        target_addr.hi,
-                        target_addr.lo
-                    );
+                    // cprintln!(
+                    //     "[dma] Writing target address: {:08x}{:08x}",
+                    //     target_addr.hi,
+                    //     target_addr.lo
+                    // );
                     target_addr_lo = target_addr.lo;
                     target_addr_hi = target_addr.hi;
                 }
@@ -180,11 +180,11 @@ impl Dma {
             dma.dst_addr_h().write(|_| target_addr_hi);
 
             // Set the number of bytes to read.
-            cprintln!("[dma] Setting read length: {}", read_transaction.length);
+            //cprintln!("[dma] Setting read length: {}", read_transaction.length);
             dma.byte_count().write(|_| read_transaction.length);
 
             // Set the block size.
-            cprintln!("[dma] Setting block size: {}", block_size);
+            //cprintln!("[dma] Setting block size: {}", block_size);
             dma.block_size().write(|f| f.size(block_size));
 
             dma.ctrl().write(|c| {
@@ -208,7 +208,7 @@ impl Dma {
                     .go(true)
             });
 
-            cprintln!("[dma] DMA read transaction setup complete");
+            // cprintln!("[dma] DMA read transaction setup complete");
         });
     }
 
@@ -262,9 +262,9 @@ impl Dma {
     /// This function will block until the DMA transaction is completed successfully.
     /// On a DMA error, this will loop forever.
     fn wait_for_dma_complete(&self) {
-        cprintln!("[dma] Waiting for DMA transaction to complete...");
+        //cprintln!("[dma] Waiting for DMA transaction to complete...");
         self.with_dma(|dma| while dma.status0().read().busy() {});
-        cprintln!("[dma] DMA transaction completed successfully");
+        //cprintln!("[dma] DMA transaction completed successfully");
     }
 
     /// Read data from the DMA FIFO and store it in the provided buffer.
@@ -280,10 +280,10 @@ impl Dma {
                 while dma.status0().read().fifo_depth() == 0 {}
                 let read = dma.read_data().read();
                 *word = read;
-                cprintln!(
-                    "[dma] Read data from FIFO: {:08x} and stored in buffer",
-                    read
-                );
+                // cprintln!(
+                //     "[dma] Read data from FIFO: {:08x} and stored in buffer",
+                //     read
+                // );
             }
         });
     }
@@ -537,7 +537,7 @@ impl<'a> DmaRecovery<'a> {
             target: DmaReadTarget::Mbox(offset),
         };
         self.exec_dma_read(read_transaction)?;
-         Ok(())
+        Ok(())
     }
 
     // Downloads an image from the recovery interface to the mailbox SRAM.
@@ -568,13 +568,7 @@ impl<'a> DmaRecovery<'a> {
 
         // Transfer the image from the recovery interface to the staging SRAM.
         let read_addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
-        self.transfer_payload_to_axi(
-            read_addr,
-            image_size_bytes,
-            write_addr,
-            true,
-            false,
-        )?;
+        self.transfer_payload_to_axi(read_addr, image_size_bytes, write_addr, true, false)?;
         cprintln!("[fwproc] DMAing image to staging sram completed; waiting for activation...");
         self.wait_for_activation()?;
         cprintln!("[fwproc] Activation completed; setting recovery status to booting recovery image: 0x{:x}",
