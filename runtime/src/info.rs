@@ -16,7 +16,7 @@ use crate::{handoff::RtHandoff, mutrefbytes, Drivers};
 use caliptra_common::mailbox_api::{
     AlgorithmType, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
 };
-use caliptra_drivers::CaliptraResult;
+use caliptra_drivers::{get_fw_error_non_fatal, CaliptraResult};
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
@@ -46,6 +46,10 @@ impl FwInfoCmd {
         resp.runtime_sha384_digest = pdata.manifest1.runtime.digest;
         resp.owner_pub_key_hash = pdata.data_vault.owner_pk_hash().into();
         resp.authman_sha384_digest = pdata.auth_manifest_digest;
+        resp.most_recent_fw_error = match get_fw_error_non_fatal() {
+            0 => drivers.persistent_data.get().cleared_non_fatal_fw_error,
+            e => e,
+        };
         Ok(core::mem::size_of::<FwInfoResp>())
     }
 }

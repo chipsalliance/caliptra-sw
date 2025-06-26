@@ -320,7 +320,7 @@ impl FirmwareProcessor {
             CfiCounter::delay();
 
             if let Some(txn) = mbox.peek_recv() {
-                report_fw_error_non_fatal(0);
+                clear_fw_error_non_fatal(persistent_data);
 
                 // Drop all commands for invalid PAUSER
                 if txn.id() == RESERVED_PAUSER {
