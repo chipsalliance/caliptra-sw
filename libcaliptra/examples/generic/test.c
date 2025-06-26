@@ -1092,7 +1092,7 @@ int rt_test_all_commands(const test_info *info)
     return failure;
 }
 
-int rom_test_devid_csr(const test_info *info)
+int rom_test_ecc384_devid_csr(const test_info *info)
 {
     int failure = 0;
 
@@ -1136,7 +1136,7 @@ int rom_test_devid_csr(const test_info *info)
     // The ECC IDEV CSR inside InitDevIdCsrEnvelope starts at offset 12
     if (memcmp(&caliptra_idevid_csr_buf.data[ECC_CSR_ENVELOPE_OFFSET], ecc_idev_csr_bytes, ECC_IDEV_CSR_LEN) != 0)
     {
-        printf("IDEV CSR does not match\n");
+        printf("ECC384 IDEV CSR does not match\n");
 #ifdef ENABLE_DEBUG
         dump_array_to_file(&caliptra_idevid_csr_buf, "retrieved.bin");
 #endif
@@ -1144,7 +1144,7 @@ int rom_test_devid_csr(const test_info *info)
     }
     else
     {
-        printf("IDEV CSR matches\n");
+        printf("ECC384 IDEV CSR matches\n");
     }
 
     caliptra_req_idev_csr_complete();
@@ -1172,6 +1172,78 @@ int rom_test_devid_csr(const test_info *info)
         else
         {
             printf("Get IDev CSR: OK\n");
+        }
+    }
+
+    free((void *)caliptra_idevid_csr_buf.data);
+    return failure;
+}
+
+int rom_test_mldsa87_devid_csr(const test_info *info)
+{
+    int failure = 0;
+
+    struct caliptra_buffer caliptra_idevid_csr_buf = {0};
+    caliptra_idevid_csr_buf.len = CSR_REQ_RESP_LEN;
+    // Allocte a buffer to hold the IDEV CSR using malloc
+    caliptra_idevid_csr_buf.data = malloc(caliptra_idevid_csr_buf.len);
+
+    // Check if the buffer was allocated successfully
+    if (caliptra_idevid_csr_buf.data == NULL)
+    {
+        printf("Failed to allocate memory for IDEV CSR\n");
+        return 1;
+    }
+
+    bool request_csr = true;
+    int status = boot_to_ready_for_fw(info, request_csr);
+
+    if (status)
+    {
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+
+    caliptra_wait_for_csr_ready();
+
+    int ret;
+    // Retrieve the IDEV CSR
+    if ((ret = caliptra_retrieve_idevid_csr(&caliptra_idevid_csr_buf)) != NO_ERROR)
+    {
+        printf("Failed to retrieve IDEV CSR\n");
+        printf("Error is 0x%x\n", ret);
+        failure = 1;
+    }
+    else
+    {
+        printf("IDEV CSR retrieved\n");
+    }
+
+    caliptra_req_idev_csr_complete();
+    caliptra_ready_for_firmware();
+
+    // Test Get Idev CSR now that a CSR is provisioned.
+    // GET MLDSA87 IDEV CSR
+    struct caliptra_get_idev_mldsa87_csr_resp csr_resp = {0};
+
+    status = caliptra_get_idev_mldsa87_csr(&csr_resp, false);
+
+    if (status)
+    {
+        printf("Get MLDSA87 IDev CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    }
+    else
+    {
+        if (memcmp(csr_resp.data, mldsa_idev_csr_bytes, csr_resp.data_size) != 0)
+        {
+            printf("MLDSA87 IDEV CSR does not match\n");
+            failure = 1;
+        }
+        else
+        {
+            printf("Get MLDSA87 IDev CSR: OK\n");
         }
     }
 
@@ -1428,7 +1500,8 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
-    run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
+    run_test(rom_test_ecc384_devid_csr, info, "Test ECC384 IDEV CSR GEN");
+    run_test(rom_test_mldsa87_devid_csr, info, "Test MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");

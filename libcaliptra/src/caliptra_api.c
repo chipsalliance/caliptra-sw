@@ -1336,7 +1336,7 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
-// Get IDev CSR
+// Get ECC384 IDev CSR
 int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp, bool async)
 {
     if (!resp)
@@ -1347,6 +1347,21 @@ int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp,
     caliptra_checksum checksum = 0;
 
     CREATE_PARCEL(p, OP_GET_IDEV_ECC384_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get MLDSA87 IDev CSR
+int caliptra_get_idev_mldsa87_csr(struct caliptra_get_idev_mldsa87_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_IDEV_MLDSA87_CSR, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
