@@ -354,7 +354,10 @@ impl SocIfc {
         soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
     }
 
-    pub fn get_version(&self) -> [u32; 3] {
+    /// Get the version of the module as required by FIPS
+    ///
+    /// The FIPS revision consists of: [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
+    pub fn get_fips_version(&self) -> [u32; 3] {
         [
             u32::from(self.soc_ifc.regs().cptra_hw_rev_id().read()),
             self.soc_ifc.regs().cptra_fw_rev_id().at(0).read(),
