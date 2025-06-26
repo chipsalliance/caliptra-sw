@@ -61,7 +61,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         }
 
         if drivers.mbox.is_cmd_ready() {
-            caliptra_drivers::report_fw_error_non_fatal(0);
+            caliptra_drivers::clear_fw_error_non_fatal(drivers.persistent_data.get_mut());
             match handle_command(drivers, &persistent_data) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
