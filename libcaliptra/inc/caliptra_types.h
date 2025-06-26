@@ -56,7 +56,7 @@ struct caliptra_resp_header
     uint32_t fips_status;
 };
 
-struct caliptra_get_idev_cert_req
+struct caliptra_get_idev_ecc384_cert_req
 {
     struct caliptra_req_header hdr;
     uint32_t tbs_size;
@@ -65,42 +65,42 @@ struct caliptra_get_idev_cert_req
     uint8_t tbs[916];
 };
 
-struct caliptra_get_idev_cert_resp
+struct caliptra_get_idev_ecc384_cert_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t cert_size;
     uint8_t cert[1024];
 };
 
-struct caliptra_get_idev_info_resp
+struct caliptra_get_idev_ecc384_info_resp
 {
     struct caliptra_resp_header hdr;
     uint8_t idev_pub_x[48];
     uint8_t idev_pub_y[48];
 };
 
-struct caliptra_populate_idev_cert_req
+struct caliptra_populate_idev_ecc384_cert_req
 {
     struct caliptra_req_header hdr;
     uint32_t cert_size;
     uint8_t cert[1024];
 };
 
-struct caliptra_get_ldev_cert_resp
+struct caliptra_get_ldev_ecc384_cert_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
     uint8_t data[1024];
 };
 
-struct caliptra_get_fmc_alias_cert_resp
+struct caliptra_get_fmc_alias_ecc384_cert_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
     uint8_t data[1024];
 };
 
-struct caliptra_get_rt_alias_cert_resp
+struct caliptra_get_rt_alias_ecc384_cert_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
@@ -115,6 +115,55 @@ struct caliptra_ecdsa_verify_v2_req
     uint8_t signature_r[48];
     uint8_t signature_s[48];
     uint8_t hash[48];
+};
+
+struct caliptra_get_idev_mldsa87_cert_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t tbs_size;
+    uint8_t signature[4628];
+    uint8_t tbs[2820];
+};
+
+struct caliptra_get_idev_mldsa87_cert_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t cert[9216];
+};
+
+struct caliptra_get_idev_mldsa87_info_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t idev_pub_key[2592];
+};
+
+struct caliptra_populate_idev_mldsa87_cert_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[8192];
+};
+
+struct caliptra_get_ldev_mldsa87_cert_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
+};
+
+struct caliptra_get_fmc_alias_mldsa87_cert_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
+};
+
+struct caliptra_get_rt_alias_mldsa87_cert_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
 };
 
 struct caliptra_lms_verify_v2_req
@@ -258,7 +307,7 @@ struct caliptra_capabilities_resp
     uint8_t capabilities[16];
 };
 
-struct caliptra_get_idev_csr_resp
+struct caliptra_get_idev_ecc384_csr_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
