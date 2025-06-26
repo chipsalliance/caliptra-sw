@@ -211,6 +211,7 @@ struct caliptra_fw_info_resp
     uint32_t runtime_sha384_digest[12];
     uint32_t owner_pub_key_hash[12];
     uint32_t authman_sha384_digest[12];
+    uint32_t most_recent_fw_error;
 };
 
 struct caliptra_dpe_tag_tci_req
