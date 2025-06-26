@@ -20,9 +20,8 @@ echo "36668aa492b1c83cdd3ade8466a0153d --- Command input"
 echo Available commands:
 echo "  runner-jitconfig <base64>"
 echo "  login"
-echo -n "> "
+read -e -p "> " cmd
 
-read cmd
 cmd_array=($cmd)
 if [[ "${cmd}" == "login" ]]; then
     login -f root
