@@ -13,8 +13,9 @@ use dpe::{
         CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
+    DPE_PROFILE,
 };
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
 pub const HOOK_CODE_OFFSET: u32 = 16;
@@ -340,34 +341,34 @@ pub fn as_bytes<'a>(dpe_cmd: &'a mut Command) -> &'a [u8] {
 pub fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     match dpe_cmd {
         Command::CertifyKey(_) => {
-            Response::CertifyKey(CertifyKeyResp::read_from_bytes(resp_bytes).unwrap())
+            Response::CertifyKey(CertifyKeyResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::DeriveContext(_) => {
-            Response::DeriveContext(DeriveContextResp::read_from_bytes(resp_bytes).unwrap())
+            Response::DeriveContext(DeriveContextResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::GetCertificateChain(_) => Response::GetCertificateChain(
-            GetCertificateChainResp::read_from_bytes(resp_bytes).unwrap(),
+            GetCertificateChainResp::try_read_from_bytes(resp_bytes).unwrap(),
         ),
         Command::DestroyCtx(_) => {
-            Response::DestroyCtx(ResponseHdr::read_from_bytes(resp_bytes).unwrap())
+            Response::DestroyCtx(ResponseHdr::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::GetProfile => {
-            Response::GetProfile(GetProfileResp::read_from_bytes(resp_bytes).unwrap())
+            Response::GetProfile(GetProfileResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::InitCtx(_) => {
-            Response::InitCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+            Response::InitCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
         }
         Command::RotateCtx(_) => {
-            Response::RotateCtx(NewHandleResp::read_from_bytes(resp_bytes).unwrap())
+            Response::RotateCtx(NewHandleResp::try_read_from_bytes(resp_bytes).unwrap())
         }
-        Command::Sign(_) => Response::Sign(SignResp::read_from_bytes(resp_bytes).unwrap()),
+        Command::Sign(_) => Response::Sign(SignResp::try_read_from_bytes(resp_bytes).unwrap()),
     }
 }
 
 pub fn execute_dpe_cmd<T: HwModel>(hw: &mut T, dpe_cmd: &mut Command) -> Response {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = get_cmd_id(dpe_cmd);
-    let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(DPE_PROFILE, dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = as_bytes(dpe_cmd);

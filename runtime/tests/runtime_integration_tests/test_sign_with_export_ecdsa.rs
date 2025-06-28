@@ -81,7 +81,7 @@ fn test_sign_with_exported_cdi() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
@@ -124,7 +124,7 @@ fn test_sign_with_exported_incorrect_cdi_handle() {
 
     let get_cert_chain_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
@@ -204,7 +204,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
@@ -236,7 +236,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let measurement_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0xa; DPE_PROFILE.get_tci_size()],
+        data: [0xa; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"MBVP"),
         target_locality: 0,
@@ -296,7 +296,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
@@ -312,7 +312,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let measurement_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0xa; DPE_PROFILE.get_tci_size()],
+        data: [0xa; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"MBVP"),
         target_locality: 0,
@@ -388,7 +388,7 @@ fn test_sign_with_revoked_exported_cdi() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
@@ -457,7 +457,7 @@ fn test_sign_with_disabled_attestation() {
 
     let export_cdi_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
@@ -533,7 +533,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
 
     let derive_ctx_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI
             | DeriveContextFlags::CREATE_CERTIFICATE
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
@@ -635,7 +635,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     // We will export the parent. We expect that the child prevents the dpe context chain from being destroyed.
     let derive_ctx_cmd = DeriveContextCmd {
         handle,
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
@@ -653,7 +653,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     // Export the parent context from the last derive command.
     let derive_ctx_cmd = DeriveContextCmd {
         handle: parent_handle,
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,

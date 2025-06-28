@@ -448,7 +448,7 @@ pub fn test_all_measurement_apis() {
         handle: ContextHandle::default(),
         data: measurement,
         flags: DeriveContextFlags::MAKE_DEFAULT
-            | DeriveContextFlags::INPUT_ALLOW_CA
+            | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
             | DeriveContextFlags::INPUT_ALLOW_X509,
         tci_type: u32::read_from_bytes(&tci_type[..]).unwrap(),
         target_locality: 0,
