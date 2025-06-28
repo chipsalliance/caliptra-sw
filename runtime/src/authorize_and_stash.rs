@@ -94,6 +94,7 @@ impl AuthorizeAndStashCmd {
                         drivers,
                         &cmd.fw_id,
                         &cmd.measurement,
+                        cmd.svn,
                     )?;
                     if dpe_result != DpeErrorCode::NoError {
                         drivers
