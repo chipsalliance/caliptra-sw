@@ -427,6 +427,7 @@ impl Drivers {
                 | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
+            svn: 0,
         }
         .execute(&mut dpe, &mut env, caliptra_locality);
         if let Err(e) = derive_context_resp {
@@ -464,6 +465,7 @@ impl Drivers {
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
+                svn: 0,
             }
             .execute(&mut dpe, &mut env, pl0_pauser_locality);
             if let Err(e) = derive_context_resp {

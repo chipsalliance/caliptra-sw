@@ -35,6 +35,7 @@ impl StashMeasurementCmd {
         drivers: &mut Drivers,
         metadata: &[u8; 4],
         measurement: &[u8; 48],
+        svn: u32,
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
             match drivers.caller_privilege_level() {
@@ -89,6 +90,7 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
+                svn: svn,
             }
             .execute(&mut pdata.dpe, &mut env, locality);
 
@@ -120,7 +122,8 @@ impl StashMeasurementCmd {
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
+        let dpe_result =
+            Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;
 
         Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
             hdr: MailboxRespHeader::default(),

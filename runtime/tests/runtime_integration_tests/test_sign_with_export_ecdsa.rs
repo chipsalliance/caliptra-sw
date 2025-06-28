@@ -85,6 +85,7 @@ fn test_sign_with_exported_cdi() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -128,6 +129,7 @@ fn test_sign_with_exported_incorrect_cdi_handle() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -210,6 +212,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -240,6 +243,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"MBVP"),
         target_locality: 0,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -302,6 +306,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
@@ -316,6 +321,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: u32::from_be_bytes(*b"MBVP"),
         target_locality: 0,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -392,6 +398,7 @@ fn test_sign_with_revoked_exported_cdi() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
@@ -463,6 +470,7 @@ fn test_sign_with_disabled_attestation() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
@@ -539,6 +547,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
             | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -639,6 +648,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -657,6 +667,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
