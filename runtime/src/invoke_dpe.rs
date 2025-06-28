@@ -84,11 +84,12 @@ impl InvokeDpeCmd {
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
+            let mut dpe = &mut pdata.dpe;
+            let command = dpe
+                .deserialize_command(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut pdata.dpe;
             let mut context_has_tag = &mut pdata.context_has_tag;
             let mut context_tags = &mut pdata.context_tags;
             let resp = match command {
@@ -165,11 +166,9 @@ impl InvokeDpeCmd {
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    let r = ResponseHdr::try_mut_from_bytes(
-                        &mut invoke_resp.data[..core::mem::size_of::<ResponseHdr>()],
-                    )
-                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
-                    *r = ResponseHdr::new(*e);
+                    let r = dpe.response_hdr(*e);
+                    invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
+                        .copy_from_slice(r.as_bytes());
                     let data_size = r.as_bytes().len();
                     invoke_resp.data_size = data_size as u32;
                 }

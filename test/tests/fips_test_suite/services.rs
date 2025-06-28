@@ -450,7 +450,7 @@ pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
         panic!("Wrong response type!");
     };
 
-    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE);
 }
 
 pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {

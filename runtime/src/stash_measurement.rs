@@ -85,7 +85,7 @@ impl StashMeasurementCmd {
                 data: *measurement,
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
