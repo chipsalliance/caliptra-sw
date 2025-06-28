@@ -46,9 +46,9 @@ use caliptra_registers::{
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
-use dpe::dpe_instance::DpeInstanceFlags;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
+use dpe::DpeFlags;
 use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
@@ -166,15 +166,51 @@ impl Drivers {
             }
             ResetReason::UpdateReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);
-                Self::validate_dpe_structure(self)?;
-                Self::validate_context_tags(self)?;
-                Self::update_dpe_rt_journey(self)?;
+                let result = Self::validate_dpe_structure(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::validate_context_tags(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::update_dpe_rt_journey(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
-                Self::validate_dpe_structure(self)?;
-                Self::validate_context_tags(self)?;
-                Self::check_dpe_rt_journey_unchanged(self)?;
+                let result = Self::validate_dpe_structure(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::validate_context_tags(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::check_dpe_rt_journey_unchanged(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -196,7 +232,7 @@ impl Drivers {
     ///
     /// * `usize` - Index containing the root DPE context
     #[inline(always)]
-    pub fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
+    pub fn get_dpe_root_context_idx(dpe: &dpe::State) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
         let root_idx = dpe
             .contexts
@@ -217,7 +253,7 @@ impl Drivers {
 
     /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().dpe_state;
         let dpe_validator = DpeValidator { dpe };
         let validation_result = dpe_validator.validate_dpe();
         if let Err(e) = validation_result {
@@ -275,7 +311,7 @@ impl Drivers {
     /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let dpe = &mut drivers.persistent_data.get_mut().dpe_state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
@@ -286,7 +322,7 @@ impl Drivers {
 
     /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
     fn check_dpe_rt_journey_unchanged(mut drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &drivers.persistent_data.get().dpe;
+        let dpe = &drivers.persistent_data.get().dpe_state;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
@@ -326,7 +362,7 @@ impl Drivers {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = &pdata.context_has_tag;
         let context_tags = &pdata.context_tags;
-        let dpe = &pdata.dpe;
+        let dpe = &pdata.dpe_state;
 
         for i in (0..MAX_HANDLES) {
             if dpe.contexts[i].state == ContextState::Inactive {
@@ -389,6 +425,7 @@ impl Drivers {
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
+        let mut state = dpe::State::new(DPE_SUPPORT, DpeFlags::empty());
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
@@ -400,6 +437,7 @@ impl Drivers {
                 None,
                 None,
             ),
+            state: &mut state,
         };
 
         // Initialize DPE with the RT journey PCR
@@ -407,10 +445,8 @@ impl Drivers {
             <[u8; DPE_PROFILE.hash_size()]>::from(&drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         let mut dpe = DpeInstance::new_auto_init(
             &mut env,
-            DPE_SUPPORT,
             u32::from_be_bytes(*b"RTJM"),
             rt_journey_measurement,
-            DpeInstanceFlags::empty(),
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
@@ -449,7 +485,7 @@ impl Drivers {
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
                 privilege_level.clone(),
-                &dpe,
+                env.state,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
@@ -477,8 +513,12 @@ impl Drivers {
             }
         }
 
+        // Tell the compiler env is no longer needed so the state can be copied to persistent data.
+        // Otherwise the error, "cannot move out of `state` because it is borrowed" is given.
+        drop(env);
+
         // Write DPE to persistent data.
-        pdata.dpe = dpe;
+        pdata.dpe_state = state;
         Ok(())
     }
 
@@ -539,14 +579,14 @@ impl Drivers {
         Self::is_dpe_context_threshold_exceeded_helper(
             self.persistent_data.get().manifest1.header.pl0_pauser,
             self.caller_privilege_level(),
-            &self.persistent_data.get().dpe,
+            &self.persistent_data.get().dpe_state,
         )
     }
 
     fn is_dpe_context_threshold_exceeded_helper(
         pl0_pauser: u32,
         caller_privilege_level: PauserPrivileges,
-        dpe: &DpeInstance,
+        dpe: &dpe::State,
     ) -> CaliptraResult<()> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {

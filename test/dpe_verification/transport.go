@@ -244,7 +244,7 @@ func (s *CptraModel) GetProfileMajorVersion() uint16 {
 
 // GetProfileMinorVersion returns the minor version of the DPE profile.
 func (s *CptraModel) GetProfileMinorVersion() uint16 {
-	return 12
+	return 13
 }
 
 // GetProfileVendorID returns the vendor ID of the DPE profile.

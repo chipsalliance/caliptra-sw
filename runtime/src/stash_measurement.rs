@@ -24,6 +24,7 @@ use dpe::{
     context::ContextHandle,
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
+    DpeInstance,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -77,6 +78,7 @@ impl StashMeasurementCmd {
                     None,
                     None,
                 ),
+                state: &mut pdata.dpe_state,
             };
 
             let locality = drivers.mbox.user();
@@ -90,9 +92,9 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
-                svn: svn,
+                svn,
             }
-            .execute(&mut pdata.dpe, &mut env, locality);
+            .execute(&mut DpeInstance::initialized(), &mut env, locality);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
