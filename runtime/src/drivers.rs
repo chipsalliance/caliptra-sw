@@ -166,15 +166,51 @@ impl Drivers {
             }
             ResetReason::UpdateReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);
-                Self::validate_dpe_structure(self)?;
-                Self::validate_context_tags(self)?;
-                Self::update_dpe_rt_journey(self)?;
+                let result = Self::validate_dpe_structure(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::validate_context_tags(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::update_dpe_rt_journey(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
-                Self::validate_dpe_structure(self)?;
-                Self::validate_context_tags(self)?;
-                Self::check_dpe_rt_journey_unchanged(self)?;
+                let result = Self::validate_dpe_structure(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::validate_context_tags(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
+                let result = Self::check_dpe_rt_journey_unchanged(self);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
+                result?;
             }
             ResetReason::Unknown => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
@@ -449,7 +485,7 @@ impl Drivers {
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
                 privilege_level.clone(),
-                &env.state,
+                env.state,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();

@@ -92,9 +92,9 @@ impl StashMeasurementCmd {
                     | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
-                svn: svn,
+                svn,
             }
-            .execute(&mut DpeInstance::new_no_init(), &mut env, locality);
+            .execute(&mut DpeInstance::initialized(), &mut env, locality);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,

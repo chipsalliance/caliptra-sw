@@ -85,7 +85,7 @@ impl InvokeDpeCmd {
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let mut dpe = DpeInstance::new_no_init();
+            let mut dpe = DpeInstance::initialized();
             let command = dpe
                 .deserialize_command(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
