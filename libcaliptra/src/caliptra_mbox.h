@@ -54,6 +54,7 @@ enum mailbox_command {
     OP_SET_AUTH_MANIFEST           = 0x41544D4E, // "ATMN"
     OP_AUTHORIZE_AND_STASH         = 0x41545348, // "ATSH"
     OP_GET_IDEV_CSR                = 0x49444352, // "IDCR"
+    OP_GET_FMC_ALIAS_CSR           = 0x464D4352, // "FMCR"
     OP_SIGN_WITH_EXPORTED_ECDSA    = 0x53574545, // "SWEE"
     OP_REVOKE_EXPORTED_CDI_HANDLE  = 0x52564348, // "RVCH"
 };

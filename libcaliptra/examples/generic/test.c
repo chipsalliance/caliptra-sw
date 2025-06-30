@@ -600,6 +600,20 @@ int rt_test_all_commands(const test_info* info)
         printf("Get FMC Alias Cert: OK\n");
     }
 
+    // GET_FMC_ALIAS_CSR
+    struct caliptra_get_fmc_alias_csr_resp fmc_alias_csr_resp;
+
+    status = caliptra_get_fmc_alias_csr(&fmc_alias_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias CSR: OK\n");
+    }
+
+
     // GET_RT_ALIAS_CERT
     struct caliptra_get_rt_alias_cert_resp rt_alias_cert_resp;
 
