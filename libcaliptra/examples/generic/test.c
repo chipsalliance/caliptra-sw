@@ -849,8 +849,8 @@ int rt_test_all_commands(const test_info* info)
     
     // SHA Engine Tests
     uint32_t stream_hash[16]; // Adjust size as needed for SHA-384 or SHA-512
-    uint32_t stream_hash_data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
-    uint32_t stream_hash_update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
+    uint8_t stream_hash_data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
+    uint8_t stream_hash_update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
     uint32_t expected_stream_hash[16] = {
         0xcf83e135, 0x7eefb8bd, 0xf1542850, 0xd66d8007,
         0xd620e405, 0x0b5715dc, 0x83f4a921, 0xd36ce9ce,
@@ -859,7 +859,7 @@ int rt_test_all_commands(const test_info* info)
     };
 
     // Start SHA Stream
-    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, CALIPTRA_SHA_ACCELERATOR_ENDIANESS_LITTLE, stream_hash_data, sizeof(stream_hash_data));
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384, stream_hash_data, sizeof(stream_hash_data));
     if (status) {
         printf("Start SHA Stream failed: 0x%x\n", status);
         dump_caliptra_error_codes();
