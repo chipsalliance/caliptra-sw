@@ -143,6 +143,7 @@ bitfield! {
     pub struct ImageMetadataFlags(u32);
     pub image_source, set_image_source: 1, 0;
     pub ignore_auth_check, set_ignore_auth_check: 2;
+    pub exec_bit, set_exec_bit: 15,8;
 }
 
 #[repr(C)]
