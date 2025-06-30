@@ -792,6 +792,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "caliptra-api",
  "caliptra-builder",
  "caliptra-cfi-derive",
@@ -813,6 +814,7 @@ dependencies = [
  "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
+ "cbc",
  "cfg-if",
  "const-gen",
  "elf",

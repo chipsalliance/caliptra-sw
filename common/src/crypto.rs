@@ -72,7 +72,7 @@ impl UnencryptedCmk {
 }
 
 #[repr(C)]
-#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Debug)]
 pub struct EncryptedCmk {
     pub domain: u32,
     pub domain_metadata: [u8; 16],
