@@ -354,6 +354,17 @@ impl SocIfc {
         soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
     }
 
+    /// Get Caliptra official release version
+    ///
+    /// encoding is [15:8] Patch version [7:4] Minor version [3:0] Major version
+    pub fn get_hw_sem_ver(&self) -> u32 {
+        self.soc_ifc
+            .regs()
+            .cptra_hw_rev_id()
+            .read()
+            .cptra_generation()
+    }
+
     pub fn get_version(&self) -> [u32; 3] {
         [
             u32::from(self.soc_ifc.regs().cptra_hw_rev_id().read()),
