@@ -467,6 +467,8 @@ impl CaliptraError {
     pub const RUNTIME_REVOKE_EXPORTED_CDI_HANDLE_NOT_FOUND: CaliptraError =
         CaliptraError::new_const(0x000E005A);
 
+    pub const RUNTIME_FMC_NOT_COMPATIBLE: CaliptraError = CaliptraError::new_const(0x000E005B);
+
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0002);
