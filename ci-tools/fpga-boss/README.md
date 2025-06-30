@@ -95,10 +95,12 @@ Board: Xilinx ZynqMP
 ## How is fpga-boss used for Caliptra CI?
 
 We have four zcu104 boards connected to a Raspberry pi running four instances of
-`fpga-boss serve`:
+`fpga-boss serve`.
+Make sure, that the environment variables `GCP_ZONE`, `GCP_PROJECT`, `GITHUB_ORG`
+ are set accordingly.
 
 ```
-# fpga-boss --zcu104 x-x.x --sdwire x-x.x serve image.img -- /path/to/rtool receive_jitconfig
+$ fpga-boss --zcu104 x-x.x --sdwire x-x.x serve image.img -- /path/to/rtool receive_jitconfig
 ```
 
 The serve subcommand runs in a loop that does the following:

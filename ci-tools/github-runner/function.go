@@ -26,24 +26,42 @@ import (
 //   https://docs.github.com/en/rest/actions/self-hosted-runners?apiVersion=2022-11-28#create-configuration-for-a-just-in-time-runner-for-an-organization
 // *
 
-var gcpZone = envVar("GCP_ZONE")
-var gcpProject = envVar("GCP_PROJECT")
-var githubOrg = envVar("GITHUB_ORG")
+var (
+	gcpZone    string
+	gcpProject string
+	githubOrg  string
+)
 
 const imageBuilderInstanceName = "github-runner-image-builder"
 
-func envVar(name string) string {
+func envVar(name string) (string, error) {
 	val, found := os.LookupEnv(name)
 	if !found || val == "" {
-		panic(fmt.Sprintf("Environment variable %v not found", name))
+		return "", fmt.Errorf("Environment variable %q not found", name)
 	}
-	return val
+	return val, nil
 }
 
 func init() {
+	var err error
 	functions.HTTP("RunnerCleanup", handleCleanup)
 	functions.HTTP("RunnerLaunch", handleLaunch)
 	functions.HTTP("RunnerBuildImage", handleBuildImage)
+
+	gcpZone, err = envVar("GCP_ZONE")
+	if err != nil {
+		log.Fatalf("Error reading environment variable GCP_ZONE: %v", err)
+	}
+
+	gcpProject, err = envVar("GCP_PROJECT")
+	if err != nil {
+		log.Fatalf("Error reading environment variable GCP_PROJECT: %v", err)
+	}
+
+	githubOrg, err = envVar("GITHUB_ORG")
+	if err != nil {
+		log.Fatalf("Error reading environment variable GITHUB_ORG: %v", err)
+	}
 }
 
 func readAppId() (int64, error) {
@@ -53,6 +71,7 @@ func readAppId() (int64, error) {
 	}
 	return strconv.ParseInt(env, 10, 64)
 }
+
 func handleCleanup(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	err := Cleanup(ctx)

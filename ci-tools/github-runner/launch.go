@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	compute "cloud.google.com/go/compute/apiv1"
@@ -23,6 +24,8 @@ import (
 
 //go:embed scripts/launch_runner.sh
 var launchStartupScript string
+
+var instances = []string{"e2-standard-2", "e2-standard-4", "e2-standard-8", "e2-standard-16", "e2-standard-32", "e2-highcpu-2", "e2-highcpu-4", "e2-highcpu-8", "e2-highcpu-16", "e2-highcpu-32", "n2d-highcpu-64", "n2d-highcpu-80", "n2d-highcpu-96"}
 
 func randId() string {
 	result := make([]byte, 16)
@@ -71,40 +74,6 @@ func GitHubRegisterRunner(ctx context.Context, client *github.Client, labels []s
 	}, nil
 }
 
-func isMachineType(label string) bool {
-	switch label {
-	case "e2-standard-2":
-		return true
-	case "e2-standard-4":
-		return true
-	case "e2-standard-8":
-		return true
-	case "e2-standard-16":
-		return true
-	case "e2-standard-32":
-		return true
-	case "e2-highcpu-2":
-		return true
-	case "e2-highcpu-4":
-		return true
-	case "e2-highcpu-8":
-		return true
-	case "e2-highcpu-16":
-		return true
-	case "e2-highcpu-32":
-		return true
-	case "n2d-highcpu-64":
-		return true
-	case "n2d-highcpu-80":
-		return true
-	case "n2d-highcpu-96":
-		return true
-
-	default:
-		return false
-	}
-}
-
 type MachineInfo struct {
 	machineType    string
 	hasFpgaTools   bool
@@ -115,7 +84,7 @@ func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
 	result := MachineInfo{}
 
 	for _, item := range labels {
-		if isMachineType(item) {
+		if slices.Contains(instances, item) {
 			if result.machineType != "" {
 				return result, fmt.Errorf("multiple machine type labels: %v, %v", result.machineType, item)
 			}
