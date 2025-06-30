@@ -19,28 +19,37 @@ use crate::key_ladder;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-use caliptra_api::mailbox::ResponseVarSize;
+use caliptra_api::mailbox::{
+    CmHmacReq, CmHmacResp, CmKeyUsage, DeriveDotKeyReq, DeriveDotKeyResp, DotKeyType,
+    ResponseVarSize, DOT_INFO_SIZE_BYTES,
+};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
-use caliptra_common::capabilities::Capabilities;
-use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
-    StashMeasurementReq, StashMeasurementResp,
-};
 use caliptra_common::{
-    pcr::PCR_ID_STASH_MEASUREMENT, verifier::FirmwareImageVerificationEnv, FuseLogEntryId,
-    PcrLogEntry, PcrLogEntryId, RomBootStatus::*,
+    capabilities::Capabilities,
+    crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
+    fips::FipsVersionCmd,
+    hmac_cm::hmac,
+    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
+    mailbox_api::{
+        CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
+        StashMeasurementReq, StashMeasurementResp,
+    },
+    pcr::PCR_ID_STASH_MEASUREMENT,
+    verifier::FirmwareImageVerificationEnv,
+    FuseLogEntryId, PcrLogEntry, PcrLogEntryId,
+    RomBootStatus::*,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
-use caliptra_image_verify::MAX_FIRMWARE_SVN;
-use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
+use caliptra_image_verify::{
+    ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier, MAX_FIRMWARE_SVN,
+};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
@@ -423,6 +432,41 @@ impl FirmwareProcessor {
                         );
                         report_boot_status(FwProcessorDownloadImageComplete.into());
                         return Ok((txn, image_size_bytes));
+                    }
+                    CommandId::DERIVE_DOT_KEY => {
+                        let mut request = DeriveDotKeyReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+
+                        let encrypted_cmk = Self::derive_dot_key(
+                            env.aes,
+                            env.hmac,
+                            env.trng,
+                            persistent_data,
+                            &request,
+                        )?;
+
+                        let mut resp = DeriveDotKeyResp {
+                            cmk: transmute!(encrypted_cmk),
+                            ..Default::default()
+                        };
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::CM_HMAC => {
+                        let mut request = CmHmacReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+                        let mut resp = CmHmacResp::default();
+                        hmac(
+                            env.hmac,
+                            env.aes,
+                            env.trng,
+                            Crypto::get_cmb_aes_key(persistent_data),
+                            request.as_bytes(),
+                            resp.as_mut_bytes(),
+                        )?;
+
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
@@ -932,5 +976,66 @@ impl FirmwareProcessor {
         const FW_IMAGE_INDEX: u32 = 0x0;
         let dma_recovery = DmaRecovery::new(rri_base_addr, caliptra_base_addr, mci_base_addr, dma);
         dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
+    }
+
+    fn derive_dot_key(
+        aes: &mut Aes,
+        hmac: &mut Hmac,
+        trng: &mut Trng,
+        persistent_data: &mut PersistentData,
+        request: &DeriveDotKeyReq,
+    ) -> CaliptraResult<EncryptedCmk> {
+        let key_type: DotKeyType = request.key_type.into();
+
+        let aes_key = match key_type {
+            DotKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
+            DotKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            DotKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+        };
+        let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
+
+        // Prepend "DOT Final" to info and use as label for HMAC KDF
+        const PREFIX: &[u8] = b"DOT Final";
+        let mut data = [0u8; DOT_INFO_SIZE_BYTES + PREFIX.len()];
+        data[..PREFIX.len()].copy_from_slice(PREFIX);
+        data[PREFIX.len()..].copy_from_slice(&request.info);
+
+        let mut tag: Array4x16 = Array4x16::default();
+        hmac_kdf(
+            hmac,
+            HmacKey::Array4x16(&Array4x16::from(k0)),
+            &data[..],
+            None,
+            trng,
+            HmacTag::Array4x16(&mut tag),
+            HmacMode::Hmac512,
+        )?;
+
+        let mut key_material = [0u8; 64];
+        for (i, word) in tag.0.iter().enumerate() {
+            key_material[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+
+        // Convert the tag to CMK
+        let unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: key_material.len() as u16,
+            key_usage: CmKeyUsage::Hmac as u32 as u8,
+            id: [0u8; 3],
+            usage_counter: 0,
+            key_material,
+        };
+
+        let random = trng.generate()?;
+        let kek_iv: [u8; 12] = random.0.as_bytes()[..12].try_into().unwrap();
+        let encrypted_cmk = Crypto::encrypt_cmk(
+            aes,
+            trng,
+            &unencrypted_cmk,
+            kek_iv,
+            Crypto::get_cmb_aes_key(persistent_data),
+        )?;
+
+        Ok(encrypted_cmk)
     }
 }

@@ -133,6 +133,9 @@ impl CommandId {
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
+    // Device Ownership Transfer (DOT) commands
+    pub const DERIVE_DOT_KEY: Self = Self(0x444F544B); // "DOTK"
+
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
     pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
@@ -3695,6 +3698,65 @@ impl Request for CmEcdsaVerifyReq {
     const ID: CommandId = CommandId::CM_ECDSA_VERIFY;
     type Resp = MailboxRespHeader;
 }
+
+// DERIVE_DOT_KEY
+pub const DOT_INFO_SIZE_BYTES: usize = 32;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DotKeyType {
+    Reserved = 0,
+    IDevId,
+    LDevId,
+}
+
+impl From<u32> for DotKeyType {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => DotKeyType::IDevId,
+            2_u32 => DotKeyType::LDevId,
+            _ => DotKeyType::Reserved,
+        }
+    }
+}
+
+impl From<DotKeyType> for u32 {
+    fn from(val: DotKeyType) -> Self {
+        match val {
+            DotKeyType::IDevId => 1,
+            DotKeyType::LDevId => 2,
+            DotKeyType::Reserved => 0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct DeriveDotKeyReq {
+    pub hdr: MailboxReqHeader,
+    pub key_type: u32,
+    pub info: [u8; DOT_INFO_SIZE_BYTES],
+}
+impl Default for DeriveDotKeyReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            info: [0u8; DOT_INFO_SIZE_BYTES],
+            key_type: DotKeyType::Reserved as u32,
+        }
+    }
+}
+impl Request for DeriveDotKeyReq {
+    const ID: CommandId = CommandId::DERIVE_DOT_KEY;
+    type Resp = DeriveDotKeyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct DeriveDotKeyResp {
+    pub hdr: MailboxRespHeader,
+    pub cmk: Cmk,
+}
+impl Response for DeriveDotKeyResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
