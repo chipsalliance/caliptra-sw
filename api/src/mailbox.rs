@@ -78,6 +78,7 @@ impl CommandId {
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    pub const INSTALL_OWNER_PK_HASH: Self = Self(0x4F574E50); // "OWNP"
 
     /// FIPS module commands.
     /// The status command.
@@ -3757,6 +3758,27 @@ pub struct DeriveDotKeyResp {
     pub cmk: Cmk,
 }
 impl Response for DeriveDotKeyResp {}
+
+// INSTALL_OWNER_PK_HASH
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashReq {
+    pub hdr: MailboxReqHeader,
+    pub digest: [u32; 12],
+}
+
+impl Request for InstallOwnerPkHashReq {
+    const ID: CommandId = CommandId::INSTALL_OWNER_PK_HASH;
+    type Resp = InstallOwnerPkHashResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashResp {
+    pub hdr: MailboxRespHeader,
+    pub dpe_result: u32,
+}
+impl Response for InstallOwnerPkHashResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

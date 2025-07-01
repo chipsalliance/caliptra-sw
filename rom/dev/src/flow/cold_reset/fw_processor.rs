@@ -21,7 +21,7 @@ use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmHmacReq, CmHmacResp, CmKeyUsage, DeriveDotKeyReq, DeriveDotKeyResp, DotKeyType,
-    ResponseVarSize, DOT_INFO_SIZE_BYTES,
+    InstallOwnerPkHashReq, InstallOwnerPkHashResp, ResponseVarSize, DOT_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -137,6 +137,7 @@ impl FirmwareProcessor {
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
             dma: &mut env.dma,
+            persistent_data: env.persistent_data.get(),
         };
 
         // Verify the image
@@ -465,6 +466,25 @@ impl FirmwareProcessor {
                             resp.as_mut_bytes(),
                         )?;
 
+                        resp.populate_chksum();
+                        txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::INSTALL_OWNER_PK_HASH => {
+                        let mut request = InstallOwnerPkHashReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+
+                        // Save the owner public key hash in persistent data.
+                        persistent_data
+                            .dot_owner_pk_hash
+                            .owner_pk_hash
+                            .copy_from_slice(&request.digest);
+                        persistent_data.dot_owner_pk_hash.valid = true;
+
+                        // Generate and send response (with FIPS approved status)
+                        let mut resp = InstallOwnerPkHashResp {
+                            hdr: MailboxRespHeader::default(),
+                            dpe_result: 0, // DPE_STATUS_SUCCESS
+                        };
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
