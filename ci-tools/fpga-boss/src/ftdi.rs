@@ -24,6 +24,7 @@ pub enum BitMode {
     BitBang = 0x01,
     CBus = 0x20,
 }
+
 pub struct FtdiCtx {
     ctx: *mut libftdi1_sys::ftdi_context,
     port_path: UsbPortPath,
