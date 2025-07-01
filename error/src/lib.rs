@@ -1721,6 +1721,11 @@ impl CaliptraError {
             "FMC Alias Layer Error: Certificate verification failure"
         ),
         (
+            ROM_ECDSA_VERIFY_FAILED,
+            0x01030002,
+            "ROM Error: ECDSA verify failed"
+        ),
+        (
             ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE,
             0x01040002,
             "Update Reset Error: Flow manifest read failure"

@@ -329,6 +329,50 @@ impl FirmwareProcessor {
                         txn.send_response(resp.as_bytes())?;
                         continue;
                     }
+                    CommandId::ECDSA384_VERIFY => {
+                        let raw_data = txn.raw_mailbox_contents();
+                        let dlen = txn.dlen() as usize;
+
+                        if dlen > raw_data.len() {
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+                        }
+
+                        let cmd_bytes = &raw_data[..dlen];
+
+                        // Extract header and verify checksum
+                        if cmd_bytes.len() < core::mem::size_of::<MailboxReqHeader>() {
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+                        }
+
+                        let req_hdr = MailboxReqHeader::ref_from_bytes(
+                            &cmd_bytes[..core::mem::size_of::<MailboxReqHeader>()],
+                        )
+                        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+                        if !caliptra_common::checksum::verify_checksum(
+                            req_hdr.chksum,
+                            txn.cmd(),
+                            &cmd_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
+                        ) {
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
+                        }
+
+                        let result = caliptra_common::verify::EcdsaVerifyCmd::execute(
+                            &mut env.ecc384,
+                            cmd_bytes,
+                        );
+                        let mut resp = MailboxRespHeader::default();
+                        match result {
+                            Ok(_) => {
+                                resp.populate_chksum();
+                                txn.send_response(resp.as_bytes())?;
+                            }
+                            Err(e) => {
+                                caliptra_drivers::report_fw_error_non_fatal(e.into());
+                                txn.complete(false)?;
+                            }
+                        }
+                    }
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!("[fwproc] Max # of measurements received.");
