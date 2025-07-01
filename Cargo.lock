@@ -819,6 +819,7 @@ dependencies = [
  "fips204",
  "hex",
  "memoffset 0.8.0",
+ "ml-dsa",
  "openssl",
  "p384",
  "rand",

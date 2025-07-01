@@ -107,7 +107,7 @@ use crate::{
 };
 
 impl caliptra_common::verify::MailboxRawAccess for Mailbox {
-    fn raw_mailbox_contents(&self) -> &[u8] {
+    fn mailbox_contents(&self) -> &[u8] {
         self.raw_mailbox_contents()
     }
 }

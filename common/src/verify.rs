@@ -16,8 +16,9 @@ use caliptra_api::mailbox::{EcdsaVerifyReq, MldsaVerifyReq};
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Signature, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
+    Ecc384Signature, MailboxRecvTxn, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
 };
+use core::mem::ManuallyDrop;
 use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
@@ -53,7 +54,13 @@ impl EcdsaVerifyCmd {
 }
 
 pub trait MailboxRawAccess {
-    fn raw_mailbox_contents(&self) -> &[u8];
+    fn mailbox_contents(&self) -> &[u8];
+}
+
+impl MailboxRawAccess for ManuallyDrop<MailboxRecvTxn<'_>> {
+    fn mailbox_contents(&self) -> &[u8] {
+        self.raw_mailbox_contents()
+    }
 }
 
 pub struct MldsaVerifyCmd;
@@ -64,7 +71,7 @@ impl MldsaVerifyCmd {
         // To avoid placing Req on the stack do a rw zerocopy on the mailbox content
         // This is ok as we check the size of the input and message_size
         let mbox_raw = &mbox
-            .raw_mailbox_contents()
+            .mailbox_contents()
             .get(..core::mem::size_of::<MldsaVerifyReq>())
             .ok_or(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
         let cmd = MldsaVerifyReq::read_from_bytes(mbox_raw)
