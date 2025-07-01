@@ -78,6 +78,16 @@ jobs:
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
+  check_tools:
+    runs-on: [e2-standard-8, vck190-tools]
+    steps: 
+      - name: Mount and check
+        run: |
+          sudo mkdir /vck190-tools
+          sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
+          ls -l /vck190-tools
+
+
   build_kernel_modules:
     runs-on: ubuntu-22.04
     needs: check_cache
