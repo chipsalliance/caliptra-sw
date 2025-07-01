@@ -173,14 +173,4 @@ impl Mailbox {
             )
         }
     }
-
-    /// Retrieve a mutable slice with the contents of the mailbox
-    pub fn raw_mailbox_contents_mut<'a>() -> &'a mut [u8] {
-        unsafe {
-            slice::from_raw_parts_mut(
-                memory_layout::MBOX_ORG as *mut u8,
-                memory_layout::MBOX_SIZE as usize,
-            )
-        }
-    }
 }
