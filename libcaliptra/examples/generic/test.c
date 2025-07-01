@@ -848,14 +848,16 @@ int rt_test_all_commands(const test_info* info)
     }
     
     // SHA Engine Tests
-    uint32_t stream_hash[16]; // Adjust size as needed for SHA-384 or SHA-512
+    uint32_t stream_hash[12]; // Adjust size as needed for SHA-384 or SHA-512
     uint8_t stream_hash_data[4] = {116, 101, 115, 116}; // Example data "test" in ascii
     uint8_t stream_hash_update_data[4] = {116, 101, 115, 116}; // Example update data "test" in ascii
-    uint32_t expected_stream_hash[16] = {
-        0xcf83e135, 0x7eefb8bd, 0xf1542850, 0xd66d8007,
-        0xd620e405, 0x0b5715dc, 0x83f4a921, 0xd36ce9ce,
-        0x47d0d13c, 0x5d85f2b0, 0xff8318d2, 0x877eec2f,
-        0x63b931bd, 0x47417a81, 0xa538327a, 0xf927da3e,
+    // $ "testtest" | sha384sum -b
+    // 40e1b690e9200dd972cb29f4526a1c6597eb9bbc06bd4a2650c34dd9424cbde0327d3f3d6898d8e456f91f21fb6805c6
+    uint32_t expected_stream_hash[12] = {
+        0x90B6E140, 0xD90D20E9, 0xF429CB72,
+        0x651C6A52, 0xBC9BEB97, 0x264ABD06,
+        0xD94DC350, 0xE0BD4C42, 0x3D3F7D32,
+        0xE4D89868, 0x211FF956, 0xC60568FB,
     };
 
     // Start SHA Stream
@@ -888,16 +890,16 @@ int rt_test_all_commands(const test_info* info)
         printf("Finish SHA Stream: OK\n");
 
         // Verify the hash against the expected value
-        if (memcmp(stream_hash, expected_stream_hash, 16) == 0) {
+        if (memcmp(stream_hash, expected_stream_hash, 12) == 0) {
             printf("SHA Stream Test: Passed\n");
         } else {
             printf("SHA Stream Test: Failed - Hash does not match expected value\n");
             printf("Expected Hash: ");
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 12; i++) {
                 printf("%08x ", expected_stream_hash[i]);
             }
             printf("\nReceived Hash: ");
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 12; i++) {
                 printf("%08x ", stream_hash[i]);
             }
             printf("\n");

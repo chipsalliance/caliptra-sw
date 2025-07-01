@@ -1537,9 +1537,13 @@ int caliptra_finish_sha_stream(uint32_t* hash) {
         caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
     } while ((status & SHA512_ACC_CSR_STATUS_VALID_MASK) == 0);
 
-    // Read out the DIGEST registers and place into hash struct
-    for (int i = 0; i < 16; i++) {
-        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
+    uint32_t mode;
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, &mode);
+    mode &= SHA512_ACC_CSR_MODE_MODE_MASK;
+    int hash_length = (mode == CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384) ? 12 : 16;
+    // Read out the DIGEST registers (big-endian) and place into hash buffer
+    for (int i = 0; i < hash_length; i++) {
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + ((hash_length - 1 - i) * 4), &hash[i]);
     }
 
     // Writing 1 will clear the lock
