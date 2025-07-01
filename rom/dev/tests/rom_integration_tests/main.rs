@@ -8,6 +8,7 @@ mod test_cfi;
 mod test_cpu_fault;
 mod test_debug_unlock;
 mod test_dice_derivations;
+mod test_ecdsa_verify;
 mod test_fake_rom;
 mod test_fips_hooks;
 mod test_fmcalias_derivation;
