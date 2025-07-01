@@ -106,6 +106,12 @@ use crate::{
     pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
 };
 
+impl caliptra_common::verify::MailboxRawAccess for Mailbox {
+    fn raw_mailbox_contents(&self) -> &[u8] {
+        self.raw_mailbox_contents()
+    }
+}
+
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
 /// Statuses used by ROM to log dice derivation progress.
@@ -241,6 +247,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::MLDSA87_VERIFY => {
+            caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, &drivers.mbox)
+        }
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),

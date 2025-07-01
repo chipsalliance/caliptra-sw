@@ -1512,6 +1512,11 @@ impl CaliptraError {
             0x000E006B,
             "Runtime Error: Debug unlock no request available"
         ),
+        (
+            RUNTIME_MLDSA_VERIFY_FAILED,
+            0x000E006C,
+            "Runtime Error: MLDSA verify failed"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
@@ -1724,6 +1729,11 @@ impl CaliptraError {
             ROM_ECDSA_VERIFY_FAILED,
             0x01030002,
             "ROM Error: ECDSA verify failed"
+        ),
+        (
+            ROM_MLDSA_VERIFY_FAILED,
+            0x01030003,
+            "ROM Error: MLDSA verify failed"
         ),
         (
             ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE,

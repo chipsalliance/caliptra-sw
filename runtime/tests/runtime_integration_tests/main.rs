@@ -18,6 +18,7 @@ mod test_info;
 mod test_invoke_dpe;
 mod test_lms;
 mod test_mailbox;
+mod test_mldsa;
 mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
