@@ -33,7 +33,7 @@ fn cli() -> clap::Command<'static> {
             arg!(--"sdwire" [PORT_PATH] "USB port path to the hub chip on the SDWire (ex: 3-1.2)")
                 .value_parser(value_parser!(OsString)))
         .arg(
-            arg!(--"usbsdmux" [USBID] "USB uniuqe ID for the usbsdmux device (ex: 00048.00643)")
+            arg!(--"usbsdmux" [USBID] "USB unique ID for the usbsdmux device (ex: 00048.00643)")
                 .value_parser(value_parser!(OsString))
         )
         .arg(

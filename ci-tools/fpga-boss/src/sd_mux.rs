@@ -120,36 +120,22 @@ impl SdMux for UsbsdMux {
     /// The ID used to construct an UsbdsdMux instance is the symlink name without the leading "id-".
     /// Resolving these symlinks by ID resolves them to the according /dev/sgX device.
     fn open(sdmux_id: String) -> anyhow::Result<Self> {
-        for entry in fs::read_dir("/dev/usb-sd-mux/")? {
-            let entry = entry?;
-            let entry_id = format!("id-{}", sdmux_id);
-            if entry.file_name() == std::ffi::OsStr::new(&entry_id) {
-                // this will be of format ../sgx
-                let had_dev = entry
-                    .path()
-                    .read_link()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+        let symlink_path = format!("/dev/usb-sd-mux/id-{}", sdmux_id);
 
-                return Ok(Self {
-                    scsi_generic_name: had_dev.strip_prefix("../").unwrap().to_string(),
-                });
-            }
-        }
-        Err(anyhow::anyhow!(
-            "Failed to find SCSI generic device for USBSDMUX with ID {}",
-            sdmux_id
-        ))
+        // this will be of format ../sgx
+        let had_dev = std::fs::read_link(symlink_path)?
+            .to_string_lossy()
+            .to_string();
+
+        return Ok(Self {
+            scsi_generic_name: had_dev.strip_prefix("../").unwrap().to_string(),
+        });
     }
 
     // For now we use the python cli tool implementation provided by the vendor.
     // Further, we assume there is only one usbsdmux device connected, exposed
     // via /dev/sg0.
     fn set_target(&mut self, target: SdMuxTarget) -> anyhow::Result<()> {
-        // UsbSDMux has three targets: DUT, HOST and CLIENT.
-        // TODO: handle client
-
         let target = match target {
             SdMuxTarget::Dut => "dut",
             SdMuxTarget::Host => "host",
