@@ -20,7 +20,7 @@ mod wait;
 
 mod aes;
 mod bounded_address;
-mod cmac_kdf;
+pub mod cmac_kdf;
 mod csrng;
 mod data_vault;
 mod dma;

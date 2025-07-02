@@ -155,26 +155,47 @@ int caliptra_upload_fw_send_data(const struct caliptra_buffer *fw_buffer);
 // Waits for Caliptra completion and response if async is false
 int caliptra_upload_fw_end_req(bool async);
 
-// Get IDEV cert
-int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async);
+// Get ECC384 IDEV cert
+int caliptra_get_idev_ecc384_cert(struct caliptra_get_idev_ecc384_cert_req *req, struct caliptra_get_idev_ecc384_cert_resp *resp, bool async);
 
-// Get IDEV info
-int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async);
+// Get ECC384 IDEV info
+int caliptra_get_idev_ecc384_info(struct caliptra_get_idev_ecc384_info_resp *resp, bool async);
 
-// Populate IDEV cert
-int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, bool async);
+// Populate ECC384 IDEV cert
+int caliptra_populate_idev_ecc384_cert(struct caliptra_populate_idev_ecc384_cert_req *req, bool async);
 
-// Get LDEV cert
-int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async);
+// Get ECC384 LDEV cert
+int caliptra_get_ldev_ecc384_cert(struct caliptra_get_ldev_ecc384_cert_resp *resp, bool async);
 
-// Get FMC Alias cert
-int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, bool async);
+// Get ECC384 FMC Alias cert
+int caliptra_get_fmc_alias_ecc384_cert(struct caliptra_get_fmc_alias_ecc384_cert_resp *resp, bool async);
 
-// Get RT Alias cert
-int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async);
+// Get ECC384 RT Alias cert
+int caliptra_get_rt_alias_ecc384_cert(struct caliptra_get_rt_alias_ecc384_cert_resp *resp, bool async);
 
 // ECDSA384 Verify
 int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool async);
+
+// Get MLDSA87 IDEV cert
+int caliptra_get_idev_mldsa87_cert(struct caliptra_get_idev_mldsa87_cert_req *req, struct caliptra_get_idev_mldsa87_cert_resp *resp, bool async);
+
+// Get MLDSA87 IDEV info
+int caliptra_get_idev_mldsa87_info(struct caliptra_get_idev_mldsa87_info_resp *resp, bool async);
+
+// Populate MLDSA87 IDEV cert
+int caliptra_populate_idev_mldsa87_cert(struct caliptra_populate_idev_mldsa87_cert_req *req, bool async);
+
+// Get MLDSA87 LDEV cert
+int caliptra_get_ldev_mldsa87_cert(struct caliptra_get_ldev_mldsa87_cert_resp *resp, bool async);
+
+// Get MLDSA87 FMC Alias cert
+int caliptra_get_fmc_alias_mldsa87_cert(struct caliptra_get_fmc_alias_mldsa87_cert_resp *resp, bool async);
+
+// Get MLDSA87 RT Alias cert
+int caliptra_get_rt_alias_mldsa87_cert(struct caliptra_get_rt_alias_mldsa87_cert_resp *resp, bool async);
+
+// ECDSA384 Verify
+int caliptra_mldsa87_verify(struct caliptra_mldsa_verify_req *req, bool async);
 
 // LMS Verify
 int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async);
@@ -218,7 +239,7 @@ int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req,
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 
 // Get IDev CSR
-int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
+int caliptra_get_idev_ecc384_csr(struct caliptra_get_idev_ecc384_csr_resp *resp, bool async);
 
 // Sign with Exported Ecdsa
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
