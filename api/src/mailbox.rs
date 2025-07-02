@@ -136,6 +136,9 @@ impl CommandId {
     // Stable key derivation command
     pub const DERIVE_STABLE_KEY: Self = Self(0x44534B45); // "DSKE"
 
+    // Device Ownership Transfer command
+    pub const INSTALL_OWNER_PK_HASH: Self = Self(0x4F574E50); // "OWNP"
+
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
     pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
@@ -3757,6 +3760,27 @@ pub struct DeriveStableKeyResp {
     pub cmk: Cmk,
 }
 impl Response for DeriveStableKeyResp {}
+
+// INSTALL_OWNER_PK_HASH
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashReq {
+    pub hdr: MailboxReqHeader,
+    pub digest: [u32; 12],
+}
+
+impl Request for InstallOwnerPkHashReq {
+    const ID: CommandId = CommandId::INSTALL_OWNER_PK_HASH;
+    type Resp = InstallOwnerPkHashResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashResp {
+    pub hdr: MailboxRespHeader,
+    pub dpe_result: u32,
+}
+impl Response for InstallOwnerPkHashResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

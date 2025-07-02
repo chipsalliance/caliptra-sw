@@ -630,6 +630,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let fuses_digest = &self.env.owner_pub_key_digest_fuses();
 
         if fuses_digest == ZERO_DIGEST {
+            if let Some(dot_owner_pk_hash) = self.env.dot_owner_pk_hash() {
+                // If the dot owner public key hash is set, compare it with the actual digest.
+                if dot_owner_pk_hash != actual {
+                    return Err(
+                        CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
+                    );
+                }
+            }
             caliptra_cfi_lib::cfi_assert_eq_12_words(fuses_digest, ZERO_DIGEST);
         } else if fuses_digest != actual {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
@@ -2469,5 +2477,9 @@ mod tests {
         }
 
         fn set_fw_extended_error(&mut self, _err: u32) {}
+
+        fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
+            Some(&self.owner_pub_key_digest)
+        }
     }
 }
