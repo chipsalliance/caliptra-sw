@@ -138,6 +138,7 @@ impl LocalDevIdLayer {
             b"ldevid_cdi".into(),
             cdi,
             HmacMode::Hmac512,
+            KeyUsage::default().set_hmac_key_en(),
         )?;
         Crypto::hmac_mac(
             &mut env.hmac,
@@ -146,6 +147,10 @@ impl LocalDevIdLayer {
             KeyReadArgs::new(fe).into(),
             cdi,
             HmacMode::Hmac512,
+            KeyUsage::default()
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en()
+                .set_hmac_key_en(),
         )?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
@@ -179,6 +184,7 @@ impl LocalDevIdLayer {
             None,
             stable_idev,
             HmacMode::Hmac512,
+            KeyUsage::default().set_aes_key_en(),
         )?;
         Ok(())
     }
@@ -208,6 +214,7 @@ impl LocalDevIdLayer {
             None,
             stable_ldev,
             HmacMode::Hmac512,
+            KeyUsage::default().set_aes_key_en(),
         )?;
         Ok(())
     }
