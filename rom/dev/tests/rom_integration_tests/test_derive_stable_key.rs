@@ -2,8 +2,9 @@
 
 use crate::helpers;
 use caliptra_api::mailbox::{
-    CmHashAlgorithm, CmHmacReq, CmHmacResp, DeriveDotKeyReq, DeriveDotKeyResp, DotKeyType,
-    MailboxRespHeaderVarSize, CMK_SIZE_BYTES, DOT_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmHashAlgorithm, CmHmacReq, CmHmacResp, DeriveStableKeyReq, DeriveStableKeyResp,
+    MailboxRespHeaderVarSize, StableKeyType, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    STABLE_KEY_INFO_SIZE_BYTES,
 };
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
@@ -11,29 +12,29 @@ use caliptra_hw_model::{Fuses, HwModel};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use zerocopy::{FromBytes, IntoBytes};
 
-const DOT_KEY_TYPES: [DotKeyType; 2] = [DotKeyType::IDevId, DotKeyType::LDevId];
+const DOT_KEY_TYPES: [StableKeyType; 2] = [StableKeyType::IDevId, StableKeyType::LDevId];
 
 #[test]
-fn test_derive_dot_key() {
+fn test_derive_stable_key() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     for key_type in DOT_KEY_TYPES.iter() {
-        let mut request = DeriveDotKeyReq {
+        let mut request = DeriveStableKeyReq {
             hdr: MailboxReqHeader { chksum: 0 },
             key_type: (*key_type).into(),
-            info: [0u8; DOT_INFO_SIZE_BYTES],
+            info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
         };
         request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::DERIVE_DOT_KEY),
+            u32::from(CommandId::DERIVE_STABLE_KEY),
             &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
         );
         let response = hw
-            .mailbox_execute(CommandId::DERIVE_DOT_KEY.into(), request.as_bytes())
+            .mailbox_execute(CommandId::DERIVE_STABLE_KEY.into(), request.as_bytes())
             .unwrap()
             .unwrap();
 
-        let resp = DeriveDotKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let resp = DeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
 
         // Verify response checksum
         assert!(caliptra_common::checksum::verify_checksum(
