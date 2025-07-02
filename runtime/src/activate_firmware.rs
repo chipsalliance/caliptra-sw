@@ -92,6 +92,8 @@ impl ActivateFirmwareCmd {
             let exec_bit = Self::get_exec_bit(drivers, fw_id)
                 .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
             // Check if exec_bit is valid
+            // Note that bits 0 and 1 are reserved. Refer to
+            // https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.SS_GENERIC_FW_EXEC_CTRL%5B0%5D
             if exec_bit == 0 || exec_bit == 1 || exec_bit > MAX_EXEC_GO_BIT_INDEX {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
