@@ -42,6 +42,8 @@ pub struct AxiRootBus {
     pub mci: Mci,
     sha512_acc: Sha512Accelerator,
     pub test_sram: Option<ReadWriteMemory<TEST_SRAM_SIZE>>,
+    pub indirect_fifo_status: u32,
+    pub use_mcu_recovery_interface: bool,
 }
 
 impl AxiRootBus {
@@ -78,6 +80,7 @@ impl AxiRootBus {
         sha512_acc: Sha512Accelerator,
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
         test_sram_content: Option<&[u8]>,
+        use_mcu_recovery_interface: bool,
     ) -> Self {
         let test_sram = if let Some(test_sram_content) = test_sram_content {
             if test_sram_content.len() > TEST_SRAM_SIZE {
@@ -98,15 +101,30 @@ impl AxiRootBus {
             event_sender: None,
             dma_result: None,
             test_sram,
+            indirect_fifo_status: 0,
+            use_mcu_recovery_interface,
         }
     }
 
     pub fn must_schedule(&mut self, addr: AxiAddr) -> bool {
-        matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
-            || matches!(
-                addr,
-                Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
-            )
+        if self.use_mcu_recovery_interface {
+            (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
+                || matches!(
+                    addr,
+                    Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
+                )
+                || matches!(
+                    addr,
+                    Self::RECOVERY_REGISTER_INTERFACE_OFFSET
+                        ..=Self::RECOVERY_REGISTER_INTERFACE_END
+                ))
+        } else {
+            (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
+                || matches!(
+                    addr,
+                    Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
+                ))
+        }
     }
 
     pub fn schedule_read(&mut self, addr: AxiAddr, len: u32) -> Result<(), BusError> {
@@ -114,10 +132,7 @@ impl AxiRootBus {
             println!("Cannot schedule read if previous DMA result has not been consumed");
             return Err(BusError::LoadAccessFault);
         }
-        println!(
-            "AXI root bus Scheduling read from addr: {:#x}, len: {}",
-            addr, len
-        );
+
         match addr {
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
                 let addr = addr - Self::MCU_SRAM_OFFSET;
@@ -143,6 +158,22 @@ impl AxiRootBus {
                         .send(Event::new(
                             Device::CaliptraCore,
                             Device::ExternalTestSram,
+                            EventData::MemoryRead {
+                                start_addr: addr as u32,
+                                len,
+                            },
+                        ))
+                        .unwrap();
+                }
+                Ok(())
+            }
+            Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
+                let addr = addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET;
+                if let Some(sender) = self.event_sender.as_mut() {
+                    sender
+                        .send(Event::new(
+                            Device::CaliptraCore,
+                            Device::RecoveryIntf,
                             EventData::MemoryRead {
                                 start_addr: addr as u32,
                                 len,
@@ -198,8 +229,25 @@ impl AxiRootBus {
             ),
             Self::TEST_REG_OFFSET => Register::write(&mut self.reg, size, val),
             Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END => {
-                let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
-                Bus::write(&mut self.recovery, size, addr, val)
+                if self.use_mcu_recovery_interface {
+                    if let Some(sender) = self.event_sender.as_mut() {
+                        sender
+                            .send(Event::new(
+                                Device::CaliptraCore,
+                                Device::RecoveryIntf,
+                                EventData::MemoryWrite {
+                                    start_addr: (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET)
+                                        as u32,
+                                    data: val.to_le_bytes().to_vec(),
+                                },
+                            ))
+                            .unwrap();
+                    }
+                    Ok(())
+                } else {
+                    let addr = (addr - Self::RECOVERY_REGISTER_INTERFACE_OFFSET) as RvAddr;
+                    Bus::write(&mut self.recovery, size, addr, val)
+                }
             }
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
                 if let Some(sender) = self.event_sender.as_mut() {
@@ -236,17 +284,42 @@ impl AxiRootBus {
         }
     }
 
+    pub fn send_get_recovery_indirect_fifo_status(&mut self) {
+        if let Some(sender) = self.event_sender.as_mut() {
+            sender
+                .send(Event::new(
+                    Device::CaliptraCore,
+                    Device::RecoveryIntf,
+                    EventData::RecoveryFifoStatusRequest,
+                ))
+                .unwrap();
+        }
+    }
+
+    pub fn get_recovery_indirect_fifo_status(&self) -> u32 {
+        self.indirect_fifo_status
+    }
+
     pub fn incoming_event(&mut self, event: Rc<Event>) {
         self.recovery.incoming_event(event.clone());
-        if let EventData::MemoryReadResponse {
-            start_addr: _,
-            data,
-        } = &event.event
-        {
-            // we only allow read responses from the MCU and ExternalTestSram
-            if event.src == Device::MCU || event.src == Device::ExternalTestSram {
-                self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
+
+        match &event.event {
+            EventData::MemoryReadResponse {
+                start_addr: _,
+                data,
+            } => {
+                // we only allow read responses from the MCU, ExternalTestSram and RecoveryIntf
+                if event.src == Device::MCU
+                    || event.src == Device::ExternalTestSram
+                    || Device::RecoveryIntf == event.src
+                {
+                    self.dma_result = Some(words_from_bytes_be_vec(&data.clone()));
+                }
             }
+            EventData::RecoveryFifoStatusResponse { status } => {
+                self.indirect_fifo_status = *status;
+            }
+            _ => {}
         }
     }
 
