@@ -20,8 +20,8 @@ use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
-    CmHmacReq, CmHmacResp, CmKeyUsage, DeriveDotKeyReq, DeriveDotKeyResp, DotKeyType,
-    ResponseVarSize, DOT_INFO_SIZE_BYTES,
+    CmHmacReq, CmHmacResp, CmKeyUsage, DeriveStableKeyReq, DeriveStableKeyResp, ResponseVarSize,
+    StableKeyType, STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -433,11 +433,11 @@ impl FirmwareProcessor {
                         report_boot_status(FwProcessorDownloadImageComplete.into());
                         return Ok((txn, image_size_bytes));
                     }
-                    CommandId::DERIVE_DOT_KEY => {
-                        let mut request = DeriveDotKeyReq::default();
+                    CommandId::DERIVE_STABLE_KEY => {
+                        let mut request = DeriveStableKeyReq::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
-                        let encrypted_cmk = Self::derive_dot_key(
+                        let encrypted_cmk = Self::derive_stable_key(
                             env.aes,
                             env.hmac,
                             env.trng,
@@ -445,7 +445,7 @@ impl FirmwareProcessor {
                             &request,
                         )?;
 
-                        let mut resp = DeriveDotKeyResp {
+                        let mut resp = DeriveStableKeyResp {
                             cmk: transmute!(encrypted_cmk),
                             ..Default::default()
                         };
@@ -978,25 +978,25 @@ impl FirmwareProcessor {
         dma_recovery.download_image_to_mbox(FW_IMAGE_INDEX)
     }
 
-    fn derive_dot_key(
+    fn derive_stable_key(
         aes: &mut Aes,
         hmac: &mut Hmac,
         trng: &mut Trng,
         persistent_data: &mut PersistentData,
-        request: &DeriveDotKeyReq,
+        request: &DeriveStableKeyReq,
     ) -> CaliptraResult<EncryptedCmk> {
-        let key_type: DotKeyType = request.key_type.into();
+        let key_type: StableKeyType = request.key_type.into();
 
         let aes_key = match key_type {
-            DotKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
-            DotKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
-            DotKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+            StableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
+            StableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            StableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
 
         // Prepend "DOT Final" to info and use as label for HMAC KDF
         const PREFIX: &[u8] = b"DOT Final";
-        let mut data = [0u8; DOT_INFO_SIZE_BYTES + PREFIX.len()];
+        let mut data = [0u8; STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
         data[..PREFIX.len()].copy_from_slice(PREFIX);
         data[PREFIX.len()..].copy_from_slice(&request.info);
 

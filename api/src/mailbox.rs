@@ -133,8 +133,8 @@ impl CommandId {
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
-    // Device Ownership Transfer (DOT) commands
-    pub const DERIVE_DOT_KEY: Self = Self(0x444F544B); // "DOTK"
+    // Stable key derivation command
+    pub const DERIVE_STABLE_KEY: Self = Self(0x44534B45); // "DSKE"
 
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
@@ -3699,64 +3699,64 @@ impl Request for CmEcdsaVerifyReq {
     type Resp = MailboxRespHeader;
 }
 
-// DERIVE_DOT_KEY
-pub const DOT_INFO_SIZE_BYTES: usize = 32;
+// DERIVE_STABLE_KEY
+pub const STABLE_KEY_INFO_SIZE_BYTES: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DotKeyType {
+pub enum StableKeyType {
     Reserved = 0,
     IDevId,
     LDevId,
 }
 
-impl From<u32> for DotKeyType {
+impl From<u32> for StableKeyType {
     fn from(val: u32) -> Self {
         match val {
-            1_u32 => DotKeyType::IDevId,
-            2_u32 => DotKeyType::LDevId,
-            _ => DotKeyType::Reserved,
+            1_u32 => StableKeyType::IDevId,
+            2_u32 => StableKeyType::LDevId,
+            _ => StableKeyType::Reserved,
         }
     }
 }
 
-impl From<DotKeyType> for u32 {
-    fn from(val: DotKeyType) -> Self {
+impl From<StableKeyType> for u32 {
+    fn from(val: StableKeyType) -> Self {
         match val {
-            DotKeyType::IDevId => 1,
-            DotKeyType::LDevId => 2,
-            DotKeyType::Reserved => 0,
+            StableKeyType::IDevId => 1,
+            StableKeyType::LDevId => 2,
+            StableKeyType::Reserved => 0,
         }
     }
 }
 
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct DeriveDotKeyReq {
+pub struct DeriveStableKeyReq {
     pub hdr: MailboxReqHeader,
     pub key_type: u32,
-    pub info: [u8; DOT_INFO_SIZE_BYTES],
+    pub info: [u8; STABLE_KEY_INFO_SIZE_BYTES],
 }
-impl Default for DeriveDotKeyReq {
+impl Default for DeriveStableKeyReq {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
-            info: [0u8; DOT_INFO_SIZE_BYTES],
-            key_type: DotKeyType::Reserved as u32,
+            info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
+            key_type: StableKeyType::Reserved as u32,
         }
     }
 }
-impl Request for DeriveDotKeyReq {
-    const ID: CommandId = CommandId::DERIVE_DOT_KEY;
-    type Resp = DeriveDotKeyResp;
+impl Request for DeriveStableKeyReq {
+    const ID: CommandId = CommandId::DERIVE_STABLE_KEY;
+    type Resp = DeriveStableKeyResp;
 }
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct DeriveDotKeyResp {
+pub struct DeriveStableKeyResp {
     pub hdr: MailboxRespHeader,
     pub cmk: Cmk,
 }
-impl Response for DeriveDotKeyResp {}
+impl Response for DeriveStableKeyResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

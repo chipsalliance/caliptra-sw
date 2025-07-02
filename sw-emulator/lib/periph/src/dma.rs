@@ -169,6 +169,10 @@ pub struct Dma {
     pending_axi_to_axi: Option<WriteXfer>,
     pending_axi_to_fifo: bool,
     pending_axi_to_mailbox: bool,
+
+    // If true, the recovery interface in the MCU will be used,
+    // otherwise, the local recovery interface is used.
+    use_mcu_recovery_interface: bool,
 }
 
 #[derive(Debug)]
@@ -206,6 +210,7 @@ impl Dma {
         sha512_acc: Sha512Accelerator,
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
         test_sram: Option<&[u8]>,
+        use_mcu_recovery_interface: bool,
     ) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
@@ -225,11 +230,18 @@ impl Dma {
             op_complete_action: None,
             op_payload_available_action: None,
             fifo: VecDeque::with_capacity(Self::FIFO_SIZE),
-            axi: AxiRootBus::new(soc_reg, sha512_acc, prod_dbg_unlock_keypairs, test_sram),
+            axi: AxiRootBus::new(
+                soc_reg,
+                sha512_acc,
+                prod_dbg_unlock_keypairs,
+                test_sram,
+                use_mcu_recovery_interface,
+            ),
             mailbox,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
             pending_axi_to_mailbox: false,
+            use_mcu_recovery_interface,
         }
     }
 
@@ -284,6 +296,16 @@ impl Dma {
         status0
             .reg
             .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32 * 4));
+
+        if self.use_mcu_recovery_interface {
+            self.axi.send_get_recovery_indirect_fifo_status();
+            if self.axi.get_recovery_indirect_fifo_status() != 0 {
+                status0.reg.modify(Status0::PAYLOAD_AVAILABLE::SET);
+            } else {
+                status0.reg.modify(Status0::PAYLOAD_AVAILABLE::CLEAR);
+            }
+        }
+
         Ok(status0.reg.get())
     }
 
@@ -452,14 +474,16 @@ impl Dma {
                 .write(Self::AXI_DATA_WIDTH.into(), addr, data)
                 .unwrap();
 
-            // Check if FW is indicating that it is ready to receive the recovery image.
-            if ((addr & RECOVERY_STATUS_OFFSET) == RECOVERY_STATUS_OFFSET)
-                && ((data & AWATING_RECOVERY_IMAGE) == AWATING_RECOVERY_IMAGE)
-            {
-                self.status0.reg.modify(Status0::PAYLOAD_AVAILABLE::CLEAR);
-                // Schedule the timer to indicate that the payload is available
-                self.op_payload_available_action =
-                    Some(self.timer.schedule_poll_in(PAYLOAD_AVAILABLE_OP_TICKS));
+            if !self.use_mcu_recovery_interface {
+                // Check if FW is indicating that it is ready to receive the recovery image.
+                if ((addr & RECOVERY_STATUS_OFFSET) == RECOVERY_STATUS_OFFSET)
+                    && ((data & AWATING_RECOVERY_IMAGE) == AWATING_RECOVERY_IMAGE)
+                {
+                    self.status0.reg.modify(Status0::PAYLOAD_AVAILABLE::CLEAR);
+                    // Schedule the timer to indicate that the payload is available
+                    self.op_payload_available_action =
+                        Some(self.timer.schedule_poll_in(PAYLOAD_AVAILABLE_OP_TICKS));
+                }
             }
         }
         true
@@ -641,6 +665,7 @@ mod tests {
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
             vec![],
             None,
+            false,
         );
 
         assert_eq!(

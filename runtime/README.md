@@ -2221,6 +2221,27 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
+### DERIVE\_STABLE\_KEY
+
+Derives an exportable HMAC key from either IDEVID or LDEVID. 
+
+Command Code: `0x4453_4B45` ("DSKE")
+
+*Table: `DERIVE_STABLE_KEY` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| info          | u8[32]   | Data to use in the key derivation |
+
+*Table: `DERIVE_STABLE_KEY` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| cmk           | CMK      | CMK that stores the stable key material |
+
+
 ## Checksum
 
 For every command except for FIRMWARE_LOAD, the request and response feature a checksum. This
