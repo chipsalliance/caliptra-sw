@@ -837,6 +837,11 @@ impl CaliptraError {
             "Image Verifier Error: Activation failed"
         ),
         (
+            IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
+            0x000b005e,
+            "Image Verifier Error: DOT owner public key digest mismatch"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
