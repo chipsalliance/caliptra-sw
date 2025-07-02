@@ -331,6 +331,8 @@ pub struct PersistentData {
 
     pub cmb_aes_key_share0: [u8; 32],
     pub cmb_aes_key_share1: [u8; 32],
+
+    pub cleared_non_fatal_fw_error: u32,
 }
 
 impl PersistentData {
