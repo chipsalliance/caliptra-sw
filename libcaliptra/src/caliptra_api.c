@@ -1432,40 +1432,65 @@ int caliptra_start_sha_stream(int mode, uint8_t* in_data, uint32_t data_len) {
     if (!in_data || data_len < 1 || (mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384 && mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512)) {
         return INVALID_PARAMS;
     }
+    int error;
 
     uint32_t lock_status;
     // By reading the lock register we also start holding the lock if it was not already held
-    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock_status);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
     if (lock_status & 0x1) {
         return MBX_BUSY;
     }
 
     // Zeroize engine registers to start fresh
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
     // Set mode and endianess accordingly
     uint32_t control_value = ((mode << SHA512_ACC_CSR_MODE_MODE_LOW) & SHA512_ACC_CSR_MODE_MODE_MASK);
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, control_value);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     // Write data length to SHA_DLEN
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, data_len);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, data_len);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     // Write initial data to the SHA accelerator
     if (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) {
         // twizzle bytes on big-endian systems
         for (uint32_t i = 0; i < data_len-4; i+=4) {
             uint32_t u32_data = in_data[i] | (in_data[i+1]<<8) | (in_data[i+2]<<16) | (in_data[i+3]<<24);
-            caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, u32_data);
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, u32_data);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
         }
     } else {
         for (uint32_t i = 0; i < data_len-4; i+=4) {
-            caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
         }
     }
     // Handle remaining bytes if any
-    uint32_t partial_u32 = 0;
     uint32_t remaining_bytes = data_len%4;
-    for (uint8_t i = 0; i < remaining_bytes; i++) {
-        partial_u32 |= in_data[(data_len-remaining_bytes)+i] << (8*i);
+    if (remaining_bytes != 0) {
+        uint32_t partial_u32 = 0;
+        for (uint8_t i = 0; i < remaining_bytes; i++) {
+            partial_u32 |= in_data[(data_len-remaining_bytes)+i] << (8*i);
+        }
+        error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, partial_u32);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
     }
 
     return NO_ERROR;
@@ -1482,6 +1507,7 @@ int caliptra_start_sha_stream(int mode, uint8_t* in_data, uint32_t data_len) {
  * @return 0 on success, or an error code on failure.
  */
 int caliptra_update_sha_stream(uint8_t* in_data, uint32_t data_len) {
+    int error;
     uint32_t old_dlen;
 
     if (!in_data || data_len < 1) {
@@ -1489,26 +1515,44 @@ int caliptra_update_sha_stream(uint8_t* in_data, uint32_t data_len) {
     }
 
     // increase the DLEN by data_len
-    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, &old_dlen);
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, old_dlen + data_len);
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, &old_dlen);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, old_dlen + data_len);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     // Write data to the SHA accelerator
     if (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) {
         // twizzle bytes on big-endian systems
         for (uint32_t i = 0; i < data_len-4; i+=4) {
             uint32_t u32_data = in_data[i] | (in_data[i+1]<<8) | (in_data[i+2]<<16) | (in_data[i+3]<<24);
-            caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, u32_data);
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, u32_data);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
         }
     } else {
         for (uint32_t i = 0; i < data_len-4; i+=4) {
-            caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
+            error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, ((uint32_t*) in_data)[i]);
+            if (error) {
+                return REG_ACCESS_ERROR;
+            }
         }
     }
     // Handle remaining bytes if any
-    uint32_t partial_u32 = 0;
     uint32_t remaining_bytes = data_len%4;
-    for (uint8_t i = 0; i < remaining_bytes; i++) {
-        partial_u32 |= in_data[(data_len-remaining_bytes)+i] << (8*i);
+    if (remaining_bytes != 0) {
+        uint32_t partial_u32 = 0;
+        for (uint8_t i = 0; i < remaining_bytes; i++) {
+            partial_u32 |= in_data[(data_len-remaining_bytes)+i] << (8*i);
+        }
+        error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, partial_u32);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
     }
 
     return NO_ERROR;
@@ -1520,34 +1564,51 @@ int caliptra_update_sha_stream(uint8_t* in_data, uint32_t data_len) {
  *        This function will signal the SHA accelerator to finish the stream, wait for the SHA accelerator to complete,
  *        read out the DIGEST registers and clear the lock.
  *
- * @param hash Pointer to the buffer to store the resulting hash.
+ * @param hash Pointer to the buffer to store the resulting hash (big-endian).
  * @return 0 on success, or an error code on failure.
  */
 int caliptra_finish_sha_stream(uint32_t* hash) {
+    int error;
     if (!hash) {
         return INVALID_PARAMS;
     }
 
     // Signal the SHA accelerator to finish the stream
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     // Wait for the SHA accelerator to complete
     uint32_t status;
     do {
-        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
+        error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
     } while ((status & SHA512_ACC_CSR_STATUS_VALID_MASK) == 0);
 
     uint32_t mode;
-    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, &mode);
+    error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, &mode);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
     mode &= SHA512_ACC_CSR_MODE_MODE_MASK;
     int hash_length = (mode == CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384) ? 12 : 16;
-    // Read out the DIGEST registers (big-endian) and place into hash buffer
+
+    // Read out the DIGEST registers and place into hash buffer
     for (int i = 0; i < hash_length; i++) {
-        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + ((hash_length - 1 - i) * 4), &hash[i]);
+        error = caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
+        if (error) {
+            return REG_ACCESS_ERROR;
+        }
     }
 
     // Writing 1 will clear the lock
-    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
+    error = caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, 0x1);
+    if (error) {
+        return REG_ACCESS_ERROR;
+    }
 
     return NO_ERROR;
 }
