@@ -14,6 +14,7 @@ pub mod debug_unlock;
 pub mod dice;
 pub mod error_handler;
 pub mod fips;
+pub mod hmac_cm;
 pub mod keyids;
 pub mod macros;
 pub mod pmp;

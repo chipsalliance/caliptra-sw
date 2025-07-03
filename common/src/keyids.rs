@@ -45,7 +45,7 @@ pub const KEY_ID_DPE_CDI: KeyId = KeyId::KeyId10;
 pub const KEY_ID_DPE_PRIV_KEY: KeyId = KeyId::KeyId11;
 #[cfg(feature = "runtime")]
 pub const KEY_ID_EXPORTED_DPE_CDI: KeyId = KeyId::KeyId12;
-pub const KEY_ID_STABLE_IDEV: KeyId = KeyId::KeyId13;
-pub const KEY_ID_STABLE_LDEV: KeyId = KeyId::KeyId14;
+pub const KEY_ID_STABLE_IDEV: KeyId = KeyId::KeyId0;
+pub const KEY_ID_STABLE_LDEV: KeyId = KeyId::KeyId1;
 
 pub const KEY_ID_TMP: KeyId = KeyId::KeyId3;

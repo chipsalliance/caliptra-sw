@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::SocManager;
+use caliptra_api::{
+    mailbox::{CommandId, InstallOwnerPkHashReq, InstallOwnerPkHashResp},
+    SocManager,
+};
 use caliptra_builder::{
     firmware::{
         self,
@@ -564,6 +567,93 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
             hw.soc_ifc().cptra_boot_status().read(),
             u32::from(FwProcessorManifestLoadComplete)
         );
+    }
+}
+
+#[test]
+fn test_preamble_dot_owner_pubkey_digest_mismatch() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        let mut request = InstallOwnerPkHashReq {
+            digest: [0u32; 12],
+            ..Default::default()
+        };
+        request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::INSTALL_OWNER_PK_HASH),
+            &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+        );
+        let response = hw
+            .mailbox_execute(CommandId::INSTALL_OWNER_PK_HASH.into(), request.as_bytes())
+            .unwrap()
+            .unwrap();
+
+        let resp = InstallOwnerPkHashResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(resp.dpe_result, 0);
+
+        assert_eq!(
+            ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH
+            )),
+            hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+                .unwrap_err()
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_preamble_dot_owner_pubkey_digest_success() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = caliptra_hw_model::Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+
+        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        let gen = ImageGenerator::new(Crypto::default());
+        let digest = gen
+            .owner_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap();
+
+        let mut request = InstallOwnerPkHashReq {
+            digest,
+            ..Default::default()
+        };
+        request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::INSTALL_OWNER_PK_HASH),
+            &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+        );
+        let response = hw
+            .mailbox_execute(CommandId::INSTALL_OWNER_PK_HASH.into(), request.as_bytes())
+            .unwrap()
+            .unwrap();
+
+        let resp = InstallOwnerPkHashResp::ref_from_bytes(response.as_bytes()).unwrap();
+        assert_eq!(resp.dpe_result, 0);
+
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap();
+
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
     }
 }
 

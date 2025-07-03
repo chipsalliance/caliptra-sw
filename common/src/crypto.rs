@@ -13,11 +13,13 @@ Abstract:
 --*/
 use crate::keyids::KEY_ID_TMP;
 use caliptra_drivers::{
-    okmutref, okref, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
-    Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId, KeyReadArgs,
-    KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
-    Mldsa87SignRnd, Mldsa87Signature, Sha2_512_384, Trng,
+    okmutref, okref, Aes, AesGcmIv, AesKey, Array4x12, CaliptraResult, Ecc384, Ecc384PrivKeyIn,
+    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac, HmacData, HmacMode, KeyId,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Mldsa87, Mldsa87PubKey, Mldsa87Result,
+    Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentData, Sha2_512_384, Trng,
 };
+use caliptra_error::CaliptraError;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 /// DICE Layer ECC Key Pair
@@ -48,6 +50,37 @@ pub enum PubKey<'a> {
     Mldsa(&'a Mldsa87PubKey),
 }
 
+pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
+pub const UNENCRYPTED_CMK_SIZE_BYTES: usize = 80;
+
+#[repr(C)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+pub struct UnencryptedCmk {
+    pub version: u16,
+    pub length: u16,
+    pub key_usage: u8,
+    pub id: [u8; 3],
+    pub usage_counter: u64,
+    pub key_material: [u8; CMK_MAX_KEY_SIZE_BITS / 8],
+}
+
+impl UnencryptedCmk {
+    #[allow(unused)]
+    pub fn key_id(&self) -> u32 {
+        self.id[0] as u32 | ((self.id[1] as u32) << 8) | ((self.id[2] as u32) << 16)
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+pub struct EncryptedCmk {
+    pub domain: u32,
+    pub domain_metadata: [u8; 16],
+    pub iv: [u8; 12],
+    pub ciphertext: [u8; UNENCRYPTED_CMK_SIZE_BYTES],
+    pub gcm_tag: [u8; 16],
+}
+
 pub struct Crypto {}
 
 impl Crypto {
@@ -60,6 +93,7 @@ impl Crypto {
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
     /// * `mode` - HMAC Mode
+    /// * `key_usage` - Key usage flags for the output key
     #[inline(always)]
     pub fn hmac_mac(
         hmac: &mut Hmac,
@@ -68,19 +102,13 @@ impl Crypto {
         data: HmacData,
         tag: KeyId,
         mode: HmacMode,
+        key_usage: KeyUsage,
     ) -> CaliptraResult<()> {
         hmac.hmac(
             KeyReadArgs::new(key).into(),
             data,
             trng,
-            KeyWriteArgs::new(
-                tag,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en()
-                    .set_mldsa_key_gen_seed_en(),
-            )
-            .into(),
+            KeyWriteArgs::new(tag, key_usage).into(),
             mode,
         )
     }
@@ -96,7 +124,9 @@ impl Crypto {
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
     /// * `mode` - HMAC Mode
+    /// * `key_usage` - Key usage flags for the output key
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub fn hmac_kdf(
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -105,6 +135,7 @@ impl Crypto {
         context: Option<&[u8]>,
         output: KeyId,
         mode: HmacMode,
+        key_usage: KeyUsage,
     ) -> CaliptraResult<()> {
         caliptra_drivers::hmac_kdf(
             hmac,
@@ -112,14 +143,7 @@ impl Crypto {
             label,
             context,
             trng,
-            KeyWriteArgs::new(
-                output,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en()
-                    .set_mldsa_key_gen_seed_en(),
-            )
-            .into(),
+            KeyWriteArgs::new(output, key_usage).into(),
             mode,
         )
     }
@@ -149,7 +173,16 @@ impl Crypto {
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Self::hmac_kdf(hmac, trng, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
+        Self::hmac_kdf(
+            hmac,
+            trng,
+            cdi,
+            label,
+            None,
+            KEY_ID_TMP,
+            HmacMode::Hmac512,
+            KeyUsage::default().set_ecc_key_gen_seed_en(),
+        )?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
@@ -297,6 +330,7 @@ impl Crypto {
             None,
             key_pair_seed,
             HmacMode::Hmac512,
+            KeyUsage::default().set_mldsa_key_gen_seed_en(),
         )?;
 
         // Generate the public key.
@@ -393,5 +427,83 @@ impl Crypto {
             &Mldsa87SignRnd::default(),
             trng,
         )
+    }
+
+    pub fn get_cmb_aes_key(pdata: &PersistentData) -> ([u8; 32], [u8; 32]) {
+        (pdata.cmb_aes_key_share0, pdata.cmb_aes_key_share1)
+    }
+
+    /// Encrypt the Cryptographic Mailbox Key (CML) using the Key Encryption Key (KEK)
+    ///
+    /// # Arguments
+    /// * `aes` - AES driver
+    /// * `trng` - TRNG driver
+    /// * `unencrypted_cmk` - Unencrypted CMK to encrypt
+    /// * `kek_iv` - Initialization vector for the KEK
+    /// * `kek` - Key Encrption Key (AES key)
+    ///
+    /// # Returns
+    /// * `EncryptedCmk` - Encrypted CMK
+    ///
+    #[inline(always)]
+    pub fn encrypt_cmk(
+        aes: &mut Aes,
+        trng: &mut Trng,
+        unencrypted_cmk: &UnencryptedCmk,
+        kek_iv: [u8; 12],
+        kek: ([u8; 32], [u8; 32]),
+    ) -> CaliptraResult<EncryptedCmk> {
+        let plaintext = unencrypted_cmk.as_bytes();
+        let mut ciphertext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        // Encrypt the CMK using the KEK
+        let (iv, gcm_tag) = aes.aes_256_gcm_encrypt(
+            trng,
+            AesGcmIv::Array(&kek_iv),
+            AesKey::Split(&kek.0, &kek.1),
+            &[],
+            plaintext,
+            &mut ciphertext[..],
+            16,
+        )?;
+        Ok(EncryptedCmk {
+            domain: 0,
+            domain_metadata: [0u8; 16],
+            iv,
+            ciphertext,
+            gcm_tag,
+        })
+    }
+
+    /// Decrypt the Cryptographic Mailbox Key (CMK) using the Key Encryption Key (KEK)
+    ///
+    /// # Arguments
+    /// * `aes` - AES driver
+    /// * `trng` - TRNG driver
+    /// * `kek` - Key Encryption Key (AES key)
+    /// * `encrypted_cmk` - Encrypted CMK to decrypt
+    ///
+    /// # Returns
+    /// * `UnencryptedCmk` - Decrypted CMK
+    ///
+    #[inline(always)]
+    pub fn decrypt_cmk(
+        aes: &mut Aes,
+        trng: &mut Trng,
+        kek: ([u8; 32], [u8; 32]),
+        encrypted_cmk: &EncryptedCmk,
+    ) -> CaliptraResult<UnencryptedCmk> {
+        let ciphertext = &encrypted_cmk.ciphertext;
+        let mut plaintext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        aes.aes_256_gcm_decrypt(
+            trng,
+            &encrypted_cmk.iv,
+            AesKey::Split(&kek.0, &kek.1),
+            &[],
+            ciphertext,
+            &mut plaintext,
+            &encrypted_cmk.gcm_tag,
+        )?;
+        UnencryptedCmk::read_from_bytes(&plaintext)
+            .map_err(|_| CaliptraError::CMB_HMAC_INVALID_DEC_CMK)
     }
 }

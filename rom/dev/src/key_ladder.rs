@@ -17,7 +17,7 @@ use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::keyids::{KEY_ID_FW_KEY_LADDER, KEY_ID_ROM_FMC_CDI};
-use caliptra_drivers::{Hmac, HmacMode, KeyId, Trng};
+use caliptra_drivers::{Hmac, HmacMode, KeyId, KeyUsage, Trng};
 use caliptra_error::CaliptraResult;
 
 use crate::rom_env::RomEnv;
@@ -46,6 +46,7 @@ pub(crate) fn initialize_key_ladder(env: &mut RomEnv, ladder_len: u32) -> Calipt
         ]),
         LADDER_KEY,
         HmacMode::Hmac512,
+        KeyUsage::default().set_hmac_key_en(),
     )?;
 
     extend_key_ladder(&mut env.hmac, &mut env.trng, ladder_len)
@@ -76,6 +77,7 @@ pub(crate) fn extend_key_ladder(
             None,
             LADDER_KEY,
             HmacMode::Hmac512,
+            KeyUsage::default().set_hmac_key_en(),
         )?;
     }
 

@@ -48,6 +48,7 @@ pub struct ImageMetadataConfigFromFile {
     digest: String,
     source: u32,
     fw_id: u32,
+    exec_bit: u32,
     ignore_auth_check: bool,
     component_id: u32,
     image_load_address: u64,
@@ -148,6 +149,7 @@ pub(crate) fn image_metadata_config_from_file(
         let mut flags = ImageMetadataFlags(0);
         flags.set_ignore_auth_check(image.ignore_auth_check);
         flags.set_image_source(image.source);
+        flags.set_exec_bit(image.exec_bit);
 
         let image_metadata = AuthManifestImageMetadata {
             fw_id: image.fw_id,

@@ -53,6 +53,7 @@ struct Image {
     pub fw_id: u32,
     pub staging_address: Addr64,
     pub load_address: Addr64,
+    pub exec_bit: u8,
     pub contents: Vec<u8>,
 }
 
@@ -63,6 +64,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
         let mut flags = ImageMetadataFlags(0);
         flags.set_ignore_auth_check(false);
         flags.set_image_source(ImageHashSource::StagingAddress as u32);
+        flags.set_exec_bit(image.exec_bit as u32);
 
         let load_memory_contents = image.contents.clone();
 
@@ -124,6 +126,7 @@ fn test_activate_mcu_fw_success() {
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
         contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
     };
 
     let mut model = load_and_authorize_fw(&[mcu_image]);
@@ -157,6 +160,7 @@ fn test_activate_mcu_soc_fw_success() {
         staging_address: MCU_STAGING_ADDRESS,
         load_address: MCU_LOAD_ADDRESS,
         contents: [0x55u8; MCU_FW_SIZE].to_vec(),
+        exec_bit: 2,
     };
 
     let soc_image = Image {
@@ -164,6 +168,7 @@ fn test_activate_mcu_soc_fw_success() {
         staging_address: SOC_STAGING_ADDRESS,
         load_address: SOC_LOAD_ADDRESS,
         contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 3,
     };
 
     let mut model = load_and_authorize_fw(&[mcu_image, soc_image]);
@@ -198,6 +203,7 @@ fn test_activate_soc_fw_success() {
         staging_address: SOC_STAGING_ADDRESS,
         load_address: SOC_LOAD_ADDRESS,
         contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 3,
     };
 
     let mut model = load_and_authorize_fw(&[soc_image]);
@@ -227,10 +233,11 @@ fn test_activate_soc_fw_success() {
 #[test]
 fn test_activate_invalid_fw_id() {
     let soc_image = Image {
-        fw_id: INVALID_FW_ID,
+        fw_id: SOC_FW_ID_1,
         staging_address: SOC_STAGING_ADDRESS,
         load_address: SOC_LOAD_ADDRESS,
         contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 3,
     };
 
     let mut model = load_and_authorize_fw(&[soc_image]);
@@ -263,6 +270,7 @@ fn test_activate_fw_id_not_in_manifest() {
         staging_address: SOC_STAGING_ADDRESS,
         load_address: SOC_LOAD_ADDRESS,
         contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 3,
     };
 
     let mut model = load_and_authorize_fw(&[soc_image]);
@@ -275,6 +283,39 @@ fn test_activate_fw_id_not_in_manifest() {
         fw_ids: {
             let mut arr = [0u32; 128];
             arr[0] = INVALID_FW_ID;
+            arr
+        },
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert!(model
+        .mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        )
+        .is_err());
+}
+
+#[test]
+fn test_invalid_exec_bit_in_manifest() {
+    let soc_image = Image {
+        fw_id: SOC_FW_ID_1,
+        staging_address: SOC_STAGING_ADDRESS,
+        load_address: SOC_LOAD_ADDRESS,
+        contents: [0xAAu8; SOC_FW_SIZE].to_vec(),
+        exec_bit: 0,
+    };
+
+    let mut model = load_and_authorize_fw(&[soc_image]);
+
+    // Send ActivateFirmware command
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = SOC_FW_ID_1;
             arr
         },
     });

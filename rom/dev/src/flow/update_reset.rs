@@ -74,6 +74,7 @@ impl UpdateResetFlow {
                 pcr_bank: &mut env.pcr_bank,
                 image: recv_txn.raw_mailbox_contents(),
                 dma: &env.dma,
+                persistent_data: env.persistent_data.get(),
             };
 
             let info = {

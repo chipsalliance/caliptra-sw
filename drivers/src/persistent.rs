@@ -253,6 +253,14 @@ pub mod fmc_alias_csr {
 
 #[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
+pub struct DOT_OWNER_PK_HASH {
+    pub owner_pk_hash: [u32; 12],
+    pub valid: bool,
+    reserved: [u8; 3],
+}
+
+#[derive(TryFromBytes, IntoBytes, KnownLayout, Zeroize)]
+#[repr(C)]
 pub struct PersistentData {
     pub manifest1: ImageManifest,
     reserved0: [u8; MAN1_SIZE as usize - size_of::<ImageManifest>()],
@@ -331,6 +339,8 @@ pub struct PersistentData {
 
     pub cmb_aes_key_share0: [u8; 32],
     pub cmb_aes_key_share1: [u8; 32],
+
+    pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
 }
 
 impl PersistentData {
@@ -470,6 +480,11 @@ impl PersistentData {
             persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
             assert_eq!(
                 addr_of!((*P).cmb_aes_key_share1) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
+            assert_eq!(
+                addr_of!((*P).dot_owner_pk_hash) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
