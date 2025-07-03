@@ -16,6 +16,7 @@ use core::mem::offset_of;
 
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
+use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
@@ -27,6 +28,7 @@ const NOTIF0_INTERNAL_INTR_R_OFFSET: u32 = MCI_TOP_REG_INTR_RF_BLOCK_OFFSET + 0x
 const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
 const SOC_MCI_TOP_MCI_REG_RESET_STATUS_OFFSET: u32 = 0x3c;
 const MCU_RESET_REQ_STS_MASK: u32 = 0x2;
+const MAX_EXEC_GO_BIT_INDEX: u8 = 127;
 
 pub struct ActivateFirmwareCmd;
 impl ActivateFirmwareCmd {
@@ -79,15 +81,20 @@ impl ActivateFirmwareCmd {
                     .try_into()
                     .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
             );
-            if fw_id > ActivateFirmwareReq::MAX_FW_ID_VAL {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
             if fw_id == ActivateFirmwareReq::RESERVED0_IMAGE_ID
                 || fw_id == ActivateFirmwareReq::RESERVED1_IMAGE_ID
             {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             if fw_id == ActivateFirmwareReq::MCU_IMAGE_ID && mcu_image_size == 0 {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
+            let exec_bit = Self::get_exec_bit(drivers, fw_id)
+                .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            // Check if exec_bit is valid
+            // Note that bits 0 and 1 are reserved. Refer to
+            // https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.SS_GENERIC_FW_EXEC_CTRL%5B0%5D
+            if exec_bit == 0 || exec_bit == 1 || exec_bit > MAX_EXEC_GO_BIT_INDEX {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             Self::set_bit(&mut images_to_activate_bitmap, fw_id as usize);
@@ -189,6 +196,20 @@ impl ActivateFirmwareCmd {
         // Caliptra sets FW_EXEC_CTRL
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
         Ok(())
+    }
+
+    #[inline(never)]
+    pub(crate) fn get_exec_bit(drivers: &Drivers, image_id: u32) -> Result<u8, ()> {
+        // Get the exec bit for the given image ID
+        let persistent_data = drivers.persistent_data.get();
+        let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
+        if let Some(metadata_entry) =
+            find_metadata_entry(auth_manifest_image_metadata_col, image_id)
+        {
+            Ok(ImageMetadataFlags(metadata_entry.flags).exec_bit() as u8)
+        } else {
+            Err(())
+        }
     }
 
     #[inline(never)]

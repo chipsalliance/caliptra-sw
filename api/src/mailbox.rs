@@ -825,7 +825,6 @@ impl Request for ActivateFirmwareReq {
 }
 impl ActivateFirmwareReq {
     pub const MAX_FW_ID_COUNT: usize = 128;
-    pub const MAX_FW_ID_VAL: u32 = 127;
     pub const RESERVED0_IMAGE_ID: u32 = 0;
     pub const RESERVED1_IMAGE_ID: u32 = 0;
     pub const MCU_IMAGE_ID: u32 = 2;
