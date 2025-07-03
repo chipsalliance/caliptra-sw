@@ -93,6 +93,7 @@ impl Crypto {
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
     /// * `mode` - HMAC Mode
+    /// * `key_usage` - Key usage flags for the output key
     #[inline(always)]
     pub fn hmac_mac(
         hmac: &mut Hmac,
@@ -101,19 +102,13 @@ impl Crypto {
         data: HmacData,
         tag: KeyId,
         mode: HmacMode,
+        key_usage: KeyUsage,
     ) -> CaliptraResult<()> {
         hmac.hmac(
             KeyReadArgs::new(key).into(),
             data,
             trng,
-            KeyWriteArgs::new(
-                tag,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en()
-                    .set_mldsa_key_gen_seed_en(),
-            )
-            .into(),
+            KeyWriteArgs::new(tag, key_usage).into(),
             mode,
         )
     }
@@ -129,7 +124,9 @@ impl Crypto {
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
     /// * `mode` - HMAC Mode
+    /// * `key_usage` - Key usage flags for the output key
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub fn hmac_kdf(
         hmac: &mut Hmac,
         trng: &mut Trng,
@@ -138,6 +135,7 @@ impl Crypto {
         context: Option<&[u8]>,
         output: KeyId,
         mode: HmacMode,
+        key_usage: KeyUsage,
     ) -> CaliptraResult<()> {
         caliptra_drivers::hmac_kdf(
             hmac,
@@ -145,16 +143,7 @@ impl Crypto {
             label,
             context,
             trng,
-            KeyWriteArgs::new(
-                output,
-                // [TODO][CAP2] Take usage from caller instead of hardcoding
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en()
-                    .set_mldsa_key_gen_seed_en()
-                    .set_aes_key_en(),
-            )
-            .into(),
+            KeyWriteArgs::new(output, key_usage).into(),
             mode,
         )
     }
@@ -184,7 +173,16 @@ impl Crypto {
         label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Self::hmac_kdf(hmac, trng, cdi, label, None, KEY_ID_TMP, HmacMode::Hmac512)?;
+        Self::hmac_kdf(
+            hmac,
+            trng,
+            cdi,
+            label,
+            None,
+            KEY_ID_TMP,
+            HmacMode::Hmac512,
+            KeyUsage::default().set_ecc_key_gen_seed_en(),
+        )?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
@@ -332,6 +330,7 @@ impl Crypto {
             None,
             key_pair_seed,
             HmacMode::Hmac512,
+            KeyUsage::default().set_mldsa_key_gen_seed_en(),
         )?;
 
         // Generate the public key.
