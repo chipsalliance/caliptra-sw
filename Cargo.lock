@@ -869,6 +869,7 @@ dependencies = [
  "caliptra-test-harness",
  "caliptra_common",
  "cfg-if 1.0.0",
+ "dpe",
  "ufmt",
  "zerocopy",
 ]

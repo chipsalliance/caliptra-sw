@@ -380,6 +380,7 @@ struct dpe_derive_context_cmd
     uint32_t flags;
     uint8_t input_type[4];
     uint32_t target_locality;
+    uint32_t svn;
 };
 
 struct dpe_derive_context_response
