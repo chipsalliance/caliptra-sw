@@ -1,27 +1,43 @@
 // Licensed under the Apache-2.0 license
 
 use crate::helpers;
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
-    CmHashAlgorithm, CmHmacReq, CmHmacResp, DeriveStableKeyReq, DeriveStableKeyResp,
-    MailboxRespHeaderVarSize, StableKeyType, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
-    STABLE_KEY_INFO_SIZE_BYTES,
+    CmHashAlgorithm, CmHmacReq, CmHmacResp, DeriveStableKeyReq, DeriveStableKeyResp, StableKeyType,
+    CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE, STABLE_KEY_INFO_SIZE_BYTES,
 };
 use caliptra_builder::firmware;
-use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
-use caliptra_builder::firmware::APP_WITH_UART;
+use caliptra_builder::firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART};
 use caliptra_builder::ImageOptions;
-use caliptra_common::crypto::EncryptedCmk;
+use caliptra_common::crypto::{EncryptedCmk, UnencryptedCmk};
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::BootParams;
-use caliptra_hw_model::InitParams;
-use caliptra_hw_model::{Fuses, HwModel, ModelError};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError};
+use hmac::{Hmac, Mac};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+use sha2::Sha512;
 use zerocopy::{FromBytes, IntoBytes};
 
 const DOT_KEY_TYPES: [StableKeyType; 2] = [StableKeyType::IDevId, StableKeyType::LDevId];
+
+fn decrypt_cmk(key: &[u8], cmk: &EncryptedCmk) -> Option<UnencryptedCmk> {
+    use aes_gcm::KeyInit;
+    let key: &Key<aes_gcm::Aes256Gcm> = key.into();
+    let mut cipher = aes_gcm::Aes256Gcm::new(key);
+    let mut buffer = cmk.ciphertext.to_vec();
+    match cipher.decrypt_in_place_detached(&cmk.iv.into(), &[], &mut buffer, &cmk.gcm_tag.into()) {
+        Ok(_) => UnencryptedCmk::ref_from_bytes(&buffer).ok().cloned(),
+        Err(_) => None,
+    }
+}
+
+fn hmac512(key: &[u8], data: &[u8]) -> [u8; 64] {
+    let mut mac = Hmac::<Sha512>::new_from_slice(key).unwrap();
+    mac.update(data);
+    let result = mac.finalize();
+    result.into_bytes().into()
+}
 
 #[test]
 fn test_derive_stable_key() {
@@ -98,54 +114,41 @@ fn test_derive_stable_key() {
             .unwrap()
             .unwrap();
 
-        const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
-        let _resp = CmHmacResp {
-            hdr: MailboxRespHeaderVarSize::read_from_bytes(&response[..HMAC_HEADER_SIZE]).unwrap(),
-            ..Default::default()
-        };
+        let resp = CmHmacResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let expected_mac = resp.mac;
 
-        hw.upload_firmware(&image_bundle.as_bytes()).unwrap();
+        hw.upload_firmware(image_bundle.as_bytes()).unwrap();
         hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
-        // [TODO][CAP2] Get the KEKE, decrypt the CMK to obtain the HMAC key and verify the mac.
         let result = hw.mailbox_execute(0x1000_0012, &[]);
         assert!(result.is_ok(), "{:?}", result);
 
-        let key = {
-            let key_bytes = result.unwrap().unwrap();
-            let mut key0 = [0u8; 32];
-            let mut key1 = [0u8; 32];
-            key0.copy_from_slice(&key_bytes[..32]);
-            key1.copy_from_slice(&key_bytes[32..]);
-            (key0, key1)
-        };
+        let aes_key = result.unwrap().unwrap();
 
-        // let iv = [0u8; 16];
-        // let mut out_block = [0u8; 1024];
-        let uncmk = EncryptedCmk::ref_from_bytes(&cmk).unwrap();
-        let decryptor = cbc::Decryptor::<aes::Aes256>::new(&key.0.into(), &uncmk.iv.into());
-        // let result = decryptor.decrypt_padded_b2b_mut::<Pkcs7>(&cmk, &mut out_block);
-        // assert!(result.is_ok(), "{:?}", result);
-        // println!("{:x?}", out_block);
+        let cmk = EncryptedCmk::ref_from_bytes(&cmk).unwrap();
+        let cmk = decrypt_cmk(&aes_key, cmk).expect("Decrypt CMK failed");
+
+        let computed_mac = hmac512(&cmk.key_material, &data);
+        assert_eq!(computed_mac, expected_mac);
     }
 }
 
 #[test]
-fn test_derive_dot_key_invalid_key_type() {
+fn test_derive_stable_key_invalid_key_type() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let mut request = DeriveDotKeyReq {
+    let mut request = DeriveStableKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_type: DotKeyType::Reserved.into(),
-        info: [0u8; DOT_INFO_SIZE_BYTES],
+        key_type: StableKeyType::Reserved.into(),
+        info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
     };
     request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::DERIVE_DOT_KEY),
+        u32::from(CommandId::DERIVE_STABLE_KEY),
         &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
     );
     assert_eq!(
-        hw.mailbox_execute(CommandId::DERIVE_DOT_KEY.into(), request.as_bytes()),
+        hw.mailbox_execute(CommandId::DERIVE_STABLE_KEY.into(), request.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::DOT_INVALID_KEY_TYPE.into()
         ))

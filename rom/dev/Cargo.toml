@@ -37,7 +37,7 @@ hex.workspace = true
 openssl.workspace = true
 
 [dev-dependencies]
-aes.workspace = true
+aes-gcm.workspace = true
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
 caliptra-emu-cpu.workspace = true
@@ -50,10 +50,10 @@ caliptra-image-gen.workspace = true
 caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
 caliptra-test.workspace = true
-cbc.workspace = true
 elf.workspace = true
 fips204.workspace = true
 hex.workspace = true
+hmac.workspace = true
 memoffset.workspace = true
 rand.workspace = true
 openssl.workspace = true

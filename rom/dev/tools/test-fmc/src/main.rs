@@ -39,7 +39,7 @@ const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 pub fn main() {}
 
 const BANNER: &str = r#"
-Running Caliptra Fake FMC ...
+Running Caliptra Test FMC ...
 "#;
 
 #[no_mangle]
@@ -257,7 +257,7 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             test_datavault_pmp(false);
         }
         0x1000_0012 => {
-            get_cmb_aes_key(&mbox);
+            get_cmb_aes_key(mbox);
         }
         _ => {}
     }
@@ -282,10 +282,11 @@ fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) 
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     let key0 = persistent_data.get().cmb_aes_key_share0;
     let key1 = persistent_data.get().cmb_aes_key_share1;
-    let mut key_data = [0u8; 64];
-    key_data[..32].copy_from_slice(&key0);
-    key_data[32..].copy_from_slice(&key1);
-    send_to_mailbox(mbox, &key_data, true);
+    let mut key = [0u8; 32];
+    for (i, element) in key.iter_mut().enumerate() {
+        *element = key0[i] ^ key1[i];
+    }
+    send_to_mailbox(mbox, &key, true);
 }
 
 fn test_datavault_pmp(start: bool) {
