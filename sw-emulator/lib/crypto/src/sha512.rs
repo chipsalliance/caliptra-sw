@@ -137,11 +137,25 @@ impl Sha512 {
         self.blocks_processed += 1;
     }
 
-    /// Update the hash with an arbitrary number to bytes
+    /// Update the hash with an arbitrary number of bytes
     ///
-    /// `bytes` is expected to be big-endian data
-    pub fn update_bytes(&mut self, bytes: &[u8]) {
+    /// `bytes` is expected to be big-endian data.
+    /// `dlen` may be specified when `bytes` can have undesired padding.
+    /// `dlen` is expected to be the total number of bytes to hash.
+    pub fn update_bytes(&mut self, bytes: &[u8], dlen: Option<u32>) {
         self.partial_block.extend_from_slice(bytes);
+
+        let total_received_bytes =
+            self.blocks_processed * Self::BLOCK_SIZE + self.partial_block.len();
+        if let Some(dlen) = dlen {
+            if total_received_bytes > dlen as usize {
+                // TODO: can panic if `update_bytes` is used wrong
+                //       (e.g. calling `update_bytes` with a dlen that would remove more bytes than BLOCK_SIZE)
+                let to_remove =
+                    (self.partial_block.len() - (total_received_bytes - dlen as usize))..;
+                self.partial_block.drain(to_remove);
+            }
+        }
 
         while self.partial_block.len() >= Self::BLOCK_SIZE {
             // Safe to unwrap becasue slice is guaranteed to be correct size
