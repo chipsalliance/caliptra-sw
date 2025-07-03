@@ -1353,7 +1353,7 @@ int test_sha_acc(const test_info* info)
     }
 
     // SHA512
-    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512, (uint8_t*)(msg), 250);
+    status = caliptra_start_sha_stream(CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512, (uint8_t*)(msg), 127);
     if (status) {
         printf("SHA init failed: 0x%x\n", status);
         dump_caliptra_error_codes();
