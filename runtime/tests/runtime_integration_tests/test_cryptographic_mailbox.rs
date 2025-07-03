@@ -1568,7 +1568,7 @@ fn test_hmac_cant_use_sha512_on_384_key() {
         .expect_err("Should have failed");
     assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+        caliptra_drivers::CaliptraError::CMB_HMAC_INVALID_KEY_USAGE_AND_SIZE,
         err,
     );
 }

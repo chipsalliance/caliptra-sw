@@ -191,4 +191,6 @@ pub trait ImageVerificationEnv {
 
     // Get the PQC Key Type from the fuse.
     fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
+
+    fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384>;
 }

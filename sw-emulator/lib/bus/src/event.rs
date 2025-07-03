@@ -20,6 +20,7 @@ pub enum Device {
     BMC,
     TestSram,
     ExternalTestSram,
+    RecoveryIntf,
     External(&'static str),
 }
 
@@ -64,6 +65,10 @@ pub enum EventData {
     RecoveryImageAvailable {
         image_id: u8,
         image: Vec<u8>,
+    },
+    RecoveryFifoStatusRequest,
+    RecoveryFifoStatusResponse {
+        status: u32,
     },
     I3CBlock {
         source_addr: u8,

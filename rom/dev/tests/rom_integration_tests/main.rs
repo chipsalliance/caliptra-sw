@@ -7,6 +7,7 @@ mod test_capabilities;
 mod test_cfi;
 mod test_cpu_fault;
 mod test_debug_unlock;
+mod test_derive_stable_key;
 mod test_dice_derivations;
 mod test_ecdsa_verify;
 mod test_fake_rom;

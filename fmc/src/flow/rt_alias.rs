@@ -31,7 +31,7 @@ use caliptra_common::keyids::{
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
     okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, HmacMode, KeyId,
-    Mldsa87Result, PersistentData, ResetReason,
+    KeyUsage, Mldsa87Result, PersistentData, ResetReason,
 };
 use caliptra_x509::{
     NotAfter, NotBefore, RtAliasCertTbsEcc384, RtAliasCertTbsEcc384Params, RtAliasCertTbsMlDsa87,
@@ -273,6 +273,10 @@ impl RtAliasLayer {
             Some(&tci),
             rt_cdi,
             HmacMode::Hmac512,
+            KeyUsage::default()
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en()
+                .set_hmac_key_en(),
         )?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         Ok(())

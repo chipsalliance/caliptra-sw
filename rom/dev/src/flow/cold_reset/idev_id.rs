@@ -195,6 +195,10 @@ impl InitDevIdLayer {
             None,
             cdi,
             HmacMode::Hmac512,
+            KeyUsage::default()
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en()
+                .set_hmac_key_en(),
         )?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);

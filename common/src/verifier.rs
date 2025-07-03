@@ -32,6 +32,7 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub pcr_bank: &'a mut PcrBank,
     pub image: &'b [u8],
     pub dma: &'a Dma,
+    pub persistent_data: &'a PersistentData,
 }
 
 impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
@@ -240,5 +241,13 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             FwVerificationPqcKeyType::from_u8(self.soc_ifc.fuse_bank().pqc_key_type() as u8)
                 .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
         Ok(pqc_key_type)
+    }
+
+    fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
+        if self.persistent_data.dot_owner_pk_hash.valid {
+            Some(&self.persistent_data.dot_owner_pk_hash.owner_pk_hash)
+        } else {
+            None
+        }
     }
 }

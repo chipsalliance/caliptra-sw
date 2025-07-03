@@ -526,7 +526,9 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 **Actions:**
 
-1. Derive the stable identity root secret from IDevID and store the resultant MAC in Key Vault Slot 13.
+1. Derive the stable identity root secret from IDevID and store the resultant MAC in Key Vault Slot 0.
+
+    `hmac512_mac(KvSlot0, b"stable_identity_root_idev", KvSlot6)`
 
 2. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in Key Vault Slot 6.
 
@@ -540,7 +542,9 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
     `kv_clear(KvSlot1)`
 
-4. Derive the stable identity root secret from LDevID and store the resultant MAC in Key Vault Slot 14.
+4. Derive the stable identity root secret from LDevID and store the resultant MAC in Key Vault Slot 1.
+
+    `hmac512_mac(KvSlot1, b"stable_identity_root_ldev", KvSlot6)`
 
 5. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
@@ -603,11 +607,11 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
  | Slot | Key Vault                                     |
  |------|-----------------------------------------------|
+ | 0    | Stable identity root IDevID secret (64 bytes) |
+ | 1    | Stable identity root LDevID secret (64 bytes) |
  | 4    | LDevID Key Pair Seed - MLDSA (32 bytes)       |
  | 5    | LDevID Private Key - ECDSA (48 bytes)         |
  | 6    | LDevID CDI (64 bytes)                         |
- | 13   | Stable identity root IDevID secret (64 bytes) |
- | 14   | Stable identity root LDevID secret (64 bytes) |
 
  | DCCM Datavault                 |
  |--------------------------------|
@@ -844,11 +848,11 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
  | Slot | Key Vault                                     |
  |------|-----------------------------------------------|
+ | 0    | Stable identity root IDevID secret (64 bytes) |
+ | 1    | Stable identity root LDevID secret (64 bytes) |
  | 6    | Alias FMC CDI (48 bytes)                      |
  | 7    | Alias FMC Private Key - ECDSA (48 bytes)      |
  | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes)    |
- | 13   | Stable identity root IDevID secret (64 bytes) |
- | 14   | Stable identity root LDevID secret (64 bytes) |
 
  | DCCM datavault                         |
  |----------------------------------------|
