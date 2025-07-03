@@ -460,6 +460,7 @@ pub enum MailboxReq {
     ActivateFirmware(ActivateFirmwareReq),
     EcdsaVerify(EcdsaVerifyReq),
     LmsVerify(LmsVerifyReq),
+    MldsaVerify(MldsaVerifyReq),
     GetLdevEcc384Cert(GetLdevEcc384CertReq),
     GetLdevMldsa87Cert(GetLdevMldsa87CertReq),
     StashMeasurement(StashMeasurementReq),
@@ -530,6 +531,7 @@ impl MailboxReq {
             MailboxReq::ActivateFirmware(req) => Ok(req.as_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::MldsaVerify(req) => req.as_bytes_partial(),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
@@ -598,6 +600,7 @@ impl MailboxReq {
             MailboxReq::ActivateFirmware(req) => Ok(req.as_mut_bytes()),
             MailboxReq::EcdsaVerify(req) => Ok(req.as_mut_bytes()),
             MailboxReq::LmsVerify(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::MldsaVerify(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetLdevEcc384Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetLdevMldsa87Cert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_mut_bytes()),
@@ -666,6 +669,7 @@ impl MailboxReq {
             MailboxReq::ActivateFirmware(_) => CommandId::ACTIVATE_FIRMWARE,
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
             MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
+            MailboxReq::MldsaVerify(_) => CommandId::MLDSA87_VERIFY,
             MailboxReq::GetLdevEcc384Cert(_) => CommandId::GET_LDEV_ECC384_CERT,
             MailboxReq::GetLdevMldsa87Cert(_) => CommandId::GET_LDEV_MLDSA87_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
@@ -1034,6 +1038,53 @@ pub struct LmsVerifyReq {
 }
 impl Request for LmsVerifyReq {
     const ID: CommandId = CommandId::LMS_VERIFY;
+    type Resp = MailboxRespHeader;
+}
+// No command-specific output args
+
+// MLDSA87_SIGNATURE_VERIFY
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct MldsaVerifyReq {
+    pub hdr: MailboxReqHeader,
+    pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub message_size: u32,
+    pub message: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl MldsaVerifyReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Default for MldsaVerifyReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            pub_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+            message_size: 0,
+            message: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl Request for MldsaVerifyReq {
+    const ID: CommandId = CommandId::MLDSA87_VERIFY;
     type Resp = MailboxRespHeader;
 }
 // No command-specific output args

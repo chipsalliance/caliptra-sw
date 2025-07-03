@@ -19,6 +19,7 @@ pub mod keyids;
 pub mod macros;
 pub mod pmp;
 pub mod verifier;
+pub mod verify;
 pub mod wdt;
 pub mod x509;
 
