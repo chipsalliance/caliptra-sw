@@ -39,7 +39,7 @@ const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 pub fn main() {}
 
 const BANNER: &str = r#"
-Running Caliptra FMC ...
+Running Caliptra Test FMC ...
 "#;
 
 #[no_mangle]
