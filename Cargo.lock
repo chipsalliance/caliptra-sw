@@ -786,6 +786,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "caliptra-api",
  "caliptra-builder",
  "caliptra-cfi-derive",
@@ -812,6 +813,7 @@ dependencies = [
  "elf",
  "fips204",
  "hex",
+ "hmac",
  "memoffset 0.8.0",
  "openssl",
  "p384",
