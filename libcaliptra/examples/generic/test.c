@@ -1092,7 +1092,7 @@ int rt_test_all_commands(const test_info *info)
     return failure;
 }
 
-int rom_test_ecc384_devid_csr(const test_info *info)
+int rom_test_ecc384_idevid_csr(const test_info *info)
 {
     int failure = 0;
 
@@ -1179,7 +1179,7 @@ int rom_test_ecc384_devid_csr(const test_info *info)
     return failure;
 }
 
-int rom_test_mldsa87_devid_csr(const test_info *info)
+int rom_test_mldsa87_idevid_csr(const test_info *info)
 {
     int failure = 0;
 
@@ -1500,8 +1500,8 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
-    run_test(rom_test_ecc384_devid_csr, info, "Test ECC384 IDEV CSR GEN");
-    run_test(rom_test_mldsa87_devid_csr, info, "Test MLDSA87 IDEV CSR GEN");
+    run_test(rom_test_ecc384_idevid_csr, info, "Test ECC384 IDEV CSR GEN");
+    run_test(rom_test_mldsa87_idevid_csr, info, "Test MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
