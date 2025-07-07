@@ -4,7 +4,7 @@ This is a NixOS configuration for Caliptra host runners. A host runner is a Rasp
 
 ## How to cross-compile NixOS
 
-This section describes how to cfrom an x86-64 machine to an aarch64 machine.
+This section describes how to compile from an x86-64 machine to an aarch64 machine.
 
 ### NixOS
 
@@ -119,4 +119,4 @@ For VCK-190s this image _does_ include the bitstream. This is because it needs t
 
 # Connect an FPGA to the host runner
 
-For an example, see `hostrunners/kir-0.nix` for 3 ZCU-104s managed with systemd. You should use Nix to manage these services so they are re-producible.
+For an example, see [hostrunners/kir-0.nix](hostrunners/kir-0.nix) for 3 ZCU-104s managed with systemd. You should use Nix to manage these services so they are re-producible.
