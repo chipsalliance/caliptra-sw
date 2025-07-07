@@ -326,7 +326,8 @@ impl Sha512AcceleratorRegs {
             Err(BusError::StoreAccessFault)?
         }
 
-        self.sha_stream.update_bytes(&val.to_be_bytes());
+        self.sha_stream
+            .update_bytes(&val.to_be_bytes(), Some(self.dlen.reg.get()));
 
         Ok(())
     }
