@@ -837,6 +837,11 @@ impl CaliptraError {
             "Image Verifier Error: Activation failed"
         ),
         (
+            IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
+            0x000b005e,
+            "Image Verifier Error: DOT owner public key digest mismatch"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -2162,6 +2167,41 @@ impl CaliptraError {
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,
             0xa005_0000,
             "Runtime Error: Signaure mismatch"
+        ),
+        (
+            DOT_INVALID_KEY_TYPE,
+            0xa005_5000,
+            "DOT Error: Invalid key type"
+        ),
+        (
+            CMB_HMAC_INVALID_ENC_CMK,
+            0xa005_5020,
+            "Crypto Mailbox Error: Invalid encrypted CMK"
+        ),
+        (
+            CMB_HMAC_INVALID_DEC_CMK,
+            0xa005_5021,
+            "Crypto Mailbox Error: Invalid decrypted CMK"
+        ),
+        (
+            CMB_HMAC_INVALID_KEY_USAGE,
+            0xa005_5022,
+            "Crypto Mailbox Error: Invalid key usage"
+        ),
+        (
+            CMB_HMAC_INVALID_REQ_SIZE,
+            0xa005_5023,
+            "Crypto Mailbox Error: Invalid request size"
+        ),
+        (
+            CMB_HMAC_INVALID_KEY_USAGE_AND_SIZE,
+            0xa005_5024,
+            "Crypto Mailbox Error: Invalid key usage and size"
+        ),
+        (
+            CMB_HMAC_UNSUPPORTED_HASH_ALGORITHM,
+            0xa005_5025,
+            "Crypto Mailbox Error: Unsupported hash algorithm"
         ),
     ];
 }

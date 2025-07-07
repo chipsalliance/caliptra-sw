@@ -133,6 +133,12 @@ impl CommandId {
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
+    // Stable key derivation command
+    pub const DERIVE_STABLE_KEY: Self = Self(0x44534B45); // "DSKE"
+
+    // Device Ownership Transfer command
+    pub const INSTALL_OWNER_PK_HASH: Self = Self(0x4F574E50); // "OWNP"
+
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
     pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
@@ -819,7 +825,6 @@ impl Request for ActivateFirmwareReq {
 }
 impl ActivateFirmwareReq {
     pub const MAX_FW_ID_COUNT: usize = 128;
-    pub const MAX_FW_ID_VAL: u32 = 127;
     pub const RESERVED0_IMAGE_ID: u32 = 0;
     pub const RESERVED1_IMAGE_ID: u32 = 0;
     pub const MCU_IMAGE_ID: u32 = 2;
@@ -3695,6 +3700,86 @@ impl Request for CmEcdsaVerifyReq {
     const ID: CommandId = CommandId::CM_ECDSA_VERIFY;
     type Resp = MailboxRespHeader;
 }
+
+// DERIVE_STABLE_KEY
+pub const STABLE_KEY_INFO_SIZE_BYTES: usize = 32;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StableKeyType {
+    Reserved = 0,
+    IDevId,
+    LDevId,
+}
+
+impl From<u32> for StableKeyType {
+    fn from(val: u32) -> Self {
+        match val {
+            1_u32 => StableKeyType::IDevId,
+            2_u32 => StableKeyType::LDevId,
+            _ => StableKeyType::Reserved,
+        }
+    }
+}
+
+impl From<StableKeyType> for u32 {
+    fn from(val: StableKeyType) -> Self {
+        match val {
+            StableKeyType::IDevId => 1,
+            StableKeyType::LDevId => 2,
+            StableKeyType::Reserved => 0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct DeriveStableKeyReq {
+    pub hdr: MailboxReqHeader,
+    pub key_type: u32,
+    pub info: [u8; STABLE_KEY_INFO_SIZE_BYTES],
+}
+impl Default for DeriveStableKeyReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
+            key_type: StableKeyType::Reserved as u32,
+        }
+    }
+}
+impl Request for DeriveStableKeyReq {
+    const ID: CommandId = CommandId::DERIVE_STABLE_KEY;
+    type Resp = DeriveStableKeyResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct DeriveStableKeyResp {
+    pub hdr: MailboxRespHeader,
+    pub cmk: Cmk,
+}
+impl Response for DeriveStableKeyResp {}
+
+// INSTALL_OWNER_PK_HASH
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashReq {
+    pub hdr: MailboxReqHeader,
+    pub digest: [u32; 12],
+}
+
+impl Request for InstallOwnerPkHashReq {
+    const ID: CommandId = CommandId::INSTALL_OWNER_PK_HASH;
+    type Resp = InstallOwnerPkHashResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InstallOwnerPkHashResp {
+    pub hdr: MailboxRespHeader,
+    pub dpe_result: u32,
+}
+impl Response for InstallOwnerPkHashResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

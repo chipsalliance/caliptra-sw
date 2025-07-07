@@ -406,4 +406,8 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
                 .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE)?;
         Ok(pqc_key_type)
     }
+
+    fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
+        None
+    }
 }

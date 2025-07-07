@@ -30,6 +30,7 @@ use caliptra_common::keyids::{
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{dice, x509};
+use caliptra_drivers::KeyUsage;
 use caliptra_drivers::{
     okmutref, report_boot_status, sha2_512_384::Sha2DigestOpTrait, Array4x12, CaliptraResult,
     HmacMode, KeyId, Lifecycle,
@@ -144,6 +145,10 @@ impl FmcAliasLayer {
             Some(&measurements),
             KEY_ID_ROM_FMC_CDI,
             HmacMode::Hmac512,
+            KeyUsage::default()
+                .set_ecc_key_gen_seed_en()
+                .set_mldsa_key_gen_seed_en()
+                .set_hmac_key_en(),
         );
         measurements.zeroize();
         result?;
