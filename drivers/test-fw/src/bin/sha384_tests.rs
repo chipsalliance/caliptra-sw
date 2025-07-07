@@ -18,7 +18,11 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
 use caliptra_kat::Sha384Kat;
-use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
+use caliptra_registers::{
+    pv::PvReg,
+    sha512::Sha512Reg,
+    sha512_acc::{enums::ShaCmdE, Sha512AccCsr},
+};
 
 use caliptra_test_harness::test_suite;
 
@@ -233,6 +237,36 @@ fn test_op8() {
     assert_eq!(digest, Array4x12::from(expected));
 }
 
+fn test_op9() {
+    let mut sha384 = unsafe { Sha512AccCsr::new() };
+    let sha = sha384.regs_mut();
+    let expected: [u8; 48] = [
+        0x48, 0x57, 0x09, 0xa9, 0x1f, 0x98, 0x46, 0xd3, 0xeb, 0x98, 0x24, 0x33, 0x51, 0x06, 0x53,
+        0x2f, 0xde, 0x8b, 0xfd, 0x5d, 0x77, 0x04, 0x08, 0xe0, 0x89, 0x9d, 0x99, 0xdb, 0x5b, 0xf8,
+        0x5b, 0x79, 0xba, 0x04, 0x63, 0x0d, 0x1e, 0x6d, 0x13, 0xf9, 0xf3, 0x36, 0x91, 0x5d, 0xaf,
+        0x7c, 0x1d, 0x1d,
+    ];
+    let data: [u32; 32] = [0x00; 32];
+
+    // assert!(sha.lock().read().lock() == false);
+    sha.control().write(|w| w.zeroize(true));
+    sha.mode().write(|w| w.mode(|_| ShaCmdE::ShaStream384));
+    sha.dlen().write(|_| 127);
+
+    for w in data.iter().take(31) {
+        sha.datain().write(|_| *w);
+    }
+    // This is simplified because the buffer is all 0s
+    sha.datain().write(|_| data[31]);
+
+    sha.execute().write(|w| w.execute(true));
+
+    while !sha.status().read().valid() {}
+
+    let digest = Array4x12::read_from_reg(sha.digest().truncate::<12>());
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
 fn test_pcr_hash_extend_single_block() {
     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
@@ -406,6 +440,7 @@ test_suite! {
     test_op6,
     test_op7,
     test_op8,
+    test_op9,
     test_pcr_hash_extend_single_block,
     test_pcr_hash_extend_single_block_2,
     test_pcr_hash_extend_single_block_3,
