@@ -272,9 +272,7 @@ fn test_change_locality() {
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: DATA,
-        flags: DeriveContextFlags::CHANGE_LOCALITY
-            | DeriveContextFlags::MAKE_DEFAULT
-            | DeriveContextFlags::INPUT_ALLOW_X509,
+        flags: DeriveContextFlags::CHANGE_LOCALITY | DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 2,
         svn: 0,

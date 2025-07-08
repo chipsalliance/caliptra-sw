@@ -458,8 +458,7 @@ impl Drivers {
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
             flags: DeriveContextFlags::MAKE_DEFAULT
                 | DeriveContextFlags::CHANGE_LOCALITY
-                | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                | DeriveContextFlags::INPUT_ALLOW_X509,
+                | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
             svn: 0,
@@ -496,8 +495,7 @@ impl Drivers {
                     .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT,
                 tci_type,
                 target_locality: pl0_pauser_locality,
                 svn: 0,

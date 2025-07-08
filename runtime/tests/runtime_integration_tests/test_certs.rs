@@ -447,9 +447,7 @@ pub fn test_all_measurement_apis() {
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: measurement,
-        flags: DeriveContextFlags::MAKE_DEFAULT
-            | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
-            | DeriveContextFlags::INPUT_ALLOW_X509,
+        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT,
         tci_type: u32::read_from_bytes(&tci_type[..]).unwrap(),
         target_locality: 0,
         svn: 0,
