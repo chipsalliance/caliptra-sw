@@ -59,7 +59,7 @@ use dpe::{
 };
 
 use core::cmp::Ordering::{Equal, Greater};
-use crypto::{AlgLen, Crypto, CryptoBuf, Hasher, MAX_EXPORTED_CDI_SIZE};
+use crypto::{Crypto, Digest, Hasher, MAX_EXPORTED_CDI_SIZE};
 use zerocopy::IntoBytes;
 
 #[derive(PartialEq, Clone)]
@@ -378,12 +378,11 @@ impl Drivers {
 
     /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
+    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<Digest> {
         let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
 
         let rt_digest = self.sha256.digest(&key)?;
-        let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
-            .map_err(|_| CaliptraError::RUNTIME_COMPUTE_RT_ALIAS_SN_FAILED)?;
+        let token = Digest::Sha256(crypto::Sha256(rt_digest.into()));
 
         Ok(token)
     }

@@ -18,7 +18,7 @@ use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
+use crypto::Crypto;
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,

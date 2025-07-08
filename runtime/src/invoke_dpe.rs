@@ -18,7 +18,7 @@ use crate::{
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
+use crypto::Crypto;
 use dpe::{
     commands::{
         CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
