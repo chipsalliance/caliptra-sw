@@ -21,6 +21,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{CertifyKeyCmd, Command, CommandExecution},
     response::Response,
+    DpeInstance,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -81,13 +82,13 @@ impl CertifyKeyExtendedCmd {
                 dmtf_device_info,
                 None,
             ),
+            state: &mut pdata.dpe_state,
         };
 
-        let mut dpe = &mut pdata.dpe;
         let certify_key_cmd = CertifyKeyCmd::ref_from_bytes(&cmd.certify_key_req[..])
             .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
         let locality = drivers.mbox.user();
-        let resp = certify_key_cmd.execute(dpe, &mut env, locality);
+        let resp = certify_key_cmd.execute(&mut DpeInstance::initialized(), &mut env, locality);
 
         let certify_key_resp = match resp {
             Ok(Response::CertifyKey(certify_key_resp)) => certify_key_resp,

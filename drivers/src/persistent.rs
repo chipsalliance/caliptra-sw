@@ -10,7 +10,7 @@ use caliptra_auth_man_types::{
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
-use dpe::{DpeInstance, ExportedCdiHandle, U8Bool, MAX_HANDLES};
+use dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
 use zerocopy::{IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
 
@@ -68,7 +68,7 @@ pub struct ExportedCdiHandles {
 }
 
 #[cfg(feature = "runtime")]
-const DPE_DCCM_STORAGE: usize = size_of::<DpeInstance>()
+const DPE_DCCM_STORAGE: usize = size_of::<dpe::State>()
     + size_of::<u32>() * MAX_HANDLES
     + size_of::<U8Bool>() * MAX_HANDLES
     + size_of::<U8Bool>()
@@ -251,7 +251,7 @@ pub struct PersistentData {
     reserved5: [u8; FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 
     #[cfg(feature = "runtime")]
-    pub dpe: DpeInstance,
+    pub dpe_state: dpe::State,
     #[cfg(feature = "runtime")]
     pub context_tags: [u32; MAX_HANDLES],
     #[cfg(feature = "runtime")]
@@ -265,7 +265,7 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     reserved6: [u8; DPE_SIZE as usize - DPE_DCCM_STORAGE],
     #[cfg(not(feature = "runtime"))]
-    dpe: [u8; DPE_SIZE as usize],
+    dpe_state: [u8; DPE_SIZE as usize],
     #[cfg(feature = "runtime")]
     pub pcr_reset: PcrResetCounter,
     #[cfg(feature = "runtime")]
@@ -358,7 +358,7 @@ impl PersistentData {
 
             persistent_data_offset += FUSE_LOG_SIZE;
             assert_eq!(
-                addr_of!((*P).dpe) as u32,
+                addr_of!((*P).dpe_state) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 

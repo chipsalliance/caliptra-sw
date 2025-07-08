@@ -450,7 +450,7 @@ pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
         panic!("Wrong response type!");
     };
 
-    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE);
 }
 
 pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
@@ -469,6 +469,7 @@ pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(&derive_context_cmd));
     let Response::DeriveContext(derive_ctx_resp) = resp else {

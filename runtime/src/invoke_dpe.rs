@@ -18,7 +18,7 @@ use crate::{
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
+use crypto::Crypto;
 use dpe::{
     commands::{
         CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
@@ -76,6 +76,7 @@ impl InvokeDpeCmd {
                     None,
                     Some(ueid),
                 ),
+                state: &mut pdata.dpe_state,
             };
 
             let locality = drivers.mbox.user();
@@ -84,16 +85,17 @@ impl InvokeDpeCmd {
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
+            let mut dpe = DpeInstance::initialized();
+            let command = dpe
+                .deserialize_command(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut pdata.dpe;
             let mut context_has_tag = &mut pdata.context_has_tag;
             let mut context_tags = &mut pdata.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
-                    dpe.get_profile(&mut env.platform)
+                    dpe.get_profile(&mut env.platform, env.state.support)
                         .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
                 )),
                 Command::InitCtx(cmd) => {
@@ -101,7 +103,7 @@ impl InvokeDpeCmd {
                     if InitCtxCmd::flag_is_simulation(cmd) {
                         dpe_context_threshold_err?;
                     }
-                    cmd.execute(dpe, &mut env, locality)
+                    cmd.execute(&mut dpe, &mut env, locality)
                 }
                 Command::DeriveContext(cmd) => {
                     // If the recursive flag is not set, DeriveContext will generate a new context.
@@ -123,7 +125,7 @@ impl InvokeDpeCmd {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
 
-                    cmd.execute(dpe, &mut env, locality)
+                    cmd.execute(&mut dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
@@ -132,17 +134,21 @@ impl InvokeDpeCmd {
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-                    cmd.execute(dpe, &mut env, locality)
+                    cmd.execute(&mut dpe, &mut env, locality)
                 }
                 Command::DestroyCtx(cmd) => {
-                    let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
+                    let destroy_ctx_resp = cmd.execute(&mut dpe, &mut env, locality);
                     // clear tags for destroyed contexts
-                    Self::clear_tags_for_inactive_contexts(dpe, context_has_tag, context_tags);
+                    Self::clear_tags_for_inactive_contexts(
+                        env.state,
+                        context_has_tag,
+                        context_tags,
+                    );
                     destroy_ctx_resp
                 }
-                Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
+                Command::Sign(cmd) => cmd.execute(&mut dpe, &mut env, locality),
+                Command::RotateCtx(cmd) => cmd.execute(&mut dpe, &mut env, locality),
+                Command::GetCertificateChain(cmd) => cmd.execute(&mut dpe, &mut env, locality),
             };
 
             let mut invoke_resp = InvokeDpeResp {
@@ -165,11 +171,9 @@ impl InvokeDpeCmd {
                     if let Some(ext_err) = e.get_error_detail() {
                         drivers.soc_ifc.set_fw_extended_error(ext_err);
                     }
-                    let r = ResponseHdr::try_mut_from_bytes(
-                        &mut invoke_resp.data[..core::mem::size_of::<ResponseHdr>()],
-                    )
-                    .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
-                    *r = ResponseHdr::new(*e);
+                    let r = dpe.response_hdr(*e);
+                    invoke_resp.data[..core::mem::size_of::<ResponseHdr>()]
+                        .copy_from_slice(r.as_bytes());
                     let data_size = r.as_bytes().len();
                     invoke_resp.data_size = data_size as u32;
                 }
@@ -190,7 +194,7 @@ impl InvokeDpeCmd {
     /// * `context_tags` - Tags for each DPE context
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
-        dpe: &mut DpeInstance,
+        dpe: &mut dpe::State,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
         context_tags: &mut [u32; MAX_HANDLES],
     ) {
