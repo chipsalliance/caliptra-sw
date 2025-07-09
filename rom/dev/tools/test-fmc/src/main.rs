@@ -256,6 +256,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0011 => {
             test_datavault_pmp(false);
         }
+        0x1000_0012 => {
+            get_cmb_aes_key(mbox);
+        }
         _ => {}
     }
 }
@@ -273,6 +276,17 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let key0 = persistent_data.get().cmb_aes_key_share0;
+    let key1 = persistent_data.get().cmb_aes_key_share1;
+    let mut key = [0u8; 32];
+    for (i, element) in key.iter_mut().enumerate() {
+        *element = key0[i] ^ key1[i];
+    }
+    send_to_mailbox(mbox, &key, true);
 }
 
 fn test_datavault_pmp(start: bool) {
