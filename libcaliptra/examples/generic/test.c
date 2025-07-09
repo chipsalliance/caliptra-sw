@@ -31,6 +31,7 @@ static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
 
 #define CSR_REQ_RESP_LEN 9000 // This needs to be large enough to hold InitDevIdCsrEnvelope
 #define ECC_CSR_ENVELOPE_OFFSET 12 // See InitDevIdCsrEnvelope
+#define MLDSA_CSR_ENVELOPE_OFFSET 528 // See InitDevIdCsrEnvelope
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
@@ -1092,7 +1093,7 @@ int rt_test_all_commands(const test_info *info)
     return failure;
 }
 
-int rom_test_ecc384_idevid_csr(const test_info *info)
+int rom_test_idevid_csr(const test_info *info)
 {
     int failure = 0;
 
@@ -1147,14 +1148,30 @@ int rom_test_ecc384_idevid_csr(const test_info *info)
         printf("ECC384 IDEV CSR matches\n");
     }
 
+    // Compare the retrieved MLDSA IDEV CSR with the expected MLDSA IDEV CSR.
+    // The MLDSA IDEV CSR inside InitDevIdCsrEnvelope starts at offset 528
+    if (memcmp(&caliptra_idevid_csr_buf.data[MLDSA_CSR_ENVELOPE_OFFSET], mldsa_idev_csr_bytes, MLDSA_IDEV_CSR_LEN) != 0)
+    {
+        printf("MLDSA87 IDEV CSR does not match\n");
+#ifdef ENABLE_DEBUG
+        dump_array_to_file(&caliptra_idevid_csr_buf, "retrieved.bin");
+#endif
+        failure = 1;
+    }
+    else
+    {
+        printf("MLDSA87 IDEV CSR matches\n");
+    }
+
+
     caliptra_req_idev_csr_complete();
     caliptra_ready_for_firmware();
 
     // Test Get Idev CSR now that a CSR is provisioned.
     // GET IDEV CSR
-    struct caliptra_get_idev_ecc384_csr_resp csr_resp = {0};
+    struct caliptra_get_idev_ecc384_csr_resp ecc_csr_resp = {0};
 
-    status = caliptra_get_idev_ecc384_csr(&csr_resp, false);
+    status = caliptra_get_idev_ecc384_csr(&ecc_csr_resp, false);
 
     if (status)
     {
@@ -1164,7 +1181,7 @@ int rom_test_ecc384_idevid_csr(const test_info *info)
     }
     else
     {
-        if (memcmp(csr_resp.data, ecc_idev_csr_bytes, csr_resp.data_size) != 0)
+        if (memcmp(ecc_csr_resp.data, ecc_idev_csr_bytes, ecc_csr_resp.data_size) != 0)
         {
             printf("IDEV CSR does not match\n");
             failure = 1;
@@ -1175,58 +1192,11 @@ int rom_test_ecc384_idevid_csr(const test_info *info)
         }
     }
 
-    free((void *)caliptra_idevid_csr_buf.data);
-    return failure;
-}
-
-int rom_test_mldsa87_idevid_csr(const test_info *info)
-{
-    int failure = 0;
-
-    struct caliptra_buffer caliptra_idevid_csr_buf = {0};
-    caliptra_idevid_csr_buf.len = CSR_REQ_RESP_LEN;
-    // Allocte a buffer to hold the IDEV CSR using malloc
-    caliptra_idevid_csr_buf.data = malloc(caliptra_idevid_csr_buf.len);
-
-    // Check if the buffer was allocated successfully
-    if (caliptra_idevid_csr_buf.data == NULL)
-    {
-        printf("Failed to allocate memory for IDEV CSR\n");
-        return 1;
-    }
-
-    bool request_csr = true;
-    int status = boot_to_ready_for_fw(info, request_csr);
-
-    if (status)
-    {
-        dump_caliptra_error_codes();
-        failure = 1;
-    }
-
-    caliptra_wait_for_csr_ready();
-
-    int ret;
-    // Retrieve the IDEV CSR
-    if ((ret = caliptra_retrieve_idevid_csr(&caliptra_idevid_csr_buf)) != NO_ERROR)
-    {
-        printf("Failed to retrieve IDEV CSR\n");
-        printf("Error is 0x%x\n", ret);
-        failure = 1;
-    }
-    else
-    {
-        printf("IDEV CSR retrieved\n");
-    }
-
-    caliptra_req_idev_csr_complete();
-    caliptra_ready_for_firmware();
-
     // Test Get Idev CSR now that a CSR is provisioned.
     // GET MLDSA87 IDEV CSR
-    struct caliptra_get_idev_mldsa87_csr_resp csr_resp = {0};
+    struct caliptra_get_idev_mldsa87_csr_resp mldsa_csr_resp = {0};
 
-    status = caliptra_get_idev_mldsa87_csr(&csr_resp, false);
+    status = caliptra_get_idev_mldsa87_csr(&mldsa_csr_resp, false);
 
     if (status)
     {
@@ -1236,7 +1206,7 @@ int rom_test_mldsa87_idevid_csr(const test_info *info)
     }
     else
     {
-        if (memcmp(csr_resp.data, mldsa_idev_csr_bytes, csr_resp.data_size) != 0)
+        if (memcmp(mldsa_csr_resp.data, mldsa_idev_csr_bytes, mldsa_csr_resp.data_size) != 0)
         {
             printf("MLDSA87 IDEV CSR does not match\n");
             failure = 1;
@@ -1500,8 +1470,7 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
-    run_test(rom_test_ecc384_idevid_csr, info, "Test ECC384 IDEV CSR GEN");
-    run_test(rom_test_mldsa87_idevid_csr, info, "Test MLDSA87 IDEV CSR GEN");
+    run_test(rom_test_idevid_csr, info, "Test ECC384 & MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
