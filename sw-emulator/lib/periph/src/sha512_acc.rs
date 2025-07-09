@@ -714,7 +714,7 @@ mod tests {
             Some(())
         );
 
-        // Trigger thea accelerator by writing to the execute register.
+        // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
         execute.write(Execute::EXECUTE.val(1));
         assert_eq!(
@@ -1149,7 +1149,7 @@ mod tests {
         // Read the data length back.
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_DLEN).unwrap(), 20);
 
-        // Trigger thea accelerator by writing to the execute register.
+        // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
         execute.write(Execute::EXECUTE.val(1));
         assert_eq!(
@@ -1177,7 +1177,7 @@ mod tests {
     fn test_accelerator_sha512_stream_mode() {
         // In stream mode, every write is a 32bit word.
         // When 127 bytes are to be hashed, 128 bytes have thus to be written.
-        // Since the SHA284/512 block size is exactly 128 bytes, 127 bytes are choosen.
+        // Since the SHA384/512 block size is exactly 128 bytes, 127 bytes are choosen for the test.
         // This is to ensure, that the accelerator only processes the data
         // after the correct padding has been applied.
         const DATA: [u8; 127] = [
@@ -1192,7 +1192,7 @@ mod tests {
             0x6d, 0x6c, 0x3e, 0x69, 0xd2, 0x65, 0xe6, 0x2c, 0x72, 0xd8, 0x1c, 0xc3, 0x5b, 0x54,
             0x66,
         ];
-        // f51528d5ca9d3c17ec45dc781587aa58048a10ebb0f9fe31e43377fa3f5e3dbc5ca23bdeb789e14f2bd6896d7e7efc3290df45045d97e87008c0028823e6cfd9
+
         const EXPECTED: [u8; SHA512_HASH_SIZE] = [
             0xf5, 0x15, 0x28, 0xd5, 0xca, 0x9d, 0x3c, 0x17, 0xec, 0x45, 0xdc, 0x78, 0x15, 0x87,
             0xaa, 0x58, 0x04, 0x8a, 0x10, 0xeb, 0xb0, 0xf9, 0xfe, 0x31, 0xe4, 0x33, 0x77, 0xfa,
@@ -1251,7 +1251,7 @@ mod tests {
             Ok(())
         );
 
-        // Trigger thea accelerator by writing to the execute register.
+        // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
         execute.write(Execute::EXECUTE.val(1));
         assert_eq!(
