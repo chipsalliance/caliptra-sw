@@ -72,6 +72,11 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    // Check RTL version compatibility
+    if !cfg!(feature = "fake-rom") && !check_hw_compat(&env) {
+        handle_fatal_error(CaliptraError::ROM_COMPAT_CHECK_FAILED.into());
+    }
+
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate().map(|a| a.0);
@@ -435,4 +440,65 @@ fn validate_trng_config(env: &mut RomEnv) {
         env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
         matches!(env.trng, Trng::MfgMode()),
     );
+}
+
+/// Check if hardware (RTL) is compatible with ROM
+fn check_hw_compat(env: &RomEnv) -> bool {
+    let version = env.soc_ifc.get_hw_sem_ver();
+    // (major, minor, patch)
+    let hw_ver = hw_sem_ver(&(version as u16));
+    let rom_info = unsafe { &CALIPTRA_ROM_INFO }; // TODO: Use env.soc_ifc.get_rom_fw_rev_id() from #1503
+    let rom_ver = rom_sem_ver(&rom_info.version);
+
+    // Compatible Configurations:
+    // | RTL   | ROM   |
+    // | ---   | ---   |
+    // | 1.0.x | 1.0.x |
+    // | 1.1.x | 1.1.x |
+    // | 1.1.x | 1.2.x |
+    // | 2.0.x | 2.0.x |
+
+    if let (1, 0, _) = hw_ver {
+        return matches!(rom_ver, (1, 0, _));
+    }
+    if let (1, 1, _) = hw_ver {
+        return matches!(rom_ver, (1, 1, _) | (1, 2, _));
+    }
+    if let (2, 0, _) = hw_ver {
+        return matches!(rom_ver, (2, 0, _));
+    }
+
+    cprintln!(
+        "v{}.{}.{} RTL not compatible with v{}.{}.{} ROM ",
+        hw_ver.0,
+        hw_ver.1,
+        hw_ver.2,
+        rom_ver.0,
+        rom_ver.1,
+        rom_ver.2
+    );
+    false
+}
+
+/// Parse `version` into a sem-ver tuple (major, minor, patch)
+///
+/// Assumes version is formatted as follows:
+/// [15:8] Patch version [7:4] Minor version [3:0] Major version
+fn hw_sem_ver(version: &u16) -> (u8, u8, u8) {
+    let major = (version & 0x000F) as u8;
+    let minor = ((version & 0x00F0) >> 4) as u8;
+    let patch = ((version & 0xFF00) >> 8) as u8;
+    (major, minor, patch)
+}
+
+/// Parse `version` into a sem-ver tuple (major, minor, patch)
+///
+/// Assumes version is formatted as follows:
+/// [15:11] Major version [10:6] Minor version [5:0] Patch version
+// TODO: remove once `RomVersion` from #1503 can be used
+fn rom_sem_ver(version: &u16) -> (u8, u8, u8) {
+    let patch = (version & 0x003F) as u8;
+    let minor = ((version >> 6) & 0x001F) as u8;
+    let major = ((version >> 11) & 0x001F) as u8;
+    (major, minor, patch)
 }
