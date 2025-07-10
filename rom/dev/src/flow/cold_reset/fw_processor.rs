@@ -189,8 +189,8 @@ impl FirmwareProcessor {
         })
     }
 
-    fn ecdsa_verify<'a>(
-        txn: &mut ManuallyDrop<MailboxRecvTxn<'a>>,
+    fn ecdsa_verify(
+        txn: &mut ManuallyDrop<MailboxRecvTxn<'_>>,
         ecc384: &mut Ecc384,
     ) -> Result<(), CaliptraError> {
         let raw_data = txn.raw_mailbox_contents();
@@ -236,8 +236,8 @@ impl FirmwareProcessor {
         Ok(())
     }
 
-    fn mldsa_verify<'a>(
-        txn: &mut ManuallyDrop<MailboxRecvTxn<'a>>,
+    fn mldsa_verify(
+        txn: &mut ManuallyDrop<MailboxRecvTxn<'_>>,
         mldsa87: &mut Mldsa87,
     ) -> Result<(), CaliptraError> {
         let raw_data = txn.raw_mailbox_contents();
@@ -424,8 +424,8 @@ impl FirmwareProcessor {
                         txn.send_response(resp.as_bytes())?;
                         continue;
                     }
-                    CommandId::ECDSA384_VERIFY => Self::ecdsa_verify(&mut txn, &mut env.ecc384)?,
-                    CommandId::MLDSA87_VERIFY => Self::mldsa_verify(&mut txn, &mut env.mldsa87)?,
+                    CommandId::ECDSA384_VERIFY => Self::ecdsa_verify(&mut txn, env.ecc384)?,
+                    CommandId::MLDSA87_VERIFY => Self::mldsa_verify(&mut txn, env.mldsa87)?,
                     CommandId::STASH_MEASUREMENT => {
                         if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!("[fwproc] Max # of measurements received.");
