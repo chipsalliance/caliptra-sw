@@ -1069,6 +1069,53 @@ impl MldsaVerifyReq {
         let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
+
+    // We avoid using zerocopy because it requires the entire object to reside either
+    // on the stack or in mailbox SRAM with sufficient space. Instead, we prefer methods
+    // that can return references to portions of the struct. This involves no copying.
+    /// Extract the header from a byte slice
+    pub fn hdr(bytes: &[u8]) -> Option<&MailboxReqHeader> {
+        let offset = core::mem::offset_of!(Self, hdr);
+        let end = offset + core::mem::size_of::<MailboxReqHeader>();
+        let slice = bytes.get(offset..end)?;
+        MailboxReqHeader::ref_from_bytes(slice).ok()
+    }
+
+    /// Extract the public key from a byte slice
+    pub fn pub_key(bytes: &[u8]) -> Option<&[u8; MLDSA87_PUB_KEY_BYTE_SIZE]> {
+        let offset = core::mem::offset_of!(Self, pub_key);
+        let end = offset + MLDSA87_PUB_KEY_BYTE_SIZE;
+        let slice = bytes.get(offset..end)?;
+        slice.try_into().ok()
+    }
+
+    /// Extract the signature from a byte slice
+    pub fn signature(bytes: &[u8]) -> Option<&[u8; MLDSA87_SIGNATURE_BYTE_SIZE]> {
+        let offset = core::mem::offset_of!(Self, signature);
+        let end = offset + MLDSA87_SIGNATURE_BYTE_SIZE;
+        let slice = bytes.get(offset..end)?;
+        slice.try_into().ok()
+    }
+
+    /// Extract the message size from a byte slice
+    pub fn message_size(bytes: &[u8]) -> Option<u32> {
+        let offset = core::mem::offset_of!(Self, message_size);
+        let end = offset + core::mem::size_of::<u32>();
+        let slice = bytes.get(offset..end)?;
+        let bytes_array: &[u8; 4] = slice.try_into().ok()?;
+        Some(u32::from_le_bytes(*bytes_array))
+    }
+
+    /// Extract the message from a byte slice, using the decoded message_size for proper length
+    pub fn message(bytes: &[u8]) -> Option<&[u8]> {
+        let msg_size = Self::message_size(bytes)? as usize;
+        if msg_size > MAX_CMB_DATA_SIZE {
+            return None;
+        }
+        let offset = core::mem::offset_of!(Self, message);
+        let slice = bytes.get(offset..)?;
+        slice.get(..msg_size)
+    }
 }
 
 impl Default for MldsaVerifyReq {

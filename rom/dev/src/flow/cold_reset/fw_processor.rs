@@ -267,7 +267,7 @@ impl FirmwareProcessor {
             return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
         }
 
-        let result = caliptra_common::verify::MldsaVerifyCmd::execute(mldsa87, txn);
+        let result = caliptra_common::verify::MldsaVerifyCmd::execute(mldsa87, cmd_bytes);
         let mut resp = MailboxRespHeader::default();
         match result {
             Ok(_) => {
