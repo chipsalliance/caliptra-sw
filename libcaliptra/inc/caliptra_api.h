@@ -255,6 +255,11 @@ void caliptra_req_idev_csr_start();
 // Clear IDEV CSR request.
 void caliptra_req_idev_csr_complete();
 
+// SHA ACC (stream mode)
+int caliptra_sha_init(uint32_t mode);
+int caliptra_sha_update(uint8_t* data, uint32_t len); 
+int caliptra_sha_final(uint32_t* hash);
+
 #ifdef __cplusplus
 }
 #endif
