@@ -151,7 +151,10 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 	if err != nil {
 		return err
 	}
-	disks := singleDisk("global/images/family/github-runner", 16)
+
+    var disks []*computepb.AttachedDisk
+    disks = singleDisk("global/images/family/github-runner", 16)
+
 	if machineInfo.hasFpgaTools {
 		disks = append(disks, &computepb.AttachedDisk{
 			Source: proto.String(fmt.Sprintf("zones/%s/disks/fpga-tools", gcpZone)),
@@ -159,6 +162,7 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 		})
 	}
 	if machineInfo.hasVck190Tools {
+        disks = singleDisk("global/images/family/github-runner", 128)
 		disks = append(disks, &computepb.AttachedDisk{
 			Source: proto.String(fmt.Sprintf("zones/%s/disks/vck190-tools", gcpZone)),
 			Mode:   proto.String("READ_ONLY"),
