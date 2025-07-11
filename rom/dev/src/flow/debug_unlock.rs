@@ -14,7 +14,7 @@ Abstract:
 
 use core::mem::ManuallyDrop;
 
-use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
+use crate::flow::cold_reset::fw_processor::get_checksummed_payload;
 use crate::CaliptraResult;
 use caliptra_api::mailbox::{
     MailboxRespHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
@@ -24,7 +24,7 @@ use caliptra_cfi_lib::{cfi_launder, CfiCounter};
 use caliptra_common::{cprintln, debug_unlock, mailbox_api::CommandId};
 use caliptra_drivers::Lifecycle;
 use caliptra_error::CaliptraError;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::rom_env::RomEnv;
 
@@ -84,9 +84,10 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     let result = (|| {
-        let mut request = ManufDebugUnlockTokenReq::default();
-        let request_bytes = request.as_mut_bytes();
-        FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes)?;
+        let cmd_bytes =
+            get_checksummed_payload(&txn, core::mem::size_of::<ManufDebugUnlockTokenReq>())?;
+        let request = ManufDebugUnlockTokenReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Hash the token.
         let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
@@ -149,12 +150,17 @@ fn handle_auth_debug_unlock_request(
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     // Process request and create challenge
-    let mut request = ProductionAuthDebugUnlockReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+    let cmd_bytes =
+        get_checksummed_payload(&txn, core::mem::size_of::<ProductionAuthDebugUnlockReq>())?;
+    let request = ProductionAuthDebugUnlockReq::ref_from_bytes(cmd_bytes)
+        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+    // Clone the request to avoid borrowing conflicts
+    let request_owned = *request;
 
     // Use common function to create challenge
     let challenge =
-        debug_unlock::create_debug_unlock_challenge(&mut env.trng, &env.soc_ifc, &request);
+        debug_unlock::create_debug_unlock_challenge(&mut env.trng, &env.soc_ifc, request);
 
     // Send response
     match challenge {
@@ -164,7 +170,7 @@ fn handle_auth_debug_unlock_request(
         }
         Ok(challenge_resp) => {
             txn.send_response(challenge_resp.as_bytes())?;
-            Ok((request, challenge_resp))
+            Ok((request_owned, challenge_resp))
         }
     }
 }
@@ -196,8 +202,10 @@ fn handle_auth_debug_unlock_token(
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     // Copy token from mailbox
-    let mut token = ProductionAuthDebugUnlockToken::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
+    let cmd_bytes =
+        get_checksummed_payload(&txn, core::mem::size_of::<ProductionAuthDebugUnlockToken>())?;
+    let token = ProductionAuthDebugUnlockToken::ref_from_bytes(cmd_bytes)
+        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
     // Use common validation function
     let result = debug_unlock::validate_debug_unlock_token(
@@ -209,7 +217,7 @@ fn handle_auth_debug_unlock_token(
         &mut env.dma,
         request,
         challenge,
-        &token,
+        token,
     );
 
     // Send response

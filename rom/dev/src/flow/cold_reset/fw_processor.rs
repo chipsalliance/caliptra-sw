@@ -34,7 +34,7 @@ use caliptra_common::{
     hmac_cm::hmac,
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
     mailbox_api::{
-        CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader, Response,
+        CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader,
         StashMeasurementReq, StashMeasurementResp,
     },
     pcr::PCR_ID_STASH_MEASUREMENT,
@@ -54,6 +54,46 @@ use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
+
+/// Get payload data from mailbox with checksum validation
+pub fn get_checksummed_payload<'a>(
+    txn: &'a MailboxRecvTxn<'a>,
+    expected_size: usize,
+) -> CaliptraResult<&'a [u8]> {
+    let cmd = txn.cmd();
+    let dlen = txn.dlen() as usize;
+    let raw_data = txn.raw_mailbox_contents();
+
+    // Verify payload size matches expected
+    if dlen != expected_size {
+        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+    }
+
+    // Verify payload is large enough for checksum header
+    if dlen < core::mem::size_of::<MailboxReqHeader>() {
+        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+    }
+
+    // Verify checksum
+    let req_hdr = MailboxReqHeader::ref_from_bytes(
+        raw_data
+            .get(..core::mem::size_of::<MailboxReqHeader>())
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?,
+    )
+    .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+    if !caliptra_common::checksum::verify_checksum(
+        req_hdr.chksum,
+        cmd,
+        raw_data
+            .get(core::mem::size_of_val(&req_hdr.chksum)..dlen)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?,
+    ) {
+        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
+    }
+
+    Ok(&raw_data[..dlen])
+}
 
 #[derive(Debug, Default, Zeroize)]
 pub struct FwProcInfo {
@@ -265,145 +305,74 @@ impl FirmwareProcessor {
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
                 //       See note above about race condition
                 let mut txn = ManuallyDrop::new(txn.start_txn());
-                match CommandId::from(txn.cmd()) {
-                    CommandId::VERSION => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
 
-                        let mut resp = FipsVersionCmd::execute(soc_ifc);
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                cprintln!("[fwproc] Processing command=0x{:x}", txn.cmd());
+
+                // Stage the response buffer
+                let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_ROM_RESP_SIZE][..];
+
+                let len = match CommandId::from(txn.cmd()) {
+                    CommandId::VERSION => {
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_version_cmd(soc_ifc, resp)
                     }
                     CommandId::SELF_TEST_START => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        if self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            run_fips_tests(env)?;
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = true;
-                        }
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_self_test_start_cmd(env, &mut self_test_in_progress, resp)
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        if !self_test_in_progress {
-                            // TODO: set non-fatal error register?
-                            txn.complete(false)?;
-                        } else {
-                            let mut resp = MailboxRespHeader::default();
-                            resp.populate_chksum();
-                            txn.send_response(resp.as_bytes())?;
-                            self_test_in_progress = false;
-                        }
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_self_test_get_results_cmd(&mut self_test_in_progress, resp)
                     }
                     CommandId::SHUTDOWN => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        let mut resp = MailboxRespHeader::default();
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-
-                        // Causing a ROM Fatal Error will zeroize the module
-                        return Err(CaliptraError::RUNTIME_SHUTDOWN);
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_shutdown_cmd(resp)
                     }
                     CommandId::CAPABILITIES => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        let mut capabilities = Capabilities::default();
-                        capabilities |= Capabilities::ROM_BASE;
-
-                        let mut resp = CapabilitiesResp {
-                            hdr: MailboxRespHeader::default(),
-                            capabilities: capabilities.to_bytes(),
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
-                        continue;
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_capabilities_cmd(resp)
                     }
                     CommandId::STASH_MEASUREMENT => {
-                        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
-                            cprintln!("[fwproc] Max # of measurements received.");
-                            txn.complete(false)?;
-
-                            // Raise a fatal error on hitting the max. limit.
-                            // This ensures that any SOC ROM/FW couldn't send a stash measurement
-                            // that wasn't properly stored within Caliptra.
-                            return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
-                        }
-
-                        Self::stash_measurement(
-                            pcr_bank,
-                            env.sha2_512_384,
-                            persistent_data,
-                            &mut txn,
+                        let cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<StashMeasurementReq>(),
                         )?;
-
-                        // Generate and send response (with FIPS approved status)
-                        let mut resp = StashMeasurementResp {
-                            hdr: MailboxRespHeader::default(),
-                            dpe_result: 0, // DPE_STATUS_SUCCESS
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        Self::handle_stash_measurement_cmd(
+                            pcr_bank,
+                            env,
+                            persistent_data,
+                            cmd_bytes,
+                            resp,
+                        )
                     }
                     CommandId::GET_IDEV_ECC384_CSR => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
-                        let mut resp = GetIdevCsrResp::default();
-
-                        if csr_persistent_mem.is_unprovisioned() {
-                            // CSR was never written to DCCM. This means the gen_idev_id_csr
-                            // manufacturing flag was not set before booting into ROM.
-                            return Err(
-                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
-                            );
-                        }
-
-                        let csr = csr_persistent_mem
-                            .get()
-                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
-
-                        resp.data_size = csr_persistent_mem.get_csr_len();
-                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes_partial()?)?;
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_get_idev_ecc384_csr_cmd(persistent_data, resp)
                     }
                     CommandId::GET_IDEV_MLDSA87_CSR => {
-                        let mut request = MailboxReqHeader::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
-                        let mut resp = GetIdevCsrResp::default();
-
-                        if csr_persistent_mem.is_unprovisioned() {
-                            // CSR was never written to DCCM. This means the gen_idev_id_csr
-                            // manufacturing flag was not set before booting into ROM.
-                            return Err(
-                                CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR,
-                            );
-                        }
-
-                        let csr = csr_persistent_mem
-                            .get()
-                            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
-
-                        resp.data_size = csr_persistent_mem.get_csr_len();
-                        resp.data[..resp.data_size as usize].copy_from_slice(csr);
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        let _cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<MailboxReqHeader>(),
+                        )?;
+                        Self::handle_get_idev_mldsa87_csr_cmd(persistent_data, resp)
                     }
                     CommandId::RI_DOWNLOAD_FIRMWARE => {
                         if !subsystem_mode {
@@ -411,7 +380,7 @@ impl FirmwareProcessor {
                                 "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
                             );
                             txn.complete(false)?;
-                            Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND)?;
+                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                         }
                         cfi_assert_bool(subsystem_mode);
                         // Complete the command indicating success.
@@ -436,58 +405,23 @@ impl FirmwareProcessor {
                         return Ok((txn, image_size_bytes));
                     }
                     CommandId::DERIVE_STABLE_KEY => {
-                        let mut request = DeriveStableKeyReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        let encrypted_cmk = Self::derive_stable_key(
-                            env.aes,
-                            env.hmac,
-                            env.trng,
-                            persistent_data,
-                            &request,
+                        let cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<DeriveStableKeyReq>(),
                         )?;
-
-                        let mut resp = DeriveStableKeyResp {
-                            cmk: transmute!(encrypted_cmk),
-                            ..Default::default()
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        Self::handle_derive_stable_key_cmd(env, persistent_data, cmd_bytes, resp)
                     }
                     CommandId::CM_HMAC => {
-                        let mut request = CmHmacReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-                        let mut resp = CmHmacResp::default();
-                        hmac(
-                            env.hmac,
-                            env.aes,
-                            env.trng,
-                            Crypto::get_cmb_aes_key(persistent_data),
-                            request.as_bytes(),
-                            resp.as_mut_bytes(),
-                        )?;
-
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        let cmd_bytes =
+                            get_checksummed_payload(&txn, core::mem::size_of::<CmHmacReq>())?;
+                        Self::handle_cm_hmac_cmd(env, persistent_data, cmd_bytes, resp)
                     }
                     CommandId::INSTALL_OWNER_PK_HASH => {
-                        let mut request = InstallOwnerPkHashReq::default();
-                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
-
-                        // Save the owner public key hash in persistent data.
-                        persistent_data
-                            .dot_owner_pk_hash
-                            .owner_pk_hash
-                            .copy_from_slice(&request.digest);
-                        persistent_data.dot_owner_pk_hash.valid = true;
-
-                        // Generate and send response (with FIPS approved status)
-                        let mut resp = InstallOwnerPkHashResp {
-                            hdr: MailboxRespHeader::default(),
-                            dpe_result: 0, // DPE_STATUS_SUCCESS
-                        };
-                        resp.populate_chksum();
-                        txn.send_response(resp.as_bytes())?;
+                        let cmd_bytes = get_checksummed_payload(
+                            &txn,
+                            core::mem::size_of::<InstallOwnerPkHashReq>(),
+                        )?;
+                        Self::handle_install_owner_pk_hash_cmd(persistent_data, cmd_bytes, resp)
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
@@ -496,7 +430,17 @@ impl FirmwareProcessor {
                         // setting the error code.
                         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                     }
-                }
+                }?;
+
+                let resp = resp
+                    .get_mut(..len)
+                    .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+                // Generate response checksum
+                caliptra_common::mailbox_api::populate_checksum(resp);
+                // Send the payload
+                txn.send_response(resp)?;
+                // zero the original resp buffer so as not to leak sensitive data
+                resp.fill(0);
             }
         }
     }
@@ -848,49 +792,13 @@ impl FirmwareProcessor {
         (nb, nf)
     }
 
-    /// Read request from mailbox and verify the checksum
-    ///
-    /// # Arguments
-    /// * `txn` - Mailbox Receive Transaction
-    /// * `data` - Data buffer for the expected request
-    ///
-    /// # Returns
-    /// * `()` - Ok
-    ///    Error code on failure.
-    pub fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
-        // NOTE: Currently ROM only supports commands with a fixed request size
-        //       This check will need to be updated if any commands are added with a variable request size
-        if txn.dlen() as usize != data.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
-        // Read the data in from the mailbox HW
-        txn.copy_request(data)?;
-
-        // Extract header out from the rest of the request
-        let req_hdr =
-            MailboxReqHeader::ref_from_bytes(&data[..core::mem::size_of::<MailboxReqHeader>()])
-                .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
-
-        // Verify checksum
-        if !caliptra_common::checksum::verify_checksum(
-            req_hdr.chksum,
-            txn.cmd(),
-            &data[core::mem::size_of_val(&req_hdr.chksum)..],
-        ) {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
-        };
-
-        Ok(())
-    }
-
     /// Read measurement from mailbox and extends it into PCR31
     ///
     /// # Arguments
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
     /// * `persistent_data` - Persistent data
-    /// * `txn` - Mailbox Receive Transaction
+    /// * `cmd_bytes` - Command bytes
     ///
     /// # Returns
     /// * `()` - Ok
@@ -899,13 +807,17 @@ impl FirmwareProcessor {
         pcr_bank: &mut PcrBank,
         sha2: &mut Sha2_512_384,
         persistent_data: &mut PersistentData,
-        txn: &mut MailboxRecvTxn,
+        cmd_bytes: &[u8],
     ) -> CaliptraResult<()> {
-        let mut measurement = StashMeasurementReq::default();
-        Self::copy_req_verify_chksum(txn, measurement.as_mut_bytes())?;
+        if cmd_bytes.len() != core::mem::size_of::<StashMeasurementReq>() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+        }
+
+        let measurement: &StashMeasurementReq = StashMeasurementReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha2, persistent_data, &measurement)?;
+        Self::extend_measurement(pcr_bank, sha2, persistent_data, measurement)?;
 
         Ok(())
     }
@@ -1058,5 +970,255 @@ impl FirmwareProcessor {
         )?;
 
         Ok(encrypted_cmk)
+    }
+
+    fn handle_version_cmd(soc_ifc: &mut SocIfc, resp: &mut [u8]) -> CaliptraResult<usize> {
+        let version_resp = FipsVersionCmd::execute(soc_ifc);
+        let len = core::mem::size_of_val(&version_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(version_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_self_test_start_cmd(
+        env: &mut KatsEnv,
+        self_test_in_progress: &mut bool,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if *self_test_in_progress {
+            // TODO: set non-fatal error register?
+            Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)
+        } else {
+            run_fips_tests(env)?;
+            let header_resp = MailboxRespHeader::default();
+            let len = core::mem::size_of_val(&header_resp);
+            if resp.len() < len {
+                return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+            }
+            resp[..len].copy_from_slice(header_resp.as_bytes());
+            *self_test_in_progress = true;
+            Ok(len)
+        }
+    }
+
+    fn handle_self_test_get_results_cmd(
+        self_test_in_progress: &mut bool,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !*self_test_in_progress {
+            // TODO: set non-fatal error register?
+            Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)
+        } else {
+            let header_resp = MailboxRespHeader::default();
+            let len = core::mem::size_of_val(&header_resp);
+            if resp.len() < len {
+                return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+            }
+            resp[..len].copy_from_slice(header_resp.as_bytes());
+            *self_test_in_progress = false;
+            Ok(len)
+        }
+    }
+
+    fn handle_shutdown_cmd(resp: &mut [u8]) -> CaliptraResult<usize> {
+        let header_resp = MailboxRespHeader::default();
+        let len = core::mem::size_of_val(&header_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(header_resp.as_bytes());
+
+        // Note: Response will be sent before this error causes shutdown
+        Err(CaliptraError::RUNTIME_SHUTDOWN)
+    }
+
+    fn handle_capabilities_cmd(resp: &mut [u8]) -> CaliptraResult<usize> {
+        let mut capabilities = Capabilities::default();
+        capabilities |= Capabilities::ROM_BASE;
+
+        let capabilities_resp = CapabilitiesResp {
+            hdr: MailboxRespHeader::default(),
+            capabilities: capabilities.to_bytes(),
+        };
+        let len = core::mem::size_of_val(&capabilities_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(capabilities_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_stash_measurement_cmd(
+        pcr_bank: &mut PcrBank,
+        env: &mut KatsEnv,
+        persistent_data: &mut PersistentData,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
+            cprintln!("[fwproc] Max # of measurements received.");
+
+            // Raise a fatal error on hitting the max. limit.
+            // This ensures that any SOC ROM/FW couldn't send a stash measurement
+            // that wasn't properly stored within Caliptra.
+            return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
+        }
+
+        Self::stash_measurement(pcr_bank, env.sha2_512_384, persistent_data, cmd_bytes)?;
+
+        // Generate response (with FIPS approved status)
+        let stash_resp = StashMeasurementResp {
+            hdr: MailboxRespHeader::default(),
+            dpe_result: 0, // DPE_STATUS_SUCCESS
+        };
+        let len = core::mem::size_of_val(&stash_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(stash_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_get_idev_ecc384_csr_cmd(
+        persistent_data: &mut PersistentData,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
+        let mut csr_resp = GetIdevCsrResp::default();
+
+        if csr_persistent_mem.is_unprovisioned() {
+            // CSR was never written to DCCM. This means the gen_idev_id_csr
+            // manufacturing flag was not set before booting into ROM.
+            return Err(CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR);
+        }
+
+        let csr = csr_persistent_mem
+            .get()
+            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+
+        csr_resp.data_size = csr_persistent_mem.get_csr_len();
+        csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
+
+        let csr_resp_bytes = csr_resp
+            .as_bytes_partial()
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        if resp.len() < csr_resp_bytes.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..csr_resp_bytes.len()].copy_from_slice(csr_resp_bytes);
+        Ok(csr_resp_bytes.len())
+    }
+
+    fn handle_get_idev_mldsa87_csr_cmd(
+        persistent_data: &mut PersistentData,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
+        let mut csr_resp = GetIdevCsrResp::default();
+
+        if csr_persistent_mem.is_unprovisioned() {
+            // CSR was never written to DCCM. This means the gen_idev_id_csr
+            // manufacturing flag was not set before booting into ROM.
+            return Err(CaliptraError::FW_PROC_MAILBOX_GET_IDEV_CSR_UNPROVISIONED_CSR);
+        }
+
+        let csr = csr_persistent_mem
+            .get()
+            .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
+
+        csr_resp.data_size = csr_persistent_mem.get_csr_len();
+        csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
+
+        let len = core::mem::size_of_val(&csr_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(csr_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_derive_stable_key_cmd(
+        env: &mut KatsEnv,
+        persistent_data: &mut PersistentData,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let request: &DeriveStableKeyReq =
+            DeriveStableKeyReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+                zerocopy::ConvertError::Size(_) => {
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
+                }
+                _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+            })?;
+
+        let encrypted_cmk =
+            Self::derive_stable_key(env.aes, env.hmac, env.trng, persistent_data, request)?;
+
+        let key_resp = DeriveStableKeyResp {
+            cmk: transmute!(encrypted_cmk),
+            ..Default::default()
+        };
+        let len = core::mem::size_of_val(&key_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(key_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_cm_hmac_cmd(
+        env: &mut KatsEnv,
+        persistent_data: &mut PersistentData,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let request: &CmHmacReq = CmHmacReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        let mut hmac_resp = CmHmacResp::default();
+        hmac(
+            env.hmac,
+            env.aes,
+            env.trng,
+            Crypto::get_cmb_aes_key(persistent_data),
+            request.as_bytes(),
+            hmac_resp.as_mut_bytes(),
+        )?;
+
+        let len = core::mem::size_of_val(&hmac_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(hmac_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_install_owner_pk_hash_cmd(
+        persistent_data: &mut PersistentData,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let request: &InstallOwnerPkHashReq = InstallOwnerPkHashReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+        // Save the owner public key hash in persistent data.
+        persistent_data
+            .dot_owner_pk_hash
+            .owner_pk_hash
+            .copy_from_slice(&request.digest);
+        persistent_data.dot_owner_pk_hash.valid = true;
+
+        // Generate response (with FIPS approved status)
+        let hash_resp = InstallOwnerPkHashResp {
+            hdr: MailboxRespHeader::default(),
+            dpe_result: 0, // DPE_STATUS_SUCCESS
+        };
+        let len = core::mem::size_of_val(&hash_resp);
+        if resp.len() < len {
+            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
+        }
+        resp[..len].copy_from_slice(hash_resp.as_bytes());
+        Ok(len)
     }
 }
