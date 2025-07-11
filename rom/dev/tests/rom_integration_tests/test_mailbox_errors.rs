@@ -112,6 +112,14 @@ fn test_mailbox_invalid_req_size_large() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CAPABILITIES),
+        &payload.as_bytes()[4..],
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Send too much data (stash measurement is bigger than capabilities)
     assert_eq!(
@@ -135,12 +143,20 @@ fn test_mailbox_invalid_req_size_small() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &payload.as_bytes()[4..8],
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Drop a dword
     assert_eq!(
         hw.mailbox_execute(
             CommandId::STASH_MEASUREMENT.into(),
-            &payload.as_bytes()[4..]
+            &payload.as_bytes()[..8]
         ),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
