@@ -21,8 +21,7 @@ use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmHmacReq, CmHmacResp, CmKeyUsage, DeriveStableKeyReq, DeriveStableKeyResp,
-    InstallOwnerPkHashReq, InstallOwnerPkHashResp, ResponseVarSize, StableKeyType,
-    STABLE_KEY_INFO_SIZE_BYTES,
+    InstallOwnerPkHashReq, InstallOwnerPkHashResp, StableKeyType, STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -35,7 +34,7 @@ use caliptra_common::{
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
     mailbox_api::{
         CapabilitiesResp, CommandId, GetIdevCsrResp, MailboxReqHeader, MailboxRespHeader,
-        StashMeasurementReq, StashMeasurementResp,
+        MailboxRespHeaderVarSize, StashMeasurementReq, StashMeasurementResp,
     },
     pcr::PCR_ID_STASH_MEASUREMENT,
     verifier::FirmwareImageVerificationEnv,
@@ -56,18 +55,10 @@ use zeroize::Zeroize;
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
 
 /// Get payload data from mailbox with checksum validation
-pub fn get_checksummed_payload<'a>(
-    txn: &'a MailboxRecvTxn<'a>,
-    expected_size: usize,
-) -> CaliptraResult<&'a [u8]> {
+pub fn get_checksummed_payload<'a>(txn: &'a MailboxRecvTxn<'a>) -> CaliptraResult<&'a [u8]> {
     let cmd = txn.cmd();
     let dlen = txn.dlen() as usize;
     let raw_data = txn.raw_mailbox_contents();
-
-    // Verify payload size matches expected
-    if dlen != expected_size {
-        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-    }
 
     // Verify payload is large enough for checksum header
     if dlen < core::mem::size_of::<MailboxReqHeader>() {
@@ -80,7 +71,10 @@ pub fn get_checksummed_payload<'a>(
             .get(..core::mem::size_of::<MailboxReqHeader>())
             .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?,
     )
-    .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+    .map_err(|e| match e {
+        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
+        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+    })?;
 
     if !caliptra_common::checksum::verify_checksum(
         req_hdr.chksum,
@@ -92,7 +86,9 @@ pub fn get_checksummed_payload<'a>(
         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
     }
 
-    Ok(&raw_data[..dlen])
+    raw_data
+        .get(..dlen)
+        .ok_or(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
 }
 
 #[derive(Debug, Default, Zeroize)]
@@ -302,6 +298,44 @@ impl FirmwareProcessor {
                     return Ok((txn, image_size_bytes));
                 }
 
+                // Handle RI_DOWNLOAD_FIRMWARE as a separate case since it's special
+                if txn.cmd() == CommandId::RI_DOWNLOAD_FIRMWARE.into() {
+                    if !subsystem_mode {
+                        cprintln!(
+                            "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
+                        );
+                        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                    }
+                    cfi_assert_bool(subsystem_mode);
+
+                    // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                    let txn = mbox
+                        .peek_recv()
+                        .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                    let mut txn = ManuallyDrop::new(txn.start_txn());
+                    // Complete the command indicating success.
+                    cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
+                    txn.complete(true)?;
+
+                    // Create a transaction to facilitate the download of the firmware image
+                    // from the recovery interface. This dummy transaction is necessary to
+                    // obtain and subsequently release the lock required to gain exclusive
+                    // access to the mailbox sram by the DMA engine, enabling it to write the
+                    // firmware image into the mailbox sram.
+                    let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
+
+                    // Download the firmware image from the recovery interface.
+                    let image_size_bytes =
+                        Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
+                    cprintln!(
+                        "[fwproc] Received image from the Recovery Interface of size {} bytes",
+                        image_size_bytes
+                    );
+                    report_boot_status(FwProcessorDownloadImageComplete.into());
+                    return Ok((txn, image_size_bytes));
+                }
+
                 // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
                 //       See note above about race condition
                 let mut txn = ManuallyDrop::new(txn.start_txn());
@@ -310,117 +344,41 @@ impl FirmwareProcessor {
 
                 // Stage the response buffer
                 let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_ROM_RESP_SIZE][..];
+                cprintln!("response buffer len {:?}", resp.len());
+
+                // Get payload with checksum validation
+                let cmd_bytes = get_checksummed_payload(&txn)?;
 
                 let len = match CommandId::from(txn.cmd()) {
-                    CommandId::VERSION => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
-                        Self::handle_version_cmd(soc_ifc, resp)
-                    }
+                    CommandId::VERSION => Self::handle_version_cmd(soc_ifc, resp),
                     CommandId::SELF_TEST_START => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
                         Self::handle_self_test_start_cmd(env, &mut self_test_in_progress, resp)
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
                         Self::handle_self_test_get_results_cmd(&mut self_test_in_progress, resp)
                     }
-                    CommandId::SHUTDOWN => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
-                        Self::handle_shutdown_cmd(resp)
-                    }
-                    CommandId::CAPABILITIES => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
-                        Self::handle_capabilities_cmd(resp)
-                    }
-                    CommandId::STASH_MEASUREMENT => {
-                        let cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<StashMeasurementReq>(),
-                        )?;
-                        Self::handle_stash_measurement_cmd(
-                            pcr_bank,
-                            env,
-                            persistent_data,
-                            cmd_bytes,
-                            resp,
-                        )
-                    }
+                    CommandId::SHUTDOWN => Self::handle_shutdown_cmd(resp),
+                    CommandId::CAPABILITIES => Self::handle_capabilities_cmd(resp),
+                    CommandId::STASH_MEASUREMENT => Self::handle_stash_measurement_cmd(
+                        pcr_bank,
+                        env,
+                        persistent_data,
+                        cmd_bytes,
+                        resp,
+                    ),
                     CommandId::GET_IDEV_ECC384_CSR => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
                         Self::handle_get_idev_ecc384_csr_cmd(persistent_data, resp)
                     }
                     CommandId::GET_IDEV_MLDSA87_CSR => {
-                        let _cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<MailboxReqHeader>(),
-                        )?;
                         Self::handle_get_idev_mldsa87_csr_cmd(persistent_data, resp)
                     }
-                    CommandId::RI_DOWNLOAD_FIRMWARE => {
-                        if !subsystem_mode {
-                            cprintln!(
-                                "[fwproc] RI_DOWNLOAD_FIRMWARE cmd not supported in passive mode"
-                            );
-                            txn.complete(false)?;
-                            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
-                        }
-                        cfi_assert_bool(subsystem_mode);
-                        // Complete the command indicating success.
-                        cprintln!("[fwproc] Completing RI_DOWNLOAD_FIRMWARE command");
-                        txn.complete(true)?;
-
-                        // Create a transaction to facilitate the download of the firmware image
-                        // from the recovery interface. This dummy transaction is necessary to
-                        // obtain and subsequently release the lock required to gain exclusive
-                        // access to the mailbox sram by the DMA engine, enabling it to write the
-                        // firmware image into the mailbox sram.
-                        let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
-
-                        // Download the firmware image from the recovery interface.
-                        let image_size_bytes =
-                            Self::retrieve_image_from_recovery_interface(dma, soc_ifc)?;
-                        cprintln!(
-                            "[fwproc] Received image from the Recovery Interface of size {} bytes",
-                            image_size_bytes
-                        );
-                        report_boot_status(FwProcessorDownloadImageComplete.into());
-                        return Ok((txn, image_size_bytes));
-                    }
                     CommandId::DERIVE_STABLE_KEY => {
-                        let cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<DeriveStableKeyReq>(),
-                        )?;
                         Self::handle_derive_stable_key_cmd(env, persistent_data, cmd_bytes, resp)
                     }
                     CommandId::CM_HMAC => {
-                        let cmd_bytes =
-                            get_checksummed_payload(&txn, core::mem::size_of::<CmHmacReq>())?;
                         Self::handle_cm_hmac_cmd(env, persistent_data, cmd_bytes, resp)
                     }
                     CommandId::INSTALL_OWNER_PK_HASH => {
-                        let cmd_bytes = get_checksummed_payload(
-                            &txn,
-                            core::mem::size_of::<InstallOwnerPkHashReq>(),
-                        )?;
                         Self::handle_install_owner_pk_hash_cmd(persistent_data, cmd_bytes, resp)
                     }
                     _ => {
@@ -461,7 +419,10 @@ impl FirmwareProcessor {
         if mbox_sram.len() < manifest_buf.len() {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
-        manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
+        let src_slice = mbox_sram
+            .get(..manifest_buf.len())
+            .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+        manifest_buf.copy_from_slice(src_slice);
         report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
@@ -679,7 +640,10 @@ impl FirmwareProcessor {
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
-        fmc_dest.copy_from_slice(&mbox_sram[start..end]);
+        let src_slice = mbox_sram
+            .get(start..end)
+            .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+        fmc_dest.copy_from_slice(src_slice);
 
         cprintln!(
             "[fwproc] Load Runtime at address 0x{:08x} len {}",
@@ -697,7 +661,10 @@ impl FirmwareProcessor {
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
         }
-        runtime_dest.copy_from_slice(&mbox_sram[start..end]);
+        let src_slice = mbox_sram
+            .get(start..end)
+            .ok_or(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
+        runtime_dest.copy_from_slice(src_slice);
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
@@ -809,12 +776,13 @@ impl FirmwareProcessor {
         persistent_data: &mut PersistentData,
         cmd_bytes: &[u8],
     ) -> CaliptraResult<()> {
-        if cmd_bytes.len() != core::mem::size_of::<StashMeasurementReq>() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
-        }
-
         let measurement: &StashMeasurementReq = StashMeasurementReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+            .map_err(|e| match e {
+                zerocopy::ConvertError::Size(_) => {
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
+                }
+                _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+            })?;
 
         // Extend measurement into PCR31.
         Self::extend_measurement(pcr_bank, sha2, persistent_data, measurement)?;
@@ -975,10 +943,9 @@ impl FirmwareProcessor {
     fn handle_version_cmd(soc_ifc: &mut SocIfc, resp: &mut [u8]) -> CaliptraResult<usize> {
         let version_resp = FipsVersionCmd::execute(soc_ifc);
         let len = core::mem::size_of_val(&version_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(version_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(version_resp.as_bytes());
         Ok(len)
     }
 
@@ -994,10 +961,9 @@ impl FirmwareProcessor {
             run_fips_tests(env)?;
             let header_resp = MailboxRespHeader::default();
             let len = core::mem::size_of_val(&header_resp);
-            if resp.len() < len {
-                return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-            }
-            resp[..len].copy_from_slice(header_resp.as_bytes());
+            resp.get_mut(..len)
+                .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+                .copy_from_slice(header_resp.as_bytes());
             *self_test_in_progress = true;
             Ok(len)
         }
@@ -1013,10 +979,9 @@ impl FirmwareProcessor {
         } else {
             let header_resp = MailboxRespHeader::default();
             let len = core::mem::size_of_val(&header_resp);
-            if resp.len() < len {
-                return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-            }
-            resp[..len].copy_from_slice(header_resp.as_bytes());
+            resp.get_mut(..len)
+                .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+                .copy_from_slice(header_resp.as_bytes());
             *self_test_in_progress = false;
             Ok(len)
         }
@@ -1025,10 +990,9 @@ impl FirmwareProcessor {
     fn handle_shutdown_cmd(resp: &mut [u8]) -> CaliptraResult<usize> {
         let header_resp = MailboxRespHeader::default();
         let len = core::mem::size_of_val(&header_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(header_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(header_resp.as_bytes());
 
         // Note: Response will be sent before this error causes shutdown
         Err(CaliptraError::RUNTIME_SHUTDOWN)
@@ -1043,10 +1007,9 @@ impl FirmwareProcessor {
             capabilities: capabilities.to_bytes(),
         };
         let len = core::mem::size_of_val(&capabilities_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(capabilities_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(capabilities_resp.as_bytes());
         Ok(len)
     }
 
@@ -1074,10 +1037,9 @@ impl FirmwareProcessor {
             dpe_result: 0, // DPE_STATUS_SUCCESS
         };
         let len = core::mem::size_of_val(&stash_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(stash_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(stash_resp.as_bytes());
         Ok(len)
     }
 
@@ -1086,7 +1048,6 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.ecc_csr;
-        let mut csr_resp = GetIdevCsrResp::default();
 
         if csr_persistent_mem.is_unprovisioned() {
             // CSR was never written to DCCM. This means the gen_idev_id_csr
@@ -1098,17 +1059,28 @@ impl FirmwareProcessor {
             .get()
             .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
 
-        csr_resp.data_size = csr_persistent_mem.get_csr_len();
-        csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
+        let full_struct_size = core::mem::size_of::<GetIdevCsrResp>();
 
-        let csr_resp_bytes = csr_resp
-            .as_bytes_partial()
+        // Zero the response buffer first
+        let resp = resp
+            .get_mut(..full_struct_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        resp.fill(0);
+
+        // Get a mutable reference to the response struct in the buffer
+        let csr_resp = GetIdevCsrResp::mut_from_bytes(resp)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
-        if resp.len() < csr_resp_bytes.len() {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..csr_resp_bytes.len()].copy_from_slice(csr_resp_bytes);
-        Ok(csr_resp_bytes.len())
+
+        // Set the fields directly in the response buffer
+        csr_resp.hdr = MailboxRespHeader::default();
+        csr_resp.data_size = csr.len() as u32;
+        csr_resp
+            .data
+            .get_mut(..csr.len())
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(csr);
+
+        Ok(size_of::<MailboxRespHeaderVarSize>() + csr.len())
     }
 
     fn handle_get_idev_mldsa87_csr_cmd(
@@ -1116,7 +1088,6 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let csr_persistent_mem = &persistent_data.idevid_csr_envelop.mldsa_csr;
-        let mut csr_resp = GetIdevCsrResp::default();
 
         if csr_persistent_mem.is_unprovisioned() {
             // CSR was never written to DCCM. This means the gen_idev_id_csr
@@ -1128,15 +1099,27 @@ impl FirmwareProcessor {
             .get()
             .ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?;
 
-        csr_resp.data_size = csr_persistent_mem.get_csr_len();
-        csr_resp.data[..csr_resp.data_size as usize].copy_from_slice(csr);
+        let full_struct_size = core::mem::size_of::<GetIdevCsrResp>();
 
-        let len = core::mem::size_of_val(&csr_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(csr_resp.as_bytes());
-        Ok(len)
+        // Zero the response buffer first
+        let resp = resp
+            .get_mut(..full_struct_size)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+        // Get a mutable reference to the response struct in the buffer
+        let csr_resp = GetIdevCsrResp::mut_from_bytes(resp)
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+
+        // Set the fields directly in the response buffer
+        csr_resp.hdr = MailboxRespHeader::default();
+        csr_resp.data_size = csr.len() as u32;
+        csr_resp
+            .data
+            .get_mut(..csr.len())
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(csr);
+
+        Ok(size_of::<MailboxRespHeaderVarSize>() + csr.len())
     }
 
     fn handle_derive_stable_key_cmd(
@@ -1161,10 +1144,9 @@ impl FirmwareProcessor {
             ..Default::default()
         };
         let len = core::mem::size_of_val(&key_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(key_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(key_resp.as_bytes());
         Ok(len)
     }
 
@@ -1174,8 +1156,12 @@ impl FirmwareProcessor {
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let request: &CmHmacReq = CmHmacReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        let request: &CmHmacReq = CmHmacReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+            zerocopy::ConvertError::Size(_) => {
+                CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
+            }
+            _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+        })?;
         let mut hmac_resp = CmHmacResp::default();
         hmac(
             env.hmac,
@@ -1187,10 +1173,9 @@ impl FirmwareProcessor {
         )?;
 
         let len = core::mem::size_of_val(&hmac_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(hmac_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(hmac_resp.as_bytes());
         Ok(len)
     }
 
@@ -1200,7 +1185,12 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let request: &InstallOwnerPkHashReq = InstallOwnerPkHashReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+            .map_err(|e| match e {
+                zerocopy::ConvertError::Size(_) => {
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
+                }
+                _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+            })?;
 
         // Save the owner public key hash in persistent data.
         persistent_data
@@ -1215,10 +1205,9 @@ impl FirmwareProcessor {
             dpe_result: 0, // DPE_STATUS_SUCCESS
         };
         let len = core::mem::size_of_val(&hash_resp);
-        if resp.len() < len {
-            return Err(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE);
-        }
-        resp[..len].copy_from_slice(hash_resp.as_bytes());
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(hash_resp.as_bytes());
         Ok(len)
     }
 }

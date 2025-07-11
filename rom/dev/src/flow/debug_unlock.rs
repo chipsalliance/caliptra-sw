@@ -84,10 +84,13 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     let result = (|| {
-        let cmd_bytes =
-            get_checksummed_payload(&txn, core::mem::size_of::<ManufDebugUnlockTokenReq>())?;
-        let request = ManufDebugUnlockTokenReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+        let cmd_bytes = get_checksummed_payload(&txn)?;
+        let request = ManufDebugUnlockTokenReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+            zerocopy::ConvertError::Size(_) => {
+                CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
+            }
+            _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+        })?;
 
         // Hash the token.
         let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
@@ -150,10 +153,11 @@ fn handle_auth_debug_unlock_request(
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     // Process request and create challenge
-    let cmd_bytes =
-        get_checksummed_payload(&txn, core::mem::size_of::<ProductionAuthDebugUnlockReq>())?;
-    let request = ProductionAuthDebugUnlockReq::ref_from_bytes(cmd_bytes)
-        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+    let cmd_bytes = get_checksummed_payload(&txn)?;
+    let request = ProductionAuthDebugUnlockReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
+        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+    })?;
 
     // Clone the request to avoid borrowing conflicts
     let request_owned = *request;
@@ -202,10 +206,11 @@ fn handle_auth_debug_unlock_token(
     let mut txn = ManuallyDrop::new(txn.start_txn());
 
     // Copy token from mailbox
-    let cmd_bytes =
-        get_checksummed_payload(&txn, core::mem::size_of::<ProductionAuthDebugUnlockToken>())?;
-    let token = ProductionAuthDebugUnlockToken::ref_from_bytes(cmd_bytes)
-        .map_err(|_| CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?;
+    let cmd_bytes = get_checksummed_payload(&txn)?;
+    let token = ProductionAuthDebugUnlockToken::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
+        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+    })?;
 
     // Use common validation function
     let result = debug_unlock::validate_debug_unlock_token(

@@ -10,7 +10,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DeviceLifecycle, Fuses, HwModel, ModelError};
 use core::mem::offset_of;
 use openssl::{hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::IntoBytes;
 
 use crate::helpers;
 
@@ -190,7 +190,9 @@ fn test_get_mldsa_csr() {
         .unwrap()
         .unwrap();
 
-    let get_idv_csr_resp = GetIdevMldsaCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let mut get_idv_csr_resp = GetIdevMldsaCsrResp::default();
+    get_idv_csr_resp.as_mut_bytes()[..response.as_bytes().len()]
+        .copy_from_slice(response.as_bytes());
 
     assert!(caliptra_common::checksum::verify_checksum(
         get_idv_csr_resp.hdr.chksum,
