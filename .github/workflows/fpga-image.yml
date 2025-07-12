@@ -34,7 +34,6 @@ jobs:
           echo "Starting work"
           sudo mkdir /vck190-tools
           sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
-          ls /vck190-tools/caliptra-bitstreams/20250701
 
       - name: Build Kernel
         run: |
@@ -52,7 +51,7 @@ jobs:
 
           pushd images/linux
 
-          tar -cvf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
+          tar -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
           mv vck190-kernel.tar.gz /tmp/vck190-kernel.tar.gz
           popd
           petalinux-build -c io-module
@@ -101,7 +100,6 @@ jobs:
 
       - name: Build SD image
         run: |
-
           cd ci-tools/fpga-image
           sudo bash build.sh
 
