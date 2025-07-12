@@ -240,6 +240,7 @@ pub struct CaliptraRootBusArgs<'a> {
     // If true, the recovery interface in the MCU will be used,
     // otherwise, the local recovery interface is used.
     pub use_mcu_recovery_interface: bool,
+    pub use_mcu_mci: bool,
 }
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
@@ -263,6 +264,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
             test_sram: None,
             use_mcu_recovery_interface: false,
+            use_mcu_mci: false,
         }
     }
 }
@@ -352,6 +354,7 @@ impl CaliptraRootBus {
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
+        let use_mcu_mci = args.use_mcu_mci;
         let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -367,6 +370,7 @@ impl CaliptraRootBus {
             prod_dbg_unlock_keypairs,
             test_sram,
             use_mcu_recovery_interface,
+            use_mcu_mci,
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());

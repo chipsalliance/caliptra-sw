@@ -22,7 +22,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_cfi_lib_git::cfi_launder;
-use caliptra_common::mailbox_api::SetAuthManifestReq;
+use caliptra_common::{cprintln, mailbox_api::SetAuthManifestReq};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
@@ -637,6 +637,7 @@ impl SetAuthManifestCmd {
         // Validate cmd length
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
+
             let offset = offset_of!(SetAuthManifestReq, manifest_size);
             u32::from_le_bytes(
                 cmd_args
@@ -648,6 +649,7 @@ impl SetAuthManifestCmd {
             .try_into()
             .unwrap()
         };
+        cprintln!("SetAuth Manifest size: {}", manifest_size);        
 
         if manifest_size > SetAuthManifestReq::MAX_MAN_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -659,7 +661,7 @@ impl SetAuthManifestCmd {
                 .get(offset..offset + manifest_size)
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
-
+cprintln!("Auth Manifest first 10 bytes in hex: {:?}", &manifest_buf[..10]);
         Self::set_auth_manifest(drivers, AuthManifestSource::Slice(manifest_buf))?;
         Ok(0)
     }

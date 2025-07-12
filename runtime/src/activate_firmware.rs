@@ -16,6 +16,7 @@ use core::mem::offset_of;
 
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
+use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
@@ -107,6 +108,10 @@ impl ActivateFirmwareCmd {
         activate_bitmap: &[u32; 4],
         mcu_image_size: u32,
     ) -> Result<(), ()> {
+        cprintln!(
+            "ActivateFirmwareCmd::activate_fw: activate_bitmap={:?}, mcu_image_size={}",
+            activate_bitmap, mcu_image_size
+        );
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
         let dma = &drivers.dma;
         let mut go_bitmap: [u32; 4] = [0; 4];
@@ -148,9 +153,18 @@ impl ActivateFirmwareCmd {
                 };
             }
 
+            cprintln!(
+                "ActivateFirmwareCmd::activate_fw: MCU reset requested, resetting MCU..."
+            );
+
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
             let (image_load_address, image_staging_address) =
                 Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
+
+            cprintln!(
+                "ActivateFirmwareCmd::activate_fw: MCU image load address: hi={:#x}, lo={:#x}; staging address: hi={:#x}, lo={:#x}",
+                image_load_address.hi, image_load_address.lo, image_staging_address.hi, image_staging_address.lo
+            );
             let dma_image = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),

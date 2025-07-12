@@ -14,6 +14,7 @@ Abstract:
 
 use crate::dma::recovery::RecoveryRegisterInterface;
 use crate::helpers::words_from_bytes_be_vec;
+use crate::key_vault::KV_CONTROL::USE_LOCK;
 use crate::SocRegistersInternal;
 use crate::{dma::otp_fc::FuseController, Sha512Accelerator};
 use caliptra_emu_bus::{
@@ -44,6 +45,7 @@ pub struct AxiRootBus {
     pub test_sram: Option<ReadWriteMemory<TEST_SRAM_SIZE>>,
     pub indirect_fifo_status: u32,
     pub use_mcu_recovery_interface: bool,
+    pub use_mcu_mci : bool,
 }
 
 impl AxiRootBus {
@@ -81,6 +83,7 @@ impl AxiRootBus {
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
         test_sram_content: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
+        use_mcu_mci: bool,
     ) -> Self {
         let test_sram = if let Some(test_sram_content) = test_sram_content {
             if test_sram_content.len() > TEST_SRAM_SIZE {
@@ -103,28 +106,20 @@ impl AxiRootBus {
             test_sram,
             indirect_fifo_status: 0,
             use_mcu_recovery_interface,
+            use_mcu_mci,
         }
     }
 
     pub fn must_schedule(&mut self, addr: AxiAddr) -> bool {
-        if self.use_mcu_recovery_interface {
-            (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
+        (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
                 || matches!(
                     addr,
                     Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
-                )
-                || matches!(
-                    addr,
-                    Self::RECOVERY_REGISTER_INTERFACE_OFFSET
-                        ..=Self::RECOVERY_REGISTER_INTERFACE_END
-                ))
-        } else {
-            (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
-                || matches!(
-                    addr,
-                    Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
-                ))
-        }
+                )) ||
+        (self.use_mcu_recovery_interface && matches!(
+            addr,
+            Self::RECOVERY_REGISTER_INTERFACE_OFFSET..=Self::RECOVERY_REGISTER_INTERFACE_END
+        )) || (self.use_mcu_mci && matches!(addr, Self::SS_MCI_OFFSET..=Self::SS_MCI_END))
     }
 
     pub fn schedule_read(&mut self, addr: AxiAddr, len: u32) -> Result<(), BusError> {
@@ -174,6 +169,22 @@ impl AxiRootBus {
                         .send(Event::new(
                             Device::CaliptraCore,
                             Device::RecoveryIntf,
+                            EventData::MemoryRead {
+                                start_addr: addr as u32,
+                                len,
+                            },
+                        ))
+                        .unwrap();
+                }
+                Ok(())
+            }
+            Self::SS_MCI_OFFSET..=Self::SS_MCI_END => {
+                let addr = addr - Self::SS_MCI_OFFSET;
+                if let Some(sender) = self.event_sender.as_mut() {
+                    sender
+                        .send(Event::new(
+                            Device::CaliptraCore,
+                            Device::Mci,
                             EventData::MemoryRead {
                                 start_addr: addr as u32,
                                 len,

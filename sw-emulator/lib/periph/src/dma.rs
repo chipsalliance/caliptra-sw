@@ -173,6 +173,7 @@ pub struct Dma {
     // If true, the recovery interface in the MCU will be used,
     // otherwise, the local recovery interface is used.
     use_mcu_recovery_interface: bool,
+    use_mcu_mci: bool,
 }
 
 #[derive(Debug)]
@@ -211,6 +212,7 @@ impl Dma {
         prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
         test_sram: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
+        use_mcu_mci: bool,
     ) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
@@ -236,12 +238,14 @@ impl Dma {
                 prod_dbg_unlock_keypairs,
                 test_sram,
                 use_mcu_recovery_interface,
+                use_mcu_mci,
             ),
             mailbox,
             pending_axi_to_axi: None,
             pending_axi_to_fifo: false,
             pending_axi_to_mailbox: false,
             use_mcu_recovery_interface,
+            use_mcu_mci,
         }
     }
 
@@ -665,6 +669,7 @@ mod tests {
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
             vec![],
             None,
+            false,
             false,
         );
 
