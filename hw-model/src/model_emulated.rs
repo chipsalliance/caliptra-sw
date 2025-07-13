@@ -323,7 +323,7 @@ impl HwModel for ModelEmulated {
         &mut self.output
     }
 
-    fn cover_fw_mage(&mut self, fw_image: &[u8]) {
+    fn cover_fw_image(&mut self, fw_image: &[u8]) {
         let iccm_image = &fw_image[IMAGE_MANIFEST_BYTE_SIZE..];
         self.iccm_image_tag = Some(hash_slice(iccm_image));
     }

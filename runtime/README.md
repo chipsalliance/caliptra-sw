@@ -669,6 +669,34 @@ Command Code: `0x4C4D_5632` ("LMV2")
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
+### MLDSA87_SIGNATURE_VERIFY
+
+Verifies the signature against the message and MLDSA-87 public key.
+
+The public key and signature formats are described in [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final).
+
+The command will only return a success if the signature is valid.
+
+Command Code: `0x4D4C_5632` ("MLV2")
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` input arguments*
+| **Name**  | **Type**     | **Description**    |
+| --------- | ------------ | ------------------ |
+| chksum    | u32          |                    |
+| pub_key   | u8[2592]     | Public key         |
+| signature | u8[4627]     | Signature to check |
+| padding   | u8[1]        |                    |
+| data len  | u32          | Length of message  |
+| data      | u8[data len] | Message to check   |
+
+
+*Table: `MLDSA87_SIGNATURE_VERIFY` output arguments*
+| **Name**    | **Type** | **Description**            |
+| ----------- | -------- | -------------------------- |
+| chksum      | u32      |                            |
+| fips_status | u32      | FIPS approved or an error  |
+
+
 ### STASH\_MEASUREMENT
 
 Makes a measurement into the DPE default context. This command is intended for
@@ -1325,7 +1353,7 @@ Command Code: `0x434D_5346` ("CMSF")
 | hash size   | u32           |                           |
 | hash        | u8[hash size] |                           |
 
-### CM_HMAC
+### CM\_HMAC
 
 Computes an HMAC according to [RFC 2104](https://datatracker.ietf.org/doc/html/rfc2104) with select SHA algorithm support. The data must fit into a single mailbox command.
 
@@ -2026,6 +2054,35 @@ Command Code: `0x434D_5247` ("CMRG")
 | output size | u32             | size of output            |
 | output      | u8[output size] |                           |
 
+### CM\_DERIVE\_STABLE\_KEY
+
+Derives an HMAC key that has a stable value across resets from either
+IDevId or LDevId.
+
+The (interior) value of the returned CMK will be the stable across resets as it is derived indirectly from the IDevId or LDevId CDIs.
+The actual encrypted bytes of the CMK will *not* be the same, and
+the encrypted CMK itself cannot be used across resets. So, the key
+will always need to be re-derived after every *cold* reset.
+
+If a key usage other than HMAC is desired, then the KDF or HKDF
+mailbox functions can be used to derive a key from the returned CMK.
+
+Command Code: `0x434D_4453` ("CMDS")
+
+*Table: `CM_DERIVE_STABLE_KEY` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
+| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
+| info          | u8[32]   | Data to use in the key derivation. |
+
+*Table: `CM_DERIVE_STABLE_KEY` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| cmk           | CMK      | CMK that stores the stable key material |
+
 ### CM_IMPORT
 
 Imports the specified key and returns a CMK for it.
@@ -2220,27 +2277,6 @@ The `exported_cdi` can be created by calling `DeriveContext` with the `export-cd
 
 The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle`
 has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
-
-### DERIVE\_STABLE\_KEY
-
-Derives an exportable HMAC key from either IDEVID or LDEVID. 
-
-Command Code: `0x4453_4B45` ("DSKE")
-
-*Table: `DERIVE_STABLE_KEY` input arguments*
-
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_type      | u32      | Source key to derive the stable key from. **0x0000_0001:** IDevId  <br> **0x0000_0002:** LDevId |
-| info          | u8[32]   | Data to use in the key derivation |
-
-*Table: `DERIVE_STABLE_KEY` output arguments*
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
-| cmk           | CMK      | CMK that stores the stable key material |
-
 
 ## Checksum
 

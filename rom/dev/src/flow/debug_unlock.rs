@@ -86,7 +86,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     let result = (|| {
         let mut request = ManufDebugUnlockTokenReq::default();
         let request_bytes = request.as_mut_bytes();
-        FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes)?;
+        FirmwareProcessor::copy_req_verify_chksum(&mut txn, request_bytes, false)?;
 
         // Hash the token.
         let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
@@ -150,7 +150,7 @@ fn handle_auth_debug_unlock_request(
 
     // Process request and create challenge
     let mut request = ProductionAuthDebugUnlockReq::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes())?;
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
 
     // Use common function to create challenge
     let challenge =
@@ -197,7 +197,7 @@ fn handle_auth_debug_unlock_token(
 
     // Copy token from mailbox
     let mut token = ProductionAuthDebugUnlockToken::default();
-    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes())?;
+    FirmwareProcessor::copy_req_verify_chksum(&mut txn, token.as_mut_bytes(), false)?;
 
     // Use common validation function
     let result = debug_unlock::validate_debug_unlock_token(

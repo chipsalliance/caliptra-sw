@@ -644,7 +644,7 @@ pub trait HwModel: SocManager {
                 }
             }
             writeln!(self.output().logger(), "ready_for_fw is high")?;
-            self.cover_fw_mage(fw_image);
+            self.cover_fw_image(fw_image);
             let subsystem_mode = self.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
             writeln!(
                 self.output().logger(),
@@ -875,7 +875,7 @@ pub trait HwModel: SocManager {
         }
     }
 
-    fn cover_fw_mage(&mut self, _image: &[u8]) {}
+    fn cover_fw_image(&mut self, _image: &[u8]) {}
 
     fn tracing_hint(&mut self, enable: bool);
 
