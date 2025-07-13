@@ -2735,6 +2735,7 @@ impl ResponseVarSize for CmAesResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmEncryptInitReq {
     pub hdr: MailboxReqHeader,
+    pub flags: u32,
     pub cmk: Cmk,
     pub aad_size: u32,
     pub aad: [u8; MAX_CMB_DATA_SIZE],
@@ -2744,6 +2745,7 @@ impl Default for CmAesGcmEncryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
+            flags: 0,
             cmk: Cmk::default(),
             aad_size: 0,
             aad: [0u8; MAX_CMB_DATA_SIZE],
@@ -2981,6 +2983,7 @@ impl ResponseVarSize for CmAesGcmEncryptFinalResp {
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmDecryptInitReq {
     pub hdr: MailboxReqHeader,
+    pub flags: u32,
     pub cmk: Cmk,
     pub iv: [u8; 12],
     pub aad_size: u32,
@@ -2991,6 +2994,7 @@ impl Default for CmAesGcmDecryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
+            flags: 0,
             cmk: Cmk::default(),
             iv: [0u8; 12],
             aad_size: 0,
@@ -3419,23 +3423,12 @@ impl Response for CmHmacKdfCounterResp {}
 
 // CM_HKDF_EXTRACT
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct CmHkdfExtractReq {
     pub hdr: MailboxReqHeader,
-    pub ikm: Cmk,
     pub hash_algorithm: u32,
-    pub salt: [u8; 64],
-}
-
-impl Default for CmHkdfExtractReq {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxReqHeader::default(),
-            ikm: Cmk::default(),
-            hash_algorithm: 0,
-            salt: [0u8; 64],
-        }
-    }
+    pub salt: Cmk,
+    pub ikm: Cmk,
 }
 
 impl Request for CmHkdfExtractReq {

@@ -1517,6 +1517,11 @@ impl CaliptraError {
             0x000E006C,
             "Runtime Error: MLDSA verify failed"
         ),
+        (
+            RUNTIME_GCM_KEY_USAGE_LIMIT_REACHED,
+            0x000E006D,
+            "Runtime Error: AES GCM key usage limit reached"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
