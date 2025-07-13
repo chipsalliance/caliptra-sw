@@ -288,6 +288,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -391,6 +392,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -474,6 +476,7 @@ impl Aes {
         &mut self,
         key: AesKey,
         iv: &[u8; AES_IV_SIZE_BYTES],
+        aad_len: u32,
         len: u32,
         ghash_state: &[u8; AES_BLOCK_SIZE_BYTES],
         op: AesOperation,
@@ -533,6 +536,13 @@ impl Aes {
             aes.iv().at(3).write(|_| 0);
 
             wait_for_idle(&aes);
+
+            // if we haven't actually written any AAD or input, then
+            // we can skip the restore operation.
+            // This avoids some edge cases in the hardware.
+            if aad_len == 0 && len == 0 {
+                return Ok(());
+            }
 
             // Restore the GHASH state to data_in registers, which will load the state into the
             // GHASH unit.

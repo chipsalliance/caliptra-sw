@@ -711,7 +711,6 @@ fn test_aes_gcm_edge_cases() {
 // Check a simple encryption with 4 bytes of data.
 #[test]
 fn test_aes_gcm_simple() {
-    use aes_gcm::KeyInit;
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -774,14 +773,10 @@ fn test_aes_gcm_simple() {
     let iv = &resp.iv;
     let aad = &[];
     let plaintext = &[1, 1, 1, 1];
-    let key: &Key<aes_gcm::Aes256Gcm> = (&key).into();
-    let mut cipher = aes_gcm::Aes256Gcm::new(key);
-    let mut buffer = plaintext.to_vec();
-    cipher
-        .encrypt_in_place_detached(iv.into(), aad, &mut buffer)
-        .expect("Encryption failed");
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key, iv, aad, plaintext);
 
-    assert_eq!(ciphertext, &buffer);
+    assert_eq!(ciphertext, &rciphertext);
+    assert_eq!(final_resp.hdr.tag, rtag);
 }
 
 // Random encrypt and decrypt GCM stress test.
