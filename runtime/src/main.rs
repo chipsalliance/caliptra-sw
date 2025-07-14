@@ -18,11 +18,12 @@ Abstract:
 core::arch::global_asm!(include_str!("ext_intr.S"));
 
 use caliptra_cfi_lib_git::CfiCounter;
-use caliptra_common::{cprintln, handle_fatal_error};
+use caliptra_common::{cprintln, handle_fatal_error, FirmwareHandoffTable};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
+use caliptra_image_types::ImageManifest;
 use caliptra_registers::soc_ifc::SocIfcReg;
-use caliptra_runtime::Drivers;
+use caliptra_runtime::{compatibility, Drivers};
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -76,11 +77,19 @@ pub extern "C" fn entry_point() -> ! {
         handle_fatal_error(e.into());
     });
 
-    if !drivers.persistent_data.get().fht.is_valid() {
-        cprintln!("[rt] RT can't load FHT");
+    let fht: &FirmwareHandoffTable = &drivers.persistent_data.get().fht;
+    if !fht.is_valid() {
+        cprintln!("[rt] Runtime can't load FHT");
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
-    cprintln!("[rt] RT listening for mailbox commands...");
+
+    let manifest: &ImageManifest = &drivers.persistent_data.get().manifest1;
+    if !compatibility::is_fmc_compatible(fht, manifest) {
+        cprintln!("[rt] Runtime is not compatible with FMC");
+        handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_FMC_NOT_COMPATIBLE.into());
+    }
+
+    cprintln!("[rt] Runtime listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
