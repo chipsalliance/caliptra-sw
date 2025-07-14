@@ -18,7 +18,7 @@ import (
 func usage() {
 	fmt.Println(`Usage: rtool [launch|serve|build_image|cleanup|jitconfig|download_artifact] [...]
 
-  download_artifact <app_id> <installation_id> <workflow_filename> <artifact_name>
+  download_artifact <app_id> <installation_id> <workflow_filename> <artifact_name> <branch>
 
     Download an artifact from Github. A cronjob on the fpga_boss machine
     can use this command to download the latest output of the "Build FPGA SD
@@ -106,7 +106,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = hello.DownloadArtifact(ctx, client, os.Args[4], os.Args[5])
+		err = hello.DownloadArtifact(ctx, client, os.Args[4], os.Args[5], os.Args[6])
 		if err != nil {
 			log.Fatal(err)
 		}
