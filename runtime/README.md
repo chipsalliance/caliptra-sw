@@ -1800,7 +1800,7 @@ Command Code: `0x434D_4749` ("CMGI")
 | spdm flags     | u8                 | If non-zero, signals that SPDM   |
 |                |                    | mode will be used to derive the  |
 |                |                    | key anv IV (see above).          |
-|                |                    | The value should be equalt to the|
+|                |                    | The value should be equal to the |
 |                |                    | byte representation of the SPDM  |
 |                |                    | version, e.g., 0x13 = SPDM 1.3   |
 | reserved       | u8[3]              | Reserved                         |
@@ -1922,7 +1922,7 @@ Command Code: `0x434D_4449` ("CMDI")
 | spdm flags      | u8                  | If non-zero, signals that SPDM   |
 |                 |                     | mode will be used to derive the  |
 |                 |                     | key anv IV (see above).          |
-|                 |                     | The value should be equalt to the|
+|                 |                     | The value should be equal to the |
 |                 |                     | byte representation of the SPDM  |
 |                 |                     | version, e.g., 0x13 = SPDM 1.3.  |
 | CMK             | CMK                 | CMK to use for decryption        |
