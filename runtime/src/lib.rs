@@ -237,11 +237,11 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::ECDSA384_VERIFY => {
+        CommandId::ECDSA384_SIGNATURE_VERIFY => {
             caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
         }
-        CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::MLDSA87_VERIFY => {
+        CommandId::LMS_SIGNATURE_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::MLDSA87_SIGNATURE_VERIFY => {
             caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, cmd_bytes)
         }
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
@@ -400,6 +400,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_ECDSA_VERIFY => {
             cryptographic_mailbox::Commands::ecdsa_verify(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_DERIVE_STABLE_KEY => {
+            cryptographic_mailbox::Commands::derive_stable_key(drivers, cmd_bytes, resp)
         }
         CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ => drivers.debug_unlock.handle_request(
             &mut drivers.trng,

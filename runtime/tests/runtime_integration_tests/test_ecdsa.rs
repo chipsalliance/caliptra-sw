@@ -105,7 +105,7 @@ fn ecdsa_cmd_run_wycheproof() {
             });
             cmd.populate_chksum().unwrap();
             let resp = model.mailbox_execute(
-                u32::from(CommandId::ECDSA384_VERIFY),
+                u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
                 cmd.as_bytes().unwrap(),
             );
             match test.result {
@@ -204,7 +204,7 @@ fn test_ecdsa_verify_cmd() {
 
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::ECDSA384_VERIFY),
+            u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
             cmd.as_bytes().unwrap(),
         )
         .unwrap()
@@ -236,7 +236,7 @@ fn test_ecdsa_verify_bad_chksum() {
 
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::ECDSA384_VERIFY),
+            u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
@@ -265,7 +265,7 @@ fn test_ecdsa_hw_failure() {
 
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::ECDSA384_VERIFY),
+            u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();

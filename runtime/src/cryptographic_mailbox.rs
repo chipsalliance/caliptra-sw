@@ -18,31 +18,33 @@ use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
     hmac_cm::hmac,
+    keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV},
     mailbox_api::{
         CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
         CmAesEncryptUpdateReq, CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp,
         CmAesGcmDecryptInitReq, CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq,
         CmAesGcmDecryptUpdateResp, CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp,
         CmAesGcmEncryptInitReq, CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq,
-        CmAesGcmEncryptUpdateResp, CmAesMode, CmAesResp, CmDeleteReq, CmEcdhFinishReq,
-        CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
-        CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm,
-        CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp,
-        CmHmacKdfCounterReq, CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyUsage,
-        CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp,
-        CmMldsaVerifyReq, CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq,
-        CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp,
-        Cmk as MailboxCmk, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-        CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-        CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+        CmAesGcmEncryptUpdateResp, CmAesMode, CmAesResp, CmDeleteReq, CmDeriveStableKeyReq,
+        CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
+        CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq,
+        CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp,
+        CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp,
+        CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
+        CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmRandomGenerateReq,
+        CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
+        CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk, MailboxRespHeader,
+        MailboxRespHeaderVarSize, ResponseVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE,
+        CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
+        CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
     },
 };
 use caliptra_drivers::{
-    hkdf_expand, hkdf_extract, hmac_kdf,
+    cmac_kdf, hkdf_expand, hkdf_extract, hmac_kdf,
     sha2_512_384::{Sha2DigestOpTrait, SHA512_BLOCK_BYTE_SIZE, SHA512_HASH_SIZE},
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12, Array4x16,
     CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Seed,
-    Ecc384Signature, HmacMode, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
+    Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157, LEArray4x8, Mldsa87Result, Mldsa87Seed,
     PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
     AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
@@ -2016,5 +2018,71 @@ impl Commands {
                 Err(CaliptraError::RUNTIME_MAILBOX_SIGNATURE_MISMATCH)?
             }
         }
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn derive_stable_key(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if cmd_bytes.len() != core::mem::size_of::<CmDeriveStableKeyReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let request = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+
+        let key_type: CmStableKeyType = request.key_type.into();
+
+        let aes_key = match key_type {
+            CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
+            CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+        };
+        let k0 = cmac_kdf(&mut drivers.aes, aes_key, &request.info, None, 4)?;
+
+        // Prepend "DOT Final" to info and use as label for HMAC KDF
+        const PREFIX: &[u8] = b"DOT Final";
+        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
+        data[..PREFIX.len()].copy_from_slice(PREFIX);
+        data[PREFIX.len()..].copy_from_slice(&request.info);
+
+        let mut tag: Array4x16 = Array4x16::default();
+        hmac_kdf(
+            &mut drivers.hmac,
+            (&Array4x16::from(k0)).into(),
+            &data[..],
+            None,
+            &mut drivers.trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )?;
+
+        let mut key_material = [0u8; 64];
+        for (i, word) in tag.0.iter().enumerate() {
+            key_material[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+
+        // Convert the tag to CMK
+        let unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: key_material.len() as u16,
+            key_usage: CmKeyUsage::Hmac as u32 as u8,
+            id: [0u8; 3],
+            usage_counter: 0,
+            key_material,
+        };
+
+        let encrypted_cmk = drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?;
+
+        let resp = mutrefbytes::<CmDeriveStableKeyResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.cmk = transmute!(encrypted_cmk);
+        Ok(core::mem::size_of::<CmDeriveStableKeyResp>())
     }
 }

@@ -63,13 +63,16 @@ fn test_ecdsa_verify_cmd() {
 
     // Calculate checksum for bad signature test
     bad_cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::ECDSA384_VERIFY),
+        u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
         &bad_cmd.as_bytes()[core::mem::size_of_val(&bad_cmd.hdr.chksum)..],
     );
 
     // This should fail because the signature is invalid
     let bad_response = hw
-        .mailbox_execute(CommandId::ECDSA384_VERIFY.into(), bad_cmd.as_bytes())
+        .mailbox_execute(
+            CommandId::ECDSA384_SIGNATURE_VERIFY.into(),
+            bad_cmd.as_bytes(),
+        )
         .unwrap_err();
 
     assert_eq!(
@@ -110,12 +113,12 @@ fn test_ecdsa_verify_cmd() {
 
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::ECDSA384_VERIFY),
+        u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
         &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..],
     );
 
     let response = hw
-        .mailbox_execute(CommandId::ECDSA384_VERIFY.into(), cmd.as_bytes())
+        .mailbox_execute(CommandId::ECDSA384_SIGNATURE_VERIFY.into(), cmd.as_bytes())
         .unwrap()
         .unwrap();
 
