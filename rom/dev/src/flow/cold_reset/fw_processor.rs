@@ -55,8 +55,8 @@ use zeroize::Zeroize;
 
 const RESERVED_PAUSER: u32 = 0xFFFFFFFF;
 
-#[derive(Debug)]
-pub enum FwProcessorErr {
+#[derive(PartialEq)]
+enum FwProcessorErr {
     Fatal(CaliptraError),
     NonFatal(Option<CaliptraError>), // TODO make an error non optional
 }
@@ -370,7 +370,18 @@ impl FirmwareProcessor {
                     CommandId::MLDSA87_VERIFY => {
                         Self::handle_mldsa_verify(cmd_bytes, env.mldsa87, resp)
                     }
-                    CommandId::SHUTDOWN => Self::handle_shutdown_cmd(resp),
+                    CommandId::SHUTDOWN => {
+                        // This command is a bit special. We want a Fatal Error to happen to zeroize
+                        // the module but also send a success report before that.
+                        let mut header_resp = MailboxRespHeader::default();
+                        // Generate response checksum
+                        caliptra_common::mailbox_api::populate_checksum(header_resp.as_mut_bytes());
+                        // Send the payload
+                        txn.send_response(header_resp.as_bytes())?;
+
+                        // Note: Response will be sent before this error causes shutdown
+                        Err(FwProcessorErr::Fatal(CaliptraError::RUNTIME_SHUTDOWN))
+                    }
                     CommandId::CAPABILITIES => Self::handle_capabilities_cmd(resp),
                     CommandId::STASH_MEASUREMENT => Self::handle_stash_measurement_cmd(
                         pcr_bank,
@@ -1017,19 +1028,6 @@ impl FirmwareProcessor {
             *self_test_in_progress = false;
             Ok(len)
         }
-    }
-
-    fn handle_shutdown_cmd(resp: &mut [u8]) -> Result<usize, FwProcessorErr> {
-        let header_resp = MailboxRespHeader::default();
-        let len = core::mem::size_of_val(&header_resp);
-        resp.get_mut(..len)
-            .ok_or(FwProcessorErr::Fatal(
-                CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-            ))?
-            .copy_from_slice(header_resp.as_bytes());
-
-        // Note: Response will be sent before this error causes shutdown
-        Err(FwProcessorErr::Fatal(CaliptraError::RUNTIME_SHUTDOWN))
     }
 
     fn handle_capabilities_cmd(resp: &mut [u8]) -> Result<usize, FwProcessorErr> {
