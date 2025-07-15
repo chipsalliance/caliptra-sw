@@ -1417,7 +1417,10 @@ Command Code: `0x434D_4B43` ("CMKC")
 
 Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html).
 
-The CMK must have been created for HMAC usage. The output will be tagged for HMAC usage.
+The CMKs for IKM and salt must have been created for HMAC usage. The output will be tagged for HMAC usage.
+
+Use CM_IMPORT to import non-secret (plaintext) salt or IKMs to use
+with HKDF-Extract after right-padding to 48 or 64 bytes with zeros.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
@@ -1425,13 +1428,12 @@ Command Code: `0x434D_4B54` ("CMKT")
 | **Name**       | **Type** | **Description**           |
 | -------------- | -------- | ------------------------- |
 | chksum         | u32      |                           |
-| IKM CMK        | CMK      | Input key material CMK    |
 | hash algorithm | u32      | Enum.                     |
 |                |          | Value 0 = reserved        |
 |                |          | Value 1 = SHA2-384        |
 |                |          | Value 2 = SHA2-512        |
-| salt           | u8[64]   | Salt. Only 48 bytes used  |
-|                |          | in SHA384 mode. Can be 0s |
+| salt CMK       | CMK      | Salt CMK.                 |
+| IKM CMK        | CMK      | Input key material CMK    |
 
 *Table: `CM_HKDF_EXTRACT` output arguments*
 | **Name**    | **Type** | **Description**                         |
@@ -1769,9 +1771,25 @@ Command Code: `0x434D_4155` ("CMAU")
 
 Currently only supports AES-256-GCM with a random 96-bit IV.
 
-The CMK must have been created for AES usage.
-
 Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
+
+The CMK must have been created for AES usage, except if the SPDM mode flag has been used, in which case the CMK must have been created for HMAC usage.
+
+If the SPDM flags are non-zero, then the CMK passed in should be the SPDM
+major secret CMK created for HMAC usage. The key and IV used for encryption
+shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7
+derivation with `key_length` 256 and `iv_length` 96.
+
+```
+EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
+IV = HKDF-Expand(major-secret, bin_str6, iv_length);
+bin_str5 = BinConcat(key_length, Version, "key", null);
+bin_str6 = BinConcat(iv_length, Version, "iv", null);
+```
+
+Note that it is **critical** that the same CMK never be used more than once
+when encrypting or decrypting in SPDM mode as doing could compromise the
+plaintext of the messages.
 
 Command Code: `0x434D_4749` ("CMGI")
 
@@ -1779,6 +1797,13 @@ Command Code: `0x434D_4749` ("CMGI")
 | **Name**       | **Type**           | **Description**                  |
 | -------------- | ------------------ | -------------------------------- |
 | chksum         | u32                |                                  |
+| spdm flags     | u8                 | If non-zero, signals that SPDM   |
+|                |                    | mode will be used to derive the  |
+|                |                    | key anv IV (see above).          |
+|                |                    | The value should be equal to the |
+|                |                    | byte representation of the SPDM  |
+|                |                    | version, e.g., 0x13 = SPDM 1.3   |
+| reserved       | u8[3]              | Reserved                         |
 | CMK            | CMK                | CMK of the key to use to encrypt |
 | aad size       | u32                |                                  |
 | aad            | u8[aad size]       | Additional authenticated data    |
@@ -1866,22 +1891,44 @@ Starts an AES-256-GCM decryption computation.
 
 Currently only supports AES-256-GCM with a 96-bit IV.
 
-The CMK must have been created for AES usage.
-
 Additional authenticated data (AAD) can only be passed during the `INIT` command, so is limited to the maximum cryptographic mailbox data size (4096 bytes).
 
 The AAD and IV must match what was passed and returned from the encryption operation.
 
+The CMK must have been created for AES usage, except if the SPDM mode flag has been used, in which case the CMK must have been created for HMAC usage.
+
+If the SPDM flags are non-zero, then the CMK passed in should be the SPDM
+major secret CMK created for HMAC usage. The key and IV used for encryption
+shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7
+derivation with `key_length` 256 and `iv_length` 96.
+
+```
+EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
+IV = HKDF-Expand(major-secret, bin_str6, iv_length);
+bin_str5 = BinConcat(key_length, Version, "key", null);
+bin_str6 = BinConcat(iv_length, Version, "iv", null);
+```
+
+Note that it is **critical** that the same CMK never be used more than once
+when encrypting or decrypting in SPDM mode as doing could compromise the
+plaintext of the messages.
+
 Command Code: `0x434D_4449` ("CMDI")
 
 *Table: `CM_AES_GCM_DECRYPT_INIT` input arguments*
-| **Name**        | **Type**            | **Description**               |
-| --------------- | ------------------- | ----------------------------- |
-| chksum          | u32                 |                               |
-| CMK             | CMK                 | CMK to use for decryption     |
-| iv              | u8[12]              |                               |
-| aad size        | u32                 |                               |
-| aad             | u8[aad size]        | Additional authenticated data |
+| **Name**        | **Type**            | **Description**                  |
+| --------------- | ------------------- | -------------------------------- |
+| chksum          | u32                 |                                  |
+| spdm flags      | u8                  | If non-zero, signals that SPDM   |
+|                 |                     | mode will be used to derive the  |
+|                 |                     | key anv IV (see above).          |
+|                 |                     | The value should be equal to the |
+|                 |                     | byte representation of the SPDM  |
+|                 |                     | version, e.g., 0x13 = SPDM 1.3.  |
+| CMK             | CMK                 | CMK to use for decryption        |
+| iv              | u8[12]              | Ignored in SPDM mode.            |
+| aad size        | u32                 |                                  |
+| aad             | u8[aad size]        | Additional authenticated data    |
 
 *Table: `CM_AES_GCM_DECRYPT_INIT` output arguments*
 | **Name**       | **Type**           | **Description**           |
