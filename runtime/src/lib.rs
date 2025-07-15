@@ -84,7 +84,7 @@ pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use set_auth_manifest::SetAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
-pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
+pub use verify::LmsVerifyCmd;
 pub mod packet;
 use caliptra_common::mailbox_api::{AlgorithmType, CommandId};
 use packet::Packet;
@@ -237,8 +237,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             GetLdevCertCmd::execute(drivers, AlgorithmType::Mldsa87, resp)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::ECDSA384_VERIFY => {
+            caliptra_common::verify::EcdsaVerifyCmd::execute(&mut drivers.ecc384, cmd_bytes)
+        }
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::MLDSA87_VERIFY => {
+            caliptra_common::verify::MldsaVerifyCmd::execute(&mut drivers.mldsa87, cmd_bytes)
+        }
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),

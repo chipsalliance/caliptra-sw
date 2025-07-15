@@ -55,6 +55,7 @@ fips204.workspace = true
 hex.workspace = true
 hmac.workspace = true
 memoffset.workspace = true
+ml-dsa.workspace = true
 rand.workspace = true
 openssl.workspace = true
 p384.workspace = true

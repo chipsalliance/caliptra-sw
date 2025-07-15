@@ -21,7 +21,8 @@ use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmHmacReq, CmHmacResp, CmKeyUsage, DeriveStableKeyReq, DeriveStableKeyResp,
-    InstallOwnerPkHashReq, InstallOwnerPkHashResp, StableKeyType, STABLE_KEY_INFO_SIZE_BYTES,
+    InstallOwnerPkHashReq, InstallOwnerPkHashResp, Response, StableKeyType,
+    STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -42,6 +43,7 @@ use caliptra_common::{
     RomBootStatus::*,
 };
 use caliptra_drivers::{pcr_log::MeasurementLogEntry, *};
+
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{
     ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier, MAX_FIRMWARE_SVN,
@@ -356,6 +358,12 @@ impl FirmwareProcessor {
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
                         Self::handle_self_test_get_results_cmd(&mut self_test_in_progress, resp)
+                    }
+                    CommandId::ECDSA384_VERIFY => {
+                        Self::handle_ecdsa_verify(cmd_bytes, env.ecc384, resp)
+                    }
+                    CommandId::MLDSA87_VERIFY => {
+                        Self::handle_mldsa_verify(cmd_bytes, env.mldsa87, resp)
                     }
                     CommandId::SHUTDOWN => Self::handle_shutdown_cmd(resp),
                     CommandId::CAPABILITIES => Self::handle_capabilities_cmd(resp),
@@ -1208,6 +1216,40 @@ impl FirmwareProcessor {
         resp.get_mut(..len)
             .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
             .copy_from_slice(hash_resp.as_bytes());
+        Ok(len)
+    }
+
+    fn handle_ecdsa_verify(
+        cmd_bytes: &[u8],
+        ecc384: &mut Ecc384,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let result = caliptra_common::verify::EcdsaVerifyCmd::execute(ecc384, cmd_bytes);
+        match result {
+            Ok(_) => (),
+            Err(e) => {
+                caliptra_drivers::report_fw_error_non_fatal(e.into());
+            }
+        }
+        let header_resp = MailboxRespHeader::default();
+        let len = core::mem::size_of_val(&header_resp);
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(header_resp.as_bytes());
+        Ok(resp.as_bytes().len())
+    }
+
+    fn handle_mldsa_verify(
+        cmd_bytes: &[u8],
+        mldsa87: &mut Mldsa87,
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        let _ = caliptra_common::verify::MldsaVerifyCmd::execute(mldsa87, cmd_bytes)?;
+        let header_resp = MailboxRespHeader::default();
+        let len = core::mem::size_of_val(&header_resp);
+        resp.get_mut(..len)
+            .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+            .copy_from_slice(header_resp.as_bytes());
         Ok(len)
     }
 }
