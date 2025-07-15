@@ -929,6 +929,54 @@ impl Aes {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn aes_256_ecb(
+        &mut self,
+        key: AesKey,
+        op: AesOperation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<()> {
+        if input.is_empty() {
+            return Ok(());
+        }
+        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if output.len() < input.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+
+        if key.sideload() {
+            self.load_key(key)?;
+        }
+
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(op as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        if !key.sideload() {
+            self.load_key(key)?;
+        }
+
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+            self.read_data_block(output, block_num)?;
+        }
+
+        Ok(())
+    }
+
     pub fn aes_256_cbc(
         &mut self,
         key: &[u8; 32],
