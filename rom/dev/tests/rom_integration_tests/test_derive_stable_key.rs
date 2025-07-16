@@ -4,7 +4,8 @@ use crate::helpers;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHashAlgorithm, CmHmacReq, CmHmacResp,
-    CmStableKeyType, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, MailboxReq,
+    MailboxRespHeaderVarSize, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
@@ -156,4 +157,101 @@ fn test_derive_stable_key_invalid_key_type() {
             CaliptraError::DOT_INVALID_KEY_TYPE.into()
         ))
     );
+}
+
+#[test]
+fn test_random_generate() {
+    let (mut model, _) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // check too large of an input
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: u32::MAX,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .expect_err("Should have been an error");
+
+    // 0 bytes
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 0,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp::default();
+    const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+    resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
+    assert_eq!(resp.hdr.data_len, 0);
+    assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
+
+    // 1 byte
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 1,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert_eq!(len, 1);
+    resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+    // We can't check if it is non-zero because it will randomly be 0 sometimes.
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+            hdr: MailboxReqHeader::default(),
+            size: req_len as u32,
+        });
+        cm_random_generate.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_GENERATE),
+                cm_random_generate.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let mut resp = CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        assert_eq!(len, req_len);
+        resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+        assert!(
+            resp.data[..len]
+                .iter()
+                .copied()
+                .reduce(|a, b| (a | b))
+                .unwrap()
+                != 0
+        );
+    }
 }
