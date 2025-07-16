@@ -21,8 +21,8 @@ use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
-    CmStableKeyType, InstallOwnerPkHashReq, InstallOwnerPkHashResp, ResponseVarSize,
-    CM_STABLE_KEY_INFO_SIZE_BYTES,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
+    InstallOwnerPkHashResp, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -554,6 +554,28 @@ impl FirmwareProcessor {
                         };
                         resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
+                    }
+                    CommandId::CM_RANDOM_GENERATE => {
+                        let mut request = CmRandomGenerateReq::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
+                        let size = request.size as usize;
+                        let mut resp = CmRandomGenerateResp::default();
+                        if size > resp.data.len() {
+                            txn.complete(false)?;
+                        } else {
+                            for i in (0..size).step_by(48) {
+                                let rand: [u8; 48] = env.trng.generate()?.into();
+                                let len = rand.len().min(resp.data.len() - i);
+                                // check to prevent panic even though this is impossible
+                                if i > resp.data.len() {
+                                    break;
+                                }
+                                resp.data[i..i + len].copy_from_slice(&rand[..len]);
+                            }
+                            resp.hdr.data_len = size as u32;
+                            resp.populate_chksum();
+                            txn.send_response(resp.as_bytes_partial()?)?;
+                        }
                     }
                     CommandId::CM_HMAC => {
                         let mut request = CmHmacReq::default();

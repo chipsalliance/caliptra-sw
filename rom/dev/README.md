@@ -642,6 +642,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 9. **CM_HMAC**: This command uses derived stable keys for Device Ownership Transfer or other flows. [CM_HMAC](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_hmac)
 10. **ECDSA384_SIGNATURE_VERIFY**: This command verifies ECDSA384 signatures for Device Ownership Transfer or other flows. [ECDSA384_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#ecdsa384_signature_verify)
 11. **MLDSA87_SIGNATURE_VERIFY**: This command verifies MLDSA87 signatures for Device Ownership Transfer or other flows. [MLDSA87_SIGNATURE_VERIFY](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#mldsa87_signature_verify)
+12. **CM_RANDOM_GENERATE**: This command returns random numbers from Caliptra's RNG for Device Ownership Transfer or other flows. [CM_RANDOM_GENERATE](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/runtime/README.md#cm_random_generate)
 
 #### Downloading firmware image from mailbox
 
