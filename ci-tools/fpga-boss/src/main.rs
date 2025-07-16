@@ -163,7 +163,7 @@ fn active_runner_error_checks(input: &str) -> std::io::Result<()> {
 /// If the GitHub runner has an unhandled exception it will crash and get stuck. Add this check
 /// to recover the FPGA.
 fn check_for_github_runner_exception(input: &str) -> std::io::Result<()> {
-    if input.contains("Unhandled exception") {
+    if input.contains("Unhandled exception") || input.contains("Bus error") {
         Err(Error::new(
             ErrorKind::BrokenPipe,
             "Github runner had an unhandled exception",
