@@ -35,7 +35,7 @@ use caliptra_image_types::{
     ImageDigest, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey, ImageLmsSignature,
     ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
-use crypto::{AlgLen, Crypto};
+use crypto::Crypto;
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -94,6 +94,7 @@ impl AuthorizeAndStashCmd {
                         drivers,
                         &cmd.fw_id,
                         &cmd.measurement,
+                        cmd.svn,
                     )?;
                     if dpe_result != DpeErrorCode::NoError {
                         drivers

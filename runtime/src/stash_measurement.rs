@@ -18,12 +18,13 @@ use caliptra_common::mailbox_api::{
     MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
-use crypto::{AlgLen, Crypto};
+use crypto::Crypto;
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
+    DpeInstance,
 };
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -35,6 +36,7 @@ impl StashMeasurementCmd {
         drivers: &mut Drivers,
         metadata: &[u8; 4],
         measurement: &[u8; 48],
+        svn: u32,
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
             match drivers.caller_privilege_level() {
@@ -76,6 +78,7 @@ impl StashMeasurementCmd {
                     None,
                     None,
                 ),
+                state: &mut pdata.dpe_state,
             };
 
             let locality = drivers.mbox.user();
@@ -85,12 +88,12 @@ impl StashMeasurementCmd {
                 data: *measurement,
                 flags: DeriveContextFlags::MAKE_DEFAULT
                     | DeriveContextFlags::CHANGE_LOCALITY
-                    | DeriveContextFlags::INPUT_ALLOW_CA
-                    | DeriveContextFlags::INPUT_ALLOW_X509,
+                    | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT,
                 tci_type: u32::from_ne_bytes(*metadata),
                 target_locality: locality,
+                svn,
             }
-            .execute(&mut pdata.dpe, &mut env, locality);
+            .execute(&mut DpeInstance::initialized(), &mut env, locality);
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
@@ -120,7 +123,8 @@ impl StashMeasurementCmd {
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
+        let dpe_result =
+            Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement, cmd.svn)?;
 
         Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
             hdr: MailboxRespHeader::default(),

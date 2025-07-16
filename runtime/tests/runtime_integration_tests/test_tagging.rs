@@ -215,10 +215,11 @@ fn test_tagging_retired_context() {
     // retire context via DeriveContext
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0u8; DPE_PROFILE.get_hash_size()],
+        data: [0u8; DPE_PROFILE.hash_size()],
         flags: DeriveContextFlags::empty(),
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
@@ -261,10 +262,11 @@ fn test_tagging_retired_context() {
     // retire tagged context via derive child
     let derive_context_cmd = DeriveContextCmd {
         handle: new_handle,
-        data: [0u8; DPE_PROFILE.get_hash_size()],
+        data: [0u8; DPE_PROFILE.hash_size()],
         flags: DeriveContextFlags::empty(),
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
