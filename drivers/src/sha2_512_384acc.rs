@@ -1,6 +1,3 @@
-// Licensed under the Apache-2.0 license
-
-use crate::mailbox::MAX_MAILBOX_LEN;
 /*++
 
 Licensed under the Apache-2.0 license.
@@ -16,6 +13,7 @@ Abstract:
 --*/
 use crate::wait;
 use crate::CaliptraResult;
+use crate::Mailbox;
 use crate::{Array4x12, Array4x16};
 
 use caliptra_error::CaliptraError;
@@ -231,7 +229,9 @@ impl Sha2_512_384AccOp<'_> {
     ) -> CaliptraResult<()> {
         let sha_acc = self.sha512_acc.regs_mut();
 
-        if start_address >= MAX_MAILBOX_LEN || (start_address + dlen) > MAX_MAILBOX_LEN {
+        let mbox_len = Mailbox::get_mbox_size();
+
+        if start_address >= mbox_len || (start_address + dlen) > mbox_len {
             return Err(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS);
         }
 

@@ -488,6 +488,18 @@ impl SocIfc {
         ]
     }
 
+    pub fn get_hw_revision(&self) -> (u32, u32) {
+        let hw_rev_id = self
+            .soc_ifc
+            .regs()
+            .cptra_hw_rev_id()
+            .read()
+            .cptra_generation();
+        let major = hw_rev_id & 0xF; // [3:0] Major version
+        let minor = (hw_rev_id >> 4) & 0xF; // [7:4] Minor version
+        (major, minor)
+    }
+
     pub fn set_fw_extended_error(&mut self, err: u32) {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
