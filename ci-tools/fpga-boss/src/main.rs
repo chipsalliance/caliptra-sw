@@ -485,7 +485,7 @@ fn main_impl() -> anyhow::Result<()> {
 
                 // Now the job is started, so we want to enforce a timeout with enough time for the
                 // job to complete.
-                let job_timeout = Duration::from_secs(7_200);
+                let job_timeout = Duration::from_secs(14_400);
                 match log_uart_until_with_timeout(
                     &mut uart_lines,
                     "3297327285280f1ffb8b57222e0a5033 --- ACTION IS COMPLETE",
