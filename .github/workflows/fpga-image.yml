@@ -7,7 +7,7 @@ on:
       - "ci-tools/fpga-image/**"
 
   push:
-    branches: ["main-2.x"]
+    branches: ["main-2.x", "clundin/increase-fpga-overylayfs-size"]
     paths:
       - "ci-tools/fpga-image/**"
 
