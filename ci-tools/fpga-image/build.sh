@@ -37,7 +37,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::6464 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::64 >> /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 1 >> /etc/sysctl.conf'
-  chroot out/rootfs bash -c 'echo kernel.softlockup_all_cpu_backtrace = 1 >> /etc/sysctl.conf'
+  chrott out/rootfs bash -c 'echo kernel.softlockup_all_cpu_backtrace = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo kernel.panic_print = 127 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
@@ -83,7 +83,7 @@ sudo mksquashfs out/rootfs out/rootfs.sqsh -comp zstd
 bootfs_blocks="$((80000 * 4))"
 rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
 rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
-persistfs_blocks=44040192 # Creates 22GB persistfs partition.
+persistfs_blocks=35156250 # Creates 22GB persistfs partition.
 
 df -h
 du -hs .
