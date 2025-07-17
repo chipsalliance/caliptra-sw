@@ -39,7 +39,6 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
         InitParams {
             rom: &rom,
             subsystem_mode: true,
-            hw_rev: (2, 1),
             ..default_init_params()
         },
         BootParams::default(),

@@ -47,7 +47,7 @@ pub const LAST_REGION_END: u32 = NSTACK_ORG + NSTACK_SIZE;
 
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
 pub const ROM_SIZE: u32 = 96 * 1024;
-pub const MBOX_SIZE: u32 = 256 * 1024;
+pub const MBOX_SIZE: u32 = 256 * 1024; // Do not use in code as it depends on revision
 pub const ICCM_SIZE: u32 = 256 * 1024;
 pub const DCCM_SIZE: u32 = 256 * 1024;
 pub const ROM_DATA_SIZE: u32 = 996;
