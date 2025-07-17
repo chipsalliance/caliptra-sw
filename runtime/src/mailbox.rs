@@ -15,7 +15,7 @@ Abstract:
 use core::mem::size_of;
 use core::slice;
 
-use caliptra_drivers::{memory_layout, CaliptraResult};
+use caliptra_drivers::{memory_layout, CaliptraResult, SocIfc};
 use caliptra_error::CaliptraError;
 use caliptra_registers::mbox::{
     enums::{MboxFsmE, MboxStatusE},
@@ -27,12 +27,24 @@ use crate::CommandId;
 
 pub struct Mailbox {
     mbox: MboxCsr,
+    mbox_len: u32,
 }
 
 impl Mailbox {
     /// Create a new Mailbox
     pub fn new(mbox: MboxCsr) -> Self {
-        Self { mbox }
+        let mbox_len = Self::get_mbox_size();
+        Self { mbox, mbox_len }
+    }
+
+    /// Get the mailbox size based on hardware revision
+    pub fn get_mbox_size() -> u32 {
+        let soc_ifc = unsafe { SocIfc::new(caliptra_registers::soc_ifc::SocIfcReg::new()) };
+        if soc_ifc.has_ss_staging_area() {
+            16 * 1024
+        } else {
+            256 * 1024
+        }
     }
 
     /// Check if there is a new command to be executed
@@ -61,7 +73,7 @@ impl Mailbox {
 
     /// Set the length of the current mailbox data in bytes
     pub fn set_dlen(&mut self, len: u32) -> CaliptraResult<()> {
-        if len > memory_layout::MBOX_SIZE {
+        if len > self.mbox_len {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
@@ -167,10 +179,7 @@ impl Mailbox {
     /// Retrieve a slice with the contents of the mailbox
     pub fn raw_mailbox_contents(&self) -> &[u8] {
         unsafe {
-            slice::from_raw_parts(
-                memory_layout::MBOX_ORG as *const u8,
-                memory_layout::MBOX_SIZE as usize,
-            )
+            slice::from_raw_parts(memory_layout::MBOX_ORG as *const u8, self.mbox_len as usize)
         }
     }
 }
