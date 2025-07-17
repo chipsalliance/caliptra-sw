@@ -74,7 +74,7 @@ impl RecoveryFlow {
             cprintln!("[rt] Uploading MCU firmware");
             let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX)?;
             cprintln!("[rt] Calculating MCU digest");
-            dma_recovery.sha384_mcu_sram(&mut drivers.sha2_512_384_acc, mcu_size_bytes)?
+            dma_recovery.sha384_mcu_sram(&mut drivers.sha2_512_384_acc, 0, mcu_size_bytes)?
         };
 
         let digest: [u8; 48] = digest.into();

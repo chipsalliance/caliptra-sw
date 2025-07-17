@@ -364,6 +364,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             InitParams {
                 rom: &rom,
                 security_state: SecurityState::from(fuses.life_cycle as u32),
+                hw_rev: (2, 1),
                 ..Default::default()
             },
             BootParams {
