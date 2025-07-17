@@ -85,6 +85,9 @@ rootfs_bytes="$(stat --printf="%s" out/rootfs.sqsh)"
 rootfs_blocks="$((($rootfs_bytes + 512) / 512))"
 persistfs_blocks=44040192 # Creates 22GB persistfs partition.
 
+df -h
+du -hs .
+
 # Allocate the disk image
 fallocate -l $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks + $persistfs_blocks) * 512)) out/image.img
 
