@@ -13,8 +13,6 @@
           inherit system;
         };
 
-        rustToolchain = pkgs.rust-bin.stable.latest.default;
-
         caliptra-fpga-boss = with pkgs; rustPlatform.buildRustPackage {
           pname = "caliptra-fpga-boss";
           version = "0.1.0";
@@ -25,6 +23,7 @@
           ];
           buildInputs = [
             libftdi1
+            libusb1
           ];
         };
 
@@ -34,14 +33,6 @@
 
         apps.default = flake-utils.lib.mkApp {
           drv = caliptra-fpga-boss;
-        };
-
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            rustToolchain
-            libftdi1
-            pkg-config
-          ];
         };
       });
 }
