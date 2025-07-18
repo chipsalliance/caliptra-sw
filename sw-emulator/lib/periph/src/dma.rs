@@ -12,7 +12,7 @@ File contains DMA peripheral implementation.
 
 --*/
 
-use crate::{MailboxRam, Sha512Accelerator, SocRegistersInternal};
+use crate::{mci::Mci, MailboxRam, Sha512Accelerator, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, Event, ReadOnlyRegister, ReadWriteRegister, Timer,
     WriteOnlyRegister,
@@ -28,7 +28,6 @@ use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
 use axi_root_bus::{AxiAddr, AxiRootBus};
-pub mod mci;
 pub mod otp_fc;
 pub mod recovery;
 
@@ -208,7 +207,7 @@ impl Dma {
         mailbox: MailboxRam,
         soc_reg: SocRegistersInternal,
         sha512_acc: Sha512Accelerator,
-        prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
+        mci: Mci,
         test_sram: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
     ) -> Self {
@@ -233,7 +232,7 @@ impl Dma {
             axi: AxiRootBus::new(
                 soc_reg,
                 sha512_acc,
-                prod_dbg_unlock_keypairs,
+                mci,
                 test_sram,
                 use_mcu_recovery_interface,
             ),
@@ -663,7 +662,7 @@ mod tests {
             mbox_ram.clone(),
             soc_reg,
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
-            vec![],
+            Mci::new(vec![]),
             None,
             false,
         );

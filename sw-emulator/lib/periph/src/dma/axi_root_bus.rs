@@ -15,7 +15,7 @@ Abstract:
 use crate::dma::recovery::RecoveryRegisterInterface;
 use crate::helpers::words_from_bytes_be_vec;
 use crate::SocRegistersInternal;
-use crate::{dma::otp_fc::FuseController, Sha512Accelerator};
+use crate::{dma::otp_fc::FuseController, mci::Mci, Sha512Accelerator};
 use caliptra_emu_bus::{
     Bus,
     BusError::{self, LoadAccessFault, StoreAccessFault},
@@ -26,8 +26,6 @@ use const_random::const_random;
 use std::{rc::Rc, sync::mpsc};
 
 pub type AxiAddr = u64;
-
-use super::mci::Mci;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 4 * 1024;
@@ -78,7 +76,7 @@ impl AxiRootBus {
     pub fn new(
         soc_reg: SocRegistersInternal,
         sha512_acc: Sha512Accelerator,
-        prod_dbg_unlock_keypairs: Vec<(&[u8; 96], &[u8; 2592])>,
+        mci: Mci,
         test_sram_content: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
     ) -> Self {
@@ -96,7 +94,7 @@ impl AxiRootBus {
             reg: 0xaabbccdd,
             recovery: RecoveryRegisterInterface::new(),
             otp_fc: FuseController::new(soc_reg),
-            mci: Mci::new(prod_dbg_unlock_keypairs),
+            mci,
             sha512_acc,
             event_sender: None,
             dma_result: None,

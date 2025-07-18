@@ -16,6 +16,7 @@ use crate::{
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
+    mci::Mci,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
@@ -333,6 +334,8 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x6000_0000, len = 0x507d)]
     pub pic_regs: PicMmioRegisters,
+
+    pub mci: Mci,
 }
 
 impl CaliptraRootBus {
@@ -359,12 +362,13 @@ impl CaliptraRootBus {
             key_vault.clear_keys_with_debug_values(false);
         }
         let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
+        let mci = Mci::new(prod_dbg_unlock_keypairs);
         let dma = Dma::new(
             clock,
             mailbox_ram.clone(),
             soc_reg.clone(),
             sha512_acc.clone(),
-            prod_dbg_unlock_keypairs,
+            mci.clone(),
             test_sram,
             use_mcu_recovery_interface,
         );
@@ -396,6 +400,7 @@ impl CaliptraRootBus {
             dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock.clone()),
+            mci,
         }
     }
 
@@ -404,6 +409,10 @@ impl CaliptraRootBus {
             mailbox: self.mailbox.as_external(soc_user),
             soc_ifc: self.soc_reg.external_regs(),
         }
+    }
+
+    pub fn mci_external_regs(&self) -> Mci {
+        self.mci.clone()
     }
 
     fn incoming_event(&mut self, event: Rc<Event>) {
