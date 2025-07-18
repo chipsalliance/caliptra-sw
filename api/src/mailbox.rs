@@ -463,9 +463,10 @@ pub enum RomMailboxResp {
     Capabilities(CapabilitiesResp),
     StashMeasurement(StashMeasurementResp),
     GetIdevCsr(GetIdevCsrResp),
-    DeriveStableKey(CmDeriveStableKeyResp),
+    CmDeriveStableKey(CmDeriveStableKeyResp),
     CmHmac(CmHmacResp),
     InstallOwnerPkHash(InstallOwnerPkHashResp),
+    CmRandomGenerate(CmRandomGenerateResp),
 }
 
 pub const MAX_ROM_RESP_SIZE: usize = size_of::<RomMailboxResp>();

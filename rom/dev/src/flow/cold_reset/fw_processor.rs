@@ -22,7 +22,7 @@ use crate::run_fips_tests;
 use caliptra_api::mailbox::{
     CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
     CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
-    InstallOwnerPkHashResp, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
+    InstallOwnerPkHashResp, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -1340,25 +1340,22 @@ impl FirmwareProcessor {
         let rand_resp = CmRandomGenerateResp::mut_from_bytes(resp)
             .map_err(|_| FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE))?;
 
-        if size > rand_resp.data.len() {
-            return Err(FwProcessorErr::NonFatal(None));
-        }
-
-        for i in (0..size).step_by(48) {
-            let rand_bytes: [u8; 48] = env.trng.generate().map_err(FwProcessorErr::Fatal)?.into();
-            let len = rand_bytes.len().min(rand_resp.data.len() - i);
-            // check to prevent panic even though this is impossible
-            if i > rand_resp.data.len() {
-                break;
-            }
-            rand_resp.data[i..i + len].copy_from_slice(&rand_bytes[..len]);
-        }
-
+        let resp_data = rand_resp
+            .data
+            .get_mut(..size)
+            .ok_or(FwProcessorErr::NonFatal(None))?;
         rand_resp.hdr.data_len = size as u32;
 
-        let resp_bytes = rand_resp
-            .as_bytes_partial()
-            .map_err(FwProcessorErr::Fatal)?;
-        Ok(resp_bytes.len())
+        for chunk in resp_data.chunks_mut(48) {
+            let rand = env.trng.generate().map_err(FwProcessorErr::Fatal)?;
+            let rand_bytes = rand.as_bytes();
+            chunk.copy_from_slice(
+                rand_bytes
+                    .get(..chunk.len())
+                    .ok_or(FwProcessorErr::NonFatal(None))?,
+            );
+        }
+
+        Ok(size_of::<MailboxRespHeaderVarSize>() + size)
     }
 }
