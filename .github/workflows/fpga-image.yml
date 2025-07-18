@@ -7,7 +7,7 @@ on:
       - "ci-tools/fpga-image/**"
 
   push:
-    branches: ["main"]
+    branches: ["main-2.x"]
     paths:
       - "ci-tools/fpga-image/**"
 
@@ -19,11 +19,75 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_sd_image:
-    runs-on: ubuntu-22.04
+  build_kernel:
+    runs-on: [e2-standard-32, vck190-tools]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+
+      - name: Install pre-requisites
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt install gcc libncurses-dev zlib1g:i386 zlib1g-dev net-tools xterm autoconf libtool texinfo gcc-multilib build-essential device-tree-compiler xvfb apt-transport-https ca-certificates gnupg curl -y
+
+      - name: Mount FPGA tools
+        run: |
+          echo "Starting work"
+          sudo mkdir /vck190-tools
+          sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
+
+      - name: Build Kernel
+        run: |
+          source /vck190-tools/petalinux-tool/settings.sh
+
+          sudo scp /vck190-tools/caliptra-bitstreams/20250701/system.xsa /tmp/system.xsa
+          sudo chown $USER:$GROUP /tmp/system.xsa
+
+          pushd hw/fpga
+
+          ./create_boot_bin.sh /tmp/system.xsa
+
+          # TODO(clundin): Not all of these artifacts are required.
+          tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
+          mv vck190-kernel.tar.gz /tmp/vck190-kernel.tar.gz
+
+          IO_MODULE_PATH=$(find . -name 'io-module.ko')
+          mv $IO_MODULE_PATH /tmp/io-module.ko
+          popd
+
+      - name: 'Upload kernel artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vck190-kernel
+          path: /tmp/vck190-kernel.tar.gz
+          retention-days: 1
+
+      - name: 'Upload kernel module artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vck190-kernel-module
+          path: /tmp/io-module.ko
+          retention-days: 1
+
+  build_sd_image:
+    runs-on: ubuntu-22.04
+    needs: [build_kernel]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 'Download kernel artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: vck190-kernel
+          path: /tmp/vck190-kernel/
+
+      - name: 'Download kernel module artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: vck190-kernel-module
+          path: /tmp/vck190-kmod/
 
       - name: Install pre-requisites
         run: |

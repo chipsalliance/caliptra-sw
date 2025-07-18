@@ -290,7 +290,7 @@ pub fn exec_cmd_ecdsa_verify<T: HwModel>(hw: &mut T) {
 
     mbx_send_and_check_resp_hdr::<_, MailboxRespHeader>(
         hw,
-        u32::from(CommandId::ECDSA384_VERIFY),
+        u32::from(CommandId::ECDSA384_SIGNATURE_VERIFY),
         payload.as_bytes().unwrap(),
     )
     .unwrap();

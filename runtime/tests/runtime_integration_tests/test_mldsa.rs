@@ -50,7 +50,7 @@ fn test_mldsa_verify_cmd() {
 
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::MLDSA87_VERIFY),
+            u32::from(CommandId::MLDSA87_SIGNATURE_VERIFY),
             cmd.as_bytes().unwrap(),
         )
         .unwrap()
@@ -85,7 +85,7 @@ fn test_mldsa_verify_cmd() {
 
     let resp_fail = model
         .mailbox_execute(
-            u32::from(CommandId::MLDSA87_VERIFY),
+            u32::from(CommandId::MLDSA87_SIGNATURE_VERIFY),
             cmd_fail.as_bytes().unwrap(),
         )
         .unwrap_err();
@@ -111,7 +111,7 @@ fn test_mldsa_verify_bad_chksum() {
 
     let resp = model
         .mailbox_execute(
-            u32::from(CommandId::MLDSA87_VERIFY),
+            u32::from(CommandId::MLDSA87_SIGNATURE_VERIFY),
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();

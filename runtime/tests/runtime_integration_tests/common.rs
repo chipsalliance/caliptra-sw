@@ -71,12 +71,27 @@ pub struct RuntimeTestArgs<'a> {
     pub mcu_fw_image: Option<&'a [u8]>,
     /// Initial content of the test SRAM
     pub test_sram: Option<&'a [u8]>,
+    pub stop_at_rom: bool,
 }
 
 pub fn run_rt_test_pqc(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
+    let mut model = start_rt_test_pqc_model(args, pqc_key_type).0;
+    model.step_until(|m| {
+        m.soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing()
+    });
+    model
+}
+
+pub fn start_rt_test_pqc_model(
+    args: RuntimeTestArgs,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> (DefaultHwModel, Vec<u8>) {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA
     } else {
@@ -130,10 +145,12 @@ pub fn run_rt_test_pqc(
         0
     };
 
-    let mut model = caliptra_hw_model::new(
+    let image = image.to_bytes().unwrap();
+
+    let model = caliptra_hw_model::new(
         init_params,
         BootParams {
-            fw_image: Some(&image.to_bytes().unwrap()),
+            fw_image: if args.stop_at_rom { None } else { Some(&image) },
             fuses: Fuses {
                 fuse_pqc_key_type: pqc_key_type as u32,
                 vendor_pk_hash,
@@ -148,14 +165,7 @@ pub fn run_rt_test_pqc(
     )
     .unwrap();
 
-    model.step_until(|m| {
-        m.soc_ifc()
-            .cptra_flow_status()
-            .read()
-            .ready_for_mb_processing()
-    });
-
-    model
+    (model, image)
 }
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,

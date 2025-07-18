@@ -1,0 +1,5 @@
+PETALINUX_VER=2024.2
+VALIDATE_HW_CHKSUM=1
+HARDWARE_PATH=/home/clundin/caliptra_build/caliptra_fpga.xsa
+HDF_EXT=xsa
+YOCTO_SDK=acd7a0f018c9dcc73b41b34a82c0553ac0e000c958631fb36f26d497824ff35d

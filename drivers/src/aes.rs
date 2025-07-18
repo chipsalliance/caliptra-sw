@@ -212,7 +212,13 @@ impl Aes {
             AesOperation::Encrypt, // doesn't matter
         )?;
 
-        let ghash_state = self.save()?;
+        let ghash_state = if aad.is_empty() {
+            // Edge case where we have not actually done any AES operations,
+            // so the GHASH state should not be saved.
+            [0; 16]
+        } else {
+            self.save()?
+        };
         self.zeroize_internal();
         Ok(AesGcmContext {
             key: *key,
@@ -288,6 +294,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -327,7 +334,13 @@ impl Aes {
         let mut buffer = [0u8; AES_BLOCK_SIZE_BYTES];
         buffer[..input.len()].copy_from_slice(input);
 
-        let ghash_state = self.save()?;
+        let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
+            // Edge case where we have not actually done any AES operations,
+            // so the GHASH state should not be saved.
+            [0; 16]
+        } else {
+            self.save()?
+        };
         self.zeroize_internal();
         Ok((
             written,
@@ -391,6 +404,7 @@ impl Aes {
         self.restore(
             AesKey::Array(&context.key),
             &context.iv,
+            context.aad_len,
             context.buffer_len,
             &context.ghash_state,
             op,
@@ -474,6 +488,7 @@ impl Aes {
         &mut self,
         key: AesKey,
         iv: &[u8; AES_IV_SIZE_BYTES],
+        aad_len: u32,
         len: u32,
         ghash_state: &[u8; AES_BLOCK_SIZE_BYTES],
         op: AesOperation,
@@ -534,9 +549,15 @@ impl Aes {
 
             wait_for_idle(&aes);
 
+            // if we haven't actually written any AAD or input, then
+            // we can skip the restore operation.
+            // This avoids some edge cases in the hardware.
+            if aad_len == 0 && len == 0 {
+                return Ok(());
+            }
+
             // Restore the GHASH state to data_in registers, which will load the state into the
             // GHASH unit.
-
             for _ in 0..2 {
                 aes.ctrl_gcm_shadowed()
                     .write(|w| w.phase(GcmPhase::Restore as u32));
@@ -929,6 +950,54 @@ impl Aes {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn aes_256_ecb(
+        &mut self,
+        key: AesKey,
+        op: AesOperation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> CaliptraResult<()> {
+        if input.is_empty() {
+            return Ok(());
+        }
+        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        if output.len() < input.len() {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+
+        if key.sideload() {
+            self.load_key(key)?;
+        }
+
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(op as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        if !key.sideload() {
+            self.load_key(key)?;
+        }
+
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+            self.read_data_block(output, block_num)?;
+        }
+
+        Ok(())
+    }
+
     pub fn aes_256_cbc(
         &mut self,
         key: &[u8; 32],
@@ -1239,21 +1308,22 @@ impl Aes {
         Ok(c)
     }
 
-    /// Zeroize the hardware registers.
-    fn zeroize_internal(&mut self) {
-        Self::zeroize_regs(&mut self.aes);
+    /// Zeroize the non-GHASH hardware registers.
+    fn zeroize_iv_data(&mut self) {
+        self.with_aes(|aes, _| {
+            // Disable autostarting the engine.
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| w.manual_operation(true));
+            }
+            // Clear IV, keys, input, output registers.
+            aes.trigger()
+                .write(|w| w.key_iv_data_in_clear(true).data_out_clear(true));
+        });
     }
 
-    /// Helper function to zeroize the hardware registers.
-    fn zeroize_regs(aes: &mut AesReg) {
-        let aes = aes.regs_mut();
-        // Disable autostarting the engine.
-        for _ in 0..2 {
-            aes.ctrl_shadowed().write(|w| w.manual_operation(true));
-        }
-        // Clear IV, keys, input, output registers.
-        aes.trigger()
-            .write(|w| w.key_iv_data_in_clear(true).data_out_clear(true));
+    /// Zeroize the hardware registers.
+    fn zeroize_internal(&mut self) {
+        self.zeroize_iv_data();
     }
 
     /// Zeroize the hardware registers.
@@ -1267,7 +1337,8 @@ impl Aes {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut aes = AesReg::new();
-        Self::zeroize_regs(&mut aes);
+        let aes = AesReg::new();
+        let aes_clp = AesClpReg::new();
+        Aes::new(aes, aes_clp).zeroize_internal();
     }
 }

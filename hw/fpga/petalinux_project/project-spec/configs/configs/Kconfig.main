@@ -1,0 +1,54 @@
+# Copyright (C) 2021-2022, Xilinx, Inc.  All rights reserved.
+# Copyright (C) 2022-2023, Advanced Micro Devices, Inc.  All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+
+choice
+	prompt "Subsystem Architecture (NO EDIT!)"
+	default SUBSYSTEM_ARCH_ARM
+	help
+	  This option is to control the processor targeted by PetaLinux.
+	  WARNING: Do not edit this option.
+
+config SUBSYSTEM_ARCH_AARCH64
+	bool "aarch64"
+	help
+	  Choose this option to specify AARCH64 as the SUBSYSTEM architecture
+
+config SUBSYSTEM_ARCH_ARM
+	bool "arm"
+	help
+	  Choose this option to specify ARM as the SUBSYSTEM architecture
+
+config SUBSYSTEM_ARCH_MICROBLAZE
+	bool "microblaze"
+	help
+	  Choose this option to specify MicroBlaze as the SUBSYSTEM architecture
+endchoice
+
+config SUBSYSTEM_ENDIAN_LITTLE
+	bool
+	default y
+
+if SUBSYSTEM_DISTRO_PETALINUX
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.linuxcompselection
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.autoconfigsettings
+
+endif
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.syshw
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.dtgsettings
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.bootcompconfigurations
+
+if SUBSYSTEM_DISTRO_PETALINUX
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.imagepkgconfigurations
+
+endif
+
+source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctobuildsettings

@@ -20,8 +20,9 @@ use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
-    CmHmacReq, CmHmacResp, CmKeyUsage, DeriveStableKeyReq, DeriveStableKeyResp,
-    InstallOwnerPkHashReq, InstallOwnerPkHashResp, StableKeyType, STABLE_KEY_INFO_SIZE_BYTES,
+    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
+    InstallOwnerPkHashResp, ResponseVarSize, CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -364,10 +365,10 @@ impl FirmwareProcessor {
                     CommandId::SELF_TEST_GET_RESULTS => {
                         Self::handle_self_test_get_results_cmd(&mut self_test_in_progress, resp)
                     }
-                    CommandId::ECDSA384_VERIFY => {
+                    CommandId::ECDSA384_SIGNATURE_VERIFY => {
                         Self::handle_ecdsa_verify(cmd_bytes, env.ecc384, resp)
                     }
-                    CommandId::MLDSA87_VERIFY => {
+                    CommandId::MLDSA87_SIGNATURE_VERIFY => {
                         Self::handle_mldsa_verify(cmd_bytes, env.mldsa87, resp)
                     }
                     CommandId::SHUTDOWN => {
@@ -396,8 +397,11 @@ impl FirmwareProcessor {
                     CommandId::GET_IDEV_MLDSA87_CSR => {
                         Self::handle_get_idev_mldsa87_csr_cmd(persistent_data, resp)
                     }
-                    CommandId::DERIVE_STABLE_KEY => {
+                    CommandId::CM_DERIVE_STABLE_KEY => {
                         Self::handle_derive_stable_key_cmd(env, persistent_data, cmd_bytes, resp)
+                    }
+                    CommandId::CM_RANDOM_GENERATE => {
+                        Self::handle_cm_random_generate_cmd(env, cmd_bytes, resp)
                     }
                     CommandId::CM_HMAC => {
                         Self::handle_cm_hmac_cmd(env, persistent_data, cmd_bytes, resp)
@@ -921,20 +925,20 @@ impl FirmwareProcessor {
         hmac: &mut Hmac,
         trng: &mut Trng,
         persistent_data: &mut PersistentData,
-        request: &DeriveStableKeyReq,
+        request: &CmDeriveStableKeyReq,
     ) -> CaliptraResult<EncryptedCmk> {
-        let key_type: StableKeyType = request.key_type.into();
+        let key_type: CmStableKeyType = request.key_type.into();
 
         let aes_key = match key_type {
-            StableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
-            StableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
-            StableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
+            CmStableKeyType::IDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_IDEV)),
+            CmStableKeyType::LDevId => AesKey::KV(KeyReadArgs::new(KEY_ID_STABLE_LDEV)),
+            CmStableKeyType::Reserved => Err(CaliptraError::DOT_INVALID_KEY_TYPE)?,
         };
         let k0 = cmac_kdf(aes, aes_key, &request.info, None, 4)?;
 
         // Prepend "DOT Final" to info and use as label for HMAC KDF
         const PREFIX: &[u8] = b"DOT Final";
-        let mut data = [0u8; STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
+        let mut data = [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES + PREFIX.len()];
         data[..PREFIX.len()].copy_from_slice(PREFIX);
         data[PREFIX.len()..].copy_from_slice(&request.info);
 
@@ -1179,8 +1183,8 @@ impl FirmwareProcessor {
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> Result<usize, FwProcessorErr> {
-        let request: &DeriveStableKeyReq =
-            DeriveStableKeyReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
+        let request: &CmDeriveStableKeyReq = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
+            .map_err(|e| match e {
                 zerocopy::ConvertError::Size(_) => {
                     FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
                 }
@@ -1191,7 +1195,7 @@ impl FirmwareProcessor {
             Self::derive_stable_key(env.aes, env.hmac, env.trng, persistent_data, request)
                 .map_err(FwProcessorErr::Fatal)?;
 
-        let key_resp = DeriveStableKeyResp {
+        let key_resp = CmDeriveStableKeyResp {
             cmk: transmute!(encrypted_cmk),
             ..Default::default()
         };
@@ -1306,5 +1310,55 @@ impl FirmwareProcessor {
             ))?
             .copy_from_slice(header_resp.as_bytes());
         Ok(len)
+    }
+
+    fn handle_cm_random_generate_cmd(
+        env: &mut KatsEnv,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> Result<usize, FwProcessorErr> {
+        let request: &CmRandomGenerateReq = CmRandomGenerateReq::ref_from_bytes(cmd_bytes)
+            .map_err(|e| match e {
+                zerocopy::ConvertError::Size(_) => {
+                    FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
+                }
+                _ => FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE),
+            })?;
+
+        let size = request.size as usize;
+        let full_struct_size = core::mem::size_of::<CmRandomGenerateResp>();
+
+        // Zero the response buffer first
+        let resp = resp
+            .get_mut(..full_struct_size)
+            .ok_or(FwProcessorErr::Fatal(
+                CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
+            ))?;
+        resp.fill(0);
+
+        // Get a mutable reference to the response struct in the buffer
+        let rand_resp = CmRandomGenerateResp::mut_from_bytes(resp)
+            .map_err(|_| FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE))?;
+
+        if size > rand_resp.data.len() {
+            return Err(FwProcessorErr::NonFatal(None));
+        }
+
+        for i in (0..size).step_by(48) {
+            let rand_bytes: [u8; 48] = env.trng.generate().map_err(FwProcessorErr::Fatal)?.into();
+            let len = rand_bytes.len().min(rand_resp.data.len() - i);
+            // check to prevent panic even though this is impossible
+            if i > rand_resp.data.len() {
+                break;
+            }
+            rand_resp.data[i..i + len].copy_from_slice(&rand_bytes[..len]);
+        }
+
+        rand_resp.hdr.data_len = size as u32;
+
+        let resp_bytes = rand_resp
+            .as_bytes_partial()
+            .map_err(FwProcessorErr::Fatal)?;
+        Ok(resp_bytes.len())
     }
 }

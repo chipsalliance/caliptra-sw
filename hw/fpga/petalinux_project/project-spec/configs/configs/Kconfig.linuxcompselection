@@ -1,0 +1,420 @@
+# Copyright (C) 2023, Advanced Micro Devices, Inc.  All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+
+menu "Linux Components Selection"
+config SUBSYSTEM_COMPONENT_DEVICE__TREE_NAME_DEVICE__TREE__GENERATOR
+	bool
+	default y
+
+config SUBSYSTEM_COMPONENT_IMG_SEL
+        bool "Image Selector"
+        default n
+	depends on SYSTEM_ZYNQMP
+        help
+          If you select this option, PetaLinux will auto generate the pre
+          bootloader through xsct.The ELF file for the same is in <PROJECT>/images/linux.
+          If you DONOT select this option, petalinux will not generate, config or
+          build your bootloader.
+
+config SUBSYSTEM_COMPONENT_BOOTLOADER_AUTO_FSBL
+	bool
+	default y
+	depends on !SYSTEM_VERSAL
+
+config SUBSYSTEM_COMPONENT_BOOTLOADER_NAME_FS__BOOT
+	bool
+	default y
+	depends on SUBSYSTEM_ARCH_MICROBLAZE
+
+config SUBSYSTEM_COMPONENT_BOOTLOADER_NAME_ZYNQ_FSBL
+	bool
+	default y
+	depends on SUBSYSTEM_ARCH_ARM
+
+config SUBSYSTEM_COMPONENT_BOOTLOADER_NAME_ZYNQMP_FSBL
+	bool
+	default y
+	depends on SYSTEM_ZYNQMP
+
+config SUBSYSTEM_COMPONENT_PMU_FIRMWARE
+	bool
+	default y
+	depends on SYSTEM_ZYNQMP
+
+config SUBSYSTEM_COMPONENT_PLM
+	bool
+        default y
+        depends on SYSTEM_VERSAL
+
+config SUBSYSTEM_COMPONENT_PSM_FIRMWARE
+	bool
+        default y
+        depends on SYSTEM_VERSAL
+
+choice
+prompt "u-boot"
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_U__BOOT__XLNX
+        bool "u-boot-xlnx"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+        bool "remote"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_EXT__LOCAL__SRC
+        bool "ext-local-src"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+endchoice
+
+menu "Remote u-boot settings"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE_DOWNLOAD_PATH
+	string "Remote u-boot git URL"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+        help
+         It will git clone the specified remote git url repo
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE_REFERENCE
+        string "Remote u-boot git TAG/Commit ID"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+        help
+         It will git clone the remote with the specified commitid
+         into the project's components dir
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE_BRANCH
+        string "Remote u-boot git BRANCH"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+        help
+         Specify the BRANCH of the remote repo
+         This is optional, anyway if you dont specify it will take from the component bb file
+
+config SUBSYSTEM_COMPONENT_U__BOOT_LIC_FILES_CHKSUM_REMOTE
+        string "Remote u-boot license checksum"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_REMOTE
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+
+endmenu
+
+menu "External u-boot local source settings"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_EXT__LOCAL__SRC
+
+config SUBSYSTEM_COMPONENT_U__BOOT_NAME_EXT_LOCAL_SRC_PATH
+        string "External u-boot local source path"
+        help
+         It will point the u-boot source path to this location
+
+config SUBSYSTEM_COMPONENT_U__BOOT_LIC_FILES_CHKSUM_LOCAL__SRC
+        string "External u-boot license checksum"
+        depends on SUBSYSTEM_COMPONENT_U__BOOT_NAME_EXT__LOCAL__SRC
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+
+endmenu
+
+if SUBSYSTEM_ARCH_AARCH64
+choice
+prompt "trusted-firmware-arm"
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_TRUSTED__FIRMWARE__ARM
+        bool "trusted-firmware-arm"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+        bool "remote"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_EXT__LOCAL__SRC
+        bool "ext-local-src"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+endchoice
+
+menu "Remote trusted-firmware-arm settings"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE_DOWNLOAD_PATH
+        string "Remote trusted-firmware-arm git URL"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+        help
+         It will git clone the specified remote git url repo
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE_REFERENCE
+        string "Remote trusted-firmware-arm git TAG/Commit ID"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+        help
+         It will git clone the remote with the specified commitid
+         into the project's components dir
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE_BRANCH
+        string "Remote trusted-firmware-arm git BRANCH"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+        help
+         Specify the BRANCH of the remote repo
+         This is optional, anyway if you dont specify it will take from the component bb file
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_LIC_FILES_CHKSUM_REMOTE
+        string "Remote trusted-firmware-arm license checksum"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_REMOTE
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+endmenu
+
+menu "External trusted-firmware-arm local source settings"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_EXT__LOCAL__SRC
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_EXT_LOCAL_SRC_PATH
+        string "External trusted-firmware-arm local source path"
+        help
+         It will point the trusted-firmware-arm source path to this location
+
+config SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_LIC_FILES_CHKSUM_LOCAL__SRC
+        string "External trusted-firmware-arm license checksum"
+        depends on SUBSYSTEM_COMPONENT_TRUSTED__FIRMWARE__ARM_NAME_EXT__LOCAL__SRC
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+
+endmenu
+endif
+
+choice
+prompt "linux-kernel"
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_LINUX__XLNX
+        bool "linux-xlnx"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+        bool "remote"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_EXT__LOCAL__SRC
+        bool "ext-local-src"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+endchoice
+
+menu "Remote linux-kernel settings"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE_DOWNLOAD_PATH
+        string "Remote linux-kernel git URL"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+        help
+         It will git clone the specified remote git url repo
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE_REFERENCE
+        string "Remote linux-kernel git TAG/Commit ID"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+        help
+         It will git clone the remote with the specified commitid
+         into the project's components dir
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE_BRANCH
+        string "Remote linux-kernel git BRANCH"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+        help
+         Specify the BRANCH of the remote repo
+         This is optional, anyway if you dont specify it will take from the component bb file
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_LIC_FILES_CHKSUM_REMOTE
+        string "Remote linux-kernel license checksum"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_REMOTE
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+endmenu
+
+menu "External linux-kernel local source settings"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_EXT__LOCAL__SRC
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_EXT_LOCAL_SRC_PATH
+        string "External linux-kernel local source path"
+        help
+         It will point the linux-kernel source path to this location
+
+config SUBSYSTEM_COMPONENT_LINUX__KERNEL_LIC_FILES_CHKSUM_LOCAL__SRC
+        string "External linux-kernel license checksum"
+        depends on SUBSYSTEM_COMPONENT_LINUX__KERNEL_NAME_EXT__LOCAL__SRC
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+
+endmenu
+
+if SYSTEM_VERSAL
+if SUBSYSTEM_COMPONENT_PLM
+choice
+prompt "plm"
+config SUBSYSTEM_COMPONENT_PLM_NAME_PLM
+        bool "plm"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+        bool "remote"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_EXT__LOCAL__SRC
+        bool "ext-local-src"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+endchoice
+menu "Remote plm settings"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE_DOWNLOAD_PATH
+        string "Remote plm git URL"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+        help
+         It will git clone the specified remote git url repo
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE_REFERENCE
+        string "Remote plm git TAG/Commit ID"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+        help
+         It will git clone the remote with the specified commitid
+         into the project's components dir
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE_BRANCH
+        string "Remote plm git BRANCH"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+        help
+         Specify the BRANCH of the remote repo
+         This is optional, anyway if you dont specify it will take from the component bb file
+
+config SUBSYSTEM_COMPONENT_PLM_LIC_FILES_CHKSUM_REMOTE
+        string "Remote plm license checksum"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_REMOTE
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+endmenu
+
+menu "External plm local source settings"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_EXT__LOCAL__SRC
+
+config SUBSYSTEM_COMPONENT_PLM_NAME_EXT_LOCAL_SRC_PATH
+        string "External plm local source path"
+        help
+         It will point the plm source path to this location
+
+config SUBSYSTEM_COMPONENT_PLM_LIC_FILES_CHKSUM_LOCAL__SRC
+        string "External plm license checksum"
+        depends on SUBSYSTEM_COMPONENT_PLM_NAME_EXT__LOCAL__SRC
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+
+endmenu
+endif
+
+if SUBSYSTEM_COMPONENT_PSM_FIRMWARE
+choice
+prompt "psm-firmware"
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_PSM__FIRMWARE
+        bool "psm-firmware"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+        bool "remote"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_EXT__LOCAL__SRC
+        bool "ext-local-src"
+        help
+         You can find about this option
+         in UG1144 in "Steps to Configure Out-of-tree Build" section.
+endchoice
+
+menu "Remote psm-firmware settings"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE_DOWNLOAD_PATH
+        string "Remote psm-firmware git URL"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+        help
+         It will git clone the specified remote git url repo
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE_REFERENCE
+        string "Remote psm-firmware git TAG/Commit ID"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+        help
+         It will git clone the remote with the specified commitid
+         into the project's components dir
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE_BRANCH
+        string "Remote psm-firmware git BRANCH"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+        help
+         Specify the BRANCH of the remote repo
+         This is optional, anyway if you dont specify it will take from the component bb file
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_LIC_FILES_CHKSUM_REMOTE
+        string "Remote psm-firmware license checksum"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_REMOTE
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+endmenu
+
+menu "External psm-firmware local source settings"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_EXT__LOCAL__SRC
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_EXT_LOCAL_SRC_PATH
+        string "External psm-firmware local source path"
+        help
+         It will point the psm-firmware source path to this location
+
+config SUBSYSTEM_COMPONENT_PSM__FIRMWARE_LIC_FILES_CHKSUM_LOCAL__SRC
+        string "External psm-firmware license checksum"
+        depends on SUBSYSTEM_COMPONENT_PSM__FIRMWARE_NAME_EXT__LOCAL__SRC
+        help
+         Specify the LIC_FILES_CHKSUM of the license text in the source code for the recipe
+         This is optional, anyway if you dont specify it will take from the component bb file
+         Ex: file://license.txt;md5=xxxx
+endmenu
+endif
+endif
+endmenu

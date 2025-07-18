@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+use crate::common::{assert_error, run_rt_test, start_rt_test_pqc_model, RuntimeTestArgs};
 use aes::Aes256;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
@@ -14,19 +14,21 @@ use caliptra_api::mailbox::{
     CmAesGcmEncryptFinalResp, CmAesGcmEncryptFinalRespHeader, CmAesGcmEncryptInitReq,
     CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
     CmAesGcmEncryptUpdateRespHeader, CmAesMode, CmAesResp, CmAesRespHeader, CmDeleteReq,
-    CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
-    CmEcdsaPublicKeyResp, CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm,
-    CmHkdfExpandReq, CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
+    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp,
+    CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
+    CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq,
+    CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
     CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
     CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
     CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
-    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStatusResp, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmStableKeyType, CmStatusResp, Cmk, CommandId,
+    MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
     CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_api::SocManager;
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, TrngMode};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use cbc::cipher::BlockEncryptMut;
 use cipher::{KeyIvInit, StreamCipherCore};
@@ -662,6 +664,7 @@ fn test_aes_gcm_edge_cases() {
     // check too large of an input
     let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
         hdr: MailboxReqHeader::default(),
+        flags: 0,
         cmk,
         aad_size: u32::MAX,
         aad: [0; MAX_CMB_DATA_SIZE],
@@ -711,7 +714,6 @@ fn test_aes_gcm_edge_cases() {
 // Check a simple encryption with 4 bytes of data.
 #[test]
 fn test_aes_gcm_simple() {
-    use aes_gcm::KeyInit;
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -724,6 +726,7 @@ fn test_aes_gcm_simple() {
 
     let mut cm_aes_encrypt_init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
         hdr: MailboxReqHeader::default(),
+        flags: 0,
         cmk,
         aad_size: 0,
         aad: [0; MAX_CMB_DATA_SIZE],
@@ -774,14 +777,10 @@ fn test_aes_gcm_simple() {
     let iv = &resp.iv;
     let aad = &[];
     let plaintext = &[1, 1, 1, 1];
-    let key: &Key<aes_gcm::Aes256Gcm> = (&key).into();
-    let mut cipher = aes_gcm::Aes256Gcm::new(key);
-    let mut buffer = plaintext.to_vec();
-    cipher
-        .encrypt_in_place_detached(iv.into(), aad, &mut buffer)
-        .expect("Encryption failed");
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key, iv, aad, plaintext);
 
-    assert_eq!(ciphertext, &buffer);
+    assert_eq!(ciphertext, &rciphertext);
+    assert_eq!(final_resp.hdr.tag, rtag);
 }
 
 // Random encrypt and decrypt GCM stress test.
@@ -822,6 +821,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
             &aad,
             &plaintext,
             MAX_CMB_DATA_SIZE,
+            None,
         );
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -834,6 +834,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
             &ciphertext,
             &tag,
             MAX_CMB_DATA_SIZE,
+            None,
         );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
@@ -874,15 +875,90 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
         seeded_rng.fill_bytes(&mut aad);
 
         let (iv, tag, ciphertext) =
-            mailbox_gcm_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1);
+            mailbox_gcm_encrypt(&mut model, &cmks[key_idx], &aad, &plaintext, 1, None);
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
         assert_eq!(tag, rtag);
-        let (dtag, dplaintext) =
-            mailbox_gcm_decrypt(&mut model, &cmks[key_idx], &iv, &aad, &ciphertext, &tag, 1);
+        let (dtag, dplaintext) = mailbox_gcm_decrypt(
+            &mut model,
+            &cmks[key_idx],
+            &iv,
+            &aad,
+            &ciphertext,
+            &tag,
+            1,
+            None,
+        );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
     }
+}
+
+#[test]
+fn test_aes_gcm_spdm_mode() {
+    // output from libspdm debug unit test (libspdm_test_responder_key_exchange_case1, modified to use SHA384, P384):
+    // response_handshake_secret (0x30) - ed c0 61 97 77 0f 53 8c b2 50 85 b0 bc 98 c0 49 54 db 9c a6 4b 2c 78 28 50 f2 ca 5a d3 37 16 2f
+    //  2f 24 42 85 70 2a b0 74 9b 6e 1b 43 c3 0a db c4
+    // bin_str5 (0xd):
+    // 0000: 20 00 73 70 64 6d 31 2e 31 20 6b 65 79
+    // key (0x20) - 23 82 fc 62 b2 e8 2a d4 d6 29 6e 3f c7 38 8f 48 4e f7 fd 27 d5 c7 66 4c 6f 38 84 97 bb 9f cb 53
+    // bin_str6 (0xc):
+    // 0000: 0c 00 73 70 64 6d 31 2e 31 20 69 76
+    // iv (0xc) - 86 2b 00 c9 58 44 5f 37 e8 86 a4 a0
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let major_secret = [
+        0xed, 0xc0, 0x61, 0x97, 0x77, 0x0f, 0x53, 0x8c, 0xb2, 0x50, 0x85, 0xb0, 0xbc, 0x98, 0xc0,
+        0x49, 0x54, 0xdb, 0x9c, 0xa6, 0x4b, 0x2c, 0x78, 0x28, 0x50, 0xf2, 0xca, 0x5a, 0xd3, 0x37,
+        0x16, 0x2f, 0x2f, 0x24, 0x42, 0x85, 0x70, 0x2a, 0xb0, 0x74, 0x9b, 0x6e, 0x1b, 0x43, 0xc3,
+        0x0a, 0xdb, 0xc4,
+    ];
+
+    let major_secret_cmk = import_key(&mut model, &major_secret, CmKeyUsage::Hmac);
+    let plaintext = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+        &mut model,
+        &major_secret_cmk,
+        &[],
+        &plaintext,
+        1024,
+        Some(0x11),
+    );
+
+    let expected_iv = [
+        0x86, 0x2b, 0x00, 0xc9, 0x58, 0x44, 0x5f, 0x37, 0xe8, 0x86, 0xa4, 0xa0,
+    ];
+    assert_eq!(iv, expected_iv);
+
+    let expected_key = [
+        0x23, 0x82, 0xfc, 0x62, 0xb2, 0xe8, 0x2a, 0xd4, 0xd6, 0x29, 0x6e, 0x3f, 0xc7, 0x38, 0x8f,
+        0x48, 0x4e, 0xf7, 0xfd, 0x27, 0xd5, 0xc7, 0x66, 0x4c, 0x6f, 0x38, 0x84, 0x97, 0xbb, 0x9f,
+        0xcb, 0x53,
+    ];
+
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&expected_key, &iv, &[], &plaintext);
+
+    assert_eq!(ciphertext, rciphertext);
+    assert_eq!(tag, rtag);
+
+    let (ok, check_plaintext) = mailbox_gcm_decrypt(
+        &mut model,
+        &major_secret_cmk,
+        &[0; 12],
+        &[],
+        &ciphertext,
+        &rtag,
+        1024,
+        Some(0x11),
+    );
+    assert!(ok);
+    assert_eq!(check_plaintext, plaintext);
 }
 
 // Random encrypt and decrypt CBC stress test.
@@ -1078,9 +1154,11 @@ fn mailbox_gcm_encrypt(
     aad: &[u8],
     mut plaintext: &[u8],
     split: usize,
+    spdm: Option<u8>,
 ) -> ([u8; 12], [u8; 16], Vec<u8>) {
     let mut cm_aes_encrypt_init = CmAesGcmEncryptInitReq {
         hdr: MailboxReqHeader::default(),
+        flags: spdm.unwrap_or_default() as u32,
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
         aad: [0; MAX_CMB_DATA_SIZE],
@@ -1178,6 +1256,7 @@ fn mailbox_gcm_encrypt(
     (resp.iv, final_resp.hdr.tag, ciphertext)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mailbox_gcm_decrypt(
     model: &mut DefaultHwModel,
     cmk: &Cmk,
@@ -1186,9 +1265,11 @@ fn mailbox_gcm_decrypt(
     mut ciphertext: &[u8],
     tag: &[u8; 16],
     split: usize,
+    spdm: Option<u8>,
 ) -> (bool, Vec<u8>) {
     let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
+        flags: spdm.unwrap_or_default() as u32,
         cmk: cmk.clone(),
         iv: *iv,
         aad_size: aad.len() as u32,
@@ -1530,12 +1611,12 @@ fn test_ecdh() {
         .expect("Should have gotten a response");
 
     let resp = CmEcdhFinishResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
-    let cmk = Cmk::ref_from_bytes(resp.output.as_slice()).unwrap();
+    let cmk = &resp.output;
 
     // use the CMK shared secret to AES encrypt a known plaintext.
     let plaintext = [0u8; 16];
     let (iv, tag, ciphertext) =
-        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+        mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE, None);
     // encrypt with RustCrypto and check if everything matches
     let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
 
@@ -1698,7 +1779,7 @@ fn test_hmac_kdf_counter_random() {
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
             let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE, None);
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
@@ -1797,10 +1878,12 @@ fn test_hkdf_random() {
             let mut salt = [0u8; 64];
             seeded_rng.fill_bytes(&mut salt[..salt_len]);
 
+            let salt_cmk = import_key(&mut model, &salt[..size], CmKeyUsage::Hmac);
+
             let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
                 ikm: cmks[key_idx].clone(),
                 hash_algorithm: hash_algorithm.into(),
-                salt,
+                salt: salt_cmk,
                 ..Default::default()
             });
             cm_hkdf_extract.populate_chksum().unwrap();
@@ -1847,7 +1930,7 @@ fn test_hkdf_random() {
             // use the CMK shared secret to AES encrypt a known plaintext.
             let plaintext = [0u8; 16];
             let (iv, tag, ciphertext) =
-                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE);
+                mailbox_gcm_encrypt(&mut model, cmk, &[], &plaintext, MAX_CMB_DATA_SIZE, None);
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
@@ -2323,4 +2406,125 @@ fn test_ecdsa_sign_verify() {
     }
 }
 
-// #[test]
+#[test]
+fn test_derive_stable_key() {
+    const HMAC_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+
+    // derive a stable key from ROM
+    let (mut model, fw_image) = start_rt_test_pqc_model(
+        RuntimeTestArgs {
+            stop_at_rom: true,
+            ..Default::default()
+        },
+        FwVerificationPqcKeyType::LMS,
+    );
+    model.step_until(|m| m.ready_for_fw());
+
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::IDevId.into(),
+        ..Default::default()
+    });
+
+    derive_request.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let rom_stable_cmk = resp.cmk.clone();
+
+    let mut hmac_request = CmHmacReq {
+        cmk: rom_stable_cmk.clone(),
+        hash_algorithm: CmHashAlgorithm::Sha384.into(),
+        data_size: 9,
+        ..Default::default()
+    };
+    hmac_request.data[..9].copy_from_slice(b"test data");
+    let mut request = MailboxReq::CmHmac(hmac_request);
+    request.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let mut resp = CmHmacResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert!(len < MAX_CMB_DATA_SIZE);
+    resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+    let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+
+    // now step until runtime
+    model.upload_firmware(&fw_image).unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // use the ROM key to compute the HMAC and make sure it matches the ROM HMAC
+    let resp_bytes = model
+        .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+    let mut resp = CmHmacResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert!(len < MAX_CMB_DATA_SIZE);
+    resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+    let fw_hmac_rom_cmk: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+    assert_eq!(rom_hmac, fw_hmac_rom_cmk);
+
+    // re-derive the same stable key in runtime
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::IDevId.into(),
+        ..Default::default()
+    });
+
+    derive_request.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+    let fw_stable_cmk = resp.cmk.clone();
+
+    // compute the HMAC with the runtime derived key and make sure it matches the ROM HMAC
+    let mut hmac_request = CmHmacReq {
+        cmk: fw_stable_cmk,
+        hash_algorithm: CmHashAlgorithm::Sha384.into(),
+        data_size: 9,
+        ..Default::default()
+    };
+    hmac_request.data[..9].copy_from_slice(b"test data");
+    let mut request = MailboxReq::CmHmac(hmac_request);
+    request.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(CommandId::CM_HMAC.into(), request.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    let mut resp = CmHmacResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..HMAC_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert!(len < MAX_CMB_DATA_SIZE);
+    resp.mac[..len].copy_from_slice(&resp_bytes[HMAC_HEADER_SIZE..HMAC_HEADER_SIZE + len]);
+
+    let fw_hmac_fw_cmk: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
+
+    assert_eq!(rom_hmac, fw_hmac_fw_cmk);
+}

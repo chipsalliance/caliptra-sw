@@ -3,8 +3,9 @@
 use crate::helpers;
 use aes_gcm::{aead::AeadMutInPlace, Key};
 use caliptra_api::mailbox::{
-    CmHashAlgorithm, CmHmacReq, CmHmacResp, DeriveStableKeyReq, DeriveStableKeyResp, StableKeyType,
-    CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE, STABLE_KEY_INFO_SIZE_BYTES,
+    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHashAlgorithm, CmHmacReq, CmHmacResp,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, MailboxReq,
+    MailboxRespHeaderVarSize, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
 };
 use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
@@ -22,7 +23,7 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use sha2::Sha512;
 use zerocopy::{FromBytes, IntoBytes};
 
-const DOT_KEY_TYPES: [StableKeyType; 2] = [StableKeyType::IDevId, StableKeyType::LDevId];
+const DOT_KEY_TYPES: [CmStableKeyType; 2] = [CmStableKeyType::IDevId, CmStableKeyType::LDevId];
 
 fn decrypt_cmk(key: &[u8], cmk: &EncryptedCmk) -> Option<UnencryptedCmk> {
     use aes_gcm::KeyInit;
@@ -63,21 +64,21 @@ fn test_derive_stable_key() {
         )
         .unwrap();
 
-        let mut request = DeriveStableKeyReq {
+        let mut request = CmDeriveStableKeyReq {
             hdr: MailboxReqHeader { chksum: 0 },
             key_type: (*key_type).into(),
-            info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
+            info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
         };
         request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::DERIVE_STABLE_KEY),
+            u32::from(CommandId::CM_DERIVE_STABLE_KEY),
             &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
         );
         let response = hw
-            .mailbox_execute(CommandId::DERIVE_STABLE_KEY.into(), request.as_bytes())
+            .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes())
             .unwrap()
             .unwrap();
 
-        let resp = DeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
+        let resp = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes()).unwrap();
 
         // Verify response checksum
         assert!(caliptra_common::checksum::verify_checksum(
@@ -141,19 +142,116 @@ fn test_derive_stable_key_invalid_key_type() {
     let (mut hw, _) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let mut request = DeriveStableKeyReq {
+    let mut request = CmDeriveStableKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_type: StableKeyType::Reserved.into(),
-        info: [0u8; STABLE_KEY_INFO_SIZE_BYTES],
+        key_type: CmStableKeyType::Reserved.into(),
+        info: [0u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
     };
     request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::DERIVE_STABLE_KEY),
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
         &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
     );
     assert_eq!(
-        hw.mailbox_execute(CommandId::DERIVE_STABLE_KEY.into(), request.as_bytes()),
+        hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::DOT_INVALID_KEY_TYPE.into()
         ))
     );
+}
+
+#[test]
+fn test_random_generate() {
+    let (mut model, _) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // check too large of an input
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: u32::MAX,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .expect_err("Should have been an error");
+
+    // 0 bytes
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 0,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp::default();
+    const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+    resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
+    assert_eq!(resp.hdr.data_len, 0);
+    assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
+
+    // 1 byte
+    let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+        hdr: MailboxReqHeader::default(),
+        size: 1,
+    });
+    cm_random_generate.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_RANDOM_GENERATE),
+            cm_random_generate.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp = CmRandomGenerateResp {
+        hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+        ..Default::default()
+    };
+    let len = resp.hdr.data_len as usize;
+    assert_eq!(len, 1);
+    resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+    // We can't check if it is non-zero because it will randomly be 0 sometimes.
+
+    for req_len in [47usize, 48, 1044] {
+        let mut cm_random_generate = MailboxReq::CmRandomGenerate(CmRandomGenerateReq {
+            hdr: MailboxReqHeader::default(),
+            size: req_len as u32,
+        });
+        cm_random_generate.populate_chksum().unwrap();
+
+        let resp_bytes = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_RANDOM_GENERATE),
+                cm_random_generate.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        let mut resp = CmRandomGenerateResp {
+            hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
+            ..Default::default()
+        };
+        let len = resp.hdr.data_len as usize;
+        assert_eq!(len, req_len);
+        resp.data[..len].copy_from_slice(&resp_bytes[VAR_HEADER_SIZE..VAR_HEADER_SIZE + len]);
+        assert!(
+            resp.data[..len]
+                .iter()
+                .copied()
+                .reduce(|a, b| (a | b))
+                .unwrap()
+                != 0
+        );
+    }
 }

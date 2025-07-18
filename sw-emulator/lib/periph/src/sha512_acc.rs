@@ -333,7 +333,8 @@ impl Sha512AcceleratorRegs {
             Err(BusError::StoreAccessFault)?
         }
 
-        self.sha_stream.update_bytes(&val.to_be_bytes());
+        self.sha_stream
+            .update_bytes(&val.to_be_bytes(), Some(self.dlen.reg.get()));
 
         Ok(())
     }
@@ -652,6 +653,7 @@ mod tests {
     const OFFSET_MODE: RvAddr = 0x08;
     const OFFSET_START_ADDRESS: RvAddr = 0x0c;
     const OFFSET_DLEN: RvAddr = 0x10;
+    const OFFSET_DATAIN: RvAddr = 0x14;
     const OFFSET_EXECUTE: RvAddr = 0x18;
     const OFFSET_STATUS: RvAddr = 0x1c;
 
@@ -719,7 +721,7 @@ mod tests {
             Some(())
         );
 
-        // Trigger thea accelerator by writing to the execute register.
+        // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
         execute.write(Execute::EXECUTE.val(1));
         assert_eq!(
@@ -1154,7 +1156,7 @@ mod tests {
         // Read the data length back.
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_DLEN).unwrap(), 20);
 
-        // Trigger thea accelerator by writing to the execute register.
+        // Trigger the accelerator by writing to the execute register.
         let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
         execute.write(Execute::EXECUTE.val(1));
         assert_eq!(
@@ -1176,5 +1178,117 @@ mod tests {
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_MODE).unwrap(), 0);
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_EXECUTE).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_accelerator_sha512_stream_mode() {
+        // In stream mode, every write is a 32bit word.
+        // When 127 bytes are to be hashed, 128 bytes have thus to be written.
+        // Since the SHA384/512 block size is exactly 128 bytes, 127 bytes are choosen for the test.
+        // This is to ensure, that the accelerator only processes the data
+        // after the correct padding has been applied.
+        const DATA: [u8; 127] = [
+            0x47, 0x05, 0xe4, 0xe9, 0x51, 0x4a, 0xbe, 0x5a, 0x98, 0x1e, 0xe3, 0x8a, 0x2b, 0xbc,
+            0x43, 0x7c, 0x91, 0xbb, 0x5d, 0xf0, 0xe6, 0x69, 0x52, 0x2a, 0x34, 0xb8, 0x97, 0x8e,
+            0xf0, 0x7a, 0x43, 0x42, 0xa7, 0x27, 0x5e, 0x9d, 0x43, 0x6b, 0x7d, 0x4d, 0x15, 0xe9,
+            0x2a, 0xb5, 0xf5, 0x4b, 0x03, 0x52, 0x97, 0xce, 0x67, 0xcc, 0x1a, 0x7f, 0x89, 0x01,
+            0x03, 0x97, 0xf4, 0x30, 0x2b, 0x80, 0xc7, 0x58, 0x44, 0x63, 0x4e, 0xdc, 0xe6, 0x0e,
+            0xc0, 0x26, 0x37, 0x6a, 0x53, 0x89, 0x53, 0xfc, 0xef, 0x19, 0x6b, 0xfc, 0x9f, 0x53,
+            0xf8, 0x74, 0xaf, 0x15, 0x6a, 0x75, 0x92, 0x96, 0xbc, 0xa8, 0x56, 0x00, 0x04, 0x22,
+            0x6f, 0x5f, 0x92, 0x1f, 0x42, 0x51, 0xf4, 0xa4, 0xca, 0x41, 0xd9, 0x78, 0x0e, 0x92,
+            0x6d, 0x6c, 0x3e, 0x69, 0xd2, 0x65, 0xe6, 0x2c, 0x72, 0xd8, 0x1c, 0xc3, 0x5b, 0x54,
+            0x66,
+        ];
+
+        const EXPECTED: [u8; SHA512_HASH_SIZE] = [
+            0xf5, 0x15, 0x28, 0xd5, 0xca, 0x9d, 0x3c, 0x17, 0xec, 0x45, 0xdc, 0x78, 0x15, 0x87,
+            0xaa, 0x58, 0x04, 0x8a, 0x10, 0xeb, 0xb0, 0xf9, 0xfe, 0x31, 0xe4, 0x33, 0x77, 0xfa,
+            0x3f, 0x5e, 0x3d, 0xbc, 0x5c, 0xa2, 0x3b, 0xde, 0xb7, 0x89, 0xe1, 0x4f, 0x2b, 0xd6,
+            0x89, 0x6d, 0x7e, 0x7e, 0xfc, 0x32, 0x90, 0xdf, 0x45, 0x04, 0x5d, 0x97, 0xe8, 0x70,
+            0x08, 0xc0, 0x02, 0x88, 0x23, 0xe6, 0xcf, 0xd9,
+        ];
+
+        let mb_ram = MailboxRam::new();
+        let clock = Clock::new();
+        let mut sha_accl = Sha512Accelerator::new(&clock, mb_ram);
+        // Unlock the initial state
+        sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
+
+        // Acquire the accelerator lock.
+        loop {
+            let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+            if lock == 0 {
+                break;
+            }
+        }
+
+        // Confirm it is locked
+        let lock = sha_accl.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        assert_eq!(lock, 1);
+
+        // Set the mode.
+        let mode = InMemoryRegister::<u32, ShaMode::Register>::new(0);
+        mode.write(
+            ShaMode::MODE.val(ShaMode::MODE::SHA512_ACC_MODE_SHA_STREAM_512.value)
+                + ShaMode::ENDIAN_TOGGLE.val(1),
+        );
+        assert_eq!(
+            sha_accl.write(RvSize::Word, OFFSET_MODE, mode.get()).ok(),
+            Some(())
+        );
+
+        // Set data length.
+        assert_eq!(
+            sha_accl
+                .write(RvSize::Word, OFFSET_DLEN, DATA.len() as u32)
+                .ok(),
+            Some(())
+        );
+
+        // Stream data to SHA ACC
+        let dword_bytes = DATA.len() - DATA.len() % 4;
+        for i in (0..dword_bytes).step_by(4) {
+            let dword = u32::from_be_bytes(DATA[i..i + 4].try_into().unwrap());
+            assert_eq!(sha_accl.write(RvSize::Word, OFFSET_DATAIN, dword), Ok(()));
+        }
+        let mut remaining: [u8; 4] = [0; 4];
+        remaining[0..3].copy_from_slice(&DATA[dword_bytes..]);
+        assert_eq!(
+            sha_accl.write(RvSize::Word, OFFSET_DATAIN, u32::from_be_bytes(remaining)),
+            Ok(())
+        );
+
+        // Trigger the accelerator by writing to the execute register.
+        let execute = InMemoryRegister::<u32, Execute::Register>::new(0);
+        execute.write(Execute::EXECUTE.val(1));
+        assert_eq!(
+            sha_accl
+                .write(RvSize::Word, OFFSET_EXECUTE, execute.get())
+                .ok(),
+            Some(())
+        );
+
+        // Wait for operation to complete.
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::VALID) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut sha_accl);
+        }
+
+        // Read the hash.
+        let mut hash: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
+        sha_accl.regs.borrow().copy_hash(&mut hash);
+
+        // Release the lock.
+        assert_eq!(sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).ok(), Some(()));
+
+        hash.to_little_endian();
+        assert_eq!(&hash, &EXPECTED);
     }
 }
