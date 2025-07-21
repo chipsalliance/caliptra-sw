@@ -49,3 +49,14 @@ pub const KEY_ID_STABLE_IDEV: KeyId = KeyId::KeyId0;
 pub const KEY_ID_STABLE_LDEV: KeyId = KeyId::KeyId1;
 
 pub const KEY_ID_TMP: KeyId = KeyId::KeyId3;
+
+#[cfg(feature = "ocp-lock")]
+pub mod ocp_lock {
+    use super::KeyId;
+
+    pub const KEY_ID_MDK: KeyId = KeyId::KeyId16;
+    pub const KEY_ID_EPK: KeyId = KeyId::KeyId17;
+    pub const KEY_ID_HEK: KeyId = KeyId::KeyId22;
+    pub const KEY_ID_HEK_SEED: KeyId = KeyId::KeyId22;
+    pub const KEY_ID_MEK: KeyId = KeyId::KeyId23;
+}

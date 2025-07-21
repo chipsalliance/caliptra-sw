@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, Array4x16};
+use crate::{Array4x12, Array4x16, Array4x8};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
@@ -306,6 +306,18 @@ impl FuseBank<'_> {
     pub fn manuf_dbg_unlock_token(&self) -> Array4x16 {
         let soc_ifc_regs = self.soc_ifc.regs();
         Array4x16::read_from_reg(soc_ifc_regs.fuse_manuf_dbg_unlock_token())
+    }
+
+    /// Get the OCP HEK Seed
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     OCP HEK Seed
+    pub fn ocp_heck_seed(&self) -> Array4x8 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        Array4x8::read_from_reg(soc_ifc_regs.fuse_hek_seed())
     }
 }
 

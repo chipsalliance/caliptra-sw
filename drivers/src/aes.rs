@@ -19,7 +19,9 @@ Abstract:
 --*/
 
 use crate::{
-    kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
+    kv_access::{KvAccess, KvAccessErr},
+    CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x4,
+    LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -927,6 +929,82 @@ impl Aes {
                 self.read_data_block(output, i)?;
             }
         }
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn aes_256_ecb_decrypt_kv(&mut self, key: AesKey, input: &[u8; 64]) -> CaliptraResult<()> {
+        if input.is_empty() {
+            return Ok(());
+        }
+        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+
+        // Only KV 16 is a permitted input key to decrypt into KV 23.
+        match key {
+            AesKey::KV(KeyReadArgs { id }) if id != KeyId::KeyId16 => {
+                Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)?;
+            }
+            _ => (),
+        }
+
+        if key.sideload() {
+            self.load_key(key)?;
+        }
+
+        let mek_slot = KeyWriteArgs::new(
+            KeyId::KeyId23, // MEK KV.
+            KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
+        );
+
+        self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
+            wait_for_idle(&aes);
+            // We are only allowed to decrypt into KV 23.
+            KvAccess::begin_copy_to_kv(
+                aes_clp.aes_kv_wr_status(),
+                aes_clp.aes_kv_wr_ctrl(),
+                mek_slot,
+            )
+        })?;
+
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Ecb as u32)
+                        .operation(AesOperation::Decrypt as u32)
+                        .manual_operation(false)
+                        .sideload(key.sideload())
+                });
+            }
+            wait_for_idle(&aes);
+        });
+
+        if !key.sideload() {
+            self.load_key(key)?;
+        }
+        for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
+            self.load_data_block(input, block_num)?;
+        }
+
+        // TODO(clundin): Double check error messages.
+        self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
+            aes.trigger().write(|w| w.start(true));
+            match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
+                Ok(_) => Ok(()),
+                Err(KvAccessErr::KeyRead) => {
+                    Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)
+                }
+                Err(KvAccessErr::KeyWrite) => {
+                    Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_WRITE)
+                }
+                _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
+            }
+        })?;
+
+        self.zeroize_internal();
         Ok(())
     }
 
