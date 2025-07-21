@@ -40,8 +40,9 @@ jobs:
       - name: Build Kernel
         run: |
           source /vck190-tools/petalinux-tool/settings.sh
+          BIT_STREAM=/vck190-tools/caliptra-bitstreams/ocp-lock/20250721/system.xsa
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250701/system.xsa /tmp/system.xsa
+          sudo scp ${BIT_STREAM} /tmp/system.xsa
           sudo chown $USER:$GROUP /tmp/system.xsa
 
           pushd hw/fpga
