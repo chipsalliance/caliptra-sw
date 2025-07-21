@@ -23,6 +23,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = [
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
+ocp-lock = ["caliptra-drivers/ocp-lock"]
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -192,3 +193,8 @@ required-features = ["riscv"]
 name = "ml_dsa87"
 path = "src/bin/mldsa87_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "ocp_lock"
+path = "src/bin/ocp_lock_tests.rs"
+required-features = ["riscv", "ocp-lock"]

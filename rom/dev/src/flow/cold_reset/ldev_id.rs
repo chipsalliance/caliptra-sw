@@ -184,7 +184,7 @@ impl LocalDevIdLayer {
             None,
             stable_idev,
             HmacMode::Hmac512,
-            KeyUsage::default().set_aes_key_en(),
+            KeyUsage::default().set_aes_key_en().set_hmac_key_en(),
         )?;
         Ok(())
     }

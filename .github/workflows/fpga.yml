@@ -3,6 +3,8 @@ name: FPGA Build
 
 on:
   pull_request:
+  push:
+    branches: clundin/ocp-lock-tests
   workflow_call:
     inputs:
       artifact-suffix:
@@ -255,7 +257,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190
+    runs-on: vck190-2-1
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
@@ -323,11 +325,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'not (package(/caliptra-emu-.*/) |
-                       package(caliptra-builder) |
-                       package(caliptra-cfi-derive) |
-                       package(caliptra-file-header-fix) |
-                       package(compliance-test))'
+              -E 'binary_id(caliptra-drivers::drivers_integration_tests) and test(test_ocp_lock)'
           )
 
           cargo-nextest nextest list \

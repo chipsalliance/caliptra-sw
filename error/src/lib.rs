@@ -1923,6 +1923,11 @@ impl CaliptraError {
             "ROM Global Error: FIPS hooks ROM exit"
         ),
         (
+            ROM_OCP_LOCK_HARDWARE_UNSUPPORTED,
+            0x01050010,
+            "ROM Error: Hardware does not support OCP LOCK"
+        ),
+        (
             KAT_SHA256_DIGEST_FAILURE,
             0x90010001,
             "ROM KAT Error: SHA256 digest failure"
@@ -2130,7 +2135,11 @@ impl CaliptraError {
             0xa004_0001,
             "Driver Error: AES read key KV read"
         ),
-        // 0xa004_0002 blank to match HMAC errors
+        (
+            RUNTIME_DRIVER_AES_READ_KEY_KV_WRITE,
+            0xa004_0002,
+            "Driver Error: AES read key KV write"
+        ),
         (
             RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN,
             0xa004_0003,
@@ -2182,6 +2191,11 @@ impl CaliptraError {
             RUNTIME_DRIVER_AES_INVALID_TAG,
             0xa004_0011,
             "Driver Error: AES tag is invalid"
+        ),
+        (
+            RUNTIME_DRIVER_AES_WRITE_KV,
+            0xa004_0012,
+            "Driver Error: AES output KV is invalid"
         ),
         (
             RUNTIME_MAILBOX_SIGNATURE_MISMATCH,

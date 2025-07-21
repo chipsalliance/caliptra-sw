@@ -5,14 +5,15 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, Trng,
+    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar,
+    Ecc384Seed, Hmac, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng, Uart,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::hmac::HmacReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -145,7 +146,47 @@ fn test_cmac_kv() {
     assert_eq!(mac1, mac2, "AES CMAC mismatch");
 }
 
+fn test_aes_ecb_decrypt_kv() {
+    // Init CFI
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let mut aes = unsafe { Aes::new(AesReg::new(), AesClpReg::new()) };
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut entropy_gen = || trng.generate4();
+    CfiCounter::reset(&mut entropy_gen);
+
+    hmac.hmac(
+        caliptra_drivers::HmacKey::Array4x12(&Array4x12::default()),
+        caliptra_drivers::HmacData::Slice(&[]),
+        &mut trng,
+        caliptra_drivers::HmacTag::Key(KeyWriteArgs::new(
+            KeyId::KeyId16,
+            KeyUsage::default().set_aes_key_en().set_hmac_key_en(),
+        )),
+        HmacMode::Hmac512,
+    )
+    .unwrap();
+
+    Uart::new().write("Hmac worked");
+
+    let key_read_args = KeyReadArgs::new(KeyId::KeyId16);
+    let res = aes.aes_256_ecb_decrypt_kv(AesKey::KV(key_read_args), &[0; 64]);
+    if res.is_ok() {
+        Uart::new().write("Passed");
+    } else {
+        Uart::new().write("Failed");
+    }
+}
+
 test_suite! {
     test_cmac,
     test_cmac_kv,
+    test_aes_ecb_decrypt_kv,
 }
