@@ -1148,3 +1148,8 @@ fn test_mailbox_txn_drop() {
 fn test_dma_sha384() {
     run_driver_test(&firmware::driver_tests::DMA_SHA384);
 }
+
+#[test]
+fn test_ocp_lock() {
+    run_driver_test(&firmware::driver_tests::OCP_LOCK);
+}

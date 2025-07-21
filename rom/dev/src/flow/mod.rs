@@ -20,6 +20,9 @@ pub(crate) mod uds_programming;
 mod update_reset;
 mod warm_reset;
 
+#[cfg(feature = "ocp-lock")]
+pub(crate) mod ocp_lock;
+
 use crate::cprintln;
 pub use crate::flow::uds_programming::UdsProgrammingFlow;
 use crate::{handle_fatal_error, rom_env::RomEnv};

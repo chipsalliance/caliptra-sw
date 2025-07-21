@@ -177,6 +177,9 @@ impl CommandId {
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
     pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
+
+    /// Temporary Test command to validate OCP LOCK hardware.
+    pub const TEST_OCP_LOCK: Self = Self(0x504D_4453);
 }
 
 impl From<u32> for CommandId {
@@ -314,6 +317,7 @@ pub enum MailboxResp {
     CmDeriveStableKey(CmDeriveStableKeyResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
+    TestOcpLock(TestOcpLockResp),
 }
 
 pub const MAX_RESP_SIZE: usize = size_of::<MailboxResp>();
@@ -375,6 +379,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
+            MailboxResp::TestOcpLock(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -434,6 +439,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::TestOcpLock(resp) => Ok(resp.as_mut_bytes()),
         }
     }
 
@@ -541,6 +547,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
     FeProg(FeProgReq),
+    TestOcpLock(MailboxReqHeader),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -617,6 +624,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
+            MailboxReq::TestOcpLock(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -691,6 +699,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::TestOcpLock(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -726,6 +735,7 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
+            MailboxReq::TestOcpLock(_) => CommandId::TEST_OCP_LOCK,
             MailboxReq::GetImageInfo(_) => CommandId::GET_IMAGE_INFO,
             MailboxReq::CmStatus(_) => CommandId::CM_STATUS,
             MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
@@ -1400,6 +1410,13 @@ pub struct CapabilitiesResp {
     pub capabilities: [u8; crate::capabilities::Capabilities::SIZE_IN_BYTES],
 }
 impl Response for CapabilitiesResp {}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct TestOcpLockResp {
+    pub hdr: MailboxRespHeader,
+}
+impl Response for TestOcpLockResp {}
 
 // ADD_SUBJECT_ALT_NAME
 // No command-specific output args
