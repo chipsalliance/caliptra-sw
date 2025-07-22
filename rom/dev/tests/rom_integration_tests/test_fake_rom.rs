@@ -219,7 +219,9 @@ fn test_fake_rom_update_reset() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_image_verify() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
