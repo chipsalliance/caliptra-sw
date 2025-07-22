@@ -901,9 +901,9 @@ impl SocRegistersImpl {
         // To make things easy the fuse bank is part of the fuse bank controller emulation
         let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
         let mci_base = crate::dma::axi_root_bus::AxiRootBus::SS_MCI_OFFSET;
-        let ss_prod_dbg_unlock_fuse_offset = crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
+        let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
-            crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
+            crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
