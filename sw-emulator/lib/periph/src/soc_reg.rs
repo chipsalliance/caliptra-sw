@@ -733,11 +733,13 @@ struct SocRegistersImpl {
     #[register(offset = 0x51c)]
     ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x520)]
-    ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x524)]
-    ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_h: ReadWriteRegister<u32>,
 
     #[register(offset = 0x528)]
     ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
@@ -1013,8 +1015,8 @@ impl SocRegistersImpl {
             fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
             ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
-            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
-            ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
+            ss_uds_seed_base_addr_l: ReadWriteRegister::new(uds_seed_offset as u32),
+            ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
             ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
             ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
             ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
