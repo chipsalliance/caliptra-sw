@@ -1,3 +1,6 @@
+[env]
+ARBITRARY_MAX_HANDLES = "32"
+
 [target.riscv32imc-unknown-none-elf]
 rustflags = [
   "-C", "target-feature=+relax",
