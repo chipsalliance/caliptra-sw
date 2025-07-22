@@ -73,7 +73,9 @@ const SIGNATURE_S: [u8; 48] = [
     0x8e, 0x81, 0xb9, 0x11, 0x9c, 0x2b, 0xe0, 0x8, 0xbf, 0x6d, 0x6f, 0x4e, 0x41, 0x85, 0xf8, 0x7d,
 ];
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_invalid_manifest_marker() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -113,7 +115,9 @@ fn test_invalid_manifest_marker() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_invalid_manifest_size() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -150,7 +154,9 @@ fn test_invalid_manifest_size() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_invalid_pqc_key_type() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -172,7 +178,9 @@ fn test_invalid_pqc_key_type() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_pqc_key_type_mismatch() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -212,7 +220,9 @@ fn test_pqc_key_type_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_pqc_key_type_unprovisioned() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -233,7 +243,9 @@ fn test_pqc_key_type_unprovisioned() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_zero_vendor_pubkey_info_digest() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -270,7 +282,9 @@ fn test_preamble_zero_vendor_pubkey_info_digest() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_pubkey_info_digest_mismatch() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -307,7 +321,9 @@ fn test_preamble_vendor_pubkey_info_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -343,7 +359,9 @@ fn test_preamble_vendor_active_ecc_pubkey_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         println!("lifecycle: {:?}", life_cycle);
@@ -378,7 +396,9 @@ fn test_preamble_vendor_active_mldsa_pubkey_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         println!("lifecycle: {:?}", life_cycle);
@@ -414,7 +434,9 @@ fn test_preamble_vendor_lms_pubkey_descriptor_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -459,7 +481,9 @@ fn test_preamble_vendor_ecc_pubkey_descriptor_bad_index() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         println!("lifecycle: {:?}", life_cycle);
@@ -500,7 +524,9 @@ fn test_preamble_vendor_lms_pubkey_descriptor_bad_index() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
     for life_cycle in helpers::LIFECYCLES_PROVISIONED.iter() {
         println!("lifecycle: {:?}", life_cycle);
@@ -540,7 +566,9 @@ fn test_preamble_vendor_mldsa_pubkey_descriptor_bad_index() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_owner_pubkey_digest_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -570,7 +598,9 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_dot_owner_pubkey_digest_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -615,7 +645,9 @@ fn test_preamble_dot_owner_pubkey_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_dot_owner_pubkey_digest_success() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -657,7 +689,9 @@ fn test_preamble_dot_owner_pubkey_digest_success() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
     for life_cycle in helpers::LIFECYCLES_ALL.iter() {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -736,7 +770,9 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_lms_pubkey_revocation() {
     // this test is too slow to run in the verilator nightly
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
@@ -795,7 +831,9 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_mldsa_pubkey_revocation() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_MLDSA_MAX_KEY_COUNT - 1;
@@ -852,7 +890,9 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -882,7 +922,9 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
     let fuses = caliptra_hw_model::Fuses {
         fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
@@ -904,7 +946,9 @@ fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
     );
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -968,7 +1012,9 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_header_verify_vendor_sig_zero_ecc_signature() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -1581,7 +1627,9 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -1689,7 +1737,9 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_toc_invalid_entry_count() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -1722,7 +1772,9 @@ fn test_toc_invalid_entry_count() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_toc_invalid_toc_digest() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -1755,7 +1807,9 @@ fn test_toc_invalid_toc_digest() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_toc_fmc_size_zero() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -1788,7 +1842,9 @@ fn test_toc_fmc_size_zero() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_toc_fmc_range_overlap() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2004,7 +2060,9 @@ fn test_fmc_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_fmc_invalid_load_addr_before_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2064,7 +2122,9 @@ fn test_fmc_invalid_load_addr_after_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_fmc_not_contained_in_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2213,7 +2273,9 @@ fn test_fmc_entry_point_unaligned() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_toc_rt_size_zero() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2250,7 +2312,9 @@ fn test_toc_rt_size_zero() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_digest_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2281,7 +2345,9 @@ fn test_runtime_digest_mismatch() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_invalid_load_addr_before_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2312,7 +2378,9 @@ fn test_runtime_invalid_load_addr_before_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_invalid_load_addr_after_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2341,7 +2409,9 @@ fn test_runtime_invalid_load_addr_after_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_not_contained_in_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2365,7 +2435,9 @@ fn test_runtime_not_contained_in_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_load_addr_unaligned() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2394,7 +2466,9 @@ fn test_runtime_load_addr_unaligned() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_invalid_entry_point_before_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2423,7 +2497,9 @@ fn test_runtime_invalid_entry_point_before_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_invalid_entry_point_after_iccm() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2452,7 +2528,9 @@ fn test_runtime_invalid_entry_point_after_iccm() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_entry_point_unaligned() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2481,7 +2559,9 @@ fn test_runtime_entry_point_unaligned() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_svn_greater_than_max() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2523,7 +2603,9 @@ fn test_runtime_svn_greater_than_max() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_svn_less_than_fuse_svn() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2571,7 +2653,9 @@ fn test_runtime_svn_less_than_fuse_svn() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_runtime_svn_corruption() {
     let (mut hw, mut image_bundle) = hw_and_mldsa_image_bundle();
 
@@ -2587,7 +2671,9 @@ fn test_runtime_svn_corruption() {
     );
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn cert_test_with_custom_dates() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let mut opts = ImageOptions {
@@ -2680,7 +2766,9 @@ fn cert_test_with_custom_dates() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn cert_test() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2750,7 +2838,9 @@ fn cert_test() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn cert_test_with_ueid() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let opts = ImageOptions {
@@ -3181,7 +3271,9 @@ fn test_max_fw_image() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_mldsa_verification() {
     let fuses = Fuses {
         fuse_pqc_key_type: FwVerificationPqcKeyType::MLDSA as u32,
