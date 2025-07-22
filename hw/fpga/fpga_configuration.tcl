@@ -8,6 +8,8 @@ set RTL_VERSION latest
 set BOARD VCK190
 set ITRNG TRUE
 set APB FALSE
+set LOCK TRUE
+
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
@@ -47,6 +49,12 @@ if {$CG_EN} {
   set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr}
   set GATED_CLOCK_CONVERSION off
 }
+
+if {$LOCK} {
+  lappend VERILOG_OPTIONS CALIPTRA_OCP_LOCK_EN
+  lappend VERILOG_OPTIONS CALIPTRA_MODE_SUBSYSTEM
+}
+
 if {$ITRNG} {
   # Add option to use Caliptra's internal TRNG instead of ETRNG
   lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
@@ -218,10 +226,16 @@ set_property STEPS.SYNTH_DESIGN.ARGS.GATED_CLOCK_CONVERSION $GATED_CLOCK_CONVERS
 # Add DDR pin placement constraints
 add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
 
+# acknowledge combinatorial loop in AES
 # Start build
 if {$BUILD} {
   launch_runs synth_1 -jobs 10
-  wait_on_runs synth_1
+ wait_on_runs synth_1
+  open_run synth_1
+ 
+  set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets caliptra_fpga_project_bd_i/caliptra_package_top_0/inst/cptra_wrapper/caliptra_top_dut/aes_inst/aes_inst/u_aes_core/u_aes_cipher_core/u_aes_cipher_control/gen_fsm[0].gen_fsm_p.u_aes_cipher_control_fsm_i/u_aes_cipher_control_fsm/u_state_regs/u_state_flop/gen_generic.u_impl_generic/out[0]]
+  save_constraints
+
   launch_runs impl_1 -to_step write_device_image -jobs 10
   wait_on_runs impl_1
   open_run impl_1

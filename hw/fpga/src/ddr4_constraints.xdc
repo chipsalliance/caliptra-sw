@@ -1,4 +1,4 @@
-set_property PACKAGE_PIN AR47 [get_ports {ddr4_dimm1_act_n[0]}]
+
 set_property PACKAGE_PIN AL46 [get_ports {ddr4_dimm1_adr[0]}]
 set_property PACKAGE_PIN AL42 [get_ports {ddr4_dimm1_adr[10]}]
 set_property PACKAGE_PIN AK38 [get_ports {ddr4_dimm1_adr[11]}]
@@ -20,10 +20,6 @@ set_property PACKAGE_PIN AN43 [get_ports {ddr4_dimm1_ba[0]}]
 set_property PACKAGE_PIN AL47 [get_ports {ddr4_dimm1_ba[1]}]
 set_property PACKAGE_PIN AP42 [get_ports {ddr4_dimm1_bg[0]}]
 set_property PACKAGE_PIN AT47 [get_ports {ddr4_dimm1_bg[1]}]
-set_property PACKAGE_PIN AR46 [get_ports {ddr4_dimm1_ck_t[0]}]
-set_property PACKAGE_PIN AT46 [get_ports {ddr4_dimm1_ck_c[0]}]
-set_property PACKAGE_PIN AR45 [get_ports {ddr4_dimm1_cke[0]}]
-set_property PACKAGE_PIN AL43 [get_ports {ddr4_dimm1_cs_n[0]}]
 set_property PACKAGE_PIN BC41 [get_ports {ddr4_dimm1_dm_n[0]}]
 set_property PACKAGE_PIN BB43 [get_ports {ddr4_dimm1_dm_n[1]}]
 set_property PACKAGE_PIN BB44 [get_ports {ddr4_dimm1_dm_n[2]}]
@@ -112,7 +108,7 @@ set_property PACKAGE_PIN AF39 [get_ports {ddr4_dimm1_dqs_t[6]}]
 set_property PACKAGE_PIN AF40 [get_ports {ddr4_dimm1_dqs_c[6]}]
 set_property PACKAGE_PIN AE38 [get_ports {ddr4_dimm1_dqs_t[7]}]
 set_property PACKAGE_PIN AF37 [get_ports {ddr4_dimm1_dqs_c[7]}]
-set_property PACKAGE_PIN AM39 [get_ports {ddr4_dimm1_odt[0]}]
-set_property PACKAGE_PIN AD42 [get_ports {ddr4_dimm1_reset_n[0]}]
-set_property PACKAGE_PIN AE42 [get_ports {ddr4_dimm1_sma_clk_clk_p[0]}]
-set_property PACKAGE_PIN AF43 [get_ports {ddr4_dimm1_sma_clk_clk_n[0]}]
+
+
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets {caliptra_fpga_project_bd_i/caliptra_package_top_0/inst/cptra_wrapper/caliptra_top_dut/aes_inst/aes_inst/u_aes_core/u_aes_cipher_core/u_aes_cipher_control/gen_fsm[0].gen_fsm_p.u_aes_cipher_control_fsm_i/u_aes_cipher_control_fsm/u_state_regs/u_state_flop/gen_generic.u_impl_generic/out[0]}]
+

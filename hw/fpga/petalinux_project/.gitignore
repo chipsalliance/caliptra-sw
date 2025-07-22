@@ -11,5 +11,3 @@ pre-built/linux/
 *.log
 components/plnx_workspace
 components/yocto
-**/*.bda
-project-spec/hw-description

@@ -3,4 +3,3 @@
 
 CONFIG_gpio-demo
 CONFIG_peekpoke
-CONFIG_io-module

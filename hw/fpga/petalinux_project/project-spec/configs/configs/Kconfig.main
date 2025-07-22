@@ -33,22 +33,22 @@ config SUBSYSTEM_ENDIAN_LITTLE
 
 if SUBSYSTEM_DISTRO_PETALINUX
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.linuxcompselection
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.linuxcompselection
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.autoconfigsettings
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.autoconfigsettings
 
 endif
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.syshw
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.syshw
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.dtgsettings
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.dtgsettings
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.bootcompconfigurations
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.bootcompconfigurations
 
 if SUBSYSTEM_DISTRO_PETALINUX
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.imagepkgconfigurations
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.imagepkgconfigurations
 
 endif
 
-source /home/clundin/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctobuildsettings
+source /home/chswenson/work/caliptra-sw/hw/fpga/petalinux_project/project-spec/configs/configs/Kconfig.yoctobuildsettings
