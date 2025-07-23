@@ -416,6 +416,10 @@ impl FirmwareProcessor {
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
+                        if Self::supports_ocp_lock(&soc_ifc) {
+                            capabilities |= Capabilities::ROM_OCP_LOCK;
+                        }
+
                         let mut resp = CapabilitiesResp {
                             hdr: MailboxRespHeader::default(),
                             capabilities: capabilities.to_bytes(),
@@ -1195,5 +1199,23 @@ impl FirmwareProcessor {
         )?;
 
         Ok(encrypted_cmk)
+    }
+
+    /// Checks if ROM supports OCP LOCK.
+    ///
+    /// ROM needs to be compiled with `ocp-lock` feature and the hardware needs to support OCP
+    /// LOCK.
+    ///
+    /// # Arguments
+    /// * `soc_ifc` - SOC Interface
+    ///
+    /// # Returns true if OCP lock is supported.
+    fn supports_ocp_lock(soc_ifc: &SocIfc) -> bool {
+        #[cfg(feature = "ocp-lock")]
+        if soc_ifc.ocp_lock_mode() {
+            return true;
+        }
+
+        false
     }
 }

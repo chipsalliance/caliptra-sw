@@ -84,6 +84,7 @@ fips-test-hooks = [
   "caliptra-drivers/fips-test-hooks",
   "caliptra-image-verify/fips-test-hooks",
 ]
+ocp-lock = []
 
 [[bin]]
 name = "asm_tests"
