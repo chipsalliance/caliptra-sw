@@ -1522,6 +1522,11 @@ impl CaliptraError {
             0x000E006D,
             "Runtime Error: AES GCM key usage limit reached"
         ),
+        (
+            RUNTIME_FE_PROG_ILLEGAL_LIFECYCLE_STATE,
+            0x000E006E,
+            "Runtime Error: FE programming illegal lifecycle state"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,

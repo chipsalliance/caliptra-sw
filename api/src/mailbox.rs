@@ -122,6 +122,9 @@ impl CommandId {
     // The sign with exported mldsa command.
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
+    // The FE programming command.
+    pub const FE_PROG: Self = Self(0x4645_5052); // "FEPR"
+
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
 
