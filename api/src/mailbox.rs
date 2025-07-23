@@ -1358,7 +1358,6 @@ pub struct FwInfoResp {
     pub fmc_sha384_digest: [u32; 12],
     pub runtime_sha384_digest: [u32; 12],
     pub owner_pub_key_hash: [u32; 12],
-    pub authman_sha384_digest: [u32; 12],
 }
 
 // CAPABILITIES
