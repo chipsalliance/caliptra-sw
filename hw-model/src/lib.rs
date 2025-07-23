@@ -1134,7 +1134,9 @@ mod tests {
         rv32_gen.into_inner().empty_loop().build()
     }
 
+    //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
     #[test]
+    #[cfg(not(feature = "fpga_realtime"))]
     fn test_axi() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
             rom: &gen_image_hi(),
@@ -1177,7 +1179,9 @@ mod tests {
         );
     }
 
+    //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
     #[test]
+    #[cfg(not(feature = "fpga_realtime"))]
     fn test_mbox() {
         // Same as test_axi, but uses higher-level register interface
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
@@ -1208,7 +1212,9 @@ mod tests {
         assert_eq!(model.soc_mbox().cmd().read(), 4242);
     }
 
+    //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
     #[test]
+    #[cfg(not(feature = "fpga_realtime"))]
     /// Violate the mailbox protocol by having the sender trying to write to mailbox in execute state.
     fn test_mbox_negative() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
@@ -1305,7 +1311,9 @@ mod tests {
         model.step_until_output("hii").unwrap();
     }
 
+    //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
     #[test]
+    #[cfg(not(feature = "fpga_realtime"))]
     fn test_output_failure() {
         let mut model = caliptra_hw_model::new(
             InitParams {
@@ -1389,7 +1397,9 @@ mod tests {
         );
     }
 
+    //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
     #[test]
+    #[cfg(not(feature = "fpga_realtime"))]
     /// Test SocManager maiLbox API.
     fn test_negative_soc_mgr_mbox_users() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {

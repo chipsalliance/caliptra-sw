@@ -1137,7 +1137,9 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
     }
 }
 
+//TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_dbg_unlock_prod_unlock_levels_failure() {
     for unlock_level in [0, 9, 16] {
         let signing_ecc_key = p384::ecdsa::SigningKey::random(&mut StdRng::from_entropy());
