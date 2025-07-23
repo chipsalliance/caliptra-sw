@@ -1860,11 +1860,6 @@ impl CaliptraError {
             0x01045001,
             "ROM UDS Programming Error: In passive mode"
         ),
-        (
-            ROM_UDS_PROG_INVALID_SEED_LENGTH,
-            0x01045002,
-            "ROM UDS Programming Error: Invalid seed length"
-        ),
         (ROM_GLOBAL_NMI, 0x01050001, "ROM Global Error: NMI"),
         (
             ROM_GLOBAL_EXCEPTION,

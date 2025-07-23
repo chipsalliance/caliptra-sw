@@ -82,66 +82,49 @@ impl UdsFeProgrammingFlow {
             // Generate a 512-bit random value.
             let seed: [u32; 16] = trng.generate16()?.into();
 
-            // Determine seed length based on the programming mode
-            let seed_length = self.seed_length();
-
             let uds_fuse_row_granularity_64 = soc_ifc.uds_fuse_row_granularity_64();
             let fuse_controller_base_addr = soc_ifc.fuse_controller_base_addr();
             let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(fuse_controller_base_addr), dma);
-            let mut uds_seed_dest_address = self.get_dest_address(soc_ifc);
-            let mut seed_index = 0;
+            let uds_seed_dest_address = self.get_dest_address(soc_ifc);
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-                while seed_index < seed_length {
-                    // Poll the STATUS register until the DAI state returns to idle
-                    while !regs.status().read().dai_idle() {}
+                seed[..self.seed_length()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().for_each(
+                    |(index, seed)| {
+                        let dest = uds_seed_dest_address + (index * seed.len() * 4) as u32;
 
-                    // Write the seed to the DIRECT_ACCESS_WDATA registers
-                    let wdata_0 = seed[seed_index];
-                    cprintln!(
-                        "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_0 register, wdata_0: {:#x}",
-                        self.prefix(),
-                        wdata_0
-                    );
-                    regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
+                        // Poll the STATUS register until the DAI state returns to idle
+                        while !regs.status().read().dai_idle() {}
 
-                    if uds_fuse_row_granularity_64 {
-                        if seed_index + 1 >= seed_length {
-                            return Err(CaliptraError::ROM_UDS_PROG_INVALID_SEED_LENGTH);
-                        }
-                        // 64-bit granularity
-                        let wdata_1 = seed[seed_index + 1];
+                        let wdata_0 = seed[0];
                         cprintln!(
-                            "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_1 register, wdata_1: {:#x}",
+                            "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_0 register, wdata_0: {:#x}",
                             self.prefix(),
-                            wdata_1
+                            wdata_0
                         );
-                        regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
-                        seed_index += 2;
-                    } else {
-                        // 32-bit granularity
-                        seed_index += 1;
+                        regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
+
+                        if let Some(&wdata_1) = seed.get(1) {
+                            cprintln!(
+                            "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_1 register, wdata_1: {:#x}",
+                                self.prefix(),
+                                wdata_1
+                            );
+                            regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
+                        }
+
+                        // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
+                        cprintln!(
+                            "[{}] Writing the Seed programming destination address: {:#x} to the DIRECT_ACCESS_ADDRESS register",
+                            self.prefix(),
+                            dest
+                        );
+                        regs.direct_access_address().write(|w| w.address(dest));
+
+                        // Trigger the seed write command
+                        cprintln!("[{}] Triggering the seed write command", self.prefix());
+                        regs.direct_access_cmd().write(|w| w.wr(true));
                     }
-
-                    // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
-                    cprintln!(
-                        "[{}] Writing the Seed programming destination address: {:#x} to the DIRECT_ACCESS_ADDRESS register",
-                        self.prefix(),
-                        uds_seed_dest_address
-                    );
-                    regs.direct_access_address().write(|w| w.address(uds_seed_dest_address));
-
-                    // Trigger the seed write command
-                    cprintln!("[{}] Triggering the seed write command", self.prefix());
-                    regs.direct_access_cmd().write(|w| w.wr(true));
-
-                    // Increment the DIRECT_ACCESS_ADDRESS register
-                    if uds_fuse_row_granularity_64 {
-                        uds_seed_dest_address += 8;
-                    } else {
-                        uds_seed_dest_address += 4;
-                    }
-                } // End of seed write loop.
+                );
 
                 // Trigger the partition digest operation
                 // Poll the STATUS register until the DAI state returns to idle
