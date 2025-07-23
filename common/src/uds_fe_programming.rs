@@ -16,6 +16,10 @@ Abstract:
 use crate::cprintln;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, SocIfc, Trng};
 
+fn flag_is_set(flags: u32, n: usize) -> bool {
+    flags & (1 << n) != 0
+}
+
 /// UDS/FE Programming Flow
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UdsFeProgrammingFlow {
@@ -67,6 +71,7 @@ impl UdsFeProgrammingFlow {
         soc_ifc: &mut SocIfc,
         trng: &mut Trng,
         dma: &Dma,
+        bitflags: Option<u32>,
     ) -> CaliptraResult<()> {
         cprintln!("[{}] ++", self.prefix());
 
@@ -90,6 +95,10 @@ impl UdsFeProgrammingFlow {
             let _ = otp_ctrl.with_regs_mut(|regs| {
                 seed[..self.seed_length()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().for_each(
                     |(index, seed)| {
+                        if !self.is_uds() && !flag_is_set(bitflags.unwrap_or(u32::MAX), index) {
+                            return
+                        }
+
                         let dest = uds_seed_dest_address + (index * seed.len() * 4) as u32;
 
                         // Poll the STATUS register until the DAI state returns to idle

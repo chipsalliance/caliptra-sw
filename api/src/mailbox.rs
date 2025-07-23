@@ -526,6 +526,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    FeProg(FeProgReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -598,6 +599,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -668,6 +670,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -736,6 +739,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
+            MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -3742,6 +3746,14 @@ impl Default for CmEcdsaSignResp {
 }
 
 impl Response for CmEcdsaSignResp {}
+
+// FeProg
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct FeProgReq {
+    pub hdr: MailboxReqHeader,
+    pub bitflags: u32,
+}
 
 // CM_ECDSA_VERIFY
 #[repr(C)]
