@@ -34,7 +34,7 @@ impl FeProgrammingCmd {
         }
 
         let fe_programmer = UdsFeProgrammingFlow::Fe {
-            bitmask: cmd.bitflags,
+            partition: cmd.partition,
         };
 
         // Call the common FE programming function

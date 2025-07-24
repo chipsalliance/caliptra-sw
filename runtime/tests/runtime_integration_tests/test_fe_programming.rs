@@ -28,10 +28,10 @@ fn test_fe_programming_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Create FE programming request with test bitflags
+    // Create FE programming request with test parameters.
     let mut cmd = MailboxReq::FeProg(FeProgReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        bitflags: 0x1, // Test with basic bitflag set
+        partition: 1,
     });
     cmd.populate_chksum().unwrap();
 

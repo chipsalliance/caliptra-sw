@@ -3752,7 +3752,7 @@ impl Response for CmEcdsaSignResp {}
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct FeProgReq {
     pub hdr: MailboxReqHeader,
-    pub bitflags: u32,
+    pub partition: u32,
 }
 
 // CM_ECDSA_VERIFY

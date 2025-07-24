@@ -22,7 +22,7 @@ pub enum UdsFeProgrammingFlow {
     /// UDS (Unique Device Secret) programming mode - 64 bytes
     Uds,
     /// FE (Field Entropy) programming mode - 32 bytes, can be set with a u32 granularity using bitmask
-    Fe { bitmask: u32 },
+    Fe { partition: u32 },
 }
 
 impl UdsFeProgrammingFlow {
@@ -35,7 +35,7 @@ impl UdsFeProgrammingFlow {
     fn seed_length_words(self) -> usize {
         match self {
             UdsFeProgrammingFlow::Uds => 16, // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe { bitmask: _ } => 8, // 32 bytes = 8 u32 words
+            UdsFeProgrammingFlow::Fe { partition: _ } => 8, // 32 bytes = 8 u32 words
         }
     }
 
@@ -43,7 +43,7 @@ impl UdsFeProgrammingFlow {
     fn prefix(self) -> &'static str {
         match self {
             UdsFeProgrammingFlow::Uds => "uds",
-            UdsFeProgrammingFlow::Fe { bitmask: _ } => "fe",
+            UdsFeProgrammingFlow::Fe { partition: _ } => "fe",
         }
     }
 
@@ -52,7 +52,7 @@ impl UdsFeProgrammingFlow {
         match self {
             Self::Uds => soc_ifc.uds_seed_dest_base_addr_low(),
             // [CAP2][TODO] This needs to be different for field entropy
-            Self::Fe { bitmask: _ } => soc_ifc.uds_seed_dest_base_addr_low(),
+            Self::Fe { partition: _ } => soc_ifc.uds_seed_dest_base_addr_low(),
         }
     }
 
@@ -83,14 +83,17 @@ impl UdsFeProgrammingFlow {
             let _ = otp_ctrl.with_regs_mut(|regs| {
                 seed[..self.seed_length_words()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().filter(|(i, _)| {
                     match self {
-                        Self::Fe { bitmask } => (*bitmask >> *i) & 1 == 1,
+                        Self::Fe { partition } => *partition as usize == *i,
                         Self::Uds => true,
                     }
                 }).
                     for_each(
                     |(index, seed)| {
-
-                        let dest = seed_dest_address + (index * seed.len() * 4) as u32;
+                        let dest = if self.is_uds() {
+                            seed_dest_address + (index * seed.len() * 4) as u32
+                        } else {
+                            seed_dest_address + (index * 16) as u32
+                        };
 
                         // Poll the STATUS register until the DAI state returns to idle
                         while !regs.status().read().dai_idle() {}
