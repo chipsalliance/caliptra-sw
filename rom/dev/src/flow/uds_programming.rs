@@ -45,6 +45,6 @@ impl UdsProgrammingFlow {
         let uds_fe_programmer = UdsFeProgrammingFlow::Uds;
 
         // Call the common UDS programming function
-        uds_fe_programmer.program_uds_fe(&mut env.soc_ifc, &mut env.trng, &env.dma)
+        uds_fe_programmer.program_uds_fe(&mut env.soc_ifc, &mut env.trng, &env.dma, None)
     }
 }
