@@ -12,8 +12,8 @@
       Restart = "on-failure";
       RestartSec = "15s";
       Environment = [
-        ''ZCU_FTDI="1-1.1.3"''
-        ''ZCU_SDWIRE="1-1.1.2"''
+        ''ZCU_FTDI="1-1.2.1.1"''
+        ''ZCU_SDWIRE="1-1.2.1.2"''
         ''IDENTIFIER="caliptra-kir-vck190-5"''
         ''FPGA_TARGET="vck190"''
         ''IMAGE="/home/${user}/vck190.img"''
@@ -32,8 +32,8 @@
       Restart = "on-failure";
       RestartSec = "15s";
       Environment = [
-        ''ZCU_FTDI="1-1.1.1"''
-        ''ZCU_SDWIRE="1-1.1.4"''
+        ''ZCU_FTDI="1-1.2.3"''
+        ''ZCU_SDWIRE="1-1.2.4"''
         ''IDENTIFIER="caliptra-kir-vck190-3"''
         ''FPGA_TARGET="vck190"''
         ''IMAGE="/home/${user}/vck190.img"''
