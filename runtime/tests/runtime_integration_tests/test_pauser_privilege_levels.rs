@@ -37,7 +37,7 @@ use crate::common::{
     assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 
-const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
+const DATA: [u8; DPE_PROFILE.hash_size()] = [0u8; 48];
 
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
@@ -75,6 +75,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
+            svn: 0,
         };
 
         // If we are on the last call to DeriveContext, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
@@ -145,6 +146,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
             flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
+            svn: 0,
         };
 
         // If we are on the last call to DeriveContext, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
@@ -270,11 +272,10 @@ fn test_change_locality() {
     let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: DATA,
-        flags: DeriveContextFlags::CHANGE_LOCALITY
-            | DeriveContextFlags::MAKE_DEFAULT
-            | DeriveContextFlags::INPUT_ALLOW_X509,
+        flags: DeriveContextFlags::CHANGE_LOCALITY | DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 2,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -292,6 +293,7 @@ fn test_change_locality() {
         flags: DeriveContextFlags::MAKE_DEFAULT,
         tci_type: 0,
         target_locality: 2,
+        svn: 0,
     };
 
     let _ = execute_dpe_cmd(
@@ -443,10 +445,11 @@ fn test_export_cdi_cannot_be_called_from_pl1() {
 
     let get_cert_chain_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
-        data: [0; DPE_PROFILE.get_tci_size()],
+        data: [0; DPE_PROFILE.tci_size()],
         flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let _ = execute_dpe_cmd(
         &mut model,
@@ -554,6 +557,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
         tci_type: 0,
         target_locality: 0,
+        svn: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,

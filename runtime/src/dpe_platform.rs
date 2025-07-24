@@ -116,8 +116,23 @@ impl Platform for DpePlatform<'_> {
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
-        Digest::write_hex_str(self.hashed_rt_pub_key, &mut serial)
-            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
+        let src = self.hashed_rt_pub_key.as_slice();
+        if serial.len() != src.len() * 2 {
+            return Err(PlatformError::IssuerNameError(0));
+        }
+
+        let mut curr_idx = 0;
+        const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
+        for &b in src {
+            let h1 = (b >> 4) as usize;
+            let h2 = (b & 0xF) as usize;
+            if h1 >= HEX_CHARS.len() || h2 >= HEX_CHARS.len() || curr_idx + 1 >= serial.len() {
+                return Err(PlatformError::IssuerNameError(1));
+            }
+            serial[curr_idx] = HEX_CHARS[h1];
+            serial[curr_idx + 1] = HEX_CHARS[h2];
+            curr_idx += 2;
+        }
 
         let name = Name {
             cn: DirectoryString::Utf8String(CALIPTRA_CN),
@@ -134,7 +149,7 @@ impl Platform for DpePlatform<'_> {
     /// SubjectKeyIdentifier extension in the RT alias certificate.
     fn get_signer_identifier(&mut self) -> Result<SignerIdentifier, PlatformError> {
         let mut ski = [0u8; MAX_KEY_IDENTIFIER_SIZE];
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::SubjectKeyIdentifierError(0));
         }
@@ -150,7 +165,7 @@ impl Platform for DpePlatform<'_> {
         &mut self,
         out: &mut [u8; MAX_KEY_IDENTIFIER_SIZE],
     ) -> Result<(), PlatformError> {
-        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.as_slice();
         if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::IssuerKeyIdentifierError(0));
         }
