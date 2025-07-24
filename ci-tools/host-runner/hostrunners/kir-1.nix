@@ -67,5 +67,12 @@
 
         caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
      ''))
+      ((pkgs.writeShellScriptBin "vck-0-debug" ''
+        #!${pkgs.bash}/bin/bash
+        export ZCU_FTDI="1-1.3.2"
+        export ZCU_SDWIRE="1-1.3.1"
+
+        caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE "$@"
+     ''))
   ];
 }
