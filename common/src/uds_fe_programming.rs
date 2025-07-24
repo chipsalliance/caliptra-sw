@@ -21,8 +21,8 @@ use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, 
 pub enum UdsFeProgrammingFlow {
     /// UDS (Unique Device Secret) programming mode - 64 bytes
     Uds,
-    /// FE (Field Entropy) programming mode - 32 bytes
-    Fe,
+    /// FE (Field Entropy) programming mode - 32 bytes, can be set with a u32 granularity using bitmask
+    Fe { bitmask: u32 },
 }
 
 impl UdsFeProgrammingFlow {
@@ -35,7 +35,7 @@ impl UdsFeProgrammingFlow {
     pub fn seed_length(self) -> usize {
         match self {
             UdsFeProgrammingFlow::Uds => 16, // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe => 8,   // 32 bytes = 8 u32 words
+            UdsFeProgrammingFlow::Fe { bitmask: _ } => 8, // 32 bytes = 8 u32 words
         }
     }
 
@@ -43,7 +43,7 @@ impl UdsFeProgrammingFlow {
     pub fn prefix(self) -> &'static str {
         match self {
             UdsFeProgrammingFlow::Uds => "uds",
-            UdsFeProgrammingFlow::Fe => "fe",
+            UdsFeProgrammingFlow::Fe { bitmask: _ } => "fe",
         }
     }
 
@@ -52,7 +52,7 @@ impl UdsFeProgrammingFlow {
         match self {
             Self::Uds => soc_ifc.uds_seed_dest_base_addr_low(),
             // [CAP2][TODO] This needs to be different for field entropy
-            Self::Fe => soc_ifc.uds_seed_dest_base_addr_low(),
+            Self::Fe { bitmask: _ } => soc_ifc.uds_seed_dest_base_addr_low(),
         }
     }
 
@@ -88,8 +88,15 @@ impl UdsFeProgrammingFlow {
             let uds_seed_dest_address = self.get_dest_address(soc_ifc);
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-                seed[..self.seed_length()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().for_each(
+                seed[..self.seed_length()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().filter(|(i, _)| {
+                    match self {
+                        Self::Fe { bitmask } => (*bitmask >> *i) & 1 == 1,
+                        Self::Uds => true,
+                    }
+                }).
+                    for_each(
                     |(index, seed)| {
+
                         let dest = uds_seed_dest_address + (index * seed.len() * 4) as u32;
 
                         // Poll the STATUS register until the DAI state returns to idle
