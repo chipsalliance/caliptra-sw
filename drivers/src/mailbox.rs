@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::memory_layout;
+use crate::{memory_layout, report_fw_error_fatal, SocIfc};
 use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -37,14 +37,29 @@ pub enum MailboxOpState {
 /// Caliptra mailbox abstraction
 pub struct Mailbox {
     mbox: MboxCsr,
+    mbox_len: u32,
 }
-
-pub const MAX_MAILBOX_LEN: u32 = 256 * 1024;
 
 impl Mailbox {
     pub fn new(mbox: MboxCsr) -> Self {
-        Self { mbox }
+        let mbox_len = Self::get_mbox_size();
+
+        Self { mbox, mbox_len }
     }
+
+    /// Get the mailbox size based on hardware revision
+    pub fn get_mbox_size() -> u32 {
+        let soc_ifc = unsafe { SocIfc::new(SocIfcReg::new()) };
+        match soc_ifc.get_hw_revision() {
+            (2, 0) => 256 * 1024,
+            (2, 1) => 16 * 1024,
+            _ => {
+                report_fw_error_fatal(0);
+                0
+            } // [CAP2][TODO]
+        }
+    }
+
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
@@ -56,6 +71,7 @@ impl Mailbox {
             Some(MailboxSendTxn {
                 state: MailboxOpState::default(),
                 mbox: &mut self.mbox,
+                mbox_len: self.mbox_len,
             })
         }
     }
@@ -69,6 +85,7 @@ impl Mailbox {
         MailboxSendTxn {
             state: MailboxOpState::default(),
             mbox: &mut self.mbox,
+            mbox_len: self.mbox_len,
         }
     }
 
@@ -81,6 +98,7 @@ impl Mailbox {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn {
                 state: MailboxOpState::Execute,
                 mbox: &mut self.mbox,
+                mbox_len: self.mbox_len,
                 recovery_transaction: false,
             }),
             _ => None,
@@ -96,6 +114,7 @@ impl Mailbox {
         MailboxRecvTxn {
             state: MailboxOpState::Execute,
             mbox: &mut self.mbox,
+            mbox_len: self.mbox_len,
             recovery_transaction: true,
         }
     }
@@ -106,6 +125,7 @@ impl Mailbox {
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvPeek {
                 mbox: &mut self.mbox,
+                mbox_len: self.mbox_len,
             }),
             _ => None,
         }
@@ -141,6 +161,7 @@ pub struct MailboxSendTxn<'a> {
     /// Current state.
     state: MailboxOpState,
     mbox: &'a mut MboxCsr,
+    mbox_len: u32,
 }
 
 impl MailboxSendTxn<'_> {
@@ -170,7 +191,7 @@ impl MailboxSendTxn<'_> {
         }
         let mbox = self.mbox.regs_mut();
 
-        if dlen > MAX_MAILBOX_LEN {
+        if dlen > self.mbox_len {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_DATA_LEN);
         }
 
@@ -273,6 +294,7 @@ impl Drop for MailboxSendTxn<'_> {
 
 pub struct MailboxRecvPeek<'a> {
     mbox: &'a mut MboxCsr,
+    mbox_len: u32,
 }
 impl<'a> MailboxRecvPeek<'a> {
     /// Returns the value stored in the command register
@@ -298,6 +320,7 @@ impl<'a> MailboxRecvPeek<'a> {
         MailboxRecvTxn {
             state: MailboxOpState::Execute,
             mbox: self.mbox,
+            mbox_len: self.mbox_len,
             recovery_transaction: false,
         }
     }
@@ -364,6 +387,8 @@ pub struct MailboxRecvTxn<'a> {
 
     mbox: &'a mut MboxCsr,
 
+    mbox_len: u32,
+
     recovery_transaction: bool,
 }
 
@@ -411,7 +436,7 @@ impl MailboxRecvTxn<'_> {
         }
         let mbox = self.mbox.regs_mut();
 
-        if dlen > MAX_MAILBOX_LEN {
+        if dlen > self.mbox_len {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_DATA_LEN);
         }
 
