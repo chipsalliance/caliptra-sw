@@ -65,12 +65,10 @@ impl UdsFeProgrammingFlow {
     pub fn program(&self, soc_ifc: &mut SocIfc, trng: &mut Trng, dma: &Dma) -> CaliptraResult<()> {
         cprintln!("[{}] ++", self.prefix());
 
-        // Update the programming state.
-        cprintln!("[{}] Updating the programming state", self.prefix());
         if self.is_uds() {
+            // Update the programming state.
+            cprintln!("[{}] Updating the programming state", self.prefix());
             soc_ifc.set_uds_programming_flow_state(true);
-        } else {
-            // [CAP2][TODO]: What needs to be done here?
         }
 
         let result = (|| {
@@ -143,20 +141,15 @@ impl UdsFeProgrammingFlow {
             Ok(())
         })();
 
-        // Set the programming result.
-        cprintln!("[{}] Setting the programming result", self.prefix());
         if self.is_uds() {
-            soc_ifc.set_uds_programming_flow_status(result.is_ok());
-        } else {
-            // [CAP2][TODO]: What needs to be done here?
-        }
+            // Set the programming result.
+            cprintln!("[{}] Setting the programming result", self.prefix());
 
-        // Update the programming state.
-        cprintln!("[{}] Updating the programming state", self.prefix());
-        if self.is_uds() {
+            soc_ifc.set_uds_programming_flow_status(result.is_ok());
+
+            // Update the programming state.
+            cprintln!("[{}] Updating the programming state", self.prefix());
             soc_ifc.set_uds_programming_flow_state(false);
-        } else {
-            // [CAP2][TODO]: What needs to be done here?
         }
 
         cprintln!(
