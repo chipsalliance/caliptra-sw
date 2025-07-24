@@ -1,6 +1,20 @@
 # Nix configuration for a caliptra fpga runner host
 
-{ pkgs, identifier, user, lib, ... }:
+{ pkgs, identifier, user, lib, rtool, ... }:
+let 
+    update-fpga-script = pkgs.writeShellScriptBin "update-fpga-image" ''
+      export GCP_ZONE="us-central1"
+      export GITHUB_ORG="chipsalliance"
+      export GCP_PROJECT="caliptra-github-ci"
+
+      set -eux
+      cd /home/${user}
+      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
+      ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
+      mv image.img zcu104.img
+      rm caliptra-fpga-image.zip
+    '';
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -46,6 +60,8 @@
         "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDKTJ6unwymfvdFSTNAXo+wjaX1l2SFPgeSgK/xzC7ex3oGR2ihCg/8luQt1e6FKnbqV83O2v0AT/aRw9p9sEjY7HGNDz+0nQ6lezi4XAuqJMOMshzVlqv4hZJLb8Ab2PMma0se15h1LhnfSUpttv7cDgdLXHqh2kizMQ39l62Lu4j2ITJKFhqW1v7Ez74uo2o++We6EHU2PRZhyKV9tKbYXojOyow+abUXKMfXy01iCSunaQq6KRB6Jl5TskMVmGSz0rUnjyxLCCPEA2h7D0lgQviLuJQtIl/jFYu8QFNqaVwHDHiEUpNfcfQGx6S7hpSs7CdPD29YQSka9TovICyD3dCKGn+tpfRQDmZSTR8Qnqv4mNtxKPcitpMFNVL9V6Echqy83rlo5CgO1tEsL/6g0WEm6nrFBMs/szUfv1qs4/4wL0PsNit1ArxfqYXVaDzGisvA+Y4yRl2IsMPaI7TzB6uDSR0j31jZXSGR8vqPG9rF+aGobF21OfWGHI8Ddc= clundin@clundin-macbookpro.roam.internal"
         # clundin Workstation
         "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDohnyJgm7nztWkxtKaqds13IHJMYpoV2VozRs5wIbct2R98lmyATIR+pOypPv/uv++KnDTUV68/Pt+SFZS6VcOBj/SfDqniqi5/Zmj5qL0dRfLfr4RE1ET7gMPMpvbynUEaXiaochSInikdToDwUeUfhNfs1JGGIbOsoNNhBYAKuNTBo7DXpOUuq8t6oBMqvYWWtCN+kAagkf3tyi94Br52GS++9i7q3RZnvHtw79FW5Sc4xZtuiBqs7aKsK/pplKC7V6emcf0zM1F49knZR+UmLvHhRXzbyxJPyDHgZFGcu7SeDCikAn/2mKxIr8gHjyVSZ5JwOuHekQrVRgwT+CVYBc6AsvCe5aRsrUDJC7TZHsWUVKkaXXDyASYy87wTy+IE3BCZVZmjjZ9OufX7jqXT/lenJbaOn9240e5pSydOzT97tVIuL8rRL+6m00cBsxLJcsFjmrGreX3M2T37IifICpFUDaZJYkVcrKvUWXIdgqHECpQgo7YmLlTcC/hP/0= clundin@clundin6.kir.corp.google.com "
+        # zhalvorsen
+        "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com"
       ];
   };
 
@@ -59,9 +75,10 @@
     ripgrep
     fd
     jq
-
-    ((pkgs.callPackage ./tools/rtool.nix {}))
+    unzip
+    update-fpga-script
     ((pkgs.callPackage ./tools/fpga-boss.nix {}))
+    rtool
   ];
 
   programs.zsh.enable = true;
@@ -80,6 +97,25 @@
       mode = "0400";
       user = "${user}";
       target = "secrets/caliptra-gce-ci-github-private-key-pem/latest";
+    };
+  };
+
+  # Keep logs for 2 weeks, we generally only need to look at them when things break.
+  services.journald.extraConfig = "MaxRetentionSec=2weeks";
+
+  systemd.timers."update-fpga-image" = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "Wed *-*-* 05:00:00";
+      Persistent = true;
+    };
+  };
+
+  systemd.services."update-fpga-image" = {
+    serviceConfig = {
+      Type = "oneshot";
+      User = "${user}";
+      ExecStart = "${update-fpga-script}/bin/update-fpga-image";
     };
   };
 }

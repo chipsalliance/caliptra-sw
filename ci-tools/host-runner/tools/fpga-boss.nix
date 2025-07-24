@@ -11,8 +11,8 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "chipsalliance";
     repo = "caliptra-sw";
-    rev = "a9d7695d";
-    sha256 = "sha256-OKMr2xsiEPjHh5/8jG/bl/f9nqIR1Zkhu+Sd+4B/DMQ=";
+    rev = "10e4ed31a10b2c6d60642d7894412e2fc8b2b9fb";
+    sha256 = "sha256-LIU6GDESwoYTL7KrGYZabopC8QRR8x70qQaU7XAVc5o=";
   };
   sourceRoot = "${src.name}/ci-tools/fpga-boss";
   cargoHash = "sha256-cx+uHWFzeZHnX92G3UzfpAiT0SSWkEPP+5pxmZ/nbfY=";
