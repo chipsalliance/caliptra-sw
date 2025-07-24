@@ -48,9 +48,9 @@ static inline uint32_t caliptra_read_fw_error_fatal(void)
     return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FW_ERROR_FATAL);
 }
 
-static inline uint32_t caliptra_read_dbg_manuf_serv() 
+static inline uint32_t caliptra_read_dbg_manuf_serv()
 {
-    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG);    
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG);
 }
 
 
@@ -119,10 +119,10 @@ static inline void caliptra_write_fuse_valid_pauser(uint32_t data)
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_VALID_PAUSER, data);
 }
 
-static inline void caliptra_write_dbg_manuf_serv(uint32_t data) 
+static inline void caliptra_write_dbg_manuf_serv(uint32_t data)
 {
     // Set Manuf service reg
-    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, data);    
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_DBG_MANUF_SERVICE_REG, data);
 }
 
 
