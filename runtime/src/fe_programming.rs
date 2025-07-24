@@ -33,12 +33,12 @@ impl FeProgrammingCmd {
             Err(CaliptraError::RUNTIME_FE_PROG_ILLEGAL_LIFECYCLE_STATE)?;
         }
 
-        let uds_fe_programmer = UdsFeProgrammingFlow::Fe {
+        let fe_programmer = UdsFeProgrammingFlow::Fe {
             bitmask: cmd.bitflags,
         };
 
         // Call the common FE programming function
-        uds_fe_programmer.program_uds_fe(&mut drivers.soc_ifc, &mut drivers.trng, &drivers.dma)?;
+        fe_programmer.program(&mut drivers.soc_ifc, &mut drivers.trng, &drivers.dma)?;
 
         Ok(0)
     }

@@ -27,12 +27,12 @@ pub enum UdsFeProgrammingFlow {
 
 impl UdsFeProgrammingFlow {
     /// Returns true if this is UDS programming mode
-    pub fn is_uds(self) -> bool {
+    fn is_uds(self) -> bool {
         matches!(self, UdsFeProgrammingFlow::Uds)
     }
 
     /// Returns the seed length in 32-bit words for this mode
-    pub fn seed_length(self) -> usize {
+    fn seed_length_words(self) -> usize {
         match self {
             UdsFeProgrammingFlow::Uds => 16, // 64 bytes = 16 u32 words
             UdsFeProgrammingFlow::Fe { bitmask: _ } => 8, // 32 bytes = 8 u32 words
@@ -40,7 +40,7 @@ impl UdsFeProgrammingFlow {
     }
 
     /// Returns the prefix string for logging
-    pub fn prefix(self) -> &'static str {
+    fn prefix(self) -> &'static str {
         match self {
             UdsFeProgrammingFlow::Uds => "uds",
             UdsFeProgrammingFlow::Fe { bitmask: _ } => "fe",
@@ -62,12 +62,7 @@ impl UdsFeProgrammingFlow {
     /// * `soc_ifc` - SoC interface for accessing fuse controller and related registers
     /// * `trng` - TRNG for generating random seeds
     /// * `dma` - DMA engine for OTP control
-    pub fn program_uds_fe(
-        &self,
-        soc_ifc: &mut SocIfc,
-        trng: &mut Trng,
-        dma: &Dma,
-    ) -> CaliptraResult<()> {
+    pub fn program(&self, soc_ifc: &mut SocIfc, trng: &mut Trng, dma: &Dma) -> CaliptraResult<()> {
         cprintln!("[{}] ++", self.prefix());
 
         // Update the programming state.
@@ -85,10 +80,10 @@ impl UdsFeProgrammingFlow {
             let uds_fuse_row_granularity_64 = soc_ifc.uds_fuse_row_granularity_64();
             let fuse_controller_base_addr = soc_ifc.fuse_controller_base_addr();
             let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(fuse_controller_base_addr), dma);
-            let uds_seed_dest_address = self.get_dest_address(soc_ifc);
+            let seed_dest_address = self.get_dest_address(soc_ifc);
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-                seed[..self.seed_length()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().filter(|(i, _)| {
+                seed[..self.seed_length_words()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().filter(|(i, _)| {
                     match self {
                         Self::Fe { bitmask } => (*bitmask >> *i) & 1 == 1,
                         Self::Uds => true,
@@ -97,25 +92,15 @@ impl UdsFeProgrammingFlow {
                     for_each(
                     |(index, seed)| {
 
-                        let dest = uds_seed_dest_address + (index * seed.len() * 4) as u32;
+                        let dest = seed_dest_address + (index * seed.len() * 4) as u32;
 
                         // Poll the STATUS register until the DAI state returns to idle
                         while !regs.status().read().dai_idle() {}
 
                         let wdata_0 = seed[0];
-                        cprintln!(
-                            "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_0 register, wdata_0: {:#x}",
-                            self.prefix(),
-                            wdata_0
-                        );
                         regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
 
                         if let Some(&wdata_1) = seed.get(1) {
-                            cprintln!(
-                            "[{}] Writing the seed to the DIRECT_ACCESS_WDATA_1 register, wdata_1: {:#x}",
-                                self.prefix(),
-                                wdata_1
-                            );
                             regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
                         }
 
