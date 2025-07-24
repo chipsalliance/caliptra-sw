@@ -733,11 +733,13 @@ struct SocRegistersImpl {
     #[register(offset = 0x51c)]
     ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x520)]
-    ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x524)]
-    ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_h: ReadWriteRegister<u32>,
 
     #[register(offset = 0x528)]
     ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
@@ -899,9 +901,9 @@ impl SocRegistersImpl {
         // To make things easy the fuse bank is part of the fuse bank controller emulation
         let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
         let mci_base = crate::dma::axi_root_bus::AxiRootBus::SS_MCI_OFFSET;
-        let ss_prod_dbg_unlock_fuse_offset = crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
+        let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
-            crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
+            crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -1013,8 +1015,8 @@ impl SocRegistersImpl {
             fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
             ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
-            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
-            ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
+            ss_uds_seed_base_addr_l: ReadWriteRegister::new(uds_seed_offset as u32),
+            ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
             ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
             ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
             ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
