@@ -9,7 +9,7 @@ let
 
       set -eux
       cd /home/${user}
-      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image > caliptra-fpga-image.zip
+      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
       ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
       mv image.img zcu104.img
       rm caliptra-fpga-image.zip
