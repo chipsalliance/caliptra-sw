@@ -28,7 +28,7 @@ impl FeProgrammingCmd {
         let cmd = FeProgReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-        // [CAP2][TODO] Check if ROM is in manufacturing mode. Is this to be done for FE?
+        // [CAP2][TODO] Check if we're in manufacturing mode. Is this to be done for FE?
         if drivers.soc_ifc.lifecycle() != Lifecycle::Manufacturing {
             Err(CaliptraError::RUNTIME_FE_PROG_ILLEGAL_LIFECYCLE_STATE)?;
         }

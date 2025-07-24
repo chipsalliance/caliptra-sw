@@ -421,7 +421,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             &mut drivers.dma,
             cmd_bytes,
         ),
-        // [CAP2][TODO] Nedds updated offset for field entropy in fuse controller
+        // [CAP2][TODO] Needs updated offset for field entropy in fuse controller
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
