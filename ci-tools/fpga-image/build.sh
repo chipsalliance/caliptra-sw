@@ -82,7 +82,8 @@ ls out/rootfs
 ls out/rootfs/lib/
 ls out/lib
 
-cp -r out/lib/modules/6.6.40-xilinx-g2b7f6f70a62a out/rootfs/lib/modules/
+cp -r out/lib/modules/6.6.40-xilinx-g2b7f6f70a62a out/rootfs/kernel-modules/
+ls out/rootfs/kernel-modules/6.6.40-xilinx-g2b7f6f70a62a
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
