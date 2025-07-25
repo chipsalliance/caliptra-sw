@@ -3747,7 +3747,10 @@ impl Default for CmEcdsaSignResp {
 
 impl Response for CmEcdsaSignResp {}
 
-// FeProg
+// FE (Field Entropy) Programming
+//
+// FE partitions are limited to values 0-3 (4 total partitions).
+// Valid partition numbers: 0, 1, 2, 3
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
 pub struct FeProgReq {

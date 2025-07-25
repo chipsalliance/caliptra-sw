@@ -21,11 +21,31 @@ use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, 
 pub enum UdsFeProgrammingFlow {
     /// UDS (Unique Device Secret) programming mode - 64 bytes
     Uds,
-    /// FE (Field Entropy) programming mode - 32 bytes, can be set with a u32 granularity using bitmask
+    /// FE (Field Entropy) programming mode - 8 bytes per partition
+    /// Valid partition numbers: 0, 1, 2, 3 (4 total partitions)
     Fe { partition: u32 },
 }
 
+const UDS_SEED_SIZE: usize = 64;
+const FUSE_CTRL_DIGEST: usize = 8;
+const FE_SIZE: usize = 8;
+const MAX_FE_PARTITION: u32 = 3;
+
 impl UdsFeProgrammingFlow {
+    /// Validates the programming flow parameters
+    pub fn validate(self) -> CaliptraResult<()> {
+        match self {
+            UdsFeProgrammingFlow::Uds => Ok(()),
+            UdsFeProgrammingFlow::Fe { partition } => {
+                if partition > MAX_FE_PARTITION {
+                    Err(CaliptraError::RUNTIME_FE_PROG_INVALID_PARTITION)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
+
     /// Returns true if this is UDS programming mode
     fn is_uds(self) -> bool {
         matches!(self, UdsFeProgrammingFlow::Uds)
@@ -34,8 +54,8 @@ impl UdsFeProgrammingFlow {
     /// Returns the seed length in 32-bit words for this mode
     fn seed_length_words(self) -> usize {
         match self {
-            UdsFeProgrammingFlow::Uds => 16, // 64 bytes = 16 u32 words
-            UdsFeProgrammingFlow::Fe { partition: _ } => 8, // 32 bytes = 8 u32 words
+            UdsFeProgrammingFlow::Uds => UDS_SEED_SIZE / size_of::<u32>(), // 64 bytes = 16 u32 words
+            UdsFeProgrammingFlow::Fe { partition: _ } => FE_SIZE / size_of::<u32>(), // 8 bytes = 2 u32 words
         }
     }
 
@@ -48,11 +68,49 @@ impl UdsFeProgrammingFlow {
     }
 
     /// Returns the destination address for programming
+    ///
+    /// Memory Map:
+    /// ```
+    /// +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    /// |           UDS Region                |
+    /// |          (64 bytes)                 |
+    /// +-------------------------------------+
+    /// ```
+    ///
+    /// FE Partitions, separate region in fuse controller memory handled by MCU, but at same base as UDS
+    ///
+    /// ```
+    /// +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    /// |        FE Partition 0               |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (0 * 16)
+    /// |     FE Partition 0 Digest           |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (0 * 16) + 8
+    /// |        FE Partition 1               |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (1 * 16)
+    /// |     FE Partition 1 Digest           |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (1 * 16) + 8
+    /// |        FE Partition 2               |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (2 * 16)
+    /// |     FE Partition 2 Digest           |
+    /// |         (8 bytes)                   |
+    /// +-------------------------------------+ <- base + (2 * 16) + 8
+    /// |            ...                      |
+    /// +-------------------------------------+
+    /// ```
     fn get_dest_address(&self, soc_ifc: &SocIfc) -> u32 {
+        let uds_seed_dest = soc_ifc.uds_seed_dest_base_addr_low();
+
         match self {
-            Self::Uds => soc_ifc.uds_seed_dest_base_addr_low(),
-            // [CAP2][TODO] This needs to be different for field entropy
-            Self::Fe { partition: _ } => soc_ifc.uds_seed_dest_base_addr_low(),
+            Self::Uds => uds_seed_dest,
+            Self::Fe { partition } => {
+                // FE partitions start at the same base address with partition spacing (16 bytes each)
+                uds_seed_dest + (partition * (FE_SIZE + FUSE_CTRL_DIGEST) as u32)
+            }
         }
     }
 
@@ -63,6 +121,9 @@ impl UdsFeProgrammingFlow {
     /// * `trng` - TRNG for generating random seeds
     /// * `dma` - DMA engine for OTP control
     pub fn program(&self, soc_ifc: &mut SocIfc, trng: &mut Trng, dma: &Dma) -> CaliptraResult<()> {
+        // Validate parameters first
+        self.validate()?;
+
         cprintln!("[{}] ++", self.prefix());
 
         if self.is_uds() {
@@ -81,19 +142,9 @@ impl UdsFeProgrammingFlow {
             let seed_dest_address = self.get_dest_address(soc_ifc);
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-                seed[..self.seed_length_words()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().filter(|(i, _)| {
-                    match self {
-                        Self::Fe { partition } => *partition as usize == *i,
-                        Self::Uds => true,
-                    }
-                }).
-                    for_each(
+                seed[..self.seed_length_words()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().for_each(
                     |(index, seed)| {
-                        let dest = if self.is_uds() {
-                            seed_dest_address + (index * seed.len() * 4) as u32
-                        } else {
-                            seed_dest_address + (index * 16) as u32
-                        };
+                        let dest = seed_dest_address + (index * seed.len() * size_of::<u32>()) as u32;
 
                         // Poll the STATUS register until the DAI state returns to idle
                         while !regs.status().read().dai_idle() {}

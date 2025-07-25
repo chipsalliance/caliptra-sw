@@ -1527,6 +1527,11 @@ impl CaliptraError {
             0x000E006E,
             "Runtime Error: FE programming illegal lifecycle state"
         ),
+        (
+            RUNTIME_FE_PROG_INVALID_PARTITION,
+            0x000E006F,
+            "Runtime Error: FE programming invalid partition number"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
