@@ -143,7 +143,7 @@ impl UdsFeProgrammingFlow {
                 let chunk_size = if uds_fuse_row_granularity_64 { 2 } else { 1 };
                 let chunked_seed = seed.chunks(chunk_size);
                 for (index, seed_part) in chunked_seed.enumerate() {
-                    let dest = seed_dest_address + (index * seed.len() * size_of::<u32>()) as u32;
+                    let dest = seed_dest_address + (index * chunk_size * size_of::<u32>()) as u32;
 
                     // Poll the STATUS register until the DAI state returns to idle
                     while !regs.status().read().dai_idle() {}
