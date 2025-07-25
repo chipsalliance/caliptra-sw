@@ -60,8 +60,8 @@ jobs:
 
           mkdir -p temp/lib
 
-          ls ./build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/
-          cp -r ./build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/* temp/lib
+          ls ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/
+          cp -r ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/* temp/lib
 
           tar -C temp -cvzf kernel-module.tar.gz /lib
 
