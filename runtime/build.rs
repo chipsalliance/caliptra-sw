@@ -34,7 +34,6 @@ fn main() {
 
             println!("cargo:rustc-link-arg=-Tlink.x");
             println!("cargo:rerun-if-changed=build.rs");
-            println!("cargo:rustc-env=ARBITRARY_MAX_HANDLES=32");
         }
     }
 }
