@@ -12,6 +12,7 @@ mkdir -p out
 
 mv /tmp/vck190-kernel/vck190-kernel.tar.gz out/system-boot.tar.gz
 mv /tmp/vck190-kmod/io-module.ko  out/
+mv /tmp/kernel-module/kernel-module.tar.gz  out/kernel-module.tar.gz
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
@@ -74,6 +75,13 @@ chroot out/rootfs systemctl set-default multi-user.target
 chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
 cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
+
+mv /tmp/kernel-module/kernel-module.tar.gz  
+tar xvzf out/kernel-module.tar.gz -C out/rootfs --no-same-owner
+
+ls out/rootfs
+ls out/rootfs/lib/
+ls out/rootfs/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 

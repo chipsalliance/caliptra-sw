@@ -49,12 +49,25 @@ jobs:
           ./create_boot_bin.sh /tmp/system.xsa
 
           # TODO(clundin): Not all of these artifacts are required.
-          tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
+          tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb 
+
+          tar -C petalinux_project/images/linux/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/package/usr/ -cvzf kernel-module.tar.gz /lib/modules/6.6.40-xilinx-g2b7f6f70a62a/
+
+          mv kernel-module.tar.gz /tmp/kernel-module.tar.gz
+
           mv vck190-kernel.tar.gz /tmp/vck190-kernel.tar.gz
 
           IO_MODULE_PATH=$(find . -name 'io-module.ko')
+          echo $IO_MODULE_PATH
           mv $IO_MODULE_PATH /tmp/io-module.ko
           popd
+
+      - name: 'Upload kernel module'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vck190-kernel-modules
+          path: /tmp/kernel-module.tar.gz
+          retention-days: 1
 
       - name: 'Upload kernel artifact'
         uses: actions/upload-artifact@v4
@@ -77,6 +90,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      - name: 'Download kernel module'
+        uses: actions/download-artifact@v4
+        with:
+          name: vck190-kernel-modules
+          path: /tmp/kernel-module
+
       - name: 'Download kernel artifact'
         uses: actions/download-artifact@v4
         with:
@@ -97,6 +116,9 @@ jobs:
 
       - name: Build SD image
         run: |
+          sudo apt-get update
+          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
           cd ci-tools/fpga-image
           sudo bash build.sh
 
