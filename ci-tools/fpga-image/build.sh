@@ -76,7 +76,6 @@ chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
 cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
-mv /tmp/vck190-kernel-modules/kernel-module.tar.gz out/kernel-module.tar.gz
 tar xvzf out/kernel-module.tar.gz -C out/rootfs --no-same-owner
 
 ls out/rootfs
