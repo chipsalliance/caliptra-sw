@@ -15,8 +15,7 @@ fn test_fe_programming_cmd() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
-        security_state: *SecurityState::default()
-            .set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
         ..Default::default()
     };
 
@@ -53,8 +52,7 @@ fn test_fe_programming_invalid_partition() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
-        security_state: *SecurityState::default()
-            .set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
         ..Default::default()
     };
 
