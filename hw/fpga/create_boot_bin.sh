@@ -45,4 +45,6 @@ petalinux-package --boot --format BIN --plm --psmfw --u-boot --dtb --force
 echo "Building io-module"
 petalinux-build -c io-module
 
+find . -iname '*.ko'
+
 cd ../
