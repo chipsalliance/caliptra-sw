@@ -129,7 +129,7 @@ impl UdsFeProgrammingFlow {
             soc_ifc.set_uds_programming_flow_state(true);
         }
 
-        let result = (|| {
+        let result = {
             // Generate a 512-bit random value.
             let seed: [u32; 16] = trng.generate16()?.into();
 
@@ -140,7 +140,7 @@ impl UdsFeProgrammingFlow {
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
                 let seed = &seed[..self.seed_length_words()]; // Get random bytes of desired size
-                let chunk_size = if uds_fuse_row_granularity_64 { 2 } else {1};
+                let chunk_size = if uds_fuse_row_granularity_64 { 2 } else { 1 };
                 let chunked_seed = seed.chunks(chunk_size);
                 for (index, seed_part) in chunked_seed.enumerate() {
                     let dest = seed_dest_address + (index * seed.len() * size_of::<u32>()) as u32;
@@ -174,11 +174,11 @@ impl UdsFeProgrammingFlow {
 
                 // Write the Seed base address to the DIRECT_ACCESS_ADDRESS register
                 cprintln!(
-                    "[{}] Triggering the partition digest operation, uds_seed_dest_address: {:#x}",
+                    "[{}] Triggering the partition digest operation, seed_dest_address: {:#x}",
                     self.prefix(),
-                    soc_ifc.uds_seed_dest_base_addr_low()
+                    seed_dest_address
                 );
-                regs.direct_access_address().write(|w| w.address(soc_ifc.uds_seed_dest_base_addr_low()));
+                regs.direct_access_address().write(|w| w.address(seed_dest_address));
 
                 // Trigger the digest calculation command
                 cprintln!("[{}] Triggering the digest calculation command", self.prefix());
@@ -191,7 +191,7 @@ impl UdsFeProgrammingFlow {
             })?;
 
             Ok(())
-        })();
+        };
 
         if self.is_uds() {
             // Set the programming result.
