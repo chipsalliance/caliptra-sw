@@ -1,3 +1,11 @@
 /include/ "system-conf.dtsi"
 / {
+    chosen {
+        bootargs = "earlycon=pl011,mmio32,0xFF000000,115200n8 root=/dev/mmcblk0p3 rootwait console=ttyAMA0,115200 overlayfs=tmpfs clk_ignore_unused uio_pdrv_genirq.of_id=generic-uio ";
+        stdout-path = "serial0:115200n8";
+    };
+};
+
+&axi_gpio_0 {
+    compatible = "generic-uio";
 };
