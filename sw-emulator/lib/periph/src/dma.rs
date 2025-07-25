@@ -293,9 +293,11 @@ impl Dma {
         }
 
         let status0 = ReadWriteRegister::new(self.status0.reg.get());
-        status0
-            .reg
-            .modify(Status0::FIFO_DEPTH.val(self.fifo.len() as u32 * 4));
+        // Instead of scheduling DMA transactions in block sizes, with respect for the actual FIFO size
+        // we do the transaction all at once for efficiency in emulation.
+        // Make sure we report at most the FIFO_SIZE as larger won't fit in the register bits.
+        let reported_fifo = (self.fifo.len() as u32 * 4).min(Self::FIFO_SIZE as u32);
+        status0.reg.modify(Status0::FIFO_DEPTH.val(reported_fifo));
 
         if self.use_mcu_recovery_interface {
             self.axi.send_get_recovery_indirect_fifo_status();
