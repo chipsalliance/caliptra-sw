@@ -67,41 +67,38 @@ impl UdsFeProgrammingFlow {
         }
     }
 
-    /// Returns the destination address for programming
-    ///
-    /// Memory Map:
-    /// ```
-    /// +-------------------------------------+ <- uds_seed_dest_base_addr_low()
-    /// |           UDS Region                |
-    /// |          (64 bytes)                 |
-    /// +-------------------------------------+
-    /// ```
-    ///
-    /// FE Partitions, separate region in fuse controller memory handled by MCU, but at same base as UDS
-    ///
-    /// ```
-    /// +-------------------------------------+ <- uds_seed_dest_base_addr_low()
-    /// |        FE Partition 0               |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (0 * 16)
-    /// |     FE Partition 0 Digest           |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (0 * 16) + 8
-    /// |        FE Partition 1               |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (1 * 16)
-    /// |     FE Partition 1 Digest           |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (1 * 16) + 8
-    /// |        FE Partition 2               |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (2 * 16)
-    /// |     FE Partition 2 Digest           |
-    /// |         (8 bytes)                   |
-    /// +-------------------------------------+ <- base + (2 * 16) + 8
-    /// |            ...                      |
-    /// +-------------------------------------+
-    /// ```
+    // Returns the destination address for programming
+    //
+    // Memory Map:
+    //
+    // +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    // |           UDS Region                |
+    // |          (64 bytes)                 |
+    // +-------------------------------------+
+    //
+    // FE Partitions, separate region in fuse controller memory handled by MCU, but at same base as UDS
+    //
+    // +-------------------------------------+ <- uds_seed_dest_base_addr_low()
+    // |        FE Partition 0               |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (0 * 16)
+    // |     FE Partition 0 Digest           |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (0 * 16) + 8
+    // |        FE Partition 1               |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (1 * 16)
+    // |     FE Partition 1 Digest           |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (1 * 16) + 8
+    // |        FE Partition 2               |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (2 * 16)
+    // |     FE Partition 2 Digest           |
+    // |         (8 bytes)                   |
+    // +-------------------------------------+ <- base + (2 * 16) + 8
+    // |            ...                      |
+    // +-------------------------------------+
     fn get_dest_address(&self, soc_ifc: &SocIfc) -> u32 {
         let uds_seed_dest = soc_ifc.uds_seed_dest_base_addr_low();
 
@@ -142,33 +139,34 @@ impl UdsFeProgrammingFlow {
             let seed_dest_address = self.get_dest_address(soc_ifc);
 
             let _ = otp_ctrl.with_regs_mut(|regs| {
-                seed[..self.seed_length_words()].chunks(if uds_fuse_row_granularity_64 { 2 } else {1}).enumerate().for_each(
-                    |(index, seed)| {
-                        let dest = seed_dest_address + (index * seed.len() * size_of::<u32>()) as u32;
+                let seed = &seed[..self.seed_length_words()]; // Get random bytes of desired size
+                let chunk_size = if uds_fuse_row_granularity_64 { 2 } else {1};
+                let chunked_seed = seed.chunks(chunk_size);
+                for (index, seed_part) in chunked_seed.enumerate() {
+                    let dest = seed_dest_address + (index * seed.len() * size_of::<u32>()) as u32;
 
-                        // Poll the STATUS register until the DAI state returns to idle
-                        while !regs.status().read().dai_idle() {}
+                    // Poll the STATUS register until the DAI state returns to idle
+                    while !regs.status().read().dai_idle() {}
 
-                        let wdata_0 = seed[0];
-                        regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
+                    let wdata_0 = seed_part[0];
+                    regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
 
-                        if let Some(&wdata_1) = seed.get(1) {
-                            regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
-                        }
-
-                        // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
-                        cprintln!(
-                            "[{}] Writing the Seed programming destination address: {:#x} to the DIRECT_ACCESS_ADDRESS register",
-                            self.prefix(),
-                            dest
-                        );
-                        regs.direct_access_address().write(|w| w.address(dest));
-
-                        // Trigger the seed write command
-                        cprintln!("[{}] Triggering the seed write command", self.prefix());
-                        regs.direct_access_cmd().write(|w| w.wr(true));
+                    if let Some(&wdata_1) = seed_part.get(1) {
+                        regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
                     }
-                );
+
+                    // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
+                    cprintln!(
+                        "[{}] Writing the Seed programming destination address: {:#x} to the DIRECT_ACCESS_ADDRESS register",
+                        self.prefix(),
+                        dest
+                    );
+                    regs.direct_access_address().write(|w| w.address(dest));
+
+                    // Trigger the seed write command
+                    cprintln!("[{}] Triggering the seed write command", self.prefix());
+                    regs.direct_access_cmd().write(|w| w.wr(true));
+                }
 
                 // Trigger the partition digest operation
                 // Poll the STATUS register until the DAI state returns to idle
