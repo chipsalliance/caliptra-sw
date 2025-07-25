@@ -18,6 +18,8 @@ mv /tmp/kernel-module/kernel-module.tar.gz  out/kernel-module.tar.gz
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
+  tar xvzf out/kernel-module.tar.gz -C out/ --no-same-owner
+
   debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
   chroot out/rootfs useradd runner --shell /bin/bash --create-home
@@ -76,11 +78,11 @@ chroot out/rootfs chmod 755 /usr/bin/startup-script.sh
 cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
-tar xvzf out/kernel-module.tar.gz -C out/rootfs --no-same-owner
-
 ls out/rootfs
 ls out/rootfs/lib/
-ls out/rootfs/lib/modules/6.6.40-xilinx-g2b7f6f70a62a/
+ls out/lib
+
+cp -r out/lib/modules/6.6.40-xilinx-g2b7f6f70a62a out/rootfs/lib/modules/
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
