@@ -58,10 +58,10 @@ jobs:
           echo "Finding"
           find . -name '*.ko'
 
-          mkdir -p temp/lib
+          mkdir -p temp/
 
           ls ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/
-          cp -r ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/lib/* temp/lib
+          cp -r ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/lib temp/
 
           ls temp/lib
 
