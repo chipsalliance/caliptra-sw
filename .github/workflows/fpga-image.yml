@@ -55,15 +55,13 @@ jobs:
           IO_MODULE_PATH=$(find . -name 'io-module.ko')
           echo $IO_MODULE_PATH
 
-          KERNEL_MODULE_PATHS=$(find . -iname '*lib/modules/6.6.40-xilinx-g2b7f6f70a62a*' -type d)
-          echo "KERNEL_MODULE_PATHS: $KERNEL_MODULE_PATHS" 
+          echo "Finding"
+          find . -name '*.ko'
 
-          mkdir -p temp/lib/modules
+          mkdir -p temp/lib
 
-          for path in $KERNEL_MODULE_PATHS;  do
-            echo "copying path: $path"
-            cp -r $path   temp/lib/modules
-          done
+          ls ./build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/
+          cp -r ./build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/* temp/lib
 
           tar -C temp -cvzf kernel-module.tar.gz /lib
 
