@@ -61,9 +61,11 @@ jobs:
           mkdir -p temp/lib
 
           ls ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/
-          cp -r ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/* temp/lib
+          cp -r ./petalinux_project/build/tmp/work/versal_generic_xcvc1902-xilinx-linux/linux-xlnx/6.6.40+git/image/usr/lib/* temp/lib
 
-          tar -C temp -cvzf kernel-module.tar.gz /lib
+          ls temp/lib
+
+          tar -C temp -cvzf kernel-module.tar.gz lib
 
           mv kernel-module.tar.gz /tmp/kernel-module.tar.gz
 
