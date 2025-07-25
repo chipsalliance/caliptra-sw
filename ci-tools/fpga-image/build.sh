@@ -80,10 +80,10 @@ chroot out/rootfs systemctl enable startup-script.service
 
 ls out/rootfs
 ls out/rootfs/lib/
-ls out/lib
+ls out/lib/modules
 
 cp -r out/lib/modules/6.6.40-xilinx-g2b7f6f70a62a out/rootfs/kernel-modules/
-ls out/rootfs/kernel-modules/6.6.40-xilinx-g2b7f6f70a62a
+ls out/rootfs/kernel-modules
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
 
