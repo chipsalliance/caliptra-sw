@@ -17,6 +17,7 @@ use core::mem::offset_of;
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::ImageMetadataFlags;
+use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
@@ -114,6 +115,7 @@ impl ActivateFirmwareCmd {
         activate_bitmap: &[u32; 4],
         mcu_image_size: u32,
     ) -> Result<(), ()> {
+        cprintln!("Activating firmware with bitmap: {:?}", activate_bitmap);
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
         let dma = &drivers.dma;
         let mut go_bitmap: [u32; 4] = [0; 4];
@@ -123,9 +125,15 @@ impl ActivateFirmwareCmd {
 
         let mut temp_bitmap: [u32; 4] = [0; 4];
 
-        // Caliptra clears FW_EXEC_CTRL[2] for all affected images.
+        // Caliptra clears FW_EXEC_CTRL for all affected images
         for i in 0..4 {
             temp_bitmap[i] = go_bitmap[i] & !activate_bitmap[i];
+        }
+
+        // Leave MCU image bit as is, we will set it later after the reset_reason is set to avoid race condition
+        // between Caliptra and MCU
+        if Self::is_bit_set(&go_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+            Self::set_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
         }
 
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
@@ -135,8 +143,21 @@ impl ActivateFirmwareCmd {
             // MCU sets RESET_REQUEST.mcu_req in MCI to request a reset.
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
             // MCI asserts MCU reset (min reset time for MCU is until MIN_MCU_RST_COUNTER overflows)
-
             let mmio = &DmaMmio::new(mci_base_addr, dma);
+
+            // Caliptra sets RESET_REASON.FW_HITLESS_UPD_RESET
+            unsafe {
+                mmio.write_volatile(
+                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
+                    FW_HITLESS_UPD_RESET_MASK,
+                )
+            };  
+
+            // Clear FW_EXEC_CTRL[2]. This should start the process of resetting MCU.
+            Self::clear_bit(&mut temp_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize);
+            drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
+
+            cprintln!("[Caliptra ] Wait for MCU to clear interrupt");
 
             // Wait for MCU to clear interrupt
             let mut intr_status: u32 = 1;
@@ -145,6 +166,10 @@ impl ActivateFirmwareCmd {
                     unsafe { mmio.read_volatile(NOTIF0_INTERNAL_INTR_R_OFFSET as *const u32) }
                         & NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
             }
+
+            cprintln!("[Caliptra ]MCU cleared interrupt status");
+
+          
 
             // Wait until RESET_STATUS.MCU_RESET_STS is set
             let mut reset_status: u32 = 0;
@@ -155,6 +180,8 @@ impl ActivateFirmwareCmd {
                 };
             }
 
+            cprintln!("[Caliptra ]MCU is now on reset");
+/*
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
             let (image_load_address, image_staging_address) =
                 Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
@@ -180,13 +207,8 @@ impl ActivateFirmwareCmd {
                 )
                 .map_err(|_| ())?;
 
-            // Caliptra sets RESET_REASON.FW_HITLESS_UPD_RESET
-            unsafe {
-                mmio.write_volatile(
-                    MCI_TOP_REG_RESET_REASON_OFFSET as *mut u32,
-                    FW_HITLESS_UPD_RESET_MASK,
-                )
-            };
+
+            */
         }
 
         for i in 0..4 {
@@ -200,6 +222,7 @@ impl ActivateFirmwareCmd {
 
     #[inline(never)]
     pub(crate) fn get_exec_bit(drivers: &Drivers, image_id: u32) -> Result<u8, ()> {
+/*
         // Get the exec bit for the given image ID
         let persistent_data = drivers.persistent_data.get();
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
@@ -210,6 +233,8 @@ impl ActivateFirmwareCmd {
         } else {
             Err(())
         }
+        */
+        Ok(2)
     }
 
     #[inline(never)]
@@ -217,6 +242,7 @@ impl ActivateFirmwareCmd {
         drivers: &Drivers,
         image_id: u32,
     ) -> Result<(AxiAddr, AxiAddr), ()> {
+        /*
         // Get the staging address for the given image ID
         let persistent_data = drivers.persistent_data.get();
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
@@ -236,6 +262,17 @@ impl ActivateFirmwareCmd {
         } else {
             Err(())
         }
+        */
+        Ok((
+            AxiAddr {
+                hi: 0,
+                lo: 0x8000_0000,
+            },
+            AxiAddr {
+                hi: 0,
+                lo: 0x9000_0000,
+            },
+        ))
     }
 
     fn set_bit(bitmap: &mut [u32; 4], bit: usize) {
@@ -245,6 +282,14 @@ impl ActivateFirmwareCmd {
             bitmap[idx] |= 1 << offset;
         }
     }
+
+    fn clear_bit(bitmap: &mut [u32; 4], bit: usize) {
+        if bit < core::mem::size_of_val(bitmap) * 8 {
+            let idx = bit / 32;
+            let offset = bit % 32;
+            bitmap[idx] &= !(1 << offset);
+        }
+    }    
 
     fn is_bit_set(bitmap: &[u32; 4], bit: usize) -> bool {
         if bit < core::mem::size_of_val(bitmap) * 8 {
