@@ -20,6 +20,7 @@ use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
+use caliptra_drivers::dma::MCU_SRAM_OFFSET;
 use ureg::{Mmio, MmioMut};
 
 const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
@@ -39,6 +40,7 @@ impl ActivateFirmwareCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        cprintln!("Executing ACTIVATE_FIRMWARE mailbox command");
         let fw_id_count: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
             let offset = offset_of!(ActivateFirmwareReq, fw_id_count);
@@ -54,6 +56,10 @@ impl ActivateFirmwareCmd {
         };
 
         if (fw_id_count == 0) || (fw_id_count > ActivateFirmwareReq::MAX_FW_ID_COUNT) {
+            cprintln!(
+                "Invalid fw_id_count: {}",
+                fw_id_count
+            );
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
@@ -70,11 +76,15 @@ impl ActivateFirmwareCmd {
             .try_into()
             .unwrap()
         };
-
+        cprintln!(
+            "mcu_image_size: {}",
+            mcu_image_size
+        );
         let mut images_to_activate_bitmap: [u32; 4] = [0; 4];
         for i in 0..fw_id_count {
             let offset = offset_of!(ActivateFirmwareReq, fw_ids) + (i * 4);
             if cmd_args.len() < offset + 4 {
+                cprintln!("Invalid command args length: {}", cmd_args.len());
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let fw_id = u32::from_le_bytes(
@@ -85,9 +95,11 @@ impl ActivateFirmwareCmd {
             if fw_id == ActivateFirmwareReq::RESERVED0_IMAGE_ID
                 || fw_id == ActivateFirmwareReq::RESERVED1_IMAGE_ID
             {
+                cprintln!("Invalid fw_id: {}", fw_id);
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             if fw_id == ActivateFirmwareReq::MCU_IMAGE_ID && mcu_image_size == 0 {
+                cprintln!("MCU image size cannot be zero");
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let exec_bit = Self::get_exec_bit(drivers, fw_id)
@@ -96,6 +108,7 @@ impl ActivateFirmwareCmd {
             // Note that bits 0 and 1 are reserved. Refer to
             // https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.SS_GENERIC_FW_EXEC_CTRL%5B0%5D
             if exec_bit == 0 || exec_bit == 1 || exec_bit > MAX_EXEC_GO_BIT_INDEX {
+                cprintln!("Invalid exec_bit: {}", exec_bit);
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             Self::set_bit(&mut images_to_activate_bitmap, fw_id as usize);
@@ -104,6 +117,10 @@ impl ActivateFirmwareCmd {
         Self::activate_fw(drivers, &images_to_activate_bitmap, mcu_image_size as u32)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED)?;
 
+        cprintln!(
+            "Activated firmware with bitmap: {:?}",
+            images_to_activate_bitmap
+        );
         let resp = mutrefbytes::<ActivateFirmwareResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
         Ok(core::mem::size_of::<ActivateFirmwareResp>())
@@ -181,7 +198,7 @@ impl ActivateFirmwareCmd {
             }
 
             cprintln!("[Caliptra ]MCU is now on reset");
-/*
+
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
             let (image_load_address, image_staging_address) =
                 Self::get_loading_staging_address(drivers, ActivateFirmwareReq::MCU_IMAGE_ID)?;
@@ -191,6 +208,11 @@ impl ActivateFirmwareCmd {
                 drivers.soc_ifc.mci_base_addr().into(),
                 &drivers.dma,
             );
+            cprintln!(
+                "[Caliptra ] Loading MCU image from staging address: {:#x}{:#x} to load address: {:#x}{:#x}",
+                image_staging_address.hi, image_staging_address.lo, image_load_address.hi, image_load_address.lo
+            );
+            let mcu_sram_addr : u64 = ((mci_base_addr.hi as u64) << 32)  + (mci_base_addr.lo as u64) + MCU_SRAM_OFFSET;
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
@@ -199,16 +221,15 @@ impl ActivateFirmwareCmd {
                     },
                     mcu_image_size,
                     AxiAddr {
-                        hi: image_load_address.hi,
-                        lo: image_load_address.lo,
+                        hi: (mcu_sram_addr >> 32) as u32,
+                        lo: mcu_sram_addr as u32,
                     },
                     false,
-                    true,
+                    false,
                 )
                 .map_err(|_| ())?;
 
 
-            */
         }
 
         for i in 0..4 {
@@ -222,7 +243,6 @@ impl ActivateFirmwareCmd {
 
     #[inline(never)]
     pub(crate) fn get_exec_bit(drivers: &Drivers, image_id: u32) -> Result<u8, ()> {
-/*
         // Get the exec bit for the given image ID
         let persistent_data = drivers.persistent_data.get();
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
@@ -233,8 +253,6 @@ impl ActivateFirmwareCmd {
         } else {
             Err(())
         }
-        */
-        Ok(2)
     }
 
     #[inline(never)]
@@ -242,7 +260,6 @@ impl ActivateFirmwareCmd {
         drivers: &Drivers,
         image_id: u32,
     ) -> Result<(AxiAddr, AxiAddr), ()> {
-        /*
         // Get the staging address for the given image ID
         let persistent_data = drivers.persistent_data.get();
         let auth_manifest_image_metadata_col = &persistent_data.auth_manifest_image_metadata_col;
@@ -262,17 +279,6 @@ impl ActivateFirmwareCmd {
         } else {
             Err(())
         }
-        */
-        Ok((
-            AxiAddr {
-                hi: 0,
-                lo: 0x8000_0000,
-            },
-            AxiAddr {
-                hi: 0,
-                lo: 0x9000_0000,
-            },
-        ))
     }
 
     fn set_bit(bitmap: &mut [u32; 4], bit: usize) {

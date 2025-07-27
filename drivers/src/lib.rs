@@ -23,7 +23,7 @@ mod bounded_address;
 pub mod cmac_kdf;
 mod csrng;
 mod data_vault;
-mod dma;
+pub mod dma;
 mod doe;
 mod ecc384;
 mod error_reporter;
