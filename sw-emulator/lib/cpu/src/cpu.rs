@@ -786,6 +786,10 @@ impl<TBus: Bus> Cpu<TBus> {
                 TimerAction::SetGlobalIntEn { en } => self.global_int_en = en,
                 TimerAction::SetExtIntEn { en } => self.ext_int_en = en,
                 TimerAction::InternalTimerLocalInterrupt { timer_id } => {
+                    // Reset the timer value to 0 when it reaches its bound.
+                    self.csrs.internal_timers.write_mitcnt(timer_id, 0);
+                    self.csrs.internal_timers.disarm(timer_id);
+
                     if self.global_int_en && !self.halted {
                         step_action = Some(self.handle_internal_timer_local_interrupt(timer_id));
                         break;
@@ -1992,6 +1996,7 @@ mod tests {
         let pic = Rc::new(Pic::new());
         let args = CpuArgs::default();
         let mut cpu = Cpu::new(bus, clock.clone(), pic, args);
+        cpu.csrs.internal_timers.write_mitcnt(0, 100);
         cpu.global_int_en = true;
         cpu.ext_int_en = true;
 
@@ -2021,5 +2026,7 @@ mod tests {
         // now the timer interrupt should be processed
         assert_eq!(cpu.internal_timer_local_int_counter, 1);
         assert_eq!(cpu.external_int_counter, 1);
+        // the timer value should now be 0
+        assert_eq!(cpu.csrs.internal_timers.read_mitcnt0(), 0);
     }
 }
