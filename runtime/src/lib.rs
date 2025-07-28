@@ -24,6 +24,7 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
+mod fe_programming;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
@@ -52,6 +53,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::cfi_check;
 pub use drivers::{Drivers, PauserPrivileges};
+use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -419,6 +421,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             &mut drivers.dma,
             cmd_bytes,
         ),
+        CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

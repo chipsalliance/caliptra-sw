@@ -69,11 +69,14 @@ pub enum Granularity {
     Bits64,
 }
 
+// [TODO][CAP2] Used for both UDS (flow correct) and field entropy (needs implementation).
+const FUSE_BANK_SIZE_BYTES: usize = 64;
+
 pub struct Context {
     pub address: Option<u32>,
     pub wdata0: Option<u32>,
     pub wdata1: Option<u32>,
-    pub fuse_bank: [u32; 64 / size_of::<u32>()],
+    pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
     pub granularity: Granularity,
     pub dai_error: bool,
     pub soc_reg: SocRegistersInternal,
@@ -85,7 +88,7 @@ impl Context {
             address: None,
             wdata0: None,
             wdata1: None,
-            fuse_bank: [0; 64 / size_of::<u32>()],
+            fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
             granularity,
             dai_error: false,
             soc_reg,

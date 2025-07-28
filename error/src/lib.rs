@@ -1522,6 +1522,16 @@ impl CaliptraError {
             0x000E006D,
             "Runtime Error: AES GCM key usage limit reached"
         ),
+        (
+            RUNTIME_FE_PROG_ILLEGAL_LIFECYCLE_STATE,
+            0x000E006E,
+            "Runtime Error: FE programming illegal lifecycle state"
+        ),
+        (
+            RUNTIME_FE_PROG_INVALID_PARTITION,
+            0x000E006F,
+            "Runtime Error: FE programming invalid partition number"
+        ),
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
             FMC_GLOBAL_EXCEPTION,
@@ -1854,11 +1864,6 @@ impl CaliptraError {
             ROM_UDS_PROG_IN_PASSIVE_MODE,
             0x01045001,
             "ROM UDS Programming Error: In passive mode"
-        ),
-        (
-            ROM_UDS_PROG_INVALID_SEED_LENGTH,
-            0x01045002,
-            "ROM UDS Programming Error: Invalid seed length"
         ),
         (ROM_GLOBAL_NMI, 0x01050001, "ROM Global Error: NMI"),
         (
