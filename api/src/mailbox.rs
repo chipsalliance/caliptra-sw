@@ -122,6 +122,9 @@ impl CommandId {
     // The sign with exported mldsa command.
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
+    // The FE programming command.
+    pub const FE_PROG: Self = Self(0x4645_5052); // "FEPR"
+
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
 
@@ -523,6 +526,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    FeProg(FeProgReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -595,6 +599,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -665,6 +670,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -733,6 +739,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
+            MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -3739,6 +3746,17 @@ impl Default for CmEcdsaSignResp {
 }
 
 impl Response for CmEcdsaSignResp {}
+
+// FE (Field Entropy) Programming
+//
+// FE partitions are limited to values 0-3 (4 total partitions).
+// Valid partition numbers: 0, 1, 2, 3
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct FeProgReq {
+    pub hdr: MailboxReqHeader,
+    pub partition: u32,
+}
 
 // CM_ECDSA_VERIFY
 #[repr(C)]
