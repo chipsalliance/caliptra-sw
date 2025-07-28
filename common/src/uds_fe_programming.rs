@@ -81,22 +81,22 @@ impl UdsFeProgrammingFlow {
     // +-------------------------------------+ <- uds_seed_dest_base_addr_low()
     // |        FE Partition 0               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16)
+    // +-------------------------------------+ <- base + (0 * 16) + 8
     // |     FE Partition 0 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (0 * 16) + 8
+    // +-------------------------------------+ <- base + (1 * 16)
     // |        FE Partition 1               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16)
+    // +-------------------------------------+ <- base + (1 * 16) + 8
     // |     FE Partition 1 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (1 * 16) + 8
+    // +-------------------------------------+ <- base + (2 * 16)
     // |        FE Partition 2               |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16)
+    // +-------------------------------------+ <- base + (2 * 16) + 8
     // |     FE Partition 2 Digest           |
     // |         (8 bytes)                   |
-    // +-------------------------------------+ <- base + (2 * 16) + 8
+    // +-------------------------------------+ <- base + (3 * 16)
     // |            ...                      |
     // +-------------------------------------+
     fn get_dest_address(&self, soc_ifc: &SocIfc) -> u32 {
@@ -141,19 +141,23 @@ impl UdsFeProgrammingFlow {
             let _ = otp_ctrl.with_regs_mut(|regs| {
                 let seed = &seed[..self.seed_length_words()]; // Get random bytes of desired size
                 let chunk_size = if uds_fuse_row_granularity_64 { 2 } else { 1 };
-                let chunked_seed = seed.chunks(chunk_size);
-                for (index, seed_part) in chunked_seed.enumerate() {
+                let mut index = 0;
+                while index < seed.len() / chunk_size {
                     let dest = seed_dest_address + (index * chunk_size * size_of::<u32>()) as u32;
 
                     // Poll the STATUS register until the DAI state returns to idle
                     while !regs.status().read().dai_idle() {}
 
-                    let wdata_0 = seed_part[0];
+                    let wdata_0 = seed[index];
                     regs.dai_wdata_rf().direct_access_wdata_0().write(|_| wdata_0);
 
-                    if let Some(&wdata_1) = seed_part.get(1) {
-                        regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
+                    if uds_fuse_row_granularity_64 {
+                        if let Some(&wdata_1) = seed.get(index + 1) {
+                            regs.dai_wdata_rf().direct_access_wdata_1().write(|_| wdata_1);
+                        }
                     }
+
+                    index += chunk_size;
 
                     // Write the Seed destination address to the DIRECT_ACCESS_ADDRESS register
                     cprintln!(
