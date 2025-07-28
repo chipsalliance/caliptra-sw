@@ -9,6 +9,9 @@ File Name:
 Abstract:
 
     File contains VeeR Internal Timers implementation.
+    This implementation is focused on emulator performance
+    at the cost of accuracy, so it does not need to poll
+    the CPU every cycle.
 
 --*/
 
@@ -100,6 +103,13 @@ impl InternalTimer {
         self.bound.saturating_sub(self.read_time(now)).max(1)
     }
 
+    pub(crate) fn disarm(&mut self, timer: &Timer) {
+        if let Some(action) = self.timer_action.take() {
+            // Cancel the timer action if it exists.
+            timer.cancel(action);
+        }
+    }
+
     fn arm(&mut self, timer: &Timer, now: u64) {
         if let Some(action) = self.timer_action.take() {
             timer.cancel(action);
@@ -131,6 +141,22 @@ impl InternalTimers {
             clock_timer,
             timer0: InternalTimer::new(0),
             timer1: InternalTimer::new(1),
+        }
+    }
+
+    pub fn write_mitcnt(&mut self, timer_id: u8, val: u32) {
+        match timer_id {
+            0 => self.write_mitcnt0(val),
+            1 => self.write_mitcnt1(val),
+            _ => panic!("Invalid timer ID: {}", timer_id),
+        }
+    }
+
+    pub fn disarm(&mut self, timer_id: u8) {
+        match timer_id {
+            0 => self.timer0.disarm(&self.clock_timer),
+            1 => self.timer1.disarm(&self.clock_timer),
+            _ => panic!("Invalid timer ID: {}", timer_id),
         }
     }
 
