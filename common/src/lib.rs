@@ -18,6 +18,7 @@ pub mod hmac_cm;
 pub mod keyids;
 pub mod macros;
 pub mod pmp;
+pub mod uds_fe_programming;
 pub mod verifier;
 pub mod verify;
 pub mod wdt;
