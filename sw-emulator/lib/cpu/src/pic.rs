@@ -101,7 +101,7 @@ impl PicMmioRegisters {
     // priority levels
     const MEIPL_OFFSET: RvAddr = 0x0000;
     const MEIPL_MIN: RvAddr = Self::MEIPL_OFFSET + 4;
-    const MEIPL_MAX: RvAddr = Self::MEIPL_OFFSET + 31 * 4;
+    const MEIPL_MAX: RvAddr = Self::MEIPL_OFFSET + 255 * 4;
 
     // pending interrupts
     #[allow(dead_code)]
@@ -110,7 +110,7 @@ impl PicMmioRegisters {
     // interrupt enable
     const MEIE_OFFSET: RvAddr = 0x2000;
     const MEIE_MIN: RvAddr = Self::MEIE_OFFSET + 4;
-    const MEIE_MAX: RvAddr = Self::MEIE_OFFSET + 31 * 4;
+    const MEIE_MAX: RvAddr = Self::MEIE_OFFSET + 255 * 4;
 
     // PIC configuration register
     const MPICCFG_OFFSET: RvAddr = 0x3000;
@@ -118,12 +118,12 @@ impl PicMmioRegisters {
     // machine external interrupt gateway configuration/control registers
     const MEIGWCTRL_OFFSET: RvAddr = 0x4000;
     const MEIGWCTRL_MIN: RvAddr = Self::MEIGWCTRL_OFFSET + 4;
-    const MEIGWCTRL_MAX: RvAddr = Self::MEIGWCTRL_OFFSET + 31 * 4;
+    const MEIGWCTRL_MAX: RvAddr = Self::MEIGWCTRL_OFFSET + 255 * 4;
 
     // machine external interrupt gateway clear registers
     const MEIGWCLR_OFFSET: RvAddr = 0x5000;
     const MEIGWCLR_MIN: RvAddr = Self::MEIGWCLR_OFFSET + 4;
-    const MEIGWCLR_MAX: RvAddr = Self::MEIGWCLR_OFFSET + 31 * 4;
+    const MEIGWCLR_MAX: RvAddr = Self::MEIGWCLR_OFFSET + 255 * 4;
 
     pub fn register_irq(&self, id: u8) -> Irq {
         Irq {
@@ -260,35 +260,83 @@ register_bitfields! [
 struct PicImplRegs {
     // External interrupt priority level register. Irq id #1 starts at
     // meipl[1] (address 0x0004); meipl[0] is reserved.
-    #[peripheral(offset = 0x0000, len = 0x80)]
-    meipl: ReadWriteRegisterArray<u32, 32, Meipl::Register>,
+    #[peripheral(offset = 0x0000, len = 0x400)]
+    meipl: ReadWriteRegisterArray<u32, 256, Meipl::Register>,
 
     // External Interrupt Pending. Irq id #1 starts at meip[1]; meip[0] is
     // reserved.
-    #[register(offset = 0x1000)]
-    meip: Bits32,
+    #[register_array(offset = 0x1000, item_size = 4, len = 8)]
+    meip: [Bits32; 8],
 
     // External Interrupt Enabled. Irq id #1 starts at meie[1] (address 0x2004);
     // meie[0] is reserved.
-    #[peripheral(offset = 0x2000, len = 0x80)]
-    meie: ReadWriteRegisterArray<u32, 32, Meie::Register>,
+    #[peripheral(offset = 0x2000, len = 0x400)]
+    meie: ReadWriteRegisterArray<u32, 256, Meie::Register>,
 
     #[register(offset = 0x3000)]
     mpiccfg: ReadWriteRegister<u32, Mpiccfg::Register>,
 
     // External Interrupt Gateway Configuration. Irq id #1 starts at
     // meigwctrl[1] (address 0x4004); meigwctrl[0] is reserved.
-    #[peripheral(offset = 0x4000, len = 0x80)]
-    meigwctrl: ReadWriteRegisterArray<u32, 32, Meigwctrl::Register>,
+    #[peripheral(offset = 0x4000, len = 0x400)]
+    meigwctrl: ReadWriteRegisterArray<u32, 256, Meigwctrl::Register>,
 }
 impl PicImplRegs {
     fn new() -> Self {
         Self {
             meipl: ReadWriteRegisterArray::new(0x0000_0000),
-            meip: Bits32::new(),
+            meip: [
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+                Bits32::new(),
+            ],
             meie: ReadWriteRegisterArray::new(0x0000_0000),
             mpiccfg: ReadWriteRegister::new(0x0000_0000),
             meigwctrl: ReadWriteRegisterArray::new(0x0000_0000),
+        }
+    }
+}
+
+struct Bits256 {
+    bits: [Cell<u128>; 2],
+}
+
+impl Bits256 {
+    fn new() -> Self {
+        Self {
+            bits: [Cell::new(0), Cell::new(0)],
+        }
+    }
+    fn all_bits_cleared(&self) -> bool {
+        self.bits[0].get() == 0 && self.bits[1].get() == 0
+    }
+    fn first_set_index(&self) -> Option<u8> {
+        if self.all_bits_cleared() {
+            None
+        } else {
+            let a = self.bits[0].get().trailing_zeros();
+            let b = self.bits[1].get().trailing_zeros();
+            if a != 128 {
+                Some(a as u8)
+            } else {
+                Some(128 + b as u8)
+            }
+        }
+    }
+    fn get(&self, idx: u8) -> bool {
+        (self.bits[idx as usize / 128].get() & (1 << (idx % 128))) != 0
+    }
+    fn set(&self, idx: u8, val: bool) {
+        let mask = 1 << (idx % 128);
+        if val {
+            self.bits[idx as usize / 128].set(self.bits[idx as usize / 128].get() | mask);
+        } else {
+            self.bits[idx as usize / 128].set(self.bits[idx as usize / 128].get() & !mask);
         }
     }
 }
@@ -299,16 +347,6 @@ struct Bits32 {
 impl Bits32 {
     fn new() -> Self {
         Self { bits: Cell::new(0) }
-    }
-    fn all_bits_cleared(&self) -> bool {
-        self.bits.get() == 0
-    }
-    fn first_set_index(&self) -> Option<u8> {
-        if self.all_bits_cleared() {
-            None
-        } else {
-            Some(self.bits.get().trailing_zeros() as u8)
-        }
     }
     fn get(&self, idx: u8) -> bool {
         (self.bits.get() & (1 << idx)) != 0
@@ -350,23 +388,23 @@ struct PicImpl {
 
     // levels.get(2) is true if the most recent call to Irq #2's set_level() was
     // high, false if it was low.
-    irq_levels: Bits32,
+    irq_levels: Bits256,
 
-    gw_pending_ff: Bits32,
+    gw_pending_ff: Bits256,
 
     /// priority_order[0] is the id/priority of the highest priority Irq,
     /// priority_order[31] is the id/priority of the lowest priority Irq.
-    priority_order: Cell<[IrqPriority; 32]>,
+    priority_order: Cell<[IrqPriority; 256]>,
 
     /// id_to_order[1] is the index of Irq #1 in self.priority_order. For example,
     /// if Irq #1 is pending, `self.ordered_irq_pending.get(self.id_to_order[1])` will be true.
-    id_to_order: Cell<[u8; 32]>,
+    id_to_order: Cell<[u8; 256]>,
 
     /// ordered_irq_pending.get(0) is true if the highest priority interrupt is
     /// pending and enabled. ordered_irq_pending.get(31) is true if the lowest priority
     /// interrupt is pending and enabled. Look at self.priority_order
     /// to determine their ids.
-    ordered_irq_pending: Bits32,
+    ordered_irq_pending: Bits256,
 
     // The value to xor a priority threshold with before comparing it with
     // IrqPriority::priority_xored
@@ -377,12 +415,12 @@ impl PicImpl {
         let result = Self {
             regs: RefCell::new(PicImplRegs::new()),
 
-            irq_levels: Bits32::new(),
-            gw_pending_ff: Bits32::new(),
+            irq_levels: Bits256::new(),
+            gw_pending_ff: Bits256::new(),
 
-            priority_order: Cell::new([IrqPriority::default(); 32]),
-            id_to_order: Cell::new([0u8; 32]),
-            ordered_irq_pending: Bits32::new(),
+            priority_order: Cell::new([IrqPriority::default(); 256]),
+            id_to_order: Cell::new([0u8; 256]),
+            ordered_irq_pending: Bits256::new(),
             priority_xor: Cell::new(0),
         };
         result.refresh_order();
@@ -418,7 +456,7 @@ impl PicImpl {
         if ctrl.matches_all(Meigwctrl::TYPE::EdgeTriggered) {
             is_high = self.gw_pending_ff.get(id)
         }
-        regs.meip.set(id, is_high);
+        regs.meip[(id as usize) / 32].set(id % 32, is_high);
         self.set_ordered_irq_pending(&regs, id, is_high);
     }
 
@@ -435,7 +473,8 @@ impl PicImpl {
     }
 
     fn refresh_enabled(&self, regs: &PicImplRegs, id: u8) {
-        self.set_ordered_irq_pending(regs, id, regs.meip.get(id));
+        let val = regs.meip[(id as usize) / 32].get(id % 32);
+        self.set_ordered_irq_pending(regs, id, val);
     }
 
     fn refresh_order(&self) {
@@ -449,7 +488,7 @@ impl PicImpl {
         } else {
             0x0f
         };
-        let mut priorities: [IrqPriority; 32] = std::array::from_fn(|i| {
+        let mut priorities: [IrqPriority; 256] = std::array::from_fn(|i| {
             if i == 0 {
                 IrqPriority::default()
             } else {
@@ -461,7 +500,7 @@ impl PicImpl {
         });
         priorities.sort();
         // priorities is now sorted with the highest priority Irqs at the front
-        let mut id_to_order = [0u8; 32];
+        let mut id_to_order = [0u8; 256];
         for (index, p) in priorities.iter().enumerate() {
             id_to_order[usize::from(p.id)] = u8::try_from(index).unwrap();
         }
