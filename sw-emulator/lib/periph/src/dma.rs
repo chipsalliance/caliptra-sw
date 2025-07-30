@@ -652,7 +652,7 @@ mod tests {
     #[test]
     fn test_dma_fifo_read_write() {
         let clock = Rc::new(Clock::new());
-        let mbox_ram = MailboxRam::new();
+        let mbox_ram = MailboxRam::default();
         let iccm = Iccm::new(&clock);
         let args = CaliptraRootBusArgs {
             clock: clock.clone(),

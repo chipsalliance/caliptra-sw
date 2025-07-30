@@ -209,6 +209,7 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
+    pub hw_rev: (u8, u8),
     pub pic: Rc<Pic>,
     pub clock: Rc<Clock>,
     pub rom: Vec<u8>,
@@ -244,6 +245,7 @@ pub struct CaliptraRootBusArgs<'a> {
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
         Self {
+            hw_rev: (2, 0),
             clock: Default::default(),
             pic: Default::default(),
             rom: Default::default(),
@@ -344,7 +346,7 @@ impl CaliptraRootBus {
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
-        let mailbox_ram = MailboxRam::new();
+        let mailbox_ram = MailboxRam::new(args.hw_rev, args.subsystem_mode);
         let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let prod_dbg_unlock_keypairs = std::mem::take(&mut args.prod_dbg_unlock_keypairs);
