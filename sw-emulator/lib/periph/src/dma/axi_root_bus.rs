@@ -31,6 +31,7 @@ use super::mci::Mci;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 4 * 1024;
+const MCU_SRAM_SIZE: usize = 256 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,
@@ -42,6 +43,7 @@ pub struct AxiRootBus {
     pub mci: Mci,
     sha512_acc: Sha512Accelerator,
     pub test_sram: Option<ReadWriteMemory<TEST_SRAM_SIZE>>,
+    pub mcu_sram: Option<ReadWriteMemory<MCU_SRAM_SIZE>>,
     pub indirect_fifo_status: u32,
     pub use_mcu_recovery_interface: bool,
 }
@@ -92,6 +94,11 @@ impl AxiRootBus {
         } else {
             None
         };
+        let mcu_sram = if !use_mcu_recovery_interface {
+            Some(ReadWriteMemory::new())
+        } else {
+            None
+        };
         Self {
             reg: 0xaabbccdd,
             recovery: RecoveryRegisterInterface::new(),
@@ -101,6 +108,7 @@ impl AxiRootBus {
             event_sender: None,
             dma_result: None,
             test_sram,
+            mcu_sram,
             indirect_fifo_status: 0,
             use_mcu_recovery_interface,
         }
@@ -119,11 +127,11 @@ impl AxiRootBus {
                         ..=Self::RECOVERY_REGISTER_INTERFACE_END
                 ))
         } else {
-            (matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END)
-                || matches!(
-                    addr,
-                    Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
-                ))
+            // matches!(addr, Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END) ||
+            matches!(
+                addr,
+                Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END
+            )
         }
     }
 
@@ -135,20 +143,24 @@ impl AxiRootBus {
 
         match addr {
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
-                let addr = addr - Self::MCU_SRAM_OFFSET;
-                if let Some(sender) = self.event_sender.as_mut() {
-                    sender
-                        .send(Event::new(
-                            Device::CaliptraCore,
-                            Device::MCU,
-                            EventData::MemoryRead {
-                                start_addr: addr as u32,
-                                len,
-                            },
-                        ))
-                        .unwrap();
+                if self.use_mcu_recovery_interface {
+                    let addr = addr - Self::MCU_SRAM_OFFSET;
+                    if let Some(sender) = self.event_sender.as_mut() {
+                        sender
+                            .send(Event::new(
+                                Device::CaliptraCore,
+                                Device::MCU,
+                                EventData::MemoryRead {
+                                    start_addr: addr as u32,
+                                    len,
+                                },
+                            ))
+                            .unwrap();
+                    }
+                    Ok(())
+                } else {
+                    Err(BusError::LoadAccessFault)
                 }
-                Ok(())
             }
             Self::EXTERNAL_TEST_SRAM_OFFSET..=Self::EXTERNAL_TEST_SRAM_END => {
                 let addr = addr - Self::EXTERNAL_TEST_SRAM_OFFSET;
@@ -214,6 +226,14 @@ impl AxiRootBus {
                     return Err(LoadAccessFault);
                 }
             }
+            Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
+                if let Some(mcu_sram) = self.mcu_sram.as_mut() {
+                    let addr = (addr - Self::MCU_SRAM_OFFSET) as RvAddr;
+                    return Bus::read(mcu_sram, size, addr);
+                } else {
+                    return Err(LoadAccessFault);
+                }
+            }
             _ => {}
         };
 
@@ -250,19 +270,26 @@ impl AxiRootBus {
                 }
             }
             Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
-                if let Some(sender) = self.event_sender.as_mut() {
-                    sender
-                        .send(Event::new(
-                            Device::CaliptraCore,
-                            Device::MCU,
-                            EventData::MemoryWrite {
-                                start_addr: (addr - Self::MCU_SRAM_OFFSET) as u32,
-                                data: val.to_le_bytes().to_vec(),
-                            },
-                        ))
-                        .unwrap();
+                if self.use_mcu_recovery_interface {
+                    if let Some(sender) = self.event_sender.as_mut() {
+                        sender
+                            .send(Event::new(
+                                Device::CaliptraCore,
+                                Device::MCU,
+                                EventData::MemoryWrite {
+                                    start_addr: (addr - Self::MCU_SRAM_OFFSET) as u32,
+                                    data: val.to_le_bytes().to_vec(),
+                                },
+                            ))
+                            .unwrap();
+                    }
+                    Ok(())
+                } else if let Some(mcu_sram) = self.mcu_sram.as_mut() {
+                    let addr = (addr - Self::MCU_SRAM_OFFSET) as RvAddr;
+                    Bus::write(mcu_sram, size, addr, val)
+                } else {
+                    Err(StoreAccessFault)
                 }
-                Ok(())
             }
             Self::OTC_FC_OFFSET..=Self::OTC_FC_END => {
                 let addr = (addr - Self::OTC_FC_OFFSET) as RvAddr;
