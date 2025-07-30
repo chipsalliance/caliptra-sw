@@ -310,9 +310,9 @@ dependencies = [
  "caliptra-image-types",
  "clap",
  "elf",
+ "fslock",
  "hex",
  "memoffset 0.8.0",
- "nix",
  "once_cell",
  "serde",
  "serde_derive",
@@ -1540,6 +1540,16 @@ name = "fs2"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "fslock"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04412b8935272e3a9bae6f48c7bfff74c2911f60525404edfdd28e49884c3bfb"
 dependencies = [
  "libc",
  "winapi",
