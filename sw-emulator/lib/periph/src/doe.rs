@@ -250,7 +250,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 clock: clock.clone(),
@@ -317,7 +317,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 clock: clock.clone(),
@@ -384,7 +384,7 @@ mod tests {
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
-            MailboxInternal::new(&clock, MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 clock: clock.clone(),

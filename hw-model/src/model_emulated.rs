@@ -164,6 +164,7 @@ impl HwModel for ModelEmulated {
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
+            hw_rev: params.hw_rev,
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());

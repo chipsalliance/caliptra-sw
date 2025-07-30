@@ -22,7 +22,8 @@ use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
 
 /// Maximum mailbox capacity.
-const MAX_MAILBOX_CAPACITY_BYTES: usize = 256 << 10;
+const MAX_MAILBOX_CAPACITY_BYTES_2_0: usize = 256 << 10;
+const MAX_MAILBOX_CAPACITY_BYTES_2_1: usize = 16 << 10;
 
 register_bitfields! [
     u32,
@@ -60,12 +61,15 @@ pub struct MailboxRam {
 }
 
 impl MailboxRam {
-    pub fn new() -> Self {
+    pub fn new(hw_rev: (u8, u8), subsystem_mode: bool) -> Self {
+        let mbox_len = match (hw_rev, subsystem_mode) {
+            ((2, 0), _) => MAX_MAILBOX_CAPACITY_BYTES_2_0,
+            ((2, _), true) => MAX_MAILBOX_CAPACITY_BYTES_2_1,
+            ((2, _), false) => MAX_MAILBOX_CAPACITY_BYTES_2_0,
+            _ => panic!("Invalid HW revision"),
+        };
         Self {
-            ram: Rc::new(RefCell::new(Ram::new(vec![
-                0u8;
-                MAX_MAILBOX_CAPACITY_BYTES
-            ]))),
+            ram: Rc::new(RefCell::new(Ram::new(vec![0u8; mbox_len]))),
         }
     }
 }
@@ -84,7 +88,7 @@ impl Bus for MailboxRam {
 }
 impl Default for MailboxRam {
     fn default() -> Self {
-        Self::new()
+        Self::new((2, 0), false)
     }
 }
 
@@ -654,7 +658,7 @@ mod tests {
 
     pub fn get_mailbox() -> MailboxInternal {
         // Acquire lock
-        MailboxInternal::new(&Clock::new(), MailboxRam::new())
+        MailboxInternal::new(&Clock::new(), MailboxRam::default())
     }
 
     #[test]
@@ -721,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_soc_to_caliptra_lock() {
-        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::new());
+        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::default());
         let mut soc = caliptra.as_external(MailboxRequester::SocUser(1u32));
         let soc_regs = soc.regs();
 
@@ -738,7 +742,7 @@ mod tests {
     fn test_send_receive() {
         let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
 
-        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::new());
+        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::default());
         let mut soc = caliptra.as_external(MailboxRequester::SocUser(1u32));
         let soc_regs = soc.regs();
         let uc_regs = caliptra.regs();
@@ -900,9 +904,9 @@ mod tests {
         // Write dlen
         uc_regs
             .dlen()
-            .write(|_| (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
+            .write(|_| (MAX_MAILBOX_CAPACITY_BYTES_2_0 + 4) as u32);
 
-        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
+        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES_2_0).step_by(4) {
             // Write datain
             uc_regs.datain().write(|_| data_in as u32);
         }
@@ -928,10 +932,10 @@ mod tests {
 
         assert_eq!(
             uc_regs.dlen().read(),
-            (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
+            (MAX_MAILBOX_CAPACITY_BYTES_2_0 + 4) as u32
         );
 
-        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
+        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES_2_0).step_by(4) {
             // Read dataout
             let data_out = uc_regs.dataout().read();
             // compare with queued data.
