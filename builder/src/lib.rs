@@ -1,14 +1,14 @@
 // Licensed under the Apache-2.0 license
 
+use fslock::LockFile;
 use serde_derive::Deserialize;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, ErrorKind};
 use std::mem::size_of;
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -23,7 +23,6 @@ use caliptra_image_gen::{
 };
 use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
-use nix::fcntl::FlockArg;
 use zerocopy::IntoBytes;
 
 mod elf_symbols;
@@ -177,8 +176,9 @@ pub fn build_firmware_elfs_uncached<'a>(
         // binary from the filesystem (it's possible that another thread will build
         // the same binary with different features before we get a chance to read it).
         let _ = fs::create_dir(workspace_dir.join("target"));
-        let lock = File::create(workspace_dir.join("target/.caliptra-builder.lock"))?;
-        nix::fcntl::flock(lock.as_raw_fd(), FlockArg::LockExclusive)?;
+
+        let mut lock = LockFile::open(&workspace_dir.join("target/.caliptra-builder.lock"))?;
+        lock.lock()?;
 
         let mut cmd = Command::new(env!("CARGO"));
         cmd.current_dir(workspace_dir);
