@@ -153,7 +153,7 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 	}
 
     var disks []*computepb.AttachedDisk
-    disks = singleDisk("global/images/family/github-runner", 16)
+    disks = singleDisk("global/images/family/github-runner", 32)
 
 	if machineInfo.hasFpgaTools {
 		disks = append(disks, &computepb.AttachedDisk{
