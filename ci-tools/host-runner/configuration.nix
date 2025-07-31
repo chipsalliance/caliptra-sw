@@ -2,6 +2,42 @@
 
 { pkgs, identifier, user, lib, rtool, ... }:
 let 
+    download-image-script = pkgs.writeShellScriptBin "download-fpga-image" ''
+      export GCP_ZONE="us-central1"
+      export GITHUB_ORG="chipsalliance"
+      export GCP_PROJECT="caliptra-github-ci"
+      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image "$@"
+    '';
+    update-bitstream-petalinux = pkgs.writeShellScriptBin "update-bitstream-petalinux" ''
+      set -eux
+      BITSTREAM=$1
+      IMAGE=$2
+      LOSETUP=$(losetup --show -Pf $IMAGE)
+      WORK_DIR=$(mktemp -d)
+
+      pushd $WORK_DIR
+      mkdir mnt
+      mount "''${LOSETUP}p1" $PWD/mnt
+      cp $BITSTREAM $PWD/mnt/BOOT.BIN
+      umount  $PWD/mnt
+      losetup -d $LOSETUP
+      popd
+    '';
+    update-bitstream-ubuntu = pkgs.writeShellScriptBin "update-bitstream-ubuntu" ''
+      set -eux
+      BITSTREAM=$1
+      IMAGE=$2
+      LOSETUP=$(losetup --show -Pf $IMAGE)
+      WORK_DIR=$(mktemp -d)
+
+      pushd $WORK_DIR
+      mkdir mnt
+      mount "''${LOSETUP}p1" $PWD/mnt
+      cp $BITSTREAM $PWD/mnt/boot1900.bin
+      umount  $PWD/mnt
+      losetup -d $LOSETUP
+      popd
+    '';
     update-fpga-script = pkgs.writeShellScriptBin "update-fpga-image" ''
       export GCP_ZONE="us-central1"
       export GITHUB_ORG="chipsalliance"
@@ -56,10 +92,8 @@ in
     # Add your SSH public key here to gain SSH access to the host runner.
     # Remove keys you do not trust
     openssh.authorizedKeys.keys = [
-        # clundin Mac
-        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDDKTJ6unwymfvdFSTNAXo+wjaX1l2SFPgeSgK/xzC7ex3oGR2ihCg/8luQt1e6FKnbqV83O2v0AT/aRw9p9sEjY7HGNDz+0nQ6lezi4XAuqJMOMshzVlqv4hZJLb8Ab2PMma0se15h1LhnfSUpttv7cDgdLXHqh2kizMQ39l62Lu4j2ITJKFhqW1v7Ez74uo2o++We6EHU2PRZhyKV9tKbYXojOyow+abUXKMfXy01iCSunaQq6KRB6Jl5TskMVmGSz0rUnjyxLCCPEA2h7D0lgQviLuJQtIl/jFYu8QFNqaVwHDHiEUpNfcfQGx6S7hpSs7CdPD29YQSka9TovICyD3dCKGn+tpfRQDmZSTR8Qnqv4mNtxKPcitpMFNVL9V6Echqy83rlo5CgO1tEsL/6g0WEm6nrFBMs/szUfv1qs4/4wL0PsNit1ArxfqYXVaDzGisvA+Y4yRl2IsMPaI7TzB6uDSR0j31jZXSGR8vqPG9rF+aGobF21OfWGHI8Ddc= clundin@clundin-macbookpro.roam.internal"
-        # clundin Workstation
-        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDohnyJgm7nztWkxtKaqds13IHJMYpoV2VozRs5wIbct2R98lmyATIR+pOypPv/uv++KnDTUV68/Pt+SFZS6VcOBj/SfDqniqi5/Zmj5qL0dRfLfr4RE1ET7gMPMpvbynUEaXiaochSInikdToDwUeUfhNfs1JGGIbOsoNNhBYAKuNTBo7DXpOUuq8t6oBMqvYWWtCN+kAagkf3tyi94Br52GS++9i7q3RZnvHtw79FW5Sc4xZtuiBqs7aKsK/pplKC7V6emcf0zM1F49knZR+UmLvHhRXzbyxJPyDHgZFGcu7SeDCikAn/2mKxIr8gHjyVSZ5JwOuHekQrVRgwT+CVYBc6AsvCe5aRsrUDJC7TZHsWUVKkaXXDyASYy87wTy+IE3BCZVZmjjZ9OufX7jqXT/lenJbaOn9240e5pSydOzT97tVIuL8rRL+6m00cBsxLJcsFjmrGreX3M2T37IifICpFUDaZJYkVcrKvUWXIdgqHECpQgo7YmLlTcC/hP/0= clundin@clundin6.kir.corp.google.com "
+        # clundin 
+        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey"
         # zhalvorsen
         "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com"
       ];
@@ -77,6 +111,9 @@ in
     jq
     unzip
     update-fpga-script
+    download-image-script
+    update-bitstream-petalinux
+    update-bitstream-ubuntu
     ((pkgs.callPackage ./tools/fpga-boss.nix {}))
     rtool
   ];
