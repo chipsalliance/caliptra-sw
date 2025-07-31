@@ -11,7 +11,7 @@
       pkgs = nixpkgs.legacyPackages.aarch64-linux;
       rtool = pkgs.callPackage tools/rtool.nix {};
       fpga-boss = pkgs.callPackage tools/fpga-boss.nix {};
-      fpga-boss-script = pkgs.writeShellScriptBin "fpga.sh" ''
+      fpga-boss-script-sdwire = pkgs.writeShellScriptBin "fpga.sh" ''
         #!${pkgs.bash}/bin/bash
         export GCP_ZONE="us-central1"
         export GITHUB_ORG="chipsalliance"
@@ -20,6 +20,15 @@
         RAND_POSTFIX=$(${pkgs.python3}/bin/python3 -c 'import random; print("".join(random.choice("0123456789ABCDEF") for i in range(16)))')
         ${fpga-boss}/bin/caliptra-fpga-boss --zcu104 $ZCU_FTDI --sdwire $ZCU_SDWIRE serve $IMAGE -- ${rtool}/bin/rtool jitconfig "$FPGA_TARGET" 379559 40993215 "$IDENTIFIER-$RAND_POSTFIX"
       '';
+      fpga-boss-script-usbsdmux = pkgs.writeShellScriptBin "fpga.sh" ''
+        #!${pkgs.bash}/bin/bash
+        export GCP_ZONE="us-central1"
+        export GITHUB_ORG="chipsalliance"
+        export GCP_PROJECT="caliptra-github-ci"
+
+        RAND_POSTFIX=$(${pkgs.python3}/bin/python3 -c 'import random; print("".join(random.choice("0123456789ABCDEF") for i in range(16)))')
+        ${fpga-boss}/bin/caliptra-fpga-boss --zcu104 $ZCU_FTDI --usbsdmux $USBSDMUX_ID serve $IMAGE -- ${rtool}/bin/rtool jitconfig "$FPGA_TARGET" 379559 40993215 "$IDENTIFIER-$RAND_POSTFIX"
+      '';
     in
     {
       nixosConfigurations."caliptra-hostrunner0" = nixpkgs.lib.nixosSystem {
@@ -27,7 +36,7 @@
         specialArgs = {
           identifier = "0";
           user = "hostrunner";
-          fpga-boss-script = fpga-boss-script;
+          fpga-boss-script = fpga-boss-script-sdwire;
         };
         modules = [
           ./configuration.nix
@@ -39,7 +48,7 @@
         specialArgs = {
           identifier = "1";
           user = "hostrunner";
-          fpga-boss-script = fpga-boss-script;
+          fpga-boss-script = fpga-boss-script-sdwire;
         };
         modules = [
           ./configuration.nix
@@ -51,12 +60,24 @@
         specialArgs = {
           identifier = "2";
           user = "hostrunner";
-          fpga-boss-script = fpga-boss-script;
+          fpga-boss-script = fpga-boss-script-sdwire;
         };
         modules = [
           ./configuration.nix
           ./hostrunners/kir-2.nix
         ];
       };
-  };
+      nixosConfigurations."caliptra-hostrunner3" = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          identifier = "3";
+          user = "hostrunner";
+          fpga-boss-script = fpga-boss-script-usbsdmux;
+        };
+        modules = [
+          ./configuration.nix
+          ./hostrunners/bo-0.nix
+        ];
+      };  };
 }
+            
