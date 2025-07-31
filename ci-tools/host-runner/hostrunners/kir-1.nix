@@ -1,13 +1,13 @@
 { config, pkgs, user, fpga-boss-script, ... }:
 {
-  systemd.services.vck-4 = {
+  systemd.user.services.vck-4 = {
+    enable = true;
     description = "VCK-4 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
@@ -20,13 +20,13 @@
       ];
     };
   };
-  systemd.services.vck-1 = {
+  systemd.user.services.vck-1 = {
+    enable = true;
     description = "VCK-1 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
@@ -39,14 +39,14 @@
       ];
     };
   };
-  systemd.services.vck-0 = {
+  systemd.user.services.vck-0 = {
+    enable = true;
     description = "VCK-0 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
