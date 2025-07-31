@@ -57,6 +57,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
+    assert_eq!(profile.max_tci_nodes, 32);
 }
 
 #[test]
@@ -462,5 +463,62 @@ fn test_export_cdi_destroyed_root_context() {
     assert_eq!(
         resp,
         ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into())
+    );
+}
+
+#[test]
+fn test_fill_max_contexts() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    const BASE_CMD: DeriveContextCmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::MAKE_DEFAULT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    // 32 contexts = 1 root node +
+    //               1 rt_journey auto init) +
+    //               1 (valid pauser at init) +
+    //               14 PL0 contexts in loop +
+    //               1 PL1 context as transition +
+    //               14 PL1 contexts in loop
+
+    // Fill PL0 contexts
+    for _ in 0..14 {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&BASE_CMD),
+            DpeResult::Success,
+        );
+    }
+
+    // Transition to PL1 locality
+    let derive_ctx_cmd = DeriveContextCmd {
+        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::CHANGE_LOCALITY,
+        target_locality: 2,
+        ..BASE_CMD
+    };
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // Fill PL1 contexts
+    model.set_apb_pauser(2);
+    for _ in 0..14 {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&BASE_CMD),
+            DpeResult::Success,
+        );
+    }
+
+    // Trigger failure by trying to derive one more context to PL1
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&BASE_CMD),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
     );
 }
