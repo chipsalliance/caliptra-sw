@@ -84,14 +84,18 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ECDH");
     EcdhKat::default().execute(env.ecc384, env.trng)?;
 
-    cprintln!("[kat] HMAC-384Kdf");
-    Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
+    if !cfg!(feature = "rom") {
+        cprintln!("[kat] HMAC-384Kdf");
+        Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
+    }
 
     cprintln!("[kat] HMAC-512Kdf");
     Hmac512KdfKat::default().execute(env.hmac, env.trng)?;
 
-    cprintln!("[kat] HKDF-384");
-    Hkdf384Kat::default().execute(env.hmac, env.trng)?;
+    if !cfg!(feature = "rom") {
+        cprintln!("[kat] HKDF-384");
+        Hkdf384Kat::default().execute(env.hmac, env.trng)?;
+    }
 
     cprintln!("[kat] HKDF-512");
     Hkdf512Kat::default().execute(env.hmac, env.trng)?;

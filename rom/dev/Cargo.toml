@@ -20,7 +20,7 @@ caliptra-drivers.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-image-verify = { workspace = true, default-features = false }
-caliptra-kat.workspace = true
+caliptra-kat = { workspace = true, features = ["rom"] }
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }

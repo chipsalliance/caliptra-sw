@@ -360,10 +360,22 @@ ROM performs the following POST tests to ensure that needed cryptographic module
  - SHA1
  - SHA2-256
  - SHA2-384
- - SHA2-384-ACC
+ - SHA2-512
+ - SHA2-512-ACC
  - ECC-384
- - HMAC-384Kdf
+ - ECDH
+ - HMAC-384Kdf (conditionally, if not ROM feature)
+ - HMAC-512Kdf
+ - HKDF-384 (conditionally, if not ROM feature)
+ - HKDF-512
+ - KDF-CMAC
  - LMS
+ - MLDSA87
+ - AES-256-ECB
+ - AES-256-CBC
+ - AES-256-CMAC
+ - AES-256-CTR
+ - AES-256-GCM
 
 ### DICE Flow
 
