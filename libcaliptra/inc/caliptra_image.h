@@ -157,7 +157,7 @@ struct caliptra_toc {
 };
 
 struct caliptra_image_manifest {
-    uint32_t       marker; // "CMAN"
+    uint32_t       marker; // "CMN2"
     uint32_t       size;
     uint8_t        pqc_key_type;
     uint8_t        reserved[3];
