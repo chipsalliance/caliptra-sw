@@ -1,13 +1,13 @@
 { config, pkgs, user, fpga-boss-script, ... }:
 {
-  systemd.services.zcu-0 = {
+  systemd.user.services.zcu-0 = {
+    enable = true;
     description = "ZCU-0 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
@@ -20,14 +20,14 @@
       ];
     };
   };
-  systemd.services.zcu-1 = {
+  systemd.user.services.zcu-1 = {
+    enable = true;
     description = "ZCU-1 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
@@ -40,14 +40,14 @@
       ];
     };
   };
-  systemd.services.zcu-2 = {
+  systemd.user.services.zcu-2 = {
+    enable = true;
     description = "ZCU-2 Service";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
       Type = "simple";
-      User = "${user}";
       ExecStart = "${fpga-boss-script}/bin/fpga.sh";
       Restart = "on-failure";
       RestartSec = "15s";
