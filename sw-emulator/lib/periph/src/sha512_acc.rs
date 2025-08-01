@@ -333,7 +333,15 @@ impl Sha512AcceleratorRegs {
             Err(BusError::StoreAccessFault)?
         }
 
-        self.sha_stream.update_bytes(&val.to_be_bytes());
+        // Check ENDIAN_TOGGLE bit. If set to 1, data from the mailbox is in big-endian format.
+        // Convert it to little-endian for padding operation.
+        let val = if self.mode.reg.read(ShaMode::ENDIAN_TOGGLE) == 1 {
+            val.to_be_bytes()
+        } else {
+            val.to_le_bytes()
+        };
+
+        self.sha_stream.update_bytes(&val);
 
         Ok(())
     }
@@ -657,7 +665,7 @@ mod tests {
 
     fn test_sha_accelerator(data: &[u8], expected: &[u8], start_address: usize, sha_mode: u32) {
         // Write to the mailbox.
-        let mut mb_ram = MailboxRam::new();
+        let mut mb_ram = MailboxRam::default();
         if !data.is_empty() {
             assert!((start_address % 4) == 0);
             let mut data_word_multiples = vec![0u8; ((start_address + data.len() + 3) / 4) * 4];
@@ -1061,7 +1069,7 @@ mod tests {
     #[test]
     fn test_sm_lock() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::default());
         assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 1);
         // Unlock the initial state
         sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
@@ -1093,7 +1101,7 @@ mod tests {
     #[test]
     fn test_sha_acc_check_state() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::default());
 
         // Check init state.
         assert_eq!(
