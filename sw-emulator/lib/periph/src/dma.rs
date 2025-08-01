@@ -656,13 +656,14 @@ mod tests {
             ..CaliptraRootBusArgs::default()
         };
         let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
-        let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, args);
+        let mci = Mci::new(vec![]);
+        let soc_reg = SocRegistersInternal::new(mailbox_internal, iccm, mci.clone(), args);
         let mut dma = Dma::new(
             &clock,
             mbox_ram.clone(),
             soc_reg,
             Sha512Accelerator::new(&clock, mbox_ram.clone()),
-            Mci::new(vec![]),
+            mci.clone(),
             None,
             false,
         );

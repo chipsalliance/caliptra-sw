@@ -12,10 +12,10 @@ Abstract:
 
 --*/
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::mpsc};
 
 use bitfield::size_of;
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusError, Device, Event, EventData};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use sha2::{Digest, Sha384};
@@ -23,8 +23,12 @@ use sha2::{Digest, Sha384};
 const SS_MANUF_DBG_UNLOCK_FUSE_SIZE: usize = 48;
 const SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES: usize = 8;
 
+const NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK: u32 = 0x2;
+
 #[derive(Bus)]
 pub struct MciRegs {
+    pub event_sender: Option<mpsc::Sender<Event>>,
+
     #[register(offset = 0x0)]
     pub hw_capabilities: u32,
     #[register(offset = 0x4)]
@@ -160,8 +164,112 @@ pub struct MciRegs {
     #[register_array(offset = 0xa00)]
     fuses: [u32; SS_MANUF_DBG_UNLOCK_FUSE_SIZE / size_of::<u32>()
         * SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES],
+    #[register(offset = 0x1000)]
+    pub intr_block_rf_global_intr_en_r: u32,
+    #[register(offset = 0x1004)]
+    pub intr_block_rf_error0_intr_en_r: u32,
+    #[register(offset = 0x1008)]
+    pub intr_block_rf_error1_intr_en_r: u32,
+    #[register(offset = 0x100c)]
+    pub intr_block_rf_notif0_intr_en_r: u32,
+    #[register(offset = 0x1010)]
+    pub intr_block_rf_notif1_intr_en_r: u32,
+    #[register(offset = 0x1014)]
+    pub intr_block_rf_error_global_intr_r: u32,
+    #[register(offset = 0x1018)]
+    pub intr_block_rf_notif_global_intr_r: u32,
+    #[register(offset = 0x101c)]
+    pub intr_block_rf_error0_internal_intr_r: u32,
+    #[register(offset = 0x1020)]
+    pub intr_block_rf_error1_internal_intr_r: u32,
     #[register(offset = 0x1024)]
-    pub notif0_internal_intr_r: u32,
+    pub intr_block_rf_notif0_internal_intr_r: u32,
+    #[register(offset = 0x1028)]
+    pub intr_block_rf_notif1_internal_intr_r: u32,
+    #[register(offset = 0x102c)]
+    pub intr_block_rf_error0_intr_trig_r: u32,
+    #[register(offset = 0x1030)]
+    pub intr_block_rf_error1_intr_trig_r: u32,
+    #[register(offset = 0x1034)]
+    pub intr_block_rf_notif0_intr_trig_r: u32,
+    #[register(offset = 0x1038)]
+    pub intr_block_rf_notif1_intr_trig_r: u32,
+    #[register(offset = 0x1100)]
+    pub intr_block_rf_error_internal_intr_count_r: u32,
+    #[register(offset = 0x1104)]
+    pub intr_block_rf_error_mbox0_ecc_unc_intr_count_r: u32,
+    #[register(offset = 0x1108)]
+    pub intr_block_rf_error_mbox1_ecc_unc_intr_count_r: u32,
+    #[register(offset = 0x110c)]
+    pub intr_block_rf_error_mcu_sram_dmi_axi_collision_intr_count_r: u32,
+    #[register(offset = 0x1110)]
+    pub intr_block_rf_error_wdt_timer1_timeout_intr_count_r: u32,
+    #[register(offset = 0x1114)]
+    pub intr_block_rf_error_wdt_timer2_timeout_intr_count_r: u32,
+    #[register(offset = 0x1118)]
+    pub intr_block_rf_error_agg_error_fatal0_intr_count_r: u32,
+    #[register(offset = 0x111c)]
+    pub intr_block_rf_error_agg_error_fatal1_intr_count_r: u32,
+    #[register(offset = 0x1120)]
+    pub intr_block_rf_error_agg_error_fatal2_intr_count_r: u32,
+    #[register(offset = 0x1124)]
+    pub intr_block_rf_error_agg_error_fatal3_intr_count_r: u32,
+    #[register(offset = 0x1128)]
+    pub intr_block_rf_error_agg_error_fatal4_intr_count_r: u32,
+    #[register(offset = 0x112c)]
+    pub intr_block_rf_error_agg_error_fatal5_intr_count_r: u32,
+    #[register(offset = 0x1130)]
+    pub intr_block_rf_error_agg_error_fatal6_intr_count_r: u32,
+    #[register(offset = 0x1134)]
+    pub intr_block_rf_error_agg_error_fatal7_intr_count_r: u32,
+    #[register(offset = 0x1138)]
+    pub intr_block_rf_error_agg_error_fatal8_intr_count_r: u32,
+    #[register(offset = 0x113c)]
+    pub intr_block_rf_error_agg_error_fatal9_intr_count_r: u32,
+    #[register(offset = 0x1140)]
+    pub intr_block_rf_error_agg_error_fatal10_intr_count_r: u32,
+    #[register(offset = 0x1144)]
+    pub intr_block_rf_error_agg_error_fatal11_intr_count_r: u32,
+    #[register(offset = 0x1148)]
+    pub intr_block_rf_error_agg_error_fatal12_intr_count_r: u32,
+    #[register(offset = 0x114c)]
+    pub intr_block_rf_error_agg_error_fatal13_intr_count_r: u32,
+    #[register(offset = 0x1150)]
+    pub intr_block_rf_error_agg_error_fatal14_intr_count_r: u32,
+    #[register(offset = 0x1154)]
+    pub intr_block_rf_error_agg_error_fatal15_intr_count_r: u32,
+    #[register(offset = 0x1158)]
+    pub intr_block_rf_error_agg_error_fatal16_intr_count_r: u32,
+    #[register(offset = 0x115c)]
+    pub intr_block_rf_error_agg_error_fatal17_intr_count_r: u32,
+    #[register(offset = 0x1160)]
+    pub intr_block_rf_error_agg_error_fatal18_intr_count_r: u32,
+    #[register(offset = 0x1164)]
+    pub intr_block_rf_error_agg_error_fatal19_intr_count_r: u32,
+    #[register(offset = 0x1168)]
+    pub intr_block_rf_error_agg_error_fatal20_intr_count_r: u32,
+    #[register(offset = 0x116c)]
+    pub intr_block_rf_error_agg_error_fatal21_intr_count_r: u32,
+    #[register(offset = 0x1170)]
+    pub intr_block_rf_error_agg_error_fatal22_intr_count_r: u32,
+    #[register(offset = 0x1174)]
+    pub intr_block_rf_error_agg_error_fatal23_intr_count_r: u32,
+    #[register(offset = 0x1178)]
+    pub intr_block_rf_error_agg_error_fatal24_intr_count_r: u32,
+    #[register(offset = 0x117c)]
+    pub intr_block_rf_error_agg_error_fatal25_intr_count_r: u32,
+    #[register(offset = 0x1180)]
+    pub intr_block_rf_error_agg_error_fatal26_intr_count_r: u32,
+    #[register(offset = 0x1184)]
+    pub intr_block_rf_error_agg_error_fatal27_intr_count_r: u32,
+    #[register(offset = 0x1188)]
+    pub intr_block_rf_error_agg_error_fatal28_intr_count_r: u32,
+    #[register(offset = 0x118c)]
+    pub intr_block_rf_error_agg_error_fatal29_intr_count_r: u32,
+    #[register(offset = 0x1190)]
+    pub intr_block_rf_error_agg_error_fatal30_intr_count_r: u32,
+    #[register(offset = 0x1194)]
+    pub intr_block_rf_error_agg_error_fatal31_intr_count_r: u32,
 }
 
 impl MciRegs {
@@ -170,6 +278,8 @@ impl MciRegs {
 
     pub fn new(key_pairs: Vec<(&[u8; 96], &[u8; 2592])>) -> Self {
         Self {
+            event_sender: None,
+
             hw_capabilities: 0,
             fw_capabilities: 0,
             cap_lock: 0,
@@ -256,8 +366,64 @@ impl MciRegs {
                 });
                 fuses
             },
-            notif0_internal_intr_r: 0,
+            intr_block_rf_global_intr_en_r: 0,
+            intr_block_rf_error0_intr_en_r: 0,
+            intr_block_rf_error1_intr_en_r: 0,
+            intr_block_rf_notif0_intr_en_r: 0,
+            intr_block_rf_notif1_intr_en_r: 0,
+            intr_block_rf_error_global_intr_r: 0,
+            intr_block_rf_notif_global_intr_r: 0,
+            intr_block_rf_error0_internal_intr_r: 0,
+            intr_block_rf_error1_internal_intr_r: 0,
+            intr_block_rf_notif0_internal_intr_r: 0,
+            intr_block_rf_notif1_internal_intr_r: 0,
+            intr_block_rf_error0_intr_trig_r: 0,
+            intr_block_rf_error1_intr_trig_r: 0,
+            intr_block_rf_notif0_intr_trig_r: 0,
+            intr_block_rf_notif1_intr_trig_r: 0,
+            intr_block_rf_error_internal_intr_count_r: 0,
+            intr_block_rf_error_mbox0_ecc_unc_intr_count_r: 0,
+            intr_block_rf_error_mbox1_ecc_unc_intr_count_r: 0,
+            intr_block_rf_error_mcu_sram_dmi_axi_collision_intr_count_r: 0,
+            intr_block_rf_error_wdt_timer1_timeout_intr_count_r: 0,
+            intr_block_rf_error_wdt_timer2_timeout_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal0_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal1_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal2_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal3_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal4_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal5_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal6_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal7_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal8_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal9_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal10_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal11_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal12_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal13_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal14_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal15_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal16_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal17_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal18_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal19_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal20_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal21_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal22_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal23_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal24_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal25_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal26_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal27_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal28_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal29_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal30_intr_count_r: 0,
+            intr_block_rf_error_agg_error_fatal31_intr_count_r: 0,
         }
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        println!("[MCI] Registering outgoing events");
+        self.event_sender = Some(sender);
     }
 }
 
@@ -271,6 +437,21 @@ impl Mci {
     pub fn new(key_pairs: Vec<(&[u8; 96], &[u8; 2592])>) -> Self {
         Self {
             regs: Rc::new(RefCell::new(MciRegs::new(key_pairs))),
+        }
+    }
+    pub fn cptra_request_mcu_reset(&self) {
+        println!("[MCI] Requesting MCU reset");
+        self.regs.borrow_mut().intr_block_rf_notif0_intr_trig_r |=
+            NOTIF_CPTRA_MCU_RESET_REQ_STS_MASK;
+        if let Some(sender) = &self.regs.borrow().event_sender {
+            println!("[MCI] Sending MCI interrupt for MCU reset");
+            sender
+                .send(Event::new(
+                    Device::CaliptraCore,
+                    Device::MCU,
+                    EventData::MciInterrupt { asserted: true },
+                ))
+                .unwrap();
         }
     }
 }
@@ -296,5 +477,11 @@ impl Bus for Mci {
 
     fn update_reset(&mut self) {
         self.regs.borrow_mut().update_reset();
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        println!("[MCI] Registering outgoing events");
+        self.regs
+            .borrow_mut()
+            .register_outgoing_events(sender.clone());
     }
 }
