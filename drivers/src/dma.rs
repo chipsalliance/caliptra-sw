@@ -26,7 +26,7 @@ use core::{cell::Cell, mem::size_of, ops::Add};
 use ureg::{Mmio, MmioMut, RealMmioMut};
 
 const BLOCK_SIZE: u32 = 256; // Block size for DMA transfers
-const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 
 pub enum DmaReadTarget {
     Mbox(u32),

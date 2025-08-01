@@ -355,14 +355,14 @@ impl CaliptraRootBus {
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
-        let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), args);
+        let mci = Mci::new(prod_dbg_unlock_keypairs);
+        let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), mci.clone(), args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
         let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
-        let mci = Mci::new(prod_dbg_unlock_keypairs);
         let dma = Dma::new(
             clock,
             mailbox_ram.clone(),
@@ -462,7 +462,8 @@ impl CaliptraRootBus {
         self.sha512_acc.register_outgoing_events(sender.clone());
         self.dma.register_outgoing_events(sender.clone());
         self.csrng.register_outgoing_events(sender.clone());
-        self.pic_regs.register_outgoing_events(sender);
+        self.pic_regs.register_outgoing_events(sender.clone());
+        self.mci.register_outgoing_events(sender.clone());
     }
 }
 

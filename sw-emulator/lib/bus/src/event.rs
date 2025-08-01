@@ -77,6 +77,9 @@ pub enum EventData {
         descriptor: [u8; 8],
         data: Vec<u8>,
     },
+    MciInterrupt {
+        asserted: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
