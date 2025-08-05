@@ -52,6 +52,8 @@ static CALIPTRA_SS_RDL_FILES: &[&str] = &[
     "src/lc_ctrl/rtl/lc_ctrl.rdl",
     "src/mci/rtl/mci_reg.rdl",
     "src/mci/rtl/mcu_mbox_csr.rdl",
+    "src/mci/rtl/trace_buffer_csr.rdl",
+    "src/mci/rtl/mci_top.rdl",
 ];
 
 static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/mldsa_top/rtl/mldsa_reg.rdl"];
@@ -207,6 +209,34 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             "RESET_CONTROL",
             "TTI_RESET_CONTROL",
         ),
+        // The way the memory is configured mixes up the offsets. Set them directly.
+        (
+            caliptra_ss_dir.join("src/mci/rtl/mcu_mbox_csr.rdl"),
+            "} MBOX_SRAM;",
+            "} MBOX_SRAM @0x0000_0000;",
+        ),
+        (
+            caliptra_ss_dir.join("src/mci/rtl/mcu_mbox_csr.rdl"),
+            "} mbox_lock;",
+            "} mbox_lock @0x0020_0000;",
+        ),
+        // Remove includes which ureg isn't able to handle correctly.
+        (
+            caliptra_ss_dir.join("src/mci/rtl/mci_top.rdl"),
+            r#"
+`ifndef MCI_TOP_RDL
+`define MCI_TOP_RDL
+
+`include "mci_reg.rdl"
+`include "trace_buffer_csr.rdl"
+`include "mcu_mbox_csr.rdl""#,
+            "",
+        ),
+        (
+            caliptra_ss_dir.join("src/mci/rtl/mci_top.rdl"),
+            "`endif // mci_top.rdl",
+            "",
+        ),
     ];
 
     let rtl_commit_id = run_cmd_stdout(
@@ -246,9 +276,6 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .map_err(|s| s.to_string())?;
     let scope = scope.as_parent();
 
-    let addrmap = scope.lookup_typedef("clp").unwrap();
-    let addrmap2 = scope.lookup_typedef("clp2").unwrap();
-
     // These are types like kv_read_ctrl_reg that are used by multiple crates
     let root_block = RegisterBlock {
         declared_register_types: ureg_systemrdl::translate_types(scope)?,
@@ -259,9 +286,12 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let mut extern_types = HashMap::new();
     ureg_codegen::build_extern_types(&root_block, quote! { crate }, &mut extern_types);
 
-    let mut blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
-    let mut blocks2 = ureg_systemrdl::translate_addrmap(addrmap2)?;
-    blocks.append(&mut blocks2);
+    let addrmap_tops = vec!["clp", "clp2", "mci_top"];
+    let mut blocks = Vec::<RegisterBlock>::new();
+    for top in addrmap_tops {
+        let mut block = ureg_systemrdl::translate_addrmap(scope.lookup_typedef(top).unwrap())?;
+        blocks.append(&mut block);
+    }
 
     let mut validated_blocks = vec![];
     for mut block in blocks {

@@ -13,7 +13,7 @@ pub struct MciReg {
     _priv: (),
 }
 impl MciReg {
-    pub const PTR: *mut u32 = 0x21000000 as *mut u32;
+    pub const PTR: *mut u32 = 0 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
