@@ -1830,7 +1830,7 @@ bin_str5 = BinConcat(key_length, Version, "key", null);
 bin_str6 = BinConcat(iv_length, Version, "iv", null);
 ```
 
-The provided 64-bit message counter will be XOR'd with the IV to produce the message IV.
+The provided 64-bit message counter will be XOR'd with the IV to produce the message IV. The Secure SPDM standard requires the counter endianness flag to be little, but big endian is also supported to aid in compatibility with some implementations.
 
 Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing so could compromise the plaintext of the messages.
 
@@ -1973,7 +1973,7 @@ bin_str5 = BinConcat(key_length, Version, "key", null);
 bin_str6 = BinConcat(iv_length, Version, "iv", null);
 ```
 
-The provided 64-bit message counter will be XOR'd with the IV to produce the message IV.
+The provided 64-bit message counter will be XOR'd with the IV to produce the message IV. The Secure SPDM standard requires the counter endianness flag to be little, but big endian is also supported to aid in compatibility with some implementations.
 
 Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing so could compromise the plaintext of the messages.
 
