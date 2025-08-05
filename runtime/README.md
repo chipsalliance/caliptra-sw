@@ -1975,7 +1975,7 @@ bin_str6 = BinConcat(iv_length, Version, "iv", null);
 
 The provided 64-bit message counter will be XOR'd with the IV to produce the message IV.
 
-Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing could compromise the plaintext of the messages.
+Note that it is **critical** that the same CMK and counter never be used more than once when encrypting or decrypting in SPDM mode as doing so could compromise the plaintext of the messages.
 
 Command Code: `0x434D_5344` ("CMSD")
 
