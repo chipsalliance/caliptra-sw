@@ -1650,7 +1650,44 @@ impl Default for SetAuthManifestReq {
 }
 
 // VERIFY_AUTH_MANIFEST
-pub type VerifyAuthManifestReq = SetAuthManifestReq;
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VerifyAuthManifestReq {
+    // This should be the same as SetAuthManifestReq
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
+}
+impl VerifyAuthManifestReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for VerifyAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+impl Request for VerifyAuthManifestReq {
+    const ID: CommandId = CommandId::VERIFY_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
+}
 
 // GET_IDEV_ECC384_CSR
 #[repr(C)]
