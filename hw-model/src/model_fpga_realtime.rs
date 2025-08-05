@@ -456,6 +456,7 @@ impl HwModel for ModelFpgaRealtime {
             .map_err(fmt_uio_error)? as *mut u32;
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let rom = dev.map_mapping(ROM_MAPPING).map_err(fmt_uio_error)? as *mut u8;
+        let rom_size = dev.map_size(ROM_MAPPING).map_err(fmt_uio_error)?;
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
@@ -572,8 +573,12 @@ impl HwModel for ModelFpgaRealtime {
 
         // Write ROM image over backdoor
         writeln!(m.output().logger(), "Writing ROM")?;
-        let rom_slice = unsafe { slice::from_raw_parts_mut(rom, params.rom.len()) };
-        rom_slice.copy_from_slice(params.rom);
+
+        let mut rom_data = vec![0; rom_size];
+        rom_data[..params.rom.len()].clone_from_slice(params.rom);
+
+        let rom_slice = unsafe { slice::from_raw_parts_mut(rom, rom_size) };
+        rom_slice.copy_from_slice(&rom_data);
 
         // Sometimes there's garbage in here; clean it out
         m.clear_log_fifo();
