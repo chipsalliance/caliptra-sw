@@ -19,7 +19,7 @@ pub fn handle_fatal_error(code: u32) -> ! {
         Aes::zeroize();
         Ecc384::zeroize();
         Hmac::zeroize();
-        // Mldsa87::zeroize();
+        Mldsa87::zeroize();
         Sha256::zeroize();
         Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();
@@ -28,7 +28,7 @@ pub fn handle_fatal_error(code: u32) -> ! {
         KeyVault::zeroize();
 
         // Lock the SHA Accelerator.
-        Sha2_512_384Acc::lock();
+        // Sha2_512_384Acc::lock();
 
         // Stop the watchdog timer.
         // Note: This is an idempotent operation.
