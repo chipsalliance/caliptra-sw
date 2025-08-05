@@ -95,6 +95,9 @@ impl CommandId {
     // The authorization manifest set command.
     pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
 
+    // Verify the authorization manifest command.
+    pub const VERIFY_AUTH_MANIFEST: Self = Self(0x4154_564D); // "ATVM"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
@@ -495,6 +498,7 @@ pub enum MailboxReq {
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
+    VerifyAuthManifest(VerifyAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
@@ -570,6 +574,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
@@ -643,6 +648,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
@@ -716,6 +722,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
@@ -1641,6 +1648,9 @@ impl Default for SetAuthManifestReq {
         }
     }
 }
+
+// VERIFY_AUTH_MANIFEST
+pub type VerifyAuthManifestReq = SetAuthManifestReq;
 
 // GET_IDEV_ECC384_CSR
 #[repr(C)]

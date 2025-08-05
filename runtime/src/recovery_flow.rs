@@ -56,7 +56,7 @@ impl RecoveryFlow {
         };
         result?;
 
-        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
+        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)?;
         drivers.mbox.unlock();
 
         let digest = {

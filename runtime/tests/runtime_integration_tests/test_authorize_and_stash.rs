@@ -3,6 +3,7 @@
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::{create_auth_manifest, create_auth_manifest_with_metadata};
 use crate::test_update_reset::update_fw;
+use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
@@ -1178,4 +1179,181 @@ fn test_authorize_from_staging_address_incorrect_digest() {
         authorize_and_stash_resp.auth_req_result,
         IMAGE_HASH_MISMATCH
     );
+}
+
+#[test]
+fn test_verify_valid_manifest() {
+    // Create the model
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Create a valid auth manifest
+    let valid_auth_manifest = create_auth_manifest(
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        FwVerificationPqcKeyType::LMS,
+    );
+
+    // Verify the manifest
+    let buf = valid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut verify_auth_manifest_cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    verify_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+        verify_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => {
+            let verify_auth_manifest_resp =
+                MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                verify_auth_manifest_resp.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+        }
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(e) => panic!("Mailbox execution failed: {:?}", e),
+    }
+
+    // Verify that sending a VERIFY_MANIFEST command doesn't set the manifest
+    // Authorizing an image should fail
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Don't skip stash
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        authorize_and_stash_resp.auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
+
+    // Set the manifest
+    let buf = valid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        set_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => {
+            let set_auth_manifest_resp =
+                MailboxRespHeader::read_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                set_auth_manifest_resp.fips_status,
+                MailboxRespHeader::FIPS_STATUS_APPROVED
+            );
+        }
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(e) => panic!("Mailbox execution failed: {:?}", e),
+    }
+
+    // Now authorizing an image should succeed
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_verify_invalid_manifest() {
+    // Create the model
+    let runtime_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(runtime_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Create an invalid auth manifest
+    let valid_auth_manifest = create_auth_manifest(
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        FwVerificationPqcKeyType::LMS,
+    );
+    // Modify the manifest to make it invalid (e.g., change a byte)
+    let mut invalid_auth_manifest = valid_auth_manifest;
+    invalid_auth_manifest.as_mut_bytes()[0] ^= 0xFF;
+
+    // Verify the manifest
+    let buf = invalid_auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut verify_auth_manifest_cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    verify_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+        verify_auth_manifest_cmd.as_bytes().unwrap(),
+    );
+
+    match result {
+        Ok(Some(resp)) => panic!(
+            "Expected an error response but got a valid response: {:?}",
+            resp
+        ),
+        Ok(None) => panic!("Expected a response but got None"),
+        Err(_) => {
+            // Expected error due to invalid manifest
+        }
+    }
 }
