@@ -1509,6 +1509,7 @@ fn mailbox_gcm_decrypt(
     (final_resp.hdr.tag_verified == 1, plaintext)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mailbox_spdm_gcm_decrypt(
     model: &mut DefaultHwModel,
     cmk: &Cmk,

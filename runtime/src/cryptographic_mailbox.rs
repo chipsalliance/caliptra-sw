@@ -1129,14 +1129,14 @@ impl Commands {
     }
 
     fn xor_iv(iv: &[u8; 12], counter: &[u8; 8], big_endian_counter_xor: bool) -> [u8; 12] {
-        let mut result = iv.clone();
+        let mut result = *iv;
         if big_endian_counter_xor {
             for (i, byte) in counter.iter().enumerate() {
-                result[11 - i] = result[11 - i] ^ byte;
+                result[11 - i] ^= byte;
             }
         } else {
             for (i, byte) in counter.iter().enumerate() {
-                result[i] = result[i] ^ byte;
+                result[i] ^= byte;
             }
         }
         result
