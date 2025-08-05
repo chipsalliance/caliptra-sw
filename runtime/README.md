@@ -1821,7 +1821,7 @@ Additional authenticated data (AAD) can only be passed during the `INIT` command
 
 The CMK must have been created for **HMAC** usage.
 
-The CMK passed in should be the SPDM major secret CMK created for HMAC usage. The key and IV used for encryption shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7 derivation with `key_length` 256 and `iv_length` 96.
+The CMK passed in should be the SPDM major secret CMK created for HMAC usage. The key and IV used for encryption shall follow the [SPDM 1.4](https://www.dmtf.org/dsp/dsp0274) section 12.7 derivation with `key_length` equal to 32 bytes and `iv_length` equal to 12 bytes.
 
 ```
 EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
