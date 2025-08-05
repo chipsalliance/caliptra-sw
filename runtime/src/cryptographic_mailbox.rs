@@ -1128,11 +1128,16 @@ impl Commands {
         Ok(core::mem::size_of::<CmAesGcmEncryptInitResp>())
     }
 
-    fn xor_iv(iv: &[u8; 12], counter: &[u8; 8]) -> [u8; 12] {
+    fn xor_iv(iv: &[u8; 12], counter: &[u8; 8], big_endian_counter_xor: bool) -> [u8; 12] {
         let mut result = iv.clone();
-        for (i, byte) in counter.iter().enumerate() {
-            // TODO: verify endianness
-            result[11 - i] = result[11 - i] ^ byte;
+        if big_endian_counter_xor {
+            for (i, byte) in counter.iter().enumerate() {
+                result[11 - i] = result[11 - i] ^ byte;
+            }
+        } else {
+            for (i, byte) in counter.iter().enumerate() {
+                result[i] = result[i] ^ byte;
+            }
         }
         result
     }
@@ -1172,13 +1177,13 @@ impl Commands {
         if !matches!(key_usage, CmKeyUsage::Hmac) {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
         }
-        let spdm_version: SpdmVersion = (cmd.spdm_version as u8).try_into()?;
+        let spdm_version: SpdmVersion = (cmd.spdm_flags as u8).try_into()?;
         let (key, iv) = Self::spdm_derive_key_and_iv(
             drivers,
             &cmk.key_material[..cmk.length as usize],
             spdm_version,
         )?;
-        let iv = Self::xor_iv(&iv, &cmd.spdm_counter);
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
         let iv = AesGcmIv::Array(&iv);
 
         let unencrypted_context = drivers
@@ -1387,13 +1392,13 @@ impl Commands {
         if !matches!(key_usage, CmKeyUsage::Hmac) {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
         }
-        let spdm_version: SpdmVersion = (cmd.spdm_version as u8).try_into()?;
+        let spdm_version: SpdmVersion = (cmd.spdm_flags as u8).try_into()?;
         let (key, iv) = Self::spdm_derive_key_and_iv(
             drivers,
             &cmk.key_material[..cmk.length as usize],
             spdm_version,
         )?;
-        let iv = Self::xor_iv(&iv, &cmd.spdm_counter);
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
         let iv = AesGcmIv::Array(&iv);
 
         let unencrypted_context = drivers

@@ -1839,18 +1839,22 @@ For the update and final operations, there are not any SPDM-specific commands; `
 Command Code: `0x434D_5345` ("CMSE")
 
 *Table: `CM_AES_GCM_SPDM_ENCRYPT_INIT` input arguments*
-| **Name**       | **Type**           | **Description**                  |
-| -------------- | ------------------ | -------------------------------- |
-| chksum         | u32                |                                  |
-| spdm version   | u8                 | The value should be equal to the |
-|                |                    | byte representation of the SPDM  |
-|                |                    | version, e.g., 0x13 = SPDM 1.3   |
-| reserved       | u8[3]              | Reserved                         |
-| counter        | u8[8]              | 8-byte counter in little-endian  |
-|                |                    | format that is XOR'd into the IV |
-| CMK            | CMK                | CMK of the key to use to encrypt |
-| aad size       | u32                |                                  |
-| aad            | u8[aad size]       | Additional authenticated data    |
+| **Name**           | **Type**           | **Description**                   |
+| ------------------ | ------------------ | --------------------------------- |
+| chksum             | u32                |                                   |
+| spdm version       | u8                 | The value should be equal to the  |
+|                    |                    | byte representation of the SPDM   |
+|                    |                    | version, e.g., 0x13 = SPDM 1.3    |
+| counter endianness | u8                 | XOR the counter with the IV using |
+|                    |                    | the given endianness.             |
+|                    |                    | 0 = Little endian (standard)      |
+|                    |                    | 1 = Big endian                    |
+| reserved           | u8[2]              | Reserved                          |
+| counter            | u8[8]              | 8-byte counter in little-endian   |
+|                    |                    | format that is XOR'd into the IV  |
+| CMK                | CMK                | CMK of the key to use to encrypt  |
+| aad size           | u32                |                                   |
+| aad                | u8[aad size]       | Additional authenticated data     |
 
 *Table: `CM_AES_GCM_SPDM_ENCRYPT_INIT` output arguments*
 | **Name**       | **Type**            | **Description**                  |
@@ -1976,18 +1980,21 @@ Note that it is **critical** that the same CMK and counter never be used more th
 Command Code: `0x434D_5344` ("CMSD")
 
 *Table: `CM_AES_GCM_SPDM_DECRYPT_INIT` input arguments*
-| **Name**        | **Type**     | **Description**                  |
-| --------------- | ------------ | -------------------------------- |
-| chksum          | u32          |                                  |
-| spdm version    | u8           | The value should be equal to the |
-|                 |              | byte representation of the SPDM  |
-|                 |              | version, e.g., 0x13 = SPDM 1.3   |
-| reserved        | u8[3]        | Reserved                         |
-| counter         | u8[8]        | 8-byte counter in little-endian  |
-|                 |              | format that is XOR'd into the IV |
-| CMK             | CMK          | CMK to use for decryption        |
-| aad size        | u32          |                                  |
-| aad             | u8[aad size] | Additional authenticated data    |
+| **Name**           | **Type**           | **Description**                   |
+| ------------------ | ------------------ | --------------------------------- |
+| chksum             | u32                |                                   |
+| spdm version       | u8                 | The value should be equal to the  |
+|                    |                    | byte representation of the SPDM   |
+|                    |                    | version, e.g., 0x13 = SPDM 1.3    |
+| counter endianness | u8                 | XOR the counter with the IV using |
+|                    |                    | the given endianness.             |
+|                    |                    | 0 = Little endian (standard)      |
+|                    |                    | 1 = Big endian                    |
+| counter            | u8[8]              | 8-byte counter in little-endian   |
+|                    |                    | format that is XOR'd into the IV  |
+| CMK                | CMK                | CMK to use for decryption         |
+| aad size           | u32                |                                   |
+| aad                | u8[aad size]       | Additional authenticated data     |
 
 *Table: `CM_AES_GCM_SPDM_DECRYPT_INIT` output arguments*
 | **Name**       | **Type**           | **Description**           |

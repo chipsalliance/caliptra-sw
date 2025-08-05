@@ -887,7 +887,6 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
 
 #[test]
 fn test_aes_gcm_spdm_mode() {
-    // TODO: check with counter set
     // output from libspdm debug unit test (libspdm_test_responder_key_exchange_case1, modified to use SHA384, P384):
     // response_handshake_secret (0x30) - ed c0 61 97 77 0f 53 8c b2 50 85 b0 bc 98 c0 49 54 db 9c a6 4b 2c 78 28 50 f2 ca 5a d3 37 16 2f
     //  2f 24 42 85 70 2a b0 74 9b 6e 1b 43 c3 0a db c4
@@ -897,6 +896,11 @@ fn test_aes_gcm_spdm_mode() {
     // bin_str6 (0xc):
     // 0000: 0c 00 73 70 64 6d 31 2e 31 20 69 76
     // iv (0xc) - 86 2b 00 c9 58 44 5f 37 e8 86 a4 a0
+    //
+    // the little endian IV counter XOR will look like:
+    // generate_iv counter (0x1)
+    // generate_iv endian (0x0)
+    // generate_iv (0xc) - 01 00 00 00 00 00 00 00 00 00 00 00
 
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
@@ -914,11 +918,20 @@ fn test_aes_gcm_spdm_mode() {
     let major_secret_cmk = import_key(&mut model, &major_secret, CmKeyUsage::Hmac);
     let plaintext = [1, 2, 3, 4, 5, 6, 7, 8];
 
-    let (tag, ciphertext) =
-        mailbox_spdm_gcm_encrypt(&mut model, &major_secret_cmk, &[], &plaintext, 0x11, 0);
+    // test with little endian counter (the standard)
+
+    let (tag, ciphertext) = mailbox_spdm_gcm_encrypt(
+        &mut model,
+        &major_secret_cmk,
+        &[],
+        &plaintext,
+        0x11,
+        1,
+        false,
+    );
 
     let iv = [
-        0x86, 0x2b, 0x00, 0xc9, 0x58, 0x44, 0x5f, 0x37, 0xe8, 0x86, 0xa4, 0xa0,
+        0x87, 0x2b, 0x00, 0xc9, 0x58, 0x44, 0x5f, 0x37, 0xe8, 0x86, 0xa4, 0xa0,
     ];
     let expected_key = [
         0x23, 0x82, 0xfc, 0x62, 0xb2, 0xe8, 0x2a, 0xd4, 0xd6, 0x29, 0x6e, 0x3f, 0xc7, 0x38, 0x8f,
@@ -938,7 +951,47 @@ fn test_aes_gcm_spdm_mode() {
         &ciphertext,
         &rtag,
         0x11,
-        0,
+        1,
+        false,
+    );
+    assert!(ok);
+    assert_eq!(check_plaintext, plaintext);
+
+    // test with big endian counter (not in the standard but libspdm supports it)
+
+    let (tag, ciphertext) = mailbox_spdm_gcm_encrypt(
+        &mut model,
+        &major_secret_cmk,
+        &[],
+        &plaintext,
+        0x11,
+        1,
+        true,
+    );
+
+    let iv = [
+        0x86, 0x2b, 0x00, 0xc9, 0x58, 0x44, 0x5f, 0x37, 0xe8, 0x86, 0xa4, 0xa1,
+    ];
+    let expected_key = [
+        0x23, 0x82, 0xfc, 0x62, 0xb2, 0xe8, 0x2a, 0xd4, 0xd6, 0x29, 0x6e, 0x3f, 0xc7, 0x38, 0x8f,
+        0x48, 0x4e, 0xf7, 0xfd, 0x27, 0xd5, 0xc7, 0x66, 0x4c, 0x6f, 0x38, 0x84, 0x97, 0xbb, 0x9f,
+        0xcb, 0x53,
+    ];
+
+    let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&expected_key, &iv, &[], &plaintext);
+
+    assert_eq!(ciphertext, rciphertext);
+    assert_eq!(tag, rtag);
+
+    let (ok, check_plaintext) = mailbox_spdm_gcm_decrypt(
+        &mut model,
+        &major_secret_cmk,
+        &[],
+        &ciphertext,
+        &rtag,
+        0x11,
+        1,
+        true,
     );
     assert!(ok);
     assert_eq!(check_plaintext, plaintext);
@@ -1243,10 +1296,11 @@ fn mailbox_spdm_gcm_encrypt(
     mut plaintext: &[u8],
     version: u8,
     counter: u64,
+    big_endian_counter_xor: bool,
 ) -> ([u8; 16], Vec<u8>) {
     let split = MAX_CMB_DATA_SIZE;
     let mut cm_aes_encrypt_init = CmAesGcmSpdmEncryptInitReq {
-        spdm_version: version as u32,
+        spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
         spdm_counter: counter.to_le_bytes(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,
@@ -1463,11 +1517,12 @@ fn mailbox_spdm_gcm_decrypt(
     tag: &[u8; 16],
     version: u8,
     counter: u64,
+    big_endian_counter_xor: bool,
 ) -> (bool, Vec<u8>) {
     let split = MAX_CMB_DATA_SIZE;
     let mut cm_aes_decrypt_init = CmAesGcmSpdmDecryptInitReq {
         hdr: MailboxReqHeader::default(),
-        spdm_version: version as u32,
+        spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
         spdm_counter: counter.to_le_bytes(),
         cmk: cmk.clone(),
         aad_size: aad.len() as u32,

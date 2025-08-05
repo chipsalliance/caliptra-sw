@@ -2824,7 +2824,7 @@ impl Response for CmAesGcmEncryptInitResp {}
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmSpdmEncryptInitReq {
     pub hdr: MailboxReqHeader,
-    pub spdm_version: u32,
+    pub spdm_flags: u32,
     pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
@@ -2835,7 +2835,7 @@ impl Default for CmAesGcmSpdmEncryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
-            spdm_version: 0,
+            spdm_flags: 0,
             spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
@@ -3140,7 +3140,7 @@ impl Response for CmAesGcmDecryptInitResp {}
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct CmAesGcmSpdmDecryptInitReq {
     pub hdr: MailboxReqHeader,
-    pub spdm_version: u32,
+    pub spdm_flags: u32,
     pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
@@ -3151,7 +3151,7 @@ impl Default for CmAesGcmSpdmDecryptInitReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
-            spdm_version: 0,
+            spdm_flags: 0,
             spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
