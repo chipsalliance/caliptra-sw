@@ -15,6 +15,7 @@ pub struct CommitInfo {
     pub author: String,
     pub title: String,
 }
+
 impl CommitInfo {
     fn parse_multiple(s: &str) -> io::Result<Vec<CommitInfo>> {
         let mut lines = s.lines();
@@ -59,6 +60,7 @@ fn to_utf8(bytes: Vec<u8>) -> io::Result<String> {
 pub struct WorkTree<'a> {
     pub path: &'a Path,
 }
+
 impl<'a> WorkTree<'a> {
     pub fn new(path: &'a Path) -> io::Result<Self> {
         run_cmd(
@@ -107,6 +109,7 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+
     pub fn submodule_update(&self) -> io::Result<()> {
         run_cmd_stdout(
             Command::new("git")
@@ -117,6 +120,7 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+
     pub fn head_commit_id(&self) -> io::Result<String> {
         Ok(to_utf8(run_cmd_stdout(
             Command::new("git")
@@ -128,6 +132,7 @@ impl<'a> WorkTree<'a> {
         .trim()
         .into())
     }
+
     pub fn reset_hard(&self, commit_id: &str) -> io::Result<()> {
         run_cmd_stdout(
             Command::new("git")
@@ -139,6 +144,7 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+
     pub fn set_fs_contents(&self, commit_id: &str) -> io::Result<()> {
         run_cmd_stdout(
             Command::new("git")
@@ -151,6 +157,7 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+
     pub fn commit(&self, message: &str) -> io::Result<()> {
         run_cmd_stdout(
             Command::new("git")
@@ -163,6 +170,7 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+
     pub fn is_ancestor(&self, possible_ancestor: &str, commit: &str) -> io::Result<bool> {
         Ok(Command::new("git")
             .current_dir(self.path)
@@ -174,6 +182,7 @@ impl<'a> WorkTree<'a> {
             .code()
             == Some(0))
     }
+
     pub fn merge_log(&self) -> io::Result<Vec<Vec<String>>> {
         let stdout = to_utf8(run_cmd_stdout(
             Command::new("git")
@@ -193,6 +202,7 @@ impl<'a> WorkTree<'a> {
         Ok(result)
     }
 }
+
 impl Drop for WorkTree<'_> {
     fn drop(&mut self) {
         let _ = run_cmd(
