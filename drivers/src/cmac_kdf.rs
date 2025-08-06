@@ -14,14 +14,13 @@ Abstract:
 
 --*/
 
-use crate::{Aes, AesKey, AES_BLOCK_SIZE_BYTES};
+use crate::{Aes, AesKey, LEArray4x16, AES_BLOCK_SIZE_WORDS};
 use arrayvec::ArrayVec;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 const MAX_KMAC_INPUT_SIZE: usize = 4096;
-const MAX_KMAC_OUTPUT_SIZE: usize = 64;
 
 /// Calculate CMAC-KDF
 ///
@@ -45,7 +44,7 @@ pub fn cmac_kdf(
     label: &[u8],
     context: Option<&[u8]>,
     rounds: u32,
-) -> CaliptraResult<[u8; MAX_KMAC_OUTPUT_SIZE]> {
+) -> CaliptraResult<LEArray4x16> {
     let input_len = label.len() + context.map(|c| c.len() + 1).unwrap_or(0) + 4;
     if input_len > MAX_KMAC_INPUT_SIZE {
         return Err(CaliptraError::DRIVER_CMAC_KDF_INVALID_SLICE);
@@ -55,7 +54,7 @@ pub fn cmac_kdf(
     }
 
     let mut input = ArrayVec::<u8, MAX_KMAC_INPUT_SIZE>::new();
-    let mut output = [0u8; MAX_KMAC_OUTPUT_SIZE];
+    let mut output = LEArray4x16::default();
 
     for round in 0..rounds {
         // reset the input for each round
@@ -78,8 +77,9 @@ pub fn cmac_kdf(
         }
 
         let result = aes.cmac(key, &input)?;
-        output[round as usize * AES_BLOCK_SIZE_BYTES..(round as usize + 1) * AES_BLOCK_SIZE_BYTES]
-            .copy_from_slice(&result);
+        output.0
+            [round as usize * AES_BLOCK_SIZE_WORDS..(round as usize + 1) * AES_BLOCK_SIZE_WORDS]
+            .copy_from_slice(&result.0);
     }
     Ok(output)
 }

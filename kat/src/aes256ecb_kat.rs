@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult};
+use caliptra_drivers::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
 
 // Generated from Python code:
 // >>> from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -24,7 +24,7 @@ use caliptra_drivers::{Aes, AesKey, AesOperation, CaliptraError, CaliptraResult}
 // >>> print(ct.hex())
 // dc95c078a2408989ad48a21492842087dc95c078a2408989ad48a21492842087dc95c078a2408989ad48a21492842087dc95c078a2408989ad48a21492842087
 
-const KEY: AesKey<'_> = AesKey::Array(&[0u8; 32]);
+const KEY: AesKey<'_> = AesKey::Array(&LEArray4x8::new([0u32; 8]));
 const PT: [u8; 48] = [0u8; 48];
 const CT: [u8; 48] = [
     0xdc, 0x95, 0xc0, 0x78, 0xa2, 0x40, 0x89, 0x89, 0xad, 0x48, 0xa2, 0x14, 0x92, 0x84, 0x20, 0x87,
