@@ -1990,6 +1990,7 @@ Command Code: `0x434D_5344` ("CMSD")
 |                    |                    | the given endianness.             |
 |                    |                    | 0 = Little endian (standard)      |
 |                    |                    | 1 = Big endian                    |
+| reserved           | u8[2]              | Reserved                          |
 | counter            | u8[8]              | 8-byte counter in little-endian   |
 |                    |                    | format that is XOR'd into the IV  |
 | CMK                | CMK                | CMK to use for decryption         |
