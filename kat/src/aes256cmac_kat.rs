@@ -41,12 +41,8 @@ const KEY: LEArray4x8 = LEArray4x8::new([
     0xce4f9a69, 0xa99f3ef5, 0xaabc6e23, 0x7022140a, 0x100d2f72, 0x81c3f645, 0xe2a9822d, 0xd8fa4c56,
 ]);
 
-const EXPECTED_MAC: LEArray4x4 = LEArray4x4::new([
-    0x43108180u32.swap_bytes(),
-    0xc8c4fd4du32.swap_bytes(),
-    0x94c511feu32.swap_bytes(),
-    0x0b084629u32.swap_bytes(),
-]);
+const EXPECTED_MAC: LEArray4x4 =
+    LEArray4x4::new([0x80811043u32, 0x4dfdc4c8u32, 0xfe11c594u32, 0x2946080bu32]);
 
 #[derive(Default, Debug)]
 pub struct Aes256CmacKat {}
