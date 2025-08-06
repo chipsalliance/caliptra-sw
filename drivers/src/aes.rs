@@ -851,25 +851,19 @@ impl Aes {
     }
 
     fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
-        let aes = self.aes.regs_mut();
-
-        while !aes.status().read().output_valid() {}
-
-        let mut buffer = [0u8; 16];
-        // read the data out
-        for i in 0..AES_BLOCK_SIZE_WORDS {
-            let x = aes.data_out().at(i).read();
-            buffer[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
-        }
-
         // not possible but needed to prevent panic
         if block_num * AES_BLOCK_SIZE_BYTES >= output.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
+
+        // read the data out
+        let buffer = self.read_data_block_u32();
+        let buffer: [u8; AES_BLOCK_SIZE_BYTES] = transmute!(buffer);
+
         let output = &mut output[block_num * AES_BLOCK_SIZE_BYTES..];
         let len = output.len().min(AES_BLOCK_SIZE_BYTES);
         let output = &mut output[..len];
-        output[..len].copy_from_slice(&buffer[..len]);
+        output.copy_from_slice(&buffer[..len]);
         Ok(())
     }
 
