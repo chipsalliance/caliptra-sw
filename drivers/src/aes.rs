@@ -131,7 +131,7 @@ const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_S
 pub struct AesContext {
     pub mode: u32,
     pub key: LEArray4x8,
-    pub last_ciphertext: [u8; 16],
+    pub last_ciphertext: LEArray4x4,
     pub last_block_index: u8,
     _padding: [u8; 75],
 }
@@ -141,7 +141,7 @@ impl Default for AesContext {
         Self {
             mode: 0,
             key: LEArray4x8::default(),
-            last_ciphertext: [0; 16],
+            last_ciphertext: LEArray4x4::default(),
             last_block_index: 0,
             _padding: [0; 75],
         }
@@ -749,7 +749,7 @@ impl Aes {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_aes_cbc_ctr(
         &mut self,
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        iv: &LEArray4x4,
         key: AesKey,
         op: AesOperation,
         mode: AesMode,
@@ -777,14 +777,10 @@ impl Aes {
             self.load_key(key)?;
         }
 
+        // Program the IV
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
-            // Program the IV
-            for (i, ivi) in iv.chunks_exact(4).enumerate() {
-                aes.iv()
-                    .at(i)
-                    .write(|_| u32::from_le_bytes(ivi.try_into().unwrap()));
-            }
+            iv.write_to_reg(aes.iv());
             wait_for_idle(&aes);
         });
         Ok(())
@@ -1002,7 +998,7 @@ impl Aes {
     pub fn aes_256_cbc(
         &mut self,
         key: &LEArray4x8,
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        iv: &LEArray4x4,
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
@@ -1069,21 +1065,25 @@ impl Aes {
         Ok(AesContext {
             mode: CmAesMode::Cbc as u32,
             key: *key,
-            last_ciphertext,
+            last_ciphertext: transmute!(last_ciphertext),
             ..Default::default()
         })
     }
 
-    fn add_iv(iv: &[u8; AES_BLOCK_SIZE_BYTES], ctr: u32) -> [u8; AES_BLOCK_SIZE_BYTES] {
+    fn add_iv(iv: &LEArray4x4, ctr: u32) -> LEArray4x4 {
         // We write the IV as 4 32-bit words in little-endian order, but we have
         // to increment them as if they were big-endian.
-        (u128::from_be_bytes(iv[0..16].try_into().unwrap()) + (ctr as u128)).to_be_bytes()
+        let iv: u128 = transmute!(*iv);
+        let iv = iv.swap_bytes();
+        let iv = iv + (ctr as u128);
+        let iv = iv.swap_bytes();
+        transmute!(iv)
     }
 
     pub fn aes_256_ctr(
         &mut self,
         key: &LEArray4x8,
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        iv: &LEArray4x4,
         block_index: usize, // index within a block
         mut input: &[u8],
         mut output: &mut [u8],
