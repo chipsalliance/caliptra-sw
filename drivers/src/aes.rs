@@ -1292,10 +1292,6 @@ impl Aes {
                     }
                 }
                 Ordering::Less => {
-                    // not possible but needed to prevent panic
-                    if len >= input.len() {
-                        Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-                    }
                     for i in 0..AES_BLOCK_SIZE_BYTES {
                         input[i] ^= k2[i];
                     }
