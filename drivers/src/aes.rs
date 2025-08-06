@@ -118,7 +118,7 @@ pub struct AesGcmContext {
     pub key: [u8; 32],
     pub iv: [u8; 12],
     pub aad_len: u32,
-    pub ghash_state: [u8; 16],
+    pub ghash_state: LEArray4x4,
     pub buffer_len: u32,
     pub buffer: [u8; 16],
     pub resreved: [u8; 16],
@@ -218,9 +218,9 @@ impl Aes {
         let ghash_state = if aad.is_empty() {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            [0; 16]
+            LEArray4x4::default()
         } else {
-            self.save()?
+            self.save()
         };
         self.zeroize_internal();
         Ok(AesGcmContext {
@@ -299,7 +299,7 @@ impl Aes {
             &context.iv,
             context.aad_len,
             context.buffer_len,
-            &context.ghash_state,
+            context.ghash_state,
             op,
         )?;
 
@@ -340,9 +340,9 @@ impl Aes {
         let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            [0; 16]
+            LEArray4x4::default()
         } else {
-            self.save()?
+            self.save()
         };
         self.zeroize_internal();
         Ok((
@@ -409,7 +409,7 @@ impl Aes {
             &context.iv,
             context.aad_len,
             context.buffer_len,
-            &context.ghash_state,
+            context.ghash_state,
             op,
         )?;
 
@@ -467,8 +467,7 @@ impl Aes {
     }
 
     /// Saves and returns the current GHASH state.
-    fn save(&mut self) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
-        let mut ghash_state = [0u8; 16];
+    fn save(&mut self) -> LEArray4x4 {
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
             for _ in 0..2 {
@@ -477,13 +476,10 @@ impl Aes {
             }
             wait_for_idle(&aes);
             // Read out the GHASH state from the data out registers.
-            for i in 0..4 {
-                let x = aes.data_out().at(i).read();
-                ghash_state[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
-            }
+            let ghash_state = LEArray4x4::read_from_reg(aes.data_out());
             wait_for_idle(&aes);
-        });
-        Ok(ghash_state)
+            ghash_state
+        })
     }
 
     /// Restores the GHASH state.
@@ -493,7 +489,7 @@ impl Aes {
         iv: &[u8; AES_IV_SIZE_BYTES],
         aad_len: u32,
         len: u32,
-        ghash_state: &[u8; AES_BLOCK_SIZE_BYTES],
+        ghash_state: LEArray4x4,
         op: AesOperation,
     ) -> CaliptraResult<()> {
         // No zerocopy since we can't guarantee that the
@@ -566,11 +562,7 @@ impl Aes {
                     .write(|w| w.phase(GcmPhase::Restore as u32));
             }
             wait_for_idle(&aes);
-            for (i, ghashi) in ghash_state.chunks_exact(4).enumerate() {
-                aes.data_in()
-                    .at(i)
-                    .write(|_| u32::from_le_bytes(ghashi.try_into().unwrap()));
-            }
+            ghash_state.write_to_reg(aes.data_in());
             wait_for_idle(&aes);
             // Program the IV (last 4 bytes may not be zero, unlike when doing normal init)
             for (i, ivi) in iv.into_iter().enumerate() {
