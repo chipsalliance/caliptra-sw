@@ -18,7 +18,10 @@ Abstract:
 
 --*/
 
-use crate::{kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
+use crate::{
+    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs,
+    LEArray4x16, Trng,
+};
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -34,7 +37,7 @@ pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
 pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
 /// From the CMAC specification
 const R_B: u128 = 0x87;
-const ZERO_BLOCK: [u32; AES_BLOCK_SIZE_WORDS] = [0; AES_BLOCK_SIZE_WORDS];
+const ZERO_BLOCK: LEArray4x4 = LEArray4x4::new([0; AES_BLOCK_SIZE_WORDS]);
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
@@ -895,10 +898,10 @@ impl Aes {
         Ok(())
     }
 
-    fn load_data_block_u32(&mut self, data: &[u32; 4]) {
+    fn load_data_block_u32(&mut self, data: &LEArray4x4) {
         let aes = self.aes.regs_mut();
         while !aes.status().read().input_ready() {}
-        for (i, word) in data.iter().enumerate() {
+        for (i, word) in data.0.iter().enumerate() {
             aes.data_in().at(i).write(|_| *word);
         }
     }
