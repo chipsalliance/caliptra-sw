@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesOperation, CaliptraError, CaliptraResult};
+use caliptra_drivers::{Aes, AesOperation, CaliptraError, CaliptraResult, LEArray4x8};
 
 // Generated from Python code:
 // >>> import os
@@ -25,7 +25,7 @@ use caliptra_drivers::{Aes, AesOperation, CaliptraError, CaliptraResult};
 // >>> print(ct.hex())
 // dc95c078a2408989ad48a2149284208708c374848c228233c2b34f332bd2e9d38b70c515a6663d38cdb8e6532b266491
 
-const KEY: [u8; 32] = [0u8; 32];
+const KEY: LEArray4x8 = LEArray4x8::new([0u32; 8]);
 const IV: [u8; 16] = [0u8; 16];
 const PT: [u8; 48] = [0u8; 48];
 const CT: [u8; 48] = [

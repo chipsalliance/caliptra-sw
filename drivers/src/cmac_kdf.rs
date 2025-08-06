@@ -21,7 +21,6 @@ use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 const MAX_KMAC_INPUT_SIZE: usize = 4096;
-const MAX_KMAC_OUTPUT_SIZE: usize = 64;
 
 /// Calculate CMAC-KDF
 ///

@@ -70,18 +70,18 @@ pub struct CmStorage {
     // 1-up counter for KEK GCM IV
     kek_next_iv: u128,
     // KEK split into two key shares
-    kek: ([u8; 32], [u8; 32]),
+    kek: (LEArray4x8, LEArray4x8),
     // 1-up counter for context GCM IV
     context_next_iv: u128,
     // key for encrypting contexts
-    context_key: ([u8; 32], [u8; 32]),
+    context_key: (LEArray4x8, LEArray4x8),
 }
 
 impl CmStorage {
     pub fn new() -> Self {
         Self {
-            kek: ([0u8; 32], [0u8; 32]),
-            context_key: ([0u8; 32], [0u8; 32]),
+            kek: (LEArray4x8::default(), LEArray4x8::default()),
+            context_key: (LEArray4x8::default(), LEArray4x8::default()),
             ..Default::default()
         }
     }
@@ -815,7 +815,7 @@ impl Commands {
             &mut drivers.trng,
             encrypted_cmk,
         )?;
-        let key = &cmk.key_material[..32].try_into().unwrap();
+        let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let iv = drivers.trng.generate()?.as_bytes()[..16]
             .try_into()
             .unwrap();
@@ -926,7 +926,7 @@ impl Commands {
             &mut drivers.trng,
             encrypted_cmk,
         )?;
-        let key = &cmk.key_material[..32].try_into().unwrap();
+        let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let resp = mutrefbytes::<CmAesResp>(resp)?;
         let unencrypted_context = match mode {
             CmAesMode::Cbc => drivers.aes.aes_256_cbc(
@@ -1107,7 +1107,7 @@ impl Commands {
                 Err(CaliptraError::RUNTIME_GCM_KEY_USAGE_LIMIT_REACHED)?;
             }
             let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (key, AesGcmIv::Random)
+            (transmute!(key), AesGcmIv::Random)
         };
 
         let unencrypted_context = drivers
@@ -1259,7 +1259,7 @@ impl Commands {
                 Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
             }
             let key: [u8; 32] = cmk.key_material[..32].try_into().unwrap();
-            (key, AesGcmIv::Array(&cmd.iv))
+            (transmute!(key), AesGcmIv::Array(&cmd.iv))
         };
 
         let unencrypted_context = drivers
@@ -2122,7 +2122,7 @@ impl Commands {
         drivers: &mut Drivers,
         major_secret: &[u8],
         version: SpdmVersion,
-    ) -> CaliptraResult<([u8; 32], [u8; 12])> {
+    ) -> CaliptraResult<(LEArray4x8, [u8; 12])> {
         // EncryptionKey = HKDF-Expand(major-secret, bin_str5, key_length);
         // IV = HKDF-Expand(major-secret, bin_str6, iv_length);
         // bin_str5 = BinConcat(key_length, Version, "key", null);
@@ -2150,6 +2150,7 @@ impl Commands {
             }
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         }
+        let key = transmute!(key);
         Ok((key, iv))
     }
 

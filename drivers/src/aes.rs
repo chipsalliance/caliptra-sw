@@ -19,7 +19,8 @@ Abstract:
 --*/
 
 use crate::{
-    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
+    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x8,
+    Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -55,10 +56,10 @@ impl<'a> From<&'a [u8; 12]> for AesGcmIv<'a> {
 #[derive(Debug, Copy, Clone)]
 pub enum AesKey<'a> {
     /// Array - 32 Bytes (256 bits)
-    Array(&'a [u8; 32]),
+    Array(&'a LEArray4x8),
 
     /// Split key parts that are XOR'd together
-    Split(&'a [u8; 32], &'a [u8; 32]),
+    Split(&'a LEArray4x8, &'a LEArray4x8),
 
     /// Read from the key vault
     KV(KeyReadArgs),
@@ -71,9 +72,9 @@ impl AesKey<'_> {
     }
 }
 
-impl<'a> From<&'a [u8; 32]> for AesKey<'a> {
+impl<'a> From<&'a LEArray4x8> for AesKey<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a [u8; 32]) -> Self {
+    fn from(value: &'a LEArray4x8) -> Self {
         Self::Array(value)
     }
 }
@@ -115,7 +116,7 @@ pub enum GcmPhase {
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesGcmContext {
-    pub key: [u8; 32],
+    pub key: LEArray4x8,
     pub iv: [u8; 12],
     pub aad_len: u32,
     pub ghash_state: LEArray4x4,
@@ -129,7 +130,7 @@ const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_S
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
     pub mode: u32,
-    pub key: [u8; 32],
+    pub key: LEArray4x8,
     pub last_ciphertext: [u8; 16],
     pub last_block_index: u8,
     _padding: [u8; 75],
@@ -139,7 +140,7 @@ impl Default for AesContext {
     fn default() -> Self {
         Self {
             mode: 0,
-            key: [0; 32],
+            key: LEArray4x8::default(),
             last_ciphertext: [0; 16],
             last_block_index: 0,
             _padding: [0; 75],
@@ -200,7 +201,7 @@ impl Aes {
     pub fn aes_256_gcm_init(
         &mut self,
         trng: &mut Trng,
-        key: &[u8; 32],
+        key: &LEArray4x8,
         iv: AesGcmIv,
         aad: &[u8],
     ) -> CaliptraResult<AesGcmContext> {
@@ -723,21 +724,14 @@ impl Aes {
             // byte arrays are aligned to 4-byte boundaries.
             match key {
                 AesKey::Array(&arr) => {
-                    for (i, chunk) in arr.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share0().at(i).write(|_| word ^ MASK);
+                    for (i, word) in arr.0.iter().enumerate() {
+                        aes.key_share0().at(i).write(|_| *word ^ MASK);
                         aes.key_share1().at(i).write(|_| MASK);
                     }
                 }
                 AesKey::Split(&key1, &key2) => {
-                    for (i, chunk) in key1.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share0().at(i).write(|_| word);
-                    }
-                    for (i, chunk) in key2.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share1().at(i).write(|_| word);
-                    }
+                    key1.write_to_reg(aes.key_share0());
+                    key2.write_to_reg(aes.key_share1());
                 }
                 AesKey::KV(key) => KvAccess::copy_from_kv(
                     key,
@@ -1007,7 +1001,7 @@ impl Aes {
 
     pub fn aes_256_cbc(
         &mut self,
-        key: &[u8; 32],
+        key: &LEArray4x8,
         iv: &[u8; AES_BLOCK_SIZE_BYTES],
         op: AesOperation,
         input: &[u8],
@@ -1088,7 +1082,7 @@ impl Aes {
 
     pub fn aes_256_ctr(
         &mut self,
-        key: &[u8; 32],
+        key: &LEArray4x8,
         iv: &[u8; AES_BLOCK_SIZE_BYTES],
         block_index: usize, // index within a block
         mut input: &[u8],

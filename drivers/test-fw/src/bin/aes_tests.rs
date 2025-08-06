@@ -135,6 +135,7 @@ fn test_cmac_kv() {
         0x89, 0x46, 0xd6,
     ];
     let key: [u8; 32] = key[0..32].try_into().unwrap();
+    let key = transmute!(key);
 
     let mac1 = aes.cmac(AesKey::Array(&key), &[]).unwrap();
     let mac2 = aes
