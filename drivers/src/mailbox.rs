@@ -125,14 +125,14 @@ impl Mailbox {
     /// This function is safe to call from a trap handler.
     pub unsafe fn abort_pending_soc_to_uc_transactions() {
         let mut mbox = MboxCsr::new();
-        if mbox.regs().status().read().mbox_fsm_ps().mbox_execute_uc() {
-            // SoC firmware might be stuck waiting for Caliptra to finish
-            // executing this pending mailbox transaction. Notify them that
-            // we've failed.
-            mbox.regs_mut()
-                .status()
-                .write(|w| w.status(|w| w.cmd_failure()));
-        }
+        // if mbox.regs().status().read().mbox_fsm_ps().mbox_execute_uc() {
+        // SoC firmware might be stuck waiting for Caliptra to finish
+        // executing this pending mailbox transaction. Notify them that
+        // we've failed.
+        mbox.regs_mut()
+            .status()
+            .write(|w| w.status(|w| w.cmd_failure()));
+        // }
     }
 }
 

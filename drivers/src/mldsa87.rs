@@ -590,6 +590,9 @@ impl Mldsa87 {
         let mut mldsa_reg = MldsaReg::new();
         let mldsa = mldsa_reg.regs_mut();
         mldsa.ctrl().write(|f| f.zeroize(true));
+
+        // Wait for hardware ready. Ignore errors
+        let _ = Mldsa87::wait(mldsa, || mldsa.status().read().ready());
     }
 }
 
