@@ -19,8 +19,7 @@ Abstract:
 --*/
 
 use crate::{
-    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x8,
-    Trng,
+    kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -29,7 +28,13 @@ use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use core::cmp::Ordering;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
+type AesKeyBlock = LEArray4x8;
+type AesBlock = LEArray4x4;
+
 pub const AES_BLOCK_SIZE_BYTES: usize = 16;
+const _: () = assert!(AES_BLOCK_SIZE_BYTES == core::mem::size_of::<AesBlock>());
+const _: () = assert!(32 == core::mem::size_of::<AesKeyBlock>());
+
 const AES_IV_SIZE_BYTES: usize = 12;
 pub const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
 const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
@@ -37,7 +42,7 @@ pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
 pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
 /// From the CMAC specification
 const R_B: u128 = 0x87;
-const ZERO_BLOCK: LEArray4x4 = LEArray4x4::new([0; AES_BLOCK_SIZE_WORDS]);
+const ZERO_BLOCK: AesBlock = AesBlock::new([0; AES_BLOCK_SIZE_WORDS]);
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
@@ -56,10 +61,10 @@ impl<'a> From<&'a [u8; 12]> for AesGcmIv<'a> {
 #[derive(Debug, Copy, Clone)]
 pub enum AesKey<'a> {
     /// Array - 32 Bytes (256 bits)
-    Array(&'a LEArray4x8),
+    Array(&'a AesKeyBlock),
 
     /// Split key parts that are XOR'd together
-    Split(&'a LEArray4x8, &'a LEArray4x8),
+    Split(&'a AesKeyBlock, &'a AesKeyBlock),
 
     /// Read from the key vault
     KV(KeyReadArgs),
@@ -72,9 +77,9 @@ impl AesKey<'_> {
     }
 }
 
-impl<'a> From<&'a LEArray4x8> for AesKey<'a> {
+impl<'a> From<&'a AesKeyBlock> for AesKey<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a LEArray4x8) -> Self {
+    fn from(value: &'a AesKeyBlock) -> Self {
         Self::Array(value)
     }
 }
@@ -116,10 +121,10 @@ pub enum GcmPhase {
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesGcmContext {
-    pub key: LEArray4x8,
+    pub key: AesKeyBlock,
     pub iv: [u8; 12],
     pub aad_len: u32,
-    pub ghash_state: LEArray4x4,
+    pub ghash_state: AesBlock,
     pub buffer_len: u32,
     pub buffer: [u8; 16],
     pub resreved: [u8; 16],
@@ -130,8 +135,8 @@ const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_S
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
     pub mode: u32,
-    pub key: LEArray4x8,
-    pub last_ciphertext: LEArray4x4,
+    pub key: AesKeyBlock,
+    pub last_ciphertext: AesBlock,
     pub last_block_index: u8,
     _padding: [u8; 75],
 }
@@ -140,8 +145,8 @@ impl Default for AesContext {
     fn default() -> Self {
         Self {
             mode: 0,
-            key: LEArray4x8::default(),
-            last_ciphertext: LEArray4x4::default(),
+            key: AesKeyBlock::default(),
+            last_ciphertext: AesBlock::default(),
             last_block_index: 0,
             _padding: [0; 75],
         }
@@ -201,7 +206,7 @@ impl Aes {
     pub fn aes_256_gcm_init(
         &mut self,
         trng: &mut Trng,
-        key: &LEArray4x8,
+        key: &AesKeyBlock,
         iv: AesGcmIv,
         aad: &[u8],
     ) -> CaliptraResult<AesGcmContext> {
@@ -219,7 +224,7 @@ impl Aes {
         let ghash_state = if aad.is_empty() {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            LEArray4x4::default()
+            AesBlock::default()
         } else {
             self.save()
         };
@@ -341,7 +346,7 @@ impl Aes {
         let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            LEArray4x4::default()
+            AesBlock::default()
         } else {
             self.save()
         };
@@ -468,7 +473,7 @@ impl Aes {
     }
 
     /// Saves and returns the current GHASH state.
-    fn save(&mut self) -> LEArray4x4 {
+    fn save(&mut self) -> AesBlock {
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
             for _ in 0..2 {
@@ -477,7 +482,7 @@ impl Aes {
             }
             wait_for_idle(&aes);
             // Read out the GHASH state from the data out registers.
-            let ghash_state = LEArray4x4::read_from_reg(aes.data_out());
+            let ghash_state = AesBlock::read_from_reg(aes.data_out());
             wait_for_idle(&aes);
             ghash_state
         })
@@ -490,7 +495,7 @@ impl Aes {
         iv: &[u8; AES_IV_SIZE_BYTES],
         aad_len: u32,
         len: u32,
-        ghash_state: LEArray4x4,
+        ghash_state: AesBlock,
         op: AesOperation,
     ) -> CaliptraResult<()> {
         // No zerocopy since we can't guarantee that the
@@ -749,7 +754,7 @@ impl Aes {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_aes_cbc_ctr(
         &mut self,
-        iv: &LEArray4x4,
+        iv: &AesBlock,
         key: AesKey,
         op: AesOperation,
         mode: AesMode,
@@ -844,10 +849,10 @@ impl Aes {
         Ok(tag_return)
     }
 
-    fn read_data_block_u32(&mut self) -> LEArray4x4 {
+    fn read_data_block_u32(&mut self) -> AesBlock {
         let aes = self.aes.regs_mut();
         while !aes.status().read().output_valid() {}
-        LEArray4x4::read_from_reg(aes.data_out())
+        AesBlock::read_from_reg(aes.data_out())
     }
 
     fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
@@ -867,7 +872,7 @@ impl Aes {
         Ok(())
     }
 
-    fn load_data_block_u32(&mut self, data: LEArray4x4) {
+    fn load_data_block_u32(&mut self, data: AesBlock) {
         let aes = self.aes.regs_mut();
         while !aes.status().read().input_ready() {}
         data.write_to_reg(aes.data_in());
@@ -975,8 +980,8 @@ impl Aes {
 
     pub fn aes_256_cbc(
         &mut self,
-        key: &LEArray4x8,
-        iv: &LEArray4x4,
+        key: &AesKeyBlock,
+        iv: &AesBlock,
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
@@ -1048,7 +1053,7 @@ impl Aes {
         })
     }
 
-    fn add_iv(iv: &LEArray4x4, ctr: u32) -> LEArray4x4 {
+    fn add_iv(iv: &AesBlock, ctr: u32) -> AesBlock {
         // We write the IV as 4 32-bit words in little-endian order, but we have
         // to increment them as if they were big-endian.
         let iv: u128 = transmute!(*iv);
@@ -1060,8 +1065,8 @@ impl Aes {
 
     pub fn aes_256_ctr(
         &mut self,
-        key: &LEArray4x8,
-        iv: &LEArray4x4,
+        key: &AesKeyBlock,
+        iv: &AesBlock,
         block_index: usize, // index within a block
         mut input: &[u8],
         mut output: &mut [u8],
@@ -1177,7 +1182,7 @@ impl Aes {
     }
 
     /// CMAC subkey generation, Algorithm 6.1 from NIST SP 800-38B.
-    fn cmac_subkey_generation(&mut self, key: AesKey) -> CaliptraResult<(LEArray4x4, LEArray4x4)> {
+    fn cmac_subkey_generation(&mut self, key: AesKey) -> CaliptraResult<(AesBlock, AesBlock)> {
         // sideload the KV key before we program the control register
         if key.sideload() {
             self.load_key(key)?;
@@ -1224,7 +1229,7 @@ impl Aes {
     }
 
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
-    pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
+    pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<AesBlock> {
         if message.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
@@ -1244,7 +1249,7 @@ impl Aes {
         // where M1, ..., Mn-1 are complete blocks.
         let mut m = message;
         // 5. Let C0 = 0^128.
-        let mut c = LEArray4x4::default();
+        let mut c = AesBlock::default();
         for _ in 0..n {
             let mut input = [0u8; AES_BLOCK_SIZE_BYTES];
             let len = m.len().min(AES_BLOCK_SIZE_BYTES);
@@ -1254,7 +1259,7 @@ impl Aes {
             }
 
             // 4. If Mn* is a complete block, let Mn = K1 XOR Mn*; else, let Mn = K2 XOR (Mn* || 10^j) where j = 128 - Mlen - 1.
-            let mut input: LEArray4x4 = transmute!(input);
+            let mut input: AesBlock = transmute!(input);
             match m.len().cmp(&AES_BLOCK_SIZE_BYTES) {
                 Ordering::Equal => {
                     for i in 0..AES_BLOCK_SIZE_WORDS {
