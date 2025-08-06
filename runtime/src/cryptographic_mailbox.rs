@@ -14,6 +14,7 @@ Abstract:
 
 use crate::{mutrefbytes, Drivers};
 use arrayvec::ArrayVec;
+use bitfield::bitfield;
 use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk, UNENCRYPTED_CMK_SIZE_BYTES},
@@ -62,6 +63,13 @@ pub const MLDSA_SEED_SIZE: usize = 32;
 
 // We have 24 bits for the key ID.
 const MAX_KEY_ID: u32 = 0xffffff;
+
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct SpdmFlags(u32);
+    pub version, set_image_version: 7, 0;
+    pub counter_big_endian, set_counter_big_endian: 8, 8;
+}
 
 /// Holds data for the cryptographic mailbox system.
 #[derive(Default)]
@@ -1177,13 +1185,14 @@ impl Commands {
         if !matches!(key_usage, CmKeyUsage::Hmac) {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
         }
-        let spdm_version: SpdmVersion = (cmd.spdm_flags as u8).try_into()?;
+        let spdm_flags = SpdmFlags(cmd.spdm_flags);
+        let spdm_version: SpdmVersion = (spdm_flags.version() as u8).try_into()?;
         let (key, iv) = Self::spdm_derive_key_and_iv(
             drivers,
             &cmk.key_material[..cmk.length as usize],
             spdm_version,
         )?;
-        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, (cmd.spdm_flags >> 8) & 1 == 1);
+        let iv = Self::xor_iv(&iv, &cmd.spdm_counter, spdm_flags.counter_big_endian() == 1);
         let iv = AesGcmIv::Array(&iv);
 
         let unencrypted_context = drivers
