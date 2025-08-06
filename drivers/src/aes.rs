@@ -19,8 +19,7 @@ Abstract:
 --*/
 
 use crate::{
-    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs,
-    LEArray4x16, Trng,
+    array::LEArray4x4, kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
 };
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
@@ -863,16 +862,10 @@ impl Aes {
         Ok(tag_return)
     }
 
-    fn read_data_block_u32(&mut self, output: &mut [u32]) -> CaliptraResult<()> {
-        if output.len() < AES_BLOCK_SIZE_WORDS {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
+    fn read_data_block_u32(&mut self) -> LEArray4x4 {
         let aes = self.aes.regs_mut();
         while !aes.status().read().output_valid() {}
-        for i in 0..AES_BLOCK_SIZE_WORDS {
-            output[i] = aes.data_out().at(i).read();
-        }
-        Ok(())
+        LEArray4x4::read_from_reg(aes.data_out())
     }
 
     fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
@@ -898,12 +891,10 @@ impl Aes {
         Ok(())
     }
 
-    fn load_data_block_u32(&mut self, data: &LEArray4x4) {
+    fn load_data_block_u32(&mut self, data: LEArray4x4) {
         let aes = self.aes.regs_mut();
         while !aes.status().read().input_ready() {}
-        for (i, word) in data.0.iter().enumerate() {
-            aes.data_in().at(i).write(|_| *word);
-        }
+        data.write_to_reg(aes.data_in());
     }
 
     fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
@@ -1250,10 +1241,8 @@ impl Aes {
         }
 
         // 1. Let L = CIPH_K(0)
-        self.load_data_block_u32(&ZERO_BLOCK);
-        let mut l = [0u32; AES_BLOCK_SIZE_WORDS];
-        self.read_data_block_u32(&mut l)?;
-        let l: u128 = transmute!(l);
+        self.load_data_block_u32(ZERO_BLOCK);
+        let l: u128 = transmute!(self.read_data_block_u32());
         let l = l.swap_bytes(); // convert to big-endian
 
         // 2. If MSB1(L) == 0, then K1 = L << 1
