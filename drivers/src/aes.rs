@@ -1275,7 +1275,7 @@ impl Aes {
         // where M1, ..., Mn-1 are complete blocks.
         let mut m = message;
         // 5. Let C0 = 0^128.
-        let mut c = [0u8; AES_BLOCK_SIZE_BYTES];
+        let mut c = LEArray4x4::default();
         for _ in 0..n {
             let mut input = [0u8; AES_BLOCK_SIZE_BYTES];
             let len = m.len().min(AES_BLOCK_SIZE_BYTES);
@@ -1302,16 +1302,17 @@ impl Aes {
             }
 
             // 6. For i = 1 to n, let Ci = CIPH_K(C_i-1 XOR M_i)
-            for i in 0..AES_BLOCK_SIZE_BYTES {
-                input[i] ^= c[i];
+            let mut input: LEArray4x4 = transmute!(input);
+            for i in 0..AES_BLOCK_SIZE_WORDS {
+                input.0[i] ^= c.0[i];
             }
-            self.load_data_block(&input, 0)?;
-            self.read_data_block(&mut c, 0)?;
+            self.load_data_block_u32(input);
+            c = self.read_data_block_u32();
             m = &m[m.len().min(AES_BLOCK_SIZE_BYTES)..];
         }
 
         self.zeroize_internal();
-        Ok(c)
+        Ok(transmute!(c))
     }
 
     /// Zeroize the non-GHASH hardware registers.
