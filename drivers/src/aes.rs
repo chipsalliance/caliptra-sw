@@ -1199,10 +1199,7 @@ impl Aes {
     }
 
     /// CMAC subkey generation, Algorithm 6.1 from NIST SP 800-38B.
-    fn cmac_subkey_generation(
-        &mut self,
-        key: AesKey,
-    ) -> CaliptraResult<([u8; AES_BLOCK_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
+    fn cmac_subkey_generation(&mut self, key: AesKey) -> CaliptraResult<(LEArray4x4, LEArray4x4)> {
         // sideload the KV key before we program the control register
         if key.sideload() {
             self.load_key(key)?;
@@ -1229,7 +1226,8 @@ impl Aes {
         // 1. Let L = CIPH_K(0)
         self.load_data_block_u32(ZERO_BLOCK);
         let l: u128 = transmute!(self.read_data_block_u32());
-        let l = l.swap_bytes(); // convert to big-endian
+        // convert to big-endian for shift register section
+        let l = l.swap_bytes();
 
         // 2. If MSB1(L) == 0, then K1 = L << 1
         // Else K1 = (L << 1) XOR Rb
@@ -1241,7 +1239,10 @@ impl Aes {
         // Else K2 = (K1 << 1) XOR Rb
         let k2 = (k1 << 1) ^ ((k1 >> 127) * R_B);
 
-        Ok((k1.to_be_bytes(), k2.to_be_bytes()))
+        // convert back to native (little-endian)
+        let k1 = k1.swap_bytes();
+        let k2 = k2.swap_bytes();
+        Ok((transmute!(k1), transmute!(k2)))
     }
 
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
@@ -1275,22 +1276,22 @@ impl Aes {
             }
 
             // 4. If Mn* is a complete block, let Mn = K1 XOR Mn*; else, let Mn = K2 XOR (Mn* || 10^j) where j = 128 - Mlen - 1.
+            let mut input: LEArray4x4 = transmute!(input);
             match m.len().cmp(&AES_BLOCK_SIZE_BYTES) {
                 Ordering::Equal => {
-                    for i in 0..AES_BLOCK_SIZE_BYTES {
-                        input[i] ^= k1[i];
+                    for i in 0..AES_BLOCK_SIZE_WORDS {
+                        input.0[i] ^= k1.0[i];
                     }
                 }
                 Ordering::Less => {
-                    for i in 0..AES_BLOCK_SIZE_BYTES {
-                        input[i] ^= k2[i];
+                    for i in 0..AES_BLOCK_SIZE_WORDS {
+                        input.0[i] ^= k2.0[i];
                     }
                 }
                 _ => (), // not the last block, so do nothing
             }
 
             // 6. For i = 1 to n, let Ci = CIPH_K(C_i-1 XOR M_i)
-            let mut input: LEArray4x4 = transmute!(input);
             for i in 0..AES_BLOCK_SIZE_WORDS {
                 input.0[i] ^= c.0[i];
             }
