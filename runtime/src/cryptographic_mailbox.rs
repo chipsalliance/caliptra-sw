@@ -1172,7 +1172,7 @@ impl Commands {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
         }
 
-        let key_usage: CmKeyUsage = CmKeyUsage::from(cmk.key_usage as u32);
+        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
 
         if !matches!(key_usage, CmKeyUsage::Hmac) {
             Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
