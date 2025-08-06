@@ -16,6 +16,7 @@ use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
+use zerocopy::transmute;
 
 // From NIST example vector
 const KEY_EMPTY: [u8; 32] = [
@@ -90,11 +91,11 @@ fn test_cmac() {
 
     let key = KEY_EMPTY.into();
     let mac = aes.cmac(AesKey::Array(&key), &[]).unwrap();
-    assert_eq!(mac, EXPECTED_MAC_EMPTY, "AES CMAC mismatch");
+    assert_eq!(mac, EXPECTED_MAC_EMPTY.into(), "AES CMAC mismatch");
 
     let key = KEY_4256.into();
     let mac = aes.cmac(AesKey::Array(&key), &M_4256).unwrap();
-    assert_eq!(mac, EXPECTED_MAC_4256, "AES CMAC mismatch");
+    assert_eq!(mac, EXPECTED_MAC_4256.into(), "AES CMAC mismatch");
 }
 
 fn test_cmac_kv() {

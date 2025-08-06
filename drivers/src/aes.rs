@@ -30,7 +30,7 @@ use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const AES_BLOCK_SIZE_BYTES: usize = 16;
 const AES_IV_SIZE_BYTES: usize = 12;
-const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
+pub const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
 const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
 pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
@@ -1251,11 +1251,7 @@ impl Aes {
     }
 
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
-    pub fn cmac(
-        &mut self,
-        key: AesKey,
-        message: &[u8],
-    ) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
+    pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
         if message.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
@@ -1310,7 +1306,7 @@ impl Aes {
         }
 
         self.zeroize_internal();
-        Ok(transmute!(c))
+        Ok(c)
     }
 
     /// Zeroize the non-GHASH hardware registers.
