@@ -860,6 +860,18 @@ impl Aes {
         Ok(tag_return)
     }
 
+    fn read_data_block_u32(&mut self, output: &mut [u32]) -> CaliptraResult<()> {
+        if output.len() < AES_BLOCK_SIZE_WORDS {
+            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
+        }
+        let aes = self.aes.regs_mut();
+        while !aes.status().read().output_valid() {}
+        for i in 0..AES_BLOCK_SIZE_WORDS {
+            output[i] = aes.data_out().at(i).read();
+        }
+        Ok(())
+    }
+
     fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
         let aes = self.aes.regs_mut();
 
@@ -1236,13 +1248,14 @@ impl Aes {
 
         // 1. Let L = CIPH_K(0)
         self.load_data_block_u32(&ZERO_BLOCK);
-        let mut l = [0u8; AES_BLOCK_SIZE_BYTES];
-        self.read_data_block(&mut l, 0)?;
+        let mut l = [0u32; AES_BLOCK_SIZE_WORDS];
+        self.read_data_block_u32(&mut l)?;
+        let l: u128 = transmute!(l);
+        let l = l.swap_bytes(); // convert to big-endian
 
         // 2. If MSB1(L) == 0, then K1 = L << 1
         // Else K1 = (L << 1) XOR Rb
 
-        let l = u128::from_be_bytes(l);
         // branchless LFSR
         let k1 = (l << 1) ^ ((l >> 127) * R_B);
 
