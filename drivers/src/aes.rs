@@ -887,7 +887,7 @@ impl Aes {
         let data = &data[..AES_BLOCK_SIZE_BYTES.min(data.len())];
         let len = data.len();
         let mut padded_data = [0u8; AES_BLOCK_SIZE_BYTES];
-        padded_data[..len].copy_from_slice(&data);
+        padded_data[..len].copy_from_slice(data);
         self.load_data_block_u32(transmute!(padded_data));
         Ok(())
     }
