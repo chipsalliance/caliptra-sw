@@ -1280,6 +1280,9 @@ impl Aes {
             let mut input = [0u8; AES_BLOCK_SIZE_BYTES];
             let len = m.len().min(AES_BLOCK_SIZE_BYTES);
             input[..len].copy_from_slice(&m[..len]);
+            if len < AES_BLOCK_SIZE_BYTES {
+                input[len] = 0x80;
+            }
 
             // 4. If Mn* is a complete block, let Mn = K1 XOR Mn*; else, let Mn = K2 XOR (Mn* || 10^j) where j = 128 - Mlen - 1.
             match m.len().cmp(&AES_BLOCK_SIZE_BYTES) {
@@ -1293,7 +1296,6 @@ impl Aes {
                     if len >= input.len() {
                         Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
                     }
-                    input[len] = 0x80;
                     for i in 0..AES_BLOCK_SIZE_BYTES {
                         input[i] ^= k2[i];
                     }
