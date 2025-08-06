@@ -34,6 +34,7 @@ pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
 pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
 /// From the CMAC specification
 const R_B: u128 = 0x87;
+const ZERO_BLOCK: [u32; AES_BLOCK_SIZE_WORDS] = [0; AES_BLOCK_SIZE_WORDS];
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
@@ -882,6 +883,14 @@ impl Aes {
         Ok(())
     }
 
+    fn load_data_block_u32(&mut self, data: &[u32; 4]) {
+        let aes = self.aes.regs_mut();
+        while !aes.status().read().input_ready() {}
+        for (i, word) in data.iter().enumerate() {
+            aes.data_in().at(i).write(|_| *word);
+        }
+    }
+
     fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
         let aes = self.aes.regs_mut();
 
@@ -1226,7 +1235,7 @@ impl Aes {
         }
 
         // 1. Let L = CIPH_K(0)
-        self.load_data_block(&[0u8; AES_BLOCK_SIZE_BYTES], 0)?;
+        self.load_data_block_u32(&ZERO_BLOCK);
         let mut l = [0u8; AES_BLOCK_SIZE_BYTES];
         self.read_data_block(&mut l, 0)?;
 
