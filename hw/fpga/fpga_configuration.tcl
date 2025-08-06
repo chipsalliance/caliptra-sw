@@ -12,8 +12,8 @@ set LOCK TRUE
 
 # Simplistic processing of command line arguments to override defaults
 foreach arg $argv {
-    regexp {(.*)=(.*)} $arg fullmatch option value
-    set $option "$value"
+  regexp {(.*)=(.*)} $arg fullmatch option value
+  set $option "$value"
 }
 # If VERSION was not set by tclargs, set it from the commit ID.
 # This assumes it is run from within caliptra-sw. If building from outside caliptra-sw call with "VERSION=[hex number]"
@@ -122,7 +122,7 @@ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_interconnect_0
 set_property -dict [list \
   CONFIG.NUM_MI {7} \
   CONFIG.NUM_SI {4} \
-] [get_bd_cells axi_interconnect_0]
+  ] [get_bd_cells axi_interconnect_0]
 
 if {$APB} {
   # Add AXI APB Bridge for Caliptra 1.x
@@ -130,7 +130,7 @@ if {$APB} {
   set_property -dict [list \
     CONFIG.C_APB_NUM_SLAVES {1} \
     CONFIG.C_M_APB_PROTOCOL {apb4} \
-  ] [get_bd_cells axi_apb_bridge_0]
+    ] [get_bd_cells axi_apb_bridge_0]
   set_property location {3 1041 439} [get_bd_cells axi_apb_bridge_0]
 }
 
@@ -230,11 +230,11 @@ add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
 # Start build
 if {$BUILD} {
   launch_runs synth_1 -jobs 10
- wait_on_runs synth_1
+  wait_on_runs synth_1
   open_run synth_1
- 
-  set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets caliptra_fpga_project_bd_i/caliptra_package_top_0/inst/cptra_wrapper/caliptra_top_dut/aes_inst/aes_inst/u_aes_core/u_aes_cipher_core/u_aes_cipher_control/gen_fsm[0].gen_fsm_p.u_aes_cipher_control_fsm_i/u_aes_cipher_control_fsm/u_state_regs/u_state_flop/gen_generic.u_impl_generic/out[0]]
-  save_constraints
+
+  # set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets caliptra_fpga_project_bd_i/caliptra_package_top_0/inst/cptra_wrapper/caliptra_top_dut/aes_inst/aes_inst/u_aes_core/u_aes_cipher_core/u_aes_cipher_control/gen_fsm[0].gen_fsm_p.u_aes_cipher_control_fsm_i/u_aes_cipher_control_fsm/u_state_regs/u_state_flop/gen_generic.u_impl_generic/out[0]]
+  #save_constraints
 
   launch_runs impl_1 -to_step write_device_image -jobs 10
   wait_on_runs impl_1
