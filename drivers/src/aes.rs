@@ -874,32 +874,16 @@ impl Aes {
     }
 
     fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
-        let aes = self.aes.regs_mut();
-
         // not possible but needed to prevent panic
         if block_num * AES_BLOCK_SIZE_BYTES >= data.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         let data = &data[block_num * AES_BLOCK_SIZE_BYTES..];
         let data = &data[..AES_BLOCK_SIZE_BYTES.min(data.len())];
-        while !aes.status().read().input_ready() {}
-
         let len = data.len();
         let mut padded_data = [0u8; AES_BLOCK_SIZE_BYTES];
-        let data = if len < AES_BLOCK_SIZE_BYTES {
-            padded_data[..len].copy_from_slice(&data[..len]);
-            &padded_data[..]
-        } else {
-            data
-        };
-        // not possible but needed to prevent panic
-        if data.len() != AES_BLOCK_SIZE_BYTES {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
-        for (i, chunk) in data.chunks_exact(4).enumerate() {
-            let word = u32::from_le_bytes(chunk.try_into().unwrap());
-            aes.data_in().at(i).write(|_| word);
-        }
+        padded_data[..len].copy_from_slice(&data);
+        self.load_data_block_u32(transmute!(padded_data));
         Ok(())
     }
 
