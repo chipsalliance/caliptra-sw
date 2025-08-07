@@ -1164,12 +1164,12 @@ impl ModelFpgaSubsystem {
     }
 
     pub fn mci_flow_status(&mut self) -> u32 {
-        self.mci.regs().mci_reg_fw_flow_status.get()
+        self.mci.regs().fw_flow_status().read()
     }
 
     fn caliptra_axi_bus(&mut self) -> FpgaRealtimeBus<'_> {
         FpgaRealtimeBus {
-            mmio: self.caliptra_mmio.ptr,
+            mmio: self.caliptra_mmio,
             phantom: Default::default(),
         }
     }
@@ -1180,7 +1180,7 @@ impl HwModel for ModelFpgaSubsystem {
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         FpgaRealtimeBus {
-            mmio: self.mmio,
+            mmio: self.caliptra_mmio,
             phantom: Default::default(),
         }
     }
@@ -1249,8 +1249,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         let i3c_controller = xi3c::Controller::new(i3c_controller_mmio);
 
-        // For now, we copy the runtime directly into the SRAM
-        let mut mcu_fw = params.mcu_firmware.to_vec();
+        // TODO: use a fixed firmware that just does nothing
+        let mut mcu_fw = vec![0u8; 256];
         while mcu_fw.len() % 8 != 0 {
             mcu_fw.push(0);
         }
@@ -1268,6 +1268,7 @@ impl HwModel for ModelFpgaSubsystem {
             mcu_cpu_event_sender,
             mcu_cpu_event_recv,
         );
+        // TODO: read the firmware
         bmc.push_recovery_image(params.caliptra_firmware.to_vec());
         bmc.push_recovery_image(params.soc_manifest.to_vec());
         bmc.push_recovery_image(params.mcu_firmware.to_vec());
@@ -1430,13 +1431,14 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Write ROM images over backdoors
         // ensure that they are 8-byte aligned to write to AXI
-        let mut caliptra_rom_data = params.caliptra_rom.to_vec();
+        let mut caliptra_rom_data = params.rom.to_vec();
         while caliptra_rom_data.len() % 8 != 0 {
             caliptra_rom_data.push(0);
         }
 
+        let mcu_rom = vec![]; // TODO: read this in
         let mut mcu_rom_data = vec![0; mcu_rom_size];
-        mcu_rom_data[..params.mcu_rom.len()].clone_from_slice(params.mcu_rom);
+        mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
 
         // copy the ROM data
         let caliptra_rom_slice = unsafe {
