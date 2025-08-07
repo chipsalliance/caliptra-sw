@@ -204,11 +204,30 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let req_packet = Packet::get_from_mbox(drivers)?;
     let cmd_bytes = req_packet.as_bytes()?;
 
-    cprintln!(
-        "[rt] Received command=0x{:x}, len={}",
-        req_packet.cmd,
-        req_packet.payload().len()
-    );
+    // Create human-readable name of command.
+    let bytes = req_packet.cmd.to_be_bytes();
+    let ascii = {
+        if bytes.len() != 4 || bytes.iter().any(|&c| !c.is_ascii_uppercase()) {
+            None
+        } else {
+            core::str::from_utf8(&bytes).ok()
+        }
+    };
+
+    if let Some(ascii) = ascii {
+        cprintln!(
+            "[rt] Received command=0x{:x} ({}), len={}",
+            req_packet.cmd,
+            ascii,
+            req_packet.payload().len()
+        );
+    } else {
+        cprintln!(
+            "[rt] Received command=0x{:x}, len={}",
+            req_packet.cmd,
+            req_packet.payload().len()
+        );
+    }
 
     // stage the response once on the stack
     let resp = &mut [0u8; MAX_RESP_SIZE][..];
