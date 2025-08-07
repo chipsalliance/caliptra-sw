@@ -6,8 +6,9 @@ use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
 use crate::otp_provision::{lc_generate_memory, otp_generate_lifecycle_tokens_mem};
 use crate::output::ExitStatus;
+use crate::Error;
 use crate::{xi3c, HwModel, InitParams, Output};
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, bail};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -18,8 +19,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 // use caliptra_registers::{fuses, i3c};
 use std::io::Write;
 use std::marker::PhantomData;
-use std::net::{SocketAddr, TcpStream};
-use std::path::Path;
+use std::net::TcpStream;
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
@@ -39,6 +39,73 @@ const MCU_ROM_MAPPING: (usize, usize) = (1, 1);
 const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
+
+/// Configures the memory map for the MCU.
+/// These are the defaults that can be overridden and provided to the ROM and runtime builds.
+#[repr(C)]
+pub struct McuMemoryMap {
+    pub rom_offset: u32,
+    pub rom_size: u32,
+    pub rom_stack_size: u32,
+
+    pub sram_offset: u32,
+    pub sram_size: u32,
+
+    pub pic_offset: u32,
+
+    pub dccm_offset: u32,
+    pub dccm_size: u32,
+
+    pub i3c_offset: u32,
+    pub i3c_size: u32,
+
+    pub mci_offset: u32,
+    pub mci_size: u32,
+
+    pub mbox_offset: u32,
+    pub mbox_size: u32,
+
+    pub soc_offset: u32,
+    pub soc_size: u32,
+
+    pub otp_offset: u32,
+    pub otp_size: u32,
+
+    pub lc_offset: u32,
+    pub lc_size: u32,
+}
+
+const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
+    rom_offset: 0xb004_0000,
+    rom_size: 128 * 1024,
+    rom_stack_size: 0x3000,
+
+    dccm_offset: 0x5000_0000,
+    dccm_size: 16 * 1024,
+
+    sram_offset: 0xa8c0_0000,
+    sram_size: 384 * 1024,
+
+    pic_offset: 0x6000_0000,
+
+    i3c_offset: 0xa403_0000,
+    i3c_size: 0x1000,
+
+    mci_offset: 0xa800_0000,
+    mci_size: 0xa0_0028,
+
+    mbox_offset: 0xa412_0000,
+    mbox_size: 0x28,
+
+    soc_offset: 0xa413_0000,
+    soc_size: 0x5e0,
+
+    otp_offset: 0xa406_0000,
+    otp_size: 0x140,
+
+    lc_offset: 0xa404_0000,
+    lc_size: 0x8c,
+};
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
@@ -281,29 +348,44 @@ struct Mci {
 }
 
 impl Mci {
-    fn regs(&self) -> &mut registers_generated::mci::regs::Mci {
-        unsafe { &mut *(self.ptr as *mut registers_generated::mci::regs::Mci) }
+    // caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
+    //     0x3003_0000 as *mut u32,
+    //     BusMmio::new(FpgaRealtimeBus {
+    //         mmio,
+    //         phantom: Default::default(),
+    //     }),
+    // )
+
+    fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+        caliptra_registers::mci::RegisterBlock::new_with_mmio(
+            FPGA_MEMORY_MAP.mci_offset as *mut u32,
+            BusMmio::new(FpgaRealtimeBus {
+                mmio: self.ptr,
+                phantom: Default::default(),
+            }),
+        )
+        //unsafe { &mut *(self.ptr as *mut registers_generated::mci::regs::Mci) }
     }
 }
 
-struct CaliptraMmio {
-    ptr: *mut u32,
-}
+// struct CaliptraMmio {
+//     ptr: *mut u32,
+// }
 
-impl CaliptraMmio {
-    #[allow(unused)]
-    fn mbox(&self) -> &mut registers_generated::mbox::regs::Mbox {
-        unsafe {
-            &mut *(self.ptr.offset(0x2_0000 / 4) as *mut registers_generated::mbox::regs::Mbox)
-        }
-    }
-    #[allow(unused)]
-    fn soc(&self) -> &mut registers_generated::soc::regs::Soc {
-        unsafe { &mut *(self.ptr.offset(0x3_0000 / 4) as *mut registers_generated::soc::regs::Soc) }
-    }
-}
+// impl CaliptraMmio {
+//     #[allow(unused)]
+//     fn mbox(&self) -> &mut registers_generated::mbox::regs::Mbox {
+//         unsafe {
+//             &mut *(self.ptr.offset(0x2_0000 / 4) as *mut registers_generated::mbox::regs::Mbox)
+//         }
+//     }
+//     #[allow(unused)]
+//     fn soc(&self) -> &mut registers_generated::soc::regs::Soc {
+//         unsafe { &mut *(self.ptr.offset(0x3_0000 / 4) as *mut registers_generated::soc::regs::Soc) }
+//     }
+// }
 
-pub struct ModelFpgaRealtime {
+pub struct ModelFpgaSubsystem {
     devs: [UioDevice; 2],
     // mmio uio pointers
     wrapper: Arc<Wrapper>,
@@ -329,12 +411,11 @@ pub struct ModelFpgaRealtime {
     recovery_ctrl_len: usize,
     recovery_ctrl_written: bool,
     bmc_step_counter: usize,
-    i3c_target: &'static i3c::regs::I3c,
     blocks_sent: usize,
     openocd: Option<TcpStream>,
 }
 
-impl ModelFpgaRealtime {
+impl ModelFpgaSubsystem {
     fn set_bootfsm_break(&mut self, val: bool) {
         if val {
             self.wrapper
@@ -525,13 +606,22 @@ impl ModelFpgaRealtime {
         }
     }
 
-    pub fn i3c_core(&mut self) -> &i3c::regs::I3c {
-        unsafe { &*(self.i3c_mmio as *const i3c::regs::I3c) }
+    pub fn i3c_core(
+        &mut self,
+    ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+        caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
+            FPGA_MEMORY_MAP.i3c_offset as *mut u32,
+            BusMmio::new(FpgaRealtimeBus {
+                mmio: self.i3c_mmio,
+                phantom: Default::default(),
+            }),
+        )
+
+        //unsafe { &*(self.i3c_mmio as *const i3c::regs::I3c) }
     }
 
     pub fn i3c_target_configured(&mut self) -> bool {
-        let i3c_target = unsafe { &*(self.i3c_mmio as *const i3c::regs::I3c) };
-        i3c_target.stdby_ctrl_mode_stby_cr_device_addr.get() != 0
+        self.i3c_core().stdby_ctrl_mode().stby_cr_device_addr.read() != 0
     }
 
     pub fn configure_i3c_controller(&mut self) {
@@ -1096,28 +1186,6 @@ impl ModelFpgaRealtime {
         }
     }
 
-    pub fn open_openocd(&mut self, port: u16) -> Result<()> {
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
-        let stream = TcpStream::connect(addr)?;
-        self.openocd = Some(stream);
-        Ok(())
-    }
-
-    pub fn close_openocd(&mut self) {
-        self.openocd.take();
-    }
-
-    pub fn set_uds_req(&mut self) -> Result<()> {
-        let Some(mut socket) = self.openocd.take() else {
-            bail!("openocd socket is not open");
-        };
-
-        socket.write_all("riscv.cpu riscv dmi_write 0x70 4\n".as_bytes())?;
-
-        self.openocd = Some(socket);
-        Ok(())
-    }
-
     pub fn set_bootfsm_go(&mut self) -> Result<()> {
         let Some(mut socket) = self.openocd.take() else {
             bail!("openocd socket is not open");
@@ -1141,13 +1209,22 @@ impl ModelFpgaRealtime {
     }
 }
 
-impl McuHwModel for ModelFpgaRealtime {
+impl HwModel for ModelFpgaSubsystem {
+    type TBus<'a> = FpgaRealtimeBus<'a>;
+
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
+        FpgaRealtimeBus {
+            mmio: self.mmio,
+            phantom: Default::default(),
+        }
+    }
+
     fn step(&mut self) {
         self.handle_log();
         self.bmc_step();
     }
 
-    fn new_unbooted(params: InitParams) -> Result<Self>
+    fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
     {
@@ -1195,7 +1272,6 @@ impl McuHwModel for ModelFpgaRealtime {
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(true));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
         let realtime_wrapper = wrapper.clone();
-        let i3c_target = unsafe { &*(i3c_mmio as *const i3c::regs::I3c) };
 
         let realtime_thread = Some(std::thread::spawn(move || {
             Self::realtime_thread_itrng_fn(
@@ -1252,7 +1328,6 @@ impl McuHwModel for ModelFpgaRealtime {
             to_bmc,
             recovery_fifo_blocks: vec![],
             bmc_step_counter: 0,
-            i3c_target,
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
@@ -1446,7 +1521,7 @@ impl McuHwModel for ModelFpgaRealtime {
     }
 
     fn type_name(&self) -> &'static str {
-        "ModelFpgaRealtime"
+        "ModelFpgaSubsystem"
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -1472,28 +1547,28 @@ impl McuHwModel for ModelFpgaRealtime {
         self.wrapper.regs().sram_config_user.set(pauser);
     }
 
-    fn set_caliptra_boot_go(&mut self, go: bool) {
-        self.mci
-            .regs()
-            .mci_reg_cptra_boot_go
-            .write(Go.val(go as u32));
-    }
+    // fn set_caliptra_boot_go(&mut self, go: bool) {
+    //     self.mci
+    //         .regs()
+    //         .mci_reg_cptra_boot_go
+    //         .write(Go.val(go as u32));
+    // }
 
-    fn set_itrng_divider(&mut self, divider: u32) {
-        self.wrapper.regs().itrng_divisor.set(divider - 1);
-    }
+    // fn set_itrng_divider(&mut self, divider: u32) {
+    //     self.wrapper.regs().itrng_divisor.set(divider - 1);
+    // }
 
-    fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
-        for (i, wire) in value.iter().copied().enumerate() {
-            self.wrapper.regs().generic_input_wires[i].set(wire);
-        }
-    }
+    // fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+    //     for (i, wire) in value.iter().copied().enumerate() {
+    //         self.wrapper.regs().generic_input_wires[i].set(wire);
+    //     }
+    // }
 
-    fn set_mcu_generic_input_wires(&mut self, value: &[u32; 2]) {
-        for (i, wire) in value.iter().copied().enumerate() {
-            self.wrapper.regs().mci_generic_input_wires[i].set(wire);
-        }
-    }
+    // fn set_mcu_generic_input_wires(&mut self, value: &[u32; 2]) {
+    //     for (i, wire) in value.iter().copied().enumerate() {
+    //         self.wrapper.regs().mci_generic_input_wires[i].set(wire);
+    //     }
+    // }
 
     fn events_from_caliptra(&mut self) -> Vec<Event> {
         todo!()
@@ -1503,18 +1578,13 @@ impl McuHwModel for ModelFpgaRealtime {
         todo!()
     }
 
-    fn cycle_count(&mut self) -> u64 {
-        self.wrapper.regs().cycle_count.get() as u64
-    }
+    // fn cycle_count(&mut self) -> u64 {
+    //     self.wrapper.regs().cycle_count.get() as u64
+    // }
 
-    fn save_otp_memory(&self, path: &Path) -> Result<()> {
-        let s = crate::vmem::write_otp_vmem_data(self.otp_slice())?;
-        Ok(std::fs::write(path, s.as_bytes())?)
-    }
-
-    fn caliptra_soc_manager(&mut self) -> impl SocManager {
-        self
-    }
+    // fn caliptra_soc_manager(&mut self) -> impl SocManager {
+    //     self
+    // }
 }
 
 pub struct FpgaRealtimeBus<'a> {
@@ -1555,7 +1625,7 @@ impl Bus for FpgaRealtimeBus<'_> {
     }
 }
 
-impl SocManager for &mut ModelFpgaRealtime {
+impl SocManager for ModelFpgaSubsystem {
     const SOC_IFC_ADDR: u32 = 0x3003_0000;
     const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
     const SOC_MBOX_ADDR: u32 = 0x3002_0000;
@@ -1576,7 +1646,7 @@ impl SocManager for &mut ModelFpgaRealtime {
     }
 }
 
-impl Drop for ModelFpgaRealtime {
+impl Drop for ModelFpgaSubsystem {
     fn drop(&mut self) {
         self.realtime_thread_exit_flag
             .store(false, Ordering::Relaxed);
