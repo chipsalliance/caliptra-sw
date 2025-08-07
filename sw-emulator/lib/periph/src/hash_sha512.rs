@@ -664,9 +664,10 @@ impl HashSha512Regs {
         for pcr_id in 0..PCR_COUNT {
             let mut pcr = self.key_vault.read_pcr(pcr_id.try_into().unwrap());
             pcr.to_big_endian();
-            self.sha512.update_bytes(&pcr);
+            self.sha512.update_bytes(&pcr, None);
         }
-        self.sha512.update_bytes(self.pcr_gen_hash_nonce.as_bytes());
+        self.sha512
+            .update_bytes(self.pcr_gen_hash_nonce.as_bytes(), None);
         self.sha512
             .finalize((PCR_COUNT * PCR_SIZE + NONCE_SIZE).try_into().unwrap());
         self.sha512.copy_hash(self.pcr_hash_digest.as_mut_bytes());
