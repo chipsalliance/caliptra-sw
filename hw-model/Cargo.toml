@@ -8,13 +8,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["coverage"]
+default = ["coverage", "dep:uio"]
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
 
 [dependencies]
+anyhow.workspace = true
 bitfield.workspace = true
 bit-vec.workspace = true
 caliptra-api-types.workspace = true
@@ -28,6 +29,8 @@ caliptra-registers.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 rand.workspace = true
 sha2.workspace = true
+sha3.workspace = true
+smlang.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true

@@ -31,8 +31,15 @@ use caliptra_registers::soc_ifc::regs::{
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
+mod bmc;
+mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
+mod model_fpga_subsystem;
+mod otp_digest;
+mod otp_provision;
+mod recovery;
+mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
