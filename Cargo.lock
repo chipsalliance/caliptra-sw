@@ -858,6 +858,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "arrayvec",
+ "bitfield",
  "bitflags 2.9.1",
  "caliptra-api",
  "caliptra-auth-man-gen",

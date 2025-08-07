@@ -48,7 +48,7 @@ pub use pmp::lock_datavault_region;
 pub const FMC_ORG: u32 = 0x40000000;
 pub const FMC_SIZE: u32 = 32 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
-pub const RUNTIME_SIZE: u32 = 140 * 1024;
+pub const RUNTIME_SIZE: u32 = 144 * 1024;
 
 pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};
