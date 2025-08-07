@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::model_fpga_subsystem::LifecycleControllerState;
+use crate::model_fpga_subsystem::{LifecycleControllerState, LifecycleRawTokens};
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
 use anyhow::{bail, Result};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
@@ -384,7 +384,7 @@ fn otp_unscramble_data(data: &mut [u8], key_idx: usize) -> Result<()> {
 
 /// Generate the OTP memory contents for lifecycle tokens partition (including the digest).
 pub fn otp_generate_lifecycle_tokens_mem(
-    tokens: &mcu_rom_common::LifecycleRawTokens,
+    tokens: &LifecycleRawTokens,
 ) -> Result<[u8; LIFECYCLE_TOKENS_MEM_SIZE]> {
     let mut output = [0u8; LIFECYCLE_TOKENS_MEM_SIZE];
     for (i, token) in tokens.test_unlock.iter().enumerate() {
