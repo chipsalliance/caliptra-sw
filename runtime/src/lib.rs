@@ -354,6 +354,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_encrypt_init(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes, resp)
         }
@@ -362,6 +365,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_AES_GCM_DECRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes, resp)
