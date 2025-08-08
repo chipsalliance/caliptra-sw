@@ -1169,6 +1169,14 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | Version Number          | u32          | This corresponds to the `Version Number` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 | Version String          | u8[32]       | This corresponds to the `Version String` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main-2.x/auth-manifest/README.md)
 
+### VERIFY_AUTH_MANIFEST
+
+This command verifies the integrity and authenticity of the provided image manifest. Unlike `SET_AUTH_MANIFEST`, it performs validation only and does not persist the manifest in DCCM.
+
+Command Code: `0x4154_564D` ("ATVM")
+
+The input arguments are the same as the `SET_AUTH_MANIFEST` command.
+
 
 ### AUTHORIZE_AND_STASH
 

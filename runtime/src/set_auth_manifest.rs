@@ -531,6 +531,7 @@ impl SetAuthManifestCmd {
         sha256: &mut Sha256,
         mldsa: &mut Mldsa87,
         pqc_key_type: FwVerificationPqcKeyType,
+        verify_only: bool,
     ) -> CaliptraResult<()> {
         if cmd_buf.len() < size_of::<u32>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
@@ -595,11 +596,13 @@ impl SetAuthManifestCmd {
 
         Self::sort_and_check_duplicate_fwid(slice)?;
 
-        // Clear the previous image metadata collection.
-        metadata_persistent.zeroize();
+        if !verify_only {
+            // Clear the previous image metadata collection.
+            metadata_persistent.zeroize();
 
-        // Copy the image metadata collection to the persistent data.
-        metadata_persistent.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
+            // Copy the image metadata collection to the persistent data.
+            metadata_persistent.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
+        }
 
         Ok(())
     }
@@ -633,7 +636,11 @@ impl SetAuthManifestCmd {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        verify_only: bool,
+    ) -> CaliptraResult<usize> {
         // Validate cmd length
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
@@ -660,13 +667,18 @@ impl SetAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
-        Self::set_auth_manifest(drivers, AuthManifestSource::Slice(manifest_buf))?;
+        Self::set_auth_manifest(
+            drivers,
+            AuthManifestSource::Slice(manifest_buf),
+            verify_only,
+        )?;
         Ok(0)
     }
 
     pub(crate) fn set_auth_manifest(
         drivers: &mut Drivers,
         manifest_src: AuthManifestSource,
+        verify_only: bool,
     ) -> CaliptraResult<()> {
         let manifest_buf = match manifest_src {
             AuthManifestSource::Mailbox => drivers.mbox.raw_mailbox_contents(),
@@ -727,9 +739,13 @@ impl SetAuthManifestCmd {
             &mut drivers.sha256,
             &mut drivers.mldsa87,
             pqc_key_type,
+            verify_only,
         )?;
 
-        persistent_data.auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+        if !verify_only {
+            persistent_data.auth_manifest_digest =
+                drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+        }
         Ok(())
     }
 }
