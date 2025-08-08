@@ -206,12 +206,8 @@ pub struct InitParams<'a> {
 
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
-
-    /// If booting in subsystem mode, the MCU ROM image to use.
-    pub mcu_rom: Option<&'a [u8]>,
-    /// If booting in subsystem mode, the SoC manifest to use.
-    pub soc_manifest: Option<&'a [u8]>,
 }
+
 impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
@@ -254,8 +250,6 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
-            mcu_rom: None,
-            soc_manifest: None,
         }
     }
 }

@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 // This code was originally translated from the Xilinx I3C C driver:
 // https://github.com/Xilinx/embeddedsw/tree/master/XilinxProcessorIPLib/drivers/i3c/src
 // Which is:
