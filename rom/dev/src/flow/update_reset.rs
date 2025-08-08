@@ -26,6 +26,7 @@ use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
+use core::mem::size_of;
 use zerocopy::IntoBytes;
 
 #[derive(Default)]
@@ -186,15 +187,17 @@ impl UpdateResetFlow {
             manifest.runtime.size
         );
 
-        // Throw away the FMC portion of the image
-        txn.drop_words(manifest.fmc.size as usize / 4)?;
-
+        let mbox_sram = txn.raw_mailbox_contents();
         let runtime_dest = unsafe {
-            let addr = (manifest.runtime.load_addr) as *mut u32;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
+            let addr = (manifest.runtime.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-
-        txn.copy_request(runtime_dest.as_mut_bytes())?;
+        let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let end = start + runtime_dest.len();
+        if start > end || mbox_sram.len() < end {
+            Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+        }
+        runtime_dest.copy_from_slice(&mbox_sram[start..end]);
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
@@ -212,7 +215,13 @@ impl UpdateResetFlow {
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
-        txn.copy_request(persistent_data.manifest2.as_mut_bytes())?;
+        let manifest = &mut persistent_data.manifest2;
+        let mbox_sram = txn.raw_mailbox_contents();
+        let manifest_buf = manifest.as_mut_bytes();
+        if mbox_sram.len() < manifest_buf.len() {
+            Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+        }
+        manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
         Ok(())
     }
 
