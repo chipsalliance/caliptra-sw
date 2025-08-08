@@ -304,7 +304,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
-        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
+        CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
@@ -354,6 +355,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_encrypt_init(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes, resp)
         }
@@ -362,6 +366,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_AES_GCM_DECRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes, resp)
