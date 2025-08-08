@@ -207,7 +207,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Create human-readable name of command.
     let bytes = req_packet.cmd.to_be_bytes();
     let ascii = {
-        if bytes.len() != 4 || bytes.iter().any(|&c| !c.is_ascii_uppercase()) {
+        if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii()) {
             None
         } else {
             core::str::from_utf8(&bytes).ok()
