@@ -22,7 +22,7 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
-use caliptra_drivers::{DataVault, PersistentData};
+use caliptra_drivers::{AxiAddr, DataVault, Dma, DmaRecovery, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -61,7 +61,12 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
-            Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
+            Self::load_manifest(
+                env.persistent_data.get_mut(),
+                &mut recv_txn,
+                &mut env.soc_ifc,
+                &mut env.dma,
+            )?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
             let mut venv = FirmwareImageVerificationEnv {
@@ -105,7 +110,7 @@ impl UpdateResetFlow {
             );
 
             let manifest = &env.persistent_data.get().manifest2;
-            Self::load_image(manifest, &mut recv_txn)?;
+            Self::load_image(manifest, &mut recv_txn, &mut env.soc_ifc, &mut env.dma)?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -176,11 +181,38 @@ impl UpdateResetFlow {
     ///
     /// # Arguments
     ///
-    /// * `env`      - ROM Environment
+    /// * `manifest` - Manifest
+    /// * `txn`      - Mailbox Receive Transaction
+    /// * `soc_ifc`  - SoC Interface
+    /// * `dma`      - DMA engine
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image(
+        manifest: &ImageManifest,
+        txn: &mut MailboxRecvTxn,
+        soc_ifc: &mut caliptra_drivers::SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        if soc_ifc.has_ss_staging_area() {
+            Self::load_image_from_mcu(manifest, soc_ifc, dma)?;
+        } else {
+            Self::load_image_from_mbox(manifest, txn)?;
+        }
+        // Call the complete here to reset the execute bit
+        txn.complete(true)?;
+        Ok(())
+    }
+
+    /// Load the image from mailbox SRAM to ICCM
+    ///
+    /// # Arguments
+    ///
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
+    fn load_image_from_mbox(
+        manifest: &ImageManifest,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] Loading Runtime at addr 0x{:08x} len {}",
             manifest.runtime.load_addr,
@@ -199,8 +231,54 @@ impl UpdateResetFlow {
         }
         runtime_dest.copy_from_slice(&mbox_sram[start..end]);
 
-        //Call the complete here to reset the execute bit
-        txn.complete(true)?;
+        Ok(())
+    }
+
+    /// Load the image from MCU SRAM to ICCM using DMA
+    ///
+    /// # Arguments
+    ///
+    /// * `manifest` - Manifest
+    /// * `soc_ifc`  - SoC Interface
+    /// * `dma`      - DMA engine
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image_from_mcu(
+        manifest: &ImageManifest,
+        soc_ifc: &mut caliptra_drivers::SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        // Get MCU SRAM address
+        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
+        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
+
+        let dma_recovery = DmaRecovery::new(
+            recovery_interface_base_addr,
+            caliptra_base_addr,
+            mci_base_addr,
+            dma,
+        );
+
+        cprintln!(
+            "[update-reset] Loading Runtime at addr 0x{:08x} len {}",
+            manifest.runtime.load_addr,
+            manifest.runtime.size
+        );
+
+        // Load Runtime from MCU SRAM
+        let runtime_dest = unsafe {
+            let addr = (manifest.runtime.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
+        };
+        let runtime_size_words = runtime_dest.len().div_ceil(4);
+        let runtime_words = unsafe {
+            core::slice::from_raw_parts_mut(
+                runtime_dest.as_mut_ptr() as *mut u32,
+                runtime_size_words,
+            )
+        };
+        let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        dma_recovery.load_from_mcu_to_buffer(runtime_offset as u64, runtime_words)?;
 
         Ok(())
     }
@@ -214,6 +292,25 @@ impl UpdateResetFlow {
     fn load_manifest(
         persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
+        soc_ifc: &mut caliptra_drivers::SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        if soc_ifc.has_ss_staging_area() {
+            Self::load_manifest_from_mcu(persistent_data, soc_ifc, dma)
+        } else {
+            Self::load_manifest_from_mbox(persistent_data, txn)
+        }
+    }
+
+    /// Load the manifest from mailbox SRAM
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Success
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_manifest_from_mbox(
+        persistent_data: &mut PersistentData,
+        txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         let manifest = &mut persistent_data.manifest2;
         let mbox_sram = txn.raw_mailbox_contents();
@@ -222,6 +319,45 @@ impl UpdateResetFlow {
             Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
         }
         manifest_buf.copy_from_slice(&mbox_sram[..manifest_buf.len()]);
+        Ok(())
+    }
+
+    /// Load the manifest from MCU SRAM using DMA
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Success
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_manifest_from_mcu(
+        persistent_data: &mut PersistentData,
+        soc_ifc: &mut caliptra_drivers::SocIfc,
+        dma: &mut Dma,
+    ) -> CaliptraResult<()> {
+        let manifest = &mut persistent_data.manifest2;
+        let manifest_buf = manifest.as_mut_bytes();
+
+        // Get MCU SRAM address
+        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
+        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
+        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
+
+        // Read manifest from MCU SRAM using DMA directly into manifest buffer
+        let manifest_size_words = manifest_buf.len().div_ceil(4);
+        let manifest_words = unsafe {
+            core::slice::from_raw_parts_mut(
+                manifest_buf.as_mut_ptr() as *mut u32,
+                manifest_size_words,
+            )
+        };
+
+        let dma_recovery = DmaRecovery::new(
+            recovery_interface_base_addr,
+            caliptra_base_addr,
+            mci_base_addr,
+            dma,
+        );
+        dma_recovery.load_from_mcu_to_buffer(0, manifest_words)?;
+
         Ok(())
     }
 
