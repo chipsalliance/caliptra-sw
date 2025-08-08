@@ -164,6 +164,7 @@ impl HwModel for ModelEmulated {
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
+            hw_rev: params.hw_rev,
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());
@@ -295,11 +296,8 @@ impl HwModel for ModelEmulated {
                 (event.dest, event.event)
             {
                 let addr = start_addr as usize;
-                let Some(mcu_firmware) = self.cpu.bus.bus.dma.axi.recovery.cms_data.get_mut(2)
-                else {
-                    continue;
-                };
-                let Some(dest) = mcu_firmware.get_mut(addr..addr + len as usize) else {
+                let mcu_sram_data = self.cpu.bus.bus.dma.axi.mcu_sram.data_mut();
+                let Some(dest) = mcu_sram_data.get_mut(addr..addr + len as usize) else {
                     continue;
                 };
                 self.events_to_caliptra

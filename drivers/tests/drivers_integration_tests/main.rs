@@ -38,6 +38,7 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
     caliptra_hw_model::new(
         InitParams {
             rom: &rom,
+            subsystem_mode: true,
             ..default_init_params()
         },
         BootParams::default(),
@@ -1141,4 +1142,9 @@ fn test_uart() {
 #[test]
 fn test_mailbox_txn_drop() {
     run_driver_test(&firmware::driver_tests::MBOX_SEND_TXN_DROP);
+}
+
+#[test]
+fn test_dma_sha384() {
+    run_driver_test(&firmware::driver_tests::DMA_SHA384);
 }
