@@ -1,28 +1,31 @@
 // Licensed under the Apache-2.0 license
 
 #![allow(clippy::mut_from_ref)]
+#![allow(dead_code)]
 
+use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{Control, FifoData, FifoRegs, FifoStatus, ItrngFifoStatus, WrapperRegs};
-use crate::model_fpga_realtime::fmt_uio_error;
-use crate::otp_provision::{lc_generate_memory, otp_generate_lifecycle_tokens_mem};
+use crate::otp_provision::{
+    lc_generate_memory, otp_generate_lifecycle_tokens_mem, LifecycleControllerState,
+    LifecycleRawTokens, LifecycleToken,
+};
 use crate::output::ExitStatus;
-use crate::Error;
-use crate::{xi3c, HwModel, InitParams, Output};
+use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use std::marker::PhantomData;
-use std::net::TcpStream;
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use uio::UioDevice;
+use uio::{UioDevice, UioError};
+use zerocopy::IntoBytes;
 
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: (usize, usize) = (0, 0);
@@ -40,8 +43,11 @@ const OTP_MAPPING: (usize, usize) = (1, 4);
 const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f0;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 1184;
-        const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
+const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
 
+pub(crate) fn fmt_uio_error(err: UioError) -> String {
+    format!("{err:?}")
+}
 
 /// Configures the memory map for the MCU.
 /// These are the defaults that can be overridden and provided to the ROM and runtime builds.
@@ -118,203 +124,6 @@ const OTP_SIZE: usize = 16384;
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
 
-/// Unhashed token, suitable for doing lifecycle transitions.
-#[derive(Clone, Copy)]
-pub struct LifecycleToken(pub [u8; 16]);
-
-impl From<[u8; 16]> for LifecycleToken {
-    fn from(value: [u8; 16]) -> Self {
-        LifecycleToken(value)
-    }
-}
-
-impl From<LifecycleToken> for [u8; 16] {
-    fn from(value: LifecycleToken) -> Self {
-        value.0
-    }
-}
-
-/// Raw tokens
-pub struct LifecycleRawTokens {
-    pub test_unlock: [LifecycleToken; 7],
-    pub manuf: LifecycleToken,
-    pub manuf_to_prod: LifecycleToken,
-    pub prod_to_prod_end: LifecycleToken,
-    pub rma: LifecycleToken,
-}
-
-impl From<[u8; 16]> for LifecycleHashedToken {
-    fn from(value: [u8; 16]) -> Self {
-        LifecycleHashedToken(value)
-    }
-}
-
-impl From<LifecycleHashedToken> for [u8; 16] {
-    fn from(value: LifecycleHashedToken) -> Self {
-        value.0
-    }
-}
-
-/// Hashed tokens to be burned into the OTP for lifecycle transitions.
-pub struct LifecycleHashedTokens {
-    pub test_unlock: [LifecycleHashedToken; 7],
-    pub manuf: LifecycleHashedToken,
-    pub manuf_to_prod: LifecycleHashedToken,
-    pub prod_to_prod_end: LifecycleHashedToken,
-    pub rma: LifecycleHashedToken,
-}
-
-/// Hashed token, suitable for burning into the OTP.
-#[derive(Clone, Copy)]
-pub struct LifecycleHashedToken(pub [u8; 16]);
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum LifecycleControllerState {
-    Raw = 0,
-    TestUnlocked0 = 1,
-    TestLocked0 = 2,
-    TestUnlocked1 = 3,
-    TestLocked1 = 4,
-    TestUnlocked2 = 5,
-    TestLocked2 = 6,
-    TestUnlocked3 = 7,
-    TestLocked3 = 8,
-    TestUnlocked4 = 9,
-    TestLocked4 = 10,
-    TestUnlocked5 = 11,
-    TestLocked5 = 12,
-    TestUnlocked6 = 13,
-    TestLocked6 = 14,
-    TestUnlocked7 = 15,
-    Dev = 16,
-    Prod = 17,
-    ProdEnd = 18,
-    Rma = 19,
-    Scrap = 20,
-}
-
-impl core::fmt::Display for LifecycleControllerState {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            LifecycleControllerState::Raw => write!(f, "raw"),
-            LifecycleControllerState::TestUnlocked0 => write!(f, "test_unlocked0"),
-            LifecycleControllerState::TestLocked0 => write!(f, "test_locked0"),
-            LifecycleControllerState::TestUnlocked1 => write!(f, "test_unlocked1"),
-            LifecycleControllerState::TestLocked1 => write!(f, "test_locked1"),
-            LifecycleControllerState::TestUnlocked2 => write!(f, "test_unlocked2"),
-            LifecycleControllerState::TestLocked2 => write!(f, "test_locked2"),
-            LifecycleControllerState::TestUnlocked3 => write!(f, "test_unlocked3"),
-            LifecycleControllerState::TestLocked3 => write!(f, "test_locked3"),
-            LifecycleControllerState::TestUnlocked4 => write!(f, "test_unlocked4"),
-            LifecycleControllerState::TestLocked4 => write!(f, "test_locked4"),
-            LifecycleControllerState::TestUnlocked5 => write!(f, "test_unlocked5"),
-            LifecycleControllerState::TestLocked5 => write!(f, "test_locked5"),
-            LifecycleControllerState::TestUnlocked6 => write!(f, "test_unlocked6"),
-            LifecycleControllerState::TestLocked6 => write!(f, "test_locked6"),
-            LifecycleControllerState::TestUnlocked7 => write!(f, "test_unlocked7"),
-            LifecycleControllerState::Dev => write!(f, "dev"),
-            LifecycleControllerState::Prod => write!(f, "prod"),
-            LifecycleControllerState::ProdEnd => write!(f, "prod_end"),
-            LifecycleControllerState::Rma => write!(f, "rma"),
-            LifecycleControllerState::Scrap => write!(f, "scrap"),
-        }
-    }
-}
-
-impl core::str::FromStr for LifecycleControllerState {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "raw" => Ok(LifecycleControllerState::Raw),
-            "test_unlocked0" => Ok(LifecycleControllerState::TestUnlocked0),
-            "test_locked0" => Ok(LifecycleControllerState::TestLocked0),
-            "test_unlocked1" => Ok(LifecycleControllerState::TestUnlocked1),
-            "test_locked1" => Ok(LifecycleControllerState::TestLocked1),
-            "test_unlocked2" => Ok(LifecycleControllerState::TestUnlocked2),
-            "test_locked2" => Ok(LifecycleControllerState::TestLocked2),
-            "test_unlocked3" => Ok(LifecycleControllerState::TestUnlocked3),
-            "test_locked3" => Ok(LifecycleControllerState::TestLocked3),
-            "test_unlocked4" => Ok(LifecycleControllerState::TestUnlocked4),
-            "test_locked4" => Ok(LifecycleControllerState::TestLocked4),
-            "test_unlocked5" => Ok(LifecycleControllerState::TestUnlocked5),
-            "test_locked5" => Ok(LifecycleControllerState::TestLocked5),
-            "test_unlocked6" => Ok(LifecycleControllerState::TestUnlocked6),
-            "test_locked6" => Ok(LifecycleControllerState::TestLocked6),
-            "test_unlocked7" => Ok(LifecycleControllerState::TestUnlocked7),
-            "dev" | "manuf" | "manufacturing" => Ok(LifecycleControllerState::Dev),
-            "production" | "prod" => Ok(LifecycleControllerState::Prod),
-            "prod_end" => Ok(LifecycleControllerState::ProdEnd),
-            "rma" => Ok(LifecycleControllerState::Rma),
-            "scrap" => Ok(LifecycleControllerState::Scrap),
-            _ => Err("Invalid lifecycle state"),
-        }
-    }
-}
-
-impl From<LifecycleControllerState> for u8 {
-    fn from(value: LifecycleControllerState) -> Self {
-        match value {
-            LifecycleControllerState::Raw => 0,
-            LifecycleControllerState::TestUnlocked0 => 1,
-            LifecycleControllerState::TestLocked0 => 2,
-            LifecycleControllerState::TestUnlocked1 => 3,
-            LifecycleControllerState::TestLocked1 => 4,
-            LifecycleControllerState::TestUnlocked2 => 5,
-            LifecycleControllerState::TestLocked2 => 6,
-            LifecycleControllerState::TestUnlocked3 => 7,
-            LifecycleControllerState::TestLocked3 => 8,
-            LifecycleControllerState::TestUnlocked4 => 9,
-            LifecycleControllerState::TestLocked4 => 10,
-            LifecycleControllerState::TestUnlocked5 => 11,
-            LifecycleControllerState::TestLocked5 => 12,
-            LifecycleControllerState::TestUnlocked6 => 13,
-            LifecycleControllerState::TestLocked6 => 14,
-            LifecycleControllerState::TestUnlocked7 => 15,
-            LifecycleControllerState::Dev => 16,
-            LifecycleControllerState::Prod => 17,
-            LifecycleControllerState::ProdEnd => 18,
-            LifecycleControllerState::Rma => 19,
-            LifecycleControllerState::Scrap => 20,
-        }
-    }
-}
-
-impl From<u8> for LifecycleControllerState {
-    fn from(value: u8) -> Self {
-        match value {
-            1 => LifecycleControllerState::TestUnlocked0,
-            2 => LifecycleControllerState::TestLocked0,
-            3 => LifecycleControllerState::TestUnlocked1,
-            4 => LifecycleControllerState::TestLocked1,
-            5 => LifecycleControllerState::TestUnlocked2,
-            6 => LifecycleControllerState::TestLocked2,
-            7 => LifecycleControllerState::TestUnlocked3,
-            8 => LifecycleControllerState::TestLocked3,
-            9 => LifecycleControllerState::TestUnlocked4,
-            10 => LifecycleControllerState::TestLocked4,
-            11 => LifecycleControllerState::TestUnlocked5,
-            12 => LifecycleControllerState::TestLocked5,
-            13 => LifecycleControllerState::TestUnlocked6,
-            14 => LifecycleControllerState::TestLocked6,
-            15 => LifecycleControllerState::TestUnlocked7,
-            16 => LifecycleControllerState::Dev,
-            17 => LifecycleControllerState::Prod,
-            18 => LifecycleControllerState::ProdEnd,
-            19 => LifecycleControllerState::Rma,
-            20 => LifecycleControllerState::Scrap,
-            _ => LifecycleControllerState::Raw,
-        }
-    }
-}
-
-impl From<u32> for LifecycleControllerState {
-    fn from(value: u32) -> Self {
-        ((value & 0x1f) as u8).into()
-    }
-}
-
 // This is a random number, but should be kept in sync with what is the default value in the FPGA ROM.
 const DEFAULT_LIFECYCLE_RAW_TOKEN: LifecycleToken =
     LifecycleToken(0x05edb8c608fcc830de181732cfd65e57u128.to_le_bytes());
@@ -347,14 +156,6 @@ struct Mci {
 }
 
 impl Mci {
-    // caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
-    //     0x3003_0000 as *mut u32,
-    //     BusMmio::new(FpgaRealtimeBus {
-    //         mmio,
-    //         phantom: Default::default(),
-    //     }),
-    // )
-
     fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
@@ -395,7 +196,6 @@ pub struct ModelFpgaSubsystem {
     recovery_ctrl_written: bool,
     bmc_step_counter: usize,
     blocks_sent: usize,
-    openocd: Option<TcpStream>,
 }
 
 impl ModelFpgaSubsystem {
@@ -1187,15 +987,21 @@ impl ModelFpgaSubsystem {
         }
     }
 
-    // fn set_mcu_generic_input_wires(&mut self, value: &[u32; 2]) {
-    //     for (i, wire) in value.iter().copied().enumerate() {
-    //         self.wrapper.regs().mci_generic_input_wires[i].set(wire);
-    //     }
-    // }
+    fn set_itrng_divider(&mut self, divider: u32) {
+        self.wrapper.regs().itrng_divisor.set(divider - 1);
+    }
+
+    fn cycle_count(&mut self) -> u64 {
+        self.wrapper.regs().cycle_count.get() as u64
+    }
 }
 
 impl HwModel for ModelFpgaSubsystem {
     type TBus<'a> = FpgaRealtimeBus<'a>;
+
+    fn trng_mode(&self) -> TrngMode {
+        TrngMode::Internal
+    }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         FpgaRealtimeBus {
@@ -1213,6 +1019,12 @@ impl HwModel for ModelFpgaSubsystem {
     where
         Self: Sized,
     {
+        match params.trng_mode {
+            Some(TrngMode::External) => {
+                return Err("External TRNG mode is not supported in ModelFpgaSubsystem".into());
+            }
+            _ => {}
+        }
         let Some(mcu_rom) = params.mcu_rom else {
             return Err("MCU ROM is required for ModelFpgaSubsystem".into());
         };
@@ -1279,23 +1091,12 @@ impl HwModel for ModelFpgaSubsystem {
         let (mcu_cpu_event_sender, mcu_cpu_event_recv) = mpsc::channel();
 
         // This is a fake BMC that runs the recovery flow as a series of events for recovery block reads and writes.
-        let mut bmc = Bmc::new(
+        let bmc = Bmc::new(
             caliptra_cpu_event_sender,
             caliptra_cpu_event_recv,
             mcu_cpu_event_sender,
             mcu_cpu_event_recv,
         );
-        // TODO: read the firmware
-
-        // This is the binary for:
-        // L0: j L0
-        // i.e., loop {}
-        let mut mcu_firmware = vec![0x00, 0x00, 0x00, 0x6f];
-        mcu_firmware.resize(256, 0);
-
-        bmc.push_recovery_image(params.caliptra_firmware.to_vec());
-        bmc.push_recovery_image(params.soc_manifest.to_vec());
-        bmc.push_recovery_image(mcu_firmware);
 
         let mut m = Self {
             devs,
@@ -1308,7 +1109,7 @@ impl HwModel for ModelFpgaSubsystem {
             i3c_mmio,
             i3c_controller_mmio,
             i3c_controller,
-            otp_init: params.otp_memory.map(|m| m.to_vec()).unwrap_or_default(),
+            otp_init: vec![],
             realtime_thread,
             realtime_thread_exit_flag,
 
@@ -1322,7 +1123,6 @@ impl HwModel for ModelFpgaSubsystem {
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
-            openocd: None,
         };
 
         // Set generic input wires.
@@ -1359,7 +1159,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Clear the generic input wires in case they were left in a non-zero state.
         m.set_generic_input_wires(&[0, 0]);
-        m.set_mcu_generic_input_wires(&[0, 0]);
 
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
@@ -1372,8 +1171,8 @@ impl HwModel for ModelFpgaSubsystem {
             // write the initial contents of the OTP memory
             println!("Initializing OTP with initialized data");
             if m.otp_init.len() > otp_mem.len() {
-                Err(
-                    format!("OTP initialization data is larger than OTP memory {} > {}",
+                Err(format!(
+                    "OTP initialization data is larger than OTP memory {} > {}",
                     m.otp_init.len(),
                     otp_mem.len(),
                 ))?;
@@ -1385,10 +1184,10 @@ impl HwModel for ModelFpgaSubsystem {
             DeviceLifecycle::Unprovisioned => LifecycleControllerState::TestUnlocked0,
             DeviceLifecycle::Manufacturing => LifecycleControllerState::Dev,
             DeviceLifecycle::Reserved2 => LifecycleControllerState::Raw,
-            DeviceLifecycle::Production => LifecycleControllerState::Prod,,
+            DeviceLifecycle::Production => LifecycleControllerState::Prod,
         };
-        println!("Setting lifecycle controller state to {}", state);
-        let mem = lc_generate_memory(state, 1)?;
+        println!("Setting lifecycle controller state to {}", lc_state);
+        let mem = lc_generate_memory(lc_state, 1)?;
         let offset = FUSE_LIFECYCLE_STATE_OFFSET;
         otp_mem[offset..offset + mem.len()].copy_from_slice(&mem);
 
@@ -1396,40 +1195,6 @@ impl HwModel for ModelFpgaSubsystem {
         let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
         let offset = FUSE_LIFECYCLE_TOKENS_OFFSET;
         otp_mem[offset..offset + mem.len()].copy_from_slice(&mem);
-
-        // otp_mem[fuses::SECRET_LC_TRANSITION_PARTITION_BYTE_OFFSET
-        //     ..fuses::SECRET_LC_TRANSITION_PARTITION_BYTE_OFFSET
-        //         + fuses::SECRET_LC_TRANSITION_PARTITION_BYTE_SIZE]
-        //     .copy_from_slice(&mem);
-
-        // if let Some(vendor_pk_hash) = params.vendor_pk_hash.as_ref() {
-        //     println!(
-        //         "Setting vendor public key hash to {:x?}",
-        //         HexSlice(vendor_pk_hash)
-        //     );
-        //     // swap endianness to match expected hardware format
-        //     let len = vendor_pk_hash.len();
-        //     let mut vendor_pk_hash = vendor_pk_hash.to_vec();
-        //     for i in (0..len).step_by(4) {
-        //         vendor_pk_hash[i..i + 4].reverse();
-        //     }
-        //     let otp_mem = m.otp_slice();
-        //     let offset = FUSE_VENDOR_PKHASH_OFFSET;
-        //     otp_mem[offset..offset + len].copy_from_slice(&vendor_pk_hash);
-        // }
-        // let vendor_pqc_type = params
-        //     .vendor_pqc_type
-        //     .unwrap_or(FwVerificationPqcKeyType::LMS);
-        // println!(
-        //     "Setting vendor public key pqc type to {:x?}",
-        //     vendor_pqc_type
-        // );
-        // let val = match vendor_pqc_type {
-        //     FwVerificationPqcKeyType::MLDSA => 0,
-        //     FwVerificationPqcKeyType::LMS => 1,
-        // };
-        // let otp_mem = m.otp_slice();
-        // otp_mem[FUSE_PQC_OFFSET] = val;
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1470,38 +1235,103 @@ impl HwModel for ModelFpgaSubsystem {
             .mcu_reset_vector
             .set(FPGA_MEMORY_MAP.rom_offset);
 
-        println!("Taking subsystem out of reset");
-        m.set_subsystem_reset(false);
-
-        // println!(
-        //     "Mode {}",
-        //     if (m.caliptra_mmio.soc().cptra_hw_config.get() >> 5) & 1 == 1 {
-        //         "subsystem"
-        //     } else {
-        //         "passive"
-        //     }
-        // );
-
-        // TODO: remove this when we can finish subsystem/active mode
-        // println!("Writing MCU firmware to SRAM");
-        // // For now, we copy the runtime directly into the SRAM
-        // let mut fw_data = params.mcu_firmware.to_vec();
-        // while fw_data.len() % 8 != 0 {
-        //     fw_data.push(0);
-        // }
-        // // TODO: remove this offset 0x80 and add 128 bytes of padding to the beginning of the firmware
-        // // as this is going to fail when we use the DMA controller
-        // let sram_slice = unsafe {
-        //     core::slice::from_raw_parts_mut(m.mcu_sram_backdoor.offset(0x80), fw_data.len())
-        // };
-        // sram_slice.copy_from_slice(&fw_data);
-
         println!("Done starting MCU");
         Ok(m)
     }
 
     fn type_name(&self) -> &'static str {
         "ModelFpgaSubsystem"
+    }
+
+    // Fuses are actually written by MCU ROM, but we need to initialize the OTP
+    // with the values so that they are forwarded to Caliptra.
+    fn init_fuses(&mut self, fuses: &Fuses) {
+        let otp_mem = self.otp_slice();
+
+        // TODO: verify endianness of this
+        let vendor_pk_hash: &[u8] = fuses.vendor_pk_hash.as_bytes();
+        println!(
+            "Setting vendor public key hash to {:x?}",
+            HexSlice(vendor_pk_hash)
+        );
+        let len = fuses.vendor_pk_hash.len();
+        let offset = FUSE_VENDOR_PKHASH_OFFSET;
+        otp_mem[offset..offset + len].copy_from_slice(vendor_pk_hash);
+
+        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
+            .unwrap_or(FwVerificationPqcKeyType::LMS);
+        println!(
+            "Setting vendor public key pqc type to {:x?}",
+            vendor_pqc_type
+        );
+        let val = match vendor_pqc_type {
+            FwVerificationPqcKeyType::MLDSA => 0,
+            FwVerificationPqcKeyType::LMS => 1,
+        };
+        otp_mem[FUSE_PQC_OFFSET] = val;
+    }
+
+    fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        HwModel::init_fuses(self, &boot_params.fuses);
+
+        // TODO: support passing these into MCU ROM
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(0)
+        //     .write(|_| boot_params.wdt_timeout_cycles as u32);
+
+        // self.soc_ifc()
+        //     .cptra_wdt_cfg()
+        //     .at(1)
+        //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
+
+        // TODO: do we need to support these in MCU ROM?
+        // self.soc_ifc()
+        //     .cptra_dbg_manuf_service_reg()
+        //     .write(|_| boot_params.initial_dbg_manuf_service_reg);
+
+        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_1()
+        //         .write(|_| reg);
+        // }
+
+        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+        //     self.soc_ifc()
+        //         .cptra_i_trng_entropy_config_0()
+        //         .write(|_| reg);
+        // }
+
+        // TODO: support passing these into MCU ROM
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
+        //     .map_err(ModelError::from)?;
+
+        // This is the binary for:
+        // L0: j L0
+        // i.e., loop {}
+        let mut mcu_firmware = vec![0x00u8, 0x00, 0x00, 0x6f];
+        mcu_firmware.resize(256, 0);
+
+        println!("Setting recovery images to BMC");
+        self.bmc
+            .push_recovery_image(boot_params.fw_image.map(|s| s.to_vec()).unwrap_or_default());
+        self.bmc.push_recovery_image(
+            boot_params
+                .soc_manifest
+                .map(|s| s.to_vec())
+                .unwrap_or_default(),
+        );
+        self.bmc.push_recovery_image(mcu_firmware);
+
+        println!("Taking subsystem out of reset");
+        self.set_subsystem_reset(false);
+
+        Ok(())
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -1527,17 +1357,6 @@ impl HwModel for ModelFpgaSubsystem {
         self.wrapper.regs().sram_config_user.set(pauser);
     }
 
-    // fn set_caliptra_boot_go(&mut self, go: bool) {
-    //     self.mci
-    //         .regs()
-    //         .mci_reg_cptra_boot_go
-    //         .write(Go.val(go as u32));
-    // }
-
-    // fn set_itrng_divider(&mut self, divider: u32) {
-    //     self.wrapper.regs().itrng_divisor.set(divider - 1);
-    // }
-
     fn events_from_caliptra(&mut self) -> Vec<Event> {
         todo!()
     }
@@ -1546,13 +1365,15 @@ impl HwModel for ModelFpgaSubsystem {
         todo!()
     }
 
-    // fn cycle_count(&mut self) -> u64 {
-    //     self.wrapper.regs().cycle_count.get() as u64
-    // }
-
-    // fn caliptra_soc_manager(&mut self) -> impl SocManager {
-    //     self
-    // }
+    fn put_firmware_in_rri(
+        &mut self,
+        _firmware: &[u8],
+        _soc_manifest: Option<&[u8]>,
+        _mcu_firmware: Option<&[u8]>,
+    ) -> Result<(), ModelError> {
+        // ironically, we don't need to support this
+        Ok(())
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {

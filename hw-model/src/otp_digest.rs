@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license.
 // Copyright lowRISC contributors (OpenTitan project).
 
+#![allow(dead_code)]
+
 use core::convert::TryInto;
 
 // This section is converted from the OpenTitan project's Python implementation of OTP digest algorithm.
