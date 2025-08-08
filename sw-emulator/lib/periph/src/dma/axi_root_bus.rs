@@ -29,6 +29,7 @@ pub type AxiAddr = u64;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
+const MCU_SRAM_SIZE: usize = 256 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,
@@ -40,6 +41,7 @@ pub struct AxiRootBus {
     pub mci: Mci,
     sha512_acc: Sha512Accelerator,
     pub test_sram: Option<ReadWriteMemory<TEST_SRAM_SIZE>>,
+    pub mcu_sram: ReadWriteMemory<MCU_SRAM_SIZE>,
     pub indirect_fifo_status: u32,
     pub use_mcu_recovery_interface: bool,
 }
@@ -90,6 +92,7 @@ impl AxiRootBus {
         } else {
             None
         };
+        let mcu_sram = ReadWriteMemory::new();
         Self {
             reg: 0xaabbccdd,
             recovery: RecoveryRegisterInterface::new(),
@@ -99,6 +102,7 @@ impl AxiRootBus {
             event_sender: None,
             dma_result: None,
             test_sram,
+            mcu_sram,
             indirect_fifo_status: 0,
             use_mcu_recovery_interface,
         }
@@ -212,6 +216,10 @@ impl AxiRootBus {
                     return Err(LoadAccessFault);
                 }
             }
+            Self::MCU_SRAM_OFFSET..=Self::MCU_SRAM_END => {
+                let addr = (addr - Self::MCU_SRAM_OFFSET) as RvAddr;
+                return Bus::read(&mut self.mcu_sram, size, addr);
+            }
             _ => {}
         };
 
@@ -260,7 +268,14 @@ impl AxiRootBus {
                         ))
                         .unwrap();
                 }
-                Ok(())
+                // There is nothing responding to this events but we still want to see them happen.
+                // This is why we do both and event and a Bus::write
+                if !self.use_mcu_recovery_interface {
+                    let addr = (addr - Self::MCU_SRAM_OFFSET) as RvAddr;
+                    Bus::write(&mut self.mcu_sram, size, addr, val)
+                } else {
+                    Ok(())
+                }
             }
             Self::OTC_FC_OFFSET..=Self::OTC_FC_END => {
                 let addr = (addr - Self::OTC_FC_OFFSET) as RvAddr;
