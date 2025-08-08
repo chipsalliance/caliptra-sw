@@ -1025,9 +1025,10 @@ impl HwModel for ModelFpgaSubsystem {
             }
             _ => {}
         }
-        let Some(mcu_rom) = params.mcu_rom else {
-            return Err("MCU ROM is required for ModelFpgaSubsystem".into());
-        };
+        let mcu_rom = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/test-fw/mcu-rom-fpga.bin"
+        ));
 
         let output = Output::new(params.log_writer);
         let dev0 = UioDevice::blocking_new(0)?;
