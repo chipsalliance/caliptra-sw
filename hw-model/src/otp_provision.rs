@@ -1,9 +1,207 @@
 // Licensed under the Apache-2.0 license
 
-use crate::model_fpga_subsystem::{LifecycleControllerState, LifecycleRawTokens};
+#![allow(dead_code)]
+
 use crate::otp_digest::{otp_digest, otp_scramble, otp_unscramble};
 use anyhow::{bail, Result};
 use sha3::{digest::ExtendableOutput, digest::Update, CShake128, CShake128Core};
+
+/// Unhashed token, suitable for doing lifecycle transitions.
+#[derive(Clone, Copy)]
+pub struct LifecycleToken(pub [u8; 16]);
+
+impl From<[u8; 16]> for LifecycleToken {
+    fn from(value: [u8; 16]) -> Self {
+        LifecycleToken(value)
+    }
+}
+
+impl From<LifecycleToken> for [u8; 16] {
+    fn from(value: LifecycleToken) -> Self {
+        value.0
+    }
+}
+
+/// Raw tokens
+pub struct LifecycleRawTokens {
+    pub test_unlock: [LifecycleToken; 7],
+    pub manuf: LifecycleToken,
+    pub manuf_to_prod: LifecycleToken,
+    pub prod_to_prod_end: LifecycleToken,
+    pub rma: LifecycleToken,
+}
+
+impl From<[u8; 16]> for LifecycleHashedToken {
+    fn from(value: [u8; 16]) -> Self {
+        LifecycleHashedToken(value)
+    }
+}
+
+impl From<LifecycleHashedToken> for [u8; 16] {
+    fn from(value: LifecycleHashedToken) -> Self {
+        value.0
+    }
+}
+
+/// Hashed tokens to be burned into the OTP for lifecycle transitions.
+pub struct LifecycleHashedTokens {
+    pub test_unlock: [LifecycleHashedToken; 7],
+    pub manuf: LifecycleHashedToken,
+    pub manuf_to_prod: LifecycleHashedToken,
+    pub prod_to_prod_end: LifecycleHashedToken,
+    pub rma: LifecycleHashedToken,
+}
+
+/// Hashed token, suitable for burning into the OTP.
+#[derive(Clone, Copy)]
+pub struct LifecycleHashedToken(pub [u8; 16]);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LifecycleControllerState {
+    Raw = 0,
+    TestUnlocked0 = 1,
+    TestLocked0 = 2,
+    TestUnlocked1 = 3,
+    TestLocked1 = 4,
+    TestUnlocked2 = 5,
+    TestLocked2 = 6,
+    TestUnlocked3 = 7,
+    TestLocked3 = 8,
+    TestUnlocked4 = 9,
+    TestLocked4 = 10,
+    TestUnlocked5 = 11,
+    TestLocked5 = 12,
+    TestUnlocked6 = 13,
+    TestLocked6 = 14,
+    TestUnlocked7 = 15,
+    Dev = 16,
+    Prod = 17,
+    ProdEnd = 18,
+    Rma = 19,
+    Scrap = 20,
+}
+
+impl core::fmt::Display for LifecycleControllerState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            LifecycleControllerState::Raw => write!(f, "raw"),
+            LifecycleControllerState::TestUnlocked0 => write!(f, "test_unlocked0"),
+            LifecycleControllerState::TestLocked0 => write!(f, "test_locked0"),
+            LifecycleControllerState::TestUnlocked1 => write!(f, "test_unlocked1"),
+            LifecycleControllerState::TestLocked1 => write!(f, "test_locked1"),
+            LifecycleControllerState::TestUnlocked2 => write!(f, "test_unlocked2"),
+            LifecycleControllerState::TestLocked2 => write!(f, "test_locked2"),
+            LifecycleControllerState::TestUnlocked3 => write!(f, "test_unlocked3"),
+            LifecycleControllerState::TestLocked3 => write!(f, "test_locked3"),
+            LifecycleControllerState::TestUnlocked4 => write!(f, "test_unlocked4"),
+            LifecycleControllerState::TestLocked4 => write!(f, "test_locked4"),
+            LifecycleControllerState::TestUnlocked5 => write!(f, "test_unlocked5"),
+            LifecycleControllerState::TestLocked5 => write!(f, "test_locked5"),
+            LifecycleControllerState::TestUnlocked6 => write!(f, "test_unlocked6"),
+            LifecycleControllerState::TestLocked6 => write!(f, "test_locked6"),
+            LifecycleControllerState::TestUnlocked7 => write!(f, "test_unlocked7"),
+            LifecycleControllerState::Dev => write!(f, "dev"),
+            LifecycleControllerState::Prod => write!(f, "prod"),
+            LifecycleControllerState::ProdEnd => write!(f, "prod_end"),
+            LifecycleControllerState::Rma => write!(f, "rma"),
+            LifecycleControllerState::Scrap => write!(f, "scrap"),
+        }
+    }
+}
+
+impl core::str::FromStr for LifecycleControllerState {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "raw" => Ok(LifecycleControllerState::Raw),
+            "test_unlocked0" => Ok(LifecycleControllerState::TestUnlocked0),
+            "test_locked0" => Ok(LifecycleControllerState::TestLocked0),
+            "test_unlocked1" => Ok(LifecycleControllerState::TestUnlocked1),
+            "test_locked1" => Ok(LifecycleControllerState::TestLocked1),
+            "test_unlocked2" => Ok(LifecycleControllerState::TestUnlocked2),
+            "test_locked2" => Ok(LifecycleControllerState::TestLocked2),
+            "test_unlocked3" => Ok(LifecycleControllerState::TestUnlocked3),
+            "test_locked3" => Ok(LifecycleControllerState::TestLocked3),
+            "test_unlocked4" => Ok(LifecycleControllerState::TestUnlocked4),
+            "test_locked4" => Ok(LifecycleControllerState::TestLocked4),
+            "test_unlocked5" => Ok(LifecycleControllerState::TestUnlocked5),
+            "test_locked5" => Ok(LifecycleControllerState::TestLocked5),
+            "test_unlocked6" => Ok(LifecycleControllerState::TestUnlocked6),
+            "test_locked6" => Ok(LifecycleControllerState::TestLocked6),
+            "test_unlocked7" => Ok(LifecycleControllerState::TestUnlocked7),
+            "dev" | "manuf" | "manufacturing" => Ok(LifecycleControllerState::Dev),
+            "production" | "prod" => Ok(LifecycleControllerState::Prod),
+            "prod_end" => Ok(LifecycleControllerState::ProdEnd),
+            "rma" => Ok(LifecycleControllerState::Rma),
+            "scrap" => Ok(LifecycleControllerState::Scrap),
+            _ => Err("Invalid lifecycle state"),
+        }
+    }
+}
+
+impl From<LifecycleControllerState> for u8 {
+    fn from(value: LifecycleControllerState) -> Self {
+        match value {
+            LifecycleControllerState::Raw => 0,
+            LifecycleControllerState::TestUnlocked0 => 1,
+            LifecycleControllerState::TestLocked0 => 2,
+            LifecycleControllerState::TestUnlocked1 => 3,
+            LifecycleControllerState::TestLocked1 => 4,
+            LifecycleControllerState::TestUnlocked2 => 5,
+            LifecycleControllerState::TestLocked2 => 6,
+            LifecycleControllerState::TestUnlocked3 => 7,
+            LifecycleControllerState::TestLocked3 => 8,
+            LifecycleControllerState::TestUnlocked4 => 9,
+            LifecycleControllerState::TestLocked4 => 10,
+            LifecycleControllerState::TestUnlocked5 => 11,
+            LifecycleControllerState::TestLocked5 => 12,
+            LifecycleControllerState::TestUnlocked6 => 13,
+            LifecycleControllerState::TestLocked6 => 14,
+            LifecycleControllerState::TestUnlocked7 => 15,
+            LifecycleControllerState::Dev => 16,
+            LifecycleControllerState::Prod => 17,
+            LifecycleControllerState::ProdEnd => 18,
+            LifecycleControllerState::Rma => 19,
+            LifecycleControllerState::Scrap => 20,
+        }
+    }
+}
+
+impl From<u8> for LifecycleControllerState {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => LifecycleControllerState::TestUnlocked0,
+            2 => LifecycleControllerState::TestLocked0,
+            3 => LifecycleControllerState::TestUnlocked1,
+            4 => LifecycleControllerState::TestLocked1,
+            5 => LifecycleControllerState::TestUnlocked2,
+            6 => LifecycleControllerState::TestLocked2,
+            7 => LifecycleControllerState::TestUnlocked3,
+            8 => LifecycleControllerState::TestLocked3,
+            9 => LifecycleControllerState::TestUnlocked4,
+            10 => LifecycleControllerState::TestLocked4,
+            11 => LifecycleControllerState::TestUnlocked5,
+            12 => LifecycleControllerState::TestLocked5,
+            13 => LifecycleControllerState::TestUnlocked6,
+            14 => LifecycleControllerState::TestLocked6,
+            15 => LifecycleControllerState::TestUnlocked7,
+            16 => LifecycleControllerState::Dev,
+            17 => LifecycleControllerState::Prod,
+            18 => LifecycleControllerState::ProdEnd,
+            19 => LifecycleControllerState::Rma,
+            20 => LifecycleControllerState::Scrap,
+            _ => LifecycleControllerState::Raw,
+        }
+    }
+}
+
+impl From<u32> for LifecycleControllerState {
+    fn from(value: u32) -> Self {
+        ((value & 0x1f) as u8).into()
+    }
+}
 
 // These are the default lifecycle controller constants from the
 // standard Caliptra RTL. These can be overridden by vendors.

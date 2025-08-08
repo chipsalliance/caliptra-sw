@@ -8,9 +8,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["coverage", "dep:uio"]
+default = ["coverage"]
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
+fpga_subsystem  = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
 

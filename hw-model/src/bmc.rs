@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+#![allow(dead_code)]
+
 use crate::recovery;
 use caliptra_emu_bus::{Device, Event, EventData, RecoveryCommandCode};
 use std::sync::mpsc;

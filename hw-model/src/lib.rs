@@ -35,7 +35,6 @@ mod bmc;
 mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
-mod model_fpga_subsystem;
 mod otp_digest;
 mod otp_provision;
 mod recovery;
@@ -45,8 +44,11 @@ mod bus_logger;
 #[cfg(feature = "verilator")]
 mod model_verilated;
 
-//#[cfg(feature = "fpga_realtime")]
+#[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
+
+#[cfg(feature = "fpga_subsystem")]
+mod model_fpga_subsystem;
 
 mod output;
 mod rv32_builder;
