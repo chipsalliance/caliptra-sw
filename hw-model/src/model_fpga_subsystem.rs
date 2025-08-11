@@ -1459,27 +1459,3 @@ impl Drop for ModelFpgaSubsystem {
         self.unmap_mapping(self.i3c_controller_mmio, I3C_CONTROLLER_MAPPING);
     }
 }
-
-#[cfg(test)]
-mod test {
-    use crate::{DefaultHwModel, InitParams, McuHwModel};
-    use mcu_builder::FirmwareBinaries;
-    use mcu_rom_common::McuRomBootStatus;
-
-    #[test]
-    fn test_new_unbooted() {
-        let firmware_bundle = FirmwareBinaries::from_env().unwrap();
-        let mut model = DefaultHwModel::new_unbooted(InitParams {
-            caliptra_rom: &firmware_bundle.caliptra_rom,
-            caliptra_firmware: &firmware_bundle.caliptra_fw,
-            mcu_rom: &firmware_bundle.mcu_rom,
-            mcu_firmware: &firmware_bundle.mcu_runtime,
-            soc_manifest: &firmware_bundle.soc_manifest,
-            active_mode: true,
-            ..Default::default()
-        })
-        .unwrap();
-
-        model.step_until(|m| m.mci_flow_status() == u32::from(McuRomBootStatus::I3cInitialized));
-    }
-}

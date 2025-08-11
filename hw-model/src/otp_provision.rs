@@ -610,7 +610,6 @@ pub fn otp_generate_lifecycle_tokens_mem(
 
 #[cfg(test)]
 mod tests {
-    use mcu_rom_common::{LifecycleRawTokens, LifecycleToken};
 
     use super::*;
 
