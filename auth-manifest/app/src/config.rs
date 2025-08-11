@@ -48,9 +48,9 @@ pub struct ImageMetadataConfigFromFile {
 // Authorization Manifest configuration from TOML file
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct AuthManifestConfigFromFile {
-    pub vendor_fw_key_config: AuthManifestKeyConfigFromFile,
+    pub vendor_fw_key_config: Option<AuthManifestKeyConfigFromFile>,
 
-    pub vendor_man_key_config: AuthManifestKeyConfigFromFile,
+    pub vendor_man_key_config: Option<AuthManifestKeyConfigFromFile>,
 
     pub owner_fw_key_config: Option<AuthManifestKeyConfigFromFile>,
 
@@ -98,14 +98,7 @@ fn key_config_from_file(
     })
 }
 
-pub(crate) fn vendor_config_from_file(
-    path: &Path,
-    config: &AuthManifestKeyConfigFromFile,
-) -> anyhow::Result<AuthManifestGeneratorKeyConfig> {
-    key_config_from_file(path, config)
-}
-
-pub(crate) fn owner_config_from_file(
+pub(crate) fn optional_key_config_from_file(
     path: &Path,
     config: &Option<AuthManifestKeyConfigFromFile>,
 ) -> anyhow::Result<Option<AuthManifestGeneratorKeyConfig>> {
