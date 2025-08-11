@@ -176,11 +176,11 @@ fn generate_round_keys_80(key: Vec<u8>, rounds: usize) -> Vec<u64> {
 
         // 1. Rotate bits
         // rawKey[19:len(rawKey)]+rawKey[0:19]
-        key = (key & 0x7ffff) << 61 | key >> 19;
+        key = ((key & 0x7ffff) << 61) | (key >> 19);
 
         // 2. SBox
         // rawKey[76:80] = S(rawKey[76:80])
-        key = (S_BOX[(key >> 76) as usize] as u128) << 76 | (key & !0u128 >> (128 - 76));
+        key = ((S_BOX[(key >> 76) as usize] as u128) << 76) | (key & (!0u128 >> (128 - 76)));
 
         // 3. Salt
         // rawKey[15:20] ^ i
@@ -207,8 +207,8 @@ fn generate_round_keys_128(key: Vec<u8>, rounds: usize) -> Vec<u64> {
         key = key.rotate_left(61);
 
         // 2. SBox
-        key = (S_BOX[(key >> 124) as usize] as u128) << 124
-            | (S_BOX[((key >> 120) & 0xF) as usize] as u128) << 120
+        key = ((S_BOX[(key >> 124) as usize] as u128) << 124)
+            | ((S_BOX[((key >> 120) & 0xF) as usize] as u128) << 120)
             | (key & (!0u128 >> 8));
 
         // 3. Salt

@@ -317,7 +317,7 @@ impl Controller {
     }
 
     pub fn fill_cmd_fifo(&mut self, cmd: &Command) {
-        let dev_addr = (cmd.target_addr & 0x7f) << 1 | cmd.rw & 0x1;
+        let dev_addr = ((cmd.target_addr & 0x7f) << 1) | cmd.rw & 0x1;
         let mut transfer_cmd = (cmd.cmd_type & 0xf) as u32;
         transfer_cmd |= ((cmd.no_repeated_start & 0x1) as u32) << 4;
         transfer_cmd |= ((cmd.pec & 0x1) as u32) << 5;
@@ -404,7 +404,7 @@ impl Controller {
         println!("XI3C: Acknowledged");
         let mut index = 0;
         while index < dev_count as u16 && index < 108 {
-            let addr = dyna_addr[index as usize] << 1 | get_odd_parity(dyna_addr[index as usize]);
+            let addr = (dyna_addr[index as usize] << 1) | get_odd_parity(dyna_addr[index as usize]);
             self.write_tx_fifo(&[addr]);
             if index + 1 == dev_count as u16 {
                 cmd.no_repeated_start = 1;
@@ -426,12 +426,12 @@ impl Controller {
             };
 
             println!("cur_device_count = {}", self.cur_device_count);
-            self.target_info_table[self.cur_device_count as usize].id = (recv_buffer[0] as u64)
-                << 40
-                | (recv_buffer[1] as u64) << 32
-                | (recv_buffer[2] as u64) << 24
-                | (recv_buffer[3] as u64) << 16
-                | (recv_buffer[4] as u64) << 8
+            self.target_info_table[self.cur_device_count as usize].id = ((recv_buffer[0] as u64)
+                << 40)
+                | ((recv_buffer[1] as u64) << 32)
+                | ((recv_buffer[2] as u64) << 24)
+                | ((recv_buffer[3] as u64) << 16)
+                | ((recv_buffer[4] as u64) << 8)
                 | recv_buffer[5] as u64;
             self.target_info_table[self.cur_device_count as usize].bcr = recv_buffer[6];
             println!("Controller received BCR: {:x}", recv_buffer[6]);
