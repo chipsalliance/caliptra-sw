@@ -11,16 +11,16 @@ if { [file exists $adbDir/src/abr_prim/rtl/abr_prim_flop_macros.sv] == 0 } {
 add_files $adbDir/src/abr_prim/rtl/abr_prim_flop_macros.sv
 
 # Initial list from mldsa_top_tb.vf
-add_files $adbDir/src/mldsa_top/rtl/mldsa_config_defines.svh
-add_files $adbDir/src/mldsa_top/rtl/mldsa_params_pkg.sv
-add_files $adbDir/src/mldsa_top/rtl/mldsa_reg_pkg.sv
+add_files $adbDir/src/abr_top/rtl/abr_config_defines.svh
+add_files $adbDir/src/abr_top/rtl/abr_params_pkg.sv
+add_files $adbDir/src/abr_top/rtl/abr_reg_pkg.sv
 
 add_files $adbDir/src/abr_libs/rtl/abr_sva.svh
 add_files $adbDir/src/abr_libs/rtl/abr_macros.svh
 
 add_files [ glob $adbDir/src/abr_libs/rtl/*.sv ]
 
-add_files $adbDir/src/mldsa_sampler_top/rtl/mldsa_sampler_pkg.sv
+add_files $adbDir/src/abr_sampler_top/rtl/abr_sampler_pkg.sv
 add_files $adbDir/src/sample_in_ball/rtl/sample_in_ball_pkg.sv
 add_files $adbDir/src/sample_in_ball/rtl/sib_mem.sv
 
@@ -31,7 +31,7 @@ add_files [ glob $adbDir/src/ntt_top/rtl/*.sv ]
 add_files $adbDir/src/ntt_top/tb/ntt_ram_tdp_file.sv
 add_files $adbDir/src/ntt_top/tb/ntt_wrapper.sv
 add_files $adbDir/src/norm_check/rtl/norm_check_defines_pkg.sv
-add_files $adbDir/src/mldsa_top/tb/mldsa_top_tb.sv
+add_files $adbDir/src/abr_top/tb/abr_top_tb.sv
 add_files $adbDir/src/rej_bounded/rtl/rej_bounded_ctrl.sv
 add_files $adbDir/src/rej_bounded/rtl/rej_bounded2.sv
 add_files $adbDir/src/rej_sampler/rtl/rej_sampler_ctrl.sv
@@ -79,7 +79,7 @@ add_files $adbDir/src/abr_sha3/rtl/abr_keccak_round.sv
 add_files $adbDir/src/abr_sha3/rtl/abr_keccak_2share.sv
 add_files $adbDir/src/abr_sha3/rtl/abr_sha3pad.sv
 add_files $adbDir/src/abr_sha3/rtl/abr_sha3.sv
-add_files $adbDir/src/mldsa_sampler_top/rtl/mldsa_sampler_top.sv
+add_files $adbDir/src/abr_sampler_top/rtl/abr_sampler_top.sv
 add_files $adbDir/src/decompose/rtl/decompose_defines_pkg.sv
 add_files $adbDir/src/decompose/rtl/decompose.sv
 add_files $adbDir/src/decompose/rtl/decompose_r1_lut.sv
@@ -116,4 +116,4 @@ add_files $adbDir/src/power2round/rtl/power2round_ctrl.sv
 add_files $adbDir/src/power2round/rtl/power2round_core.sv
 add_files $adbDir/src/power2round/rtl/power2round_skencode.sv
 
-add_files [ glob $adbDir/src/mldsa_top/rtl/*.sv ]
+add_files [ glob $adbDir/src/abr_top/rtl/*.sv ]
