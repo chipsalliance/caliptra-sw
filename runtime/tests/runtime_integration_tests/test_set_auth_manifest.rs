@@ -23,27 +23,29 @@ use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -115,27 +117,29 @@ pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationM
 pub fn create_auth_manifest_with_metadata(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
 ) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -176,27 +180,29 @@ pub fn create_auth_manifest_with_metadata(
 }
 
 fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
