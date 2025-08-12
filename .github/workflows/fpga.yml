@@ -260,7 +260,6 @@ jobs:
               "${COMMON_ARGS[@]}" \
               --test-threads=1 \
               --no-fail-fast \
-              --no-capture \
               --profile=nightly
 
       - name: 'Upload test results'
