@@ -1235,7 +1235,10 @@ impl HwModel for ModelFpgaSubsystem {
             .regs()
             .mcu_reset_vector
             .set(FPGA_MEMORY_MAP.rom_offset);
+        println!("Taking subsystem out of reset");
+        self.set_subsystem_reset(false);
 
+        while !m.i3c_target_configured() {}
         println!("Done starting MCU");
         Ok(m)
     }
@@ -1328,9 +1331,6 @@ impl HwModel for ModelFpgaSubsystem {
                 .unwrap_or_default(),
         );
         self.bmc.push_recovery_image(mcu_firmware);
-
-        println!("Taking subsystem out of reset");
-        self.set_subsystem_reset(false);
 
         Ok(())
     }
