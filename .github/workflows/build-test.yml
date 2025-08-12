@@ -87,9 +87,9 @@ jobs:
             cargo build -p $proj --locked --no-default-features --features rustcrypto
           done
 
-      - name: Build hw-model with fpga_realtime, itrng, coverage
+      - name: Build hw-model with fpga_realtime, fpga_subsystem, itrng, coverage
         run: |
-          for feature in fpga_realtime itrng coverage; do
+          for feature in fpga_realtime fpga_subsystem itrng coverage; do
             echo "Building with $feature"
             cargo build --locked --features $feature
           done

@@ -31,8 +31,14 @@ use caliptra_registers::soc_ifc::regs::{
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
+mod bmc;
+mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
+mod otp_digest;
+mod otp_provision;
+mod recovery;
+mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
@@ -40,6 +46,9 @@ mod model_verilated;
 
 #[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
+
+#[cfg(feature = "fpga_subsystem")]
+mod model_fpga_subsystem;
 
 mod output;
 mod rv32_builder;
@@ -198,6 +207,7 @@ pub struct InitParams<'a> {
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
 }
+
 impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")

@@ -40,7 +40,7 @@ const ROM_MAPPING: usize = 2;
 const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_AXI_PAUSER: u32 = 0x1;
 
-fn fmt_uio_error(err: UioError) -> String {
+pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
