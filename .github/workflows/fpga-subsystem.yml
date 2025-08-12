@@ -1,0 +1,269 @@
+
+name: Subsystem FPGA Build
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      artifact-suffix:
+        type: string
+        required: false
+      extra-features:
+        default:
+        type: string
+      rom-logging:
+        default: true
+        type: boolean
+      fpga-itrng:
+        default: true
+        type: boolean
+      hw-version:
+        default: "latest"
+        type: string
+      rom-version:
+        default: "latest"
+        type: string
+      workflow_call:
+        description: 'Set true for workflow_call'
+        default: true
+        type: boolean
+
+  workflow_dispatch:
+    inputs:
+      fpga-itrng:
+        default: true
+        type: boolean
+
+
+jobs:
+  check_cache:
+    runs-on: ubuntu-22.04
+
+    env:
+      CACHE_BUSTER: 79cee50b6134
+
+    outputs:
+      rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
+      rtl_cache_hit: ${{ steps.restore_rtl_bitstream_cache.outputs.cache-hit }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+      - name: Compute cache-keys
+        id: cache_key
+        run: |
+          # Compute the key from the tree hash of the fpga directory and the rtl
+          # root directory.
+          if [ "${{ inputs.workflow_call }}" ]; then
+            RTL_VERSION="${{ inputs.hw-version }}"
+          else
+            RTL_VERSION="latest"
+          fi
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+
+
+  build_test_binaries:
+    runs-on: [e2-standard-8]
+    timeout-minutes: 60
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 9ff0db888988
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - name: Restore sysroot from cache
+        uses: actions/cache/restore@v3
+        id: restore_sysroot_cache
+        with:
+          path: /tmp/caliptra-fpga-sysroot.tar
+          key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Extract sysroot
+        if: "steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo tar xvf /tmp/caliptra-fpga-sysroot.tar
+
+      - name: Install sysroot pre-requisites
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+
+      - name: build sysroot
+        # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
+        # it is missing xilinx-provided kernel headers needed to build kernel modules
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        run: |
+          sudo mkdir /tmp/caliptra-fpga-sysroot
+          sudo debootstrap --include linux-libc-dev --arch arm64 --foreign bookworm /tmp/caliptra-fpga-sysroot
+          sudo chroot /tmp/caliptra-fpga-sysroot /debootstrap/debootstrap --second-stage
+
+          # Remove unnecesary files
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=r \) -prune -exec rm -rf {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type d -and ! -perm -o=x \) -prune -exec rm -rf {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( ! -perm -o=r \) -exec rm -f {} \;
+          sudo find /tmp/caliptra-fpga-sysroot/ \( -type c -or -type b -or -type p -or -type s \) -exec rm -f {} \;
+
+          sudo tar cvf /tmp/caliptra-fpga-sysroot.tar /tmp/caliptra-fpga-sysroot
+
+      - name: Save FPGA sysroot to cache
+        if: "!steps.restore_sysroot_cache.outputs.cache-hit"
+        uses: actions/cache/save@v3
+        with:
+          path: /tmp/caliptra-fpga-sysroot.tar
+          key: sysroot-v9-${{ env.CACHE_BUSTER }}
+
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
+          rustup toolchain install 1.84-x86_64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Build test binaries
+        run: |
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+          if [ "${{ inputs.rom-version }}" != "latest" ]; then
+            export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+          fi
+
+          if [ "${{ inputs.workflow_call }}" ]; then
+            FEATURES=fpga_subsystem,${{ inputs.extra-features }}
+          else
+            FEATURES=fpga_subsystem,itrng
+          fi
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
+          fi
+          cargo nextest archive \
+            --features=${FEATURES} \
+            --release \
+            --target=aarch64-unknown-linux-gnu \
+            --archive-file=/tmp/caliptra-test-binaries.tar.zst
+
+          mkdir /tmp/caliptra-test-binaries/
+          tar xvf /tmp/caliptra-test-binaries.tar.zst -C /tmp/caliptra-test-binaries/
+          mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
+
+      - name: 'Upload test binaries artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-binaries.sqsh
+          retention-days: 1
+
+      - name: Build test firmware
+        run: |
+          rustup target add riscv32imc-unknown-none-elf
+          mkdir /tmp/caliptra-test-firmware
+
+          FEATURES=""
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=hw-${{ inputs.hw-version }}
+          fi
+          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+
+      - name: 'Upload test firmware artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-firmware
+          retention-days: 1
+
+  test_artifacts:
+    runs-on: vck190-mcu
+    needs: [check_cache, build_test_binaries]
+    timeout-minutes: 120
+    if: |
+      !cancelled() &&
+      needs.check_cache.result == 'success' &&
+      (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped')
+
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: 'Download Test Binaries Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-binaries.sqsh
+
+      - name: 'Download Test Firmware Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-test-firmware
+
+      - name: Mount binaries
+        run: |
+          # We don't have enough DRAM on the FPGA board to extract a tarball
+          # into the overlaid tmpfs, so use squashfs instead
+          echo mkdir
+          sudo mkdir /tmp/caliptra-test-binaries
+          echo mount squashfs
+          sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
+          find /tmp/caliptra-test-binaries
+
+      - name: Check kernel modules
+        run: |
+          sudo lsmod
+          ls /sys/class/uio
+
+      - name: Execute tests
+        run: |
+          export RUST_TEST_THREADS=1
+          TEST_BIN=/tmp/caliptra-test-binaries
+          VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+
+          if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
+          elif [ "${{ inputs.rom-logging }}" == false ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITHOUT_UART"
+          else
+            echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
+            exit 1
+          fi
+
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.rom-version }}" != "latest" ]]; then
+            VARS+=" CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}""
+          fi
+
+          echo VARS=${VARS}
+
+          # TODO add the remaining caliptra core integration tests
+          COMMON_ARGS=(
+              --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
+              --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
+              --target-dir-remap="${TEST_BIN}/target"
+              --workspace-remap=.
+              -E 'package(caliptra-hw-model) and test(tests::test_execution)'
+          )
+
+          cargo-nextest nextest list \
+              "${COMMON_ARGS[@]}" \
+              --message-format json > /tmp/nextest-list.json
+
+          sudo ${VARS} cargo-nextest nextest run \
+              "${COMMON_ARGS[@]}" \
+              --test-threads=1 \
+              --no-fail-fast \
+              --profile=nightly
+
+      - name: 'Upload test results'
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: |
+            /tmp/junit.xml
+            /tmp/nextest-list.json

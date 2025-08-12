@@ -73,7 +73,7 @@ fn test_rt_journey_pcr_validation() {
 
 // TODO: https://github.com/chipsalliance/caliptra-sw/issues/2225
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_mbox_busy_during_warm_reset() {
     // This test uses the mailbox responder binary to set the mailbox_flow_done register to
     // false.
@@ -143,7 +143,7 @@ fn test_mbox_busy_during_warm_reset() {
 
 // TODO: https://github.com/chipsalliance/caliptra-sw/issues/2225
 #[test]
-#[cfg(not(feature = "fpga_realtime"))]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_mbox_idle_during_warm_reset() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
