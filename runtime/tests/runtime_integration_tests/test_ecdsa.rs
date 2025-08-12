@@ -248,7 +248,11 @@ fn test_ecdsa_verify_bad_chksum() {
 }
 
 // HW errors are not supported on the SW emulator yet
-#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+#[cfg(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+))]
 #[test]
 fn test_ecdsa_hw_failure() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
