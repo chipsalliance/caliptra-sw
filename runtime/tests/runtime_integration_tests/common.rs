@@ -92,7 +92,7 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, Vec<u8>) {
-    let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
+    let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &APP_WITH_UART_FPGA
     } else {
         &APP_WITH_UART

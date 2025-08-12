@@ -19,6 +19,7 @@ emu = [
     "caliptra-test-harness/emu",
 ]
 fpga_realtime = ["caliptra-runtime/fpga_realtime"]
+fpga_subsystem = ["caliptra-runtime/fpga_subsystem"]
 
 [[bin]]
 name = "boot"
