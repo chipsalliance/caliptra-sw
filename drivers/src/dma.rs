@@ -566,6 +566,35 @@ impl<'a> DmaRecovery<'a> {
         Ok(image_size_bytes)
     }
 
+    // Downloads an image from the recovery interface to caliptra using FIFO.
+    pub fn download_image_to_caliptra(
+        &self,
+        fw_image_index: u32,
+        buffer: &mut [u32],
+    ) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index)?;
+        // Transfer the image from the recovery interface via AHB FIFO.
+        let addr = self.base + Self::INDIRECT_FIFO_DATA_OFFSET;
+
+        let read_transaction = DmaReadTransaction {
+            read_addr: addr,
+            fixed_addr: true,
+            length: image_size_bytes,
+            target: DmaReadTarget::AhbFifo,
+        };
+
+        self.dma.flush();
+        self.dma.setup_dma_read(read_transaction, 0);
+        self.dma.dma_read_fifo(buffer);
+        self.dma.wait_for_dma_complete();
+
+        cprintln!("[dma-recovery] Waiting for activation");
+        self.wait_for_activation()?;
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        Ok(image_size_bytes)
+    }
+
     /// Load data from MCU SRAM to a provided buffer
     ///
     /// # Arguments
