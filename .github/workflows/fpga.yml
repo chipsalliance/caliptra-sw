@@ -190,7 +190,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'recursive' 
+          submodules: 'recursive'
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -249,7 +249,11 @@ jobs:
                        package(caliptra-builder) |
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
-                       package(compliance-test))'
+                       package(compliance-test) |
+                       package(caliptra-drivers) |
+                       package(caliptra-runtime) |
+                       package(caliptra-test) |
+                       package(caliptra-rom))'
           )
 
           cargo-nextest nextest list \
