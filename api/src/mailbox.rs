@@ -16,6 +16,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Ref};
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
 /// Maximum output size for AES GCM encrypt or decrypt operations.
 pub const MAX_CMB_AES_GCM_OUTPUT_SIZE: usize = MAX_CMB_DATA_SIZE + 16;
+/// Maximum mailbox size when subsystem staging area is available.
+pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024; // 16K
 /// Context size for CMB SHA commands.
 pub const CMB_SHA_CONTEXT_SIZE: usize = 200;
 /// Maximum response data size

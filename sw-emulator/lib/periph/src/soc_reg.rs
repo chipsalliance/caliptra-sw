@@ -416,6 +416,16 @@ impl SocRegistersInternal {
             regs: self.regs.clone(),
         }
     }
+
+    pub fn has_ss_staging_area(&self) -> bool {
+        let hw_rev_id = self.regs.borrow().cptra_hw_rev_id.reg.get();
+        let major = hw_rev_id & 0xf;
+        let minor = (hw_rev_id >> 4) & 0xf;
+
+        let subsystem_mode = self.regs.borrow().cptra_hw_config.reg.get()
+            == SocRegistersImpl::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE;
+        (major > 2 || (major == 2 && minor >= 1)) && subsystem_mode
+    }
 }
 
 impl Bus for SocRegistersInternal {
