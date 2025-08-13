@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use crate::helpers;
+use crate::helpers::rom_fw_id;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
-        self,
         rom_tests::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
@@ -37,7 +37,7 @@ fn test_update_reset_success() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -98,7 +98,7 @@ fn test_update_reset_no_mailbox_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -162,7 +162,7 @@ fn test_update_reset_non_fw_load_cmd() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -224,7 +224,7 @@ fn test_update_reset_verify_image_failure() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_WITH_UART,
                 &APP_WITH_UART,
@@ -257,12 +257,23 @@ fn test_update_reset_verify_image_failure() {
             }
             hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
-            assert_eq!(
-                hw.finish_mailbox_execute(),
-                Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
-                    CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
-                ))
-            );
+            if subsystem_mode {
+                assert_eq!(
+                    hw.finish_mailbox_execute(),
+                    Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                        CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM.into()
+                    ))
+                );
+                // With subsystem mode this fails fatally as MBOX is used and not MCU SRAM
+                continue;
+            } else {
+                assert_eq!(
+                    hw.finish_mailbox_execute(),
+                    Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                        CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+                    ))
+                );
+            }
 
             hw.step_until_exit_success().unwrap();
 
@@ -291,7 +302,7 @@ fn test_update_reset_boot_status() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -353,7 +364,7 @@ fn test_update_reset_boot_status() {
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
     for subsystem_mode in [false, true] {
         for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let vendor_config_cold_boot = ImageGeneratorVendorConfig {
                 ecc_key_idx: 3,
                 ..VENDOR_CONFIG_KEY_0
@@ -441,7 +452,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
     for subsystem_mode in [false, true] {
-        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
         let vendor_config_cold_boot = ImageGeneratorVendorConfig {
             pqc_key_idx: 3,
             ..VENDOR_CONFIG_KEY_0
@@ -525,7 +536,7 @@ fn test_check_rom_update_reset_status_reg() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -637,7 +648,7 @@ fn test_update_reset_max_fw_image() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,

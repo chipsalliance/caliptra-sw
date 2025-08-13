@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::helpers;
+use crate::helpers::rom_fw_id;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_INTERACTIVE, APP_WITH_UART},
@@ -38,7 +39,7 @@ fn test_datavault_pmp_enforcement() {
                 fuse_pqc_key_type: *pqc_key_type as u32,
                 ..Default::default()
             };
-            let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+            let rom = caliptra_builder::build_firmware_rom(rom_fw_id(subsystem_mode)).unwrap();
             let image_bundle = caliptra_builder::build_and_sign_image(
                 &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART,
@@ -49,7 +50,7 @@ fn test_datavault_pmp_enforcement() {
             let mut hw = caliptra_hw_model::new(
                 InitParams {
                     rom: &rom,
-                    subsystem_mode: false,
+                    subsystem_mode,
                     ..Default::default()
                 },
                 BootParams {

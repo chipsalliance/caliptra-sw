@@ -22,12 +22,12 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okref, report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_drivers::{report_fw_error_non_fatal, Hmac, Trng};
-use caliptra_drivers::{AxiAddr, DataVault, Dma, DmaRecovery, PersistentData};
+use caliptra_drivers::{AxiAddr, DataVault, Dma, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use core::mem::size_of;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -56,8 +56,41 @@ impl UpdateResetFlow {
         };
 
         let mut process_txn = || -> CaliptraResult<()> {
-            if recv_txn.cmd() != CommandId::FIRMWARE_LOAD.into() {
-                cprintln!("Invalid command 0x{:08x} recv", recv_txn.cmd());
+            // Parse command, staging address, and image size
+            let (actual_cmd, staging_addr, img_bundle_sz) = if recv_txn.cmd()
+                == CommandId::EXTERNAL_MAILBOX_CMD.into()
+                && crate::subsystem_mode()
+            {
+                // Parse ExternalMailboxCmdReq to get actual command and staging address
+                let mbox_contents = recv_txn.raw_mailbox_contents();
+                if mbox_contents.len()
+                    < core::mem::size_of::<caliptra_common::mailbox_api::ExternalMailboxCmdReq>()
+                {
+                    cprintln!("External mailbox command too small");
+                    return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
+                }
+
+                let external_cmd =
+                    caliptra_common::mailbox_api::ExternalMailboxCmdReq::ref_from_bytes(
+                        &mbox_contents[..core::mem::size_of::<
+                            caliptra_common::mailbox_api::ExternalMailboxCmdReq,
+                        >()],
+                    )
+                    .map_err(|_| CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+
+                let staging_addr = ((external_cmd.axi_address_start_high as u64) << 32)
+                    | (external_cmd.axi_address_start_low as u64);
+                (
+                    external_cmd.command_id,
+                    Some(staging_addr),
+                    external_cmd.command_size,
+                )
+            } else {
+                (recv_txn.cmd(), None, recv_txn.dlen())
+            };
+
+            if actual_cmd != CommandId::FIRMWARE_LOAD.into() {
+                cprintln!("Invalid command 0x{:08x} recv", actual_cmd);
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
@@ -66,9 +99,11 @@ impl UpdateResetFlow {
                 &mut recv_txn,
                 &mut env.soc_ifc,
                 &mut env.dma,
+                staging_addr,
             )?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
+            let image_in_mcu = env.soc_ifc.has_ss_staging_area();
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha2_512_384: &mut env.sha2_512_384,
@@ -81,11 +116,12 @@ impl UpdateResetFlow {
                 image: recv_txn.raw_mailbox_contents(),
                 dma: &env.dma,
                 persistent_data: env.persistent_data.get(),
+                image_in_mcu,
             };
 
             let info = {
                 let manifest = &env.persistent_data.get().manifest2;
-                Self::verify_image(&mut venv, manifest, recv_txn.dlen())
+                Self::verify_image(&mut venv, manifest, img_bundle_sz)
             };
             let info = okref(&info)?;
             report_boot_status(UpdateResetImageVerificationComplete.into());
@@ -110,7 +146,13 @@ impl UpdateResetFlow {
             );
 
             let manifest = &env.persistent_data.get().manifest2;
-            Self::load_image(manifest, &mut recv_txn, &mut env.soc_ifc, &mut env.dma)?;
+            Self::load_image(
+                manifest,
+                &mut recv_txn,
+                &mut env.soc_ifc,
+                &mut env.dma,
+                staging_addr,
+            )?;
             Ok(())
         };
         if let Err(e) = process_txn() {
@@ -191,9 +233,12 @@ impl UpdateResetFlow {
         txn: &mut MailboxRecvTxn,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
+        staging_addr: Option<u64>,
     ) -> CaliptraResult<()> {
         if soc_ifc.has_ss_staging_area() {
-            Self::load_image_from_mcu(manifest, soc_ifc, dma)?;
+            let addr =
+                staging_addr.ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM)?;
+            Self::load_image_from_mcu(manifest, dma, addr)?;
         } else {
             Self::load_image_from_mbox(manifest, txn)?;
         }
@@ -244,28 +289,17 @@ impl UpdateResetFlow {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image_from_mcu(
         manifest: &ImageManifest,
-        soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
+        staging_addr: u64,
     ) -> CaliptraResult<()> {
-        // Get MCU SRAM address
-        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
-        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
-        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
-
-        let dma_recovery = DmaRecovery::new(
-            recovery_interface_base_addr,
-            caliptra_base_addr,
-            mci_base_addr,
-            dma,
-        );
-
         cprintln!(
-            "[update-reset] Loading Runtime at addr 0x{:08x} len {}",
+            "[update-reset] Loading Runtime at addr 0x{:08x} len {} from staging 0x{:016x}",
             manifest.runtime.load_addr,
-            manifest.runtime.size
+            manifest.runtime.size,
+            staging_addr
         );
 
-        // Load Runtime from MCU SRAM
+        // Load Runtime from staging area
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
@@ -278,7 +312,8 @@ impl UpdateResetFlow {
             )
         };
         let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
-        dma_recovery.load_from_mcu_to_buffer(runtime_offset as u64, runtime_words)?;
+        let source_addr = AxiAddr::from(staging_addr + runtime_offset as u64);
+        dma.read_buffer(source_addr, runtime_words);
 
         Ok(())
     }
@@ -294,9 +329,12 @@ impl UpdateResetFlow {
         txn: &mut MailboxRecvTxn,
         soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
+        staging_addr: Option<u64>,
     ) -> CaliptraResult<()> {
         if soc_ifc.has_ss_staging_area() {
-            Self::load_manifest_from_mcu(persistent_data, soc_ifc, dma)
+            let addr =
+                staging_addr.ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM)?;
+            Self::load_manifest_from_mcu(persistent_data, dma, addr)
         } else {
             Self::load_manifest_from_mbox(persistent_data, txn)
         }
@@ -330,19 +368,14 @@ impl UpdateResetFlow {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest_from_mcu(
         persistent_data: &mut PersistentData,
-        soc_ifc: &mut caliptra_drivers::SocIfc,
         dma: &mut Dma,
+        staging_addr: u64,
     ) -> CaliptraResult<()> {
         let manifest = &mut persistent_data.manifest2;
         let manifest_buf = manifest.as_mut_bytes();
 
-        // Get MCU SRAM address
-        let mci_base_addr: AxiAddr = soc_ifc.mci_base_addr().into();
-        let recovery_interface_base_addr: AxiAddr = soc_ifc.recovery_interface_base_addr().into();
-        let caliptra_base_addr: AxiAddr = soc_ifc.caliptra_base_axi_addr().into();
-
-        // Read manifest from MCU SRAM using DMA directly into manifest buffer
-        let manifest_size_words = manifest_buf.len().div_ceil(4);
+        // Read manifest from staging area using DMA directly into manifest buffer
+        let manifest_size_words = manifest_buf.len().div_ceil(4); // Round up to word boundary
         let manifest_words = unsafe {
             core::slice::from_raw_parts_mut(
                 manifest_buf.as_mut_ptr() as *mut u32,
@@ -350,13 +383,8 @@ impl UpdateResetFlow {
             )
         };
 
-        let dma_recovery = DmaRecovery::new(
-            recovery_interface_base_addr,
-            caliptra_base_addr,
-            mci_base_addr,
-            dma,
-        );
-        dma_recovery.load_from_mcu_to_buffer(0, manifest_words)?;
+        let source_addr = AxiAddr::from(staging_addr);
+        dma.read_buffer(source_addr, manifest_words);
 
         Ok(())
     }

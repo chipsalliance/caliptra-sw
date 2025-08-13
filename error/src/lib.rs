@@ -1761,6 +1761,11 @@ impl CaliptraError {
             "Update Reset Error: Read FHT failure"
         ),
         (
+            ROM_UPDATE_RESET_FLOW_IMAGE_NOT_IN_MCU_SRAM,
+            0x01040006,
+            "Update Reset Error: Image not in MCU SRAM"
+        ),
+        (
             ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET,
             0x01040010,
             "Warm Reset Error: Unsuccessful previous cold reset"
@@ -1916,6 +1921,11 @@ impl CaliptraError {
             ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED,
             0x0105000D,
             "ROM Global Error: Measurement log exhausted"
+        ),
+        (
+            ROM_GLOBAL_SUBSYSTEM_MISMATCH,
+            0x0105000E,
+            "ROM Global Error: Subsystem configuration mismatch"
         ),
         (
             ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT,

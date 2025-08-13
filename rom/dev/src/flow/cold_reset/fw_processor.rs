@@ -133,6 +133,7 @@ impl FirmwareProcessor {
         );
         let manifest = okref(&manifest)?;
 
+        let image_in_mcu = crate::subsystem_mode();
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha2_512_384: &mut env.sha2_512_384,
@@ -145,6 +146,7 @@ impl FirmwareProcessor {
             image: txn.raw_mailbox_contents(),
             dma: &mut env.dma,
             persistent_data: env.persistent_data.get(),
+            image_in_mcu,
         };
 
         // Verify the image
@@ -532,7 +534,7 @@ impl FirmwareProcessor {
                         let txn = ManuallyDrop::new(mbox.recovery_recv_txn());
 
                         // Download the firmware image from the recovery interface.
-                        let image_size_bytes = if soc_ifc.has_ss_staging_area() {
+                        let image_size_bytes = if crate::subsystem_mode() {
                             cprintln!("[fwproc] Downloading image from RRI to MCU SRAM");
                             Self::retrieve_image_from_recovery_interface_to_mcu(dma, soc_ifc)?
                         } else {

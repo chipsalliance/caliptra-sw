@@ -15,6 +15,17 @@ pub fn rom_from_env() -> &'static FwId<'static> {
     }
 }
 
+// Without uart messages there is enough space in
+pub fn ss_rom_from_env() -> &'static FwId<'static> {
+    match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
+        Ok("ROM") => &ROM_SS,
+        Ok("ROM_WITHOUT_UART") => &ROM_SS,
+        Ok("ROM_WITH_UART") => &ROM_WITH_UART_SS,
+        Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+        Err(_) => &ROM_WITH_UART_SS,
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -37,6 +48,30 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["fips-test-hooks"],
+};
+
+pub const ROM_SS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["subsystem"],
+};
+
+pub const ROM_WITH_UART_SS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "subsystem"],
+};
+
+pub const ROM_FAKE_WITH_UART_SS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fake-rom", "subsystem"],
+};
+
+pub const ROM_WITH_FIPS_TEST_HOOKS_SS: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["fips-test-hooks", "subsystem"],
 };
 
 // TODO: delete this when AXI DMA is fixed in the FPGA
@@ -439,6 +474,10 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_WITH_UART,
     &ROM_FAKE_WITH_UART,
     &ROM_WITH_FIPS_TEST_HOOKS,
+    &ROM_SS,
+    &ROM_WITH_UART_SS,
+    &ROM_FAKE_WITH_UART_SS,
+    &ROM_WITH_FIPS_TEST_HOOKS_SS,
     &ROM_FPGA_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,

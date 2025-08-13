@@ -33,13 +33,10 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub image: &'b [u8],
     pub dma: &'a Dma,
     pub persistent_data: &'a PersistentData,
+    pub image_in_mcu: bool,
 }
 
 impl FirmwareImageVerificationEnv<'_, '_> {
-    fn image_in_mcu(&self) -> bool {
-        self.soc_ifc.has_ss_staging_area()
-    }
-
     fn create_dma_recovery<'a>(soc_ifc: &'a SocIfc, dma: &'a Dma) -> DmaRecovery<'a> {
         DmaRecovery::new(
             soc_ifc.recovery_interface_base_addr().into(),
@@ -54,7 +51,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     /// Calculate 384 digest using SHA2 Engine
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest384> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu() {
+        if self.image_in_mcu {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
             let result = dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len)?;
             Ok(result.into())
@@ -73,7 +70,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
     /// Calculate 512 digest using SHA2 Engine
     fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
-        if self.image_in_mcu() {
+        if self.image_in_mcu {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
             let result = dma.sha512_mcu_sram(self.sha2_512_384_acc, offset, len)?;
             Ok(result.into())
@@ -94,7 +91,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest384> {
-        if self.image_in_mcu() {
+        if self.image_in_mcu {
             // For MCU case, use the existing sha384_digest function
             self.sha384_digest(offset, len).map_err(|_| digest_failure)
         } else {
@@ -120,7 +117,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         len: u32,
         digest_failure: CaliptraError,
     ) -> CaliptraResult<ImageDigest512> {
-        if self.image_in_mcu() {
+        if self.image_in_mcu {
             // For MCU case, use the existing sha512_digest function
             self.sha512_digest(offset, len).map_err(|_| digest_failure)
         } else {
