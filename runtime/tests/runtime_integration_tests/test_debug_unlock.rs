@@ -78,7 +78,7 @@ fn test_dbg_unlock_prod_success() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -289,7 +289,7 @@ fn test_dbg_unlock_prod_invalid_length() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -410,7 +410,7 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -588,7 +588,7 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -750,7 +750,7 @@ fn test_dbg_unlock_prod_wrong_cmd() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -872,7 +872,7 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             .set_debug_locked(true)
             .set_device_lifecycle(DeviceLifecycle::Production);
 
-        let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+        let rom = caliptra_builder::ss_rom_for_fw_integration_tests().unwrap();
         let image_info = vec![
             ImageInfo::new(
                 StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
