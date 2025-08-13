@@ -19,6 +19,7 @@ mod ecc384;
 mod helpers;
 mod hmac512;
 mod sha256;
+mod sha3;
 mod sha512;
 
 pub use sha256::Sha256;
@@ -26,6 +27,8 @@ pub use sha256::Sha256Mode;
 
 pub use sha512::Sha512;
 pub use sha512::Sha512Mode;
+
+pub use sha3::{Sha3, Sha3Mode, Sha3Strength};
 
 pub use hmac512::{Hmac512, Hmac512Interface, Hmac512Mode};
 

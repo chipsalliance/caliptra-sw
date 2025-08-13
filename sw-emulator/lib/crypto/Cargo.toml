@@ -16,3 +16,4 @@ ctr.workspace = true
 p384.workspace = true
 rfc6979.workspace = true
 sha2.workspace = true
+sha3.workspace = true
