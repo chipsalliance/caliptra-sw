@@ -702,6 +702,11 @@ fn test_update_reset_max_fw_image() {
 
             hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
+            // [CAP2][TODO] The following command is to validate fmc/rt load into ICCM. The logic isn't there in the test-fmc
+            if subsystem_mode {
+                continue;
+            }
+
             let mut buf = vec![];
             buf.append(
                 &mut updated_image_bundle
