@@ -8,7 +8,7 @@ on:
       - "ci-tools/fpga-image/**"
 
   push:
-    branches: ["main-2.x"]
+    branches: ["main-2.x", "clundin/build-mcu-dev-image"]
     paths:
       - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"

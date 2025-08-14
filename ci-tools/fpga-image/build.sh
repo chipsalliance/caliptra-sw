@@ -8,6 +8,7 @@
 set -ex
 
 mkdir -p out
+BUILD_DEV_IMAGE=true
 
 mv ${KERNEL_ARCHIVE} out/system-boot.tar.gz
 mv ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
@@ -16,7 +17,11 @@ mv ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger --arch arm64 --foreign bookworm out/rootfs
+  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
+  if [[ -n "$BUILD_DEV_IMAGE" ]]; then
+    PACKAGES="$PACKAGES,ssh,rsync,tmux"
+  fi
+  debootstrap --include "$PACKAGES" --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
   chroot out/rootfs useradd runner --shell /bin/bash --create-home
 
@@ -43,6 +48,21 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
   chroot out/rootfs bash -c 'echo "NTP=time.google.com" >> /etc/systemd/timesyncd.conf'
+
+  if [[ -n "$BUILD_DEV_IMAGE" ]]; then
+      echo "Adding developer keys to image"
+      chroot out/rootfs bash -c "echo \"PubkeyAuthentication yes\" >> /etc/ssh/sshd_config" 
+      chroot out/rootfs bash -c "echo \"PasswordAuthentication no\" >> /etc/ssh/sshd_config" 
+      chroot out/rootfs bash -c "su runner -c \"mkdir /home/runner/.ssh\""
+      # Add clundin
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey >> ~/.ssh/authorized_keys\""
+
+      # Add zhalvorsen
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com >> ~/.ssh/authorized_keys\""
+
+      # Add ttrippel
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com >> ~/.ssh/authorized_keys\""
+  fi
 
   # Comment this line out if you don't trust folks with physical access to the
   # uart
