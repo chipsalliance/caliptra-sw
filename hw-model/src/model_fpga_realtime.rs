@@ -674,6 +674,14 @@ impl HwModel for ModelFpgaRealtime {
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event> {
         todo!()
     }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        todo!()
+    }
+
+    fn has_ss_staging_area(&self) -> bool {
+        todo!()
+    }
 }
 
 impl ModelFpgaRealtime {

@@ -90,7 +90,8 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     }
 
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
-    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram_contents);
+    let mut model =
+        set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram_contents, false);
 
     for image in images {
         let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
