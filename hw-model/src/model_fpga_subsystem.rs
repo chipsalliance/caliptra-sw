@@ -1036,10 +1036,7 @@ impl HwModel for ModelFpgaSubsystem {
             }
             _ => {}
         }
-        let mcu_rom = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/test-fw/mcu-rom-fpga.bin"
-        ));
+        let mcu_rom = include_bytes!(env!("CPTRA_MCU_ROM"));
 
         let output = Output::new(params.log_writer);
         let dev0 = UioDevice::blocking_new(0)?;
