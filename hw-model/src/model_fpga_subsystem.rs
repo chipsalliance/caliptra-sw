@@ -1028,9 +1028,8 @@ impl HwModel for ModelFpgaSubsystem {
             }
             _ => {}
         }
-        let mcu_rom = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/test-fw/mcu-rom-fpga.bin"
+        let mcu_rom = include_bytes!(std::env::var!("CPTRA_MCU_ROM").expect(
+            "Point the environment variable CPTRA_MCU_ROM to the caliptra mcu ROM absolute path"
         ));
 
         let output = Output::new(params.log_writer);

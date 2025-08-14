@@ -41,6 +41,7 @@ jobs:
 
     env:
       CACHE_BUSTER: 79cee50b6134
+      CALIPTRA_MCU_COMMIT: 4d150bf2df9b1b321bb975e543158f0e9338f1f5
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
@@ -125,6 +126,43 @@ jobs:
           rustup toolchain install 1.84-x86_64-unknown-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
+      - name: Restore MCU ROM from cache
+        uses: actions/cache/restore@v3
+        id: restore_mcu_rom_cache
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+
+      - name: Build test MCU ROM
+        if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
+        run: |
+          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
+          pushd caliptra-mcu-sw
+          git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
+          git reset --hard ${CALIPTRA_MCU_COMMIT}
+          git submodules update --init --recursive
+
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+          pushd caliptra-mcu-sw
+          cargo xtask-fpga rom-build --platform fpga
+
+          mkdir -p /tmp/caliptra-mcu-binaries.tar.gz
+          tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
+
+      - name: Save test MCU ROM to cache
+        if: "!steps.restore_mcu_rom_cachecu-rom.outputs.cache-hit"
+        uses: actions/cache/save@v3
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+
+      - name: 'Upload MCU ROM'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caliptra-mcu-sw-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          retention-days: 1
+
       - name: Build test binaries
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
@@ -204,6 +242,13 @@ jobs:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
+      - name: 'Download MCU ROM'
+        uses: actions/download-artifact@v4
+        with:
+          name: caliptra-mcu-sw-binaries${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-mcu-sw-binaries
+
+
       - name: Mount binaries
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
@@ -214,6 +259,10 @@ jobs:
           sudo mount /tmp/caliptra-test-binaries.sqsh/caliptra-test-binaries.sqsh /tmp/caliptra-test-binaries -t squashfs -o loop
           find /tmp/caliptra-test-binaries
 
+          tar -xvf /tmp/caliptra-test-binaries/caliptra-mcu-binaries.tar.gz
+          ls 
+          pwd
+
       - name: Check kernel modules
         run: |
           sudo lsmod
@@ -223,6 +272,8 @@ jobs:
         run: |
           export RUST_TEST_THREADS=1
           TEST_BIN=/tmp/caliptra-test-binaries
+          export CPTRA_MCU_ROM=$PWD/mcu-rom-fpga.bin
+
           VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
