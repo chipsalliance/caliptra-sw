@@ -2,6 +2,7 @@
 
 use api::CaliptraApiError;
 use caliptra_api as api;
+use caliptra_api::mailbox::MailboxReq;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
 use caliptra_emu_bus::{Bus, Event};
@@ -955,11 +956,13 @@ pub trait HwModel: SocManager {
                 axi_address_start_low: staging_addr as u32,
                 axi_address_start_high: (staging_addr >> 32) as u32,
             };
+            let mut cmd = MailboxReq::ExternalMailboxCmd(external_cmd);
+            cmd.populate_chksum().unwrap();
 
             self.soc_mbox()
                 .cmd()
                 .write(|_| api::mailbox::CommandId::EXTERNAL_MAILBOX_CMD.0);
-            mbox_write_fifo(&self.soc_mbox(), external_cmd.as_bytes()).map_err(ModelError::from)?;
+            mbox_write_fifo(&self.soc_mbox(), cmd.as_bytes().unwrap()).map_err(ModelError::from)?;
         } else {
             self.soc_mbox().cmd().write(|_| cmd);
             mbox_write_fifo(&self.soc_mbox(), buf).map_err(ModelError::from)?;
