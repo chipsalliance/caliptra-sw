@@ -240,6 +240,7 @@ jobs:
 
           echo VARS=${VARS}
 
+          # TODO(#2369): Remove the extra filters after fixing the broken tests
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -250,9 +251,26 @@ jobs:
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
                        package(compliance-test) |
-                       package(caliptra-drivers) |
-                       package(caliptra-runtime) |
-                       package(caliptra-test) |
+                       test(test_sign_validation_failure) |
+                       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
+                       test(test_activate_firmware::test_activate_invalid_fw_id) |
+                       test(test_activate_firmware::test_activate_mcu_fw_success) |
+                       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
+                       test(test_activate_firmware::test_activate_soc_fw_success) |
+                       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
+                       test(test_authorize_and_stash::test_authorize_from_load_address) |
+                       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
+                       test(test_authorize_and_stash::test_authorize_from_staging_address) |
+                       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
+                       test(test_fe_programming::test_fe_programming_cmd) |
+                       test(test_fips::test_fips_shutdown) |
+                       test(test_lms::test_lms_verify_cmd) |
+                       test(test_lms::test_lms_verify_failure) |
+                       test(test_lms::test_lms_verify_invalid_key_lms_type) |
+                       test(test_lms::test_lms_verify_invalid_lmots_type) |
+                       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
+                       binary_id(caliptra-test::fips_test_suite) |
                        package(caliptra-rom))'
           )
 
