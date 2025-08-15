@@ -10,7 +10,7 @@ set -ex
 mkdir -p out
 
 mv ${KERNEL_ARCHIVE} out/system-boot.tar.gz
-mv ${KERNEL_MODULE_ARCHIVE}  out/
+mv ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
