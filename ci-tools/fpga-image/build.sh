@@ -5,7 +5,7 @@
 # a zcu104 Zynq FPGA dev board, and be ready to accept GHA runner
 # jitconfig passed in over UART by fpga-boss.
 
-set -eux
+set -ex
 
 mkdir -p out
 
