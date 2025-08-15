@@ -5,13 +5,12 @@
 # a zcu104 Zynq FPGA dev board, and be ready to accept GHA runner
 # jitconfig passed in over UART by fpga-boss.
 
-set -e
-set -x
+set -ex
 
 mkdir -p out
 
-mv /tmp/vck190-kernel/vck190-kernel.tar.gz out/system-boot.tar.gz
-mv /tmp/vck190-kmod/io-module.ko  out/
+mv ${KERNEL_ARCHIVE} out/system-boot.tar.gz
+mv ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
