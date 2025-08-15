@@ -22,7 +22,7 @@ jobs:
   build_kernel:
     runs-on: [e2-standard-32, vck190-tools]
     env:
-      BITSTREAM_SHA256: "cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47" 
+      BITSTREAM_SHA256: "bdc58b49e2b5c8bd45429c3d9d9a514c7dab7f6dd7b9bdc97a299272a20d10a8" 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -43,7 +43,7 @@ jobs:
         run: |
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250815/2p0core_5263740.xsa /tmp/system.xsa
+          sudo scp /vck190-tools/caliptra-bitstreams/20250815/2p1core_a57cc52.xsa /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sha256sum -c); then
             echo "Bitstream does not match expected hash."
