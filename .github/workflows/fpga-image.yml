@@ -76,7 +76,7 @@ jobs:
           mv vck190-kernel.tar.gz /tmp/vck190-kernel-${IMAGE_VARIANT}.tar.gz
 
           IO_MODULE_PATH=$(find . -name 'io-module.ko')
-          mv $IO_MODULE_PATH /tmp/io-module.ko
+          mv $IO_MODULE_PATH /tmp/io-module-${IMAGE_VARIANT}.ko
           popd
 
       - name: 'Upload kernel artifact'
