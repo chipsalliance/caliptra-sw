@@ -67,7 +67,7 @@ fn test_uds_programming_granularity_64bit() {
 
     // Wait for ROM to complete
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         resp.uds_program_success()
     });
 
@@ -97,7 +97,7 @@ fn test_uds_programming_granularity_32bit() {
 
     // Wait for ROM to complete
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         resp.uds_program_success()
     });
 

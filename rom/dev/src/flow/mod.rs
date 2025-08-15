@@ -16,6 +16,7 @@ mod cold_reset;
 pub mod debug_unlock;
 #[cfg(feature = "fake-rom")]
 mod fake;
+pub(crate) mod ocp_lock;
 pub(crate) mod uds_programming;
 mod update_reset;
 mod warm_reset;

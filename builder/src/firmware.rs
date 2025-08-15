@@ -27,6 +27,12 @@ pub const ROM_WITH_UART: FwId = FwId {
     features: &["emu"],
 };
 
+pub const ROM_WITH_UART_OCP_LOCK: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "ocp-lock"],
+};
+
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -340,6 +346,12 @@ pub mod driver_tests {
         bin_name: "persistent",
         ..BASE_FWID
     };
+
+    pub const OCP_LOCK: FwId = FwId {
+        bin_name: "ocp_lock",
+        features: &["ocp-lock", "riscv"],
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -432,6 +444,7 @@ pub mod runtime_tests {
 pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_WITH_UART,
+    &ROM_WITH_UART_OCP_LOCK,
     &ROM_FAKE_WITH_UART,
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_FPGA_WITH_UART,
@@ -487,6 +500,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_FAIL_ADAPTP_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
+    &driver_tests::OCP_LOCK,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,

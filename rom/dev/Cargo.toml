@@ -64,7 +64,7 @@ zerocopy.workspace = true
 
 [features]
 riscv = []
-default = ["std"]
+default = ["std", "ocp-lock"]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra_common/std",
@@ -84,6 +84,7 @@ fips-test-hooks = [
   "caliptra-drivers/fips-test-hooks",
   "caliptra-image-verify/fips-test-hooks",
 ]
+ocp-lock = ["caliptra-drivers/ocp-lock", "caliptra_common/ocp-lock"]
 
 [[bin]]
 name = "asm_tests"

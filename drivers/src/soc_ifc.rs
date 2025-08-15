@@ -96,7 +96,7 @@ impl SocIfc {
 
         let soc_ifc_regs = self.soc_ifc.regs();
         let lifecycle = self.lifecycle();
-        let dbg_req = soc_ifc_regs.ss_dbg_manuf_service_reg_req().read();
+        let dbg_req = soc_ifc_regs.ss_dbg_service_reg_req().read();
         let (manuf, prod) = (
             dbg_req.manuf_dbg_unlock_req(),
             dbg_req.prod_dbg_unlock_req(),
@@ -118,16 +118,14 @@ impl SocIfc {
         let lifecycle = self.lifecycle();
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         match lifecycle {
-            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
+            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
                 w.tap_mailbox_available(in_progress)
                     .manuf_dbg_unlock_in_progress(in_progress)
             }),
-            DeviceLifecycleE::Production => {
-                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
-                    w.tap_mailbox_available(in_progress)
-                        .prod_dbg_unlock_in_progress(in_progress)
-                })
-            }
+            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().write(|w| {
+                w.tap_mailbox_available(in_progress)
+                    .prod_dbg_unlock_in_progress(in_progress)
+            }),
             _ => (),
         }
     }
@@ -137,22 +135,20 @@ impl SocIfc {
         let lifecycle = self.lifecycle();
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         match lifecycle {
-            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
+            Lifecycle::Manufacturing => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
                 if success {
                     w.manuf_dbg_unlock_success(true)
                 } else {
                     w.manuf_dbg_unlock_fail(true)
                 }
             }),
-            DeviceLifecycleE::Production => {
-                soc_ifc_regs.ss_dbg_manuf_service_reg_rsp().modify(|w| {
-                    if success {
-                        w.prod_dbg_unlock_success(true)
-                    } else {
-                        w.prod_dbg_unlock_fail(true)
-                    }
-                })
-            }
+            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().write(|w| {
+                if success {
+                    w.prod_dbg_unlock_success(true)
+                } else {
+                    w.prod_dbg_unlock_fail(true)
+                }
+            }),
             _ => (),
         }
     }
@@ -524,7 +520,7 @@ impl SocIfc {
     pub fn uds_program_req(&self) -> bool {
         self.soc_ifc
             .regs()
-            .ss_dbg_manuf_service_reg_req()
+            .ss_dbg_service_reg_req()
             .read()
             .uds_program_req()
     }
@@ -532,21 +528,18 @@ impl SocIfc {
     pub fn set_uds_programming_flow_state(&mut self, in_progress: bool) {
         self.soc_ifc
             .regs_mut()
-            .ss_dbg_manuf_service_reg_rsp()
+            .ss_dbg_service_reg_rsp()
             .write(|w| w.uds_program_in_progress(in_progress));
     }
 
     pub fn set_uds_programming_flow_status(&mut self, flow_succeeded: bool) {
-        self.soc_ifc
-            .regs_mut()
-            .ss_dbg_manuf_service_reg_rsp()
-            .write(|w| {
-                if flow_succeeded {
-                    w.uds_program_success(true).uds_program_fail(false)
-                } else {
-                    w.uds_program_success(false).uds_program_fail(true)
-                }
-            });
+        self.soc_ifc.regs_mut().ss_dbg_service_reg_rsp().write(|w| {
+            if flow_succeeded {
+                w.uds_program_success(true).uds_program_fail(false)
+            } else {
+                w.uds_program_success(false).uds_program_fail(true)
+            }
+        });
     }
 
     pub fn uds_seed_dest_base_addr_low(&self) -> u32 {
@@ -554,11 +547,22 @@ impl SocIfc {
     }
 
     pub fn subsystem_mode(&self) -> bool {
+        return false;
+    }
+
+    pub fn ocp_lock_enabled(&self) -> bool {
         self.soc_ifc
             .regs()
             .cptra_hw_config()
             .read()
-            .subsystem_mode_en()
+            .ocp_lock_mode_en()
+    }
+
+    pub fn ocp_lock_set_lock_in_progress(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .ss_ocp_lock_ctrl()
+            .write(|w| w.lock_in_progress(true));
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {

@@ -755,7 +755,7 @@ struct SocRegistersImpl {
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
 
     #[register(offset = 0x5c4)]
-    ss_dbg_manuf_service_reg_rsp: ReadWriteRegister<u32, SsDbgManufServiceRegRsp::Register>,
+    ss_dbg_service_reg_rsp: ReadWriteRegister<u32, SsDbgManufServiceRegRsp::Register>,
 
     #[register_array(offset = 0x5c8)]
     ss_soc_dbg_unlock_level: [u32; 2],
@@ -972,7 +972,7 @@ impl SocRegistersImpl {
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
             ss_recovery_ifc_base_addr_h: ReadOnlyRegister::new((rri_offset >> 32) as u32),
             ss_dbg_manuf_service_reg_req: ReadWriteRegister::new(args.dbg_manuf_service_req.into()),
-            ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
+            ss_dbg_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
             ss_caliptra_dma_axi_user: 0,
             internal_obf_key: args.cptra_obf_key,
