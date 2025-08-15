@@ -49,12 +49,12 @@ const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
 // FPGA addresses so similar code can be used between the emulator and the FPGA hardware models.
 // These are only used for calculating offsets from the virtual addresses retrieved from UIO.
-const I3C_ADDR: usize = 0x2000_4000;
-const I3C_ADDR_RANGE_SIZE: usize = 0x1000;
-const I3C_END_ADDR: usize = I3C_ADDR + I3C_ADDR_RANGE_SIZE - 1;
-const MCI_ADDR: usize = 0x2100_0000;
-const MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
-const MCI_END_ADDR: usize = MCI_ADDR + MCI_ADDR_RANGE_SIZE - 1;
+const EMULATOR_I3C_ADDR: usize = 0x2000_4000;
+const EMULATOR_I3C_ADDR_RANGE_SIZE: usize = 0x1000;
+const EMULATOR_I3C_END_ADDR: usize = EMULATOR_I3C_ADDR + EMULATOR_I3C_ADDR_RANGE_SIZE - 1;
+const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
+const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
+const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
 
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -170,7 +170,7 @@ impl Mci {
     fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
-                MCI_ADDR as *mut u32,
+                EMULATOR_MCI_ADDR as *mut u32,
                 BusMmio::new(FpgaRealtimeBus {
                     mmio: self.ptr,
                     phantom: Default::default(),
@@ -405,7 +405,7 @@ impl ModelFpgaSubsystem {
     ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
-                I3C_ADDR as *mut u32,
+                EMULATOR_I3C_ADDR as *mut u32,
                 BusMmio::new(FpgaRealtimeBus {
                     mmio: self.i3c_mmio,
                     phantom: Default::default(),
@@ -1420,8 +1420,8 @@ impl FpgaRealtimeBus<'_> {
     fn ptr_for_addr(&mut self, addr: RvAddr) -> Option<*mut u32> {
         let addr = addr as usize;
         let offset = match addr {
-            I3C_ADDR..=I3C_END_ADDR => I3C_ADDR,
-            MCI_ADDR..=MCI_END_ADDR => MCI_ADDR,
+            EMULATOR_I3C_ADDR..=EMULATOR_I3C_END_ADDR => EMULATOR_I3C_ADDR,
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => EMULATOR_MCI_ADDR,
             0x3002_0000..0x3004_0000 => 0x3000_0000,
             _ => return None,
         };
