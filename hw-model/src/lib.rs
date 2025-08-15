@@ -138,6 +138,9 @@ impl TrngMode {
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
 pub struct InitParams<'a> {
+    // Hardware revision
+    pub hw_rev: (u8, u8),
+
     // The contents of the boot ROM
     pub rom: &'a [u8],
 
@@ -215,6 +218,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
+            hw_rev: (2, 0),
             rom: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
