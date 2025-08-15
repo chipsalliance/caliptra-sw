@@ -24,6 +24,12 @@ use sha256::Sha256SoftwareDriver;
 // For consistency with the ROM, use its type definitions
 use caliptra_image_types::{ImageLmsPublicKey, ImageLmsSignature};
 
+#[no_mangle]
+extern "C" fn cfi_panic_handler(_code: u32) -> ! {
+  eprintln!("cfi_panic_handler");
+  std::process::abort();
+}
+
 #[cfg(feature = "struct-aware")]
 #[derive(arbitrary::Arbitrary, Debug)]
 struct StructuredInput<'a> {
