@@ -126,7 +126,7 @@ jobs:
       - name: Build SD image
         run: |
           cd ci-tools/fpga-image
-          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo IMAGE_VARIANT=${IMAGE_VARIANT} KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4
