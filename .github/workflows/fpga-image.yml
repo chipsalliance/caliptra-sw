@@ -23,7 +23,7 @@ jobs:
     runs-on: [e2-standard-32, vck190-tools]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1]
+        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
         include:
           - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
             image_variant: core-2.0
@@ -33,6 +33,14 @@ jobs:
             image_variant: core-2.1
           - bitstream_name: 2p1core_a57cc52.xsa
             image_variant: core-2.1
+          - bitstream_hash: 7df0cd920b4944552f0c25c96d0945821073d82bc9c957c14d471ce2ee80c648
+            image_variant: subsystem-2.0
+          - bitstream_name: ss2p0SS_ea5d803.xsa
+            image_variant: subsystem-2.0
+          - bitstream_hash: 8f3df0309e6187f280b43a954416ea26a7206aac23a325c21817c15fda143515
+            image_variant: subsystem-2.1
+          - bitstream_name: ss2p1SS_e847f4.xsa
+            image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
@@ -126,11 +134,11 @@ jobs:
       - name: Build SD image
         run: |
           cd ci-tools/fpga-image
-          sudo IMAGE_VARIANT=${IMAGE_VARIANT} KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
+          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image-${{ matrix.image_variant }}
-          path: ci-tools/fpga-image/out/${{ matrix.image_variant }}.img
+          path: ci-tools/fpga-image/out/image.img
           retention-days: 90

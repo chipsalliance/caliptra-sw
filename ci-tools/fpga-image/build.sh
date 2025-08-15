@@ -103,7 +103,7 @@ EOF
 truncate -s $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
 
 
-LOOPBACK_DEV="$(losetup --show -Pf out/${IMAGE_VARIANT}.img)"
+LOOPBACK_DEV="$(losetup --show -Pf out/image.img)"
 function cleanup1 {
   losetup -d ${LOOPBACK_DEV}
 }
