@@ -106,7 +106,7 @@ jobs:
     needs: [build_kernel]
     strategy:
       matrix:
-        image_variant: [core-2.0, core-2.1]
+        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
