@@ -55,15 +55,17 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
 
   if [[ -n "$BUILD_DEV_IMAGE" ]]; then
       echo "Adding developer keys to image"
+      chroot out/rootfs bash -c "echo \"PubkeyAuthentication yes\" >> /etc/ssh/sshd_config" 
+      chroot out/rootfs bash -c "echo \"PasswordAuthentication no\" >> /etc/ssh/sshd_config" 
       chroot out/rootfs bash -c "su runner -c \"mkdir /home/runner/.ssh\""
       # Add clundin
-      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey > ~/.ssh/authorized_keys\""
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey >> ~/.ssh/authorized_keys\""
 
       # Add zhalvorsen
-      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com > ~/.ssh/authorized_keys\""
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com >> ~/.ssh/authorized_keys\""
 
       # Add ttrippel
-      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com > ~/.ssh/authorized_keys\""
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com >> ~/.ssh/authorized_keys\""
   fi
 
   # Comment this line out if you don't trust folks with physical access to the
