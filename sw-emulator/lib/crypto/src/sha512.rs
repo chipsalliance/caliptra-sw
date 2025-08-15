@@ -145,11 +145,25 @@ impl Sha512 {
         self.blocks_processed += 1;
     }
 
-    /// Update the hash with an arbitrary number to bytes
+    /// Update the hash with an arbitrary number of bytes
     ///
-    /// `bytes` is expected to be big-endian data
-    pub fn update_bytes(&mut self, bytes: &[u8]) {
+    /// `bytes` is expected to be big-endian data.
+    /// `dlen` may be specified when `bytes` can have undesired padding.
+    /// `dlen` is expected to be the total number of bytes to hash.
+    pub fn update_bytes(&mut self, bytes: &[u8], dlen: Option<u32>) {
         self.partial_block.extend_from_slice(bytes);
+
+        let total_received_bytes =
+            self.blocks_processed * Self::BLOCK_SIZE + self.partial_block.len();
+        if let Some(dlen) = dlen {
+            if total_received_bytes > dlen as usize {
+                // TODO: can panic if `update_bytes` is used wrong
+                //       (e.g. calling `update_bytes` with a dlen that would remove more bytes than BLOCK_SIZE)
+                let to_remove =
+                    (self.partial_block.len() - (total_received_bytes - dlen as usize))..;
+                self.partial_block.drain(to_remove);
+            }
+        }
 
         while self.partial_block.len() >= Self::BLOCK_SIZE {
             // Safe to unwrap becasue slice is guaranteed to be correct size
@@ -307,6 +321,46 @@ mod tests {
             0x50, 0x07, 0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63, 0x1A, 0x8B, 0x60, 0x5A,
             0x43, 0xFF, 0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA,
             0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7,
+        ];
+
+        let mut hash = [0u8; 48];
+        sha.copy_hash(&mut hash);
+        hash.to_little_endian();
+
+        assert_eq!(&hash, &expected);
+    }
+
+    #[test]
+    fn test_finalize_sha384() {
+        let mut sha = Sha512::new(Sha512Mode::Sha384);
+        sha.update_bytes(&SHA_512_TEST_BLOCK, None);
+        sha.finalize(128);
+
+        let expected: [u8; 48] = [
+            0x3e, 0x16, 0x50, 0xca, 0x72, 0x6e, 0x44, 0x7e, 0xca, 0xdf, 0x8f, 0xa9, 0xe5, 0xd2,
+            0xb9, 0x81, 0x02, 0x9d, 0x5a, 0x76, 0xfc, 0x2c, 0x68, 0xa9, 0xdb, 0x34, 0x1e, 0xa1,
+            0x3d, 0x01, 0xc7, 0xff, 0x7e, 0x82, 0x7f, 0x0f, 0x6a, 0x62, 0xde, 0x5a, 0x6f, 0xa3,
+            0x2f, 0xcd, 0xa2, 0x3e, 0xb8, 0x3b,
+        ];
+
+        let mut hash = [0u8; 48];
+        sha.copy_hash(&mut hash);
+        hash.to_little_endian();
+
+        assert_eq!(&hash, &expected);
+    }
+
+    #[test]
+    fn test_finalize_127byte_sha384() {
+        let mut sha = Sha512::new(Sha512Mode::Sha384);
+        sha.update_bytes(&SHA_512_TEST_BLOCK, Some(127));
+        sha.finalize(127);
+
+        let expected: [u8; 48] = [
+            0x4e, 0x12, 0xac, 0x25, 0xbf, 0xad, 0xf7, 0x25, 0x5c, 0xb7, 0x9a, 0x06, 0x3d, 0x83,
+            0x45, 0x4f, 0x87, 0x9b, 0x89, 0x70, 0x13, 0x0f, 0xa4, 0xf1, 0xed, 0xcc, 0xbd, 0xee,
+            0xd2, 0x22, 0x6e, 0x6d, 0xcd, 0x36, 0xcb, 0x11, 0x6c, 0x9b, 0x1a, 0x41, 0x6b, 0x4b,
+            0xbb, 0x62, 0x45, 0xe1, 0x79, 0xfd,
         ];
 
         let mut hash = [0u8; 48];
