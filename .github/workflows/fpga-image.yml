@@ -35,7 +35,7 @@ jobs:
             image_variant: core-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
-      IMAGE_NAME: ${{ matrix.image_name }}
+      BITSTREAM_NAME: ${{ matrix.bitstream_name }}
       BITSTREAM_SHA256: ${{ matrix.bitstream_hash }}
     steps:
       - name: Checkout repo
@@ -57,7 +57,7 @@ jobs:
         run: |
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250815/${IMAGE_NAME} /tmp/system.xsa
+          sudo scp /vck190-tools/caliptra-bitstreams/20250815/${BITSTREAM_NAME} /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
@@ -82,19 +82,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vck190-kernel
-          path: /tmp/vck190-kernel-${{ env.image_variant  }}.tar.gz
+          path: /tmp/vck190-kernel-${{ env.image_variant }}.tar.gz
           retention-days: 1
 
       - name: 'Upload kernel module artifact'
         uses: actions/upload-artifact@v4
         with:
           name: vck190-kernel-module
-          path: /tmp/io-module.ko
+          path: /tmp/io-module-${{ env.image_variant }}.ko
           retention-days: 1
 
   build_sd_image:
     runs-on: ubuntu-22.04
     needs: [build_kernel]
+    strategy:
+      matrix:
+        image_variant: [core-2.0, core-2.1]
+    env:
+      IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -120,7 +125,7 @@ jobs:
       - name: Build SD image
         run: |
           cd ci-tools/fpga-image
-          sudo bash build.sh
+          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4

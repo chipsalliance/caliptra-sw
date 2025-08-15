@@ -10,8 +10,8 @@ set -x
 
 mkdir -p out
 
-mv /tmp/vck190-kernel/vck190-kernel.tar.gz out/system-boot.tar.gz
-mv /tmp/vck190-kmod/io-module.ko  out/
+mv ${KERNEL_ARCHIVE} out/system-boot.tar.gz
+mv ${KERNEL_MODULE_ARCHIVE}  out/
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
