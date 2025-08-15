@@ -2,6 +2,7 @@
 #             Code Ownership
 ##########################################
 /rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
+/rom/dev/tests/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @jhand2 @zhalvorsen
 /kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson
 /drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson
 /image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen
