@@ -5,8 +5,7 @@
 # a zcu104 Zynq FPGA dev board, and be ready to accept GHA runner
 # jitconfig passed in over UART by fpga-boss.
 
-set -e
-set -x
+set -eux
 
 mkdir -p out
 
@@ -104,7 +103,7 @@ EOF
 truncate -s $(((2048 + 8 + $bootfs_blocks + $rootfs_blocks) * 512)) out/image.img
 
 
-LOOPBACK_DEV="$(losetup --show -Pf out/image.img)"
+LOOPBACK_DEV="$(losetup --show -Pf out/${IMAGE_VARIANT}.img)"
 function cleanup1 {
   losetup -d ${LOOPBACK_DEV}
 }

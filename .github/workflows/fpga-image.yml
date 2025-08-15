@@ -55,6 +55,7 @@ jobs:
 
       - name: Build Kernel
         run: |
+          echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
           sudo scp /vck190-tools/caliptra-bitstreams/20250815/${BITSTREAM_NAME} /tmp/system.xsa
@@ -131,5 +132,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image
-          path: ci-tools/fpga-image/out/image.img
+          path: ci-tools/fpga-image/out/${{env.image_variant }}.img
           retention-days: 90
