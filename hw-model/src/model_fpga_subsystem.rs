@@ -1352,6 +1352,8 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc.push_recovery_image(mcu_firmware);
 
         let mut xi3c_configured = false;
+        // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
+        // it is done or timeout.
         for _ in 0..1_000_000 {
             if !xi3c_configured && self.i3c_target_configured() {
                 xi3c_configured = true;
