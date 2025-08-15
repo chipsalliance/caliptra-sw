@@ -45,6 +45,10 @@ const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 1184;
 const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
 
+// These are the default physical addresses for the peripherals. The addresses listed in
+// FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
+// FPGA addresses so similar code can be used between the emulator and the FPGA hardware models.
+// These are only used for calculating offsets from the virtual addresses retrieved from UIO.
 const I3C_ADDR: u32 = 0x2000_4000;
 const MCI_ADDR: u32 = 0x2100_0000;
 
