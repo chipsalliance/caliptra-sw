@@ -10,16 +10,31 @@ on:
       extra-features:
         default:
         type: string
+      rom-ref:
+        default: "main"
+        type: string
       rom-logging:
         default: true
         type: boolean
       rom-version:
         default: "latest"
         type: string
+      fw-ref:
+        default: "main"
+        type: string
 
 jobs:
+  versioned-checkout-build:
+    uses: ./.github/workflows/versioned-checkout.yml
+    with:
+      rom-ref: "${{ inputs.rom-ref }}"
+      rom-logging: "${{ inputs.rom-logging }}"
+      fw-ref: "${{ inputs.fw-ref }}"
+      artifact-suffix: "${{ inputs.artifact-suffix }}"
+
   build_and_test:
     runs-on: ubuntu-22.04
+    needs: versioned-checkout-build
 
     env:
       NEXTEST_VERSION: 0.9.63
@@ -47,19 +62,36 @@ jobs:
 
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
       - name: Pull dpe submodule
         run: |
           git submodule update --init dpe
 
-      - name: Build firmware
-        run: |
-          mkdir /tmp/caliptra-test-firmware
-          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
+      - name: Extract Versioned ROM and FMC/RT
+        uses: actions/download-artifact@v4
+        with:
+          # defined in versioned-checkout.yml, files will be moved to /tmp/caliptra
+          # there is no hw version definition here because we are running in the emulator, so assume latest
+          name: caliptra-unified-${{ inputs.rom-ref }}-${{ inputs.fw-ref }}-latest-${{ inputs.artifact-suffix }}
+          path: /tmp/caliptra-unified
 
+      - name: Update rustup
+        run: |
+          rustup toolchain install 1.70-x86_64-unknown-linux-gnu
+          rustup target add riscv32imc-unknown-none-elf --toolchain 1.70-x86_64-unknown-linux-gnu
+          rustup component add rust-src --toolchain 1.70-x86_64-unknown-linux-gnu
+          rustup component add --toolchain 1.70-x86_64-unknown-linux-gnu rustfmt
+          rustup component add --toolchain 1.70-x86_64-unknown-linux-gnu clippy
+          rustup default 1.70-x86_64-unknown-linux-gnu
+      
       - name: Run tests
         run: |
-          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-unified/
+          export CALIPTRA_PREBUILT_ROM_BIN=/tmp/caliptra-unified/caliptra-rom.bin
+          export RUST_BACKTRACE=full
+
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
           fi
