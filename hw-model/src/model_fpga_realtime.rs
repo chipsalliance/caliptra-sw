@@ -446,7 +446,9 @@ impl HwModel for ModelFpgaRealtime {
         Self: Sized,
     {
         let output = Output::new(params.log_writer);
-        let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
+        let uio_num = usize::from_str(
+            &env::var("CPTRA_UIO_NUM").expect("Set CPTRA_UIO_NUM when using the FPGA"),
+        )?;
         // This locks the device, and so acts as a test mutex so that only one test can run at a time.
         let dev = UioDevice::blocking_new(uio_num)
             .expect("UIO driver not found. Run \"sudo ./hw/fpga/setup_fpga.sh\"");

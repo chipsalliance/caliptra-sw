@@ -942,7 +942,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x02), // [3:0] Major, [7:4] Minor, [15:8] Patch
+            cptra_hw_rev_id: ReadOnlyRegister::new(0x102), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
                 Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
