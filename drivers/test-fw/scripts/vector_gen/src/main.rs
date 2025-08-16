@@ -14,9 +14,12 @@ Abstract:
 
 mod hmac384_kdf_vector_gen;
 mod hmac384_vector_gen;
+mod preconditioned_key_extract_gen;
+mod utils;
 
 use crate::hmac384_kdf_vector_gen::Hmac384KdfVector;
 use crate::hmac384_vector_gen::Hmac384Vector;
+use crate::preconditioned_key_extract_gen::PreconditionedKeyExtractVector;
 
 fn hex_arr(bytes: &[u8]) -> String {
     format!(
@@ -71,5 +74,29 @@ fn main() {
     println!("  let label = {};", hex_arr(&vec_kdf_c0.label));
     println!("  let out_pub_x = {};", hex_arr(&vec_kdf_c0.out_pub_x));
     println!("  let out_pub_y = {};", hex_arr(&vec_kdf_c0.out_pub_y));
+    println!();
+
+    let vec: PreconditionedKeyExtractVector =
+        preconditioned_key_extract_gen::gen_vector(48, 48, 32);
+    println!("preconditioned_key_extract input_key_length=48");
+    println!("  let input_key = {};", hex_arr(&vec.input_key));
+    println!("  let salt = {};", hex_arr(&vec.input_salt));
+    println!("  let kdf_label = {};", hex_arr(&vec.input_kdf_label));
+    println!("  let checksum = {};", hex_arr(&vec.checksum));
+    println!("  let kdf_output = {};", hex_arr(&vec.kdf_output));
+    println!("  let output_key = {};", hex_arr(&vec.output_key));
+    println!("  let fingerprint = {};", hex_arr(&vec.fingerprint));
+    println!();
+
+    let vec: PreconditionedKeyExtractVector =
+        preconditioned_key_extract_gen::gen_vector(64, 64, 32);
+    println!("preconditioned_key_extract input_key_length=64");
+    println!("  let input_key = {};", hex_arr(&vec.input_key));
+    println!("  let salt = {};", hex_arr(&vec.input_salt));
+    println!("  let kdf_label = {};", hex_arr(&vec.input_kdf_label));
+    println!("  let checksum = {};", hex_arr(&vec.checksum));
+    println!("  let kdf_output = {};", hex_arr(&vec.kdf_output));
+    println!("  let output_key = {};", hex_arr(&vec.output_key));
+    println!("  let fingerprint = {};", hex_arr(&vec.fingerprint));
     println!();
 }
