@@ -22,8 +22,15 @@ trap '{
   fi  
 }' EXIT
 
-echo "Copying io_module source code"
-cp io_module/io_module.c petalinux_project/project-spec/meta-user/recipes-modules/io-module/files/io-module.c
+echo "BUILD_SS: ${BUILD_SS}"
+
+if [[ -z "${BUILD_SS}" ]]; then
+  echo "Copying io_module source code"
+  cp io_module/io_module.c petalinux_project/project-spec/meta-user/recipes-modules/io-module/files/io-module.c
+else
+  echo "Copying mcu io_module source code"
+  cp io_module/mcu_io_module.c petalinux_project/project-spec/meta-user/recipes-modules/io-module/files/io-module.c
+fi
 
 cd petalinux_project
 
