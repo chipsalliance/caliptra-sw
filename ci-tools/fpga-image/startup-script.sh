@@ -7,7 +7,6 @@
 
 # Stop spewing kernel noise to the UART
 echo 3 > /proc/sys/kernel/printk
-dhclient
 
 function runner_jitconfig() {
   echo "Executing GHA runner"
