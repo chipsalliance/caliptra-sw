@@ -45,6 +45,17 @@ const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
 const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 1184;
 const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
 
+// These are the default physical addresses for the peripherals. The addresses listed in
+// FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
+// FPGA addresses so similar code can be used between the emulator and the FPGA hardware models.
+// These are only used for calculating offsets from the virtual addresses retrieved from UIO.
+const EMULATOR_I3C_ADDR: usize = 0x2000_4000;
+const EMULATOR_I3C_ADDR_RANGE_SIZE: usize = 0x1000;
+const EMULATOR_I3C_END_ADDR: usize = EMULATOR_I3C_ADDR + EMULATOR_I3C_ADDR_RANGE_SIZE - 1;
+const EMULATOR_MCI_ADDR: usize = 0x2100_0000;
+const EMULATOR_MCI_ADDR_RANGE_SIZE: usize = 0xe0_0000;
+const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE_SIZE - 1;
+
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -159,7 +170,7 @@ impl Mci {
     fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
-                FPGA_MEMORY_MAP.mci_offset as *mut u32,
+                EMULATOR_MCI_ADDR as *mut u32,
                 BusMmio::new(FpgaRealtimeBus {
                     mmio: self.ptr,
                     phantom: Default::default(),
@@ -394,7 +405,7 @@ impl ModelFpgaSubsystem {
     ) -> caliptra_registers::i3ccsr::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::i3ccsr::RegisterBlock::new_with_mmio(
-                FPGA_MEMORY_MAP.i3c_offset as *mut u32,
+                EMULATOR_I3C_ADDR as *mut u32,
                 BusMmio::new(FpgaRealtimeBus {
                     mmio: self.i3c_mmio,
                     phantom: Default::default(),
@@ -1043,6 +1054,9 @@ impl HwModel for ModelFpgaSubsystem {
         let caliptra_rom_backdoor = devs[CALIPTRA_ROM_MAPPING.0]
             .map_mapping(CALIPTRA_ROM_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u8;
+        let caliptra_rom_size = devs[CALIPTRA_ROM_MAPPING.0]
+            .map_size(CALIPTRA_ROM_MAPPING.1)
+            .map_err(fmt_uio_error)?;
         let otp_mem_backdoor = devs[OTP_RAM_MAPPING.0]
             .map_mapping(OTP_RAM_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u8;
@@ -1164,21 +1178,19 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
-        println!("Clearing OTP memory");
-        let otp_mem = m.otp_slice();
-        otp_mem.fill(0);
+        let mut otp_data = vec![0; OTP_SIZE];
 
         if !m.otp_init.is_empty() {
             // write the initial contents of the OTP memory
             println!("Initializing OTP with initialized data");
-            if m.otp_init.len() > otp_mem.len() {
+            if m.otp_init.len() > otp_data.len() {
                 Err(format!(
                     "OTP initialization data is larger than OTP memory {} > {}",
                     m.otp_init.len(),
-                    otp_mem.len(),
+                    otp_data.len(),
                 ))?;
             }
-            otp_mem[..m.otp_init.len()].copy_from_slice(&m.otp_init);
+            otp_data[..m.otp_init.len()].copy_from_slice(&m.otp_init);
         }
 
         let lc_state = match params.security_state.device_lifecycle() {
@@ -1190,12 +1202,15 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Setting lifecycle controller state to {}", lc_state);
         let mem = lc_generate_memory(lc_state, 1)?;
         let offset = FUSE_LIFECYCLE_STATE_OFFSET;
-        otp_mem[offset..offset + mem.len()].copy_from_slice(&mem);
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
         let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
         let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
         let offset = FUSE_LIFECYCLE_TOKENS_OFFSET;
-        otp_mem[offset..offset + mem.len()].copy_from_slice(&mem);
+        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+        let otp_mem = m.otp_slice();
+        otp_mem.copy_from_slice(&otp_data);
 
         println!("Clearing fifo");
         // Sometimes there's garbage in here; clean it out
@@ -1208,23 +1223,19 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("AXI user written {:x}", DEFAULT_AXI_PAUSER);
 
-        // Write ROM images over backdoors
-        // ensure that they are 8-byte aligned to write to AXI
-        let mut caliptra_rom_data = params.rom.to_vec();
-        while caliptra_rom_data.len() % 8 != 0 {
-            caliptra_rom_data.push(0);
-        }
+        // copy the ROM data
+        println!("Writing Caliptra ROM");
+        let mut caliptra_rom_data = vec![0; caliptra_rom_size];
+        caliptra_rom_data[..params.rom.len()].clone_from_slice(params.rom);
 
+        let caliptra_rom_slice =
+            unsafe { core::slice::from_raw_parts_mut(m.caliptra_rom_backdoor, caliptra_rom_size) };
+        caliptra_rom_slice.copy_from_slice(&caliptra_rom_data);
+
+        println!("Writing MCU ROM");
         let mut mcu_rom_data = vec![0; mcu_rom_size];
         mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
 
-        // copy the ROM data
-        let caliptra_rom_slice = unsafe {
-            core::slice::from_raw_parts_mut(m.caliptra_rom_backdoor, caliptra_rom_data.len())
-        };
-        println!("Writing Caliptra ROM ({} bytes)", caliptra_rom_data.len());
-        caliptra_rom_slice.copy_from_slice(&caliptra_rom_data);
-        println!("Writing MCU ROM");
         let mcu_rom_slice =
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
@@ -1258,7 +1269,7 @@ impl HwModel for ModelFpgaSubsystem {
             "Setting vendor public key hash to {:x?}",
             HexSlice(vendor_pk_hash)
         );
-        let len = fuses.vendor_pk_hash.len();
+        let len = vendor_pk_hash.len();
         let offset = FUSE_VENDOR_PKHASH_OFFSET;
         otp_mem[offset..offset + len].copy_from_slice(vendor_pk_hash);
 
@@ -1315,6 +1326,14 @@ impl HwModel for ModelFpgaSubsystem {
         // self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
         //     .map_err(ModelError::from)?;
 
+        // TODO: This isn't needed in the mcu-sw-model. It should be done by MCU ROM. There must be
+        // something out of order that makes this necessary. Without it Caliptra ROM gets stuck in
+        // the BOOT_WAIT state according to the cptra_flow_status register.
+        println!("writing to cptra_bootfsm_go");
+        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        self.step();
+
         // This is the binary for:
         // L0: j L0
         // i.e., loop {}
@@ -1331,6 +1350,21 @@ impl HwModel for ModelFpgaSubsystem {
                 .unwrap_or_default(),
         );
         self.bmc.push_recovery_image(mcu_firmware);
+
+        let mut xi3c_configured = false;
+        // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
+        // it is done or timeout.
+        for _ in 0..1_000_000 {
+            if !xi3c_configured && self.i3c_target_configured() {
+                xi3c_configured = true;
+                println!("I3C target configured");
+                self.configure_i3c_controller();
+                println!("Starting recovery flow (BMC)");
+                self.start_recovery_bmc();
+            }
+            self.step();
+        }
+        println!("Finished booting");
 
         Ok(())
     }
@@ -1385,12 +1419,13 @@ pub struct FpgaRealtimeBus<'a> {
 impl FpgaRealtimeBus<'_> {
     fn ptr_for_addr(&mut self, addr: RvAddr) -> Option<*mut u32> {
         let addr = addr as usize;
-        unsafe {
-            match addr {
-                0x3002_0000..=0x3003_ffff => Some(self.mmio.add((addr - 0x3000_0000) / 4)),
-                _ => None,
-            }
-        }
+        let offset = match addr {
+            EMULATOR_I3C_ADDR..=EMULATOR_I3C_END_ADDR => EMULATOR_I3C_ADDR,
+            EMULATOR_MCI_ADDR..=EMULATOR_MCI_END_ADDR => EMULATOR_MCI_ADDR,
+            0x3002_0000..0x3004_0000 => 0x3000_0000,
+            _ => return None,
+        };
+        Some(unsafe { self.mmio.add((addr - offset) / 4) })
     }
 }
 
@@ -1399,7 +1434,7 @@ impl Bus for FpgaRealtimeBus<'_> {
         if let Some(ptr) = self.ptr_for_addr(addr) {
             Ok(unsafe { ptr.read_volatile() })
         } else {
-            println!("Error LoadAccessFault");
+            println!("Error LoadAccessFault at address 0x{:x}", addr);
             Err(BusError::LoadAccessFault)
         }
     }

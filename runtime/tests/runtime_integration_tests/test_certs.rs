@@ -560,7 +560,11 @@ fn cold_reset(
     fw_image: &[u8],
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> DefaultHwModel {
-    if cfg!(any(feature = "fpga_realtime", feature = "verilator")) {
+    if cfg!(any(
+        feature = "fpga_realtime",
+        feature = "verilator",
+        feature = "fpga_subsystem"
+    )) {
         // Re-creating the model does not seem to work for FPGA (and SW emulator cannot cold reset)
         hw.cold_reset();
     } else {
