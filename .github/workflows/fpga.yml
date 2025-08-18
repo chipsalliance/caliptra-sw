@@ -325,7 +325,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'binary_id(caliptra-drivers::drivers_integration_tests) and test(test_ocp_lock)'
+              -E 'binary_id(caliptra-rom::rom_integration_tests) and test(test_ocp_lock)'
           )
 
           cargo-nextest nextest list \
