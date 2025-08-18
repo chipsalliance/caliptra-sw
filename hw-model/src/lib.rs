@@ -71,13 +71,20 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::OpenOcdError;
 
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::ModelFpgaSubsystem;
+
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
 /// available on all HwModel implementations.  Unfortunately, rust-analyzer
 /// (used by IDEs) can't fully resolve associated types from `impl Trait`, so
 /// such functions should use `DefaultHwModel` until they fix that. Users should
 /// treat `DefaultHwModel` as if it were `impl HwModel`.
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 pub type DefaultHwModel = ModelEmulated;
 
 #[cfg(feature = "verilator")]
@@ -85,6 +92,9 @@ pub type DefaultHwModel = ModelVerilated;
 
 #[cfg(feature = "fpga_realtime")]
 pub type DefaultHwModel = ModelFpgaRealtime;
+
+#[cfg(feature = "fpga_subsystem")]
+pub type DefaultHwModel = ModelFpgaSubsystem;
 
 pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
@@ -997,7 +1007,10 @@ pub trait HwModel: SocManager {
 
         self.soc_mbox().execute().write(|w| w.execute(false));
 
-        if cfg!(not(feature = "fpga_realtime")) {
+        if cfg!(not(any(
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ))) {
             // Don't check for mbox_idle() unless the hw-model supports
             // fine-grained timing control; the firmware may proceed to lock the
             // mailbox shortly after the mailbox transcation finishes.
@@ -1327,7 +1340,7 @@ mod tests {
         )
         .unwrap();
 
-        if cfg!(feature = "fpga_realtime") {
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
             // The fpga_realtime model can't pause execution precisely, so just assert the
             // entire output of the program.
             assert_eq!(
@@ -1840,7 +1853,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+    #[cfg(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ))]
     pub fn test_cold_reset() {
         let mut model = caliptra_hw_model::new(
             InitParams {
