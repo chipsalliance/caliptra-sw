@@ -21,6 +21,30 @@ on:
 jobs:
   build_kernel:
     runs-on: [e2-standard-32, vck190-tools]
+    strategy:
+      matrix:
+        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+        include:
+          - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
+            image_variant: core-2.0
+          - bitstream_name: 2p0core_5263740.xsa
+            image_variant: core-2.0
+          - bitstream_hash: bdc58b49e2b5c8bd45429c3d9d9a514c7dab7f6dd7b9bdc97a299272a20d10a8
+            image_variant: core-2.1
+          - bitstream_name: 2p1core_a57cc52.xsa
+            image_variant: core-2.1
+          - bitstream_hash: 7df0cd920b4944552f0c25c96d0945821073d82bc9c957c14d471ce2ee80c648
+            image_variant: subsystem-2.0
+          - bitstream_name: ss2p0SS_ea5d803.xsa
+            image_variant: subsystem-2.0
+          - bitstream_hash: 8f3df0309e6187f280b43a954416ea26a7206aac23a325c21817c15fda143515
+            image_variant: subsystem-2.1
+          - bitstream_name: ss2p1SS_e847f4.xsa
+            image_variant: subsystem-2.1
+    env:
+      IMAGE_VARIANT: ${{ matrix.image_variant }}
+      BITSTREAM_NAME: ${{ matrix.bitstream_name }}
+      BITSTREAM_SHA256: ${{ matrix.bitstream_hash }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -39,40 +63,57 @@ jobs:
 
       - name: Build Kernel
         run: |
+          echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250701/system.xsa /tmp/system.xsa
+          sudo scp /vck190-tools/caliptra-bitstreams/20250815/${BITSTREAM_NAME} /tmp/system.xsa
+
+          if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
+            echo "Bitstream does not match expected hash."
+            exit 1
+          fi
+
           sudo chown $USER:$GROUP /tmp/system.xsa
 
           pushd hw/fpga
+
+          if [[ "$IMAGE_VARIANT" == "subsystem-2.0" || "$IMAGE_VARIANT" == "subsystem-2.1" ]]; then
+            export BUILD_SS=true
+          fi
+
 
           ./create_boot_bin.sh /tmp/system.xsa
 
           # TODO(clundin): Not all of these artifacts are required.
           tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
-          mv vck190-kernel.tar.gz /tmp/vck190-kernel.tar.gz
+          mv vck190-kernel.tar.gz /tmp/vck190-kernel-${IMAGE_VARIANT}.tar.gz
 
           IO_MODULE_PATH=$(find . -name 'io-module.ko')
-          mv $IO_MODULE_PATH /tmp/io-module.ko
+          mv $IO_MODULE_PATH /tmp/io-module-${IMAGE_VARIANT}.ko
           popd
 
       - name: 'Upload kernel artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: vck190-kernel
-          path: /tmp/vck190-kernel.tar.gz
+          name: vck190-kernel-${{ matrix.image_variant}}
+          path: /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
           retention-days: 1
 
       - name: 'Upload kernel module artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: vck190-kernel-module
-          path: /tmp/io-module.ko
+          name: vck190-kernel-module-${{ matrix.image_variant}}
+          path: /tmp/io-module-${{ matrix.image_variant }}.ko
           retention-days: 1
 
   build_sd_image:
     runs-on: ubuntu-22.04
     needs: [build_kernel]
+    strategy:
+      matrix:
+        image_variant: [core-2.0, core-2.1, subsystem-2.0, subsystem-2.1]
+    env:
+      IMAGE_VARIANT: ${{ matrix.image_variant }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -80,13 +121,13 @@ jobs:
       - name: 'Download kernel artifact'
         uses: actions/download-artifact@v4
         with:
-          name: vck190-kernel
+          name: vck190-kernel-${{ matrix.image_variant }}
           path: /tmp/vck190-kernel/
 
       - name: 'Download kernel module artifact'
         uses: actions/download-artifact@v4
         with:
-          name: vck190-kernel-module
+          name: vck190-kernel-module-${{ matrix.image_variant }}
           path: /tmp/vck190-kmod/
 
       - name: Install pre-requisites
@@ -98,11 +139,11 @@ jobs:
       - name: Build SD image
         run: |
           cd ci-tools/fpga-image
-          sudo bash build.sh
+          sudo KERNEL_ARCHIVE=/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz KERNEL_MODULE_ARCHIVE=/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko bash build.sh
 
       - name: 'Upload image as artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-fpga-image
+          name: caliptra-fpga-image-${{ matrix.image_variant }}
           path: ci-tools/fpga-image/out/image.img
           retention-days: 90
