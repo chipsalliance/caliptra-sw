@@ -2,6 +2,8 @@
 name: Subsystem FPGA Build
 
 on:
+  push:
+    branches: ["clundin/ocp-lock-tests-2.x"]
   pull_request:
   workflow_call:
     inputs:
@@ -177,7 +179,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190-mcu
+    runs-on: vck190-2-1
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
@@ -246,7 +248,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'package(caliptra-hw-model) and test(tests::test_execution)'
+              -E 'binary_id(caliptra-drivers::drivers_integration_tests) and test(test_populate_mdk)'
           )
 
           cargo-nextest nextest list \

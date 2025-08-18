@@ -144,7 +144,8 @@ pub extern "C" fn rom_entry() -> ! {
 
     if env.soc_ifc.ocp_lock_enabled() {
         cprintln!("[ROM]: OCP LOCK Enabled");
-        if cfg!(feature = "ocp-lock") {
+        #[cfg(feature = "ocp-lock")]
+        {
             if let Err(e) = crate::flow::ocp_lock::OcpLockFlow::run(
                 &mut env.soc_ifc,
                 &mut env.hmac,

@@ -1127,6 +1127,7 @@ mod tests {
     use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_api::soc_mgr::SocManager;
     use caliptra_builder::firmware;
+    use caliptra_builder::firmware::driver_tests::OCP_LOCK;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
