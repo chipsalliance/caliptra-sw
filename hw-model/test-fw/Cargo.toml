@@ -11,6 +11,7 @@ riscv = ["caliptra-test-harness/riscv"]
 emu = ["caliptra-test-harness/emu"]
 
 [dependencies]
+caliptra-api.workspace = true
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness.workspace = true

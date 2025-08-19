@@ -209,6 +209,7 @@ pub struct ModelFpgaSubsystem {
     pub recovery_ctrl_written: bool,
     pub bmc_step_counter: usize,
     pub blocks_sent: usize,
+    pub enable_mcu_uart_log: bool,
 }
 
 impl ModelFpgaSubsystem {
@@ -315,30 +316,32 @@ impl ModelFpgaSubsystem {
             }
         }
 
-        loop {
-            // Check if the FIFO is full (which probably means there was an overrun)
-            if self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_status
-                .is_set(FifoStatus::Full)
-            {
-                panic!("FPGA log FIFO overran");
-            }
-            if self
-                .wrapper
-                .fifo_regs()
-                .dbg_fifo_status
-                .is_set(FifoStatus::Empty)
-            {
-                break;
-            }
-            let data = self.wrapper.fifo_regs().dbg_fifo_data_pop.extract();
-            // Add byte to log if it is valid
-            if data.is_set(FifoData::CharValid) {
-                self.output()
-                    .sink()
-                    .push_uart_char(data.read(FifoData::NextChar) as u8);
+        if self.enable_mcu_uart_log {
+            loop {
+                // Check if the FIFO is full (which probably means there was an overrun)
+                if self
+                    .wrapper
+                    .fifo_regs()
+                    .dbg_fifo_status
+                    .is_set(FifoStatus::Full)
+                {
+                    panic!("FPGA log FIFO overran");
+                }
+                if self
+                    .wrapper
+                    .fifo_regs()
+                    .dbg_fifo_status
+                    .is_set(FifoStatus::Empty)
+                {
+                    break;
+                }
+                let data = self.wrapper.fifo_regs().dbg_fifo_data_pop.extract();
+                // Add byte to log if it is valid
+                if data.is_set(FifoData::CharValid) {
+                    self.output()
+                        .sink()
+                        .push_uart_char(data.read(FifoData::NextChar) as u8);
+                }
             }
         }
         if self.output().exit_requested() {
@@ -1176,6 +1179,7 @@ impl HwModel for ModelFpgaSubsystem {
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
+            enable_mcu_uart_log: params.enable_mcu_uart_log,
         };
 
         println!("AXI reset");
