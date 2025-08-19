@@ -246,7 +246,7 @@ jobs:
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
-              -E 'package(caliptra-hw-model) and test(tests::test_execution)'
+              -E 'package(caliptra-hw-model) and test(tests::test_execution) | binary_id(caliptra-drivers::drivers_integration_tests)'
           )
 
           cargo-nextest nextest list \
