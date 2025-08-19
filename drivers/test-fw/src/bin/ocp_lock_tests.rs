@@ -62,7 +62,8 @@ fn test_populate_mdk() {
 }
 
 test_suite! {
-    test_hw_supports_ocp_lock,
+    // Can only run one test at a time.
+    // test_hw_supports_ocp_lock,
     test_populate_mdk,
 }
 
