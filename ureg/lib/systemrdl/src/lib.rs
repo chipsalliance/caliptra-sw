@@ -157,7 +157,10 @@ fn translate_field(iref: systemrdl::InstanceRef) -> Result<ureg::RegisterField, 
     Ok(result)
 }
 
-fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Error> {
+fn translate_register(
+    iref: systemrdl::InstanceRef,
+    default_offset: Option<u64>,
+) -> Result<ureg::Register, Error> {
     let wrap_err = |err: Error| Error::RegisterError {
         register_name: iref.instance.name.clone(),
         err: Box::new(err),
@@ -180,10 +183,13 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
 
     let result = ureg_schema::Register {
         name: inst.name.clone(),
-        offset: inst
-            .offset
-            .ok_or(Error::OffsetNotDefined)
-            .map_err(wrap_err)?,
+        offset: {
+            match (inst.offset, default_offset) {
+                (Some(explicit), _) => explicit,
+                (None, Some(next)) => next,
+                (None, None) => return Err(Error::OffsetNotDefined).map_err(wrap_err),
+            }
+        },
         default_val: ty.fields.iter().fold(0, |reset, field| {
             let width_mask = (1 << field.width) - 1;
             reset | ((field.default_val & width_mask) << field.position)
@@ -394,7 +400,7 @@ fn translate_block(iref: InstanceRef, top: bool) -> Result<RegisterBlock, Error>
         };
 
         if child.instance.scope.ty == ComponentType::Reg.into() {
-            let r = Rc::new(translate_register(child).map_err(wrap_err)?);
+            let r = Rc::new(translate_register(child, next_offset).map_err(wrap_err)?);
             block.registers.push(r.clone());
             next_offset =
                 Some(r.offset + r.ty.width.in_bytes() * r.array_dimensions.iter().product::<u64>());
