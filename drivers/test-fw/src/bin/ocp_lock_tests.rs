@@ -26,12 +26,10 @@ use caliptra_registers::{
 };
 use caliptra_test_harness::test_suite;
 
-// fn test_hw_supports_ocp_lock() {
-//     let soc_ifc = unsafe { SocIfcReg::new() };
-//     assert!(SocIfc::new(soc_ifc).ocp_lock_enabled());
-// }
-
 fn test_populate_mdk() {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    assert!(SocIfc::new(soc_ifc).ocp_lock_enabled());
+
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -39,7 +37,7 @@ fn test_populate_mdk() {
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
-        )p
+        )
         .unwrap()
     };
 
@@ -62,8 +60,6 @@ fn test_populate_mdk() {
 }
 
 test_suite! {
-    // Can only run one test at a time.
-    // test_hw_supports_ocp_lock,
     test_populate_mdk,
 }
 
