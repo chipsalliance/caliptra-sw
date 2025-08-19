@@ -71,6 +71,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
+      CALIPTRA_MCU_COMMIT: 4d150bf2df9b1b321bb975e543158f0e9338f1f5
 
     steps:
       - name: Checkout repo
@@ -125,8 +126,43 @@ jobs:
           rustup toolchain install 1.84-x86_64-unknown-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
+      - name: Restore MCU ROM from cache
+        uses: actions/cache/restore@v3
+        id: restore_mcu_rom_cache
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+
+      - name: Extract MCU ROM from cache
+        if: "steps.restore_mcu_rom_cache.outputs.cache-hit"
+        run: |
+          sudo tar xvf /tmp/caliptra-mcu-binaries.tar.gz
+
+      - name: Build test MCU ROM
+        if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
+        run: |
+          git clone  --depth=1 "https://github.com/chipsalliance/caliptra-mcu-sw"
+          pushd caliptra-mcu-sw
+          git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
+          git reset --hard ${CALIPTRA_MCU_COMMIT}
+          git submodule update --init --recursive
+
+          echo "Building MCU ROM from commit: $(git rev-list HEAD | head -n 1)"
+
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+          cargo xtask-fpga rom-build --platform fpga
+          tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
+
+      - name: Save test MCU ROM to cache
+        if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
+        uses: actions/cache/save@v3
+        with:
+          path: /tmp/caliptra-mcu-binaries.tar.gz
+          key: mcu-rom-${{ env.CALIPTRA_MCU_COMMIT }}
+
       - name: Build test binaries
         run: |
+          export CPTRA_MCU_ROM=$PWD/mcu-rom-fpga.bin
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
           if [ "${{ inputs.rom-version }}" != "latest" ]; then

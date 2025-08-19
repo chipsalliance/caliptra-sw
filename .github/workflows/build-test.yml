@@ -89,6 +89,8 @@ jobs:
 
       - name: Build hw-model with fpga_realtime, fpga_subsystem, itrng, coverage
         run: |
+          # Point `CPTRA_MCU_ROM` at a known file to satisfy a build time dependency.
+          export CPTRA_MCU_ROM="${PWD}/Cargo.toml"
           for feature in fpga_realtime fpga_subsystem itrng coverage; do
             echo "Building with $feature"
             cargo build --locked --features $feature
