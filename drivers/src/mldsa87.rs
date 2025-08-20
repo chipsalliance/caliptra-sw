@@ -54,6 +54,11 @@ pub type Mldsa87SignRnd = LEArray4x8;
 type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
+// Control register constants.
+const KEYGEN: u32 = 1;
+const SIGN: u32 = 2;
+const VERIFY: u32 = 3;
+const KEYGEN_SIGN: u32 = 4;
 
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
@@ -175,7 +180,6 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        const KEYGEN: u32 = 1;
         mldsa.mldsa_ctrl().write(|w| w.ctrl(KEYGEN));
 
         // Wait for hardware ready
@@ -257,11 +261,9 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa.mldsa_ctrl().write(|w| {
-            const SIGNING: u32 = 2;
-            const KEYGEN_SIGN: u32 = 4;
-            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGNING })
-        });
+        mldsa
+            .mldsa_ctrl()
+            .write(|w| w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN }));
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -367,8 +369,6 @@ impl Mldsa87 {
 
         // Program the command register for key generation
         mldsa.mldsa_ctrl().write(|w| {
-            const SIGN: u32 = 2;
-            const KEYGEN_SIGN: u32 = 4;
             w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
                 .stream_msg(true)
         });
@@ -427,8 +427,7 @@ impl Mldsa87 {
         signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification
-        const VERIFYING: u32 = 3;
-        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFYING));
+        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
 
         // Wait for status to be valid
         Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
@@ -510,10 +509,9 @@ impl Mldsa87 {
         signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification with streaming
-        const VERIFYING: u32 = 3;
         mldsa
             .mldsa_ctrl()
-            .write(|w| w.ctrl(VERIFYING).stream_msg(true));
+            .write(|w| w.ctrl(VERIFY).stream_msg(true));
 
         // Program the message to the hardware
         Mldsa87::program_var_msg(mldsa, msg)?;
@@ -561,7 +559,6 @@ impl Mldsa87 {
         let iv = Self::generate_iv(trng)?;
         iv.write_to_reg(mldsa.entropy());
 
-        const KEYGEN_SIGN: u32 = 4;
         mldsa
             .mldsa_ctrl()
             .write(|w| w.pcr_sign(true).ctrl(KEYGEN_SIGN));
