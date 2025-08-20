@@ -220,12 +220,32 @@ add_files -fileset constrs_1 $fpgaDir/src/ddr4_constraints.xdc
 
 # Start build
 if {$BUILD} {
-  launch_runs synth_1 -jobs 10
+  set time_start_synth [clock clicks -millisec]
+  launch_runs synth_1 -jobs 32
   wait_on_runs synth_1
-  launch_runs impl_1 -to_step write_device_image -jobs 10
+  set time_finish_synth [clock clicks -millisec]
+
+  set time_start_impl [clock clicks -millisec]
+  launch_runs impl_1 -to_step write_device_image -jobs 32
   wait_on_runs impl_1
+  set time_finish_impl [clock clicks -millisec]
+
+  set time_start_hw_platform [clock clicks -millisec]
   open_run impl_1
   report_utilization -file $outputDir/utilization.txt
-
   write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa
+  set time_finish_hw_platform [clock clicks -millisec]
+
+  puts stderr "FPGA Synthesis      took [expr {($time_finish_synth-$time_start_synth)/60000.}] minutes"
+  puts stderr "FPGA Implementation took [expr {($time_finish_impl-$time_start_impl)/60000.}] minutes"
+  puts stderr "FPGA Write HW Plat  took [expr {($time_finish_hw_platform-$time_start_hw_platform)/60000.}] minutes"
+  puts stderr "FPGA overall build  took [expr {($time_finish_hw_platform-$time_start_synth)/60000.}] minutes"
+
+  set build_time [ open $outputDir/jtag_constraints.xdc w ]
+  puts $build_time "Built from $VERSION"
+  puts $build_time "FPGA Synthesis      took [expr {($time_finish_synth-$time_start_synth)/60000.}] minutes"
+  puts $build_time "FPGA Implementation took [expr {($time_finish_impl-$time_start_impl)/60000.}] minutes"
+  puts $build_time "FPGA Write HW Plat  took [expr {($time_finish_hw_platform-$time_start_hw_platform)/60000.}] minutes"
+  puts $build_time "FPGA overall build  took [expr {($time_finish_hw_platform-$time_start_synth)/60000.}] minutes"
+  close $build_time
 }
