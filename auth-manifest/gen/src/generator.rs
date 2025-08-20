@@ -55,33 +55,44 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.version = config.version;
         auth_manifest.preamble.flags = config.flags.bits();
 
-        // Sign the vendor manifest public keys.
-        auth_manifest.preamble.vendor_pub_keys = config.vendor_man_key_info.pub_keys;
+        // Set the vendor manifest public keys if provided
+        if let Some(vendor_man_config) = &config.vendor_man_key_info {
+            auth_manifest.preamble.vendor_pub_keys = vendor_man_config.pub_keys;
+        }
 
-        let range = AuthManifestPreamble::vendor_signed_data_range();
+        // Sign the vendor flags and keys if provided
+        if let Some(vendor_fw_config) = &config.vendor_fw_key_info {
+            let range = AuthManifestPreamble::vendor_signed_data_range();
 
-        let data = auth_manifest
-            .preamble
-            .as_bytes()
-            .get(range.start as usize..)
-            .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
-            .get(..range.len())
-            .ok_or(anyhow::anyhow!(
-                "Failed to get vendor signed data range length"
-            ))?;
+            let data = auth_manifest
+                .preamble
+                .as_bytes()
+                .get(range.start as usize..)
+                .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
+                .get(..range.len())
+                .ok_or(anyhow::anyhow!(
+                    "Failed to get vendor signed data range length"
+                ))?;
 
-        let digest = self.crypto.sha384_digest(data)?;
+            let digest = self.crypto.sha384_digest(data)?;
 
-        if let Some(priv_keys) = config.vendor_fw_key_info.priv_keys {
-            let sig = self.crypto.ecdsa384_sign(
-                &digest,
-                &priv_keys.ecc_priv_key,
-                &config.vendor_fw_key_info.pub_keys.ecc_pub_key,
-            )?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
+            println!("Vendor TBS sha384 is:");
+            for number in &digest {
+                print!("{:x} ", number);
+            }
+            println!(); // Print a newline at the end
 
-            let lms_sig = self.crypto.lms_sign(&digest, &priv_keys.lms_priv_key)?;
-            auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
+            if let Some(priv_keys) = vendor_fw_config.priv_keys {
+                let sig = self.crypto.ecdsa384_sign(
+                    &digest,
+                    &priv_keys.ecc_priv_key,
+                    &vendor_fw_config.pub_keys.ecc_pub_key,
+                )?;
+                auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = sig;
+
+                let lms_sig = self.crypto.lms_sign(&digest, &priv_keys.lms_priv_key)?;
+                auth_manifest.preamble.vendor_pub_keys_signatures.lms_sig = lms_sig;
+            }
         }
 
         // Sign the owner manifest public keys.
@@ -113,33 +124,35 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             .crypto
             .sha384_digest(auth_manifest.image_metadata_col.as_bytes())?;
 
-        // Sign the IMC with the vendor manifest public keys if indicated in the flags.
+        // Sign the IMC with the vendor manifest public keys if indicated in the flags and if provided
         if config
             .flags
             .contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
         {
-            if let Some(vendor_man_priv_keys) = config.vendor_man_key_info.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &vendor_man_priv_keys.ecc_priv_key,
-                    &config.vendor_man_key_info.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .ecc_sig = sig;
+            if let Some(vendor_man_config) = &config.vendor_man_key_info {
+                if let Some(vendor_man_priv_keys) = vendor_man_config.priv_keys {
+                    let sig = self.crypto.ecdsa384_sign(
+                        &digest,
+                        &vendor_man_priv_keys.ecc_priv_key,
+                        &vendor_man_config.pub_keys.ecc_pub_key,
+                    )?;
+                    auth_manifest
+                        .preamble
+                        .vendor_image_metdata_signatures
+                        .ecc_sig = sig;
 
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
-                auth_manifest
-                    .preamble
-                    .vendor_image_metdata_signatures
-                    .lms_sig = lms_sig;
+                    let lms_sig = self
+                        .crypto
+                        .lms_sign(&digest, &vendor_man_priv_keys.lms_priv_key)?;
+                    auth_manifest
+                        .preamble
+                        .vendor_image_metdata_signatures
+                        .lms_sig = lms_sig;
+                }
             }
         }
 
-        // Sign the IMC with the owner manifest public keys.
+        // Sign the IMC with the owner manifest public keys if provided
         if let Some(owner_man_config) = &config.owner_man_key_info {
             if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(

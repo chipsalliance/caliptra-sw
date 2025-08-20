@@ -109,13 +109,22 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let gen_config = AuthManifestGeneratorConfig {
         version: *version,
         flags,
-        vendor_man_key_info: config::vendor_config_from_file(
+        vendor_man_key_info: config::optional_key_config_from_file(
             key_dir,
             &config.vendor_man_key_config,
         )?,
-        owner_man_key_info: config::owner_config_from_file(key_dir, &config.owner_man_key_config)?,
-        vendor_fw_key_info: config::vendor_config_from_file(key_dir, &config.vendor_fw_key_config)?,
-        owner_fw_key_info: config::owner_config_from_file(key_dir, &config.owner_fw_key_config)?,
+        owner_man_key_info: config::optional_key_config_from_file(
+            key_dir,
+            &config.owner_man_key_config,
+        )?,
+        vendor_fw_key_info: config::optional_key_config_from_file(
+            key_dir,
+            &config.vendor_fw_key_config,
+        )?,
+        owner_fw_key_info: config::optional_key_config_from_file(
+            key_dir,
+            &config.owner_fw_key_config,
+        )?,
         image_metadata_list: config::image_metadata_config_from_file(&config.image_metadata_list)?,
     };
 
