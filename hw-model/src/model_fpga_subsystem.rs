@@ -1036,7 +1036,11 @@ impl HwModel for ModelFpgaSubsystem {
             }
             _ => {}
         }
-        let mcu_rom = include_bytes!(env!("CPTRA_MCU_ROM"));
+        let mcu_rom = std::fs::read(
+            std::env::var("CPTRA_MCU_ROM")
+                .expect("set the ENV VAR CPTRA_MCU_ROM to the absolute path of caliptra-mcu rom"),
+        )
+        .expect("couldn't read CPTRA_MCU_ROM");
 
         let output = Output::new(params.log_writer);
         let dev0 = UioDevice::blocking_new(0)?;
@@ -1231,7 +1235,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Writing MCU ROM");
         let mut mcu_rom_data = vec![0; mcu_rom_size];
-        mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
+        mcu_rom_data[..mcu_rom.len()].clone_from_slice(&mcu_rom);
 
         let mcu_rom_slice =
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };

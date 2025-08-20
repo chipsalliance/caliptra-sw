@@ -162,7 +162,6 @@ jobs:
 
       - name: Build test binaries
         run: |
-          export CPTRA_MCU_ROM=$PWD/mcu-rom-fpga.bin
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
@@ -204,6 +203,7 @@ jobs:
             FEATURES=hw-${{ inputs.hw-version }}
           fi
           cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          cp mcu-rom-fpga.bin /tmp/caliptra-test-firmware/mcu-rom-fpga.bin
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
@@ -258,8 +258,9 @@ jobs:
       - name: Execute tests
         run: |
           export RUST_TEST_THREADS=1
+          
           TEST_BIN=/tmp/caliptra-test-binaries
-          VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
+          VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1 CPTRA_MCU_ROM=/tmp/caliptra-test-firmware/mcu-rom-fpga.bin"
 
           if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
             VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
@@ -278,6 +279,7 @@ jobs:
 
           # TODO add the remaining caliptra core integration tests
           COMMON_ARGS=(
+
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
               --target-dir-remap="${TEST_BIN}/target"
