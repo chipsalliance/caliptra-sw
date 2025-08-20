@@ -21,10 +21,10 @@ use caliptra_drivers::{
     KeyWriteArgs, LEArray4x16, LEArray4x8, Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey,
     Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, Trng,
 };
+use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
-use caliptra_registers::mldsa::MldsaReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -682,7 +682,7 @@ fn test_gen_key_pair() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let key_out_1 = KeyWriteArgs {
@@ -706,7 +706,7 @@ fn test_gen_key_pair() {
 }
 
 fn test_sign() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -733,7 +733,7 @@ fn test_sign() {
 }
 
 fn test_sign_caller_provided_private_key() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -769,7 +769,7 @@ fn generate_msg<const N: usize>() -> [u8; N] {
 }
 
 fn test_sign_and_verify_var() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -816,7 +816,7 @@ fn test_sign_and_verify_var() {
 
 #[allow(dead_code)]
 fn test_sign_caller_provided_private_key_var_msg() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -846,7 +846,7 @@ fn test_sign_caller_provided_private_key_var_msg() {
 }
 
 fn test_keygen_caller_provided_seed() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -875,7 +875,7 @@ fn test_keygen_caller_provided_seed() {
 
 #[allow(dead_code)]
 fn test_keygen_caller_provided_seed_var_msg() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let mut trng = unsafe {
         Trng::new(
@@ -905,7 +905,7 @@ fn test_keygen_caller_provided_seed_var_msg() {
 }
 
 fn test_verify() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     assert_eq!(
         ml_dsa87
@@ -920,7 +920,7 @@ fn test_verify() {
 }
 
 fn test_verify_failure() {
-    let mut ml_dsa87 = unsafe { Mldsa87::new(MldsaReg::new()) };
+    let mut ml_dsa87 = unsafe { Mldsa87::new(AbrReg::new()) };
 
     let msg = Mldsa87Msg::from([0xff; 64]);
 
