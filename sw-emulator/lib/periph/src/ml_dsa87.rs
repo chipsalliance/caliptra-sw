@@ -240,11 +240,11 @@ pub struct Mldsa87 {
     kv_rd_seed_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
 
     /// Error Global Intr register
-    #[register(offset = 0x0000_b00c)]
+    #[register(offset = 0x0000_810c)]
     error_global_intr: ReadOnlyRegister<u32>,
 
     /// Error Internal Intr register
-    #[register(offset = 0x0000_b014)]
+    #[register(offset = 0x0000_8114)]
     error_internal_intr: ReadOnlyRegister<u32>,
 
     private_key: [u8; ML_DSA87_PRIVKEY_SIZE],
