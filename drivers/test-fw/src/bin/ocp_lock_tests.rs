@@ -28,7 +28,7 @@ use caliptra_test_harness::test_suite;
 
 fn test_populate_mdk() {
     let soc_ifc = unsafe { SocIfcReg::new() };
-    let soc_ifc = SocIfc::new(soc_ifc);
+    let mut soc_ifc = SocIfc::new(soc_ifc);
     assert!(soc_ifc.ocp_lock_enabled());
 
     soc_ifc.ocp_lock_set_lock_in_progress();
