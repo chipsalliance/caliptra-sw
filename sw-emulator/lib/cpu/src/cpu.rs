@@ -652,7 +652,10 @@ impl<TBus: Bus> Cpu<TBus> {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
                 BusError::InstrAccessFault => Err(RvException::instr_access_fault(addr)),
-                BusError::LoadAccessFault => Err(RvException::load_access_fault(addr)),
+                BusError::LoadAccessFault => {
+                    println!("load access fault {:x}", addr);
+                    Err(RvException::load_access_fault(addr))
+                }
                 BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
                 BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
                 BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
