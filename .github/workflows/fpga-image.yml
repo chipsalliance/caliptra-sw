@@ -4,11 +4,13 @@ name: Build FPGA SD image
 on:
   pull_request:
     paths:
+      - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"
 
   push:
     branches: ["main-2.x"]
     paths:
+      - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"
 
   schedule:
@@ -27,19 +29,19 @@ jobs:
         include:
           - bitstream_hash: cb66e3117cab78bf503cfb15a5e1c4c6fc895dc810ad49b78a9de18180837f47
             image_variant: core-2.0
-          - bitstream_name: 2p0core_5263740.xsa
+          - bitstream_name: xsa_core2p0_865bf243.xsa
             image_variant: core-2.0
           - bitstream_hash: bdc58b49e2b5c8bd45429c3d9d9a514c7dab7f6dd7b9bdc97a299272a20d10a8
             image_variant: core-2.1
-          - bitstream_name: 2p1core_a57cc52.xsa
+          - bitstream_name: xsa_core2p1_a57cc52e.xsa
             image_variant: core-2.1
-          - bitstream_hash: 7df0cd920b4944552f0c25c96d0945821073d82bc9c957c14d471ce2ee80c648
+          - bitstream_hash: 71b0ffd91dab7344a110d03b98b95c314a31f5763e5f56819c3d657de908c5cf
             image_variant: subsystem-2.0
-          - bitstream_name: ss2p0SS_ea5d803.xsa
+          - bitstream_name: xsa_ss2p0_24c0ea0b.xsa
             image_variant: subsystem-2.0
-          - bitstream_hash: 8f3df0309e6187f280b43a954416ea26a7206aac23a325c21817c15fda143515
+          - bitstream_hash: 3637f0b247ea3b1091dc0554dd92f1c33c336e354bd7e7fad9ee7634cd8d0a98
             image_variant: subsystem-2.1
-          - bitstream_name: ss2p1SS_e847f4.xsa
+          - bitstream_name: xsa_ss2p1_e1932207.xsa
             image_variant: subsystem-2.1
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
@@ -66,7 +68,7 @@ jobs:
           echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
           source /vck190-tools/petalinux-tool/settings.sh
 
-          sudo scp /vck190-tools/caliptra-bitstreams/20250815/${BITSTREAM_NAME} /tmp/system.xsa
+          sudo scp /vck190-tools/caliptra-bitstreams/20250820/${BITSTREAM_NAME} /tmp/system.xsa
 
           if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
             echo "Bitstream does not match expected hash."
