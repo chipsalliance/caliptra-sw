@@ -24,7 +24,7 @@ use caliptra_cfi_derive::Launder;
 use caliptra_cfi_lib::{
     cfi_assert_eq, cfi_assert_eq_16_words, cfi_assert_ne_16_words, cfi_launder,
 };
-use caliptra_registers::mldsa::{MldsaReg, RegisterBlock};
+use caliptra_registers::abr::{AbrReg, RegisterBlock};
 use zerocopy::FromBytes;
 use zerocopy::{IntoBytes, Unalign};
 
@@ -54,6 +54,11 @@ pub type Mldsa87SignRnd = LEArray4x8;
 type Mldsa87VerifyRes = LEArray4x16;
 
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
+// Control register constants.
+const KEYGEN: u32 = 1;
+const SIGN: u32 = 2;
+const VERIFY: u32 = 3;
+const KEYGEN_SIGN: u32 = 4;
 
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
@@ -91,11 +96,11 @@ impl<'a> From<&'a Mldsa87PrivKey> for Mldsa87Seed<'a> {
 
 /// MLDSA-87  API
 pub struct Mldsa87 {
-    mldsa87: MldsaReg,
+    mldsa87: AbrReg,
 }
 
 impl Mldsa87 {
-    pub fn new(mldsa87: MldsaReg) -> Self {
+    pub fn new(mldsa87: AbrReg) -> Self {
         Self { mldsa87 }
     }
 
@@ -150,21 +155,23 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Copy seed to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
-            Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
-                    .map_err(|err| err.into_read_seed_err())?
-            }
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
+            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
+                key,
+                mldsa.kv_mldsa_seed_rd_status(),
+                mldsa.kv_mldsa_seed_rd_ctrl(),
+            )
+            .map_err(|err| err.into_read_seed_err())?,
             Mldsa87Seed::PrivKey(_) => Err(CaliptraError::DRIVER_MLDSA87_KEY_GEN_SEED_BAD_USAGE)?,
         }
 
@@ -173,21 +180,21 @@ impl Mldsa87 {
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa.ctrl().write(|w| w.ctrl(|w| w.keygen()));
+        mldsa.mldsa_ctrl().write(|w| w.ctrl(KEYGEN));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
 
         // Copy pubkey
-        let pubkey = Mldsa87PubKey::read_from_reg(mldsa.pubkey());
+        let pubkey = Mldsa87PubKey::read_from_reg(mldsa.mldsa_pubkey());
 
         // Copy private key if requested.
         if let Some(priv_key) = priv_key_out {
-            *priv_key = Mldsa87PrivKey::read_from_reg(mldsa.privkey_out());
+            *priv_key = Mldsa87PrivKey::read_from_reg(mldsa.mldsa_privkey_out());
         }
 
         // Clear the hardware when done
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         Ok(pubkey)
         // TODO check that pubkey is valid?
@@ -220,53 +227,49 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
-            Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
-                    .map_err(|err| err.into_read_seed_err())?
-            }
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
+            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
+                key,
+                mldsa.kv_mldsa_seed_rd_status(),
+                mldsa.kv_mldsa_seed_rd_ctrl(),
+            )
+            .map_err(|err| err.into_read_seed_err())?,
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                priv_key.write_to_reg(mldsa.privkey_in())
+                priv_key.write_to_reg(mldsa.mldsa_privkey_in())
             }
         }
 
         // Copy digest
-        msg.write_to_reg(mldsa.msg());
+        msg.write_to_reg(mldsa.mldsa_msg());
 
         // Sign RND, TODO do we want deterministic?
-        sign_rnd.write_to_reg(mldsa.sign_rnd());
+        sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
         iv.write_to_reg(mldsa.entropy());
 
         // Program the command register for key generation
-        mldsa.ctrl().write(|w| {
-            w.ctrl(|w| {
-                if gen_keypair {
-                    w.keygen_sign()
-                } else {
-                    w.signing()
-                }
-            })
-        });
+        mldsa
+            .mldsa_ctrl()
+            .write(|w| w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN }));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
 
         // Copy signature
-        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
 
         // No need to zeroize here, as the hardware will be zeroized by verify.
         let result = self.verify(pub_key, msg, &signature)?;
@@ -281,25 +284,25 @@ impl Mldsa87 {
     fn program_var_msg(mldsa: RegisterBlock<ureg::RealMmioMut>, msg: &[u8]) -> CaliptraResult<()> {
         // Wait for stream ready or valid status.
         Mldsa87::wait(mldsa, || {
-            mldsa.status().read().msg_stream_ready() || mldsa.status().read().valid()
+            mldsa.mldsa_status().read().msg_stream_ready() || mldsa.mldsa_status().read().valid()
         })?;
 
         // Check if the operation completed prematurely.
         // This can happen in case of verification where the signature is invalid.
         // In this case, we should not proceed with streaming the message.
-        if mldsa.status().read().valid() {
+        if mldsa.mldsa_status().read().valid() {
             return Ok(());
         }
 
         // Reset the message strobe register.
-        mldsa.msg_strobe().write(|s| s.strobe(0xF));
+        mldsa.mldsa_msg_strobe().write(|s| s.strobe(0xF));
 
         // Stream the message to the hardware.
         let dwords = msg.chunks_exact(size_of::<u32>());
         let remainder = dwords.remainder();
         for dword in dwords {
             let dw = <Unalign<u32>>::read_from_bytes(dword).unwrap();
-            mldsa.msg().at(0).write(|_| dw.get());
+            mldsa.mldsa_msg().at(0).write(|_| dw.get());
         }
 
         let last_strobe = match remainder.len() {
@@ -309,15 +312,15 @@ impl Mldsa87 {
             3 => 0b0111,
             _ => 0b0000, // should never happen
         };
-        mldsa.msg_strobe().write(|s| s.strobe(last_strobe));
+        mldsa.mldsa_msg_strobe().write(|s| s.strobe(last_strobe));
 
         // Write last dword; 0 for no remainder.
         let mut last_word = 0_u32;
         last_word.as_mut_bytes()[..remainder.len()].copy_from_slice(remainder);
-        mldsa.msg().at(0).write(|_| last_word);
+        mldsa.mldsa_msg().at(0).write(|_| last_word);
 
         // Wait for status to be valid
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
 
         Ok(())
     }
@@ -334,16 +337,16 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Sign RND.
-        sign_rnd.write_to_reg(mldsa.sign_rnd());
+        sign_rnd.write_to_reg(mldsa.mldsa_sign_rnd());
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
@@ -351,34 +354,30 @@ impl Mldsa87 {
 
         // Copy seed or the private key to the hardware
         match seed {
-            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.seed()),
-            Mldsa87Seed::Key(key) => {
-                KvAccess::copy_from_kv(key, mldsa.kv_rd_seed_status(), mldsa.kv_rd_seed_ctrl())
-                    .map_err(|err| err.into_read_seed_err())?
-            }
+            Mldsa87Seed::Array4x8(arr) => arr.write_to_reg(mldsa.mldsa_seed()),
+            Mldsa87Seed::Key(key) => KvAccess::copy_from_kv(
+                key,
+                mldsa.kv_mldsa_seed_rd_status(),
+                mldsa.kv_mldsa_seed_rd_ctrl(),
+            )
+            .map_err(|err| err.into_read_seed_err())?,
             Mldsa87Seed::PrivKey(priv_key) => {
                 gen_keypair = false;
-                priv_key.write_to_reg(mldsa.privkey_in())
+                priv_key.write_to_reg(mldsa.mldsa_privkey_in())
             }
         }
 
         // Program the command register for key generation
-        mldsa.ctrl().write(|w| {
-            w.ctrl(|w| {
-                if gen_keypair {
-                    w.keygen_sign()
-                } else {
-                    w.signing()
-                }
-            })
-            .stream_msg(true)
+        mldsa.mldsa_ctrl().write(|w| {
+            w.ctrl(if gen_keypair { KEYGEN_SIGN } else { SIGN })
+                .stream_msg(true)
         });
 
         // Program the message to the hardware
         Mldsa87::program_var_msg(mldsa, msg)?;
 
         // Copy signature
-        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
 
         // No need to zeroize here, as the hardware will be zeroized by verify.
         let result = self.verify_var(pub_key, msg, &signature)?;
@@ -410,34 +409,34 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Copy digest
-        msg.write_to_reg(mldsa.msg());
+        msg.write_to_reg(mldsa.mldsa_msg());
 
         // Copy pubkey
-        pub_key.write_to_reg(mldsa.pubkey());
+        pub_key.write_to_reg(mldsa.mldsa_pubkey());
 
         // Copy signature
-        signature.write_to_reg(mldsa.signature());
+        signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification
-        mldsa.ctrl().write(|w| w.ctrl(|w| w.verifying()));
+        mldsa.mldsa_ctrl().write(|w| w.ctrl(VERIFY));
 
         // Wait for status to be valid
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
 
         // Copy the random value
-        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+        let verify_res = LEArray4x16::read_from_reg(mldsa.mldsa_verify_res());
 
         // Clear the hardware when done
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         Ok(verify_res)
     }
@@ -495,33 +494,33 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Copy pubkey
-        pub_key.write_to_reg(mldsa.pubkey());
+        pub_key.write_to_reg(mldsa.mldsa_pubkey());
 
         // Copy signature
-        signature.write_to_reg(mldsa.signature());
+        signature.write_to_reg(mldsa.mldsa_signature());
 
         // Program the command register for signature verification with streaming
         mldsa
-            .ctrl()
-            .write(|w| w.ctrl(|w| w.verifying()).stream_msg(true));
+            .mldsa_ctrl()
+            .write(|w| w.ctrl(VERIFY).stream_msg(true));
 
         // Program the message to the hardware
         Mldsa87::program_var_msg(mldsa, msg)?;
 
         // Copy the result
-        let verify_res = LEArray4x16::read_from_reg(mldsa.verify_res());
+        let verify_res = LEArray4x16::read_from_reg(mldsa.mldsa_verify_res());
 
         // Clear the hardware when done
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         let result = if verify_res.0 == truncated_signature {
             cfi_assert_eq_16_words(&verify_res.0, &truncated_signature.try_into().unwrap());
@@ -548,30 +547,30 @@ impl Mldsa87 {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Clear the hardware before start
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         // Wait for hardware ready
-        Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready())?;
 
         // Generate an IV.
         let iv = Self::generate_iv(trng)?;
         iv.write_to_reg(mldsa.entropy());
 
         mldsa
-            .ctrl()
-            .write(|w| w.pcr_sign(true).ctrl(|w| w.keygen_sign()));
+            .mldsa_ctrl()
+            .write(|w| w.pcr_sign(true).ctrl(KEYGEN_SIGN));
 
         // Wait for command to complete
-        Mldsa87::wait(mldsa, || mldsa.status().read().valid())?;
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
 
         // Copy signature
-        let signature = Mldsa87Signature::read_from_reg(mldsa.signature());
+        let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
 
         // Clear the hardware.
-        mldsa.ctrl().write(|w| w.zeroize(true));
+        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
         Ok(signature)
     }
@@ -587,12 +586,12 @@ impl Mldsa87 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut mldsa_reg = MldsaReg::new();
+        let mut mldsa_reg = AbrReg::new();
         let mldsa = mldsa_reg.regs_mut();
-        mldsa.ctrl().write(|f| f.zeroize(true));
+        mldsa.mldsa_ctrl().write(|f| f.zeroize(true));
 
         // Wait for hardware ready. Ignore errors
-        let _ = Mldsa87::wait(mldsa, || mldsa.status().read().ready());
+        let _ = Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().ready());
     }
 }
 

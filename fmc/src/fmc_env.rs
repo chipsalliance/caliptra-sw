@@ -20,8 +20,8 @@ use caliptra_drivers::{
     Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
-    csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
-    mbox::MboxCsr, mldsa::MldsaReg, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    abr::AbrReg, csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
+    kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
     sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
@@ -96,7 +96,7 @@ impl FmcEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
             persistent_data: PersistentDataAccessor::new(),
-            mldsa: Mldsa87::new(MldsaReg::new()),
+            mldsa: Mldsa87::new(AbrReg::new()),
         })
     }
 }
