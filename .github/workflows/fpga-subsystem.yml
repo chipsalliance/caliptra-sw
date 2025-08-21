@@ -152,6 +152,7 @@ jobs:
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           cargo xtask-fpga rom-build --platform fpga
           tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
+          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
 
       - name: Save test MCU ROM to cache
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
@@ -258,7 +259,7 @@ jobs:
       - name: Execute tests
         run: |
           export RUST_TEST_THREADS=1
-          
+
           TEST_BIN=/tmp/caliptra-test-binaries
           VARS="CPTRA_UIO_NUM=0 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1 CPTRA_MCU_ROM=/tmp/caliptra-test-firmware/mcu-rom-fpga.bin"
 
