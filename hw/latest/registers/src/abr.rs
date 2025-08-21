@@ -9,11 +9,11 @@
 /// programs create one of these in unsafe code near the top of
 /// main(), and pass it to the driver responsible for managing
 /// all access to the hardware.
-pub struct HmacReg {
+pub struct AbrReg {
     _priv: (),
 }
-impl HmacReg {
-    pub const PTR: *mut u32 = 0x10010000 as *mut u32;
+impl AbrReg {
+    pub const PTR: *mut u32 = 0x10030000 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -74,13 +74,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers representing of the name
-    /// of HMAC component.
+    /// of MLDSA component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_name(
-        &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Hmac512Name, &TMmio>> {
+    pub fn mldsa_name(&self) -> ureg::Array<2, ureg::RegRef<crate::abr::meta::MldsaName, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -89,13 +87,13 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Two 32-bit read-only registers representing of the version
-    /// of HMAC512 component.
+    /// of MLDSA component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_version(
+    pub fn mldsa_version(
         &self,
-    ) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Hmac512Version, &TMmio>> {
+    ) -> ureg::Array<2, ureg::RegRef<crate::abr::meta::MldsaVersion, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -103,11 +101,11 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// HMAC512 component control register type definition.
+    /// Control register to set the type of MLDSA operations.
     ///
-    /// Read value: [`hmac::regs::Hmac512CtrlReadVal`]; Write value: [`hmac::regs::Hmac512CtrlWriteVal`]
+    /// Read value: [`abr::regs::MldsaCtrlReadVal`]; Write value: [`abr::regs::MldsaCtrlWriteVal`]
     #[inline(always)]
-    pub fn hmac512_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::Hmac512Ctrl, &TMmio> {
+    pub fn mldsa_ctrl(&self) -> ureg::RegRef<crate::abr::meta::MldsaCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -115,74 +113,211 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// HMAC512 component status register type definition
+    /// One 3-bit register including the following flags:
+    /// [br]bit #0: READY : ​Indicates if the core is ready to take
+    /// [br]                a control command and process the inputs.  
+    /// [br]bit #1: VALID : ​Indicates if the process is done and the
+    /// [br]                result is valid.
+    /// [br]bit #2: MSG_STREAM_READY: Indicates if the core is ready
+    /// [br]                          to recieve the message in streaming mode.
+    /// [br]bit #3: ERROR: Indicates the process ended with an error
     ///
-    /// Read value: [`hmac::regs::Hmac512StatusReadVal`]; Write value: [`hmac::regs::Hmac512StatusWriteVal`]
+    /// Read value: [`abr::regs::MldsaStatusReadVal`]; Write value: [`abr::regs::MldsaStatusWriteVal`]
     #[inline(always)]
-    pub fn hmac512_status(&self) -> ureg::RegRef<crate::hmac::meta::Hmac512Status, &TMmio> {
+    pub fn mldsa_status(&self) -> ureg::RegRef<crate::abr::meta::MldsaStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 16 32-bit registers storing the 512-bit entropy  
+    /// required for SCA countermeasures with no change on the outputs.
+    /// The entropy can be any 512-bit value in [0 : 2^512-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn entropy(&self) -> ureg::Array<16, ureg::RegRef<crate::abr::meta::Entropy, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// HMAC512 component key register type definition
-    /// 16 32-bit registers storing the 512-bit key in big-endian representation.
+    /// 8 32-bit registers storing the 256-bit seed for keygen.
+    /// The seed can be any 256-bit value in [0 : 2^256-1].
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_key(
-        &self,
-    ) -> ureg::Array<16, ureg::RegRef<crate::hmac::meta::Hmac512Key, &TMmio>> {
+    pub fn mldsa_seed(&self) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MldsaSeed, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x58 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// HMAC512 component block register type definition
-    /// 32 32-bit registers storing the 1024-bit padded input in big-endian representation.
+    /// 8 32-bit registers storing the 256-bit sign_rnd for signing.
+    /// The sign_rnd can be any 256-bit value in [0 : 2^256-1].
+    /// sign_rnd should be all zero for deterministic variant.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_block(
+    pub fn mldsa_sign_rnd(
         &self,
-    ) -> ureg::Array<32, ureg::RegRef<crate::hmac::meta::Hmac512Block, &TMmio>> {
+    ) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MldsaSignRnd, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// HMAC512 component tag register type definition
-    /// 16 32-bit registers storing the 512-bit digest output in big-endian representation.
+    /// 16 32-bit registers storing the message.
+    /// The message can be a fixed size of 512-bit value in [0 : 2^512-1].
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_tag(
-        &self,
-    ) -> ureg::Array<16, ureg::RegRef<crate::hmac::meta::Hmac512Tag, &TMmio>> {
+    pub fn mldsa_msg(&self) -> ureg::Array<16, ureg::RegRef<crate::abr::meta::MldsaMsg, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x98 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// HMAC512 component lfsr seed register type definition
-    /// 12 32-bit registers storing the 384-bit lfsr seed input.
+    /// 16 32-bit registers storing the result of verifying operation.
+    /// If this register is equal to the first part of the given signature, i.e. c~,
+    /// the signature is verified.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn hmac512_lfsr_seed(
+    pub fn mldsa_verify_res(
         &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::hmac::meta::Hmac512LfsrSeed, &TMmio>> {
+    ) -> ureg::Array<16, ureg::RegRef<crate::abr::meta::MldsaVerifyRes, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x140 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xd8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 16 32-bit registers storing the external_mu.
+    /// The external_mu can be any 512-bit value in [0 : 2^512-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_external_mu(
+        &self,
+    ) -> ureg::Array<16, ureg::RegRef<crate::abr::meta::MldsaExternalMu, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x118 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Byte enable strobe for each 32 bits of message.
+    /// [br] Must be set to 4'b1111 before streaming message, after observing stream_msg_rdy.
+    /// [br] Set to 1 for each valid byte in the last msg data, starting from LSB.
+    /// [br] Valid values are 4'b0000, 4'b0001, 4'b0011, 4'b0111, and 4'b1111
+    /// [br] A 32 bit aligned msg must write this to 4'h0 and write to msg input once.
+    ///
+    /// Read value: [`abr::regs::MldsaMsgStrobeReadVal`]; Write value: [`abr::regs::MldsaMsgStrobeWriteVal`]
+    #[inline(always)]
+    pub fn mldsa_msg_strobe(&self) -> ureg::RegRef<crate::abr::meta::MldsaMsgStrobe, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x158 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Registers defining the size of the context.
+    /// The context is an optional byte-string.
+    ///
+    /// Read value: [`abr::regs::MldsaCtxConfigReadVal`]; Write value: [`abr::regs::MldsaCtxConfigWriteVal`]
+    #[inline(always)]
+    pub fn mldsa_ctx_config(&self) -> ureg::RegRef<crate::abr::meta::MldsaCtxConfig, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x15c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// up tp 255 bytes registers storing the context.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_ctx(&self) -> ureg::Array<64, ureg::RegRef<crate::abr::meta::MldsaCtx, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x160 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 648 32-bit registers storing the public key.
+    /// These registers are read by MLDSA user after keygen operation,
+    /// or set before verifying operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_pubkey(
+        &self,
+    ) -> ureg::Array<648, ureg::RegRef<crate::abr::meta::MldsaPubkey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x1000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1157 32-bit registers storing the signature of the message.
+    /// These registers are read by MLDSA user after signing operation,
+    /// or set before verifying operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_signature(
+        &self,
+    ) -> ureg::Array<1157, ureg::RegRef<crate::abr::meta::MldsaSignature, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x2000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1224 32-bit registers storing the private key for keygen.
+    /// These registers are read by MLDSA user after keygen operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_privkey_out(
+        &self,
+    ) -> ureg::Array<1224, ureg::RegRef<crate::abr::meta::MldsaPrivkeyOut, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x4000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1224 32-bit entries storing the private key for signing.
+    /// These entries must be set before signing operation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mldsa_privkey_in(
+        &self,
+    ) -> ureg::Array<1224, ureg::RegRef<crate::abr::meta::MldsaPrivkeyIn, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x6000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -191,12 +326,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_rd_key_ctrl(
+    pub fn kv_mldsa_seed_rd_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::Hmac512KvRdKeyCtrl, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::KvMldsaSeedRdCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x8000 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -205,12 +340,167 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_rd_key_status(
+    pub fn kv_mldsa_seed_rd_status(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::Hmac512KvRdKeyStatus, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::KvMldsaSeedRdStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x8004 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Two 32-bit read-only registers representing of the name
+    /// of MLKEM component.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_name(&self) -> ureg::Array<2, ureg::RegRef<crate::abr::meta::MlkemName, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8100 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Two 32-bit read-only registers representing of the version
+    /// of MLKEM component.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_version(
+        &self,
+    ) -> ureg::Array<2, ureg::RegRef<crate::abr::meta::MlkemVersion, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8108 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Control register to set the type of MLKEM operations.
+    ///
+    /// Read value: [`abr::regs::MlkemCtrlReadVal`]; Write value: [`abr::regs::MlkemCtrlWriteVal`]
+    #[inline(always)]
+    pub fn mlkem_ctrl(&self) -> ureg::RegRef<crate::abr::meta::MlkemCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x8110 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// One 3-bit register including the following flags:
+    /// [br]bit #0: READY : ​Indicates if the core is ready to take
+    /// [br]                a control command and process the inputs.  
+    /// [br]bit #1: VALID : ​Indicates if the process is done and the
+    /// [br]                result is valid.  
+    /// [br]bit #2: ERROR : ​Indicates the process ended in an error.
+    ///
+    /// Read value: [`abr::regs::MlkemStatusReadVal`]; Write value: [`abr::regs::MlkemStatusWriteVal`]
+    #[inline(always)]
+    pub fn mlkem_status(&self) -> ureg::RegRef<crate::abr::meta::MlkemStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x8114 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 8 32-bit registers storing the 256-bit seed for keygen.
+    /// The seed can be any 256-bit value in [0 : 2^256-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_seed_d(
+        &self,
+    ) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MlkemSeedD, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8118 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 8 32-bit registers storing the 256-bit seed for keygen.
+    /// The seed can be any 256-bit value in [0 : 2^256-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_seed_z(
+        &self,
+    ) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MlkemSeedZ, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8138 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 8 32-bit registers storing the shared key.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_shared_key(
+        &self,
+    ) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MlkemSharedKey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8158 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 256-bit message. The message can be a fixed size of 256-bit value in [0 : 2^256-1].
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_msg(&self) -> ureg::Array<8, ureg::RegRef<crate::abr::meta::MlkemMsg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x8180 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 3,168 byte decapsulation key
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_decaps_key(
+        &self,
+    ) -> ureg::Array<792, ureg::RegRef<crate::abr::meta::MlkemDecapsKey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x9000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1,568 byte encapsulation key
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_encaps_key(
+        &self,
+    ) -> ureg::Array<392, ureg::RegRef<crate::abr::meta::MlkemEncapsKey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xa000 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// 1,568 byte ciphertext
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn mlkem_ciphertext(
+        &self,
+    ) -> ureg::Array<392, ureg::RegRef<crate::abr::meta::MlkemCiphertext, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xa800 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -219,12 +509,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_rd_block_ctrl(
+    pub fn kv_mlkem_seed_rd_ctrl(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::Hmac512KvRdBlockCtrl, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::KvMlkemSeedRdCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x608 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xae20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -233,12 +523,38 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_rd_block_status(
+    pub fn kv_mlkem_seed_rd_status(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::Hmac512KvRdBlockStatus, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::KvMlkemSeedRdStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x60c / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xae24 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Controls the Key Vault read access for this engine
+    ///
+    /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
+    #[inline(always)]
+    pub fn kv_mlkem_msg_rd_ctrl(&self) -> ureg::RegRef<crate::abr::meta::KvMlkemMsgRdCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xae28 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Reports the Key Vault flow status for this engine
+    ///
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
+    #[inline(always)]
+    pub fn kv_mlkem_msg_rd_status(
+        &self,
+    ) -> ureg::RegRef<crate::abr::meta::KvMlkemMsgRdStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xae2c / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -247,10 +563,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_wr_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::Hmac512KvWrCtrl, &TMmio> {
+    pub fn kv_mlkem_sharedkey_wr_ctrl(
+        &self,
+    ) -> ureg::RegRef<crate::abr::meta::KvMlkemSharedkeyWrCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x610 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xae30 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -259,12 +577,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     #[inline(always)]
-    pub fn hmac512_kv_wr_status(
+    pub fn kv_mlkem_sharedkey_wr_status(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::Hmac512KvWrStatus, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::KvMlkemSharedkeyWrStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x614 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0xae34 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -272,7 +590,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
         IntrBlockRfBlock {
-            ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0xb000 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -289,7 +607,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn global_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -299,11 +617,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`hmac::regs::ErrorIntrEnTReadVal`]; Write value: [`hmac::regs::ErrorIntrEnTWriteVal`]
+    /// Read value: [`abr::regs::ErrorIntrEnTReadVal`]; Write value: [`abr::regs::ErrorIntrEnTWriteVal`]
     #[inline(always)]
     pub fn error_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
@@ -313,11 +631,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrEnTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrEnTWriteVal`]
+    /// Read value: [`abr::regs::NotifIntrEnTReadVal`]; Write value: [`abr::regs::NotifIntrEnTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -339,7 +657,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -361,7 +679,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -372,11 +690,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
     ///
-    /// Read value: [`hmac::regs::ErrorIntrTReadVal`]; Write value: [`hmac::regs::ErrorIntrTWriteVal`]
+    /// Read value: [`abr::regs::ErrorIntrTReadVal`]; Write value: [`abr::regs::ErrorIntrTWriteVal`]
     #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
@@ -387,11 +705,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTWriteVal`]
+    /// Read value: [`abr::regs::NotifIntrTReadVal`]; Write value: [`abr::regs::NotifIntrTWriteVal`]
     #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
@@ -405,11 +723,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// trigger register bit results in the corresponding interrupt
     /// status bit being set to 1.
     ///
-    /// Read value: [`hmac::regs::ErrorIntrTrigTReadVal`]; Write value: [`hmac::regs::ErrorIntrTrigTWriteVal`]
+    /// Read value: [`abr::regs::ErrorIntrTrigTReadVal`]; Write value: [`abr::regs::ErrorIntrTrigTWriteVal`]
     #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
@@ -423,11 +741,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// trigger register bit results in the corresponding interrupt
     /// status bit being set to 1.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTrigTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTrigTWriteVal`]
+    /// Read value: [`abr::regs::NotifIntrTrigTReadVal`]; Write value: [`abr::regs::NotifIntrTrigTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
@@ -441,9 +759,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn key_mode_error_intr_count_r(
+    pub fn error_internal_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfKeyModeErrorIntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
@@ -457,57 +775,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn key_zero_error_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfKeyZeroErrorIntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn error2_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfError2IntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn error3_intr_count_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfError3IntrCountR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Provides statistics about the number of events that have
-    /// occurred.
-    /// Will not overflow ('incrsaturate').
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
     pub fn notif_cmd_done_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
@@ -526,9 +796,9 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
     #[inline(always)]
-    pub fn key_mode_error_intr_count_incr_r(
+    pub fn error_internal_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfKeyModeErrorIntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
@@ -547,75 +817,12 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
     #[inline(always)]
-    pub fn key_zero_error_intr_count_incr_r(
+    pub fn notif_cmd_done_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfKeyZeroErrorIntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::abr::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn error2_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn error3_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Trigger the event counter to increment based on observing
-    /// the rising edge of an interrupt event input from the
-    /// Hardware. The same input signal that causes an interrupt
-    /// event to be set (sticky) also causes this signal to pulse
-    /// for 1 clock cycle, resulting in the event counter
-    /// incrementing by 1 for every interrupt event.
-    /// This is implemented as a down-counter (1-bit) that will
-    /// decrement immediately on being set - resulting in a pulse
-    ///
-    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
-    #[inline(always)]
-    pub fn notif_cmd_done_intr_count_incr_r(
-        &self,
-    ) -> ureg::RegRef<crate::hmac::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -630,7 +837,7 @@ pub struct IntrBlockRf {
     _priv: (),
 }
 impl IntrBlockRf {
-    pub const PTR: *mut u32 = 0x800 as *mut u32;
+    pub const PTR: *mut u32 = 0xb000 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -663,113 +870,206 @@ impl IntrBlockRf {
 pub mod regs {
     //! Types that represent the values held by registers.
     #[derive(Clone, Copy)]
-    pub struct Hmac512CtrlWriteVal(u32);
-    impl Hmac512CtrlWriteVal {
-        /// Control init command bit: Trigs the HMAC512 core to start the
-        /// processing for the key and the first padded
-        /// message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
+    pub struct MldsaCtrlWriteVal(u32);
+    impl MldsaCtrlWriteVal {
+        /// Control command field. This can be:
+        /// [br]            000 for NONE
+        /// [br]            001 for KEYGEN
+        /// [br]            010 for SIGNING
+        /// [br]            011 for VERIFYING
+        /// [br]            100 for KEYGEN+SIGN
+        ///                
+        /// [br] After each software write, hardware will erase the register
         #[inline(always)]
-        pub fn init(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        pub fn ctrl(self, val: u32) -> Self {
+            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
         }
-        /// Control next command bit: ​Trigs the HMAC512 core to start the
-        /// processing for the remining padded message block.
-        /// [br] Software write generates only a single-cycle pulse on the
-        /// hardware interface and then will be erased
-        #[inline(always)]
-        pub fn next(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Zeroize all internal registers: Zeroize all internal registers after HMAC process, to avoid SCA leakage.
+        /// Zeroize all internal registers: Zeroize all internal registers and memories to avoid SCA leakage.
         /// [br] Software write generates only a single-cycle pulse on the
         /// hardware interface and then will be erased
         #[inline(always)]
         pub fn zeroize(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Control mode command bits: Indicates the HMAC512 core to set dynamically
-        /// the type of hashing algorithm. This can be:
-        /// 0 for HMAC384
-        /// 1 for HMAC512
-        #[inline(always)]
-        pub fn mode(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
-        /// CSR Mode: Indicates to the HMAC512 core to use the CSR HMAC key
+        /// Run PCR Signing flow: Run MLDSA KeyGen+Signing flow to sign PCRs.
         #[inline(always)]
-        pub fn csr_mode(self, val: bool) -> Self {
+        pub fn pcr_sign(self, val: bool) -> Self {
             Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
         }
-        /// Reserved
+        /// ExternalMu Mode
         #[inline(always)]
-        pub fn reserved(self, val: bool) -> Self {
+        pub fn external_mu(self, val: bool) -> Self {
             Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
         }
+        /// Enable streaming mode to get message for signing/verifying operation
+        #[inline(always)]
+        pub fn stream_msg(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
     }
-    impl From<u32> for Hmac512CtrlWriteVal {
+    impl From<u32> for MldsaCtrlWriteVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<Hmac512CtrlWriteVal> for u32 {
+    impl From<MldsaCtrlWriteVal> for u32 {
         #[inline(always)]
-        fn from(val: Hmac512CtrlWriteVal) -> u32 {
+        fn from(val: MldsaCtrlWriteVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct Hmac512StatusReadVal(u32);
-    impl Hmac512StatusReadVal {
-        /// Status ready bit: ​Indicates if the core is ready to take
-        /// a control command and process the block.
+    pub struct MldsaCtxConfigWriteVal(u32);
+    impl MldsaCtxConfigWriteVal {
+        /// Context Byte size field
         #[inline(always)]
-        pub fn ready(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Status valid bit: ​Indicates if the process is done and the
-        /// results stored in TAG registers are valid.
-        #[inline(always)]
-        pub fn valid(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
+        pub fn ctx_size(self, val: u32) -> Self {
+            Self((self.0 & !(0xff << 0)) | ((val & 0xff) << 0))
         }
     }
-    impl From<u32> for Hmac512StatusReadVal {
+    impl From<u32> for MldsaCtxConfigWriteVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<Hmac512StatusReadVal> for u32 {
+    impl From<MldsaCtxConfigWriteVal> for u32 {
         #[inline(always)]
-        fn from(val: Hmac512StatusReadVal) -> u32 {
+        fn from(val: MldsaCtxConfigWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct MldsaMsgStrobeWriteVal(u32);
+    impl MldsaMsgStrobeWriteVal {
+        /// Input message strobe
+        #[inline(always)]
+        pub fn strobe(self, val: u32) -> Self {
+            Self((self.0 & !(0xf << 0)) | ((val & 0xf) << 0))
+        }
+    }
+    impl From<u32> for MldsaMsgStrobeWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<MldsaMsgStrobeWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: MldsaMsgStrobeWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct MldsaStatusReadVal(u32);
+    impl MldsaStatusReadVal {
+        /// Status ready bit
+        #[inline(always)]
+        pub fn ready(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Status valid bit
+        #[inline(always)]
+        pub fn valid(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// The core is ready to recieve the message in streaming mode
+        #[inline(always)]
+        pub fn msg_stream_ready(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Status error bit
+        #[inline(always)]
+        pub fn error(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+    }
+    impl From<u32> for MldsaStatusReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<MldsaStatusReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: MldsaStatusReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct MlkemCtrlWriteVal(u32);
+    impl MlkemCtrlWriteVal {
+        /// Control command field. This can be:
+        /// [br]            000 for NONE
+        /// [br]            001 for KEYGEN
+        /// [br]            010 for ENCAPS
+        /// [br]            011 for DECAPS
+        /// [br]            100 for KEYGEN+DECAPS
+        ///                
+        /// [br] After each software write, hardware will erase the register
+        #[inline(always)]
+        pub fn ctrl(self, val: u32) -> Self {
+            Self((self.0 & !(7 << 0)) | ((val & 7) << 0))
+        }
+        /// Zeroize all internal registers: Zeroize all internal registers and memories to avoid SCA leakage.
+        /// [br] Software write generates only a single-cycle pulse on the
+        /// [br] hardware interface and then will be erased
+        #[inline(always)]
+        pub fn zeroize(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+    }
+    impl From<u32> for MlkemCtrlWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<MlkemCtrlWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: MlkemCtrlWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct MlkemStatusReadVal(u32);
+    impl MlkemStatusReadVal {
+        /// Status ready bit
+        #[inline(always)]
+        pub fn ready(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Status valid bit
+        #[inline(always)]
+        pub fn valid(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Status error bit
+        #[inline(always)]
+        pub fn error(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+    }
+    impl From<u32> for MlkemStatusReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<MlkemStatusReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: MlkemStatusReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTReadVal(u32);
     impl ErrorIntrEnTReadVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Internal Errors
         #[inline(always)]
-        pub fn key_mode_error_en(&self) -> bool {
+        pub fn error_internal_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Enable bit for Event 1
-        #[inline(always)]
-        pub fn key_zero_error_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Enable bit for Event 2
-        #[inline(always)]
-        pub fn error2_en(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Enable bit for Event 3
-        #[inline(always)]
-        pub fn error3_en(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -792,25 +1092,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTWriteVal(u32);
     impl ErrorIntrEnTWriteVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Internal Errors
         #[inline(always)]
-        pub fn key_mode_error_en(self, val: bool) -> Self {
+        pub fn error_internal_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Enable bit for Event 1
-        #[inline(always)]
-        pub fn key_zero_error_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Enable bit for Event 2
-        #[inline(always)]
-        pub fn error2_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Enable bit for Event 3
-        #[inline(always)]
-        pub fn error3_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrEnTWriteVal {
@@ -828,25 +1113,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTReadVal(u32);
     impl ErrorIntrTReadVal {
-        /// Interrupt Event 0 status bit when 384-bit key is selected in HMAC512 mode
+        /// Internal Errors status bit
         #[inline(always)]
-        pub fn key_mode_error_sts(&self) -> bool {
+        pub fn error_internal_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Interrupt Event 1 status bit when all-zero key is derived from KeyVault
-        #[inline(always)]
-        pub fn key_zero_error_sts(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Interrupt Event 2 status bit
-        #[inline(always)]
-        pub fn error2_sts(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Interrupt Event 3 status bit
-        #[inline(always)]
-        pub fn error3_sts(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -869,25 +1139,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTWriteVal(u32);
     impl ErrorIntrTWriteVal {
-        /// Interrupt Event 0 status bit when 384-bit key is selected in HMAC512 mode
+        /// Internal Errors status bit
         #[inline(always)]
-        pub fn key_mode_error_sts(self, val: bool) -> Self {
+        pub fn error_internal_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Interrupt Event 1 status bit when all-zero key is derived from KeyVault
-        #[inline(always)]
-        pub fn key_zero_error_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Interrupt Event 2 status bit
-        #[inline(always)]
-        pub fn error2_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Interrupt Event 3 status bit
-        #[inline(always)]
-        pub fn error3_sts(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrTWriteVal {
@@ -905,25 +1160,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTrigTReadVal(u32);
     impl ErrorIntrTrigTReadVal {
-        /// Interrupt Trigger 0 bit
+        /// Internal Errors trigger bit
         #[inline(always)]
-        pub fn key_mode_error_trig(&self) -> bool {
+        pub fn error_internal_trig(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
-        }
-        /// Interrupt Trigger 1 bit
-        #[inline(always)]
-        pub fn key_zero_error_trig(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Interrupt Trigger 2 bit
-        #[inline(always)]
-        pub fn error2_trig(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
-        }
-        /// Interrupt Trigger 3 bit
-        #[inline(always)]
-        pub fn error3_trig(&self) -> bool {
-            ((self.0 >> 3) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -946,25 +1186,10 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTrigTWriteVal(u32);
     impl ErrorIntrTrigTWriteVal {
-        /// Interrupt Trigger 0 bit
+        /// Internal Errors trigger bit
         #[inline(always)]
-        pub fn key_mode_error_trig(self, val: bool) -> Self {
+        pub fn error_internal_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Interrupt Trigger 1 bit
-        #[inline(always)]
-        pub fn key_zero_error_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-        /// Interrupt Trigger 2 bit
-        #[inline(always)]
-        pub fn error2_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
-        }
-        /// Interrupt Trigger 3 bit
-        #[inline(always)]
-        pub fn error3_trig(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
     }
     impl From<u32> for ErrorIntrTrigTWriteVal {
@@ -980,108 +1205,9 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct GlobalIntrEnTReadVal(u32);
-    impl GlobalIntrEnTReadVal {
-        /// Global enable bit for all events of type 'Error'
-        #[inline(always)]
-        pub fn error_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Global enable bit for all events of type 'Notification'
-        #[inline(always)]
-        pub fn notif_en(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> GlobalIntrEnTWriteVal {
-            GlobalIntrEnTWriteVal(self.0)
-        }
-    }
-    impl From<u32> for GlobalIntrEnTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrEnTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrEnTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct GlobalIntrEnTWriteVal(u32);
-    impl GlobalIntrEnTWriteVal {
-        /// Global enable bit for all events of type 'Error'
-        #[inline(always)]
-        pub fn error_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Global enable bit for all events of type 'Notification'
-        #[inline(always)]
-        pub fn notif_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-    }
-    impl From<u32> for GlobalIntrEnTWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrEnTWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrEnTWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct GlobalIntrTReadVal(u32);
-    impl GlobalIntrTReadVal {
-        /// Interrupt Event Aggregation status bit
-        #[inline(always)]
-        pub fn agg_sts(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-    }
-    impl From<u32> for GlobalIntrTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<GlobalIntrTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: GlobalIntrTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct IntrCountIncrTReadVal(u32);
-    impl IntrCountIncrTReadVal {
-        /// Pulse mirrors interrupt event occurrence
-        #[inline(always)]
-        pub fn pulse(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-    }
-    impl From<u32> for IntrCountIncrTReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<IntrCountIncrTReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: IntrCountIncrTReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
     pub struct NotifIntrEnTReadVal(u32);
     impl NotifIntrEnTReadVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done
         #[inline(always)]
         pub fn notif_cmd_done_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1107,7 +1233,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrEnTWriteVal(u32);
     impl NotifIntrEnTWriteVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done
         #[inline(always)]
         pub fn notif_cmd_done_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1128,7 +1254,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTReadVal(u32);
     impl NotifIntrTReadVal {
-        /// Command Done Interrupt status bit
+        /// Command Done status bit
         #[inline(always)]
         pub fn notif_cmd_done_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1154,7 +1280,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTWriteVal(u32);
     impl NotifIntrTWriteVal {
-        /// Command Done Interrupt status bit
+        /// Command Done status bit
         #[inline(always)]
         pub fn notif_cmd_done_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1175,7 +1301,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTrigTReadVal(u32);
     impl NotifIntrTrigTReadVal {
-        /// Interrupt Trigger 0 bit
+        /// Command Done trigger bit
         #[inline(always)]
         pub fn notif_cmd_done_trig(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -1201,7 +1327,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTrigTWriteVal(u32);
     impl NotifIntrTrigTWriteVal {
-        /// Interrupt Trigger 0 bit
+        /// Command Done trigger bit
         #[inline(always)]
         pub fn notif_cmd_done_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1532,32 +1658,58 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type Hmac512Name = ureg::ReadOnlyReg32<u32>;
-    pub type Hmac512Version = ureg::ReadOnlyReg32<u32>;
-    pub type Hmac512Ctrl = ureg::WriteOnlyReg32<8, crate::hmac::regs::Hmac512CtrlWriteVal>;
-    pub type Hmac512Status = ureg::ReadOnlyReg32<crate::hmac::regs::Hmac512StatusReadVal>;
-    pub type Hmac512Key = ureg::WriteOnlyReg32<0, u32>;
-    pub type Hmac512Block = ureg::WriteOnlyReg32<0, u32>;
-    pub type Hmac512Tag = ureg::ReadOnlyReg32<u32>;
-    pub type Hmac512LfsrSeed = ureg::WriteOnlyReg32<0x3cabffb0, u32>;
-    pub type Hmac512KvRdKeyCtrl = ureg::ReadWriteReg32<
+    pub type MldsaName = ureg::ReadOnlyReg32<u32>;
+    pub type MldsaVersion = ureg::ReadOnlyReg32<u32>;
+    pub type MldsaCtrl = ureg::WriteOnlyReg32<0, crate::abr::regs::MldsaCtrlWriteVal>;
+    pub type MldsaStatus = ureg::ReadOnlyReg32<crate::abr::regs::MldsaStatusReadVal>;
+    pub type Entropy = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaSeed = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaSignRnd = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaMsg = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaVerifyRes = ureg::ReadOnlyReg32<u32>;
+    pub type MldsaExternalMu = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaMsgStrobe = ureg::WriteOnlyReg32<0xf, crate::abr::regs::MldsaMsgStrobeWriteVal>;
+    pub type MldsaCtxConfig = ureg::WriteOnlyReg32<0, crate::abr::regs::MldsaCtxConfigWriteVal>;
+    pub type MldsaCtx = ureg::WriteOnlyReg32<0, u32>;
+    pub type MldsaPubkey = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MldsaSignature = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MldsaPrivkeyOut = ureg::ReadOnlyReg32<u32>;
+    pub type MldsaPrivkeyIn = ureg::WriteOnlyReg32<0, u32>;
+    pub type KvMldsaSeedRdCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,
         crate::regs::KvReadCtrlRegWriteVal,
     >;
-    pub type Hmac512KvRdKeyStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
-    pub type Hmac512KvRdBlockCtrl = ureg::ReadWriteReg32<
+    pub type KvMldsaSeedRdStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type MlkemName = ureg::ReadOnlyReg32<u32>;
+    pub type MlkemVersion = ureg::ReadOnlyReg32<u32>;
+    pub type MlkemCtrl = ureg::WriteOnlyReg32<0, crate::abr::regs::MlkemCtrlWriteVal>;
+    pub type MlkemStatus = ureg::ReadOnlyReg32<crate::abr::regs::MlkemStatusReadVal>;
+    pub type MlkemSeedD = ureg::WriteOnlyReg32<0, u32>;
+    pub type MlkemSeedZ = ureg::WriteOnlyReg32<0, u32>;
+    pub type MlkemSharedKey = ureg::ReadOnlyReg32<u32>;
+    pub type MlkemMsg = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MlkemDecapsKey = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MlkemEncapsKey = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type MlkemCiphertext = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type KvMlkemSeedRdCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,
         crate::regs::KvReadCtrlRegWriteVal,
     >;
-    pub type Hmac512KvRdBlockStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
-    pub type Hmac512KvWrCtrl = ureg::ReadWriteReg32<
+    pub type KvMlkemSeedRdStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvMlkemMsgRdCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type KvMlkemMsgRdStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvMlkemSharedkeyWrCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvWriteCtrlRegReadVal,
         crate::regs::KvWriteCtrlRegWriteVal,
     >;
-    pub type Hmac512KvWrStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvMlkemSharedkeyWrStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
     pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
         0,
         crate::sha512_acc::regs::GlobalIntrEnTReadVal,
@@ -1565,13 +1717,13 @@ pub mod meta {
     >;
     pub type IntrBlockRfErrorIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::hmac::regs::ErrorIntrEnTReadVal,
-        crate::hmac::regs::ErrorIntrEnTWriteVal,
+        crate::abr::regs::ErrorIntrEnTReadVal,
+        crate::abr::regs::ErrorIntrEnTWriteVal,
     >;
     pub type IntrBlockRfNotifIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrEnTReadVal,
-        crate::sha512_acc::regs::NotifIntrEnTWriteVal,
+        crate::abr::regs::NotifIntrEnTReadVal,
+        crate::abr::regs::NotifIntrEnTWriteVal,
     >;
     pub type IntrBlockRfErrorGlobalIntrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
@@ -1579,36 +1731,27 @@ pub mod meta {
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
     pub type IntrBlockRfErrorInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::hmac::regs::ErrorIntrTReadVal,
-        crate::hmac::regs::ErrorIntrTWriteVal,
+        crate::abr::regs::ErrorIntrTReadVal,
+        crate::abr::regs::ErrorIntrTWriteVal,
     >;
     pub type IntrBlockRfNotifInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTReadVal,
-        crate::sha512_acc::regs::NotifIntrTWriteVal,
+        crate::abr::regs::NotifIntrTReadVal,
+        crate::abr::regs::NotifIntrTWriteVal,
     >;
     pub type IntrBlockRfErrorIntrTrigR = ureg::ReadWriteReg32<
         0,
-        crate::hmac::regs::ErrorIntrTrigTReadVal,
-        crate::hmac::regs::ErrorIntrTrigTWriteVal,
+        crate::abr::regs::ErrorIntrTrigTReadVal,
+        crate::abr::regs::ErrorIntrTrigTWriteVal,
     >;
     pub type IntrBlockRfNotifIntrTrigR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTrigTReadVal,
-        crate::sha512_acc::regs::NotifIntrTrigTWriteVal,
+        crate::abr::regs::NotifIntrTrigTReadVal,
+        crate::abr::regs::NotifIntrTrigTWriteVal,
     >;
-    pub type IntrBlockRfKeyModeErrorIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfKeyZeroErrorIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError2IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfError3IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInternalIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfNotifCmdDoneIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type IntrBlockRfKeyModeErrorIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfKeyZeroErrorIntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfError2IntrCountIncrR =
-        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
-    pub type IntrBlockRfError3IntrCountIncrR =
+    pub type IntrBlockRfErrorInternalIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
     pub type IntrBlockRfNotifCmdDoneIntrCountIncrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
