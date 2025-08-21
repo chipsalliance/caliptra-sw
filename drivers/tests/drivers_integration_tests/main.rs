@@ -48,7 +48,13 @@ fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn 
 fn run_driver_test(test_rom: &'static FwId) {
     let mut model = start_driver_test(test_rom).unwrap();
     // Wrap in a line-writer so output from different test threads doesn't multiplex within a line.
-    model.step_until_exit_success().unwrap();
+    if cfg!(feature = "fpga_subsystem") {
+        // Need FPGA subsystem to boot all the way into the test case, since it has multiple
+        // stages.
+        model.step_until_output("TEST PASSED").unwrap();
+    } else {
+        model.step_until_exit_success().unwrap();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
