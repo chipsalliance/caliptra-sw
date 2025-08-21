@@ -241,7 +241,7 @@ if {$BUILD} {
   puts stderr "FPGA Write HW Plat  took [expr {($time_finish_hw_platform-$time_start_hw_platform)/60000.}] minutes"
   puts stderr "FPGA overall build  took [expr {($time_finish_hw_platform-$time_start_synth)/60000.}] minutes"
 
-  set build_time [ open $outputDir/jtag_constraints.xdc w ]
+  set build_time [ open $outputDir/build_time.txt w ]
   puts $build_time "Built from $VERSION"
   puts $build_time "FPGA Synthesis      took [expr {($time_finish_synth-$time_start_synth)/60000.}] minutes"
   puts $build_time "FPGA Implementation took [expr {($time_finish_impl-$time_start_impl)/60000.}] minutes"
