@@ -142,23 +142,6 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if env.soc_ifc.ocp_lock_enabled() {
-        cprintln!("[ROM]: OCP LOCK Enabled");
-        #[cfg(feature = "ocp-lock")]
-        {
-            if let Err(e) = crate::flow::ocp_lock::OcpLockFlow::run(
-                &mut env.soc_ifc,
-                &mut env.hmac,
-                &mut env.trng,
-                &mut env.aes,
-            ) {
-                cprintln!("[ROM] OCP LOCK flow failed with 0x{:x}", u32::from(e));
-            }
-        }
-    } else {
-        cprintln!("[ROM]: OCP LOCK Disabled");
-    }
-
     if !cfg!(feature = "fake-rom") {
         let mut kats_env = caliptra_kat::KatsEnv {
             // SHA1 Engine
