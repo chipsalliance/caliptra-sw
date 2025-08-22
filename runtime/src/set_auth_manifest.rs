@@ -21,11 +21,12 @@ use caliptra_auth_man_types::{
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_cfi_lib_git::cfi_launder;
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_launder};
 use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
-    HashValue, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384,
+    HashValue, Lifecycle, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256,
+    Sha2_512_384, SocIfc,
 };
 use caliptra_image_types::{
     FwVerificationPqcKeyType, ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
@@ -521,6 +522,35 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
+    pub fn verify_svn(soc_ifc: &SocIfc, svn: u32) -> CaliptraResult<()> {
+        let svn_check_required =
+            if cfi_launder(soc_ifc.lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
+                cfi_assert_eq(soc_ifc.lifecycle() as u32, Lifecycle::Unprovisioned as u32);
+                false
+            } else if cfi_launder(soc_ifc.fuse_bank().anti_rollback_disable()) {
+                cfi_assert!(soc_ifc.fuse_bank().anti_rollback_disable());
+                false
+            } else {
+                true
+            };
+
+        if svn_check_required {
+            if cfi_launder(svn) > soc_ifc.fuse_bank().max_soc_manifest_fuse_svn() {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
+            } else {
+                cfi_assert_le(svn, soc_ifc.fuse_bank().max_soc_manifest_fuse_svn());
+            }
+
+            if cfi_launder(svn) < soc_ifc.fuse_bank().soc_manifest_fuse_svn() {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE)?;
+            } else {
+                cfi_assert_ge(svn, soc_ifc.fuse_bank().soc_manifest_fuse_svn());
+            }
+        }
+
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn process_image_metadata_col(
         cmd_buf: &[u8],
@@ -700,6 +730,9 @@ impl SetAuthManifestCmd {
         if auth_manifest_preamble.size as usize != size_of::<AuthManifestPreamble>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH)?;
         }
+
+        // Verify SVN
+        Self::verify_svn(&drivers.soc_ifc, auth_manifest_preamble.svn)?;
 
         let pqc_key_type =
             FwVerificationPqcKeyType::from_u8(drivers.soc_ifc.fuse_bank().pqc_key_type() as u8)
