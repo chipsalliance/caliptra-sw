@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-ml_dsa87.rs
+abr.rs
 
 Abstract:
 
-File contains Ml_Dsa87 peripheral implementation.
+File contains Adams Bridge peripheral implementation.
 
 --*/
 
@@ -109,7 +109,7 @@ register_bitfields! [
     u32,
 
     /// Control Register Fields
-    Control [
+    MlDsaControl [
         CTRL OFFSET(0) NUMBITS(3) [
             NONE = 0b000,
             KEYGEN = 0b001,
@@ -124,19 +124,19 @@ register_bitfields! [
     ],
 
     /// Status Register Fields
-    Status [
+    MlDsaStatus [
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
         MSG_STREAM_READY OFFSET(2) NUMBITS(1) [],
     ],
 
     /// Context Config Register Fields
-    CtxConfig [
+    MlDsaCtxConfig [
         CTX_SIZE OFFSET(0) NUMBITS(7) [],
     ],
 
     /// Strobe Register Fields
-    Strobe [
+    MlDsaStrobe [
         STROBE OFFSET(0) NUMBITS(4) [],
     ],
 
@@ -162,82 +162,150 @@ register_bitfields! [
 #[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
-pub struct Mldsa87 {
-    /// Name registers
+pub struct Abr {
+    /// MLDSA Name registers
     #[register_array(offset = 0x0000_0000)]
-    name: [u32; 2],
+    mldsa_name: [u32; 2],
 
-    /// Version registers
+    /// MLDSA Version registers
     #[register_array(offset = 0x0000_0008)]
-    version: [u32; 2],
+    mldsa_version: [u32; 2],
 
-    /// Control register
-    #[register(offset = 0x0000_0010, write_fn = on_write_control)]
-    control: ReadWriteRegister<u32, Control::Register>,
+    /// MLDSA Control register
+    #[register(offset = 0x0000_0010, write_fn = on_write_mldsa_control)]
+    mldsa_ctrl: ReadWriteRegister<u32, MlDsaControl::Register>,
 
-    /// Status register
+    /// MLDSA Status register
     #[register(offset = 0x0000_0014)]
-    status: ReadOnlyRegister<u32, Status::Register>,
+    mldsa_status: ReadOnlyRegister<u32, MlDsaStatus::Register>,
 
-    /// Initialization vector for blinding and counter measures
+    /// ABR Entropy (shared between MLDSA and MLKEM)
     #[register_array(offset = 0x0000_0018)]
-    entropy: [u32; ML_DSA87_IV_SIZE / 4],
+    abr_entropy: [u32; ML_DSA87_IV_SIZE / 4],
 
-    /// Seed size
+    /// MLDSA Seed
     #[register_array(offset = 0x0000_0058)]
-    seed: [u32; ML_DSA87_SEED_SIZE / 4],
+    mldsa_seed: [u32; ML_DSA87_SEED_SIZE / 4],
 
-    /// Sign RND
+    /// MLDSA Sign RND
     #[register_array(offset = 0x0000_0078)]
-    sign_rnd: [u32; ML_DSA87_SIGN_RND_SIZE / 4],
+    mldsa_sign_rnd: [u32; ML_DSA87_SIGN_RND_SIZE / 4],
 
-    /// Message
-    #[register_array(offset = 0x0000_0098, write_fn = on_write_msg)]
-    msg: [u32; ML_DSA87_MSG_SIZE / 4],
+    /// MLDSA Message
+    #[register_array(offset = 0x0000_0098, write_fn = on_write_mldsa_msg)]
+    mldsa_msg: [u32; ML_DSA87_MSG_SIZE / 4],
 
-    /// Verification result
-    #[register_array(offset = 0x0000_00d8, write_fn = write_access_fault)]
-    verify_res: [u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4],
+    /// MLDSA Verification result
+    #[register_array(offset = 0x0000_00d8, write_fn = write_mldsa_access_fault)]
+    mldsa_verify_res: [u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4],
 
-    /// External mu
+    /// MLDSA External mu
     #[register_array(offset = 0x0000_0118)]
-    external_mu: [u32; ML_DSA87_EXTERNAL_MU_SIZE / 4],
+    mldsa_external_mu: [u32; ML_DSA87_EXTERNAL_MU_SIZE / 4],
 
-    /// Message Strobe
+    /// MLDSA Message Strobe
     #[register(offset = 0x0000_0158)]
-    msg_strobe: ReadWriteRegister<u32, Strobe::Register>,
+    mldsa_msg_strobe: ReadWriteRegister<u32, MlDsaStrobe::Register>,
 
-    /// Context config
+    /// MLDSA Context config
     #[register(offset = 0x0000_015c)]
-    ctx_config: ReadWriteRegister<u32, CtxConfig::Register>,
+    mldsa_ctx_config: ReadWriteRegister<u32, MlDsaCtxConfig::Register>,
 
-    /// Context
+    /// MLDSA Context
     #[register_array(offset = 0x0000_0160)]
-    ctx: [u32; ML_DSA87_CTX_SIZE / 4],
+    mldsa_ctx: [u32; ML_DSA87_CTX_SIZE / 4],
 
-    /// Public key
+    /// MLDSA Public key
     #[register_array(offset = 0x0000_1000)]
-    pubkey: [u32; ML_DSA87_PUBKEY_SIZE / 4],
+    mldsa_pubkey: [u32; ML_DSA87_PUBKEY_SIZE / 4],
 
-    /// Signature
+    /// MLDSA Signature
     #[register_array(offset = 0x0000_2000)]
-    signature: [u32; ML_DSA87_SIGNATURE_SIZE / 4],
+    mldsa_signature: [u32; ML_DSA87_SIGNATURE_SIZE / 4],
 
-    // Private Key Out
+    /// MLDSA Private Key Out
     #[register_array(offset = 0x0000_4000)]
-    privkey_out: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+    mldsa_privkey_out: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
 
-    /// Private Key In
+    /// MLDSA Private Key In
     #[register_array(offset = 0x0000_6000)]
-    privkey_in: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
+    mldsa_privkey_in: [u32; ML_DSA87_PRIVKEY_SIZE / 4],
 
-    /// Key Vault Read Control
-    #[register(offset = 0x0000_8000, write_fn = on_write_kv_rd_seed_ctrl)]
-    kv_rd_seed_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
+    /// Key Vault MLDSA Seed Read Control
+    #[register(offset = 0x0000_8000, write_fn = on_write_mldsa_kv_rd_seed_ctrl)]
+    kv_mldsa_seed_rd_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
 
-    /// Key Vault Read Status
+    /// Key Vault MLDSA Seed Read Status
     #[register(offset = 0x0000_8004)]
-    kv_rd_seed_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
+    kv_mldsa_seed_rd_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
+
+    /// MLKEM Name registers
+    #[register_array(offset = 0x0000_9000)]
+    mlkem_name: [u32; 2],
+
+    /// MLKEM Version registers
+    #[register_array(offset = 0x0000_9008)]
+    mlkem_version: [u32; 2],
+
+    /// MLKEM Control register
+    #[register(offset = 0x0000_9010)]
+    mlkem_ctrl: ReadWriteRegister<u32, MlDsaControl::Register>,
+
+    /// MLKEM Status register
+    #[register(offset = 0x0000_9014)]
+    mlkem_status: ReadOnlyRegister<u32, MlDsaStatus::Register>,
+
+    /// MLKEM Seed D
+    #[register_array(offset = 0x0000_9018)]
+    mlkem_seed_d: [u32; 8],
+
+    /// MLKEM Seed Z
+    #[register_array(offset = 0x0000_9038)]
+    mlkem_seed_z: [u32; 8],
+
+    /// MLKEM Shared Key
+    #[register_array(offset = 0x0000_9058)]
+    mlkem_shared_key: [u32; 8],
+
+    /// MLKEM Message
+    #[register_array(offset = 0x0000_A000)]
+    mlkem_msg: [u32; 8],
+
+    /// MLKEM Decapsulation Key
+    #[register_array(offset = 0x0000_B000)]
+    mlkem_decaps_key: [u32; 792],
+
+    /// MLKEM Encapsulation Key
+    #[register_array(offset = 0x0000_C000)]
+    mlkem_encaps_key: [u32; 392],
+
+    /// MLKEM Ciphertext
+    #[register_array(offset = 0x0000_D000)]
+    mlkem_ciphertext: [u32; 392],
+
+    /// Key Vault MLKEM Seed Read Control
+    #[register(offset = 0x0000_E000)]
+    kv_mlkem_seed_rd_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
+
+    /// Key Vault MLKEM Seed Read Status
+    #[register(offset = 0x0000_E004)]
+    kv_mlkem_seed_rd_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
+
+    /// Key Vault MLKEM Message Read Control
+    #[register(offset = 0x0000_E008)]
+    kv_mlkem_msg_rd_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
+
+    /// Key Vault MLKEM Message Read Status
+    #[register(offset = 0x0000_E00C)]
+    kv_mlkem_msg_rd_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
+
+    /// Key Vault MLKEM Shared Key Write Control
+    #[register(offset = 0x0000_E010)]
+    kv_mlkem_sharedkey_wr_ctrl: ReadWriteRegister<u32, KvRdSeedCtrl::Register>,
+
+    /// Key Vault MLKEM Shared Key Write Status
+    #[register(offset = 0x0000_E014)]
+    kv_mlkem_sharedkey_wr_status: ReadOnlyRegister<u32, KvRdSeedStatus::Register>,
 
     /// Error Global Intr register
     #[register(offset = 0x0000_810c)]
@@ -274,7 +342,7 @@ pub struct Mldsa87 {
     streamed_msg: Vec<u8>,
 }
 
-impl Mldsa87 {
+impl Abr {
     /// NAME0 Register Value TODO update when known
     const NAME0_VAL: RvData = 0x73656370; //0x63737065; // secp
 
@@ -289,25 +357,42 @@ impl Mldsa87 {
 
     pub fn new(clock: &Clock, key_vault: KeyVault, hash_sha512: HashSha512) -> Self {
         Self {
-            name: [Self::NAME0_VAL, Self::NAME1_VAL],
-            version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
-            control: ReadWriteRegister::new(0),
-            status: ReadOnlyRegister::new(Status::READY::SET.value),
-            entropy: Default::default(),
-            seed: Default::default(),
-            sign_rnd: Default::default(),
-            msg: Default::default(),
-            verify_res: Default::default(),
-            external_mu: Default::default(),
-            msg_strobe: ReadWriteRegister::new(0xf),
-            ctx_config: ReadWriteRegister::new(0),
-            ctx: [0; ML_DSA87_CTX_SIZE / 4],
-            pubkey: [0; ML_DSA87_PUBKEY_SIZE / 4],
-            signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
-            privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
-            privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
-            kv_rd_seed_ctrl: ReadWriteRegister::new(0),
-            kv_rd_seed_status: ReadOnlyRegister::new(0),
+            mldsa_name: [Self::NAME0_VAL, Self::NAME1_VAL],
+            mldsa_version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
+            mldsa_ctrl: ReadWriteRegister::new(0),
+            mldsa_status: ReadOnlyRegister::new(MlDsaStatus::READY::SET.value),
+            abr_entropy: Default::default(),
+            mldsa_seed: Default::default(),
+            mldsa_sign_rnd: Default::default(),
+            mldsa_msg: Default::default(),
+            mldsa_verify_res: Default::default(),
+            mldsa_external_mu: Default::default(),
+            mldsa_msg_strobe: ReadWriteRegister::new(0xf),
+            mldsa_ctx_config: ReadWriteRegister::new(0),
+            mldsa_ctx: [0; ML_DSA87_CTX_SIZE / 4],
+            mldsa_pubkey: [0; ML_DSA87_PUBKEY_SIZE / 4],
+            mldsa_signature: [0; ML_DSA87_SIGNATURE_SIZE / 4],
+            mldsa_privkey_out: [0; ML_DSA87_PRIVKEY_SIZE / 4],
+            mldsa_privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
+            kv_mldsa_seed_rd_ctrl: ReadWriteRegister::new(0),
+            kv_mldsa_seed_rd_status: ReadOnlyRegister::new(0),
+            mlkem_name: [Self::NAME0_VAL, Self::NAME1_VAL],
+            mlkem_version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
+            mlkem_ctrl: ReadWriteRegister::new(0),
+            mlkem_status: ReadOnlyRegister::new(MlDsaStatus::READY::SET.value),
+            mlkem_seed_d: Default::default(),
+            mlkem_seed_z: Default::default(),
+            mlkem_shared_key: Default::default(),
+            mlkem_msg: Default::default(),
+            mlkem_decaps_key: [0; 792],
+            mlkem_encaps_key: [0; 392],
+            mlkem_ciphertext: [0; 392],
+            kv_mlkem_seed_rd_ctrl: ReadWriteRegister::new(0),
+            kv_mlkem_seed_rd_status: ReadOnlyRegister::new(0),
+            kv_mlkem_msg_rd_ctrl: ReadWriteRegister::new(0),
+            kv_mlkem_msg_rd_status: ReadOnlyRegister::new(0),
+            kv_mlkem_sharedkey_wr_ctrl: ReadWriteRegister::new(0),
+            kv_mlkem_sharedkey_wr_status: ReadOnlyRegister::new(0),
             error_global_intr: ReadOnlyRegister::new(0),
             error_internal_intr: ReadOnlyRegister::new(0),
             private_key: [0; ML_DSA87_PRIVKEY_SIZE],
@@ -322,7 +407,7 @@ impl Mldsa87 {
         }
     }
 
-    fn write_access_fault(
+    fn write_mldsa_access_fault(
         &self,
         _size: RvSize,
         _index: usize,
@@ -333,25 +418,29 @@ impl Mldsa87 {
 
     fn set_msg_stream_ready(&mut self) {
         // Set the MSG_STREAM_READY bit unconditionally when called
-        self.status.reg.modify(Status::MSG_STREAM_READY::SET);
+        self.mldsa_status
+            .reg
+            .modify(MlDsaStatus::MSG_STREAM_READY::SET);
     }
 
     fn zeroize(&mut self) {
-        self.control.reg.set(0);
-        self.seed = Default::default();
-        self.sign_rnd = Default::default();
-        self.msg = Default::default();
-        self.verify_res = Default::default();
-        self.external_mu = Default::default();
-        self.msg_strobe.reg.set(0xf); // Reset to all bytes valid
-        self.ctx_config.reg.set(0);
-        self.ctx = [0; ML_DSA87_CTX_SIZE / 4];
-        self.pubkey = [0; ML_DSA87_PUBKEY_SIZE / 4];
-        self.signature = [0; ML_DSA87_SIGNATURE_SIZE / 4];
-        self.privkey_out = [0; ML_DSA87_PRIVKEY_SIZE / 4];
-        self.privkey_in = [0; ML_DSA87_PRIVKEY_SIZE / 4];
-        self.kv_rd_seed_ctrl.reg.set(0);
-        self.kv_rd_seed_status.reg.write(KvRdSeedStatus::READY::SET);
+        self.mldsa_ctrl.reg.set(0);
+        self.mldsa_seed = Default::default();
+        self.mldsa_sign_rnd = Default::default();
+        self.mldsa_msg = Default::default();
+        self.mldsa_verify_res = Default::default();
+        self.mldsa_external_mu = Default::default();
+        self.mldsa_msg_strobe.reg.set(0xf); // Reset to all bytes valid
+        self.mldsa_ctx_config.reg.set(0);
+        self.mldsa_ctx = [0; ML_DSA87_CTX_SIZE / 4];
+        self.mldsa_pubkey = [0; ML_DSA87_PUBKEY_SIZE / 4];
+        self.mldsa_signature = [0; ML_DSA87_SIGNATURE_SIZE / 4];
+        self.mldsa_privkey_out = [0; ML_DSA87_PRIVKEY_SIZE / 4];
+        self.mldsa_privkey_in = [0; ML_DSA87_PRIVKEY_SIZE / 4];
+        self.kv_mldsa_seed_rd_ctrl.reg.set(0);
+        self.kv_mldsa_seed_rd_status
+            .reg
+            .write(KvRdSeedStatus::READY::SET);
         self.private_key = [0; ML_DSA87_PRIVKEY_SIZE];
         self.streamed_msg.clear();
         // Stop actions
@@ -359,9 +448,11 @@ impl Mldsa87 {
         self.op_seed_read_complete_action = None;
         self.op_zeroize_complete_action = None;
         self.op_msg_stream_ready_action = None;
-        self.status
-            .reg
-            .modify(Status::READY::SET + Status::VALID::CLEAR + Status::MSG_STREAM_READY::CLEAR);
+        self.mldsa_status.reg.modify(
+            MlDsaStatus::READY::SET
+                + MlDsaStatus::VALID::CLEAR
+                + MlDsaStatus::MSG_STREAM_READY::CLEAR,
+        );
     }
 
     /// On Write callback for `control` register
@@ -374,38 +465,40 @@ impl Mldsa87 {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+    pub fn on_write_mldsa_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         // Writes have to be Word aligned
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
 
         // Set the control register
-        self.control.reg.set(val);
+        self.mldsa_ctrl.reg.set(val);
 
-        match self.control.reg.read_as_enum(Control::CTRL) {
-            Some(Control::CTRL::Value::KEYGEN)
-            | Some(Control::CTRL::Value::SIGNING)
-            | Some(Control::CTRL::Value::VERIFYING)
-            | Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
+        match self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL) {
+            Some(MlDsaControl::CTRL::Value::KEYGEN)
+            | Some(MlDsaControl::CTRL::Value::SIGNING)
+            | Some(MlDsaControl::CTRL::Value::VERIFYING)
+            | Some(MlDsaControl::CTRL::Value::KEYGEN_AND_SIGN) => {
                 // Reset the Ready and Valid status bits
-                self.status
+                self.mldsa_status
                     .reg
-                    .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+                    .modify(MlDsaStatus::READY::CLEAR + MlDsaStatus::VALID::CLEAR);
 
                 // If streaming message mode is enabled, set the MSG_STREAM_READY bit
                 // and wait for the message to be streamed in
-                if self.control.reg.is_set(Control::STREAM_MSG)
-                    && (self.control.reg.read_as_enum(Control::CTRL)
-                        == Some(Control::CTRL::Value::SIGNING)
-                        || self.control.reg.read_as_enum(Control::CTRL)
-                            == Some(Control::CTRL::Value::VERIFYING)
-                        || self.control.reg.read_as_enum(Control::CTRL)
-                            == Some(Control::CTRL::Value::KEYGEN_AND_SIGN))
+                if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG)
+                    && (self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
+                        == Some(MlDsaControl::CTRL::Value::SIGNING)
+                        || self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
+                            == Some(MlDsaControl::CTRL::Value::VERIFYING)
+                        || self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL)
+                            == Some(MlDsaControl::CTRL::Value::KEYGEN_AND_SIGN))
                 {
                     // Clear any previous streamed message
                     self.streamed_msg.clear();
-                    self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
+                    self.mldsa_status
+                        .reg
+                        .modify(MlDsaStatus::MSG_STREAM_READY::CLEAR);
                     // Schedule an action to set the MSG_STREAM_READY bit after a short delay
                     self.op_msg_stream_ready_action = Some(self.timer.schedule_poll_in(10));
                 } else {
@@ -416,9 +509,9 @@ impl Mldsa87 {
             _ => {}
         }
 
-        if self.control.reg.is_set(Control::ZEROIZE) {
+        if self.mldsa_ctrl.reg.is_set(MlDsaControl::ZEROIZE) {
             // Reset the Ready status bit
-            self.status.reg.modify(Status::READY::CLEAR);
+            self.mldsa_status.reg.modify(MlDsaStatus::READY::CLEAR);
 
             self.op_zeroize_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
         }
@@ -436,16 +529,20 @@ impl Mldsa87 {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_kv_rd_seed_ctrl(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+    pub fn on_write_mldsa_kv_rd_seed_ctrl(
+        &mut self,
+        size: RvSize,
+        val: RvData,
+    ) -> Result<(), BusError> {
         // Writes have to be Word aligned
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
 
-        self.kv_rd_seed_ctrl.reg.set(val);
+        self.kv_mldsa_seed_rd_ctrl.reg.set(val);
 
-        if self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
-            self.kv_rd_seed_status.reg.modify(
+        if self.kv_mldsa_seed_rd_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
+            self.kv_mldsa_seed_rd_status.reg.modify(
                 KvRdSeedStatus::READY::CLEAR
                     + KvRdSeedStatus::VALID::CLEAR
                     + KvRdSeedStatus::ERROR::CLEAR,
@@ -459,52 +556,52 @@ impl Mldsa87 {
 
     fn gen_key(&mut self) {
         // Unlike ECC, no dword endianness reversal is needed.
-        let seed = bytes_from_words_le(&self.seed);
+        let seed = bytes_from_words_le(&self.mldsa_seed);
         let mut rng = SeedOnlyRng::new(seed);
         let (pubkey, privkey) = try_keygen_with_rng(&mut rng).unwrap();
         let pubkey = pubkey.into_bytes();
-        self.pubkey = words_from_bytes_le(&pubkey);
+        self.mldsa_pubkey = words_from_bytes_le(&pubkey);
         self.private_key = privkey.into_bytes();
-        if !self.kv_rd_seed_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
+        if !self.kv_mldsa_seed_rd_ctrl.reg.is_set(KvRdSeedCtrl::READ_EN) {
             // privkey_out is in hardware format, which is same as library format.
             let privkey_out = self.private_key;
-            self.privkey_out = words_from_bytes_le(&privkey_out);
+            self.mldsa_privkey_out = words_from_bytes_le(&privkey_out);
         }
     }
 
     fn sign(&mut self, caller_provided: bool) {
         // Check if PCR_SIGN is set
-        if self.control.reg.is_set(Control::PCR_SIGN) {
+        if self.mldsa_ctrl.reg.is_set(MlDsaControl::PCR_SIGN) {
             panic!("ML-DSA PCR Sign operation needs to be performed with KEYGEN_AND_SIGN option");
         }
 
         let secret_key = if caller_provided {
             //  Unlike ECC, no dword endianness reversal is needed.
-            let privkey = bytes_from_words_le(&self.privkey_in);
+            let privkey = bytes_from_words_le(&self.mldsa_privkey_in);
             PrivateKey::try_from_bytes(privkey).unwrap()
         } else {
             PrivateKey::try_from_bytes(self.private_key).unwrap()
         };
 
         // Get message data based on streaming mode
-        let message = if self.control.reg.is_set(Control::STREAM_MSG) {
+        let message = if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
             // Use the streamed message
             self.streamed_msg.as_slice()
         } else {
             // Use the fixed message register
-            &bytes_from_words_le(&self.msg)
+            &bytes_from_words_le(&self.mldsa_msg)
         };
 
         // Get context if specified
         let mut ctx: Vec<u8> = Vec::new();
-        if self.control.reg.is_set(Control::STREAM_MSG) {
+        if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
             // Make sure we're not still expecting more message data
-            assert!(!self.status.reg.is_set(Status::MSG_STREAM_READY));
-            let ctx_size = self.ctx_config.reg.read(CtxConfig::CTX_SIZE) as usize;
+            assert!(!self.mldsa_status.reg.is_set(MlDsaStatus::MSG_STREAM_READY));
+            let ctx_size = self.mldsa_ctx_config.reg.read(MlDsaCtxConfig::CTX_SIZE) as usize;
             if ctx_size > 0 {
                 // Convert context array to bytes using functional approach
                 let ctx_bytes: Vec<u8> = self
-                    .ctx
+                    .mldsa_ctx
                     .iter()
                     .flat_map(|word| word.to_le_bytes().to_vec())
                     .collect();
@@ -521,7 +618,7 @@ impl Mldsa87 {
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-        self.signature = words_from_bytes_le(&signature_extended);
+        self.mldsa_signature = words_from_bytes_le(&signature_extended);
     }
 
     /// Sign the PCR digest
@@ -549,37 +646,37 @@ impl Mldsa87 {
             sig[..SIG_LEN].copy_from_slice(&signature);
             sig
         };
-        self.signature = words_from_bytes_le(&signature_extended);
+        self.mldsa_signature = words_from_bytes_le(&signature_extended);
     }
 
     fn verify(&mut self) {
         // Get message data based on streaming mode
-        let message = if self.control.reg.is_set(Control::STREAM_MSG) {
+        let message = if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
             // Use the streamed message
             self.streamed_msg.as_slice()
         } else {
             // Unlike ECC, no dword endianness reversal is needed.
             // Use the fixed message register
-            &bytes_from_words_le(&self.msg)
+            &bytes_from_words_le(&self.mldsa_msg)
         };
 
         let public_key = {
-            let key_bytes = bytes_from_words_le(&self.pubkey);
+            let key_bytes = bytes_from_words_le(&self.mldsa_pubkey);
             PublicKey::try_from_bytes(key_bytes).unwrap()
         };
 
-        let signature = bytes_from_words_le(&self.signature);
+        let signature = bytes_from_words_le(&self.mldsa_signature);
 
         // Get context if specified
         let mut ctx: Vec<u8> = Vec::new();
-        if self.control.reg.is_set(Control::STREAM_MSG) {
+        if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
             // Make sure we're not still expecting more message data
-            assert!(!self.status.reg.is_set(Status::MSG_STREAM_READY));
-            let ctx_size = self.ctx_config.reg.read(CtxConfig::CTX_SIZE) as usize;
+            assert!(!self.mldsa_status.reg.is_set(MlDsaStatus::MSG_STREAM_READY));
+            let ctx_size = self.mldsa_ctx_config.reg.read(MlDsaCtxConfig::CTX_SIZE) as usize;
             if ctx_size > 0 {
                 // Convert context array to bytes using functional approach
                 let ctx_bytes: Vec<u8> = self
-                    .ctx
+                    .mldsa_ctx
                     .iter()
                     .flat_map(|word| word.to_le_bytes().to_vec())
                     .collect();
@@ -590,22 +687,22 @@ impl Mldsa87 {
         let success = public_key.verify(message, &signature[..SIG_LEN].try_into().unwrap(), &ctx);
 
         if success {
-            self.verify_res
-                .copy_from_slice(&self.signature[..(ML_DSA87_VERIFICATION_SIZE_BYTES / 4)]);
+            self.mldsa_verify_res
+                .copy_from_slice(&self.mldsa_signature[..(ML_DSA87_VERIFICATION_SIZE_BYTES / 4)]);
         } else {
-            self.verify_res = [0u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4];
+            self.mldsa_verify_res = [0u32; ML_DSA87_VERIFICATION_SIZE_BYTES / 4];
         }
     }
 
     fn op_complete(&mut self) {
-        match self.control.reg.read_as_enum(Control::CTRL) {
-            Some(Control::CTRL::Value::KEYGEN) => self.gen_key(),
-            Some(Control::CTRL::Value::SIGNING) => {
+        match self.mldsa_ctrl.reg.read_as_enum(MlDsaControl::CTRL) {
+            Some(MlDsaControl::CTRL::Value::KEYGEN) => self.gen_key(),
+            Some(MlDsaControl::CTRL::Value::SIGNING) => {
                 self.sign(true);
             }
-            Some(Control::CTRL::Value::VERIFYING) => self.verify(),
-            Some(Control::CTRL::Value::KEYGEN_AND_SIGN) => {
-                if self.control.reg.is_set(Control::PCR_SIGN) {
+            Some(MlDsaControl::CTRL::Value::VERIFYING) => self.verify(),
+            Some(MlDsaControl::CTRL::Value::KEYGEN_AND_SIGN) => {
+                if self.mldsa_ctrl.reg.is_set(MlDsaControl::PCR_SIGN) {
                     self.pcr_digest_sign();
                 } else {
                     self.gen_key();
@@ -615,9 +712,11 @@ impl Mldsa87 {
             _ => panic!("Invalid value in ML-DSA Control"),
         }
 
-        self.status
-            .reg
-            .modify(Status::READY::SET + Status::VALID::SET + Status::MSG_STREAM_READY::CLEAR);
+        self.mldsa_status.reg.modify(
+            MlDsaStatus::READY::SET
+                + MlDsaStatus::VALID::SET
+                + MlDsaStatus::MSG_STREAM_READY::CLEAR,
+        );
     }
 
     fn read_seed_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
@@ -648,17 +747,20 @@ impl Mldsa87 {
 
             // DOWRD 0 from Key Vault goes to DWORD 7 of Seed.
             temp.reverse();
-            self.seed = temp;
+            self.mldsa_seed = temp;
         }
 
         seed_read_result
     }
 
     fn seed_read_complete(&mut self) {
-        let key_id = self.kv_rd_seed_ctrl.reg.read(KvRdSeedCtrl::READ_ENTRY);
+        let key_id = self
+            .kv_mldsa_seed_rd_ctrl
+            .reg
+            .read(KvRdSeedCtrl::READ_ENTRY);
         let seed_read_result = self.read_seed_from_keyvault(key_id, false);
 
-        self.kv_rd_seed_status.reg.modify(
+        self.kv_mldsa_seed_rd_status.reg.modify(
             KvRdSeedStatus::READY::SET
                 + KvRdSeedStatus::VALID::SET
                 + KvRdSeedStatus::ERROR.val(seed_read_result),
@@ -676,7 +778,7 @@ impl Mldsa87 {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_msg(
+    pub fn on_write_mldsa_msg(
         &mut self,
         size: RvSize,
         index: usize,
@@ -688,8 +790,8 @@ impl Mldsa87 {
         }
 
         // Regular write for non-streaming mode
-        if !self.control.reg.is_set(Control::STREAM_MSG) {
-            self.msg[index] = val;
+        if !self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
+            self.mldsa_msg[index] = val;
             return Ok(());
         }
 
@@ -697,7 +799,7 @@ impl Mldsa87 {
         assert!(index == 0);
 
         // Streaming message mode - handle write to index 0
-        let strobe_value = self.msg_strobe.reg.read(Strobe::STROBE);
+        let strobe_value = self.mldsa_msg_strobe.reg.read(MlDsaStrobe::STROBE);
         let mut bytes_to_add: Vec<u8> = Vec::new();
 
         // Handle the strobe for valid bytes
@@ -713,10 +815,14 @@ impl Mldsa87 {
             }
 
             // Reset the strobe and mark end of message
-            self.msg_strobe.reg.write(Strobe::STROBE.val(0xF));
+            self.mldsa_msg_strobe
+                .reg
+                .write(MlDsaStrobe::STROBE.val(0xF));
 
             // If this was the last segment, start processing
-            self.status.reg.modify(Status::MSG_STREAM_READY::CLEAR);
+            self.mldsa_status
+                .reg
+                .modify(MlDsaStatus::MSG_STREAM_READY::CLEAR);
             self.op_complete_action = Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
         }
 
@@ -763,114 +869,121 @@ mod tests {
 
     use super::*;
 
-    const OFFSET_NAME0: RvAddr = 0x0;
-    const OFFSET_NAME1: RvAddr = 0x4;
-    const OFFSET_VERSION0: RvAddr = 0x8;
-    const OFFSET_VERSION1: RvAddr = 0xC;
-    const OFFSET_CONTROL: RvAddr = 0x10;
-    const OFFSET_STATUS: RvAddr = 0x14;
-    const OFFSET_SEED: RvAddr = 0x58;
-    const OFFSET_SIGN_RND: RvAddr = 0x78;
-    const OFFSET_MSG: RvAddr = 0x98;
-    const OFFSET_MSG_STROBE: RvAddr = 0x158;
-    const OFFSET_CTX_CONFIG: RvAddr = 0x15c;
-    const OFFSET_CTX: RvAddr = 0x160;
-    const OFFSET_PK: RvAddr = 0x1000;
-    const OFFSET_SIGNATURE: RvAddr = 0x2000;
-    const OFFSET_PRIVKEY_IN: RvAddr = 0x6000;
-    const OFFSET_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
-    const OFFSET_KV_RD_SEED_STATUS: RvAddr = 0x8004;
+    const OFFSET_MLDSA_NAME0: RvAddr = 0x0;
+    const OFFSET_MLDSA_NAME1: RvAddr = 0x4;
+    const OFFSET_MLDSA_VERSION0: RvAddr = 0x8;
+    const OFFSET_MLDSA_VERSION1: RvAddr = 0xC;
+    const OFFSET_MLDSA_CONTROL: RvAddr = 0x10;
+    const OFFSET_MLDSA_STATUS: RvAddr = 0x14;
+    const OFFSET_MLDSA_SEED: RvAddr = 0x58;
+    const OFFSET_MLDSA_SIGN_RND: RvAddr = 0x78;
+    const OFFSET_MLDSA_MSG: RvAddr = 0x98;
+    const OFFSET_MLDSA_MSG_STROBE: RvAddr = 0x158;
+    const OFFSET_MLDSA_CTX_CONFIG: RvAddr = 0x15c;
+    const OFFSET_MLDSA_CTX: RvAddr = 0x160;
+    const OFFSET_MLDSA_PK: RvAddr = 0x1000;
+    const OFFSET_MLDSA_SIGNATURE: RvAddr = 0x2000;
+    const OFFSET_MLDSA_PRIVKEY_IN: RvAddr = 0x6000;
+    const OFFSET_MLDSA_KV_RD_SEED_CONTROL: RvAddr = 0x8000;
+    const OFFSET_MLDSA_KV_RD_SEED_STATUS: RvAddr = 0x8004;
 
     #[test]
-    fn test_name() {
+    fn test_mldsa_name() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
-        let name0 = ml_dsa87.read(RvSize::Word, OFFSET_NAME0).unwrap();
+        let name0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
         assert_eq!(name0, "secp");
 
-        let name1 = ml_dsa87.read(RvSize::Word, OFFSET_NAME1).unwrap();
+        let name1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME1).unwrap();
         let name1 = String::from_utf8_lossy(&name1.to_be_bytes()).to_string();
         assert_eq!(name1, "-384");
     }
 
     #[test]
-    fn test_version() {
+    fn test_mldsa_version() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
-        let version0 = ml_dsa87.read(RvSize::Word, OFFSET_VERSION0).unwrap();
+        let version0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
         assert_eq!(version0, "1.00");
 
-        let version1 = ml_dsa87.read(RvSize::Word, OFFSET_VERSION1).unwrap();
+        let version1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION1).unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
         assert_eq!(version1, "\0\0\0\0");
     }
 
     #[test]
-    fn test_control() {
+    fn test_mldsa_control() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
-        assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+        assert_eq!(
+            ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_CONTROL).unwrap(),
+            0
+        );
     }
 
     #[test]
-    fn test_status() {
+    fn test_mldsa_status() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
-        assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
+        assert_eq!(ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(), 1);
     }
 
     #[test]
-    fn test_gen_key() {
+    fn test_mldsa_gen_key() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
         for (i, chunk) in seed.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SEED + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
 
         ml_dsa87
-            .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
+            .write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::KEYGEN.into(),
+            )
             .unwrap();
 
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let public_key = bytes_from_words_le(&ml_dsa87.pubkey);
+        let public_key = bytes_from_words_le(&ml_dsa87.mldsa_pubkey);
 
         let mut rng = SeedOnlyRng::new(seed);
         let (pk_from_lib, _sk) = try_keygen_with_rng(&mut rng).unwrap();
@@ -879,19 +992,19 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_from_seed() {
+    fn test_mldsa_sign_from_seed() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         let seed = rand::thread_rng().gen::<[u8; 32]>();
         for (i, chunk) in seed.chunks_exact(4).enumerate() {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SEED + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -908,7 +1021,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_MSG + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_MSG + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -920,7 +1033,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SIGN_RND + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -929,24 +1042,24 @@ mod tests {
         ml_dsa87
             .write(
                 RvSize::Word,
-                OFFSET_CONTROL,
-                Control::CTRL::KEYGEN_AND_SIGN.into(),
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::KEYGEN_AND_SIGN.into(),
             )
             .unwrap();
 
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let signature = bytes_from_words_le(&ml_dsa87.signature);
+        let signature = bytes_from_words_le(&ml_dsa87.mldsa_signature);
 
         let mut keygen_rng = SeedOnlyRng::new(seed);
         let (_pk, sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
@@ -961,12 +1074,12 @@ mod tests {
     }
 
     #[test]
-    fn test_verify() {
+    fn test_mldsa_verify() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         let msg: [u8; 64] = {
             let part0 = rand::thread_rng().gen::<[u8; 32]>();
@@ -986,7 +1099,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_MSG + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_MSG + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -997,7 +1110,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_PK + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_PK + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1014,7 +1127,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SIGNATURE + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1023,24 +1136,24 @@ mod tests {
         ml_dsa87
             .write(
                 RvSize::Word,
-                OFFSET_CONTROL,
-                Control::CTRL::VERIFYING.into(),
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::VERIFYING.into(),
             )
             .unwrap();
 
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let result = bytes_from_words_le(&ml_dsa87.verify_res);
+        let result = bytes_from_words_le(&ml_dsa87.mldsa_verify_res);
         let sig_for_comp = {
             let mut sig = [0; SIG_LEN + 1];
             sig[..SIG_LEN].copy_from_slice(&signature_from_lib);
@@ -1058,7 +1171,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGNATURE + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SIGNATURE + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1067,24 +1180,24 @@ mod tests {
         ml_dsa87
             .write(
                 RvSize::Word,
-                OFFSET_CONTROL,
-                Control::CTRL::VERIFYING.into(),
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::CTRL::VERIFYING.into(),
             )
             .unwrap();
 
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
             clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
         }
 
-        let result = bytes_from_words_le(&ml_dsa87.verify_res);
+        let result = bytes_from_words_le(&ml_dsa87.mldsa_verify_res);
         assert_ne!(
             result,
             &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE_BYTES..]
@@ -1092,7 +1205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_key_kv_seed() {
+    fn test_mldsa_gen_key_kv_seed() {
         // Test for getting the seed from the key-vault.
         for key_id in 0..KeyVault::KEY_COUNT {
             let clock = Clock::new();
@@ -1115,7 +1228,7 @@ mod tests {
                 .unwrap();
 
             let sha512 = HashSha512::new(&clock, key_vault.clone());
-            let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+            let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
             // We expect the output to match the generated random seed.
             // Write a different seed first to make sure the Kv seed is used
@@ -1124,7 +1237,7 @@ mod tests {
                 ml_dsa87
                     .write(
                         RvSize::Word,
-                        OFFSET_SEED + (i * 4) as RvAddr,
+                        OFFSET_MLDSA_SEED + (i * 4) as RvAddr,
                         u32::from_le_bytes(chunk.try_into().unwrap()),
                     )
                     .unwrap();
@@ -1135,14 +1248,18 @@ mod tests {
             seed_ctrl.modify(KvRdSeedCtrl::READ_ENTRY.val(key_id) + KvRdSeedCtrl::READ_EN.val(1));
 
             ml_dsa87
-                .write(RvSize::Word, OFFSET_KV_RD_SEED_CONTROL, seed_ctrl.get())
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_KV_RD_SEED_CONTROL,
+                    seed_ctrl.get(),
+                )
                 .unwrap();
 
             // Wait for ml_dsa87 periph to retrieve the seed from key-vault.
             loop {
                 let seed_read_status = InMemoryRegister::<u32, KvRdSeedStatus::Register>::new(
                     ml_dsa87
-                        .read(RvSize::Word, OFFSET_KV_RD_SEED_STATUS)
+                        .read(RvSize::Word, OFFSET_MLDSA_KV_RD_SEED_STATUS)
                         .unwrap(),
                 );
 
@@ -1157,32 +1274,36 @@ mod tests {
             }
 
             ml_dsa87
-                .write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::KEYGEN.into())
+                .write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_CONTROL,
+                    MlDsaControl::CTRL::KEYGEN.into(),
+                )
                 .unwrap();
 
             loop {
-                let status = InMemoryRegister::<u32, Status::Register>::new(
-                    ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                    ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
                 );
-                if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                     break;
                 }
                 clock.increment_and_process_timer_actions(1, &mut ml_dsa87);
             }
 
-            let public_key = bytes_from_words_le(&ml_dsa87.pubkey);
+            let public_key = bytes_from_words_le(&ml_dsa87.mldsa_pubkey);
             let pub_key_comp = pk_from_lib;
             assert_eq!(&public_key, &pub_key_comp);
         }
     }
 
     #[test]
-    fn test_sign_var_from_seed() {
+    fn test_mldsa_sign_var_from_seed() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         // Generate seed and write to hardware
         let seed = rand::thread_rng().gen::<[u8; 32]>();
@@ -1190,7 +1311,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SEED + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SEED + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1208,7 +1329,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SIGN_RND + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1219,18 +1340,19 @@ mod tests {
         let (pk, _sk) = try_keygen_with_rng(&mut keygen_rng).unwrap();
 
         // Enable key generation and signing with streaming message mode in one operation
-        let ctrl_value = Control::CTRL::KEYGEN_AND_SIGN.value | Control::STREAM_MSG::SET.value;
+        let ctrl_value =
+            MlDsaControl::CTRL::KEYGEN_AND_SIGN.value | MlDsaControl::STREAM_MSG::SET.value;
         ml_dsa87
-            .write(RvSize::Word, OFFSET_CONTROL, ctrl_value)
+            .write(RvSize::Word, OFFSET_MLDSA_CONTROL, ctrl_value)
             .unwrap();
 
         // Wait for MSG_STREAM_READY status
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::MSG_STREAM_READY) {
+            if status.is_set(MlDsaStatus::MSG_STREAM_READY) {
                 break;
             }
 
@@ -1244,7 +1366,9 @@ mod tests {
         // Process full dwords
         for chunk in dwords {
             let word = u32::from_le_bytes(chunk.try_into().unwrap());
-            ml_dsa87.write(RvSize::Word, OFFSET_MSG, word).unwrap();
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_MLDSA_MSG, word)
+                .unwrap();
         }
 
         // Handle remainder bytes by setting appropriate strobe pattern
@@ -1256,7 +1380,7 @@ mod tests {
             _ => 0b0000, // should never happen
         };
         ml_dsa87
-            .write(RvSize::Word, OFFSET_MSG_STROBE, last_strobe)
+            .write(RvSize::Word, OFFSET_MLDSA_MSG_STROBE, last_strobe)
             .unwrap();
 
         // Write last dword, even if no remainder (using 0)
@@ -1264,15 +1388,17 @@ mod tests {
         let mut last_bytes = last_word.to_le_bytes();
         last_bytes[..remainder.len()].copy_from_slice(remainder);
         last_word = u32::from_le_bytes(last_bytes);
-        ml_dsa87.write(RvSize::Word, OFFSET_MSG, last_word).unwrap();
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_MLDSA_MSG, last_word)
+            .unwrap();
 
         // Wait for operation to complete
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
@@ -1280,7 +1406,7 @@ mod tests {
         }
 
         // Get the signature
-        let signature = bytes_from_words_le(&ml_dsa87.signature);
+        let signature = bytes_from_words_le(&ml_dsa87.mldsa_signature);
 
         // Verify the signature using the crypto library
         let result = pk.verify(&msg_short, &signature[..SIG_LEN].try_into().unwrap(), &[]);
@@ -1288,12 +1414,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_var_with_streaming_and_context() {
+    fn test_mldsa_sign_var_with_streaming_and_context() {
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
 
-        let mut ml_dsa87 = Mldsa87::new(&clock, key_vault, sha512);
+        let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         // Generate a private key directly
         let seed = rand::thread_rng().gen::<[u8; 32]>();
@@ -1306,7 +1432,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_PRIVKEY_IN + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_PRIVKEY_IN + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1324,7 +1450,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_CTX + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_CTX + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
@@ -1340,7 +1466,7 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_CTX + (ctx_data.len() / 4 * 4) as RvAddr,
+                    OFFSET_MLDSA_CTX + (ctx_data.len() / 4 * 4) as RvAddr,
                     last_word,
                 )
                 .unwrap();
@@ -1348,7 +1474,7 @@ mod tests {
 
         // Set context size in config register
         ml_dsa87
-            .write(RvSize::Word, OFFSET_CTX_CONFIG, ctx_size as u32)
+            .write(RvSize::Word, OFFSET_MLDSA_CTX_CONFIG, ctx_size as u32)
             .unwrap();
 
         // Generate random values for sign_rnd
@@ -1357,25 +1483,25 @@ mod tests {
             ml_dsa87
                 .write(
                     RvSize::Word,
-                    OFFSET_SIGN_RND + (i * 4) as RvAddr,
+                    OFFSET_MLDSA_SIGN_RND + (i * 4) as RvAddr,
                     u32::from_le_bytes(chunk.try_into().unwrap()),
                 )
                 .unwrap();
         }
 
         // Start signing operation with streaming mode
-        let ctrl_value = Control::CTRL::SIGNING.value | Control::STREAM_MSG::SET.value;
+        let ctrl_value = MlDsaControl::CTRL::SIGNING.value | MlDsaControl::STREAM_MSG::SET.value;
         ml_dsa87
-            .write(RvSize::Word, OFFSET_CONTROL, ctrl_value)
+            .write(RvSize::Word, OFFSET_MLDSA_CONTROL, ctrl_value)
             .unwrap();
 
         // Wait for MSG_STREAM_READY status
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::MSG_STREAM_READY) {
+            if status.is_set(MlDsaStatus::MSG_STREAM_READY) {
                 break;
             }
 
@@ -1389,7 +1515,9 @@ mod tests {
         // Process full dwords
         for chunk in dwords {
             let word = u32::from_le_bytes(chunk.try_into().unwrap());
-            ml_dsa87.write(RvSize::Word, OFFSET_MSG, word).unwrap();
+            ml_dsa87
+                .write(RvSize::Word, OFFSET_MLDSA_MSG, word)
+                .unwrap();
         }
 
         // Handle remainder bytes by setting appropriate strobe pattern
@@ -1401,7 +1529,7 @@ mod tests {
             _ => 0b0000, // should never happen
         };
         ml_dsa87
-            .write(RvSize::Word, OFFSET_MSG_STROBE, last_strobe)
+            .write(RvSize::Word, OFFSET_MLDSA_MSG_STROBE, last_strobe)
             .unwrap();
 
         // Write last dword, even if no remainder (using 0)
@@ -1409,15 +1537,17 @@ mod tests {
         let mut last_bytes = last_word.to_le_bytes();
         last_bytes[..remainder.len()].copy_from_slice(remainder);
         last_word = u32::from_le_bytes(last_bytes);
-        ml_dsa87.write(RvSize::Word, OFFSET_MSG, last_word).unwrap();
+        ml_dsa87
+            .write(RvSize::Word, OFFSET_MLDSA_MSG, last_word)
+            .unwrap();
 
         // Wait for operation to complete
         loop {
-            let status = InMemoryRegister::<u32, Status::Register>::new(
-                ml_dsa87.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            let status = InMemoryRegister::<u32, MlDsaStatus::Register>::new(
+                ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_STATUS).unwrap(),
             );
 
-            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+            if status.is_set(MlDsaStatus::VALID) && status.is_set(MlDsaStatus::READY) {
                 break;
             }
 
@@ -1425,7 +1555,7 @@ mod tests {
         }
 
         // Get the signature
-        let signature = bytes_from_words_le(&ml_dsa87.signature);
+        let signature = bytes_from_words_le(&ml_dsa87.mldsa_signature);
 
         // Verify the signature using the crypto library
         let result = pk.verify(

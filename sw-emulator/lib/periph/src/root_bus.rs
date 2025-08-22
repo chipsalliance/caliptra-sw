@@ -13,11 +13,11 @@ Abstract:
 --*/
 
 use crate::{
+    abr::Abr,
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     mci::Mci,
-    ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
     MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
@@ -300,7 +300,7 @@ pub struct CaliptraRootBus {
     pub sha256: HashSha256,
 
     #[peripheral(offset = 0x1003_0000, len = 0x10000)]
-    pub ml_dsa87: Mldsa87,
+    pub abr: Abr,
 
     #[peripheral(offset = 0x4000_0000, len = 0x40000)]
     pub iccm: Iccm,
@@ -374,7 +374,7 @@ impl CaliptraRootBus {
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
-        let ml_dsa87 = Mldsa87::new(clock, key_vault.clone(), sha512.clone());
+        let ml_dsa87 = Abr::new(clock, key_vault.clone(), sha512.clone());
 
         let aes_key = Rc::new(RefCell::new(None));
 
@@ -388,7 +388,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            ml_dsa87,
+            abr: ml_dsa87,
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
@@ -426,7 +426,7 @@ impl CaliptraRootBus {
         self.key_vault.incoming_event(event.clone());
         self.sha512.incoming_event(event.clone());
         self.sha256.incoming_event(event.clone());
-        self.ml_dsa87.incoming_event(event.clone());
+        self.abr.incoming_event(event.clone());
         self.iccm.incoming_event(event.clone());
         self.dccm.incoming_event(event.clone());
         self.uart.incoming_event(event.clone());
@@ -451,7 +451,7 @@ impl CaliptraRootBus {
         self.key_vault.register_outgoing_events(sender.clone());
         self.sha512.register_outgoing_events(sender.clone());
         self.sha256.register_outgoing_events(sender.clone());
-        self.ml_dsa87.register_outgoing_events(sender.clone());
+        self.abr.register_outgoing_events(sender.clone());
         self.iccm.register_outgoing_events(sender.clone());
         self.dccm.register_outgoing_events(sender.clone());
         self.uart.register_outgoing_events(sender.clone());
