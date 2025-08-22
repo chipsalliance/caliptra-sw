@@ -910,6 +910,7 @@ pub mod i3ccsr;
 pub mod kv;
 pub mod mbox;
 pub mod mbox_sram;
+pub mod mci;
 pub mod otp_ctrl;
 pub mod pv;
 pub mod sha256;
