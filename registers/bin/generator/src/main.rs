@@ -35,6 +35,7 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/csrng/data/csrng.rdl",
     "src/entropy_src/data/entropy_src.rdl",
     "src/sha256/rtl/sha256_reg.rdl",
+    "src/sha3/rtl/sha3_reg.rdl",
     "src/sha512/rtl/sha512_reg.rdl",
     "src/spi_host/data/spi_host.rdl",
     "src/soc_ifc/rtl/mbox_csr.rdl",
@@ -49,7 +50,7 @@ static I3C_CORE_RDL_FILES: &[&str] = &["src/rdl/registers.rdl"];
 
 static OTP_CTRL_RDL_FILES: &[&str] = &["src/fuse_ctrl/rtl/otp_ctrl.rdl"];
 
-static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/mldsa_top/rtl/mldsa_reg.rdl"];
+static ADAMSBRIDGE_RDL_FILES: &[&str] = &["src/abr_top/rtl/abr_reg.rdl"];
 
 static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
 

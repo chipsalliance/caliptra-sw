@@ -10,11 +10,11 @@
 /// programs create one of these in unsafe code near the top of
 /// main(), and pass it to the driver responsible for managing
 /// all access to the hardware.
-pub struct Sha512AccCsr {
+pub struct Sha3 {
     _priv: (),
 }
-impl Sha512AccCsr {
-    pub const PTR: *mut u32 = 0x30021000 as *mut u32;
+impl Sha3 {
+    pub const PTR: *mut u32 = 0x10040000 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -74,116 +74,35 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
-    /// SHA lock register for SHA access, reading 0 will set the lock, Write 1 to clear the lock
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
+    /// Two 32-bit read-only registers representing the name
+    /// of SHA3/SHAKE component.
     ///
-    /// Read value: [`sha512_acc::regs::LockReadVal`]; Write value: [`sha512_acc::regs::LockWriteVal`]
+    /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn lock(&self) -> ureg::RegRef<crate::sha512_acc::meta::Lock, &TMmio> {
+    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::sha3::meta::Name, &TMmio>> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
+            ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// Stores the AXI USER that locked the SHA
-    /// [br]Caliptra Access: RO
-    /// [br]SOC Access:      RO
+    /// Two 32-bit read-only registers representing the version
+    /// of SHA3/SHAKE component.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     #[inline(always)]
-    pub fn user(&self) -> ureg::RegRef<crate::sha512_acc::meta::User, &TMmio> {
+    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::sha3::meta::Version, &TMmio>> {
         unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Stores the requested mode for the SHA to execute.
-    /// SHA Supports both SHA384 and SHA512 modes of operation.
-    /// SHA Supports streaming mode - SHA is computed on a stream of incoming data to datain register.
-    ///             mailbox mode - SHA is computed on LENGTH bytes of data stored in the mailbox from START_ADDRESS.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`sha512_acc::regs::ModeReadVal`]; Write value: [`sha512_acc::regs::ModeWriteVal`]
-    #[inline(always)]
-    pub fn mode(&self) -> ureg::RegRef<crate::sha512_acc::meta::Mode, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
+            ureg::Array::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// The start address for FW controlled SHA performed on data stored in the mailbox.
-    /// Start Address must be dword aligned.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`sha3::regs::AlertTestReadVal`]; Write value: [`sha3::regs::AlertTestWriteVal`]
     #[inline(always)]
-    pub fn start_address(&self) -> ureg::RegRef<crate::sha512_acc::meta::StartAddress, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// The length of data to be processed in bytes.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn dlen(&self) -> ureg::RegRef<crate::sha512_acc::meta::Dlen, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Data in register for SHA Streaming function
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn datain(&self) -> ureg::RegRef<crate::sha512_acc::meta::Datain, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// For Streaming Function, indicates that the initiator is done streaming.
-    /// For the Mailbox SHA Function, indicates that the SHA can begin execution.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`sha512_acc::regs::ExecuteReadVal`]; Write value: [`sha512_acc::regs::ExecuteWriteVal`]
-    #[inline(always)]
-    pub fn execute(&self) -> ureg::RegRef<crate::sha512_acc::meta::Execute, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// Status register indicating when the requested function is complete
-    /// [br]Caliptra Access: RO
-    /// [br]SOC Access:      RO
-    ///
-    /// Read value: [`sha512_acc::regs::StatusReadVal`]; Write value: [`sha512_acc::regs::StatusWriteVal`]
-    #[inline(always)]
-    pub fn status(&self) -> ureg::RegRef<crate::sha512_acc::meta::Status, &TMmio> {
+    pub fn alert_test(&self) -> ureg::RegRef<crate::sha3::meta::AlertTest, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
@@ -191,32 +110,98 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// 16 32-bit registers storing the 512-bit digest output in
-    /// big-endian representation.
-    /// [br]Caliptra Access: RO
-    /// [br]SOC Access:      RO
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
+    /// Read value: [`sha3::regs::CfgRegwenReadVal`]; Write value: [`sha3::regs::CfgRegwenWriteVal`]
     #[inline(always)]
-    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512_acc::meta::Digest, &TMmio>> {
+    pub fn cfg_regwen(&self) -> ureg::RegRef<crate::sha3::meta::CfgRegwen, &TMmio> {
         unsafe {
-            ureg::Array::new_with_mmio(
+            ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
     }
-    /// SHA Accelerator control flows.
-    /// [br]Zeroize the SHA engine internal registers.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RW
+    /// This register is shadowed and protected by CFG_REGWEN.en
+    /// 1. Two subsequent write operation are required to change its content,
+    /// If the two write operations try to set a different value, a recoverable alert is triggered (See Status Register).
+    /// 2. A read operation clears the internal phase tracking.
+    /// 3. If storage error(~staged_reg!=committed_reg) happen, it will trigger fatal fault alert
     ///
-    /// Read value: [`sha512_acc::regs::ControlReadVal`]; Write value: [`sha512_acc::regs::ControlWriteVal`]
+    /// Read value: [`sha3::regs::CfgShadowedReadVal`]; Write value: [`sha3::regs::CfgShadowedWriteVal`]
     #[inline(always)]
-    pub fn control(&self) -> ureg::RegRef<crate::sha512_acc::meta::Control, &TMmio> {
+    pub fn cfg_shadowed(&self) -> ureg::RegRef<crate::sha3::meta::CfgShadowed, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0x60 / core::mem::size_of::<u32>()),
+                self.ptr.wrapping_add(0x24 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`sha3::regs::CmdReadVal`]; Write value: [`sha3::regs::CmdWriteVal`]
+    #[inline(always)]
+    pub fn cmd(&self) -> ureg::RegRef<crate::sha3::meta::Cmd, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x28 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Read value: [`sha3::regs::StatusReadVal`]; Write value: [`sha3::regs::StatusWriteVal`]
+    #[inline(always)]
+    pub fn status(&self) -> ureg::RegRef<crate::sha3::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x2c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// SHA3 Error Code
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn err_code(&self) -> ureg::RegRef<crate::sha3::meta::ErrCode, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xd0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Keccak State (1600 bit) memory.
+    /// The software can get the processed digest by reading this memory
+    /// region. Unlike MSG_FIFO, STATE memory space sees the addr[9:0].
+    /// If Masking feature is enabled, the software reads two shares from
+    /// this memory space.
+    /// 0x200 - 0x2C7: State share
+    /// for Keccak State access:
+    /// 1. Output length <= rate length, sha3_done will be raised or software can poll STATUS.squeeze become 1.
+    /// 2. Output length > rate length, after software read 1st keccak state, software should issue run cmd to trigger keccak round logic to run full 24 rounds.
+    /// And then software should check STATUS.squeeze register field for the readiness of STATE value(SHA3 FSM become MANUAL_RUN before keccak state complete).
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn state(&self) -> ureg::Array<64, ureg::RegRef<crate::sha3::meta::State, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Message FIFO. window size is 2048 bytes.
+    /// Any write operation to this window will be appended to MSG_FIFO. SW can
+    /// simply write bytes/words to any address within this address range.
+    /// Ordering and packing of the incoming bytes/words are handled
+    /// internally. Therefore, the least significant 10 bits of the address
+    /// are ignored.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
+    pub fn msg_fifo(&self) -> ureg::Array<64, ureg::RegRef<crate::sha3::meta::MsgFifo, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xc00 / core::mem::size_of::<u32>()),
                 core::borrow::Borrow::borrow(&self.mmio),
             )
         }
@@ -224,7 +209,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
         IntrBlockRfBlock {
-            ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
+            ptr: unsafe { self.ptr.add(0x400 / core::mem::size_of::<u32>()) },
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -236,14 +221,12 @@ pub struct IntrBlockRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
 }
 impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Dedicated register with one bit for each event type that may produce an interrupt.
-    /// [br]Caliptra Access: RW
-    /// [br]SOC Access:      RO
     ///
     /// Read value: [`sha512_acc::regs::GlobalIntrEnTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrEnTWriteVal`]
     #[inline(always)]
     pub fn global_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
@@ -253,11 +236,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`sha512_acc::regs::ErrorIntrEnTReadVal`]; Write value: [`sha512_acc::regs::ErrorIntrEnTWriteVal`]
+    /// Read value: [`sha3::regs::ErrorIntrEnTReadVal`]; Write value: [`sha3::regs::ErrorIntrEnTWriteVal`]
     #[inline(always)]
     pub fn error_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
@@ -267,11 +250,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrEnTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrEnTWriteVal`]
+    /// Read value: [`sha3::regs::NotifIntrEnTReadVal`]; Write value: [`sha3::regs::NotifIntrEnTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
@@ -293,7 +276,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
@@ -315,7 +298,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
@@ -325,12 +308,13 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     }
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
+    /// SHA3 error occurred. ERR_CODE register shows the details
     ///
-    /// Read value: [`sha512_acc::regs::ErrorIntrTReadVal`]; Write value: [`sha512_acc::regs::ErrorIntrTWriteVal`]
+    /// Read value: [`sha3::regs::ErrorIntrTReadVal`]; Write value: [`sha3::regs::ErrorIntrTWriteVal`]
     #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
@@ -341,11 +325,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Single bit indicating occurrence of each interrupt event.
     /// Sticky, level assertion, write-1-to-clear.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTWriteVal`]
+    /// Read value: [`sha3::regs::NotifIntrTReadVal`]; Write value: [`sha3::regs::NotifIntrTWriteVal`]
     #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
@@ -363,7 +347,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
@@ -377,11 +361,11 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// trigger register bit results in the corresponding interrupt
     /// status bit being set to 1.
     ///
-    /// Read value: [`sha512_acc::regs::NotifIntrTrigTReadVal`]; Write value: [`sha512_acc::regs::NotifIntrTrigTWriteVal`]
+    /// Read value: [`sha3::regs::NotifIntrTrigTReadVal`]; Write value: [`sha3::regs::NotifIntrTrigTWriteVal`]
     #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
@@ -397,7 +381,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error0_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError0IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError0IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
@@ -413,7 +397,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error1_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError1IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError1IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
@@ -429,7 +413,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error2_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError2IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError2IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
@@ -445,7 +429,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error3_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError3IntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError3IntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
@@ -461,7 +445,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_done_intr_count_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
@@ -482,7 +466,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error0_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError0IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError0IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
@@ -503,7 +487,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error1_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError1IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError1IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
@@ -524,7 +508,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error2_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError2IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
@@ -545,7 +529,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn error3_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfError3IntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
@@ -566,7 +550,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     #[inline(always)]
     pub fn notif_cmd_done_intr_count_incr_r(
         &self,
-    ) -> ureg::RegRef<crate::sha512_acc::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
+    ) -> ureg::RegRef<crate::sha3::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
                 self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
@@ -584,7 +568,7 @@ pub struct IntrBlockRf {
     _priv: (),
 }
 impl IntrBlockRf {
-    pub const PTR: *mut u32 = 0x800 as *mut u32;
+    pub const PTR: *mut u32 = 0x400 as *mut u32;
     /// # Safety
     ///
     /// Caller must ensure that all concurrent use of this
@@ -617,223 +601,291 @@ impl IntrBlockRf {
 pub mod regs {
     //! Types that represent the values held by registers.
     #[derive(Clone, Copy)]
-    pub struct ControlReadVal(u32);
-    impl ControlReadVal {
-        /// Zeroize all internal registers
+    pub struct AlertTestWriteVal(u32);
+    impl AlertTestWriteVal {
+        /// Write 1 to trigger one alert event of this kind.
         #[inline(always)]
-        pub fn zeroize(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> ControlWriteVal {
-            ControlWriteVal(self.0)
-        }
-    }
-    impl From<u32> for ControlReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<ControlReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: ControlReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ControlWriteVal(u32);
-    impl ControlWriteVal {
-        /// Zeroize all internal registers
-        #[inline(always)]
-        pub fn zeroize(self, val: bool) -> Self {
+        pub fn recov_operation_err(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
+        /// Write 1 to trigger one alert event of this kind.
+        #[inline(always)]
+        pub fn fatal_fault_err(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
     }
-    impl From<u32> for ControlWriteVal {
+    impl From<u32> for AlertTestWriteVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<ControlWriteVal> for u32 {
+    impl From<AlertTestWriteVal> for u32 {
         #[inline(always)]
-        fn from(val: ControlWriteVal) -> u32 {
+        fn from(val: AlertTestWriteVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct ExecuteReadVal(u32);
-    impl ExecuteReadVal {
+    pub struct CfgRegwenReadVal(u32);
+    impl CfgRegwenReadVal {
+        /// Configuration enable.
         #[inline(always)]
-        pub fn execute(&self) -> bool {
+        pub fn en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> ExecuteWriteVal {
-            ExecuteWriteVal(self.0)
-        }
     }
-    impl From<u32> for ExecuteReadVal {
+    impl From<u32> for CfgRegwenReadVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<ExecuteReadVal> for u32 {
+    impl From<CfgRegwenReadVal> for u32 {
         #[inline(always)]
-        fn from(val: ExecuteReadVal) -> u32 {
+        fn from(val: CfgRegwenReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct ExecuteWriteVal(u32);
-    impl ExecuteWriteVal {
+    pub struct CfgShadowedReadVal(u32);
+    impl CfgShadowedReadVal {
+        /// Hashing Strength, Protected by CFG_REGWEN.en
+        /// bit field to select the security strength of SHA3 hashing engine.
+        /// If mode field is set to SHAKE, only 128 and 256 strength can be selected.
+        /// Other value will result error when hashing starts.
         #[inline(always)]
-        pub fn execute(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        pub fn kstrength(&self) -> u32 {
+            (self.0 >> 1) & 7
         }
-    }
-    impl From<u32> for ExecuteWriteVal {
+        /// Keccak hashing mode, Protected by CFG_REGWEN.en
+        /// This module supports SHA3 main hashing algorithm and the part of its derived functions,
+        /// SHAKE with limitations. This field is to select the mode.
         #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
+        pub fn mode(&self) -> u32 {
+            (self.0 >> 4) & 3
         }
-    }
-    impl From<ExecuteWriteVal> for u32 {
+        /// Protected by CFG_REGWEN.en
+        /// If 1 then each individual multi-byte value, regardless of its alignment,
+        /// written to MSG_FIFO will be added to the message in big-endian byte order.
+        /// If 0, each value will be added to the message in little-endian byte order.
+        /// A message written to MSG_FIFO one byte at a time will not be affected by this setting.
+        /// From a hardware perspective byte swaps are performed on a TL-UL word granularity.
         #[inline(always)]
-        fn from(val: ExecuteWriteVal) -> u32 {
-            val.0
+        pub fn msg_endianness(&self) -> bool {
+            ((self.0 >> 8) & 1) != 0
         }
-    }
-    #[derive(Clone, Copy)]
-    pub struct LockReadVal(u32);
-    impl LockReadVal {
+        /// Protected by CFG_REGWEN.en
+        /// If 1 then each individual multi-byte value, regardless of its alignment,
+        /// written to MSG_FIFO will be added to the message in big-endian byte order.
+        /// If 0, each value will be added to the message in little-endian byte order.
+        /// A message written to MSG_FIFO one byte at a time will not be affected by this setting.
+        /// From a hardware perspective byte swaps are performed on a TL-UL word granularity.
         #[inline(always)]
-        pub fn lock(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> LockWriteVal {
-            LockWriteVal(self.0)
-        }
-    }
-    impl From<u32> for LockReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<LockReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: LockReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct LockWriteVal(u32);
-    impl LockWriteVal {
-        #[inline(always)]
-        pub fn lock(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-    }
-    impl From<u32> for LockWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<LockWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: LockWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct ModeReadVal(u32);
-    impl ModeReadVal {
-        #[inline(always)]
-        pub fn mode(&self) -> super::enums::ShaCmdE {
-            super::enums::ShaCmdE::try_from((self.0 >> 0) & 3).unwrap()
-        }
-        /// Default behavior assumes that data in mailbox or from streaming input is little endian,
-        /// When set to 0, data input (from mailbox or streaming data) will be swizzled from little to big endian at the byte level.
-        /// When set to 1, data input will be loaded into SHA as-is.
-        /// [br]Caliptra Access: RW
-        /// [br]SOC Access:      RW
-        #[inline(always)]
-        pub fn endian_toggle(&self) -> bool {
-            ((self.0 >> 2) & 1) != 0
+        pub fn state_endianness(&self) -> bool {
+            ((self.0 >> 9) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
-        pub fn modify(self) -> ModeWriteVal {
-            ModeWriteVal(self.0)
+        pub fn modify(self) -> CfgShadowedWriteVal {
+            CfgShadowedWriteVal(self.0)
         }
     }
-    impl From<u32> for ModeReadVal {
+    impl From<u32> for CfgShadowedReadVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<ModeReadVal> for u32 {
+    impl From<CfgShadowedReadVal> for u32 {
         #[inline(always)]
-        fn from(val: ModeReadVal) -> u32 {
+        fn from(val: CfgShadowedReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct ModeWriteVal(u32);
-    impl ModeWriteVal {
+    pub struct CfgShadowedWriteVal(u32);
+    impl CfgShadowedWriteVal {
+        /// Hashing Strength, Protected by CFG_REGWEN.en
+        /// bit field to select the security strength of SHA3 hashing engine.
+        /// If mode field is set to SHAKE, only 128 and 256 strength can be selected.
+        /// Other value will result error when hashing starts.
         #[inline(always)]
-        pub fn mode(
-            self,
-            f: impl FnOnce(super::enums::selector::ShaCmdESelector) -> super::enums::ShaCmdE,
-        ) -> Self {
-            Self(
-                (self.0 & !(3 << 0))
-                    | (u32::from(f(super::enums::selector::ShaCmdESelector())) << 0),
-            )
+        pub fn kstrength(self, val: u32) -> Self {
+            Self((self.0 & !(7 << 1)) | ((val & 7) << 1))
         }
-        /// Default behavior assumes that data in mailbox or from streaming input is little endian,
-        /// When set to 0, data input (from mailbox or streaming data) will be swizzled from little to big endian at the byte level.
-        /// When set to 1, data input will be loaded into SHA as-is.
-        /// [br]Caliptra Access: RW
-        /// [br]SOC Access:      RW
+        /// Keccak hashing mode, Protected by CFG_REGWEN.en
+        /// This module supports SHA3 main hashing algorithm and the part of its derived functions,
+        /// SHAKE with limitations. This field is to select the mode.
         #[inline(always)]
-        pub fn endian_toggle(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        pub fn mode(self, val: u32) -> Self {
+            Self((self.0 & !(3 << 4)) | ((val & 3) << 4))
+        }
+        /// Protected by CFG_REGWEN.en
+        /// If 1 then each individual multi-byte value, regardless of its alignment,
+        /// written to MSG_FIFO will be added to the message in big-endian byte order.
+        /// If 0, each value will be added to the message in little-endian byte order.
+        /// A message written to MSG_FIFO one byte at a time will not be affected by this setting.
+        /// From a hardware perspective byte swaps are performed on a TL-UL word granularity.
+        #[inline(always)]
+        pub fn msg_endianness(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
+        }
+        /// Protected by CFG_REGWEN.en
+        /// If 1 then each individual multi-byte value, regardless of its alignment,
+        /// written to MSG_FIFO will be added to the message in big-endian byte order.
+        /// If 0, each value will be added to the message in little-endian byte order.
+        /// A message written to MSG_FIFO one byte at a time will not be affected by this setting.
+        /// From a hardware perspective byte swaps are performed on a TL-UL word granularity.
+        #[inline(always)]
+        pub fn state_endianness(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
         }
     }
-    impl From<u32> for ModeWriteVal {
+    impl From<u32> for CfgShadowedWriteVal {
         #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<ModeWriteVal> for u32 {
+    impl From<CfgShadowedWriteVal> for u32 {
         #[inline(always)]
-        fn from(val: ModeWriteVal) -> u32 {
+        fn from(val: CfgShadowedWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CmdReadVal(u32);
+    impl CmdReadVal {
+        /// Issues a command to the SHA3 IP. The command is sparse encoded.
+        /// To prevent sw from writing multiple commands at once, the field is defined as enum.
+        /// Always return 0 for SW reads.
+        /// START: Writing 6'b011101 or dec 29 into this field when SHA3/SHAKE is in idle, SHA3/SHAKE begins its operation and start absorbing.
+        /// PROCESS: Writing 6'b101110 or dec 46 into this field when SHA3/SHAKE began its operation and received the entire message, it computes the digest or signing.
+        /// RUN: The run field is used in the sponge squeezing stage.
+        /// It triggers the keccak round logic to run full 24 rounds.
+        /// This is optional and used when software needs more digest bits than the keccak rate.
+        /// It only affects when the SHA3/SHAKE operation is completed.
+        /// DONE: Writing 6'b010110 or dec 22 into this field when SHA3 squeezing is completed,
+        /// SHA3/SHAKE hashing engine clears internal variables and goes back to Idle state for next command.
+        #[inline(always)]
+        pub fn cmd(&self) -> u32 {
+            (self.0 >> 0) & 0x3f
+        }
+        /// When error occurs and one of the state machine stays at Error handling state,
+        /// SW may process the error based on ERR_CODE, then let FSM back to the reset state.
+        /// Always return 0 for SW reads.
+        #[inline(always)]
+        pub fn err_processed(&self) -> bool {
+            ((self.0 >> 10) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
+        pub fn modify(self) -> CmdWriteVal {
+            CmdWriteVal(self.0)
+        }
+    }
+    impl From<u32> for CmdReadVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CmdReadVal> for u32 {
+        #[inline(always)]
+        fn from(val: CmdReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct CmdWriteVal(u32);
+    impl CmdWriteVal {
+        /// Issues a command to the SHA3 IP. The command is sparse encoded.
+        /// To prevent sw from writing multiple commands at once, the field is defined as enum.
+        /// Always return 0 for SW reads.
+        /// START: Writing 6'b011101 or dec 29 into this field when SHA3/SHAKE is in idle, SHA3/SHAKE begins its operation and start absorbing.
+        /// PROCESS: Writing 6'b101110 or dec 46 into this field when SHA3/SHAKE began its operation and received the entire message, it computes the digest or signing.
+        /// RUN: The run field is used in the sponge squeezing stage.
+        /// It triggers the keccak round logic to run full 24 rounds.
+        /// This is optional and used when software needs more digest bits than the keccak rate.
+        /// It only affects when the SHA3/SHAKE operation is completed.
+        /// DONE: Writing 6'b010110 or dec 22 into this field when SHA3 squeezing is completed,
+        /// SHA3/SHAKE hashing engine clears internal variables and goes back to Idle state for next command.
+        #[inline(always)]
+        pub fn cmd(self, val: u32) -> Self {
+            Self((self.0 & !(0x3f << 0)) | ((val & 0x3f) << 0))
+        }
+        /// When error occurs and one of the state machine stays at Error handling state,
+        /// SW may process the error based on ERR_CODE, then let FSM back to the reset state.
+        /// Always return 0 for SW reads.
+        #[inline(always)]
+        pub fn err_processed(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
+        }
+    }
+    impl From<u32> for CmdWriteVal {
+        #[inline(always)]
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<CmdWriteVal> for u32 {
+        #[inline(always)]
+        fn from(val: CmdWriteVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
     pub struct StatusReadVal(u32);
     impl StatusReadVal {
-        /// Valid bit, indicating that the digest is complete
+        /// If 1, SHA3 hashing engine is in idle state.
         #[inline(always)]
-        pub fn valid(&self) -> bool {
+        pub fn sha3_idle(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
         }
-        /// Indicates that the current lock was acquired by the SoC
+        /// If 1, SHA3 is receiving message stream and processing it
         #[inline(always)]
-        pub fn soc_has_lock(&self) -> bool {
+        pub fn sha3_absorb(&self) -> bool {
             ((self.0 >> 1) & 1) != 0
+        }
+        /// If 1, SHA3 completes sponge absorbing stage. In this stage, SW can manually run the hashing engine.
+        #[inline(always)]
+        pub fn sha3_squeeze(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Count of occupied entries in the message FIFO.
+        #[inline(always)]
+        pub fn fifo_depth(&self) -> u32 {
+            (self.0 >> 8) & 0x1f
+        }
+        /// Message FIFO Empty indicator.
+        /// The FIFO's Pass parameter is set to 1'b 1. So, by default, if the SHA engine is ready, the write data to FIFO just passes through.
+        /// In this case, fifo_depth remains 0. fifo_empty, however, lowers the value to 0 for a cycle, then goes back to the empty state, 1.
+        /// See the Message FIFO section in the spec for the reason.
+        #[inline(always)]
+        pub fn fifo_empty(&self) -> bool {
+            ((self.0 >> 14) & 1) != 0
+        }
+        /// Message FIFO Full indicator.
+        #[inline(always)]
+        pub fn fifo_full(&self) -> bool {
+            ((self.0 >> 15) & 1) != 0
+        }
+        /// No fatal fault has occurred inside the SHA3 unit (0).
+        /// A fatal fault has occured and the SHA3 unit needs to be reset (1),
+        /// Examples for such faults include i) TL-UL bus integrity fault
+        /// ii) storage errors in the shadow registers
+        /// iii) errors in the message, round, or key counter
+        /// iv) any internal FSM entering an invalid state.
+        #[inline(always)]
+        pub fn alert_fatal_fault(&self) -> bool {
+            ((self.0 >> 16) & 1) != 0
+        }
+        /// An update error has not occurred (0) or has occured (1) in the shadowed Control Register.
+        /// SHA3 operation needs to be restarted by re-writing the Control Register.
+        #[inline(always)]
+        pub fn alert_recov_ctrl_update_err(&self) -> bool {
+            ((self.0 >> 17) & 1) != 0
         }
     }
     impl From<u32> for StatusReadVal {
@@ -851,7 +903,9 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTReadVal(u32);
     impl ErrorIntrEnTReadVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Event 0.
+        /// If enabled, interrupt will be asserted
+        /// if there is a SHAKE configuration error.
         #[inline(always)]
         pub fn error0_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -892,7 +946,9 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrEnTWriteVal(u32);
     impl ErrorIntrEnTWriteVal {
-        /// Enable bit for Event 0
+        /// Enable bit for Event 0.
+        /// If enabled, interrupt will be asserted
+        /// if there is a SHAKE configuration error.
         #[inline(always)]
         pub fn error0_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -928,7 +984,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTReadVal(u32);
     impl ErrorIntrTReadVal {
-        /// Interrupt Event 0 status bit
+        /// Interrupt Event 0 status bit; Used to indicate SHA3 error.
         #[inline(always)]
         pub fn error0_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
@@ -969,7 +1025,7 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct ErrorIntrTWriteVal(u32);
     impl ErrorIntrTWriteVal {
-        /// Interrupt Event 0 status bit
+        /// Interrupt Event 0 status bit; Used to indicate SHA3 error.
         #[inline(always)]
         pub fn error0_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1181,10 +1237,17 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrEnTReadVal(u32);
     impl NotifIntrEnTReadVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done Interrupt.
+        /// Interrupt is asserted when there is valid digest to be read.
         #[inline(always)]
         pub fn notif_cmd_done_en(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
+        }
+        /// Enable bit for MSG FIFO Empty Interrupt.
+        /// Interrupt is asserted when MSG FIFO Is Empty.
+        #[inline(always)]
+        pub fn notif_msg_fifo_empty_en(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -1207,10 +1270,17 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrEnTWriteVal(u32);
     impl NotifIntrEnTWriteVal {
-        /// Enable bit for Command Done Interrupt
+        /// Enable bit for Command Done Interrupt.
+        /// Interrupt is asserted when there is valid digest to be read.
         #[inline(always)]
         pub fn notif_cmd_done_en(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Enable bit for MSG FIFO Empty Interrupt.
+        /// Interrupt is asserted when MSG FIFO Is Empty.
+        #[inline(always)]
+        pub fn notif_msg_fifo_empty_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
         }
     }
     impl From<u32> for NotifIntrEnTWriteVal {
@@ -1228,10 +1298,22 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTReadVal(u32);
     impl NotifIntrTReadVal {
-        /// Command Done Interrupt status bit
+        /// SHA3 cmd_done indicate
+        /// 1. SHA3 absorbing has been completed, 1st rate of digest is ready.
         #[inline(always)]
         pub fn notif_cmd_done_sts(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
+        }
+        /// MSG_FIFO Empty Interrupt status bit.
+        /// This interrupt is raised only if the message FIFO is actually writable by software, i.e., if all of the following conditions are met:
+        /// i) The SHA3 block is in the Absorb state.
+        /// ii) Software has not yet written the Process command to finish the absorption process.
+        /// For the interrupt to be raised, the message FIFO must also have been full previously.
+        /// Otherwise, the hardware empties the FIFO faster than software can fill it
+        /// and there is no point in interrupting the software to inform it about the message FIFO being empty.
+        #[inline(always)]
+        pub fn notif_msg_fifo_empty_sts(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -1254,7 +1336,8 @@ pub mod regs {
     #[derive(Clone, Copy)]
     pub struct NotifIntrTWriteVal(u32);
     impl NotifIntrTWriteVal {
-        /// Command Done Interrupt status bit
+        /// SHA3 cmd_done indicate
+        /// 1. SHA3 absorbing has been completed, 1st rate of digest is ready.
         #[inline(always)]
         pub fn notif_cmd_done_sts(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
@@ -1279,6 +1362,11 @@ pub mod regs {
         #[inline(always)]
         pub fn notif_cmd_done_trig(&self) -> bool {
             ((self.0 >> 0) & 1) != 0
+        }
+        /// MSG_FIFO Empty Interrupt Trigger 0 bit
+        #[inline(always)]
+        pub fn notif_msg_fifo_empty_trig(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
         #[inline(always)]
@@ -1306,6 +1394,11 @@ pub mod regs {
         pub fn notif_cmd_done_trig(self, val: bool) -> Self {
             Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
         }
+        /// MSG_FIFO Empty Interrupt Trigger 0 bit
+        #[inline(always)]
+        pub fn notif_msg_fifo_empty_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
     }
     impl From<u32> for NotifIntrTrigTWriteVal {
         #[inline(always)]
@@ -1322,98 +1415,25 @@ pub mod regs {
 }
 pub mod enums {
     //! Enumerations used by some register fields.
-    #[derive(Clone, Copy, Eq, PartialEq)]
-    #[repr(u32)]
-    pub enum ShaCmdE {
-        ShaStream384 = 0,
-        ShaStream512 = 1,
-        ShaMbox384 = 2,
-        ShaMbox512 = 3,
-    }
-    impl ShaCmdE {
-        #[inline(always)]
-        pub fn sha_stream_384(&self) -> bool {
-            *self == Self::ShaStream384
-        }
-        #[inline(always)]
-        pub fn sha_stream_512(&self) -> bool {
-            *self == Self::ShaStream512
-        }
-        #[inline(always)]
-        pub fn sha_mbox_384(&self) -> bool {
-            *self == Self::ShaMbox384
-        }
-        #[inline(always)]
-        pub fn sha_mbox_512(&self) -> bool {
-            *self == Self::ShaMbox512
-        }
-    }
-    impl TryFrom<u32> for ShaCmdE {
-        type Error = ();
-        #[inline(always)]
-        fn try_from(val: u32) -> Result<ShaCmdE, ()> {
-            if val < 4 {
-                Ok(unsafe { core::mem::transmute::<u32, ShaCmdE>(val) })
-            } else {
-                Err(())
-            }
-        }
-    }
-    impl From<ShaCmdE> for u32 {
-        fn from(val: ShaCmdE) -> Self {
-            val as u32
-        }
-    }
-    pub mod selector {
-        pub struct ShaCmdESelector();
-        impl ShaCmdESelector {
-            #[inline(always)]
-            pub fn sha_stream_384(&self) -> super::ShaCmdE {
-                super::ShaCmdE::ShaStream384
-            }
-            #[inline(always)]
-            pub fn sha_stream_512(&self) -> super::ShaCmdE {
-                super::ShaCmdE::ShaStream512
-            }
-            #[inline(always)]
-            pub fn sha_mbox_384(&self) -> super::ShaCmdE {
-                super::ShaCmdE::ShaMbox384
-            }
-            #[inline(always)]
-            pub fn sha_mbox_512(&self) -> super::ShaCmdE {
-                super::ShaCmdE::ShaMbox512
-            }
-        }
-    }
+    pub mod selector {}
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    pub type Lock = ureg::ReadWriteReg32<
-        1,
-        crate::sha512_acc::regs::LockReadVal,
-        crate::sha512_acc::regs::LockWriteVal,
-    >;
-    pub type User = ureg::ReadOnlyReg32<u32>;
-    pub type Mode = ureg::ReadWriteReg32<
+    pub type Name = ureg::ReadOnlyReg32<u32>;
+    pub type Version = ureg::ReadOnlyReg32<u32>;
+    pub type AlertTest = ureg::WriteOnlyReg32<0, crate::sha3::regs::AlertTestWriteVal>;
+    pub type CfgRegwen = ureg::ReadOnlyReg32<crate::sha3::regs::CfgRegwenReadVal>;
+    pub type CfgShadowed = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ModeReadVal,
-        crate::sha512_acc::regs::ModeWriteVal,
+        crate::sha3::regs::CfgShadowedReadVal,
+        crate::sha3::regs::CfgShadowedWriteVal,
     >;
-    pub type StartAddress = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Dlen = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Datain = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type Execute = ureg::ReadWriteReg32<
-        0,
-        crate::sha512_acc::regs::ExecuteReadVal,
-        crate::sha512_acc::regs::ExecuteWriteVal,
-    >;
-    pub type Status = ureg::ReadOnlyReg32<crate::sha512_acc::regs::StatusReadVal>;
-    pub type Digest = ureg::ReadOnlyReg32<u32>;
-    pub type Control = ureg::ReadWriteReg32<
-        0,
-        crate::sha512_acc::regs::ControlReadVal,
-        crate::sha512_acc::regs::ControlWriteVal,
-    >;
+    pub type Cmd =
+        ureg::ReadWriteReg32<0, crate::sha3::regs::CmdReadVal, crate::sha3::regs::CmdWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::sha3::regs::StatusReadVal>;
+    pub type ErrCode = ureg::ReadOnlyReg32<u32>;
+    pub type State = ureg::ReadOnlyReg32<u32>;
+    pub type MsgFifo = ureg::WriteOnlyReg32<0, u32>;
     pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
         0,
         crate::sha512_acc::regs::GlobalIntrEnTReadVal,
@@ -1421,13 +1441,13 @@ pub mod meta {
     >;
     pub type IntrBlockRfErrorIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ErrorIntrEnTReadVal,
-        crate::sha512_acc::regs::ErrorIntrEnTWriteVal,
+        crate::sha3::regs::ErrorIntrEnTReadVal,
+        crate::sha3::regs::ErrorIntrEnTWriteVal,
     >;
     pub type IntrBlockRfNotifIntrEnR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrEnTReadVal,
-        crate::sha512_acc::regs::NotifIntrEnTWriteVal,
+        crate::sha3::regs::NotifIntrEnTReadVal,
+        crate::sha3::regs::NotifIntrEnTWriteVal,
     >;
     pub type IntrBlockRfErrorGlobalIntrR =
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
@@ -1435,13 +1455,13 @@ pub mod meta {
         ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
     pub type IntrBlockRfErrorInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::ErrorIntrTReadVal,
-        crate::sha512_acc::regs::ErrorIntrTWriteVal,
+        crate::sha3::regs::ErrorIntrTReadVal,
+        crate::sha3::regs::ErrorIntrTWriteVal,
     >;
     pub type IntrBlockRfNotifInternalIntrR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTReadVal,
-        crate::sha512_acc::regs::NotifIntrTWriteVal,
+        crate::sha3::regs::NotifIntrTReadVal,
+        crate::sha3::regs::NotifIntrTWriteVal,
     >;
     pub type IntrBlockRfErrorIntrTrigR = ureg::ReadWriteReg32<
         0,
@@ -1450,8 +1470,8 @@ pub mod meta {
     >;
     pub type IntrBlockRfNotifIntrTrigR = ureg::ReadWriteReg32<
         0,
-        crate::sha512_acc::regs::NotifIntrTrigTReadVal,
-        crate::sha512_acc::regs::NotifIntrTrigTWriteVal,
+        crate::sha3::regs::NotifIntrTrigTReadVal,
+        crate::sha3::regs::NotifIntrTrigTWriteVal,
     >;
     pub type IntrBlockRfError0IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
     pub type IntrBlockRfError1IntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
