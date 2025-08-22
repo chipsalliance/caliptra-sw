@@ -1029,6 +1029,16 @@ impl CaliptraError {
             0x0000f004,
             "DMA driver Error: FIFO invalid size"
         ),
+        (
+            DRIVER_SHA3_INVALID_STATE_ERR,
+            0x00010000,
+            "SHA3 driver Error: Invalid op state"
+        ),
+        (
+            DRIVER_SHA3_DIGEST_EXCEEDS_RATE,
+            0x00010000,
+            "SHA3 driver Error: Requested digest greater than mode/strength rate"
+        ),
         (RUNTIME_INTERNAL, 0x000E0001, "Runtime Error: Internal"),
         (
             RUNTIME_UNIMPLEMENTED_COMMAND,
@@ -2108,6 +2118,16 @@ impl CaliptraError {
             KAT_SHA512_DIGEST_MISMATCH,
             0x90020004,
             "ROM KAT Error: SHA512 digest mismatch"
+        ),
+        (
+            KAT_SHA3_SHAKE256_DIGEST_FAILURE,
+            0x900A0000,
+            "ROM KAT Error: SHAKE256 digest failure"
+        ),
+        (
+            KAT_SHA3_SHAKE256_DIGEST_MISMATCH,
+            0x900A0001,
+            "ROM KAT Error: SHAKE256 digest mismatch"
         ),
         (ROM_INTEGRITY_FAILURE, 0x90080001, "ROM integrity failure"),
         (
