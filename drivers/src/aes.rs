@@ -955,13 +955,6 @@ impl Aes {
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn aes_256_ecb_decrypt_kv(&mut self, key: AesKey, input: &[u8; 64]) -> CaliptraResult<()> {
-        if input.is_empty() {
-            return Ok(());
-        }
-        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
-
         // Only KV 16 is a permitted input key to decrypt into KV 23.
         match key {
             AesKey::KV(KeyReadArgs { id }) if id != KeyId::KeyId16 => {
@@ -970,16 +963,16 @@ impl Aes {
             _ => (),
         }
 
-        if key.sideload() {
-            self.load_key(key)?;
-        }
+        // Key is always in KV, always load before starting OP.
+        self.load_key(key)?;
 
-        // We are only allowed to decrypt into KV 23.
+        // Only KV 23 is allowed to destination KV.
         let mek_slot = KeyWriteArgs::new(
             KeyId::KeyId23, // MEK KV.
-            KeyUsage::default().set_aes_key_en(),
+            KeyUsage::default(),
         );
 
+        // Set Dest KV in AES Ctrl register
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
             wait_for_idle(&aes);
             KvAccess::begin_copy_to_kv(
@@ -987,20 +980,10 @@ impl Aes {
                 aes_clp.aes_kv_wr_ctrl(),
                 mek_slot,
             )?;
-            wait_for_idle(&aes);
-            match aes_clp.aes_kv_wr_status().read().error() {
-                KvErrorE::Success => cprintln!("AES KV Read OK"),
-                KvErrorE::KvReadFail => cprintln!("AES KV Read failed"),
-                KvErrorE::KvWriteFail => cprintln!("AES KV Write failed"),
-                _ => cprintln!("AES KV Generic failed"),
-            };
             Ok(())
         })?;
 
-        if key.sideload() {
-            cprintln!("key is sideloaded");
-        }
-
+        // Do AES ECB Decrypt OP
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
             for _ in 0..2 {
@@ -1008,17 +991,19 @@ impl Aes {
                     w.key_len(AesKeyLen::_256 as u32)
                         .mode(AesMode::Ecb as u32)
                         .operation(AesOperation::Decrypt as u32)
-                        .manual_operation(false)
-                        .sideload(key.sideload())
+                        .manual_operation(false) // Use automatic mode
+                        .sideload(key.sideload()) // sideload key is `true` for KV input.
                 });
             }
             wait_for_idle(&aes);
         });
 
+        // Load 64 bytes of data
         for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
             self.load_data_block(input, block_num)?;
         }
 
+        // Wait for HW to release result to KV
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
             let res = match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
                 Ok(_) => Ok(()),
@@ -1029,7 +1014,6 @@ impl Aes {
                 _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
             };
             let contents = aes_clp.aes_kv_wr_status().read();
-            cprintln!("Register contents: {:x}", u32::from(contents));
             res
         })?;
 
