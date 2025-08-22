@@ -215,3 +215,8 @@ required-features = ["riscv"]
 name = "dma_aes"
 path = "src/bin/dma_aes_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "sha3"
+path = "src/bin/sha3_tests.rs"
+required-features = ["riscv"]

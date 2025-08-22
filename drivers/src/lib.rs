@@ -54,6 +54,7 @@ mod sha1;
 mod sha256;
 pub mod sha2_512_384;
 mod sha2_512_384acc;
+mod sha3;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
@@ -123,6 +124,7 @@ pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha2_512_384::{Sha2DigestOp, Sha2_512_384, Sha384Digest};
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
+pub use sha3::{Sha3, Sha3DigestOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
