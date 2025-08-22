@@ -2,6 +2,8 @@
 name: Subsystem FPGA Build
 
 on:
+  push:
+    branches: ["clundin/fix-flaky-build"]
   pull_request:
   workflow_call:
     inputs:
@@ -40,7 +42,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      CACHE_BUSTER: 79cee50b6134
+      CACHE_BUSTER: 79cbe50b6134
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
@@ -151,8 +153,8 @@ jobs:
 
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           cargo xtask-fpga rom-build --platform fpga
+          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin ../mcu-rom-fpga.bin
           tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
-          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
 
       - name: Save test MCU ROM to cache
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
@@ -204,6 +206,7 @@ jobs:
             FEATURES=hw-${{ inputs.hw-version }}
           fi
           cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          ls
           cp mcu-rom-fpga.bin /tmp/caliptra-test-firmware/mcu-rom-fpga.bin
 
       - name: 'Upload test firmware artifact'
