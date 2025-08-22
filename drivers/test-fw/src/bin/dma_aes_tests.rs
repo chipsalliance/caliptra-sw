@@ -17,8 +17,8 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    cprintln, printer::HexBytes, Aes, AesGcmIv, AesKey, AesOperation, Dma, DmaReadTarget,
-    DmaReadTransaction, LEArray4x8, SocIfc, Trng,
+    cprintln, Aes, AesGcmIv, AesKey, AesOperation, Dma, DmaReadTarget, DmaReadTransaction,
+    LEArray4x8, SocIfc, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -186,23 +186,7 @@ fn run_dma_aes_test(
     dst: u64,
     max_len: usize,
 ) {
-    let mut input = [0u32; EXPECTED_CIPHERTEXT.len() / 4];
     let mut output = [0u32; EXPECTED_CIPHERTEXT.len() / 4];
-
-    dma.setup_dma_read(
-        DmaReadTransaction {
-            read_addr: dst.into(), // MCU SRAM, which should be encrypted output
-            fixed_addr: false,
-            length: max_len as u32,
-            target: DmaReadTarget::AhbFifo,
-            aes_mode: false,
-            aes_gcm: false,
-        },
-        0,
-    );
-    dma.dma_read_fifo(&mut input[..max_len.div_ceil(4)]);
-    dma.wait_for_dma_complete();
-    let input: &[u8] = input.as_bytes();
 
     // prep AES GCM
     let key = KEY;
