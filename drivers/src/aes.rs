@@ -18,11 +18,13 @@ Abstract:
 
 --*/
 
+use crate::cprintln;
 use crate::{kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
 use crate::{kv_access::KvAccessErr, KeyId, KeyUsage, KeyWriteArgs};
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_registers::enums::KvErrorE;
 use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use core::cmp::Ordering;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -972,20 +974,32 @@ impl Aes {
             self.load_key(key)?;
         }
 
+        // We are only allowed to decrypt into KV 23.
         let mek_slot = KeyWriteArgs::new(
             KeyId::KeyId23, // MEK KV.
-            KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
+            KeyUsage::default().set_aes_key_en(),
         );
 
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
             wait_for_idle(&aes);
-            // We are only allowed to decrypt into KV 23.
             KvAccess::begin_copy_to_kv(
                 aes_clp.aes_kv_wr_status(),
                 aes_clp.aes_kv_wr_ctrl(),
                 mek_slot,
-            )
+            )?;
+            wait_for_idle(&aes);
+            match aes_clp.aes_kv_wr_status().read().error() {
+                KvErrorE::Success => cprintln!("AES KV Read OK"),
+                KvErrorE::KvReadFail => cprintln!("AES KV Read failed"),
+                KvErrorE::KvWriteFail => cprintln!("AES KV Write failed"),
+                _ => cprintln!("AES KV Generic failed"),
+            };
+            Ok(())
         })?;
+
+        if key.sideload() {
+            cprintln!("key is sideloaded");
+        }
 
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
@@ -1001,26 +1015,23 @@ impl Aes {
             wait_for_idle(&aes);
         });
 
-        if !key.sideload() {
-            self.load_key(key)?;
-        }
         for block_num in 0..input.chunks_exact(AES_BLOCK_SIZE_BYTES).len() {
             self.load_data_block(input, block_num)?;
         }
 
-        // TODO(clundin): Double check error messages.
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
             aes.trigger().write(|w| w.start(true));
-            match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
+            let res = match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
                 Ok(_) => Ok(()),
                 Err(KvAccessErr::KeyRead) => {
                     Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)
                 }
-                Err(KvAccessErr::KeyWrite) => {
-                    Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_WRITE)
-                }
+                Err(KvAccessErr::KeyWrite) => Err(CaliptraError::RUNTIME_DRIVER_AES_WRITE_KV),
                 _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
-            }
+            };
+            let contents = aes_clp.aes_kv_wr_status().read();
+            cprintln!("Register contents: {:x}", u32::from(contents));
+            res
         })?;
 
         self.zeroize_internal();

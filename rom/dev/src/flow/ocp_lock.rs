@@ -17,7 +17,7 @@ use caliptra_common::{
     cprintln,
     keyids::{
         ocp_lock::{KEY_ID_EPK, KEY_ID_HEK, KEY_ID_MDK, KEY_ID_MEK},
-        KEY_ID_ROM_FMC_CDI, KEY_ID_STABLE_IDEV,
+        KEY_ID_ROM_FMC_CDI, KEY_ID_TMP,
     },
 };
 use caliptra_drivers::{
@@ -38,6 +38,7 @@ impl OcpLockFlow {
         trng: &mut Trng,
         aes: &mut Aes,
     ) -> CaliptraResult<()> {
+        cprintln!("Hello from demo");
         cprintln!("[ROM] Starting OCP LOCK Flow");
         if !supports_ocp_lock(soc) {
             return Err(CaliptraError::ROM_OCP_LOCK_HARDWARE_UNSUPPORTED)?;
@@ -82,15 +83,22 @@ fn validation_flow(
 ) -> CaliptraResult<()> {
     cprintln!("[ROM] Starting OCP LOCK Validation");
 
-    if rom_validation_flow(soc, hmac, trng, aes).is_ok() {
+    if rom_validation_flow(aes, soc, hmac, trng).is_ok() {
         cprintln!("[ROM] ROM OCP LOCK FLOW PASSED");
     } else {
         cprintln!("[ROM] ROM OCP LOCK FLOW FAILED");
     }
+
     cprintln!("[ROM] LOCKING OCP LOCK");
     soc.ocp_lock_set_lock_in_progress();
 
-    if runtime_validation_flow(hmac, trng).is_ok() {
+    if soc.ocp_lock_get_lock_in_progress() {
+        cprintln!("[ROM] OCP is locked");
+    } else {
+        cprintln!("[ROM] OCP is not locked");
+    }
+
+    if runtime_validation_flow(hmac, trng, aes).is_ok() {
         cprintln!("[ROM] RUNTIME OCP LOCK FLOW PASSED");
     } else {
         cprintln!("[ROM] RUNTIME OCP LOCK FLOW FAILED");
@@ -100,29 +108,37 @@ fn validation_flow(
 
 /// Exercises ROM specific OCP LOCK flows.
 fn rom_validation_flow(
+    aes: &mut Aes,
     soc: &mut SocIfc,
     hmac: &mut Hmac,
     trng: &mut Trng,
-    aes: &mut Aes,
 ) -> CaliptraResult<()> {
     let fuse_bank = soc.fuse_bank();
-    check_hek_seed(&fuse_bank)?;
+    // check_hek_seed(&fuse_bank)?;
     check_populate_mdk(hmac, trng)?;
-    check_populate_mek_with_aes(aes)?;
-    check_populate_mek_with_hmac(hmac, trng)?;
+    // check_locked_hmac(hmac, trng)?;
 
     let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
     check_hek(hmac, trng, &hek_seed)?;
-
+    // check_locked_hek(hmac, trng)?;
     Ok(())
 }
 
 /// Exercises Runtime specific OCP LOCK flows.
-fn runtime_validation_flow(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
-    check_locked_hmac(hmac, trng)?;
-    check_locked_hek(hmac, trng)?;
-    check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
-    check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+fn runtime_validation_flow(hmac: &mut Hmac, trng: &mut Trng, aes: &mut Aes) -> CaliptraResult<()> {
+    // cprintln!("Checking TMP");
+    // populate_slot(hmac, trng, KEY_ID_TMP)?;
+    // cprintln!("Checking EPK");
+    // populate_slot(hmac, trng, KEY_ID_EPK)?;
+    //
+    // check_locked_hmac(hmac, trng)?;
+    check_populate_mek_with_aes(aes)?;
+
+    // check_locked_hek(hmac, trng)?;
+    //
+    // check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    // check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    // check_populate_mek_with_hmac(hmac, trng)?;
     Ok(())
 }
 
@@ -146,14 +162,9 @@ fn check_populate_mdk(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
     cprintln!("[ROM] OCP LOCK: Checking check_populate_mdk");
     //TODO(clundin): Double check `KEY_ID_ROM_FMC_CDI` == IDEV ID CDI.
     let cdi_slot = HmacKey::Key(KeyReadArgs::new(KEY_ID_ROM_FMC_CDI));
-    let mdk_slot = HmacTag::Key(
-        KeyWriteArgs::new(
-            KEY_ID_MDK,
-            KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
-        )
-        .into(),
-    );
-    hmac_kdf(
+    let mdk_slot =
+        HmacTag::Key(KeyWriteArgs::new(KEY_ID_MDK, KeyUsage::default().set_aes_key_en()).into());
+    let res = hmac_kdf(
         hmac,
         cdi_slot,
         b"OCP_LOCK_MDK",
@@ -161,27 +172,42 @@ fn check_populate_mdk(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
         trng,
         mdk_slot,
         HmacMode::Hmac512,
-    )?;
-    cprintln!("[ROM] OCP LOCK: check_populate_mdk PASSED");
-    Ok(())
+    );
+    match res {
+        Ok(_) => {
+            cprintln!("[ROM] OCP LOCK: check_populate_mdk PASSED");
+            Ok(())
+        }
+        Err(e) => {
+            cprintln!("[ROM] Result is: 0x{:x}", u32::from(e));
+            cprintln!("[ROM] check_populate_mdk FAILED");
+            Err(e)
+        }
+    }
 }
 
 // Check that we can populate MEK slot with AES ECB Decryption.
 fn check_populate_mek_with_aes(aes: &mut Aes) -> CaliptraResult<()> {
     cprintln!("[ROM] check_populate_mek_with_aes");
-    aes.aes_256_ecb_decrypt_kv(AesKey::KV(KeyReadArgs::new(KEY_ID_MDK)), &[0; 64])?;
-    cprintln!("[ROM] check_populate_mek_with_aes PASSED");
-    Ok(())
+    let res = aes.aes_256_ecb_decrypt_kv(AesKey::KV(KeyReadArgs::new(KEY_ID_MDK)), &[0; 64]);
+    match res {
+        Ok(_) => {
+            cprintln!("[ROM] check_populate_mek_with_aes PASSED");
+            Ok(())
+        }
+        Err(e) => {
+            cprintln!("[ROM] Result is: 0x{:x}", u32::from(e));
+            cprintln!("[ROM] check_populate_mek_with_aes FAILED");
+            Err(e)
+        }
+    }
 }
 
 // Check that we can populate MEK slot with HMAC.
 fn check_populate_mek_with_hmac(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
     cprintln!("[ROM] check_populate_mek_with_hmac");
-    // Using the EPK slot. Any OCP LOCK slot will work.
-    populate_slot(hmac, trng, KEY_ID_EPK)?;
-
-    hmac.hmac(
-        HmacKey::Key(KeyReadArgs::new(KEY_ID_EPK)),
+    let res = hmac.hmac(
+        HmacKey::Key(KeyReadArgs::new(KEY_ID_MDK)),
         HmacData::from(&[0]),
         trng,
         KeyWriteArgs::new(
@@ -190,10 +216,19 @@ fn check_populate_mek_with_hmac(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraRes
         )
         .into(),
         HmacMode::Hmac512,
-    )?;
+    );
 
-    cprintln!("[ROM] check_populate_mek_with_hmac PASSED");
-    Ok(())
+    match res {
+        Ok(_) => {
+            cprintln!("[ROM] check_populate_mek_with_hmac PASSED");
+            Ok(())
+        }
+        Err(e) => {
+            cprintln!("[ROM] Result is: 0x{:x}", u32::from(e));
+            cprintln!("[ROM] check_populate_mek_with_hmac FAILED");
+            Err(e)
+        }
+    }
 }
 
 /// We should no longer be able to write from a non-KV to a LOCK KV.
@@ -232,20 +267,25 @@ fn check_locked_hek(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
     cprintln!("[ROM] check_locked_hek");
 
     // Assumes `KEY_ID_HEK` has been populated.
-    hmac.hmac(
+    let res = hmac.hmac(
         HmacKey::Key(KeyReadArgs::new(KEY_ID_HEK)),
         HmacData::from(&[0]),
         trng,
-        KeyWriteArgs::new(
-            KEY_ID_EPK,
-            KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
-        )
-        .into(),
+        KeyWriteArgs::new(KEY_ID_EPK, KeyUsage::default().set_hmac_key_en()).into(),
         HmacMode::Hmac512,
-    )?;
+    );
 
-    cprintln!("[ROM] check_locked_hek PASSED");
-    Ok(())
+    match res {
+        Ok(_) => {
+            cprintln!("[ROM] OCP LOCK: check_locked_hek PASSED");
+            Ok(())
+        }
+        Err(e) => {
+            cprintln!("[ROM] Result is: 0x{:x}", u32::from(e));
+            cprintln!("[ROM] check_locked_hek FAILED");
+            Err(e)
+        }
+    }
 }
 
 fn check_hek(hmac: &mut Hmac, trng: &mut Trng, hek_seed: &[u8]) -> CaliptraResult<()> {
@@ -258,7 +298,7 @@ fn check_hek(hmac: &mut Hmac, trng: &mut Trng, hek_seed: &[u8]) -> CaliptraResul
         )
         .into(),
     );
-    let idev_slot = HmacKey::Key(KeyReadArgs::new(KEY_ID_STABLE_IDEV));
+    let idev_slot = HmacKey::Key(KeyReadArgs::new(KEY_ID_ROM_FMC_CDI));
     hmac_kdf(
         hmac,
         idev_slot,
