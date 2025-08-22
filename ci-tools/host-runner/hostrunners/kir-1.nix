@@ -15,8 +15,8 @@
         ''ZCU_FTDI="1-1.2"''
         ''ZCU_SDWIRE="1-1.1"''
         ''IDENTIFIER="caliptra-kir-vck190-4"''
-        ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/vck190.img"''
+        ''FPGA_TARGET="vck190-mcu,vck190-subsystem-2.0"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-subsystem-2.0.img"''
       ];
     };
   };
@@ -34,8 +34,8 @@
         ''ZCU_FTDI="1-1.3.4"''
         ''ZCU_SDWIRE="1-1.3.3"''
         ''IDENTIFIER="caliptra-kir-vck190-1"''
-        ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/vck190.img"''
+        ''FPGA_TARGET="vck190-subsystem-2.1"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-subsystem-2.1.img"''
       ];
     };
   };
@@ -54,8 +54,8 @@
         ''ZCU_FTDI="1-1.3.2"''
         ''ZCU_SDWIRE="1-1.3.1"''
         ''IDENTIFIER="caliptra-kir-vck190-0"''
-        ''FPGA_TARGET="vck190"''
-        ''IMAGE="/home/${user}/vck190.img"''
+        ''FPGA_TARGET="vck190,vck190-core-2.0"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-core-2.0.img"''
       ];
     };
   };
