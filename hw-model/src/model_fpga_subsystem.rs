@@ -147,27 +147,27 @@ const DEFAULT_LIFECYCLE_RAW_TOKENS: LifecycleRawTokens = LifecycleRawTokens {
     rma: DEFAULT_LIFECYCLE_RAW_TOKEN,
 };
 
-struct Wrapper {
-    ptr: *mut u32,
+pub struct Wrapper {
+    pub ptr: *mut u32,
 }
 
 impl Wrapper {
-    fn regs(&self) -> &mut WrapperRegs {
+    pub fn regs(&self) -> &mut WrapperRegs {
         unsafe { &mut *(self.ptr as *mut WrapperRegs) }
     }
-    fn fifo_regs(&self) -> &mut FifoRegs {
+    pub fn fifo_regs(&self) -> &mut FifoRegs {
         unsafe { &mut *(self.ptr.offset(0x1000 / 4) as *mut FifoRegs) }
     }
 }
 unsafe impl Send for Wrapper {}
 unsafe impl Sync for Wrapper {}
 
-struct Mci {
-    ptr: *mut u32,
+pub struct Mci {
+    pub ptr: *mut u32,
 }
 
 impl Mci {
-    fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
+    pub fn regs(&self) -> caliptra_registers::mci::RegisterBlock<BusMmio<FpgaRealtimeBus<'_>>> {
         unsafe {
             caliptra_registers::mci::RegisterBlock::new_with_mmio(
                 EMULATOR_MCI_ADDR as *mut u32,
@@ -181,32 +181,34 @@ impl Mci {
 }
 
 pub struct ModelFpgaSubsystem {
-    devs: [UioDevice; 2],
+    pub devs: [UioDevice; 2],
     // mmio uio pointers
-    wrapper: Arc<Wrapper>,
-    caliptra_mmio: *mut u32,
-    caliptra_rom_backdoor: *mut u8,
-    mcu_rom_backdoor: *mut u8,
-    otp_mem_backdoor: *mut u8,
-    otp_init: Vec<u8>,
-    mci: Mci,
-    i3c_mmio: *mut u32,
-    i3c_controller_mmio: *mut u32,
-    i3c_controller: xi3c::Controller,
+    pub wrapper: Arc<Wrapper>,
+    pub caliptra_mmio: *mut u32,
+    pub caliptra_rom_backdoor: *mut u8,
+    pub mcu_rom_backdoor: *mut u8,
+    pub otp_mem_backdoor: *mut u8,
+    pub otp_init: Vec<u8>,
+    pub mci: Mci,
+    pub i3c_mmio: *mut u32,
+    pub i3c_controller_mmio: *mut u32,
+    pub i3c_controller: xi3c::Controller,
+    pub otp_mmio: *mut u32,
+    pub lc_mmio: *mut u32,
 
-    realtime_thread: Option<thread::JoinHandle<()>>,
-    realtime_thread_exit_flag: Arc<AtomicBool>,
+    pub realtime_thread: Option<thread::JoinHandle<()>>,
+    pub realtime_thread_exit_flag: Arc<AtomicBool>,
 
-    output: Output,
-    recovery_started: bool,
-    bmc: Bmc,
-    from_bmc: mpsc::Receiver<Event>,
-    to_bmc: mpsc::Sender<Event>,
-    recovery_fifo_blocks: Vec<Vec<u8>>,
-    recovery_ctrl_len: usize,
-    recovery_ctrl_written: bool,
-    bmc_step_counter: usize,
-    blocks_sent: usize,
+    pub output: Output,
+    pub recovery_started: bool,
+    pub bmc: Bmc,
+    pub from_bmc: mpsc::Receiver<Event>,
+    pub to_bmc: mpsc::Sender<Event>,
+    pub recovery_fifo_blocks: Vec<Vec<u8>>,
+    pub recovery_ctrl_len: usize,
+    pub recovery_ctrl_written: bool,
+    pub bmc_step_counter: usize,
+    pub blocks_sent: usize,
 }
 
 impl ModelFpgaSubsystem {
@@ -344,7 +346,7 @@ impl ModelFpgaSubsystem {
     }
 
     // UIO crate doesn't provide a way to unmap memory.
-    fn unmap_mapping(&self, addr: *mut u32, mapping: (usize, usize)) {
+    pub fn unmap_mapping(&self, addr: *mut u32, mapping: (usize, usize)) {
         let map_size = self.devs[mapping.0].map_size(mapping.1).unwrap();
 
         unsafe {
@@ -968,7 +970,7 @@ impl ModelFpgaSubsystem {
         // println!("Acknowledge received");
     }
 
-    fn otp_slice(&self) -> &mut [u8] {
+    pub fn otp_slice(&self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
 
@@ -1036,10 +1038,14 @@ impl HwModel for ModelFpgaSubsystem {
             }
             _ => {}
         }
-        let mcu_rom = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/test-fw/mcu-rom-fpga.bin"
-        ));
+        let mcu_rom =
+            match params.mcu_rom {
+                Some(mcu_rom) => mcu_rom,
+                None => &std::fs::read(std::env::var("CPTRA_MCU_ROM").expect(
+                    "set the ENV VAR CPTRA_MCU_ROM to the absolute path of caliptra-mcu rom",
+                ))
+                .expect("couldn't read CPTRA_MCU_ROM"),
+            };
 
         let output = Output::new(params.log_writer);
         let dev0 = UioDevice::blocking_new(0)?;
@@ -1078,10 +1084,10 @@ impl HwModel for ModelFpgaSubsystem {
         let i3c_controller_mmio = devs[I3C_CONTROLLER_MAPPING.0]
             .map_mapping(I3C_CONTROLLER_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u32;
-        let _lc_mmio = devs[LC_MAPPING.0]
+        let lc_mmio = devs[LC_MAPPING.0]
             .map_mapping(LC_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u32;
-        let _otp_mmio = devs[OTP_MAPPING.0]
+        let otp_mmio = devs[OTP_MAPPING.0]
             .map_mapping(OTP_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u32;
 
@@ -1124,6 +1130,9 @@ impl HwModel for ModelFpgaSubsystem {
             i3c_mmio,
             i3c_controller_mmio,
             i3c_controller,
+            otp_mmio,
+            lc_mmio,
+
             otp_init: vec![],
             realtime_thread,
             realtime_thread_exit_flag,
@@ -1234,7 +1243,7 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Writing MCU ROM");
         let mut mcu_rom_data = vec![0; mcu_rom_size];
-        mcu_rom_data[..mcu_rom.len()].clone_from_slice(mcu_rom);
+        mcu_rom_data[..mcu_rom.len()].clone_from_slice(&mcu_rom);
 
         let mcu_rom_slice =
             unsafe { core::slice::from_raw_parts_mut(m.mcu_rom_backdoor, mcu_rom_size) };
@@ -1337,8 +1346,14 @@ impl HwModel for ModelFpgaSubsystem {
         // This is the binary for:
         // L0: j L0
         // i.e., loop {}
-        let mut mcu_firmware = vec![0x00u8, 0x00, 0x00, 0x6f];
-        mcu_firmware.resize(256, 0);
+        let mcu_fw_image = match boot_params.mcu_fw_image {
+            Some(mcu_fw_image) => mcu_fw_image.to_vec(),
+            None => {
+                let mut mcu_fw_image = vec![0x00u8, 0x00, 0x00, 0x6f];
+                mcu_fw_image.resize(256, 0);
+                mcu_fw_image
+            }
+        };
 
         println!("Setting recovery images to BMC");
         self.bmc
@@ -1349,7 +1364,7 @@ impl HwModel for ModelFpgaSubsystem {
                 .map(|s| s.to_vec())
                 .unwrap_or_default(),
         );
-        self.bmc.push_recovery_image(mcu_firmware);
+        self.bmc.push_recovery_image(mcu_fw_image);
 
         let mut xi3c_configured = false;
         // TODO(zhalvorsen): Instead of waiting a fixed number of steps this should only wait until
@@ -1492,5 +1507,7 @@ impl Drop for ModelFpgaSubsystem {
         self.unmap_mapping(self.mci.ptr, MCI_MAPPING);
         self.unmap_mapping(self.i3c_mmio, I3C_TARGET_MAPPING);
         self.unmap_mapping(self.i3c_controller_mmio, I3C_CONTROLLER_MAPPING);
+        self.unmap_mapping(self.otp_mmio, OTP_MAPPING);
+        self.unmap_mapping(self.lc_mmio, LC_MAPPING);
     }
 }

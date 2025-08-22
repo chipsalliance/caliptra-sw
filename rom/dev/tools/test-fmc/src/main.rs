@@ -18,7 +18,7 @@ use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::PcrLogEntry;
 use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
-use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
+use caliptra_drivers::{DataVault, LEArray4x8, Mailbox, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{
@@ -282,10 +282,11 @@ fn get_cmb_aes_key(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) 
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     let key0 = persistent_data.get().cmb_aes_key_share0;
     let key1 = persistent_data.get().cmb_aes_key_share1;
-    let mut key = [0u8; 32];
-    for (i, element) in key.iter_mut().enumerate() {
-        *element = key0[i] ^ key1[i];
+    let mut key = LEArray4x8::default();
+    for (i, element) in key.0.iter_mut().enumerate() {
+        *element = key0.0[i] ^ key1.0[i];
     }
+    let key: [u8; 32] = key.into();
     send_to_mailbox(mbox, &key, true);
 }
 

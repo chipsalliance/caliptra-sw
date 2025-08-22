@@ -187,7 +187,7 @@ fn translate_register(
             match (inst.offset, default_offset) {
                 (Some(explicit), _) => explicit,
                 (None, Some(next)) => next,
-                (None, None) => return Err(Error::OffsetNotDefined).map_err(wrap_err),
+                (None, None) => return Err(wrap_err(Error::OffsetNotDefined)),
             }
         },
         default_val: ty.fields.iter().fold(0, |reset, field| {

@@ -17,7 +17,8 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Array4x16, AxiAddr, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc,
+    AesDmaMode, Array4x16, AxiAddr, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc,
+    ShaAccLockState, SocIfc,
 };
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
@@ -144,7 +145,7 @@ fn test_dma_sha384_small_data() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, SMALL_DATA_SIZE as u32)
+        .sha384_mcu_sram(&mut sha_acc, SMALL_DATA_SIZE as u32, AesDmaMode::None)
         .expect("DMA SHA384 failed");
 
     // Compute SHA384 using regular SHA384 driver on the same data

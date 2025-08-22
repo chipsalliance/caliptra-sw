@@ -357,6 +357,11 @@ pub mod driver_tests {
         features: &["ocp-lock", "fpga_realtime"],
         ..BASE_FWID
     };
+
+    pub const DMA_AES: FwId = FwId {
+        bin_name: "dma_aes",
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -507,6 +512,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,
     &driver_tests::OCP_LOCK,
+    &driver_tests::DMA_AES,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,

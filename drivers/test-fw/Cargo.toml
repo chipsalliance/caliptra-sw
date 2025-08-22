@@ -15,6 +15,7 @@ caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
 zerocopy.workspace = true
+ufmt.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi",
     "cfi-counter",
@@ -203,3 +204,8 @@ required-features = ["riscv"]
 name = "ocp_lock"
 path = "src/bin/ocp_lock_tests.rs"
 required-features = ["riscv", "ocp-lock"]
+
+[[bin]]
+name = "dma_aes"
+path = "src/bin/dma_aes_tests.rs"
+required-features = ["riscv"]

@@ -57,7 +57,7 @@ pub use api::mailbox::mbox_write_fifo;
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
-use output::ExitStatus;
+pub use output::ExitStatus;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
@@ -216,6 +216,9 @@ pub struct InitParams<'a> {
 
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
+
+    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
+    pub mcu_rom: Option<&'a [u8]>,
 }
 
 impl Default for InitParams<'_> {
@@ -260,6 +263,7 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
+            mcu_rom: None,
         }
     }
 }

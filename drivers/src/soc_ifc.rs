@@ -122,7 +122,7 @@ impl SocIfc {
                 w.tap_mailbox_available(in_progress)
                     .manuf_dbg_unlock_in_progress(in_progress)
             }),
-            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().write(|w| {
+            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
                 w.tap_mailbox_available(in_progress)
                     .prod_dbg_unlock_in_progress(in_progress)
             }),
@@ -142,7 +142,7 @@ impl SocIfc {
                     w.manuf_dbg_unlock_fail(true)
                 }
             }),
-            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().write(|w| {
+            DeviceLifecycleE::Production => soc_ifc_regs.ss_dbg_service_reg_rsp().modify(|w| {
                 if success {
                     w.prod_dbg_unlock_success(true)
                 } else {
@@ -547,30 +547,11 @@ impl SocIfc {
     }
 
     pub fn subsystem_mode(&self) -> bool {
-        return false;
-    }
-
-    pub fn ocp_lock_enabled(&self) -> bool {
         self.soc_ifc
             .regs()
             .cptra_hw_config()
             .read()
-            .ocp_lock_mode_en()
-    }
-
-    pub fn ocp_lock_set_lock_in_progress(&mut self) {
-        self.soc_ifc
-            .regs_mut()
-            .ss_ocp_lock_ctrl()
-            .write(|w| w.lock_in_progress(true));
-    }
-
-    pub fn ocp_lock_get_lock_in_progress(&self) -> bool {
-        self.soc_ifc
-            .regs()
-            .ss_ocp_lock_ctrl()
-            .read()
-            .lock_in_progress()
+            .subsystem_mode_en()
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
