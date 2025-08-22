@@ -338,6 +338,41 @@ impl CaliptraError {
             "Driver Error: MLDSA87 signature is not supported"
         ),
         (
+            DRIVER_MLKEM_READ_SEED_KV_READ,
+            0x00059000,
+            "Driver Error: ML-KEM read seed KV read"
+        ),
+        (
+            DRIVER_MLKEM_READ_SEED_KV_WRITE,
+            0x00059001,
+            "Driver Error: ML-KEM read seed KV write"
+        ),
+        (
+            DRIVER_MLKEM_READ_SEED_KV_UNKNOWN,
+            0x00059002,
+            "Driver Error: ML-KEM read seed KV unknown"
+        ),
+        (
+            DRIVER_MLKEM_HW_ERROR,
+            0x00059003,
+            "Driver Error: ML-KEM hardware error"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_READ,
+            0x00059004,
+            "Driver Error: ML-KEM read message KV read"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_WRITE,
+            0x00059005,
+            "Driver Error: ML-KEM read message KV write"
+        ),
+        (
+            DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
+            0x00059006,
+            "Driver Error: ML-KEM read message KV unknown"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"
