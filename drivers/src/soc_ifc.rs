@@ -547,11 +547,30 @@ impl SocIfc {
     }
 
     pub fn subsystem_mode(&self) -> bool {
+        return false;
+    }
+
+    pub fn ocp_lock_enabled(&self) -> bool {
         self.soc_ifc
             .regs()
             .cptra_hw_config()
             .read()
-            .subsystem_mode_en()
+            .ocp_lock_mode_en()
+    }
+
+    pub fn ocp_lock_set_lock_in_progress(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .ss_ocp_lock_ctrl()
+            .write(|w| w.lock_in_progress(true));
+    }
+
+    pub fn ocp_lock_get_lock_in_progress(&self) -> bool {
+        self.soc_ifc
+            .regs()
+            .ss_ocp_lock_ctrl()
+            .read()
+            .lock_in_progress()
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
