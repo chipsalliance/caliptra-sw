@@ -286,7 +286,7 @@ jobs:
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
-              -E 'package(caliptra-drivers) and test(tests::test_dma_aes)'
+              -E 'package(caliptra-drivers) and test(test_dma_aes)'
           )
 
           cargo-nextest nextest list \
