@@ -142,6 +142,8 @@ impl KvAccess {
                 .ecc_pkey_dest_valid(key.usage.ecc_private_key())
                 .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                 .aes_key_dest_valid(key.usage.aes_key())
+                .mlkem_seed_dest_valid(key.usage.mlkem_seed())
+                .mlkem_msg_dest_valid(key.usage.mlkem_msg())
         });
         Ok(())
     }
