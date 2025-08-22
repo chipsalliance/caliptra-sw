@@ -646,7 +646,7 @@ impl Aes {
 
     /// Initializes the AES engine for GCM mode and returns the IV used.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn initialize_aes_gcm(
+    pub fn initialize_aes_gcm(
         &mut self,
         trng: &mut Trng,
         iv: AesGcmIv,
@@ -890,6 +890,18 @@ impl Aes {
         padded_data[..len].copy_from_slice(data);
         self.load_data_block_u32(transmute!(padded_data));
         Ok(())
+    }
+
+    pub fn gcm_set_text(&mut self, len: u32) {
+        // set the mode and valid length
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Text as u32).num_valid_bytes(len));
+            }
+            wait_for_idle(&aes);
+        });
     }
 
     fn read_write_data_gcm(
