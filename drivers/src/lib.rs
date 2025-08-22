@@ -41,6 +41,7 @@ mod kv_access;
 mod lms;
 mod mailbox;
 pub mod memory_layout;
+mod ml_kem;
 mod mldsa87;
 mod okref;
 mod pcr_bank;
@@ -63,7 +64,7 @@ pub use aes::{
 };
 pub use array::{
     Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN, LEArray4x1157, LEArray4x16,
-    LEArray4x4, LEArray4x648, LEArray4x8,
+    LEArray4x392, LEArray4x4, LEArray4x648, LEArray4x792, LEArray4x8,
 };
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
@@ -98,6 +99,11 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use ml_kem::{
+    MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey, MlKem1024EncapsKey, MlKem1024Message,
+    MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
+    MlKem1024SharedKeyOut, MlKemResult,
+};
 pub use mldsa87::{
     Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
     Mldsa87Signature,
