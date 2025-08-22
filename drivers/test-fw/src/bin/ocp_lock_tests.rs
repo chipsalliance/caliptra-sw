@@ -15,9 +15,11 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use core::fmt::Write;
+
 use caliptra_drivers::{
     hmac_kdf, Array4x16, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, SocIfc, Trng,
+    KeyWriteArgs, SocIfc, Trng, Uart,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
@@ -26,12 +28,16 @@ use caliptra_registers::{
 };
 use caliptra_test_harness::test_suite;
 
+fn test_ocp_lock_enabled() {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    let mut soc_ifc = SocIfc::new(soc_ifc);
+    assert!(soc_ifc.ocp_lock_enabled());
+}
+
 fn test_populate_mdk() {
     let soc_ifc = unsafe { SocIfcReg::new() };
     let mut soc_ifc = SocIfc::new(soc_ifc);
     assert!(soc_ifc.ocp_lock_enabled());
-
-    soc_ifc.ocp_lock_set_lock_in_progress();
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     let mut trng = unsafe {
@@ -44,11 +50,14 @@ fn test_populate_mdk() {
         .unwrap()
     };
 
-    let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId6));
-    populate_slot(&mut hmac, &mut trng, KeyId::KeyId6).unwrap();
+    let cdi_slot = HmacKey::Key(KeyReadArgs::new(KeyId::KeyId3));
+    populate_slot(&mut hmac, &mut trng, KeyId::KeyId3).unwrap();
+
+    Uart::new().write_str("Populated CDI Slot").unwrap();
+
     let mdk_slot = HmacTag::Key(KeyWriteArgs::from(KeyWriteArgs::new(
         KeyId::KeyId16,
-        KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
+        KeyUsage::default().set_aes_key_en(),
     )));
     hmac_kdf(
         &mut hmac,
@@ -60,9 +69,11 @@ fn test_populate_mdk() {
         HmacMode::Hmac512,
     )
     .unwrap();
+    Uart::new().write_str("Populated MDK Slot").unwrap();
 }
 
 test_suite! {
+    test_ocp_lock_enabled,
     test_populate_mdk,
 }
 
