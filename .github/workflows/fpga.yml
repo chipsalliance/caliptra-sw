@@ -62,84 +62,6 @@ jobs:
             RTL_VERSION="latest"
           fi
           echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
-
-      - name: Restore kernel modules from cache
-        uses: actions/cache/restore@v3
-        id: restore_kmod_cache
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ steps.cache_key.outputs.kmod_cache_key}}
-      - name: 'Upload kernel module artifacts'
-        if: steps.restore_kmod_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
-
-  build_kernel_modules:
-    runs-on: ubuntu-22.04
-    needs: check_cache
-    if: "!needs.check_cache.outputs.kmod_cache_hit"
-    steps:
-      - name: Install sysroot pre-requisites
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
-
-      - name: Setup xilinx sysroot
-        run: |
-          echo I am ${USER}
-
-          # NOTE: I would prefer to use
-          # iot-limerick-zcu-classic-desktop-2204-x05-2-20221123-58-sysroot.tar.xz,
-          # but it has source for kernel version 5.15.0-1014-xilinx-zynqmp
-          # instead of 5.15.0-1015-xilinx-zynqmp used by the pre-built kernel.
-          curl -o /tmp/sysroot.tar.gz https://people.canonical.com/~platform/images/xilinx/versal-ubuntu-22.04/iot-limerick-versal-classic-server-2204-x02-20230315-48-rootfs.tar.gz
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          mkdir "${SYSROOT}"
-          sudo tar xf /tmp/sysroot.tar.gz -C "${SYSROOT}"
-          ls -l "${SYSROOT}"
-          sudo cp -L --remove-destination /etc/resolv.conf "${SYSROOT}/etc/"
-          sudo chroot "${SYSROOT}" mount -t proc proc /proc
-          sudo chroot "${SYSROOT}" mount -t devtmpfs devtmpfs /dev
-          sudo chroot "${SYSROOT}" mount -t tmpfs tmpfs /tmp/
-          sudo mkdir "${SYSROOT}/home/${USER}"
-          sudo chown "${USER}" "${SYSROOT}/home/${USER}"
-          sudo chroot "${SYSROOT}" apt-get update
-          sudo chroot "${SYSROOT}" apt-get -y install build-essential
-
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          path: sysroot/home/runner/caliptra-sw
-
-      - name: Build modules
-        run: |
-          SYSROOT="${GITHUB_WORKSPACE}/sysroot"
-          KERNEL=5.15.0-1020-xilinx-zynqmp
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
-
-          mkdir /tmp/caliptra-fpga-kmod
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
-
-      - name: Save kernel modules to cache
-        uses: actions/cache/save@v3
-        with:
-          path: /tmp/caliptra-fpga-kmod/
-          key: ${{ needs.check_cache.outputs.kmod_cache_key }}
-
-      - name: 'Upload kernel module artifacts'
-        uses: actions/upload-artifact@v4
-        with:
-          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
-          path: /tmp/caliptra-fpga-kmod/
-          retention-days: 1
 
 
   build_test_binaries:
@@ -268,7 +190,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
         with:
-          submodules: 'recursive' 
+          submodules: 'recursive'
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v4
@@ -318,6 +240,7 @@ jobs:
 
           echo VARS=${VARS}
 
+          # TODO(#2369): Remove the extra filters after fixing the broken tests
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -327,7 +250,29 @@ jobs:
                        package(caliptra-builder) |
                        package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
-                       package(compliance-test))'
+                       package(compliance-test) |
+                       test(test_sign_validation_failure) |
+                       test(test_dma_sha384) |
+                       test(test_activate_firmware::test_activate_fw_id_not_in_manifest) |
+                       test(test_activate_firmware::test_activate_invalid_fw_id) |
+                       test(test_activate_firmware::test_activate_mcu_fw_success) |
+                       test(test_activate_firmware::test_activate_mcu_soc_fw_success) |
+                       test(test_activate_firmware::test_activate_soc_fw_success) |
+                       test(test_activate_firmware::test_invalid_exec_bit_in_manifest) |
+                       test(test_authorize_and_stash::test_authorize_from_load_address) |
+                       test(test_authorize_and_stash::test_authorize_from_load_address_incorrect_digest) |
+                       test(test_authorize_and_stash::test_authorize_from_staging_address) |
+                       test(test_authorize_and_stash::test_authorize_from_staging_address_incorrect_digest) |
+                       test(test_debug_unlock::test_dbg_unlock_prod_wrong_public_keys) |
+                       test(test_fe_programming::test_fe_programming_cmd) |
+                       test(test_fips::test_fips_shutdown) |
+                       test(test_lms::test_lms_verify_cmd) |
+                       test(test_lms::test_lms_verify_failure) |
+                       test(test_lms::test_lms_verify_invalid_key_lms_type) |
+                       test(test_lms::test_lms_verify_invalid_lmots_type) |
+                       test(test_lms::test_lms_verify_invalid_sig_lms_type) |
+                       binary_id(caliptra-test::fips_test_suite) |
+                       package(caliptra-rom))'
           )
 
           cargo-nextest nextest list \

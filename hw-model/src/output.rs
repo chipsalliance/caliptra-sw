@@ -234,14 +234,14 @@ impl Output {
         }
     }
 
-    pub(crate) fn set_search_term(&mut self, search_term: &str) {
+    pub fn set_search_term(&mut self, search_term: &str) {
         self.process_new_data();
         self.search_term = Some(search_term.to_string());
         self.search_pos = self.output.len();
         self.search_matched = false;
     }
 
-    pub(crate) fn search_matched(&mut self) -> bool {
+    pub fn search_matched(&mut self) -> bool {
         self.process_new_data();
         self.search_matched
     }

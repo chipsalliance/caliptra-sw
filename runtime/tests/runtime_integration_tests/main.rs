@@ -10,6 +10,7 @@ mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
+mod test_fe_programming;
 mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
