@@ -1020,7 +1020,6 @@ impl Aes {
         }
 
         self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
-            aes.trigger().write(|w| w.start(true));
             let res = match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
                 Ok(_) => Ok(()),
                 Err(KvAccessErr::KeyRead) => {
