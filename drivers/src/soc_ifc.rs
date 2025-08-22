@@ -565,6 +565,14 @@ impl SocIfc {
             .write(|w| w.lock_in_progress(true));
     }
 
+    pub fn ocp_lock_get_lock_in_progress(&self) -> bool {
+        self.soc_ifc
+            .regs()
+            .ss_ocp_lock_ctrl()
+            .read()
+            .lock_in_progress()
+    }
+
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
         let config_val = self.soc_ifc.regs().cptra_generic_input_wires().read()[0];
         // Bit 31 = 0 ==> 64-bit granularity; 1 ==> 32-bit granularity
