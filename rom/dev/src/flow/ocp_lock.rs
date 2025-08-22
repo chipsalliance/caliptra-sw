@@ -114,31 +114,23 @@ fn rom_validation_flow(
     trng: &mut Trng,
 ) -> CaliptraResult<()> {
     let fuse_bank = soc.fuse_bank();
-    // check_hek_seed(&fuse_bank)?;
+    check_hek_seed(&fuse_bank)?;
     check_populate_mdk(hmac, trng)?;
-    // check_locked_hmac(hmac, trng)?;
+    check_locked_hmac(hmac, trng)?;
 
     let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
     check_hek(hmac, trng, &hek_seed)?;
-    // check_locked_hek(hmac, trng)?;
+    check_locked_hek(hmac, trng)?;
     Ok(())
 }
 
 /// Exercises Runtime specific OCP LOCK flows.
 fn runtime_validation_flow(hmac: &mut Hmac, trng: &mut Trng, aes: &mut Aes) -> CaliptraResult<()> {
-    // cprintln!("Checking TMP");
-    // populate_slot(hmac, trng, KEY_ID_TMP)?;
-    // cprintln!("Checking EPK");
-    // populate_slot(hmac, trng, KEY_ID_EPK)?;
-    //
-    // check_locked_hmac(hmac, trng)?;
+    check_locked_hmac(hmac, trng)?;
     check_populate_mek_with_aes(aes)?;
-
-    // check_locked_hek(hmac, trng)?;
-    //
-    // check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
-    // check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
-    // check_populate_mek_with_hmac(hmac, trng)?;
+    check_locked_hek(hmac, trng)?;
+    check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
     Ok(())
 }
 
@@ -200,35 +192,9 @@ fn check_populate_mek_with_aes(aes: &mut Aes) -> CaliptraResult<()> {
             cprintln!("[ROM] check_populate_mek_with_aes FAILED");
             Err(e)
         }
-    }
-}
-
-// Check that we can populate MEK slot with HMAC.
-fn check_populate_mek_with_hmac(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
-    cprintln!("[ROM] check_populate_mek_with_hmac");
-    let res = hmac.hmac(
-        HmacKey::Key(KeyReadArgs::new(KEY_ID_MDK)),
-        HmacData::from(&[0]),
-        trng,
-        KeyWriteArgs::new(
-            KEY_ID_MEK,
-            KeyUsage::default().set_hmac_key_en().set_aes_key_en(),
-        )
-        .into(),
-        HmacMode::Hmac512,
-    );
-
-    match res {
-        Ok(_) => {
-            cprintln!("[ROM] check_populate_mek_with_hmac PASSED");
-            Ok(())
-        }
-        Err(e) => {
-            cprintln!("[ROM] Result is: 0x{:x}", u32::from(e));
-            cprintln!("[ROM] check_populate_mek_with_hmac FAILED");
-            Err(e)
-        }
-    }
+    };
+    cprintln!("[ROM] finished check_populate_mek_with_aes");
+    Ok(())
 }
 
 /// We should no longer be able to write from a non-KV to a LOCK KV.
