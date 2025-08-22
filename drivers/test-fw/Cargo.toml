@@ -203,3 +203,8 @@ required-features = ["riscv"]
 name = "dma_aes"
 path = "src/bin/dma_aes_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "ml_kem"
+path = "src/bin/mlkem_tests.rs"
+required-features = ["riscv"]

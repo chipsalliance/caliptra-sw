@@ -1109,7 +1109,6 @@ impl Abr {
         let key_id = self.kv_mlkem_seed_rd_ctrl.reg.read(KvRdCtrl::READ_ENTRY);
         let seed_read_result = self.mlkem_read_seed_from_keyvault(key_id, false);
 
-        println!("hello from emulator");
         self.kv_mlkem_seed_rd_status.reg.modify(
             KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(seed_read_result),
         );

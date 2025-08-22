@@ -71,7 +71,7 @@ register_bitfields! [
     TagWriteControl[
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
         KEY_ID OFFSET(1) NUMBITS(5) [],
-        USAGE OFFSET(6) NUMBITS(6) [],
+        USAGE OFFSET(6) NUMBITS(8) [],
         RSVD OFFSET(12) NUMBITS(20) [],
     ],
 
