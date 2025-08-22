@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::{
-    Aes, Ecc384, Hmac, Lms, Mldsa87, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, ShaAccLockState,
-    Trng,
+    Aes, Ecc384, Hmac, Lms, Mldsa87, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3,
+    ShaAccLockState, Trng,
 };
 
 pub struct KatsEnv<'a> {
@@ -17,6 +17,9 @@ pub struct KatsEnv<'a> {
 
     // SHA2-512/384 Accelerator
     pub sha2_512_384_acc: &'a mut Sha2_512_384Acc,
+
+    // SHA3/SHAKE Engine
+    pub sha3: &'a mut Sha3,
 
     /// Hmac-512/384 Engine
     pub hmac: &'a mut Hmac,
