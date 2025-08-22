@@ -15,6 +15,7 @@ Abstract:
 use crate::helpers::{bytes_from_words_be, words_from_bytes_be};
 use crate::mailbox::MailboxRequester;
 use crate::root_bus::ReadyForFwCbArgs;
+use crate::Mci;
 use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
@@ -355,9 +356,11 @@ const FUSE_END_ADDR: u32 = 0x340;
 
 impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
-    pub fn new(mailbox: MailboxInternal, iccm: Iccm, args: CaliptraRootBusArgs) -> Self {
+    pub fn new(mailbox: MailboxInternal, iccm: Iccm, mci: Mci, args: CaliptraRootBusArgs) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(SocRegistersImpl::new(mailbox, iccm, args))),
+            regs: Rc::new(RefCell::new(SocRegistersImpl::new(
+                mailbox, iccm, mci, args,
+            ))),
         }
     }
     pub fn is_debug_locked(&self) -> bool {
@@ -733,11 +736,13 @@ struct SocRegistersImpl {
     #[register(offset = 0x51c)]
     ss_otp_fc_base_addr_h: ReadOnlyRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x520)]
-    ss_uds_seed_base_addr_l: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_l: ReadWriteRegister<u32>,
 
+    // writable from MCU
     #[register(offset = 0x524)]
-    ss_uds_seed_base_addr_h: ReadOnlyRegister<u32>,
+    ss_uds_seed_base_addr_h: ReadWriteRegister<u32>,
 
     #[register(offset = 0x528)]
     ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset: ReadOnlyRegister<u32>,
@@ -760,7 +765,7 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x5c8)]
     ss_soc_dbg_unlock_level: [u32; 2],
 
-    #[register_array(offset = 0x5d0)]
+    #[register_array(offset = 0x5d0, write_fn = on_write_ss_generic_fw_exec_ctrl)]
     ss_generic_fw_exec_ctrl: [u32; 4],
 
     /// INTERNAL_OBF_KEY Register
@@ -820,6 +825,9 @@ struct SocRegistersImpl {
 
     /// Mailbox
     mailbox: MailboxInternal,
+
+    /// MCU
+    mci: Mci,
 
     /// ICCM
     iccm: Iccm,
@@ -887,7 +895,12 @@ impl SocRegistersImpl {
 
     const CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE: u32 = 1 << 5;
 
-    pub fn new(mailbox: MailboxInternal, iccm: Iccm, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(
+        mailbox: MailboxInternal,
+        iccm: Iccm,
+        mci: Mci,
+        mut args: CaliptraRootBusArgs,
+    ) -> Self {
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -899,9 +912,9 @@ impl SocRegistersImpl {
         // To make things easy the fuse bank is part of the fuse bank controller emulation
         let uds_seed_offset = otc_fc_offset + crate::dma::otp_fc::FuseController::FUSE_BANK_OFFSET;
         let mci_base = crate::dma::axi_root_bus::AxiRootBus::SS_MCI_OFFSET;
-        let ss_prod_dbg_unlock_fuse_offset = crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
+        let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
-            crate::dma::mci::Mci::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
+            crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -929,7 +942,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x02), // [3:0] Major, [7:4] Minor, [15:8] Patch
+            cptra_hw_rev_id: ReadOnlyRegister::new(0x102), // [3:0] Major, [7:4] Minor, [15:8] Patch
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new(if args.subsystem_mode {
                 Self::CALIPTRA_HW_CONFIG_SUBSYSTEM_MODE
@@ -990,6 +1003,7 @@ impl SocRegistersImpl {
             error_intr_trig_r: ReadWriteRegister::new(0),
             notif_intr_trig_r: ReadWriteRegister::new(0),
             mailbox,
+            mci,
             iccm,
             timer: Timer::new(clock),
             err_irq: pic.register_irq(IntSource::SocIfcErr.into()),
@@ -1013,8 +1027,8 @@ impl SocRegistersImpl {
             fuse_pqc_key_type: 1, // MLDSA (default): 1, LMS: 3
             ss_otp_fc_base_addr_l: ReadOnlyRegister::new(otc_fc_offset as u32),
             ss_otp_fc_base_addr_h: ReadOnlyRegister::new((otc_fc_offset >> 32) as u32),
-            ss_uds_seed_base_addr_l: ReadOnlyRegister::new(uds_seed_offset as u32),
-            ss_uds_seed_base_addr_h: ReadOnlyRegister::new((uds_seed_offset >> 32) as u32),
+            ss_uds_seed_base_addr_l: ReadWriteRegister::new(uds_seed_offset as u32),
+            ss_uds_seed_base_addr_h: ReadWriteRegister::new((uds_seed_offset >> 32) as u32),
             ss_recovery_mci_base_addr_l: ReadOnlyRegister::new(mci_base as u32),
             ss_recovery_mci_base_addr_h: ReadOnlyRegister::new((mci_base >> 32) as u32),
             ss_num_of_prod_debug_unlock_auth_pk_hashes: ReadOnlyRegister::new(
@@ -1312,6 +1326,28 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    fn on_write_ss_generic_fw_exec_ctrl(
+        &mut self,
+        _size: RvSize,
+        index: usize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        const MCU_FW_EXEC_CTRL_INDEX: usize = 0;
+        const MCU_FW_EXEC_CTRL_MASK: u32 = 0x4;
+        if index >= self.ss_generic_fw_exec_ctrl.len() {
+            return Err(BusError::StoreAccessFault);
+        }
+        if index == MCU_FW_EXEC_CTRL_INDEX
+            && ((val & MCU_FW_EXEC_CTRL_MASK) == 0)
+            && (self.ss_generic_fw_exec_ctrl[index] & MCU_FW_EXEC_CTRL_MASK) != 0
+        {
+            // If the MCU FW execute bit is cleared, request a reset.
+            self.mci.cptra_request_mcu_reset();
+        }
+        self.ss_generic_fw_exec_ctrl[index] = val;
+        Ok(())
+    }
+
     fn reset_common(&mut self) {
         // Unlock the ICCM.
         self.iccm.unlock();
@@ -1553,8 +1589,13 @@ mod tests {
             clock: clock.clone(),
             ..CaliptraRootBusArgs::default()
         };
-        let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(mailbox.clone(), Iccm::new(&clock.clone()), args);
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
+            mailbox.clone(),
+            Iccm::new(&clock.clone()),
+            mci.clone(),
+            args,
+        );
 
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 1)
@@ -1618,8 +1659,13 @@ mod tests {
             clock: clock.clone(),
             ..CaliptraRootBusArgs::default()
         };
-        let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(mailbox.clone(), Iccm::new(&clock.clone()), args);
+        let mci = Mci::new(vec![]);
+        let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
+            mailbox.clone(),
+            Iccm::new(&clock.clone()),
+            mci.clone(),
+            args,
+        );
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 2)
             .unwrap();
@@ -1679,8 +1725,9 @@ mod tests {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
+        let mci = Mci::new(vec![]);
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(mailbox, Iccm::new(&clock), args);
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 
@@ -1695,9 +1742,11 @@ mod tests {
     fn test_secrets_when_debug_not_locked() {
         use caliptra_api_types::SecurityState;
         let clock = Rc::new(Clock::new());
+        let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            mci,
             CaliptraRootBusArgs {
                 clock: clock.clone(),
                 security_state: *SecurityState::default().set_debug_locked(false),
@@ -1714,9 +1763,11 @@ mod tests {
     fn test_secrets_when_debug_locked() {
         use caliptra_api_types::SecurityState;
         let clock = Rc::new(Clock::new());
+        let mci = Mci::new(vec![]);
         let soc = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            mci,
             CaliptraRootBusArgs {
                 clock: clock.clone(),
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -1748,8 +1799,9 @@ mod tests {
             clock: clock.clone(),
             ..CaliptraRootBusArgs::default()
         };
+        let mci = Mci::new(vec![]);
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(mailbox, Iccm::new(&clock), args);
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
         soc_reg
             .write(RvSize::Word, CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START, 4)
             .unwrap();

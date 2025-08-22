@@ -1287,6 +1287,29 @@ impl Aes {
         Ok(c)
     }
 
+    /// Zeroize the GCM hardware state.
+    fn zeroize_gcm(&mut self) {
+        self.with_aes(|aes, _| {
+            // recommended way to clear GCM state in 2.0: Reset GCM to init with valid bytes set to 16
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Gcm as u32)
+                        .operation(AesOperation::Encrypt as u32)
+                        .manual_operation(false)
+                        .sideload(false)
+                });
+            }
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Init as u32).num_valid_bytes(16));
+            }
+            wait_for_idle(&aes);
+        });
+    }
+
     /// Zeroize the non-GHASH hardware registers.
     fn zeroize_iv_data(&mut self) {
         self.with_aes(|aes, _| {
@@ -1302,6 +1325,7 @@ impl Aes {
 
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
+        self.zeroize_gcm();
         self.zeroize_iv_data();
     }
 

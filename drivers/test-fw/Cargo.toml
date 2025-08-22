@@ -192,3 +192,8 @@ required-features = ["riscv"]
 name = "ml_dsa87"
 path = "src/bin/mldsa87_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "dma_sha384"
+path = "src/bin/dma_sha384_tests.rs"
+required-features = ["riscv"]
