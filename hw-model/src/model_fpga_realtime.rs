@@ -78,6 +78,7 @@ bitfield! {
     cptra_obf_field_entropy_vld, set_cptra_obf_field_entropy_vld: 3, 3;
     debug_locked, set_debug_locked: 4, 4;
     device_lifecycle, set_device_lifecycle: 6, 5;
+    axi_reset, set_axi_reset: 31, 31;
 }
 
 bitfield! {
@@ -212,6 +213,24 @@ impl ModelFpgaRealtime {
                 }
             }
             thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    fn axi_reset(&mut self) {
+        unsafe {
+            let mut val = WrapperControl(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                    .read_volatile(),
+            );
+            val.set_axi_reset(1);
+            self.wrapper
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                .write_volatile(val.0);
+            val.set_axi_reset(0);
+            self.wrapper
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                .write_volatile(val.0);
         }
     }
 
@@ -521,6 +540,9 @@ impl HwModel for ModelFpgaRealtime {
 
         writeln!(m.output().logger(), "new_unbooted")?;
 
+        println!("AXI reset");
+        m.axi_reset();
+
         // Set generic input wires.
         let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
         m.set_generic_input_wires(&input_wires);
@@ -742,6 +764,9 @@ impl Drop for ModelFpgaRealtime {
         self.realtime_thread_exit_flag
             .store(true, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
+
+        // reset the AXI bus as we leave
+        self.axi_reset();
 
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
