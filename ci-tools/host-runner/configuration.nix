@@ -6,7 +6,7 @@ let
       export GCP_ZONE="us-central1"
       export GITHUB_ORG="chipsalliance"
       export GCP_PROJECT="caliptra-github-ci"
-      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image "$@"
+      ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml "$@"
     '';
     update-bitstream-petalinux = pkgs.writeShellScriptBin "update-bitstream-petalinux" ''
       set -eux
@@ -43,12 +43,26 @@ let
       export GITHUB_ORG="chipsalliance"
       export GCP_PROJECT="caliptra-github-ci"
 
-      set -eux
       cd /home/${user}
+
+      set -eux
+      mkdir -p ci-images
+      pushd ci-images
+
+
       ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml caliptra-fpga-image main > caliptra-fpga-image.zip
       ${pkgs.unzip}/bin/unzip caliptra-fpga-image.zip
+      (mv zcu104.img zcu104.img.old || true)
       mv image.img zcu104.img
       rm caliptra-fpga-image.zip
+
+      for VARIANT in "caliptra-fpga-image-core-2.0" "caliptra-fpga-image-core-2.1" "caliptra-fpga-image-subsystem-2.0" "caliptra-fpga-image-subsystem-2.1"; do
+          ${rtool}/bin/rtool download_artifact 379559 40993215 fpga-image.yml $VARIANT main-2.x > $VARIANT.zip
+          unzip $VARIANT.zip
+          (mv $VARIANT.img $VARIANT.img.old || true)
+          mv image.img $VARIANT.img
+          rm $VARIANT.zip
+       done
     '';
 in
 {
@@ -96,6 +110,10 @@ in
         "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLxRYcd9xKpj9UK5ptbRGKqcNw1mTzwS2dhn3gPWTcjfzeFbgb5PK17fR6BVH7PDIHggYKL+vOVaBnekoWWSIPQ= publickey"
         # zhalvorsen
         "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com"
+        # ttrippel
+        "ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com"
+        # jhand
+        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNAmcxogmvhKGQy/kd5R+uB382XiSb1p/hlqx/lJv3IcxT3JDVk2cRuVxipirplizT6g5+a5FWH6fGrOizQ/Rd0= publickey"
       ];
   };
 
@@ -116,6 +134,7 @@ in
     update-bitstream-ubuntu
     ((pkgs.callPackage ./tools/fpga-boss.nix {}))
     rtool
+    picocom
   ];
 
   programs.zsh.enable = true;

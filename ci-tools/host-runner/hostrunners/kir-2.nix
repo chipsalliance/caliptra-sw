@@ -38,26 +38,25 @@
   #     ];
   #   };
   # };
-  # systemd.services.vck-2 = {
-  #   description = "VCK-2 Service";
-  #   after = [ "network.target" ];
-  #   wantedBy = [ "multi-user.target" ];
-  #
-  #   serviceConfig = {
-  #     Type = "simple";
-  #     User = "${user}";
-  #     ExecStart = "${fpga-boss-script}/bin/fpga.sh";
-  #     Restart = "on-failure";
-  #     RestartSec = "15s";
-  #     Environment = [
-  #       ''ZCU_FTDI="1-1.4"''
-  #       ''ZCU_SDWIRE="1-1.3"''
-  #       ''IDENTIFIER="caliptra-kir-vck190-2"''
-  #       ''FPGA_TARGET="vck190"''
-  #       ''IMAGE="/home/${user}/vck190.img"''
-  #     ];
-  #   };
-  # };
+  systemd.user.services.vck-2 = {
+    description = "VCK-2 Service";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${fpga-boss-script}/bin/fpga.sh";
+      Restart = "on-failure";
+      RestartSec = "15s";
+      Environment = [
+        ''ZCU_FTDI="1-1.4"''
+        ''ZCU_SDWIRE="1-1.3"''
+        ''IDENTIFIER="caliptra-kir-vck190-2"''
+        ''FPGA_TARGET="vck190-core-2.1"''
+        ''IMAGE="/home/${user}/ci-images/caliptra-fpga-image-core-2.1.img"''
+      ];
+    };
+  };
   environment.systemPackages = with pkgs; [
       ((pkgs.writeShellScriptBin "vck-2-debug" ''
         #!${pkgs.bash}/bin/bash
