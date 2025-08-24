@@ -151,8 +151,8 @@ jobs:
 
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           cargo xtask-fpga rom-build --platform fpga
+          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin ../mcu-rom-fpga.bin
           tar -cvz -f /tmp/caliptra-mcu-binaries.tar.gz -C target/riscv32imc-unknown-none-elf/release/ mcu-rom-fpga.bin
-          scp target/riscv32imc-unknown-none-elf/release/mcu-rom-fpga.bin mcu-rom-fpga.bin
 
       - name: Save test MCU ROM to cache
         if: "!steps.restore_mcu_rom_cache.outputs.cache-hit"
