@@ -291,7 +291,6 @@ jobs:
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --features fpga_subsystem \
               --message-format json  > /tmp/nextest-list.json
 
           sudo ${VARS} cargo-nextest nextest run \
