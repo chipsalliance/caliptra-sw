@@ -263,8 +263,8 @@ fn test_dma_aes_mcu_sram() {
         zeroize_axi(dma, mcu_base_addr, MCU_SRAM_SIZE);
     };
 
-    let src = soc.mci_base_addr() + 0xc0_0000;
-    let dst = soc.mci_base_addr() + 0xc0_0000;
+    let src = soc.mci_base_addr() + MCU_SRAM_OFFSET;
+    let dst = soc.mci_base_addr() + MCU_SRAM_OFFSET;
 
     for max_len in (4..EXPECTED_CIPHERTEXT.len()).step_by(4) {
         zeroize_mcu_sram(&mut dma);
