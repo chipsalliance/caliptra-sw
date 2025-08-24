@@ -349,6 +349,11 @@ fn test_ml_dsa87() {
 }
 
 #[test]
+fn test_ml_kem() {
+    run_driver_test(&firmware::driver_tests::ML_KEM);
+}
+
+#[test]
 fn test_error_reporter() {
     run_driver_test(&firmware::driver_tests::ERROR_REPORTER);
 }

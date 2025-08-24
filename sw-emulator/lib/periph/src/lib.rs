@@ -14,6 +14,7 @@ Abstract:
 #[macro_use]
 extern crate arrayref;
 
+mod abr;
 mod aes;
 mod aes_clp;
 mod asym_ecc384;
@@ -29,7 +30,6 @@ mod iccm;
 mod key_vault;
 mod mailbox;
 pub mod mci;
-mod ml_dsa87;
 mod root_bus;
 mod sha512_acc;
 pub mod soc_reg;
