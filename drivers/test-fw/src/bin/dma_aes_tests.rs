@@ -30,7 +30,7 @@ use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 use zerocopy::IntoBytes;
 
-const MCU_SRAM_OFFSET: u64 = mcu_sram::McuSram::PTR as u64;
+const MCU_SRAM_OFFSET: *mut u32 = mcu_sram::McuSram::PTR;
 const MCU_SRAM_SIZE: usize = 32 * 1024;
 const KEY: LEArray4x8 = LEArray4x8::new([
     0xb4f7eaf0, 0x50f4421b, 0x05bc3506, 0x11deced9, 0x593d36a5, 0x708828a6, 0xffbc27f5, 0x046e4deb,
@@ -258,14 +258,15 @@ fn test_dma_aes_mcu_sram() {
     };
 
     // Read and decrypt 0s from MCU SRAM to MCU SRAM
-    let mcu_base_addr = soc.mci_base_addr() + MCU_SRAM_OFFSET;
+    let mcu_sram_offset = MCU_SRAM_OFFSET as u64;
+    let mcu_base_addr = soc.mci_base_addr() + mcu_sram_offset;
 
     let zeroize_mcu_sram = |dma: &mut Dma| {
         zeroize_axi(dma, mcu_base_addr, MCU_SRAM_SIZE);
     };
 
-    let src = soc.mci_base_addr() + MCU_SRAM_OFFSET;
-    let dst = soc.mci_base_addr() + MCU_SRAM_OFFSET;
+    let src = mcu_base_addr;
+    let dst = mcu_base_addr;
 
     for max_len in (4..EXPECTED_CIPHERTEXT.len()).step_by(4) {
         zeroize_mcu_sram(&mut dma);
