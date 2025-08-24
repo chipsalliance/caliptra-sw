@@ -24,12 +24,13 @@ use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::mcu_sram;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 use zerocopy::IntoBytes;
 
-const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+const MCU_SRAM_OFFSET: u64 = mcu_sram::McuSram::PTR as u64;
 const MCU_SRAM_SIZE: usize = 32 * 1024;
 const KEY: LEArray4x8 = LEArray4x8::new([
     0xb4f7eaf0, 0x50f4421b, 0x05bc3506, 0x11deced9, 0x593d36a5, 0x708828a6, 0xffbc27f5, 0x046e4deb,
