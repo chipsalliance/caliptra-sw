@@ -17,6 +17,7 @@ register_bitfields! {
         BootfsmBrkpoint OFFSET(6) NUMBITS(1) [],
         SsDebugIntent OFFSET(7) NUMBITS(1) [],
         I3cAxiUserIdFiltering OFFSET(8) NUMBITS(1) [],
+        AxiReset OFFSET(31) NUMBITS(1) [],
     ],
     pub MciError [
         MciErrorFatal OFFSET(0) NUMBITS(1) [],
