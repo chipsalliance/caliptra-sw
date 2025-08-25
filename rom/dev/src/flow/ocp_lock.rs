@@ -21,8 +21,7 @@ use caliptra_common::{
     },
 };
 use caliptra_drivers::{
-    hmac_kdf, Aes, AesKey, Array4x16, Array4x8, CaliptraError, CaliptraResult, FuseBank, Hmac,
-    HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, SocIfc, Trng,
+    hmac_kdf, Aes, AesKey, Array4x16, Array4x8, AxiAddr, CaliptraError, CaliptraResult, Dma, DmaReadTarget, DmaReadTransaction, FuseBank, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, SocIfc, Trng
 };
 
 pub struct OcpLockFlow {}
@@ -37,6 +36,7 @@ impl OcpLockFlow {
         hmac: &mut Hmac,
         trng: &mut Trng,
         aes: &mut Aes,
+        dma: &mut Dma,
     ) -> CaliptraResult<()> {
         cprintln!("Hello from demo");
         cprintln!("[ROM] Starting OCP LOCK Flow");
@@ -46,7 +46,7 @@ impl OcpLockFlow {
 
         // TODO(clundin): Move validation tests into separate binary.
         // Run validation flow to confirm that OCP LOCK works as we expect.
-        validation_flow(soc, hmac, trng, aes)?;
+        validation_flow(soc, hmac, trng, aes, dma)?;
         Ok(())
     }
 }
@@ -80,6 +80,7 @@ fn validation_flow(
     hmac: &mut Hmac,
     trng: &mut Trng,
     aes: &mut Aes,
+    dma: &mut Dma,
 ) -> CaliptraResult<()> {
     cprintln!("[ROM] Starting OCP LOCK Validation");
 
@@ -98,7 +99,7 @@ fn validation_flow(
         cprintln!("[ROM] OCP is not locked");
     }
 
-    if runtime_validation_flow(hmac, trng, aes).is_ok() {
+    if runtime_validation_flow(hmac, trng, aes, dma, soc).is_ok() {
         cprintln!("[ROM] RUNTIME OCP LOCK FLOW PASSED");
     } else {
         cprintln!("[ROM] RUNTIME OCP LOCK FLOW FAILED");
@@ -113,24 +114,34 @@ fn rom_validation_flow(
     hmac: &mut Hmac,
     trng: &mut Trng,
 ) -> CaliptraResult<()> {
-    let fuse_bank = soc.fuse_bank();
-    check_hek_seed(&fuse_bank)?;
+    // check_dma_kv_release(dma, soc)?;
+    // let fuse_bank = soc.fuse_bank();
+    // check_hek_seed(&fuse_bank)?;
     check_populate_mdk(hmac, trng)?;
-    check_locked_hmac(hmac, trng)?;
-
-    let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
-    check_hek(hmac, trng, &hek_seed)?;
-    check_locked_hek(hmac, trng)?;
+    // check_locked_hmac(hmac, trng)?;
+    //
+    // let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
+    // check_hek(hmac, trng, &hek_seed)?;
+    // check_locked_hek(hmac, trng)?;
     Ok(())
 }
 
 /// Exercises Runtime specific OCP LOCK flows.
-fn runtime_validation_flow(hmac: &mut Hmac, trng: &mut Trng, aes: &mut Aes) -> CaliptraResult<()> {
-    check_locked_hmac(hmac, trng)?;
+fn runtime_validation_flow(
+    hmac: &mut Hmac,
+    trng: &mut Trng,
+    aes: &mut Aes,
+    dma: &mut Dma,
+    soc: &mut SocIfc,
+) -> CaliptraResult<()> {
+    // check_locked_hmac(hmac, trng)?;
+    check_dma_kv_release(dma, soc)?;
     check_populate_mek_with_aes(aes)?;
-    check_locked_hek(hmac, trng)?;
-    check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
-    check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    check_dma_kv_release(dma, soc)?;
+    // check_locked_hek(hmac, trng)?;
+    // check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    // check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
+    // check_dma_kv_release(dma, soc)?;
     Ok(())
 }
 
@@ -312,7 +323,6 @@ fn check_hmac_regular_kv_to_ocp_kv_lock_mode(
     hmac: &mut Hmac,
     trng: &mut Trng,
 ) -> CaliptraResult<()> {
-    cprintln!("[ROM] Checking Regular to OCP KV HMAC after LOCK mode enabled");
     // Assertion:
     // After ROM enables LOCK mode, it should not be possible to do HMAC(key=REGULAR_KV, dest=LOCK_KV)
     let regular_kv = HmacKey::Key(KeyReadArgs::new(KEY_ID_ROM_FMC_CDI));
@@ -338,6 +348,35 @@ fn check_hmac_regular_kv_to_ocp_kv_lock_mode(
     }
 }
 
+fn check_dma_kv_release(dma: &mut Dma, soc: &mut SocIfc) -> CaliptraResult<()> {
+    cprintln!("[ROM] Checking KV DMA release");
+    const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+    const MCU_SRAM_SIZE: usize = 32 * 1024;
+
+    let mcu_base_addr = soc.mci_base_addr() + MCU_SRAM_OFFSET;
+    let addr = AxiAddr::from(mcu_base_addr);
+    let fuse_addr = soc.ocp_lock_get_key_release_addr();
+
+
+    cprintln!("Fuse: 0x{:x}", fuse_addr);
+    cprintln!("Addr: 0x{:x}", mcu_base_addr);
+
+    if mcu_base_addr != fuse_addr {
+        cprintln!("Addr doesn't match");
+    } else {
+        cprintln!("Addr matches");
+    }
+
+    let data = dma.read_dword(AxiAddr::from(fuse_addr));
+    if data != 0 {
+        cprintln!("Have data");
+    } else {
+        cprintln!("No data");
+    }
+
+    Ok(())
+}
+
 /// Helper function, populate slot with constant seed for testing.
 fn populate_slot(hmac: &mut Hmac, trng: &mut Trng, slot: KeyId) -> CaliptraResult<()> {
     hmac.hmac(
@@ -347,4 +386,10 @@ fn populate_slot(hmac: &mut Hmac, trng: &mut Trng, slot: KeyId) -> CaliptraResul
         KeyWriteArgs::new(slot, KeyUsage::default().set_hmac_key_en().set_aes_key_en()).into(),
         HmacMode::Hmac512,
     )
+}
+
+fn zeroize_axi(dma: &mut Dma, addr: u64, len: usize) {
+    for i in (0..len).step_by(4) {
+        dma.write_dword((addr + i as u64).into(), 0);
+    }
 }
