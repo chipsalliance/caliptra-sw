@@ -124,6 +124,7 @@ pub enum DmaWriteOrigin {
     Mbox(u32),
     AhbFifo,
     AxiRd(AxiAddr),
+    KeyVault,
 }
 
 pub struct DmaWriteTransaction {
@@ -238,20 +239,21 @@ impl Dma {
                 }
                 _ => {}
             }
-            dma.src_addr_l().write(|_| source_addr_lo);
-            dma.src_addr_h().write(|_| source_addr_hi);
+            // dma.src_addr_l().write(|_| source_addr_lo);
+            // dma.src_addr_h().write(|_| source_addr_hi);
 
             // Set the number of bytes to write.
             dma.byte_count().write(|_| write_transaction.length);
 
             // Set the block size.
-            dma.block_size().write(|f| f.size(block_size));
+            // dma.block_size().write(|f| f.size(block_size));
 
             dma.ctrl().write(|c| {
                 c.wr_route(|_| match write_transaction.origin {
                     DmaWriteOrigin::Mbox(_) => WrRouteE::Mbox,
                     DmaWriteOrigin::AhbFifo => WrRouteE::AhbFifo,
                     DmaWriteOrigin::AxiRd(_) => WrRouteE::AxiRd,
+                    DmaWriteOrigin::KeyVault => WrRouteE::Keyvault,
                 })
                 .wr_fixed(write_transaction.fixed_addr)
                 .rd_route(|_| match write_transaction.origin {
