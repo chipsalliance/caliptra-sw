@@ -15,6 +15,7 @@ caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
 zerocopy.workspace = true
+ufmt.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = [
     "cfi",
     "cfi-counter",
@@ -197,4 +198,9 @@ required-features = ["riscv"]
 [[bin]]
 name = "dma_sha384"
 path = "src/bin/dma_sha384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "dma_aes"
+path = "src/bin/dma_aes_tests.rs"
 required-features = ["riscv"]
