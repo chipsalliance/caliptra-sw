@@ -995,17 +995,15 @@ impl Aes {
         }
 
         // Wait for HW to release result to KV
-        self.with_aes::<CaliptraResult<()>>(|aes, aes_clp| {
-            let res = match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
+        self.with_aes::<CaliptraResult<()>>(|_, aes_clp| {
+            match KvAccess::end_copy_to_kv(aes_clp.aes_kv_wr_status(), mek_slot) {
                 Ok(_) => Ok(()),
                 Err(KvAccessErr::KeyRead) => {
                     Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_READ)
                 }
                 Err(KvAccessErr::KeyWrite) => Err(CaliptraError::RUNTIME_DRIVER_AES_WRITE_KV),
                 _ => Err(CaliptraError::RUNTIME_DRIVER_AES_READ_KEY_KV_UNKNOWN),
-            };
-            let contents = aes_clp.aes_kv_wr_status().read();
-            res
+            }
         })?;
 
         self.zeroize_internal();
