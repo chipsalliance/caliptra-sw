@@ -21,7 +21,7 @@ use caliptra_common::{
     },
 };
 use caliptra_drivers::{
-    hmac_kdf, Aes, AesKey, Array4x16, Array4x8, AxiAddr, CaliptraError, CaliptraResult, Dma, DmaReadTarget, DmaReadTransaction, FuseBank, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, SocIfc, Trng
+    hmac_kdf, Aes, AesKey, Array4x16, Array4x8, AxiAddr, CaliptraError, CaliptraResult, Dma, DmaReadTarget, DmaReadTransaction, DmaWriteOrigin, DmaWriteTransaction, FuseBank, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, SocIfc, Trng
 };
 
 pub struct OcpLockFlow {}
@@ -135,9 +135,9 @@ fn runtime_validation_flow(
     soc: &mut SocIfc,
 ) -> CaliptraResult<()> {
     // check_locked_hmac(hmac, trng)?;
-    check_dma_kv_release(dma, soc)?;
-    check_populate_mek_with_aes(aes)?;
-    check_dma_kv_release(dma, soc)?;
+    // check_dma_kv_release(dma, soc)?;
+    check_populate_mek_with_aes(aes, soc, dma)?;
+    // check_dma_kv_release(dma, soc)?;
     // check_locked_hek(hmac, trng)?;
     // check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
     // check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
@@ -190,7 +190,7 @@ fn check_populate_mdk(hmac: &mut Hmac, trng: &mut Trng) -> CaliptraResult<()> {
 }
 
 // Check that we can populate MEK slot with AES ECB Decryption.
-fn check_populate_mek_with_aes(aes: &mut Aes) -> CaliptraResult<()> {
+fn check_populate_mek_with_aes(aes: &mut Aes, soc: &mut SocIfc ,dma: &mut Dma) -> CaliptraResult<()> {
     cprintln!("[ROM] check_populate_mek_with_aes");
     let res = aes.aes_256_ecb_decrypt_kv(AesKey::KV(KeyReadArgs::new(KEY_ID_MDK)), &[0; 64]);
     match res {
@@ -205,6 +205,29 @@ fn check_populate_mek_with_aes(aes: &mut Aes) -> CaliptraResult<()> {
         }
     };
     cprintln!("[ROM] finished check_populate_mek_with_aes");
+
+    let fuse_addr = soc.ocp_lock_get_key_release_addr();
+    let write_addr = AxiAddr::from(fuse_addr);
+
+    if soc.ocp_lock_get_key_size() != 0x40 {
+        cprintln!("Wrong size");
+    }
+
+    let write_transaction = DmaWriteTransaction {
+        write_addr,
+        fixed_addr: false,
+        length: soc.ocp_lock_get_key_size(),
+        origin: DmaWriteOrigin::KeyVault,
+        // origin: DmaWriteOrigin::AxiRd(write_addr),
+        aes_mode: false,
+        aes_gcm: false,
+    };
+    dma.flush();
+    cprintln!("Writing dma write transaction");
+    dma.setup_dma_write(write_transaction, 0);
+    cprintln!("Wrote dma write transaction");
+    dma.wait_for_dma_complete();
+    cprintln!("Done waiting for dma write transaction");
     Ok(())
 }
 
@@ -356,16 +379,6 @@ fn check_dma_kv_release(dma: &mut Dma, soc: &mut SocIfc) -> CaliptraResult<()> {
     let mcu_base_addr = soc.mci_base_addr() + MCU_SRAM_OFFSET;
     let addr = AxiAddr::from(mcu_base_addr);
     let fuse_addr = soc.ocp_lock_get_key_release_addr();
-
-
-    cprintln!("Fuse: 0x{:x}", fuse_addr);
-    cprintln!("Addr: 0x{:x}", mcu_base_addr);
-
-    if mcu_base_addr != fuse_addr {
-        cprintln!("Addr doesn't match");
-    } else {
-        cprintln!("Addr matches");
-    }
 
     let data = dma.read_dword(AxiAddr::from(fuse_addr));
     if data != 0 {
