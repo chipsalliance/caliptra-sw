@@ -16,7 +16,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DeviceLifecycle, HwModel, ModelEmulated, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -506,7 +506,7 @@ fn set_manifest_command_execute(
 }
 
 fn model_set_manifest_command_execute(
-    model: &mut ModelEmulated,
+    model: &mut DefaultHwModel,
     manifest: AuthorizationManifest,
     expected_err: Option<CaliptraError>,
 ) {
