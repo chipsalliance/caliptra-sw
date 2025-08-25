@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::Array4x12;
+use crate::{Array4x12, AxiAddr};
 use bitfield::size_of;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
@@ -547,7 +547,7 @@ impl SocIfc {
     }
 
     pub fn subsystem_mode(&self) -> bool {
-        return false;
+        return true;
     }
 
     pub fn ocp_lock_enabled(&self) -> bool {
@@ -571,6 +571,26 @@ impl SocIfc {
             .ss_ocp_lock_ctrl()
             .read()
             .lock_in_progress()
+    }
+    
+    pub fn ocp_lock_get_key_size(&self) -> u32 {
+        self.soc_ifc
+            .regs()
+            .ss_key_release_size()
+            .read()
+            .into()
+    }
+
+    pub fn ocp_lock_get_key_release_addr(&self) -> u64 {
+        let low = self.soc_ifc
+            .regs()
+            .ss_key_release_base_addr_l()
+            .read();
+        let high = self.soc_ifc
+            .regs()
+            .ss_key_release_base_addr_h()
+            .read();
+        ((high as u64) << 32) | low as u64
     }
 
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
