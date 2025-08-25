@@ -122,6 +122,8 @@ bitfield! {
 
     /// Flag indicating if the key can be used as AES key
     pub aes_key, set_aes_key: 5;
+    // pub ml_kem, set_ml_kem: 6;
+    // pub ml_kem_seed, set_ml_seed: 7;
 
     /// Flag indicating if the key can be used as DMA data
     pub dma_data, set_dma_data: 8;
