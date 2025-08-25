@@ -18,8 +18,17 @@ fn test_unknown_command_is_fatal() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     // This command does not exist
+    // Calculate checksum for unknown command with empty payload (no bytes after header)
+    let checksum = caliptra_common::checksum::calc_checksum(
+        0xabcd_1234,
+        &[], // No payload after header
+    );
+
+    // Create final header with correct checksum
+    let header = MailboxReqHeader { chksum: checksum };
+
     assert_eq!(
-        hw.mailbox_execute(0xabcd_1234, &[]),
+        hw.mailbox_execute(0xabcd_1234, header.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
         ))
@@ -80,7 +89,7 @@ fn test_mailbox_invalid_checksum() {
     // Calc and update checksum
     let checksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::STASH_MEASUREMENT),
-        &payload.as_bytes()[4..],
+        payload.as_bytes().get(4..).unwrap(),
     );
 
     // Corrupt the checksum
@@ -113,9 +122,21 @@ fn test_mailbox_invalid_req_size_large() {
         svn: 0xEF01,
     };
 
-    // Send too much data (stash measurement is bigger than capabilities)
+    // Create extended payload with 4 extra bytes to make it too large
+    let mut extended_payload = Vec::new();
+    extended_payload.extend_from_slice(payload.as_bytes());
+    extended_payload.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]); // Add 4 extra bytes
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        extended_payload.get(4..).unwrap(),
+    );
+
+    // Update the first 4 bytes with the checksum in little endian format
+    extended_payload[0..4].copy_from_slice(&checksum.to_le_bytes());
+
+    // Send too much data (stash measurement payload + 4 extra bytes)
     assert_eq!(
-        hw.mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes()),
+        hw.mailbox_execute(CommandId::STASH_MEASUREMENT.into(), &extended_payload),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
         ))
@@ -135,12 +156,20 @@ fn test_mailbox_invalid_req_size_small() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        payload.as_bytes().get(4..8).unwrap(),
+    );
+    let payload = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..payload
+    };
 
     // Drop a dword
     assert_eq!(
         hw.mailbox_execute(
             CommandId::STASH_MEASUREMENT.into(),
-            &payload.as_bytes()[4..]
+            payload.as_bytes().get(..8).unwrap()
         ),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
