@@ -82,6 +82,10 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("version")
         .with_context(|| "version arg not specified")?;
 
+    let svn: &u32 = args
+        .get_one::<u32>("svn")
+        .with_context(|| "svn arg not specified")?;
+
     let flags: AuthManifestFlags = AuthManifestFlags::from_bits_truncate(
         *args
             .get_one::<u32>("flags")
@@ -123,6 +127,7 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     // Decode the configuration.
     let gen_config = AuthManifestGeneratorConfig {
         version: *version,
+        svn: *svn,
         flags,
         pqc_key_type,
         vendor_man_key_info: config::vendor_config_from_file(
