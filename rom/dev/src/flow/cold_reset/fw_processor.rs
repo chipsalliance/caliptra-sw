@@ -415,16 +415,7 @@ impl FirmwareProcessor {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_mut_bytes(), false)?;
                         #[cfg(feature = "ocp-lock")]
-                        {
-                            if let Err(e) = crate::flow::ocp_lock::OcpLockFlow::run(
-                                soc_ifc,
-                                &mut env.hmac,
-                                &mut env.trng,
-                                &mut env.aes,
-                            ) {
-                                cprintln!("[ROM] OCP LOCK flow failed with 0x{:x}", u32::from(e));
-                            }
-                        }
+                        {}
 
                         let mut resp = TestOcpLockResp {
                             hdr: MailboxRespHeader::default(),
