@@ -556,7 +556,10 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
-            caliptra_drivers::report_fw_error_non_fatal(0);
+
+            // Clear non-fatal error before processing command
+            caliptra_drivers::clear_fw_error_non_fatal(drivers.persistent_data.get_mut());
+
             let command_result = handle_command(drivers);
             cfi_check!(command_result);
             match command_result {
