@@ -69,7 +69,7 @@ fn test_dma_sha384_mcu_sram() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, TEST_DATA_SIZE as u32)
+        .sha384_mcu_sram(&mut sha_acc, TEST_DATA_SIZE as u32, AesDmaMode::None)
         .expect("DMA SHA384 failed");
 
     let test_data_bytes =
@@ -101,7 +101,7 @@ fn test_dma_sha384_empty_data() {
 
     // Compute SHA384 using DMA's sha384_mcu_sram function with 0 length
     let dma_digest = dma_recovery
-        .sha384_mcu_sram(&mut sha_acc, 0)
+        .sha384_mcu_sram(&mut sha_acc, 0, AesDmaMode::None)
         .expect("DMA SHA384 with empty data failed");
 
     // Compute SHA384 using regular SHA384 driver on empty data
