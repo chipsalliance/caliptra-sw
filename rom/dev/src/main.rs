@@ -27,8 +27,8 @@ use core::hint::black_box;
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, Aes,
-    CaliptraError, Ecc384, Hmac, KeyVault, Mailbox, Mldsa87, ResetReason, Sha256, Sha2_512_384,
-    Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
+    CaliptraError, Ecc384, Hmac, KeyVault, Mailbox, MlKem1024, Mldsa87, ResetReason, Sha256,
+    Sha2_512_384, Sha2_512_384Acc, ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -389,6 +389,7 @@ fn handle_fatal_error(code: u32) -> ! {
         Ecc384::zeroize();
         Hmac::zeroize();
         Mldsa87::zeroize();
+        MlKem1024::zeroize();
         Sha256::zeroize();
         Sha2_512_384::zeroize();
         Sha2_512_384Acc::zeroize();
