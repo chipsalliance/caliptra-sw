@@ -18,11 +18,10 @@ Abstract:
 
 --*/
 
-use crate::cprintln;
-use crate::{kv_access::KvAccessErr, KeyId, KeyUsage, KeyWriteArgs};
 use crate::{
     kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
 };
+use crate::{kv_access::KvAccessErr, KeyId, KeyUsage, KeyWriteArgs};
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -961,7 +960,7 @@ impl Aes {
         // Only KV 23 is allowed to destination KV.
         let mek_slot = KeyWriteArgs::new(
             KeyId::KeyId23, // MEK KV.
-            KeyUsage::default(),
+            KeyUsage::default().set_dma_data_en(),
         );
 
         // Set Dest KV in AES Ctrl register
