@@ -19,7 +19,7 @@ use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
+use caliptra_drivers::{AesDmaMode, AxiAddr, CaliptraError, CaliptraResult, DmaMmio, DmaRecovery};
 use ureg::{Mmio, MmioMut};
 
 const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
@@ -198,6 +198,7 @@ impl ActivateFirmwareCmd {
                     },
                     false,
                     false,
+                    AesDmaMode::None,
                 )
                 .map_err(|_| ())?;
         }

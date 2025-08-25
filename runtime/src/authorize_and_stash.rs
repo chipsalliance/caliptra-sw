@@ -21,7 +21,7 @@ use caliptra_common::mailbox_api::{
     AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
     MailboxRespHeader,
 };
-use caliptra_drivers::DmaRecovery;
+use caliptra_drivers::{AesDmaMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use dpe::response::DpeErrorCode;
 use zerocopy::FromBytes;
@@ -105,6 +105,7 @@ impl AuthorizeAndStashCmd {
                             lo: image_source.lo,
                         },
                         cmd.image_size,
+                        AesDmaMode::None,
                     )
                     .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                     .into();

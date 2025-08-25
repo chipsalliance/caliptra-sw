@@ -214,7 +214,7 @@ jobs:
           retention-days: 1
 
   test_artifacts:
-    runs-on: vck190-mcu
+    runs-on: vck190-subsystem-2.1
     needs: [check_cache, build_test_binaries]
     timeout-minutes: 120
     if: |
@@ -286,11 +286,12 @@ jobs:
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
               -E 'package(caliptra-hw-model) and test(tests::test_execution)'
+              -E 'package(caliptra-drivers) and test(test_dma_aes)'
           )
 
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --message-format json > /tmp/nextest-list.json
+              --message-format json  > /tmp/nextest-list.json
 
           sudo ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
