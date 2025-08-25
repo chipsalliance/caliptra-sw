@@ -114,15 +114,14 @@ fn rom_validation_flow(
     hmac: &mut Hmac,
     trng: &mut Trng,
 ) -> CaliptraResult<()> {
-    // check_dma_kv_release(dma, soc)?;
-    // let fuse_bank = soc.fuse_bank();
-    // check_hek_seed(&fuse_bank)?;
+    let fuse_bank = soc.fuse_bank();
+    check_hek_seed(&fuse_bank)?;
     check_populate_mdk(hmac, trng)?;
-    // check_locked_hmac(hmac, trng)?;
-    //
-    // let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
-    // check_hek(hmac, trng, &hek_seed)?;
-    // check_locked_hek(hmac, trng)?;
+    check_locked_hmac(hmac, trng)?;
+
+    let hek_seed: [u8; 32] = fuse_bank.ocp_heck_seed().into();
+    check_hek(hmac, trng, &hek_seed)?;
+    check_locked_hek(hmac, trng)?;
     Ok(())
 }
 
@@ -134,10 +133,10 @@ fn runtime_validation_flow(
     dma: &mut Dma,
     soc: &mut SocIfc,
 ) -> CaliptraResult<()> {
-    // check_locked_hmac(hmac, trng)?;
-    // check_dma_kv_release(dma, soc)?;
-    check_populate_mek_with_aes(aes, soc, dma)?;
-    // check_dma_kv_release(dma, soc)?;
+    check_locked_hmac(hmac, trng)?;
+    check_dma_kv_release(dma, soc)?;
+    check_populate_mek_with_aes(aes, soc, dma);
+    check_dma_kv_release(dma, soc)?;
     // check_locked_hek(hmac, trng)?;
     // check_hmac_ocp_kv_to_ocp_kv_lock_mode(hmac, trng)?;
     // check_hmac_regular_kv_to_ocp_kv_lock_mode(hmac, trng)?;
@@ -209,25 +208,17 @@ fn check_populate_mek_with_aes(aes: &mut Aes, soc: &mut SocIfc ,dma: &mut Dma) -
     let fuse_addr = soc.ocp_lock_get_key_release_addr();
     let write_addr = AxiAddr::from(fuse_addr);
 
-    if soc.ocp_lock_get_key_size() != 0x40 {
-        cprintln!("Wrong size");
-    }
-
+    dma.flush();
     let write_transaction = DmaWriteTransaction {
         write_addr,
         fixed_addr: false,
         length: soc.ocp_lock_get_key_size(),
         origin: DmaWriteOrigin::KeyVault,
-        // origin: DmaWriteOrigin::AxiRd(write_addr),
         aes_mode: false,
         aes_gcm: false,
     };
-    dma.flush();
-    cprintln!("Writing dma write transaction");
     dma.setup_dma_write(write_transaction, 0);
-    cprintln!("Wrote dma write transaction");
     dma.wait_for_dma_complete();
-    cprintln!("Done waiting for dma write transaction");
     Ok(())
 }
 
