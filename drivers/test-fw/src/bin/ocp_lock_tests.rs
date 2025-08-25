@@ -40,8 +40,9 @@ const OCP_LOCK_KV_RANGE: core::ops::Range<u8> = core::ops::Range { start: 16, en
 test_suite! {
     test_ocp_lock_enabled,
     test_hek_seed,
-    test_populate_mdk,
     test_hmac_regular_kv_to_ocp_lock_kv_unlocked,
+    // Run `test_hmac_regular_kv_to_ocp_lock_kv_unlocked` before to avoid overwriting MDK slot.
+    test_populate_mdk,
     // Modifies behavior of subsequent tests.
     // Tests before should test "ROM" flows, afterwards they should test "Runtime" flows.
     test_set_ocp_lock_in_progress,
@@ -96,37 +97,32 @@ fn test_populate_mdk() {
 fn test_hmac_regular_kv_to_ocp_lock_kv_unlocked() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::new();
-    cprintln!("test_hmac_regular_kv_to_ocp_lock_kv_unlocked");
 
-    hmac_kv_sequence_check(REGULAR_LOCK_KV_RANGE, OCP_LOCK_KV_RANGE, |res| {
+    hmac_kv_sequence_check(REGULAR_LOCK_KV_RANGE, OCP_LOCK_KV_RANGE, true, |res| {
         assert!(res.is_ok())
     });
-    cprintln!("test_hmac_regular_kv_to_ocp_lock_kv_unlocked done");
+    cprintln!("test_hmac_regular_kv_to_ocp_lock_kv_unlocked OK");
 }
 
 // After `ocp_lock_set_lock_in_progress` it's not okay to HMAC from regular KV to OCP LOCK KV.
 fn test_hmac_regular_kv_to_ocp_lock_kv_locked() {
-    cprintln!("test_hmac_regular_kv_to_ocp_lock_kv_locked");
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::new();
 
-    hmac_kv_sequence_check(REGULAR_LOCK_KV_RANGE, OCP_LOCK_KV_RANGE, |res| {
+    hmac_kv_sequence_check(REGULAR_LOCK_KV_RANGE, OCP_LOCK_KV_RANGE, false, |res| {
         assert!(res.is_err())
     });
+    cprintln!("test_hmac_regular_kv_to_ocp_lock_kv_locked OK");
 }
 
 fn test_hmac_ocp_lock_kv_to_ocp_lock_kv_unlocked() {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::new();
 
-    populate_slot(&mut test_regs.hmac, &mut test_regs.trng, KeyId::KeyId16).unwrap();
-    assert!(hmac_helper(
-        KeyId::KeyId16,
-        KeyId::KeyId17,
-        &mut test_regs.hmac,
-        &mut test_regs.trng
-    )
-    .is_ok());
+    hmac_kv_sequence_check(OCP_LOCK_KV_RANGE, OCP_LOCK_KV_RANGE, false, |res| {
+        assert!(res.is_ok())
+    });
+    cprintln!("test_hmac_ocp_lock_kv_to_ocp_lock_kv_unlocked OK");
 }
 
 // Checks if MEK can be decrypted to KV.
@@ -139,6 +135,7 @@ fn test_decrypt_to_mek_kv() {
         .aes
         .aes_256_ecb_decrypt_kv(AesKey::KV(KeyReadArgs::new(KeyId::KeyId16)), &[0; 64])
         .unwrap();
+    cprintln!("test_decrypt_to_mek_kv OK");
 }
 
 fn test_kv_release() {
@@ -175,29 +172,42 @@ fn test_kv_release() {
     assert_ne!(0, data);
 }
 
-fn hmac_kv_sequence_check<T: Iterator<Item = u8>>(
-    input_ids: T,
+fn hmac_kv_sequence_check<T: Iterator<Item = u8> + Clone>(
+    input_key_ids: T,
     output_key_ids: T,
+    populate_kv: bool,
     check_result: impl Fn(CaliptraResult<()>) -> (),
 ) {
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
     let mut test_regs = TestRegisters::new();
 
-    for (reg_kv, ocp_kv) in REGULAR_LOCK_KV_RANGE
+    for (input_kv, output_kv) in input_key_ids
         .into_iter()
-        .cartesian_product(OCP_LOCK_KV_RANGE)
+        .cartesian_product(output_key_ids)
     {
-        cprintln!("Testing {} and {}", reg_kv, ocp_kv);
-        let reg = KeyId::try_from(reg_kv).unwrap();
-        let ocp = KeyId::try_from(ocp_kv).unwrap();
-        populate_slot(&mut test_regs.hmac, &mut test_regs.trng, reg).unwrap();
-        assert!(hmac_helper(
-            reg,
-            ocp,
+        let input = KeyId::try_from(input_kv).unwrap();
+        let output = KeyId::try_from(output_kv).unwrap();
+        let kv_filter_set = [KeyId::KeyId16, KeyId::KeyId23];
+
+        // TODO: Maybe move this into another function.
+        // Only populate the KV in the first test.
+        if populate_kv {
+            populate_slot(&mut test_regs.hmac, &mut test_regs.trng, input).unwrap();
+        }
+
+        // Skip overwriting MDK and MEK. They have special rules exercised elsewhere.
+        if kv_filter_set.contains(&input) || kv_filter_set.contains(&output) {
+            continue;
+        }
+
+        cprintln!("Checking {} {}", input_kv, output_kv);
+
+        check_result(hmac_helper(
+            input,
+            output,
             &mut test_regs.hmac,
-            &mut test_regs.trng
-        )
-        .is_ok());
+            &mut test_regs.trng,
+        ));
     }
 }
 
@@ -221,7 +231,7 @@ fn hmac_helper(
         HmacKey::Key(KeyReadArgs::new(input)),
         HmacData::from(&[0]),
         trng,
-        KeyWriteArgs::new(output, KeyUsage::default().set_aes_key_en()).into(),
+        KeyWriteArgs::new(output, KeyUsage::default().set_aes_key_en().set_hmac_key_en()).into(),
         HmacMode::Hmac512,
     )
 }
