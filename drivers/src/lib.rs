@@ -23,7 +23,7 @@ mod bounded_address;
 pub mod cmac_kdf;
 mod csrng;
 mod data_vault;
-mod dma;
+pub mod dma;
 mod doe;
 mod ecc384;
 mod error_reporter;
@@ -59,11 +59,11 @@ mod trng_ext;
 
 pub use aes::{
     Aes, AesContext, AesGcmContext, AesGcmIv, AesKey, AesOperation, AES_BLOCK_SIZE_BYTES,
-    AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
+    AES_BLOCK_SIZE_WORDS, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES,
 };
 pub use array::{
     Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN, LEArray4x1157, LEArray4x16,
-    LEArray4x648, LEArray4x8,
+    LEArray4x4, LEArray4x648, LEArray4x8,
 };
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
@@ -74,7 +74,7 @@ pub use csrng::{
 };
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
-    AxiAddr, Dma, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
+    AesDmaMode, AxiAddr, Dma, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
     DmaWriteOrigin, DmaWriteTransaction,
 };
 pub use doe::DeobfuscationEngine;

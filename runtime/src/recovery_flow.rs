@@ -21,7 +21,7 @@ use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, DmaRecovery};
+use caliptra_drivers::{printer::HexBytes, AesDmaMode, DmaRecovery};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 
 pub enum RecoveryFlow {}
@@ -56,7 +56,7 @@ impl RecoveryFlow {
         };
         result?;
 
-        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox)?;
+        SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)?;
         drivers.mbox.unlock();
 
         let digest = {
@@ -72,9 +72,14 @@ impl RecoveryFlow {
                 DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
             )?;
             cprintln!("[rt] Uploading MCU firmware");
-            let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX)?;
+            let mcu_size_bytes =
+                dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
             cprintln!("[rt] Calculating MCU digest");
-            dma_recovery.sha384_mcu_sram(&mut drivers.sha2_512_384_acc, mcu_size_bytes)?
+            dma_recovery.sha384_mcu_sram(
+                &mut drivers.sha2_512_384_acc,
+                mcu_size_bytes,
+                AesDmaMode::None,
+            )?
         };
 
         let digest: [u8; 48] = digest.into();

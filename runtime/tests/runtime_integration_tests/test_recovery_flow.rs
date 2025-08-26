@@ -13,7 +13,14 @@ use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
-#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
 #[test]
 fn test_loads_mcu_fw() {
     // Test that the recovery flow runs and loads MCU's firmware
@@ -55,7 +62,14 @@ fn test_loads_mcu_fw() {
     assert!(found);
 }
 
-#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
 #[test]
 fn test_mcu_fw_bad_signature() {
     // Test that the recovery flow runs and loads MCU's firmware

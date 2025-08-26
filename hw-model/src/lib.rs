@@ -31,8 +31,14 @@ use caliptra_registers::soc_ifc::regs::{
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
 
+mod bmc;
+mod fpga_regs;
 pub mod mmio;
 mod model_emulated;
+mod otp_digest;
+mod otp_provision;
+mod recovery;
+mod xi3c;
 
 mod bus_logger;
 #[cfg(feature = "verilator")]
@@ -41,6 +47,9 @@ mod model_verilated;
 #[cfg(feature = "fpga_realtime")]
 mod model_fpga_realtime;
 
+#[cfg(feature = "fpga_subsystem")]
+mod model_fpga_subsystem;
+
 mod output;
 mod rv32_builder;
 
@@ -48,7 +57,7 @@ pub use api::mailbox::mbox_write_fifo;
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
-use output::ExitStatus;
+pub use output::ExitStatus;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
@@ -62,13 +71,20 @@ pub use model_fpga_realtime::ModelFpgaRealtime;
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::OpenOcdError;
 
+#[cfg(feature = "fpga_subsystem")]
+pub use model_fpga_subsystem::ModelFpgaSubsystem;
+
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
 /// available on all HwModel implementations.  Unfortunately, rust-analyzer
 /// (used by IDEs) can't fully resolve associated types from `impl Trait`, so
 /// such functions should use `DefaultHwModel` until they fix that. Users should
 /// treat `DefaultHwModel` as if it were `impl HwModel`.
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
+#[cfg(all(
+    not(feature = "verilator"),
+    not(feature = "fpga_realtime"),
+    not(feature = "fpga_subsystem")
+))]
 pub type DefaultHwModel = ModelEmulated;
 
 #[cfg(feature = "verilator")]
@@ -76,6 +92,9 @@ pub type DefaultHwModel = ModelVerilated;
 
 #[cfg(feature = "fpga_realtime")]
 pub type DefaultHwModel = ModelFpgaRealtime;
+
+#[cfg(feature = "fpga_subsystem")]
+pub type DefaultHwModel = ModelFpgaSubsystem;
 
 pub const DEFAULT_APB_PAUSER: u32 = 0x01;
 
@@ -197,7 +216,11 @@ pub struct InitParams<'a> {
 
     // Initial contents of the test SRAM
     pub test_sram: Option<&'a [u8]>,
+
+    // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
+    pub mcu_rom: Option<&'a [u8]>,
 }
+
 impl Default for InitParams<'_> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
@@ -240,6 +263,7 @@ impl Default for InitParams<'_> {
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
             test_sram: None,
+            mcu_rom: None,
         }
     }
 }
@@ -986,7 +1010,10 @@ pub trait HwModel: SocManager {
 
         self.soc_mbox().execute().write(|w| w.execute(false));
 
-        if cfg!(not(feature = "fpga_realtime")) {
+        if cfg!(not(any(
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ))) {
             // Don't check for mbox_idle() unless the hw-model supports
             // fine-grained timing control; the firmware may proceed to lock the
             // mailbox shortly after the mailbox transcation finishes.
@@ -1316,7 +1343,7 @@ mod tests {
         )
         .unwrap();
 
-        if cfg!(feature = "fpga_realtime") {
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
             // The fpga_realtime model can't pause execution precisely, so just assert the
             // entire output of the program.
             assert_eq!(
@@ -1829,7 +1856,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+    #[cfg(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ))]
     pub fn test_cold_reset() {
         let mut model = caliptra_hw_model::new(
             InitParams {

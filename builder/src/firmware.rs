@@ -340,6 +340,16 @@ pub mod driver_tests {
         bin_name: "persistent",
         ..BASE_FWID
     };
+
+    pub const DMA_SHA384: FwId = FwId {
+        bin_name: "dma_sha384",
+        ..BASE_FWID
+    };
+
+    pub const DMA_AES: FwId = FwId {
+        bin_name: "dma_aes",
+        ..BASE_FWID
+    };
 }
 
 pub mod rom_tests {
@@ -487,6 +497,8 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_FAIL_ADAPTP_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
+    &driver_tests::DMA_SHA384,
+    &driver_tests::DMA_AES,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,

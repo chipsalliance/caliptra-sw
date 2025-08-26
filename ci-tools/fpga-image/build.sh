@@ -5,13 +5,12 @@
 # a zcu104 Zynq FPGA dev board, and be ready to accept GHA runner
 # jitconfig passed in over UART by fpga-boss.
 
-set -e
-set -x
+set -ex
 
 mkdir -p out
 
-mv /tmp/vck190-kernel/vck190-kernel.tar.gz out/system-boot.tar.gz
-mv /tmp/vck190-kmod/io-module.ko  out/
+mv ${KERNEL_ARCHIVE} out/system-boot.tar.gz
+mv ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
@@ -33,7 +32,9 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo caliptra-fpga > /etc/hostname'
   chroot out/rootfs bash -c 'echo auto end0 > /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo allow-hotplug end0 >> /etc/network/interfaces'
+  chroot out/rootfs bash -c 'echo iface end0 inet dhcp >> /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo iface end0 inet6 auto >> /etc/network/interfaces'
+  chroot out/rootfs bash -c 'echo nameserver 8.8.8.8 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::6464 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::64 >> /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 1 >> /etc/sysctl.conf'

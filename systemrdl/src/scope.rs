@@ -192,43 +192,73 @@ impl Scope {
         let addr_mode = AddressingType::Compact;
 
         let default_alignment = self.property_val_opt::<u64>("alignment").ok().flatten();
-        // Set reg offsets
+        // Set reg offsets, accounting for both registers and memory regions
         let mut next_offset = 0;
         for instance in self.instances.iter_mut() {
-            if instance.scope.ty != ComponentType::Reg.into() {
-                continue;
-            }
-            let reg_width = instance
-                .scope
-                .property_val_opt("regwidth")
-                .ok()
-                .flatten()
-                .unwrap_or(32u64);
-            let access_width = instance
-                .scope
-                .property_val_opt("accesswidth")
-                .ok()
-                .flatten()
-                .unwrap_or(reg_width);
-            let align = if let Some(next_alignment) = instance.next_alignment {
-                next_alignment
-            } else if let Some(default_alignment) = default_alignment {
-                default_alignment
-            } else {
-                match addr_mode {
-                    AddressingType::Compact => access_width / 8,
-                    AddressingType::RegAlign => instance.element_size(),
-                    AddressingType::FullAlign => instance.total_size()?,
+            match instance.scope.ty {
+                ScopeType::Component(ComponentType::Reg) => {
+                    let reg_width = instance
+                        .scope
+                        .property_val_opt("regwidth")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(32u64);
+                    let access_width = instance
+                        .scope
+                        .property_val_opt("accesswidth")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(reg_width);
+                    let align = if let Some(next_alignment) = instance.next_alignment {
+                        next_alignment
+                    } else if let Some(default_alignment) = default_alignment {
+                        default_alignment
+                    } else {
+                        match addr_mode {
+                            AddressingType::Compact => access_width / 8,
+                            AddressingType::RegAlign => instance.element_size(),
+                            AddressingType::FullAlign => instance.total_size()?,
+                        }
+                    };
+                    if instance.offset.is_none() {
+                        if next_offset % align != 0 {
+                            next_offset = ((next_offset / align) + 1) * align;
+                        }
+                        instance.offset = Some(next_offset);
+                    }
+                    if let Some(offset) = instance.offset {
+                        next_offset = offset + instance.total_size()?;
+                    }
                 }
-            };
-            if instance.offset.is_none() {
-                if next_offset % align != 0 {
-                    next_offset = ((next_offset / align) + 1) * align;
+                ScopeType::Component(ComponentType::Mem) => {
+                    // Calculate memory size from mementries and memwidth
+                    let mem_width = instance
+                        .scope
+                        .property_val_opt("memwidth")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(32u64);
+                    let mem_entries = instance
+                        .scope
+                        .property_val_opt("mementries")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(1u64);
+                    let mem_size = (mem_width / 8) * mem_entries;
+
+                    if instance.offset.is_none() {
+                        // Align memory to its natural boundary (power of 2)
+                        let align = mem_size.next_power_of_two();
+                        if next_offset % align != 0 {
+                            next_offset = ((next_offset / align) + 1) * align;
+                        }
+                        instance.offset = Some(next_offset);
+                    }
+                    if let Some(offset) = instance.offset {
+                        next_offset = offset + mem_size;
+                    }
                 }
-                instance.offset = Some(next_offset);
-            }
-            if let Some(offset) = instance.offset {
-                next_offset = offset + instance.total_size()?;
+                _ => continue,
             }
         }
 
@@ -389,7 +419,15 @@ impl Scope {
                         let mut value = None;
                         if *tokens.peek(0) == Token::Equals {
                             tokens.next();
-                            value = Some(tokens.expect_bits()?);
+                            value = match tokens.next() {
+                                Token::Bits(bits) => Some(bits),
+                                Token::Number(num) => {
+                                    // When a plain number is provided for enum values,
+                                    // use a default width (let's use 32 bits as default)
+                                    Some(Bits::new(32, num))
+                                }
+                                unexpected => return Err(RdlError::UnexpectedToken(unexpected)),
+                            };
                             if *tokens.peek(0) == Token::BraceOpen {
                                 tokens.next();
                                 variant_scope =

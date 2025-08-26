@@ -616,29 +616,31 @@ impl Context {
 
 impl StateMachineContext for Context {
     // guards
-    fn is_not_locked(&mut self, _user: &Owner) -> Result<(), ()> {
+    fn is_not_locked(&self, _user: &Owner) -> Result<bool, ()> {
         if self.locked == 1 {
             // no transition
             Err(())
         } else {
-            Ok(())
+            Ok(true)
         }
     }
-    fn is_locked(&mut self, _user: &Owner) -> Result<(), ()> {
+    fn is_locked(&self, _user: &Owner) -> Result<bool, ()> {
         if self.locked != 0 {
-            Ok(())
+            Ok(true)
         } else {
             // no transition
             Err(())
         }
     }
 
-    fn lock(&mut self, user: &Owner) {
+    fn lock(&mut self, user: Owner) -> Result<(), ()> {
         self.locked = 1;
         self.user = user.0;
+        Ok(())
     }
-    fn unlock(&mut self, _user: &Owner) {
+    fn unlock(&mut self, _user: Owner) -> Result<(), ()> {
         self.locked = 0;
+        Ok(())
     }
 }
 

@@ -18,7 +18,9 @@ Abstract:
 
 --*/
 
-use crate::{kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, Trng};
+use crate::{
+    kv_access::KvAccess, CaliptraError, CaliptraResult, KeyReadArgs, LEArray4x4, LEArray4x8, Trng,
+};
 use caliptra_api::mailbox::CmAesMode;
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -26,14 +28,21 @@ use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
 use core::cmp::Ordering;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 
+type AesKeyBlock = LEArray4x8;
+type AesBlock = LEArray4x4;
+
 pub const AES_BLOCK_SIZE_BYTES: usize = 16;
+const _: () = assert!(AES_BLOCK_SIZE_BYTES == core::mem::size_of::<AesBlock>());
+const _: () = assert!(32 == core::mem::size_of::<AesKeyBlock>());
+
 const AES_IV_SIZE_BYTES: usize = 12;
-const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
+pub const AES_BLOCK_SIZE_WORDS: usize = AES_BLOCK_SIZE_BYTES / 4;
 const AES_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const AES_GCM_CONTEXT_SIZE_BYTES: usize = 100;
 pub const AES_CONTEXT_SIZE_BYTES: usize = 128;
 /// From the CMAC specification
 const R_B: u128 = 0x87;
+const ZERO_BLOCK: AesBlock = AesBlock::new([0; AES_BLOCK_SIZE_WORDS]);
 
 /// AES GCM IV
 #[derive(Debug, Copy, Clone)]
@@ -52,10 +61,10 @@ impl<'a> From<&'a [u8; 12]> for AesGcmIv<'a> {
 #[derive(Debug, Copy, Clone)]
 pub enum AesKey<'a> {
     /// Array - 32 Bytes (256 bits)
-    Array(&'a [u8; 32]),
+    Array(&'a AesKeyBlock),
 
     /// Split key parts that are XOR'd together
-    Split(&'a [u8; 32], &'a [u8; 32]),
+    Split(&'a AesKeyBlock, &'a AesKeyBlock),
 
     /// Read from the key vault
     KV(KeyReadArgs),
@@ -68,9 +77,9 @@ impl AesKey<'_> {
     }
 }
 
-impl<'a> From<&'a [u8; 32]> for AesKey<'a> {
+impl<'a> From<&'a AesKeyBlock> for AesKey<'a> {
     /// Converts to this type from the input type.
-    fn from(value: &'a [u8; 32]) -> Self {
+    fn from(value: &'a AesKeyBlock) -> Self {
         Self::Array(value)
     }
 }
@@ -112,10 +121,10 @@ pub enum GcmPhase {
 
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesGcmContext {
-    pub key: [u8; 32],
+    pub key: AesKeyBlock,
     pub iv: [u8; 12],
     pub aad_len: u32,
-    pub ghash_state: [u8; 16],
+    pub ghash_state: AesBlock,
     pub buffer_len: u32,
     pub buffer: [u8; 16],
     pub resreved: [u8; 16],
@@ -126,8 +135,8 @@ const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_S
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
     pub mode: u32,
-    pub key: [u8; 32],
-    pub last_ciphertext: [u8; 16],
+    pub key: AesKeyBlock,
+    pub last_ciphertext: AesBlock,
     pub last_block_index: u8,
     _padding: [u8; 75],
 }
@@ -136,8 +145,8 @@ impl Default for AesContext {
     fn default() -> Self {
         Self {
             mode: 0,
-            key: [0; 32],
-            last_ciphertext: [0; 16],
+            key: AesKeyBlock::default(),
+            last_ciphertext: AesBlock::default(),
             last_block_index: 0,
             _padding: [0; 75],
         }
@@ -197,7 +206,7 @@ impl Aes {
     pub fn aes_256_gcm_init(
         &mut self,
         trng: &mut Trng,
-        key: &[u8; 32],
+        key: &AesKeyBlock,
         iv: AesGcmIv,
         aad: &[u8],
     ) -> CaliptraResult<AesGcmContext> {
@@ -215,9 +224,9 @@ impl Aes {
         let ghash_state = if aad.is_empty() {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            [0; 16]
+            AesBlock::default()
         } else {
-            self.save()?
+            self.save()
         };
         self.zeroize_internal();
         Ok(AesGcmContext {
@@ -296,7 +305,7 @@ impl Aes {
             &context.iv,
             context.aad_len,
             context.buffer_len,
-            &context.ghash_state,
+            context.ghash_state,
             op,
         )?;
 
@@ -337,9 +346,9 @@ impl Aes {
         let ghash_state = if context.aad_len == 0 && context.buffer_len == 0 {
             // Edge case where we have not actually done any AES operations,
             // so the GHASH state should not be saved.
-            [0; 16]
+            AesBlock::default()
         } else {
-            self.save()?
+            self.save()
         };
         self.zeroize_internal();
         Ok((
@@ -406,7 +415,7 @@ impl Aes {
             &context.iv,
             context.aad_len,
             context.buffer_len,
-            &context.ghash_state,
+            context.ghash_state,
             op,
         )?;
 
@@ -464,8 +473,7 @@ impl Aes {
     }
 
     /// Saves and returns the current GHASH state.
-    fn save(&mut self) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
-        let mut ghash_state = [0u8; 16];
+    fn save(&mut self) -> AesBlock {
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
             for _ in 0..2 {
@@ -474,13 +482,10 @@ impl Aes {
             }
             wait_for_idle(&aes);
             // Read out the GHASH state from the data out registers.
-            for i in 0..4 {
-                let x = aes.data_out().at(i).read();
-                ghash_state[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
-            }
+            let ghash_state = AesBlock::read_from_reg(aes.data_out());
             wait_for_idle(&aes);
-        });
-        Ok(ghash_state)
+            ghash_state
+        })
     }
 
     /// Restores the GHASH state.
@@ -490,7 +495,7 @@ impl Aes {
         iv: &[u8; AES_IV_SIZE_BYTES],
         aad_len: u32,
         len: u32,
-        ghash_state: &[u8; AES_BLOCK_SIZE_BYTES],
+        ghash_state: AesBlock,
         op: AesOperation,
     ) -> CaliptraResult<()> {
         // No zerocopy since we can't guarantee that the
@@ -563,11 +568,7 @@ impl Aes {
                     .write(|w| w.phase(GcmPhase::Restore as u32));
             }
             wait_for_idle(&aes);
-            for (i, ghashi) in ghash_state.chunks_exact(4).enumerate() {
-                aes.data_in()
-                    .at(i)
-                    .write(|_| u32::from_le_bytes(ghashi.try_into().unwrap()));
-            }
+            ghash_state.write_to_reg(aes.data_in());
             wait_for_idle(&aes);
             // Program the IV (last 4 bytes may not be zero, unlike when doing normal init)
             for (i, ivi) in iv.into_iter().enumerate() {
@@ -645,7 +646,7 @@ impl Aes {
 
     /// Initializes the AES engine for GCM mode and returns the IV used.
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn initialize_aes_gcm(
+    pub fn initialize_aes_gcm(
         &mut self,
         trng: &mut Trng,
         iv: AesGcmIv,
@@ -728,21 +729,14 @@ impl Aes {
             // byte arrays are aligned to 4-byte boundaries.
             match key {
                 AesKey::Array(&arr) => {
-                    for (i, chunk) in arr.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share0().at(i).write(|_| word ^ MASK);
+                    for (i, word) in arr.0.iter().enumerate() {
+                        aes.key_share0().at(i).write(|_| *word ^ MASK);
                         aes.key_share1().at(i).write(|_| MASK);
                     }
                 }
                 AesKey::Split(&key1, &key2) => {
-                    for (i, chunk) in key1.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share0().at(i).write(|_| word);
-                    }
-                    for (i, chunk) in key2.chunks_exact(4).enumerate() {
-                        let word = u32::from_le_bytes(chunk.try_into().unwrap());
-                        aes.key_share1().at(i).write(|_| word);
-                    }
+                    key1.write_to_reg(aes.key_share0());
+                    key2.write_to_reg(aes.key_share1());
                 }
                 AesKey::KV(key) => KvAccess::copy_from_kv(
                     key,
@@ -760,7 +754,7 @@ impl Aes {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_aes_cbc_ctr(
         &mut self,
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        iv: &AesBlock,
         key: AesKey,
         op: AesOperation,
         mode: AesMode,
@@ -788,14 +782,10 @@ impl Aes {
             self.load_key(key)?;
         }
 
+        // Program the IV
         self.with_aes(|aes, _| {
             wait_for_idle(&aes);
-            // Program the IV
-            for (i, ivi) in iv.chunks_exact(4).enumerate() {
-                aes.iv()
-                    .at(i)
-                    .write(|_| u32::from_le_bytes(ivi.try_into().unwrap()));
-            }
+            iv.write_to_reg(aes.iv());
             wait_for_idle(&aes);
         });
         Ok(())
@@ -859,57 +849,59 @@ impl Aes {
         Ok(tag_return)
     }
 
-    fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
+    fn read_data_block_u32(&mut self) -> AesBlock {
         let aes = self.aes.regs_mut();
-
         while !aes.status().read().output_valid() {}
+        AesBlock::read_from_reg(aes.data_out())
+    }
 
-        let mut buffer = [0u8; 16];
-        // read the data out
-        for i in 0..AES_BLOCK_SIZE_WORDS {
-            let x = aes.data_out().at(i).read();
-            buffer[i * 4..i * 4 + 4].copy_from_slice(&x.to_le_bytes());
-        }
-
+    fn read_data_block(&mut self, output: &mut [u8], block_num: usize) -> CaliptraResult<()> {
         // not possible but needed to prevent panic
         if block_num * AES_BLOCK_SIZE_BYTES >= output.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
+
+        // read the data out
+        let buffer = self.read_data_block_u32();
+        let buffer: [u8; AES_BLOCK_SIZE_BYTES] = transmute!(buffer);
+
         let output = &mut output[block_num * AES_BLOCK_SIZE_BYTES..];
         let len = output.len().min(AES_BLOCK_SIZE_BYTES);
         let output = &mut output[..len];
-        output[..len].copy_from_slice(&buffer[..len]);
+        output.copy_from_slice(&buffer[..len]);
         Ok(())
     }
 
-    fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
+    fn load_data_block_u32(&mut self, data: AesBlock) {
         let aes = self.aes.regs_mut();
+        while !aes.status().read().input_ready() {}
+        data.write_to_reg(aes.data_in());
+    }
 
+    fn load_data_block(&mut self, data: &[u8], block_num: usize) -> CaliptraResult<()> {
         // not possible but needed to prevent panic
         if block_num * AES_BLOCK_SIZE_BYTES >= data.len() {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         let data = &data[block_num * AES_BLOCK_SIZE_BYTES..];
         let data = &data[..AES_BLOCK_SIZE_BYTES.min(data.len())];
-        while !aes.status().read().input_ready() {}
-
         let len = data.len();
         let mut padded_data = [0u8; AES_BLOCK_SIZE_BYTES];
-        let data = if len < AES_BLOCK_SIZE_BYTES {
-            padded_data[..len].copy_from_slice(&data[..len]);
-            &padded_data[..]
-        } else {
-            data
-        };
-        // not possible but needed to prevent panic
-        if data.len() != AES_BLOCK_SIZE_BYTES {
-            Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-        }
-        for (i, chunk) in data.chunks_exact(4).enumerate() {
-            let word = u32::from_le_bytes(chunk.try_into().unwrap());
-            aes.data_in().at(i).write(|_| word);
-        }
+        padded_data[..len].copy_from_slice(data);
+        self.load_data_block_u32(transmute!(padded_data));
         Ok(())
+    }
+
+    pub fn gcm_set_text(&mut self, len: u32) {
+        // set the mode and valid length
+        self.with_aes(|aes, _| {
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Text as u32).num_valid_bytes(len));
+            }
+            wait_for_idle(&aes);
+        });
     }
 
     fn read_write_data_gcm(
@@ -1000,8 +992,8 @@ impl Aes {
 
     pub fn aes_256_cbc(
         &mut self,
-        key: &[u8; 32],
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        key: &AesKeyBlock,
+        iv: &AesBlock,
         op: AesOperation,
         input: &[u8],
         output: &mut [u8],
@@ -1068,21 +1060,25 @@ impl Aes {
         Ok(AesContext {
             mode: CmAesMode::Cbc as u32,
             key: *key,
-            last_ciphertext,
+            last_ciphertext: transmute!(last_ciphertext),
             ..Default::default()
         })
     }
 
-    fn add_iv(iv: &[u8; AES_BLOCK_SIZE_BYTES], ctr: u32) -> [u8; AES_BLOCK_SIZE_BYTES] {
+    fn add_iv(iv: &AesBlock, ctr: u32) -> AesBlock {
         // We write the IV as 4 32-bit words in little-endian order, but we have
         // to increment them as if they were big-endian.
-        (u128::from_be_bytes(iv[0..16].try_into().unwrap()) + (ctr as u128)).to_be_bytes()
+        let iv: u128 = transmute!(*iv);
+        let iv = iv.swap_bytes();
+        let iv = iv + (ctr as u128);
+        let iv = iv.swap_bytes();
+        transmute!(iv)
     }
 
     pub fn aes_256_ctr(
         &mut self,
-        key: &[u8; 32],
-        iv: &[u8; AES_BLOCK_SIZE_BYTES],
+        key: &AesKeyBlock,
+        iv: &AesBlock,
         block_index: usize, // index within a block
         mut input: &[u8],
         mut output: &mut [u8],
@@ -1198,10 +1194,7 @@ impl Aes {
     }
 
     /// CMAC subkey generation, Algorithm 6.1 from NIST SP 800-38B.
-    fn cmac_subkey_generation(
-        &mut self,
-        key: AesKey,
-    ) -> CaliptraResult<([u8; AES_BLOCK_SIZE_BYTES], [u8; AES_BLOCK_SIZE_BYTES])> {
+    fn cmac_subkey_generation(&mut self, key: AesKey) -> CaliptraResult<(AesBlock, AesBlock)> {
         // sideload the KV key before we program the control register
         if key.sideload() {
             self.load_key(key)?;
@@ -1226,14 +1219,14 @@ impl Aes {
         }
 
         // 1. Let L = CIPH_K(0)
-        self.load_data_block(&[0u8; AES_BLOCK_SIZE_BYTES], 0)?;
-        let mut l = [0u8; AES_BLOCK_SIZE_BYTES];
-        self.read_data_block(&mut l, 0)?;
+        self.load_data_block_u32(ZERO_BLOCK);
+        let l: u128 = transmute!(self.read_data_block_u32());
+        // convert to big-endian for shift register section
+        let l = l.swap_bytes();
 
         // 2. If MSB1(L) == 0, then K1 = L << 1
         // Else K1 = (L << 1) XOR Rb
 
-        let l = u128::from_be_bytes(l);
         // branchless LFSR
         let k1 = (l << 1) ^ ((l >> 127) * R_B);
 
@@ -1241,15 +1234,14 @@ impl Aes {
         // Else K2 = (K1 << 1) XOR Rb
         let k2 = (k1 << 1) ^ ((k1 >> 127) * R_B);
 
-        Ok((k1.to_be_bytes(), k2.to_be_bytes()))
+        // convert back to native (little-endian)
+        let k1 = k1.swap_bytes();
+        let k2 = k2.swap_bytes();
+        Ok((transmute!(k1), transmute!(k2)))
     }
 
     /// CMAC generation, Algorithm 6.2 from NIST SP 800-38B.
-    pub fn cmac(
-        &mut self,
-        key: AesKey,
-        message: &[u8],
-    ) -> CaliptraResult<[u8; AES_BLOCK_SIZE_BYTES]> {
+    pub fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<AesBlock> {
         if message.len() > AES_MAX_DATA_SIZE {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
@@ -1269,43 +1261,65 @@ impl Aes {
         // where M1, ..., Mn-1 are complete blocks.
         let mut m = message;
         // 5. Let C0 = 0^128.
-        let mut c = [0u8; AES_BLOCK_SIZE_BYTES];
+        let mut c = AesBlock::default();
         for _ in 0..n {
             let mut input = [0u8; AES_BLOCK_SIZE_BYTES];
             let len = m.len().min(AES_BLOCK_SIZE_BYTES);
             input[..len].copy_from_slice(&m[..len]);
+            if len < AES_BLOCK_SIZE_BYTES {
+                input[len] = 0x80;
+            }
 
             // 4. If Mn* is a complete block, let Mn = K1 XOR Mn*; else, let Mn = K2 XOR (Mn* || 10^j) where j = 128 - Mlen - 1.
+            let mut input: AesBlock = transmute!(input);
             match m.len().cmp(&AES_BLOCK_SIZE_BYTES) {
                 Ordering::Equal => {
-                    for i in 0..AES_BLOCK_SIZE_BYTES {
-                        input[i] ^= k1[i];
+                    for i in 0..AES_BLOCK_SIZE_WORDS {
+                        input.0[i] ^= k1.0[i];
                     }
                 }
                 Ordering::Less => {
-                    // not possible but needed to prevent panic
-                    if len >= input.len() {
-                        Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
-                    }
-                    input[len] = 0x80;
-                    for i in 0..AES_BLOCK_SIZE_BYTES {
-                        input[i] ^= k2[i];
+                    for i in 0..AES_BLOCK_SIZE_WORDS {
+                        input.0[i] ^= k2.0[i];
                     }
                 }
                 _ => (), // not the last block, so do nothing
             }
 
             // 6. For i = 1 to n, let Ci = CIPH_K(C_i-1 XOR M_i)
-            for i in 0..AES_BLOCK_SIZE_BYTES {
-                input[i] ^= c[i];
+            for i in 0..AES_BLOCK_SIZE_WORDS {
+                input.0[i] ^= c.0[i];
             }
-            self.load_data_block(&input, 0)?;
-            self.read_data_block(&mut c, 0)?;
+            self.load_data_block_u32(input);
+            c = self.read_data_block_u32();
             m = &m[m.len().min(AES_BLOCK_SIZE_BYTES)..];
         }
 
         self.zeroize_internal();
         Ok(c)
+    }
+
+    /// Zeroize the GCM hardware state.
+    fn zeroize_gcm(&mut self) {
+        self.with_aes(|aes, _| {
+            // recommended way to clear GCM state in 2.0: Reset GCM to init with valid bytes set to 16
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_shadowed().write(|w| {
+                    w.key_len(AesKeyLen::_256 as u32)
+                        .mode(AesMode::Gcm as u32)
+                        .operation(AesOperation::Encrypt as u32)
+                        .manual_operation(false)
+                        .sideload(false)
+                });
+            }
+            wait_for_idle(&aes);
+            for _ in 0..2 {
+                aes.ctrl_gcm_shadowed()
+                    .write(|w| w.phase(GcmPhase::Init as u32).num_valid_bytes(16));
+            }
+            wait_for_idle(&aes);
+        });
     }
 
     /// Zeroize the non-GHASH hardware registers.
@@ -1323,6 +1337,7 @@ impl Aes {
 
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
+        self.zeroize_gcm();
         self.zeroize_iv_data();
     }
 

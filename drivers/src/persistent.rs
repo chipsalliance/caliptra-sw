@@ -20,7 +20,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, FmcAliasCsrs, Mldsa87PubKey, Mldsa87Signature,
+    DataVault, FirmwareHandoffTable, FmcAliasCsrs, LEArray4x8, Mldsa87PubKey, Mldsa87Signature,
 };
 
 #[cfg(feature = "runtime")]
@@ -337,8 +337,8 @@ pub struct PersistentData {
     pub fmc_alias_csr: FmcAliasCsrs,
     reserved11: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
-    pub cmb_aes_key_share0: [u8; 32],
-    pub cmb_aes_key_share1: [u8; 32],
+    pub cmb_aes_key_share0: LEArray4x8,
+    pub cmb_aes_key_share1: LEArray4x8,
 
     pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
 }

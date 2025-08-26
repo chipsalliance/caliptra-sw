@@ -26,7 +26,7 @@ use serde_derive::Deserialize;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
-pub const MANIFEST_MARKER: u32 = 0x4E414D43;
+pub const MANIFEST_MARKER: u32 = 0x324E4D43;
 pub const KEY_DESCRIPTOR_VERSION: u16 = 1;
 pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
 pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;

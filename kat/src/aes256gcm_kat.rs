@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Aes, AesKey, CaliptraError, CaliptraResult, Trng};
+use caliptra_drivers::{Aes, AesKey, CaliptraError, CaliptraResult, LEArray4x8, Trng};
 
 // Taken from NIST test vectors: https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program/cavp-testing-block-cipher-modes#GCMVS
 
@@ -23,10 +23,9 @@ use caliptra_drivers::{Aes, AesKey, CaliptraError, CaliptraResult, Trng};
 // Tag = 4419180b0b963b7289a4fa3f45c535a3
 // PT = 400fb5ef32083b3abea957c4f068abad50c8d86bbf9351fa72e7da5171df38f9
 
-const KEY: [u8; 32] = [
-    0xf0, 0xea, 0xf7, 0xb4, 0x1b, 0x42, 0xf4, 0x50, 0x6, 0x35, 0xbc, 0x5, 0xd9, 0xce, 0xde, 0x11,
-    0xa5, 0x36, 0x3d, 0x59, 0xa6, 0x28, 0x88, 0x70, 0xf5, 0x27, 0xbc, 0xff, 0xeb, 0x4d, 0x6e, 0x4,
-];
+const KEY: LEArray4x8 = LEArray4x8::new([
+    0xb4f7eaf0, 0x50f4421b, 0x05bc3506, 0x11deced9, 0x593d36a5, 0x708828a6, 0xffbc27f5, 0x046e4deb,
+]);
 const IV: [u8; 12] = [
     0x18, 0xf3, 0x16, 0x78, 0x10, 0x77, 0xa5, 0x95, 0xc7, 0x2d, 0x4c, 0x07,
 ];

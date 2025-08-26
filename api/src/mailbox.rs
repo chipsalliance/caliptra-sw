@@ -95,6 +95,9 @@ impl CommandId {
     // The authorization manifest set command.
     pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
 
+    // Verify the authorization manifest command.
+    pub const VERIFY_AUTH_MANIFEST: Self = Self(0x4154_564D); // "ATVM"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
@@ -121,6 +124,9 @@ impl CommandId {
 
     // The sign with exported mldsa command.
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
+
+    // The FE programming command.
+    pub const FE_PROG: Self = Self(0x4645_5052); // "FEPR"
 
     // Get PCR log command.
     pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
@@ -151,9 +157,11 @@ impl CommandId {
     pub const CM_AES_DECRYPT_INIT: Self = Self(0x434D_414A); // "CMAJ"
     pub const CM_AES_DECRYPT_UPDATE: Self = Self(0x434D_4156); // "CMAV"
     pub const CM_AES_GCM_ENCRYPT_INIT: Self = Self(0x434D_4749); // "CMGI"
+    pub const CM_AES_GCM_SPDM_ENCRYPT_INIT: Self = Self(0x434D_5345); // "CMSE"
     pub const CM_AES_GCM_ENCRYPT_UPDATE: Self = Self(0x434D_4755); // "CMGU"
     pub const CM_AES_GCM_ENCRYPT_FINAL: Self = Self(0x434D_4746); // "CMGF"
     pub const CM_AES_GCM_DECRYPT_INIT: Self = Self(0x434D_4449); // "CMDI"
+    pub const CM_AES_GCM_SPDM_DECRYPT_INIT: Self = Self(0x434D_5344); // "CMSD"
     pub const CM_AES_GCM_DECRYPT_UPDATE: Self = Self(0x434D_4455); // "CMDU"
     pub const CM_AES_GCM_DECRYPT_FINAL: Self = Self(0x434D_4446); // "CMDF"
     pub const CM_ECDH_GENERATE: Self = Self(0x434D_4547); // "CMEG"
@@ -286,9 +294,11 @@ pub enum MailboxResp {
     CmAesDecryptInit(CmAesResp),
     CmAesDecryptUpdate(CmAesResp),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitResp),
+    CmAesGcmSpdmEncryptInit(CmAesGcmSpdmEncryptInitResp),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateResp),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalResp),
     CmAesGcmDecryptInit(CmAesGcmDecryptInitResp),
+    CmAesGcmSpdmDecryptInit(CmAesGcmSpdmDecryptInitResp),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateResp),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalResp),
     CmEcdhGenerate(CmEcdhGenerateResp),
@@ -345,9 +355,11 @@ impl MailboxResp {
             MailboxResp::CmAesDecryptInit(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmAesGcmSpdmEncryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmAesGcmSpdmDecryptInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_bytes()),
@@ -402,9 +414,11 @@ impl MailboxResp {
             MailboxResp::CmAesDecryptInit(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptInit(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmAesGcmSpdmEncryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmEncryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmEncryptFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmDecryptInit(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmAesGcmSpdmDecryptInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmDecryptUpdate(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmAesGcmDecryptFinal(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CmEcdhGenerate(resp) => Ok(resp.as_mut_bytes()),
@@ -500,6 +514,7 @@ pub enum MailboxReq {
     AddSubjectAltName(AddSubjectAltNameReq),
     CertifyKeyExtended(CertifyKeyExtendedReq),
     SetAuthManifest(SetAuthManifestReq),
+    VerifyAuthManifest(VerifyAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
@@ -518,9 +533,11 @@ pub enum MailboxReq {
     CmAesDecryptInit(CmAesDecryptInitReq),
     CmAesDecryptUpdate(CmAesDecryptUpdateReq),
     CmAesGcmEncryptInit(CmAesGcmEncryptInitReq),
+    CmAesGcmSpdmEncryptInit(CmAesGcmSpdmEncryptInitReq),
     CmAesGcmEncryptUpdate(CmAesGcmEncryptUpdateReq),
     CmAesGcmEncryptFinal(CmAesGcmEncryptFinalReq),
     CmAesGcmDecryptInit(CmAesGcmDecryptInitReq),
+    CmAesGcmSpdmDecryptInit(CmAesGcmSpdmDecryptInitReq),
     CmAesGcmDecryptUpdate(CmAesGcmDecryptUpdateReq),
     CmAesGcmDecryptFinal(CmAesGcmDecryptFinalReq),
     CmEcdhGenerate(CmEcdhGenerateReq),
@@ -539,6 +556,7 @@ pub enum MailboxReq {
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
     GetPcrLog(MailboxReqHeader),
+    FeProg(FeProgReq),
 }
 
 pub const MAX_REQ_SIZE: usize = size_of::<MailboxReq>();
@@ -572,6 +590,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
@@ -590,9 +609,11 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesGcmSpdmEncryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial(),
+            MailboxReq::CmAesGcmSpdmDecryptInit(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial(),
             MailboxReq::CmEcdhGenerate(req) => Ok(req.as_bytes()),
@@ -611,6 +632,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_bytes()),
         }
     }
 
@@ -642,6 +664,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtended(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
@@ -660,8 +683,10 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptInit(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesGcmSpdmEncryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmEncryptFinal(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CmAesGcmSpdmDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptInit(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptUpdate(req) => req.as_bytes_partial_mut(),
             MailboxReq::CmAesGcmDecryptFinal(req) => req.as_bytes_partial_mut(),
@@ -681,6 +706,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
         }
     }
 
@@ -712,6 +738,7 @@ impl MailboxReq {
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
             MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
+            MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
@@ -730,9 +757,11 @@ impl MailboxReq {
             MailboxReq::CmAesDecryptInit(_) => CommandId::CM_AES_DECRYPT_INIT,
             MailboxReq::CmAesDecryptUpdate(_) => CommandId::CM_AES_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptInit(_) => CommandId::CM_AES_GCM_ENCRYPT_INIT,
+            MailboxReq::CmAesGcmSpdmEncryptInit(_) => CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT,
             MailboxReq::CmAesGcmEncryptUpdate(_) => CommandId::CM_AES_GCM_ENCRYPT_UPDATE,
             MailboxReq::CmAesGcmEncryptFinal(_) => CommandId::CM_AES_GCM_ENCRYPT_FINAL,
             MailboxReq::CmAesGcmDecryptInit(_) => CommandId::CM_AES_GCM_DECRYPT_INIT,
+            MailboxReq::CmAesGcmSpdmDecryptInit(_) => CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT,
             MailboxReq::CmAesGcmDecryptUpdate(_) => CommandId::CM_AES_GCM_DECRYPT_UPDATE,
             MailboxReq::CmAesGcmDecryptFinal(_) => CommandId::CM_AES_GCM_DECRYPT_FINAL,
             MailboxReq::CmEcdhGenerate(_) => CommandId::CM_ECDH_GENERATE,
@@ -749,6 +778,7 @@ impl MailboxReq {
             MailboxReq::CmEcdsaVerify(_) => CommandId::CM_ECDSA_VERIFY,
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
+            MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_REQ
             }
@@ -1635,6 +1665,46 @@ impl Default for SetAuthManifestReq {
             manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
         }
     }
+}
+
+// VERIFY_AUTH_MANIFEST
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VerifyAuthManifestReq {
+    // This should be the same as SetAuthManifestReq
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetAuthManifestReq::MAX_MAN_SIZE],
+}
+impl VerifyAuthManifestReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > SetAuthManifestReq::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = SetAuthManifestReq::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for VerifyAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+impl Request for VerifyAuthManifestReq {
+    const ID: CommandId = CommandId::VERIFY_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
 }
 
 // GET_IDEV_ECC384_CSR
@@ -2816,6 +2886,72 @@ impl Default for CmAesGcmEncryptInitResp {
 
 impl Response for CmAesGcmEncryptInitResp {}
 
+// CM_AES_GCM_SPDM_ENCRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmEncryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub spdm_flags: u32,
+    pub spdm_counter: [u8; 8],
+    pub cmk: Cmk,
+    pub aad_size: u32,
+    pub aad: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesGcmSpdmEncryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            spdm_flags: 0,
+            spdm_counter: [0u8; 8],
+            cmk: Cmk::default(),
+            aad_size: 0,
+            aad: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesGcmSpdmEncryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesGcmSpdmEncryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT;
+    type Resp = CmAesGcmSpdmEncryptInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmEncryptInitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+}
+
+impl Default for CmAesGcmSpdmEncryptInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmAesGcmSpdmEncryptInitResp {}
+
 // CM_AES_GCM_ENCRYPT_UPDATE
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -3065,6 +3201,72 @@ impl Default for CmAesGcmDecryptInitResp {
 }
 
 impl Response for CmAesGcmDecryptInitResp {}
+
+// CM_AES_GCM_SPDM_DECRYPT_INIT
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmDecryptInitReq {
+    pub hdr: MailboxReqHeader,
+    pub spdm_flags: u32,
+    pub spdm_counter: [u8; 8],
+    pub cmk: Cmk,
+    pub aad_size: u32,
+    pub aad: [u8; MAX_CMB_DATA_SIZE],
+}
+
+impl Default for CmAesGcmSpdmDecryptInitReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            spdm_flags: 0,
+            spdm_counter: [0u8; 8],
+            cmk: Cmk::default(),
+            aad_size: 0,
+            aad: [0u8; MAX_CMB_DATA_SIZE],
+        }
+    }
+}
+
+impl CmAesGcmSpdmDecryptInitReq {
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+
+impl Request for CmAesGcmSpdmDecryptInitReq {
+    const ID: CommandId = CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT;
+    type Resp = CmAesGcmSpdmDecryptInitResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmSpdmDecryptInitResp {
+    pub hdr: MailboxRespHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+}
+
+impl Default for CmAesGcmSpdmDecryptInitResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        }
+    }
+}
+
+impl Response for CmAesGcmSpdmDecryptInitResp {}
 
 // CM_AES_GCM_DECRYPT_UPDATE
 #[repr(C)]
@@ -3759,6 +3961,17 @@ impl Default for CmEcdsaSignResp {
 }
 
 impl Response for CmEcdsaSignResp {}
+
+// FE (Field Entropy) Programming
+//
+// FE partitions are limited to values 0-3 (4 total partitions).
+// Valid partition numbers: 0, 1, 2, 3
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+pub struct FeProgReq {
+    pub hdr: MailboxReqHeader,
+    pub partition: u32,
+}
 
 // CM_ECDSA_VERIFY
 #[repr(C)]
