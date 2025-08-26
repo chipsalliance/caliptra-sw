@@ -535,7 +535,9 @@ impl SetAuthManifestCmd {
             };
 
         if svn_check_required {
-            if (cfi_launder(svn) > 128) || (cfi_launder(svn) > soc_ifc.fuse_bank().max_soc_manifest_fuse_svn()) {
+            if (cfi_launder(svn) > 128)
+                || (cfi_launder(svn) > soc_ifc.fuse_bank().max_soc_manifest_fuse_svn())
+            {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             } else {
                 cfi_assert_le(svn, 128);

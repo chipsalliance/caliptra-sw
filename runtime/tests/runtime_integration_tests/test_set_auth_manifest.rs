@@ -1016,11 +1016,7 @@ fn test_set_auth_manifest_svn_eq_128() {
         svn: 128,
         ..Default::default()
     });
-    model_set_manifest_command_execute(
-        &mut model,
-        manifest,
-        None,
-    );
+    model_set_manifest_command_execute(&mut model, manifest, None);
 }
 
 #[test]
