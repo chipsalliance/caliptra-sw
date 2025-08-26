@@ -1275,21 +1275,16 @@ impl HwModel for ModelFpgaSubsystem {
     // Fuses are actually written by MCU ROM, but we need to initialize the OTP
     // with the values so that they are forwarded to Caliptra.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        let otp_mem = self.otp_slice();
-
+        let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
         println!(
             "Setting vendor public key hash to {:x?}",
-            HexSlice(fuses.vendor_pk_hash.as_bytes())
+            HexSlice(vendor_pk_hash)
         );
 
-        // Safety: Don't use copy_from_slice because the compiler tries to optimize this to 128-bit
-        // writes which will cause a bus error.
-        unsafe {
-            let ptr = otp_mem.as_mut_ptr().add(FUSE_VENDOR_PKHASH_OFFSET) as *mut u32;
-            for i in 0..fuses.vendor_pk_hash.len() {
-                core::ptr::write_volatile(ptr.add(i), fuses.vendor_pk_hash[i]);
-            }
-        }
+        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+        let mut otp_mem = self.otp_slice().to_vec();
+        otp_mem[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
+            .copy_from_slice(vendor_pk_hash);
 
         let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
             .unwrap_or(FwVerificationPqcKeyType::LMS);
@@ -1302,6 +1297,8 @@ impl HwModel for ModelFpgaSubsystem {
             FwVerificationPqcKeyType::LMS => 1,
         };
         otp_mem[FUSE_PQC_OFFSET] = val;
+
+        self.otp_slice().copy_from_slice(&otp_mem);
     }
 
     fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
