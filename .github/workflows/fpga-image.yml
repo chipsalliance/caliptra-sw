@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/workflows/fpga-image.yml"
       - "ci-tools/fpga-image/**"
+      - "hw/fpga/**"
 
   schedule:
     # 5:13 AM PST tuesday, thursday
