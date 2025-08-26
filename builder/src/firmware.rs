@@ -346,6 +346,12 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const OCP_LOCK: FwId = FwId {
+        bin_name: "ocp_lock",
+        features: &["ocp-lock", "fpga_realtime"],
+        ..BASE_FWID
+    };
+
     pub const DMA_AES: FwId = FwId {
         bin_name: "dma_aes",
         ..BASE_FWID
@@ -498,6 +504,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,
+    &driver_tests::OCP_LOCK,
     &driver_tests::DMA_AES,
     &rom_tests::ASM_TESTS,
     &rom_tests::TEST_FMC_WITH_UART,
