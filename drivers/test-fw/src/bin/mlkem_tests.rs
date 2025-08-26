@@ -45,7 +45,7 @@ const MESSAGE: [u32; 8] = [
 
 const KEY_ID: KeyId = KeyId::KeyId2;
 
-fn test_key_pair_generation() {
+fn test_mlkem_name() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -60,6 +60,16 @@ fn test_key_pair_generation() {
     // This needs to happen in the first test
     CfiCounter::reset(&mut entropy_gen);
 
+    let abr_reg = unsafe { AbrReg::new() };
+    let regs = abr_reg.regs();
+
+    let _name = regs.mlkem_name().read();
+
+    // MLKEM_CORE_NAME from RTL: 64'h32343130_4D2D4B45 representing "KEM-1024"
+    //    assert_eq!(name, [0x4D2D4B45, 0x32343130]);
+}
+
+fn test_key_pair_generation() {
     let mut mlkem = unsafe { MlKem1024::new(AbrReg::new()) };
 
     // Test key pair generation with arrays
@@ -320,6 +330,7 @@ fn test_keygen_decapsulate_with_kv() {
 }
 
 test_suite! {
+    test_mlkem_name,
     test_key_pair_generation,
     test_key_pair_generation_from_kv,
     test_encapsulate_and_decapsulate,

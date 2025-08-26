@@ -411,21 +411,27 @@ pub struct Abr {
 }
 
 impl Abr {
-    /// NAME0 Register Value TODO update when known
-    const NAME0_VAL: RvData = 0x73656370; //0x63737065; // secp
+    /// MLDSA NAME0 Register Value
+    const MLDSA_NAME0_VAL: RvData = 0x44534D4C; // "DSML" - part of "MLDSA-87"
 
-    /// NAME1 Register Value TODO update when known
-    const NAME1_VAL: RvData = 0x2D333834; // -384
+    /// MLDSA NAME1 Register Value
+    const MLDSA_NAME1_VAL: RvData = 0x3837412D; // "87A-" - part of "MLDSA-87"
 
-    /// VERSION0 Register Value TODO update when known
-    const VERSION0_VAL: RvData = 0x30302E31; // 1.0
+    /// MLKEM NAME0 Register Value
+    const MLKEM_NAME0_VAL: RvData = 0x4D2D4B45; // "M-KE" - part of "KEM-1024"
 
-    /// VERSION1 Register Value TODO update when known
+    /// MLKEM NAME1 Register Value
+    const MLKEM_NAME1_VAL: RvData = 0x32343130; // "2410" - part of "KEM-1024"
+
+    /// VERSION0 Register Value
+    const VERSION0_VAL: RvData = 0x3030312e; // "1.00"
+
+    /// VERSION1 Register Value
     const VERSION1_VAL: RvData = 0x00000000;
 
     pub fn new(clock: &Clock, key_vault: KeyVault, hash_sha512: HashSha512) -> Self {
         Self {
-            mldsa_name: [Self::NAME0_VAL, Self::NAME1_VAL],
+            mldsa_name: [Self::MLDSA_NAME0_VAL, Self::MLDSA_NAME1_VAL],
             mldsa_version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
             mldsa_ctrl: ReadWriteRegister::new(0),
             mldsa_status: ReadOnlyRegister::new(MlDsaStatus::READY::SET.value),
@@ -444,7 +450,7 @@ impl Abr {
             mldsa_privkey_in: [0; ML_DSA87_PRIVKEY_SIZE / 4],
             kv_mldsa_seed_rd_ctrl: ReadWriteRegister::new(0),
             kv_mldsa_seed_rd_status: ReadOnlyRegister::new(0),
-            mlkem_name: [Self::NAME0_VAL, Self::NAME1_VAL],
+            mlkem_name: [Self::MLKEM_NAME0_VAL, Self::MLKEM_NAME1_VAL],
             mlkem_version: [Self::VERSION0_VAL, Self::VERSION1_VAL],
             mlkem_ctrl: ReadWriteRegister::new(0),
             mlkem_status: ReadOnlyRegister::new(MlKemStatus::READY::SET.value),
@@ -1394,12 +1400,12 @@ mod tests {
         let mut ml_dsa87 = Abr::new(&clock, key_vault, sha512);
 
         let name0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME0).unwrap();
-        let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
-        assert_eq!(name0, "secp");
+        let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
+        assert_eq!(name0, "LMSD");
 
         let name1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_NAME1).unwrap();
-        let name1 = String::from_utf8_lossy(&name1.to_be_bytes()).to_string();
-        assert_eq!(name1, "-384");
+        let name1 = String::from_utf8_lossy(&name1.to_le_bytes()).to_string();
+        assert_eq!(name1, "-A78");
     }
 
     #[test]
@@ -1412,7 +1418,7 @@ mod tests {
 
         let version0 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
-        assert_eq!(version0, "1.00");
+        assert_eq!(version0, ".100");
 
         let version1 = ml_dsa87.read(RvSize::Word, OFFSET_MLDSA_VERSION1).unwrap();
         let version1 = String::from_utf8_lossy(&version1.to_le_bytes()).to_string();
