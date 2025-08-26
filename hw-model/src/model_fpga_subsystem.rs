@@ -1433,6 +1433,14 @@ impl HwModel for ModelFpgaSubsystem {
         // ironically, we don't need to support this
         Ok(())
     }
+
+    fn write_payload_to_ss_staging_area(&mut self, payload: &[u8]) -> Result<u64, ModelError> {
+        todo!()
+    }
+
+    fn has_ss_staging_area(&self) -> bool {
+        todo!()
+    }
 }
 
 pub struct FpgaRealtimeBus<'a> {
