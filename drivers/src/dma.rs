@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cprintln, Array4x12, Sha2_512_384Acc, ShaAccLockState};
+use crate::{cprintln, Array4x12, Array4x16, Sha2_512_384Acc, ShaAccLockState};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::axi_dma::{
     enums::{RdRouteE, WrRouteE},
@@ -608,6 +608,50 @@ impl<'a> DmaRecovery<'a> {
         Ok(image_size_bytes)
     }
 
+    // Downloads an image from the recovery interface to caliptra using FIFO.
+    pub fn download_image_to_caliptra(
+        &self,
+        fw_image_index: u32,
+        buffer: &mut [u32],
+    ) -> CaliptraResult<u32> {
+        let image_size_bytes = self.request_image(fw_image_index)?;
+        // Transfer the image from the recovery interface via AHB FIFO.
+        let addr = self.recovery_base + Self::INDIRECT_FIFO_DATA_OFFSET;
+
+        let read_transaction = DmaReadTransaction {
+            read_addr: addr,
+            fixed_addr: true,
+            length: image_size_bytes,
+            target: DmaReadTarget::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+
+        self.dma.flush();
+        self.dma.setup_dma_read(read_transaction, 0);
+        self.dma.dma_read_fifo(buffer);
+        self.dma.wait_for_dma_complete();
+
+        cprintln!("[dma-recovery] Waiting for activation");
+        self.wait_for_activation()?;
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        Ok(image_size_bytes)
+    }
+
+    /// Load data from MCU SRAM to a provided buffer
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - Offset within MCU SRAM to read from
+    /// * `buffer` - Buffer to store the read data
+    ///
+    pub fn load_from_mcu_to_buffer(&self, offset: u64, buffer: &mut [u32]) -> CaliptraResult<()> {
+        let source_addr = self.mci_base + MCU_SRAM_OFFSET + offset;
+        self.dma.read_buffer(source_addr, buffer);
+        Ok(())
+    }
+
     // Request the recovery interface load an image.
     pub fn request_image(&self, fw_image_index: u32) -> CaliptraResult<u32> {
         cprintln!(
@@ -800,11 +844,23 @@ impl<'a> DmaRecovery<'a> {
     pub fn sha384_mcu_sram(
         &self,
         sha_acc: &'a mut Sha2_512_384Acc,
+        base: u32,
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x12> {
-        let source = self.mci_base + MCU_SRAM_OFFSET;
+        let source = self.mci_base + MCU_SRAM_OFFSET + AxiAddr::from(base);
         self.sha384_image(sha_acc, source, length, aes_mode)
+    }
+
+    pub fn sha512_mcu_sram(
+        &self,
+        sha_acc: &'a mut Sha2_512_384Acc,
+        base: u32,
+        length: u32,
+        aes_mode: AesDmaMode,
+    ) -> CaliptraResult<Array4x16> {
+        let source = self.mci_base + MCU_SRAM_OFFSET + AxiAddr::from(base);
+        self.sha512_image(sha_acc, source, length, aes_mode)
     }
 
     pub fn sha384_image(
@@ -855,6 +911,58 @@ impl<'a> DmaRecovery<'a> {
 
             let mut digest = Array4x12::default();
             acc_op.stream_wait_for_done_384(&mut digest)?;
+            Ok(digest)
+        })?
+    }
+
+    pub fn sha512_image(
+        &self,
+        sha_acc: &'a mut Sha2_512_384Acc,
+        source: AxiAddr,
+        length: u32,
+        aes_mode: AesDmaMode,
+    ) -> CaliptraResult<Array4x16> {
+        // This is tricky, because we need to lock and write to several registers over DMA
+        // so that the AXI user is set correctly, but we want the guarantees of the
+        // Sha2_512_384Acc without making that too generic.
+
+        // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
+        self.with_sha_acc(|dma_sha| {
+            if dma_sha.lock().read().lock() {
+                cprintln!(
+                    "[dma-image] SHA accelerator lock not acquired by DMA, cannot start operation"
+                );
+                return Err(CaliptraError::RUNTIME_INTERNAL);
+            }
+
+            // we only use the raw SHA accelerator driver to get the digest at the end and unlock when dropped.
+            let mut acc_op = sha_acc
+                .try_start_operation(ShaAccLockState::AssumedLocked)?
+                .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+
+            dma_sha.mode().write(|w| {
+                w.endian_toggle(false) // false means swap endianness to match SHA engine
+                    .mode(|_| ShaCmdE::ShaStream512)
+            });
+            dma_sha.dlen().write(|_| length);
+            // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
+            let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
+
+            // stream the data in to the SHA accelerator
+            cprintln!(
+                "[dma-image] SHA512 image digest calculation: source = {:08x}{:08x}, length = {}",
+                source.hi,
+                source.lo,
+                length
+            );
+
+            // stream the data in to the SHA accelerator
+            self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode)?;
+
+            dma_sha.execute().write(|w| w.execute(true));
+
+            let mut digest = Array4x16::default();
+            acc_op.stream_wait_for_done_512(&mut digest)?;
             Ok(digest)
         })?
     }
