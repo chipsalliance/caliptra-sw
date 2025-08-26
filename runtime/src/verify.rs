@@ -42,12 +42,12 @@ impl LmsVerifyCmd {
         const LMOTS_ALGORITHM_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::new(7);
 
         let cmd = LmsVerifyReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         let lms_pub_key: LmsPublicKey<LMS_N> = LmsPublicKey {
             id: cmd.pub_key_id,
             digest: <[U32<LittleEndian>; LMS_N]>::read_from_bytes(&cmd.pub_key_digest[..])
-                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+                .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?,
             tree_type: LmsAlgorithmType::new(cmd.pub_key_tree_type),
             otstype: LmotsAlgorithmType::new(cmd.pub_key_ots_type),
         };
@@ -55,12 +55,12 @@ impl LmsVerifyCmd {
         let lms_sig: LmsSignature<LMS_N, LMS_P, LMS_H> = LmsSignature {
             q: <U32<BigEndian>>::from(cmd.signature_q),
             ots: <LmotsSignature<LMS_N, LMS_P>>::read_from_bytes(&cmd.signature_ots[..])
-                .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+                .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?,
             tree_type: LmsAlgorithmType::new(cmd.signature_tree_type),
             tree_path: <[[U32<LittleEndian>; LMS_N]; LMS_H]>::read_from_bytes(
                 &cmd.signature_tree_path[..],
             )
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?,
         };
 
         // Check that fixed params are correct

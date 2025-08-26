@@ -27,13 +27,11 @@ impl IncrementPcrResetCounterCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = IncrementPcrResetCounterReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
-        let index =
-            u8::try_from(cmd.index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let index = u8::try_from(cmd.index).map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
-        let pcr =
-            PcrId::try_from(index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let pcr = PcrId::try_from(index).map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         if !drivers.persistent_data.get_mut().pcr_reset.increment(pcr) {
             return Err(CaliptraError::RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED);
@@ -58,7 +56,7 @@ impl GetPcrQuoteCmd {
         match alg_type {
             AlgorithmType::Ecc384 => {
                 let args = QuotePcrsEcc384Req::ref_from_bytes(cmd_bytes)
-                    .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                    .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
                 let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
                 let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
@@ -82,7 +80,7 @@ impl GetPcrQuoteCmd {
             }
             AlgorithmType::Mldsa87 => {
                 let args = QuotePcrsMldsa87Req::ref_from_bytes(cmd_bytes)
-                    .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+                    .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
                 let mut pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
 
                 pcr_hash.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
@@ -112,10 +110,9 @@ impl ExtendPcrCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = ExtendPcrReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
-        let idx =
-            u8::try_from(cmd.pcr_idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let idx = u8::try_from(cmd.pcr_idx).map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let pcr_index: PcrId =
             match PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_PCR_INVALID_INDEX)? {

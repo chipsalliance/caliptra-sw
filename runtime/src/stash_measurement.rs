@@ -121,7 +121,7 @@ impl StashMeasurementCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let cmd = StashMeasurementReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         let dpe_result = Self::stash_measurement(drivers, &cmd.metadata, &cmd.measurement)?;
 

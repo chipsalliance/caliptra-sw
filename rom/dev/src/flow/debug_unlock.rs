@@ -85,12 +85,8 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let result = (|| {
         let cmd_bytes = get_checksummed_payload(&txn)?;
-        let request = ManufDebugUnlockTokenReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
-            zerocopy::ConvertError::Size(_) => {
-                CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
-            }
-            _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-        })?;
+        let request = ManufDebugUnlockTokenReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         // Hash the token.
         let input_token_digest = env.sha2_512_384.sha512_digest(&request.token)?;
@@ -154,10 +150,8 @@ fn handle_auth_debug_unlock_request(
 
     // Process request and create challenge
     let cmd_bytes = get_checksummed_payload(&txn)?;
-    let request = ProductionAuthDebugUnlockReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
-        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
-        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-    })?;
+    let request = ProductionAuthDebugUnlockReq::ref_from_bytes(cmd_bytes)
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
     // Clone the request to avoid borrowing conflicts
     let request_owned = *request;
@@ -207,10 +201,8 @@ fn handle_auth_debug_unlock_token(
 
     // Copy token from mailbox
     let cmd_bytes = get_checksummed_payload(&txn)?;
-    let token = ProductionAuthDebugUnlockToken::ref_from_bytes(cmd_bytes).map_err(|e| match e {
-        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
-        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-    })?;
+    let token = ProductionAuthDebugUnlockToken::ref_from_bytes(cmd_bytes)
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
     // Use common validation function
     let result = debug_unlock::validate_debug_unlock_token(

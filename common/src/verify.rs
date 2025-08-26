@@ -25,13 +25,8 @@ impl EcdsaVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(ecc384: &mut Ecc384, cmd_args: &[u8]) -> CaliptraResult<usize> {
-        let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args).map_err(|_| {
-            if cfg!(feature = "rom") {
-                CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE
-            } else {
-                CaliptraError::RUNTIME_INSUFFICIENT_MEMORY
-            }
-        })?;
+        let cmd = EcdsaVerifyReq::ref_from_bytes(cmd_args)
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
         let digest = Array4x12::from(cmd.hash);
 
         let pubkey = Ecc384PubKey {
@@ -46,11 +41,7 @@ impl EcdsaVerifyCmd {
 
         let success = ecc384.verify(&pubkey, &digest, &sig)?;
         if success != Ecc384Result::Success {
-            if cfg!(feature = "rom") {
-                return Err(CaliptraError::ROM_ECDSA_VERIFY_FAILED);
-            } else if cfg!(feature = "runtime") {
-                return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
-            }
+            return Err(CaliptraError::ECDSA_VERIFY_FAILED);
         }
 
         Ok(0)
@@ -62,34 +53,20 @@ impl MldsaVerifyCmd {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(mldsa87: &mut Mldsa87, cmd_args: &[u8]) -> CaliptraResult<usize> {
-        let pubkey_bytes = MldsaVerifyReq::pub_key(cmd_args).ok_or(if cfg!(feature = "rom") {
-            CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE
-        } else {
-            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS
-        })?;
+        let pubkey_bytes =
+            MldsaVerifyReq::pub_key(cmd_args).ok_or(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let pubkey = &Mldsa87PubKey::from(pubkey_bytes);
 
         let signature_bytes =
-            MldsaVerifyReq::signature(cmd_args).ok_or(if cfg!(feature = "rom") {
-                CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE
-            } else {
-                CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS
-            })?;
+            MldsaVerifyReq::signature(cmd_args).ok_or(CaliptraError::MAILBOX_INVALID_PARAMS)?;
         let signature = Mldsa87Signature::from(*signature_bytes);
 
-        let message = MldsaVerifyReq::message(cmd_args).ok_or(if cfg!(feature = "rom") {
-            CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE
-        } else {
-            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS
-        })?;
+        let message =
+            MldsaVerifyReq::message(cmd_args).ok_or(CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         let success = mldsa87.verify_var(pubkey, message, &signature)?;
         if success != Mldsa87Result::Success {
-            if cfg!(feature = "rom") {
-                return Err(CaliptraError::ROM_MLDSA_VERIFY_FAILED);
-            } else if cfg!(feature = "runtime") {
-                return Err(CaliptraError::RUNTIME_MLDSA_VERIFY_FAILED);
-            }
+            return Err(CaliptraError::MLDSA_VERIFY_FAILED);
         }
 
         Ok(0)

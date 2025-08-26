@@ -32,7 +32,7 @@ impl AddSubjectAltNameCmd {
 
             let dmtf_device_info_size = cmd.dmtf_device_info_size as usize;
             if dmtf_device_info_size > cmd.dmtf_device_info.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
             }
 
             Self::validate_dmtf_device_info(&cmd.dmtf_device_info[..dmtf_device_info_size])?;
@@ -45,7 +45,7 @@ impl AddSubjectAltNameCmd {
 
             Ok(0)
         } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
         }
     }
 

@@ -42,7 +42,7 @@ impl IDevIdCertCmd {
 
                     // Validate tbs
                     if cmd.tbs_size as usize > cmd.tbs.len() {
-                        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                        return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
                     }
 
                     let sig = Ecdsa384Signature {
@@ -62,7 +62,7 @@ impl IDevIdCertCmd {
                     resp.data_size = cert_size as u32;
                     Ok(resp.partial_len()?)
                 } else {
-                    Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+                    Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
                 }
             }
             AlgorithmType::Mldsa87 => {
@@ -72,13 +72,13 @@ impl IDevIdCertCmd {
 
                     // Validate tbs
                     if cmd.tbs_size as usize > cmd.tbs.len() {
-                        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                        return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
                     }
 
                     let sig = caliptra_x509::MlDsa87Signature {
                         sig: cmd.signature[..4627]
                             .try_into()
-                            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+                            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?,
                     };
 
                     let Some(builder) =
@@ -93,7 +93,7 @@ impl IDevIdCertCmd {
                     resp.data_size = cert_size as u32;
                     Ok(resp.partial_len()?)
                 } else {
-                    Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+                    Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
                 }
             }
         }

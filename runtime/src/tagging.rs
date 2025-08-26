@@ -27,7 +27,7 @@ impl TagTciCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = TagTciReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
         let pdata_mut = drivers.persistent_data.get_mut();
         let dpe = &mut pdata_mut.dpe;
         let context_has_tag = &mut pdata_mut.context_has_tag;
@@ -70,7 +70,7 @@ impl GetTaggedTciCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let cmd = GetTaggedTciReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
         let persistent_data = drivers.persistent_data.get();
         let context_has_tag = &persistent_data.context_has_tag;
         let context_tags = &persistent_data.context_tags;

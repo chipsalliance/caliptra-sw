@@ -20,9 +20,9 @@ use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use caliptra_api::mailbox::{
-    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacReq, CmHmacResp, CmKeyUsage,
-    CmRandomGenerateReq, CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq,
-    InstallOwnerPkHashResp, CM_STABLE_KEY_INFO_SIZE_BYTES,
+    CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmHmacResp, CmKeyUsage, CmRandomGenerateReq,
+    CmRandomGenerateResp, CmStableKeyType, InstallOwnerPkHashReq, InstallOwnerPkHashResp,
+    CM_STABLE_KEY_INFO_SIZE_BYTES,
 };
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -79,10 +79,7 @@ pub fn get_checksummed_payload<'a>(txn: &'a MailboxRecvTxn<'a>) -> CaliptraResul
             .get(..core::mem::size_of::<MailboxReqHeader>())
             .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?,
     )
-    .map_err(|e| match e {
-        zerocopy::ConvertError::Size(_) => CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH,
-        _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-    })?;
+    .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
     if !caliptra_common::checksum::verify_checksum(
         req_hdr.chksum,
@@ -352,7 +349,6 @@ impl FirmwareProcessor {
 
                 // Stage the response buffer
                 let resp = &mut [0u8; caliptra_common::mailbox_api::MAX_ROM_RESP_SIZE][..];
-                cprintln!("response buffer len {:?}", resp.len());
 
                 // Get payload with checksum validation
                 let cmd_bytes = get_checksummed_payload(&txn)?;
@@ -818,12 +814,7 @@ impl FirmwareProcessor {
         cmd_bytes: &[u8],
     ) -> CaliptraResult<()> {
         let measurement: &StashMeasurementReq = StashMeasurementReq::ref_from_bytes(cmd_bytes)
-            .map_err(|e| match e {
-                zerocopy::ConvertError::Size(_) => {
-                    CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH
-                }
-                _ => CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE,
-            })?;
+            .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
         // Extend measurement into PCR31.
         Self::extend_measurement(pcr_bank, sha2, persistent_data, measurement)?;
@@ -1184,11 +1175,8 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> Result<usize, FwProcessorErr> {
         let request: &CmDeriveStableKeyReq = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
-            .map_err(|e| match e {
-                zerocopy::ConvertError::Size(_) => {
-                    FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
-                }
-                _ => FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE),
+            .map_err(|_| {
+                FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
             })?;
 
         let encrypted_cmk =
@@ -1214,19 +1202,13 @@ impl FirmwareProcessor {
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> Result<usize, FwProcessorErr> {
-        let request: &CmHmacReq = CmHmacReq::ref_from_bytes(cmd_bytes).map_err(|e| match e {
-            zerocopy::ConvertError::Size(_) => {
-                FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
-            }
-            _ => FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE),
-        })?;
         let mut hmac_resp = CmHmacResp::default();
         hmac(
             env.hmac,
             env.aes,
             env.trng,
             Crypto::get_cmb_aes_key(persistent_data),
-            request.as_bytes(),
+            cmd_bytes,
             hmac_resp.as_mut_bytes(),
         )
         .map_err(FwProcessorErr::Fatal)?;
@@ -1246,11 +1228,8 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> Result<usize, FwProcessorErr> {
         let request: &InstallOwnerPkHashReq = InstallOwnerPkHashReq::ref_from_bytes(cmd_bytes)
-            .map_err(|e| match e {
-                zerocopy::ConvertError::Size(_) => {
-                    FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
-                }
-                _ => FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE),
+            .map_err(|_| {
+                FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
             })?;
 
         // Save the owner public key hash in persistent data.
@@ -1318,11 +1297,8 @@ impl FirmwareProcessor {
         resp: &mut [u8],
     ) -> Result<usize, FwProcessorErr> {
         let request: &CmRandomGenerateReq = CmRandomGenerateReq::ref_from_bytes(cmd_bytes)
-            .map_err(|e| match e {
-                zerocopy::ConvertError::Size(_) => {
-                    FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
-                }
-                _ => FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE),
+            .map_err(|_| {
+                FwProcessorErr::Fatal(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)
             })?;
 
         let size = request.size as usize;

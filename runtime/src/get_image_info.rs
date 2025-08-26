@@ -42,7 +42,7 @@ impl GetImageInfoCmd {
             resp.image_staging_address_low = metadata.image_staging_address.lo;
             Ok(core::mem::size_of::<GetImageInfoResp>())
         } else {
-            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
         }
     }
 

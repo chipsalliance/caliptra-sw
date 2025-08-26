@@ -46,14 +46,14 @@ impl Packet {
         // Verify incoming checksum
         // Make sure enough data was sent to even have a checksum
         if packet.payload().len() < core::mem::size_of::<MailboxReqHeader>() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
         }
 
         // Assumes chksum is always offset 0
         let req_hdr: &MailboxReqHeader = MailboxReqHeader::ref_from_bytes(
             &packet.payload()[..core::mem::size_of::<MailboxReqHeader>()],
         )
-        .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         if !caliptra_common::checksum::verify_checksum(
             req_hdr.chksum,

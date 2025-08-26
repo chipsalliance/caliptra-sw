@@ -454,7 +454,7 @@ impl MailboxResp {
         let hdr: &mut MailboxRespHeader = MailboxRespHeader::mut_from_bytes(
             &mut mut_resp_bytes[..size_of::<MailboxRespHeader>()],
         )
-        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         // Set the chksum field
         hdr.chksum = checksum;
@@ -799,7 +799,7 @@ impl MailboxReq {
         let hdr: &mut MailboxReqHeader = MailboxReqHeader::mut_from_bytes(
             &mut self.as_mut_bytes()?[..size_of::<MailboxReqHeader>()],
         )
-        .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+        .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         // Set the chksum field
         hdr.chksum = checksum;

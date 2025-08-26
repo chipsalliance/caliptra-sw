@@ -425,11 +425,7 @@ fn test_set_auth_manifest_cmd_invalid_len() {
             )
             .unwrap_err();
 
-        assert_error(
-            &mut model,
-            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
-            resp,
-        );
+        assert_error(&mut model, CaliptraError::MAILBOX_INVALID_PARAMS, resp);
 
         let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
             hdr: MailboxReqHeader { chksum: 0 },

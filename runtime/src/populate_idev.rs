@@ -33,12 +33,12 @@ impl PopulateIDevIdEcc384CertCmd {
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
 
         if cmd_args.len() > core::mem::size_of::<PopulateIdevEcc384CertReq>() {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+            return Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE);
         }
 
         let cert_size = cmd.cert_size as usize;
         if cert_size > cmd.cert.len() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
         }
 
         let flags = drivers.persistent_data.get().manifest1.header.flags;
@@ -116,12 +116,12 @@ impl PopulateIDevIdMldsa87CertCmd {
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
 
         if cmd_args.len() > core::mem::size_of::<PopulateIdevMldsa87CertReq>() {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+            return Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE);
         }
 
         let cert_size = cmd.cert_size as usize;
         if cert_size > cmd.cert.len() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            return Err(CaliptraError::MAILBOX_INVALID_PARAMS);
         }
 
         let flags = drivers.persistent_data.get().manifest1.header.flags;
