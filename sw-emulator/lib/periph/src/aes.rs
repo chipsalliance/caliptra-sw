@@ -3,7 +3,7 @@
 use crate::helpers::words_from_bytes_be;
 use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes256;
-use caliptra_emu_bus::{BusError, Event, ReadWriteRegister};
+use caliptra_emu_bus::{Bus, BusError, Event, ReadWriteRegister};
 use caliptra_emu_bus::{ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_crypto::{Aes256Cbc, Aes256Ctr, Aes256Gcm, GHash, AES_256_BLOCK_SIZE};
 use caliptra_emu_derive::Bus;
@@ -72,11 +72,11 @@ register_bitfields! [
     ],
 ];
 
-/// AES peripheral implementation
+/// AES peripheral registers implementation
 #[derive(Bus)]
 #[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
-pub struct Aes {
+pub struct AesRegs {
     #[register_array(offset = 0x4, item_size = 4, len = 8, write_fn = write_key_share0)]
     key_share0: [u32; 8],
 
@@ -119,8 +119,8 @@ pub struct Aes {
     key_vault_key: Rc<RefCell<Option<[u8; 32]>>>,
 }
 
-impl Aes {
-    /// Create a new AES peripheral instance
+impl AesRegs {
+    /// Create a new AES peripheral registers instance
     pub fn new(key_vault_key: Rc<RefCell<Option<[u8; 32]>>>) -> Self {
         Self {
             key_share0: [0; 8],
@@ -538,5 +538,81 @@ impl Aes {
     /// Register for outgoing events
     pub fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
         // No events to register for now
+    }
+}
+
+#[derive(Clone)]
+pub struct Aes {
+    pub regs: Rc<RefCell<AesRegs>>,
+}
+
+impl Aes {
+    /// Create a new AES peripheral instance
+    pub fn new(key_vault_key: Rc<RefCell<Option<[u8; 32]>>>) -> Self {
+        Self {
+            regs: Rc::new(RefCell::new(AesRegs::new(key_vault_key))),
+        }
+    }
+
+    /// Process a block of data through AES
+    pub fn process_block(&mut self, data: &[u8; 16]) -> [u8; 16] {
+        let mut regs = self.regs.borrow_mut();
+
+        data.chunks(4).enumerate().for_each(|(i, chunk)| {
+            let word = u32::from_le_bytes(chunk.try_into().unwrap());
+            regs.write_data_in(RvSize::Word, i, word).unwrap();
+        });
+
+        let output_bytes: Vec<u8> = (0..4)
+            .flat_map(|i| {
+                let word = regs.read_data_out(RvSize::Word, i).unwrap();
+                word.to_le_bytes()
+            })
+            .collect();
+
+        output_bytes.try_into().unwrap()
+    }
+
+    /// Handle incoming events
+    pub fn incoming_event(&mut self, event: Rc<Event>) {
+        self.regs.borrow_mut().incoming_event(event);
+    }
+
+    /// Register for outgoing events
+    pub fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.regs.borrow_mut().register_outgoing_events(sender);
+    }
+}
+
+impl Bus for Aes {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: caliptra_emu_types::RvAddr) -> Result<RvData, BusError> {
+        self.regs.borrow_mut().read(size, addr)
+    }
+
+    /// Write data of specified size to given address
+    fn write(
+        &mut self,
+        size: RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        self.regs.borrow_mut().write(size, addr, val)
+    }
+
+    fn poll(&mut self) {
+        self.regs.borrow_mut().poll();
+    }
+
+    fn warm_reset(&mut self) {
+        self.regs.borrow_mut().warm_reset();
+    }
+
+    fn update_reset(&mut self) {
+        self.regs.borrow_mut().update_reset();
+    }
+
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<caliptra_emu_bus::Event>) {
+        self.regs.borrow_mut().register_outgoing_events(sender);
     }
 }

@@ -363,12 +363,16 @@ impl CaliptraRootBus {
             key_vault.clear_keys_with_debug_values(false);
         }
         let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
+
+        let aes_key = Rc::new(RefCell::new(None));
+        let aes = Aes::new(aes_key.clone());
         let dma = Dma::new(
             clock,
             mailbox_ram.clone(),
             soc_reg.clone(),
             sha512_acc.clone(),
             mci.clone(),
+            aes.clone(),
             test_sram,
             use_mcu_recovery_interface,
         );
@@ -376,11 +380,9 @@ impl CaliptraRootBus {
         let sha512 = HashSha512::new(clock, key_vault.clone());
         let ml_dsa87 = Mldsa87::new(clock, key_vault.clone(), sha512.clone());
 
-        let aes_key = Rc::new(RefCell::new(None));
-
         Self {
             rom,
-            aes: Aes::new(aes_key.clone()),
+            aes,
             aes_clp: AesClp::new(clock, key_vault.clone(), aes_key),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
