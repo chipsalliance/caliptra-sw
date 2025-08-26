@@ -23,7 +23,7 @@ mod bounded_address;
 pub mod cmac_kdf;
 mod csrng;
 mod data_vault;
-mod dma;
+pub mod dma;
 mod doe;
 mod ecc384;
 mod error_reporter;
@@ -74,7 +74,7 @@ pub use csrng::{
 };
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
-    AxiAddr, Dma, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
+    AesDmaMode, AxiAddr, Dma, DmaMmio, DmaOtpCtrl, DmaReadTarget, DmaReadTransaction, DmaRecovery,
     DmaWriteOrigin, DmaWriteTransaction,
 };
 pub use doe::DeobfuscationEngine;

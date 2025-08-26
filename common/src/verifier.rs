@@ -16,6 +16,7 @@ use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
+use dma::AesDmaMode;
 use zerocopy::{FromBytes, IntoBytes};
 
 use caliptra_drivers::memory_layout::ICCM_RANGE;
@@ -53,7 +54,8 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         if self.image_in_mcu {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result = dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len)?;
+            let result =
+                dma.sha384_mcu_sram(self.sha2_512_384_acc, offset, len, dma::AesDmaMode::None)?;
             Ok(result.into())
         } else {
             let data = self
@@ -72,7 +74,8 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         if self.image_in_mcu {
             let dma = FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, self.dma);
-            let result = dma.sha512_mcu_sram(self.sha2_512_384_acc, offset, len)?;
+            let result =
+                dma.sha512_mcu_sram(self.sha2_512_384_acc, offset, len, AesDmaMode::None)?;
             Ok(result.into())
         } else {
             let data = self

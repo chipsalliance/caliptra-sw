@@ -51,6 +51,7 @@ use caliptra_image_verify::{
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::{size_of, ManuallyDrop};
+use dma::AesDmaMode;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
@@ -1327,7 +1328,7 @@ impl FirmwareProcessor {
             mci_base_addr,
             dma,
         );
-        dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX)
+        dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
     }
 
     fn derive_stable_key(

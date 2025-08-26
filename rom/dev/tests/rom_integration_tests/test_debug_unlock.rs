@@ -120,13 +120,13 @@ fn test_dbg_unlock_manuf_success() {
         .unwrap();
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.manuf_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .manuf_dbg_unlock_success());
 }
@@ -181,7 +181,7 @@ fn test_dbg_unlock_manuf_wrong_cmd() {
     );
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.manuf_dbg_unlock_in_progress()
     });
 }
@@ -234,12 +234,12 @@ fn test_dbg_unlock_manuf_invalid_token() {
         .unwrap();
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.manuf_dbg_unlock_in_progress()
     });
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .manuf_dbg_unlock_fail());
 }
@@ -415,13 +415,13 @@ fn test_dbg_unlock_prod_success() {
         .unwrap();
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.prod_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .prod_dbg_unlock_success());
 
@@ -511,13 +511,13 @@ fn test_dbg_unlock_prod_invalid_length() {
     );
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.prod_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .prod_dbg_unlock_fail());
 }
@@ -630,13 +630,13 @@ fn test_dbg_unlock_prod_invalid_token_challenge() {
     );
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.prod_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .prod_dbg_unlock_fail());
 }
@@ -767,13 +767,13 @@ fn test_dbg_unlock_prod_invalid_signature() {
     );
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.prod_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .prod_dbg_unlock_fail());
 }
@@ -901,13 +901,13 @@ fn test_dbg_unlock_prod_wrong_public_keys() {
     );
 
     hw.step_until(|m| {
-        let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+        let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
         !resp.prod_dbg_unlock_in_progress()
     });
 
     assert!(hw
         .soc_ifc()
-        .ss_dbg_manuf_service_reg_rsp()
+        .ss_dbg_service_reg_rsp()
         .read()
         .prod_dbg_unlock_fail());
 }
@@ -1134,12 +1134,12 @@ fn test_dbg_unlock_prod_unlock_levels_success() {
             .unwrap();
 
         hw.step_until(|m| {
-            let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+            let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
             !resp.prod_dbg_unlock_in_progress()
         });
         assert!(hw
             .soc_ifc()
-            .ss_dbg_manuf_service_reg_rsp()
+            .ss_dbg_service_reg_rsp()
             .read()
             .prod_dbg_unlock_success());
     }
@@ -1290,12 +1290,12 @@ fn test_dbg_unlock_prod_unlock_levels_failure() {
             .unwrap();
 
         hw.step_until(|m| {
-            let resp = m.soc_ifc().ss_dbg_manuf_service_reg_rsp().read();
+            let resp = m.soc_ifc().ss_dbg_service_reg_rsp().read();
             !resp.prod_dbg_unlock_in_progress()
         });
         assert!(hw
             .soc_ifc()
-            .ss_dbg_manuf_service_reg_rsp()
+            .ss_dbg_service_reg_rsp()
             .read()
             .prod_dbg_unlock_fail());
     }

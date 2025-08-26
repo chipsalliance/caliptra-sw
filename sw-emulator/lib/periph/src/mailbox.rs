@@ -535,18 +535,18 @@ impl Context {
 
 impl StateMachineContext for Context {
     // guards
-    fn is_not_locked(&mut self, _user: &MailboxRequester) -> Result<(), ()> {
+    fn is_not_locked(&self, _user: &MailboxRequester) -> Result<bool, ()> {
         if self.locked == 1 {
             // no transition
             Err(())
         } else {
-            Ok(())
+            Ok(true)
         }
     }
 
-    fn is_locked(&mut self) -> Result<(), ()> {
+    fn is_locked(&self) -> Result<bool, ()> {
         if self.locked != 0 {
-            Ok(())
+            Ok(true)
         } else {
             // no transition
             Err(())
@@ -564,36 +564,43 @@ impl StateMachineContext for Context {
     //}
 
     // actions
-    fn init_dlen(&mut self, data_len: &DataLength) {
+    fn init_dlen(&mut self, data_len: DataLength) -> Result<(), ()> {
         self.fifo.reset();
         self.dlen = data_len.0;
 
         self.fifo.latch_dlen(self.dlen as usize);
+        Ok(())
     }
 
-    fn set_cmd(&mut self, cmd: &Cmd) {
+    fn set_cmd(&mut self, cmd: Cmd) -> Result<(), ()> {
         self.cmd = cmd.0;
+        Ok(())
     }
 
-    fn lock(&mut self, user: &MailboxRequester) {
+    fn lock(&mut self, user: MailboxRequester) -> Result<(), ()> {
         self.fifo.reset();
         self.locked = 1;
-        self.user = *user;
+        self.user = user;
+        Ok(())
     }
-    fn unlock(&mut self) {
+    fn unlock(&mut self) -> Result<(), ()> {
         self.locked = 0;
         // Reset status
         self.status.set(0);
+        Ok(())
     }
-    fn dequeue(&mut self) {
+    fn dequeue(&mut self) -> Result<(), ()> {
         self.data_out = self.fifo.dequeue().unwrap_or(0);
+        Ok(())
     }
-    fn enqueue(&mut self, data_in: &DataIn) {
+    fn enqueue(&mut self, data_in: DataIn) -> Result<(), ()> {
         self.fifo.enqueue(data_in.0);
+        Ok(())
     }
-    fn unlock_and_reset(&mut self) {
-        self.unlock();
+    fn unlock_and_reset(&mut self) -> Result<(), ()> {
+        self.unlock()?;
         self.fifo.reset();
+        Ok(())
     }
 }
 

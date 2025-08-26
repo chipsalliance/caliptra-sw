@@ -24,6 +24,7 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
+mod fe_programming;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
@@ -53,6 +54,7 @@ use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder
 use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{ExternalMailboxCmdReq, MailboxReqHeader};
 pub use drivers::{Drivers, PauserPrivileges};
+use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
@@ -204,11 +206,30 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let mut cmd_bytes = req_packet.as_bytes()?;
     let mut cmd_id = req_packet.cmd;
 
-    cprintln!(
-        "[rt] Received command=0x{:x}, len={}",
-        req_packet.cmd,
-        req_packet.payload().len()
-    );
+    // Create human-readable name of command.
+    let bytes = req_packet.cmd.to_be_bytes();
+    let ascii = {
+        if bytes.len() != 4 || bytes.iter().any(|c| !c.is_ascii_alphanumeric()) {
+            None
+        } else {
+            core::str::from_utf8(&bytes).ok()
+        }
+    };
+
+    if let Some(ascii) = ascii {
+        cprintln!(
+            "[rt] Received command=0x{:x} ({}), len={}",
+            req_packet.cmd,
+            ascii,
+            req_packet.payload().len()
+        );
+    } else {
+        cprintln!(
+            "[rt] Received command=0x{:x}, len={}",
+            req_packet.cmd,
+            req_packet.payload().len()
+        );
+    }
 
     let mut external_cmd_buffer =
         [0; caliptra_common::mailbox_api::MAX_REQ_SIZE / size_of::<u32>()];
@@ -355,7 +376,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
-        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
+        CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),
@@ -405,6 +427,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::CM_AES_GCM_ENCRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_init(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_AES_GCM_SPDM_ENCRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_encrypt_init(drivers, cmd_bytes, resp)
+        }
         CommandId::CM_AES_GCM_ENCRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_encrypt_update(drivers, cmd_bytes, resp)
         }
@@ -413,6 +438,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::CM_AES_GCM_DECRYPT_INIT => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_init(drivers, cmd_bytes, resp)
+        }
+        CommandId::CM_AES_GCM_SPDM_DECRYPT_INIT => {
+            cryptographic_mailbox::Commands::aes_256_gcm_spdm_decrypt_init(drivers, cmd_bytes, resp)
         }
         CommandId::CM_AES_GCM_DECRYPT_UPDATE => {
             cryptographic_mailbox::Commands::aes_256_gcm_decrypt_update(drivers, cmd_bytes, resp)
@@ -472,6 +500,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             &mut drivers.dma,
             cmd_bytes,
         ),
+        CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

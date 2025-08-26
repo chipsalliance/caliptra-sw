@@ -914,6 +914,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     quote! {
         #no_std_header
 
+        #![allow(clippy::doc_lazy_continuation)]
         #![allow(clippy::erasing_op)]
         #![allow(clippy::identity_op)]
 

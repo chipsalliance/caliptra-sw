@@ -28,6 +28,7 @@ mod hmac;
 mod iccm;
 mod key_vault;
 mod mailbox;
+pub mod mci;
 mod ml_dsa87;
 mod root_bus;
 mod sha512_acc;
@@ -48,6 +49,7 @@ pub use iccm::Iccm;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
 pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam, MailboxRequester};
+pub use mci::Mci;
 pub use root_bus::{
     ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, ReadyForFwCb,
     SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,

@@ -16,6 +16,7 @@ use crate::{
     dma::Dma,
     helpers::words_from_bytes_be,
     iccm::Iccm,
+    mci::Mci,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha, KeyVault,
@@ -335,6 +336,8 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x6000_0000, len = 0x507d)]
     pub pic_regs: PicMmioRegisters,
+
+    pub mci: Mci,
 }
 
 impl CaliptraRootBus {
@@ -354,7 +357,8 @@ impl CaliptraRootBus {
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
-        let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), args);
+        let mci = Mci::new(prod_dbg_unlock_keypairs);
+        let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), mci.clone(), args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
             // This is necessary to match the behavior of the RTL.
@@ -366,7 +370,7 @@ impl CaliptraRootBus {
             mailbox_ram.clone(),
             soc_reg.clone(),
             sha512_acc.clone(),
-            prod_dbg_unlock_keypairs,
+            mci.clone(),
             test_sram,
             use_mcu_recovery_interface,
         );
@@ -398,6 +402,7 @@ impl CaliptraRootBus {
             dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
             pic_regs: pic.mmio_regs(clock.clone()),
+            mci,
         }
     }
 
@@ -406,6 +411,10 @@ impl CaliptraRootBus {
             mailbox: self.mailbox.as_external(soc_user),
             soc_ifc: self.soc_reg.external_regs(),
         }
+    }
+
+    pub fn mci_external_regs(&self) -> Mci {
+        self.mci.clone()
     }
 
     fn incoming_event(&mut self, event: Rc<Event>) {
@@ -455,7 +464,8 @@ impl CaliptraRootBus {
         self.sha512_acc.register_outgoing_events(sender.clone());
         self.dma.register_outgoing_events(sender.clone());
         self.csrng.register_outgoing_events(sender.clone());
-        self.pic_regs.register_outgoing_events(sender);
+        self.pic_regs.register_outgoing_events(sender.clone());
+        self.mci.register_outgoing_events(sender.clone());
     }
 }
 

@@ -212,7 +212,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam};
+    use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam, Mci};
     use caliptra_api_types::SecurityState;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
@@ -249,9 +249,11 @@ mod tests {
 
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
+        let mci = Mci::new(vec![]);
         let soc_reg = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
+            mci.clone(),
             CaliptraRootBusArgs {
                 clock: clock.clone(),
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -316,9 +318,11 @@ mod tests {
         ];
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
+        let mci = Mci::new(vec![]);
         let soc_reg = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
+            mci.clone(),
             CaliptraRootBusArgs {
                 clock: clock.clone(),
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -383,9 +387,11 @@ mod tests {
         let expected_fe = [0u8; 32];
         let clock = Rc::new(Clock::new());
         let key_vault = KeyVault::new();
+        let mci = Mci::new(vec![]);
         let soc_reg = SocRegistersInternal::new(
             MailboxInternal::new(&clock, MailboxRam::default()),
             Iccm::new(&clock),
+            mci.clone(),
             CaliptraRootBusArgs {
                 clock: clock.clone(),
                 security_state: *SecurityState::default().set_debug_locked(true),

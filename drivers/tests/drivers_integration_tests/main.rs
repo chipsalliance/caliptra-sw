@@ -1148,3 +1148,10 @@ fn test_mailbox_txn_drop() {
 fn test_dma_sha384() {
     run_driver_test(&firmware::driver_tests::DMA_SHA384);
 }
+
+// This test only works on the subsystem FPGA for now
+#[cfg_attr(not(feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_dma_aes() {
+    run_driver_test(&firmware::driver_tests::DMA_AES);
+}

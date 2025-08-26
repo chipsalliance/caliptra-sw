@@ -69,11 +69,14 @@ pub enum Granularity {
     Bits64,
 }
 
+// [TODO][CAP2] Used for both UDS (flow correct) and field entropy (needs implementation).
+const FUSE_BANK_SIZE_BYTES: usize = 64;
+
 pub struct Context {
     pub address: Option<u32>,
     pub wdata0: Option<u32>,
     pub wdata1: Option<u32>,
-    pub fuse_bank: [u32; 64 / size_of::<u32>()],
+    pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
     pub granularity: Granularity,
     pub dai_error: bool,
     pub soc_reg: SocRegistersInternal,
@@ -85,7 +88,7 @@ impl Context {
             address: None,
             wdata0: None,
             wdata1: None,
-            fuse_bank: [0; 64 / size_of::<u32>()],
+            fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
             granularity,
             dai_error: false,
             soc_reg,
@@ -94,7 +97,7 @@ impl Context {
 }
 
 impl StateMachineContext for Context {
-    fn is_valid_write(&mut self) -> Result<(), ()> {
+    fn is_valid_write(&self) -> Result<bool, ()> {
         // Check that we have a valid address and required write data
         match (self.address, self.wdata0) {
             (None, _) | (_, None) => Err(()),
@@ -107,22 +110,22 @@ impl StateMachineContext for Context {
                 if self.granularity == Granularity::Bits64 && self.wdata1.is_none() {
                     return Err(());
                 }
-                Ok(())
+                Ok(true)
             }
         }
     }
 
     // Validate digest command parameters.
     // The digest operation is only valid when the address points to the base of the UDS fuses (relative address 0).
-    fn is_valid_digest(&mut self) -> Result<(), ()> {
+    fn is_valid_digest(&self) -> Result<bool, ()> {
         match self.address {
             None => Err(()),
-            Some(0) => Ok(()),
+            Some(0) => Ok(true),
             Some(_) => Err(()),
         }
     }
 
-    fn start_write(&mut self) {
+    fn start_write(&mut self) -> Result<(), ()> {
         if let (Some(addr), Some(data)) = (self.address, self.wdata0) {
             let idx = (addr as usize) / 4;
             self.fuse_bank[idx] = data;
@@ -136,9 +139,10 @@ impl StateMachineContext for Context {
             self.wdata0 = None;
             self.wdata1 = None;
         }
+        Ok(())
     }
 
-    fn start_digest(&mut self) {
+    fn start_digest(&mut self) -> Result<(), ()> {
         use sha2::{Digest, Sha512};
 
         // Compute SHA-512 hash of fuse bank contents
@@ -159,11 +163,16 @@ impl StateMachineContext for Context {
 
         // Zeroize the fuse bank
         self.fuse_bank.fill(0);
+        Ok(())
     }
 
-    fn finish_write(&mut self) {}
+    fn finish_write(&mut self) -> Result<(), ()> {
+        Ok(())
+    }
 
-    fn finish_digest(&mut self) {}
+    fn finish_digest(&mut self) -> Result<(), ()> {
+        Ok(())
+    }
 }
 
 /// Fuse controller
