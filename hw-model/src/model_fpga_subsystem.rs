@@ -1035,6 +1035,28 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step();
     }
 
+    /// Create a model, and boot it to the point where CPU execution can
+    /// occur. This includes programming the fuses, initializing the
+    /// boot_fsm state machine, and (optionally) uploading firmware.
+    fn new(init_params: InitParams, boot_params: BootParams) -> Result<Self, Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        let init_params_summary = init_params.summary();
+
+        let mut hw: Self = HwModel::new_unbooted(init_params)?;
+        println!(
+            "Using hardware-model {} trng={:?}",
+            hw.type_name(),
+            hw.trng_mode(),
+        );
+        println!("{init_params_summary:#?}");
+
+        hw.boot(boot_params)?;
+
+        Ok(hw)
+    }
+
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
