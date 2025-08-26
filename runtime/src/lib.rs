@@ -304,7 +304,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc)
             .write_to_prefix(resp)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)
             .map(|_| core::mem::size_of::<FipsVersionResp>()),
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
@@ -454,7 +454,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let len = len.max(8); // guarantee it is big enough to hold the header
     if len > MAX_RESP_SIZE {
         // should be impossible
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::MBOX_PAYLOAD_INVALID_SIZE);
     }
     let mbox = &mut drivers.mbox;
     let resp = &mut resp[..len];

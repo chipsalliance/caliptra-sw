@@ -17,7 +17,7 @@ impl RevokeExportedCdiHandleCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
         let cmd = RevokeExportedCdiHandleReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            .map_err(|_| CaliptraError::MAILBOX_INVALID_PARAMS)?;
 
         match drivers.caller_privilege_level() {
             // REVOKE_EXPORTED_CDI_HANDLE MUST only be called from PL0

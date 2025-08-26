@@ -64,7 +64,7 @@ fn test_mldsa_verify_cmd() {
 
     assert_eq!(
         bad_response,
-        ModelError::MailboxCmdFailed(CaliptraError::ROM_MLDSA_VERIFY_FAILED.into())
+        ModelError::MailboxCmdFailed(CaliptraError::MLDSA_VERIFY_FAILED.into())
     );
 
     // Second test: good signature - should succeed

@@ -19,7 +19,7 @@ fn test_error_cleared() {
     let resp = model.mailbox_execute(0xffffffff, &[]).unwrap_err();
     assert_error(
         &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        caliptra_drivers::CaliptraError::MAILBOX_INVALID_PARAMS,
         resp,
     );
 

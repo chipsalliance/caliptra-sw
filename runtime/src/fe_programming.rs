@@ -26,7 +26,7 @@ impl FeProgrammingCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<usize> {
         let cmd = FeProgReq::ref_from_bytes(cmd_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+            .map_err(|_| CaliptraError::MBOX_PAYLOAD_INVALID_SIZE)?;
 
         if drivers.soc_ifc.lifecycle() != Lifecycle::Production {
             Err(CaliptraError::RUNTIME_FE_PROG_ILLEGAL_LIFECYCLE_STATE)?;
