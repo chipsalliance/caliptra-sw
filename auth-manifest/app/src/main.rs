@@ -86,6 +86,10 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("svn")
         .with_context(|| "svn arg not specified")?;
 
+    if *svn > 128 {
+        return Err(anyhow::anyhow!("Invalid SVN value"));
+    }
+
     let flags: AuthManifestFlags = AuthManifestFlags::from_bits_truncate(
         *args
             .get_one::<u32>("flags")

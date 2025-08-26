@@ -254,7 +254,7 @@ impl Default for Fuses {
             fuse_pqc_key_type: DEFAULT_PQC_KEY_TYPE,
             manuf_dbg_unlock_token: DEFAULT_MANUF_DEBUG_UNLOCK_TOKEN_HASH,
             debug_locked: false,
-            soc_manifest_max_svn: 127,
+            soc_manifest_max_svn: 128,
             soc_manifest_svn: Default::default(),
         }
     }

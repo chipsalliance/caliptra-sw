@@ -994,3 +994,59 @@ fn test_set_auth_manifest_svn_lt_fuse() {
         Some(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE),
     );
 }
+
+#[test]
+fn test_set_auth_manifest_svn_eq_128() {
+    let rt_args = RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        ),
+        soc_manifest_max_svn: Some(128),
+        soc_manifest_svn: Some(128),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        svn: 128,
+        ..Default::default()
+    });
+    model_set_manifest_command_execute(
+        &mut model,
+        manifest,
+        None,
+    );
+}
+
+#[test]
+fn test_set_auth_manifest_svn_gt_128() {
+    let rt_args = RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        ),
+        soc_manifest_max_svn: Some(129),
+        soc_manifest_svn: Some(129),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+        svn: 129,
+        ..Default::default()
+    });
+    model_set_manifest_command_execute(
+        &mut model,
+        manifest,
+        Some(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED),
+    );
+}

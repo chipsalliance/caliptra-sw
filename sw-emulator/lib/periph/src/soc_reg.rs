@@ -988,7 +988,7 @@ impl SocRegistersImpl {
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 16],
             fuse_soc_manifest_svn: [0; 4],
-            fuse_soc_manifest_max_svn: 127,
+            fuse_soc_manifest_max_svn: 128,
             ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
             ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
