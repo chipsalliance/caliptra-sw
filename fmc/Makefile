@@ -12,7 +12,7 @@
 #
 ##
 
-RUSTFLAGS=RUSTFLAGS=-Ctarget-feature=+relax
+RUSTFLAGS=RUSTFLAGS="-Ctarget-feature=+relax -Ctarget-feature=+unaligned-scalar-mem -Ctarget-feature=+zbb"
 TARGET_DIR=../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
