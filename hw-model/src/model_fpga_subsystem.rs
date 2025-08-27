@@ -40,10 +40,10 @@ const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
 // Offsets in the OTP for fuses.
-const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f0;
+const FUSE_VENDOR_PKHASH_OFFSET: usize = 0x3f8;
 const FUSE_PQC_OFFSET: usize = FUSE_VENDOR_PKHASH_OFFSET + 48;
-const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 1184;
-const FUSE_LIFECYCLE_STATE_OFFSET: usize = 4008;
+const FUSE_LIFECYCLE_TOKENS_OFFSET: usize = 0x2d8;
+const FUSE_LIFECYCLE_STATE_OFFSET: usize = 0xc80;
 
 // These are the default physical addresses for the peripherals. The addresses listed in
 // FPGA_MEMORY_MAP are physical addresses specific to the FPGA. These addresses are used over the
@@ -228,7 +228,8 @@ impl ModelFpgaSubsystem {
 
     fn axi_reset(&mut self) {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
-        self.wrapper.regs().control.modify(Control::AxiReset.val(0));
+        // wait a few clock cycles or we can crash the FPGA
+        std::thread::sleep(std::time::Duration::from_micros(1));
     }
 
     fn set_subsystem_reset(&mut self, reset: bool) {
@@ -1034,6 +1035,28 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step();
     }
 
+    /// Create a model, and boot it to the point where CPU execution can
+    /// occur. This includes programming the fuses, initializing the
+    /// boot_fsm state machine, and (optionally) uploading firmware.
+    fn new(init_params: InitParams, boot_params: BootParams) -> Result<Self, Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        let init_params_summary = init_params.summary();
+
+        let mut hw: Self = HwModel::new_unbooted(init_params)?;
+        println!(
+            "Using hardware-model {} trng={:?}",
+            hw.type_name(),
+            hw.trng_mode(),
+        );
+        println!("{init_params_summary:#?}");
+
+        hw.boot(boot_params)?;
+
+        Ok(hw)
+    }
+
     fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
@@ -1264,11 +1287,6 @@ impl HwModel for ModelFpgaSubsystem {
             .regs()
             .mcu_reset_vector
             .set(FPGA_MEMORY_MAP.rom_offset);
-        println!("Taking subsystem out of reset");
-        m.set_subsystem_reset(false);
-
-        while !m.i3c_target_configured() {}
-        println!("Done starting MCU");
         Ok(m)
     }
 
@@ -1279,17 +1297,16 @@ impl HwModel for ModelFpgaSubsystem {
     // Fuses are actually written by MCU ROM, but we need to initialize the OTP
     // with the values so that they are forwarded to Caliptra.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        let otp_mem = self.otp_slice();
-
-        // TODO: verify endianness of this
-        let vendor_pk_hash: &[u8] = fuses.vendor_pk_hash.as_bytes();
+        let vendor_pk_hash = fuses.vendor_pk_hash.as_bytes();
         println!(
             "Setting vendor public key hash to {:x?}",
             HexSlice(vendor_pk_hash)
         );
-        let len = vendor_pk_hash.len();
-        let offset = FUSE_VENDOR_PKHASH_OFFSET;
-        otp_mem[offset..offset + len].copy_from_slice(vendor_pk_hash);
+
+        // inefficient but works around bus errors on the FPGA when doing unaligned writes to AXI
+        let mut otp_mem = self.otp_slice().to_vec();
+        otp_mem[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
+            .copy_from_slice(vendor_pk_hash);
 
         let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(fuses.fuse_pqc_key_type as u8)
             .unwrap_or(FwVerificationPqcKeyType::LMS);
@@ -1302,6 +1319,8 @@ impl HwModel for ModelFpgaSubsystem {
             FwVerificationPqcKeyType::LMS => 1,
         };
         otp_mem[FUSE_PQC_OFFSET] = val;
+
+        self.otp_slice().copy_from_slice(&otp_mem);
     }
 
     fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
@@ -1309,6 +1328,12 @@ impl HwModel for ModelFpgaSubsystem {
         Self: Sized,
     {
         HwModel::init_fuses(self, &boot_params.fuses);
+
+        println!("Taking subsystem out of reset");
+        self.set_subsystem_reset(false);
+
+        while !self.i3c_target_configured() {}
+        println!("Done starting MCU");
 
         // TODO: support passing these into MCU ROM
         // self.soc_ifc()
@@ -1501,9 +1526,6 @@ impl Drop for ModelFpgaSubsystem {
             .store(false, Ordering::Relaxed);
         self.realtime_thread.take().unwrap().join().unwrap();
         self.i3c_controller.off();
-
-        // self.set_generic_input_wires(&[0, 0]);
-        // self.set_mcu_generic_input_wires(&[0, 0]);
 
         self.set_subsystem_reset(true);
 
