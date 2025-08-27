@@ -2,11 +2,13 @@
 
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_emu_bus::Bus;
+use caliptra_emu_periph::MailboxRequester;
+use caliptra_emu_types::RvSize;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SecurityState};
+use caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY;
+use core::mem::size_of_val;
 use std::ffi::*;
 use std::slice;
-
-use caliptra_emu_types::RvSize;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -28,6 +30,10 @@ pub struct caliptra_model_init_params {
     pub dccm: caliptra_buffer,
     pub iccm: caliptra_buffer,
     pub security_state: u8,
+    pub soc_user: u32,
+
+    // When data is null, DEFAULT_CPTRA_OBF_KEY is used.
+    pub optional_obf_key: caliptra_buffer,
 }
 
 pub const CALIPTRA_SEC_STATE_DBG_UNLOCKED_UNPROVISIONED: c_int = 0b000;
@@ -36,8 +42,12 @@ pub const CALIPTRA_SEC_STATE_DBG_UNLOCKED_PRODUCTION: c_int = 0b011;
 pub const CALIPTRA_SEC_STATE_DBG_LOCKED_PRODUCTION: c_int = 0b111;
 
 pub const CALIPTRA_MODEL_STATUS_OK: c_int = 0;
+pub const CALIPTRA_MODEL_INVALID_OBF_KEY_SIZE: c_int = -1;
 
 /// # Safety
+///
+/// `rom`, `dccm`, and `iccm` in `params` must be non-null. `model` must be
+/// non-null.
 #[no_mangle]
 pub unsafe extern "C" fn caliptra_model_init_default(
     params: caliptra_model_init_params,
@@ -45,6 +55,20 @@ pub unsafe extern "C" fn caliptra_model_init_default(
 ) -> c_int {
     // Parameter check
     assert!(!model.is_null());
+
+    let cptra_obf_key = if params.optional_obf_key.data.is_null() {
+        DEFAULT_CPTRA_OBF_KEY
+    } else if params.optional_obf_key.len != size_of_val(&DEFAULT_CPTRA_OBF_KEY) {
+        return CALIPTRA_MODEL_INVALID_OBF_KEY_SIZE;
+    } else {
+        slice::from_raw_parts(
+            params.optional_obf_key.data as *const u32,
+            params.optional_obf_key.len / 4,
+        )
+        .try_into()
+        .unwrap()
+    };
+
     // Generate Model and cast to caliptra_model
     *model = Box::into_raw(Box::new(
         caliptra_hw_model::new_unbooted(InitParams {
@@ -52,6 +76,8 @@ pub unsafe extern "C" fn caliptra_model_init_default(
             dccm: slice::from_raw_parts(params.dccm.data, params.dccm.len),
             iccm: slice::from_raw_parts(params.iccm.data, params.iccm.len),
             security_state: SecurityState::from(params.security_state as u32),
+            soc_user: MailboxRequester::SocUser(params.soc_user),
+            cptra_obf_key,
             ..Default::default()
         })
         .unwrap(),
@@ -165,4 +191,12 @@ pub unsafe extern "C" fn caliptra_model_step_until_boot_status(
     // Parameter check
     assert!(!model.is_null());
     (*{ model as *mut DefaultHwModel }).step_until_boot_status(boot_status, true);
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn caliptra_model_set_apb_pauser(model: *mut caliptra_model, pauser: c_uint) {
+    // Parameter check
+    assert!(!model.is_null());
+    (*{ model as *mut DefaultHwModel }).set_apb_pauser(pauser);
 }

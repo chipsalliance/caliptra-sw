@@ -314,7 +314,7 @@ impl CaliptraError {
     pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4: CaliptraError =
         CaliptraError::new_const(0x000D104);
     pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
-        CaliptraError::new_const(0x000D104);
+        CaliptraError::new_const(0x000D105);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
@@ -459,10 +459,13 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0057);
 
     pub const RUNTIME_GET_FMC_CSR_UNPROVISIONED: CaliptraError =
-        CaliptraError::new_const(0x000E0054);
+        CaliptraError::new_const(0x000E0058);
 
     pub const RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC: CaliptraError =
-        CaliptraError::new_const(0x000E0055);
+        CaliptraError::new_const(0x000E0059);
+
+    pub const RUNTIME_REVOKE_EXPORTED_CDI_HANDLE_NOT_FOUND: CaliptraError =
+        CaliptraError::new_const(0x000E005A);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -495,7 +498,7 @@ impl CaliptraError {
 
     /// SOC_IFC driver Errors
     pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
-        CaliptraError::new_const(0x00100001);
+        CaliptraError::new_const(0x00100002);
 
     /// Bounded address Errors
     pub const ADDRESS_MISALIGNED: CaliptraError = CaliptraError::new_const(0x00110000);

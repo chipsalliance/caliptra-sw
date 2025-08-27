@@ -29,12 +29,18 @@ on:
         description: 'Set true for workflow_call'
         default: true
         type: boolean
+      fpga-runs-on:
+        default: '["caliptra-fpga"]'
+        type: string
 
   workflow_dispatch:
     inputs:
       fpga-itrng:
         default: true
         type: boolean
+      fpga-runs-on:
+        default: '["caliptra-fpga"]'
+        type: string
 
 
 jobs:
@@ -101,7 +107,7 @@ jobs:
           retention-days: 1
 
   build_test_binaries:
-    runs-on: [e2-standard-16]
+    runs-on: [e2-standard-8]
     timeout-minutes: 60
 
     env:
@@ -164,8 +170,11 @@ jobs:
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+          EXCLUDE_ARG=""
           if [ "${{ inputs.rom-version }}" != "latest" ]; then
             export CPTRA_CI_ROM_VERSION="${{ inputs.rom-version }}"
+            # Skip ROM tests when testing with older ROMs
+            EXCLUDE_ARG="--exclude caliptra-rom"
           fi
 
           if [ "${{ inputs.workflow_call }}" ]; then
@@ -177,6 +186,8 @@ jobs:
             FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
           cargo nextest archive \
+            --workspace \
+            $EXCLUDE_ARG \
             --features=${FEATURES} \
             --release \
             --target=aarch64-unknown-linux-gnu \
@@ -340,7 +351,7 @@ jobs:
           key: ${{ needs.check_cache.outputs.rtl_cache_key }}
 
   test_artifacts:
-    runs-on: caliptra-fpga
+    runs-on: ${{fromJSON(inputs.fpga-runs-on || '["caliptra-fpga"]')}}
     needs: [check_cache, build_bitstream, build_test_binaries, build_kernel_modules]
     if: |
       !cancelled() &&

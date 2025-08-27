@@ -289,7 +289,7 @@ Command Code: `0x4944_4549` ("IDEI")
 
 ### GET\_LDEV\_CERT
 
-Exposes a command to get a self-signed LDevID certificate signed by IDevID.
+Exposes a command to get an LDevID certificate signed by IDevID.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -310,7 +310,7 @@ Command Code: `0x4C44_4556` ("LDEV")
 
 ### GET\_FMC\_ALIAS\_CERT
 
-Exposes a command to get a self-signed FMC alias certificate signed by LDevID.
+Exposes a command to get an FMC alias certificate signed by LDevID.
 
 Command Code: `0x4345_5246` ("CERF")
 
@@ -331,7 +331,7 @@ Command Code: `0x4345_5246` ("CERF")
 
 ### GET\_RT\_ALIAS\_CERT
 
-Exposes a command to get a self-signed Runtime alias certificate signed by the FMC alias.
+Exposes a command to get a Runtime alias certificate signed by the FMC alias.
 
 Command Code: `0x4345_5252` ("CERR")
 
@@ -924,9 +924,30 @@ When called from runtime, if the CSR was not previously provisioned this command
 
 When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for the `flow_status_set_idevid_csr_ready` bit to be set by Caliptra. Once set, the SoC **MUST** clear the `mfg_flag_gen_idev_id_csr` flag for Caliptra to progress.
 
+### GET\_FMC\_ALIAS\_CSR
+
+Command Code: `0x464D_4352` ("FMCR")
+
+*Table: `GET_FMC_ALIAS_CSR` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+
+*Table: `GET_FMC_ALIAS_CSR` output arguments*
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.  |
+| data\_size    | u32      | Length in bytes of the valid data in the data field.                        |
+| data          | u8[...]  | DER-encoded FMC ALIAS certificate signing request.                          |
+
+The FMC Alias CSR is generated unconditionally on every cold boot.
+
 ### SIGN\_WITH\_EXPORTED\_ECDSA
 
 Command Code: `0x5357_4545` ("SWEE")
+
+**Note**: This command is only available in the locality of the PL0 PAUSER. 
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
@@ -945,6 +966,24 @@ Command Code: `0x5357_4545` ("SWEE")
 | signature_s        | u8[48]   | The S BigNum of an ECDSA signature.                                        |
 
 The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+### REVOKE\_EXPORTED\_CDI\_HANDLE
+
+Command Code: `5256_4348` ("RVCH")
+
+**Note**: This command is only available in the locality of the PL0 PAUSER. 
+
+*Table: `REVOKE_EXPORTED_CDI_HANDLE` input arguments*
+
+| **Name**             | **Type** | **Description**
+| --------             | -------- | ---------------
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.         |
+| exported_cdi_handle  | u8[32]   | The Exported CDI handle returned by the DPE `DeriveContext` command. Little endian. |
+
+The `exported_cdi` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+The `exported_cdi_handle` is no longer usable after calling `REVOKE_EXPORTED_CDI_HANDLE` with it. After the `exported_cdi_handle` 
+has been revoked, a new exported CDI can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
 
 ## Checksum
 
@@ -1091,6 +1130,7 @@ Caliptra DPE supports the following commands:
 * GetProfile
 * InitializeContext
 * DeriveContext
+    * **Note**: The "export-cdi" flag is only available in the locality of the PL0 PAUSER. 
 * CertifyKey
   * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
     X.509 is only available to PL0 PAUSERs.
@@ -1182,29 +1222,29 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
 ### DPE leaf certificate definition
 
-| Field                          | Sub field   | Value
-| -------------                  | ---------   | ---------
-| Version                        | v3          | 2
-| Serial Number                  |             | First 20 bytes of sha256 hash of DPE Alias public key
-| Issuer Name                    | CN          | Caliptra Runtime Alias
-|                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key
-| Validity                       | notBefore   | notBefore from firmware manifest
-|                                | notAfter    | notAfter from firmware manifest
-| Subject Name                   | CN          | Caliptra DPE Leaf
-|                                | serialNumber | SHA384 hash of Subject public key
-| Subject Public Key Info        | Algorithm   | ecdsa-with-SHA384
-|                                | Parameters  | Named Curve = prime384v1
-|                                | Public Key  | DPE Alias Public Key value
-| Signature Algorithm Identifier | Algorithm   | ecdsa-with-SHA384
-|                                | Parameters  | Named Curve = prime384v1
-| Signature Value                |             | Digital signature for the certificate
-| KeyUsage                       | keyCertSign | 1
-| Basic Constraints              | CA          | False
-| Policy OIDs                    |             | id-tcg-kp-attestLoc
-| tcg-dice-MultiTcbInfo\*        | FWIDs       | [0] "Journey" TCI Value
-|                                |             | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext.
-|                                | Type        | 4-byte TYPE field of TCI node
-|                                | VendorInfo  | Locality of the caller (analog for PAUSER)
+| Field                          | Sub field          | Value
+| -------------                  | ---------          | ---------
+| Version                        | v3                 | 2
+| Serial Number                  |                    | First 20 bytes of sha256 hash of DPE Alias public key
+| Issuer Name                    | CN                 | Caliptra Runtime Alias
+|                                | serialNumber       | First 20 bytes of sha384 hash of Runtime Alias public key
+| Validity                       | notBefore          | notBefore from firmware manifest
+|                                | notAfter           | notAfter from firmware manifest
+| Subject Name                   | CN                 | Caliptra DPE Leaf
+|                                | serialNumber       | SHA384 hash of Subject public key
+| Subject Public Key Info        | Algorithm          | ecdsa-with-SHA384
+|                                | Parameters         | Named Curve = prime384v1
+|                                | Public Key         | DPE Alias Public Key value
+| Signature Algorithm Identifier | Algorithm          | ecdsa-with-SHA384
+|                                | Parameters         | Named Curve = prime384v1
+| Signature Value                |                    | Digital signature for the certificate
+| KeyUsage                       | keyCertSign        | 1
+| Basic Constraints              | CA                 | False
+| Policy OIDs                    |                    | id-tcg-kp-attestLoc
+| tcg-dice-MultiTcbInfo\*        | FWIDs              | [0] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext
+|                                | IntegrityRegisters | [0] "Journey" TCI Value.
+|                                | Type               | 4-byte TYPE field of TCI node
+|                                | VendorInfo         | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo contains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 32.

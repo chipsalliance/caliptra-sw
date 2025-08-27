@@ -325,29 +325,40 @@ uint32_t caliptra_read_fw_fatal_error()
 }
 
 /**
+ * caliptra_is_ready_for_firmware
+ *
+ * Checks if Caliptra hardware is ready for firmware upload
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_firmware(void)
+{
+    uint32_t status = caliptra_read_status();
+    return (status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK;
+}
+
+/**
  * caliptra_ready_for_firmware
  *
  * Waits until Caliptra hardware is ready for firmware upload or until
  * Caliptra reports an error
  *
- * @return bool True if ready, false otherwise
+ * @return int 0 if ready, Caliptra error otherwise
  */
 uint32_t caliptra_ready_for_firmware(void)
 {
-    uint32_t status;
     uint32_t fatal_error;
     bool ready = false;
 
     do
     {
-        status = caliptra_read_status();
         fatal_error = caliptra_read_fw_fatal_error();
 
         if (fatal_error != 0)
         {
             return fatal_error;
         }
-        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        else if (caliptra_is_ready_for_firmware())
         {
             ready = true;
         }
@@ -361,6 +372,19 @@ uint32_t caliptra_ready_for_firmware(void)
 }
 
 /**
+ * caliptra_is_ready_for_runtime
+ *
+ * Checks if Caliptra hardware is ready for runtime commands
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_runtime(void)
+{
+    uint32_t status = caliptra_read_status();
+    return (status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK;
+}
+
+/**
  * caliptra_ready_for_runtime
  *
  * Waits until Caliptra hardware is ready for runtime commands or until
@@ -370,20 +394,18 @@ uint32_t caliptra_ready_for_firmware(void)
  */
 uint32_t caliptra_ready_for_runtime(void)
 {
-    uint32_t status;
     uint32_t fatal_error;
     bool ready = false;
 
     do
     {
-        status = caliptra_read_status();
         fatal_error = caliptra_read_fw_fatal_error();
 
         if (fatal_error != 0)
         {
             return fatal_error;
         }
-        else if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_RUNTIME_MASK)
+        else if (caliptra_is_ready_for_runtime())
         {
             ready = true;
         }
@@ -1228,6 +1250,21 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Get FMC ALias CSR
+int caliptra_get_fmc_alias_csr(struct caliptra_get_fmc_alias_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_FMC_ALIAS_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Sign with Exported
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async)
 {
@@ -1237,6 +1274,21 @@ int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_r
     }
 
     CREATE_PARCEL(p, OP_SIGN_WITH_EXPORTED_ECDSA, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Revoke Exported CDI Handle
+int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_handle_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_REVOKE_EXPORTED_CDI_HANDLE, req, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1285,6 +1337,34 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
     caliptra_checksum checksum = 0;
 
     CREATE_PARCEL(p, OP_CAPABILITIES, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_SET_AUTH_MANIFEST, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_AUTHORIZE_AND_STASH, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

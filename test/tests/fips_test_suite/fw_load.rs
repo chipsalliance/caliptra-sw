@@ -287,6 +287,7 @@ fn fw_load_error_vendor_pub_key_digest_invalid() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_vendor_pub_key_digest_failure() {
     // Set fuses
     let fuses = caliptra_hw_model::Fuses {
@@ -321,6 +322,7 @@ fn fw_load_error_vendor_pub_key_digest_mismatch() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_owner_pub_key_digest_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -386,6 +388,7 @@ fn fw_load_error_vendor_ecc_pub_key_revoked() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_header_digest_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -397,6 +400,7 @@ fn fw_load_error_header_digest_failure() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_vendor_ecc_verify_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -438,6 +442,7 @@ fn fw_load_error_vendor_ecc_pub_key_index_mismatch() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_owner_ecc_verify_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -478,6 +483,7 @@ fn fw_load_error_toc_entry_count_invalid() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_toc_digest_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -504,6 +510,7 @@ fn fw_load_error_toc_digest_mismatch() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_fmc_digest_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -529,6 +536,7 @@ fn fw_load_error_fmc_digest_mismatch() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_runtime_digest_failure() {
     fw_load_error_flow_with_test_hooks(
         None,
@@ -1003,6 +1011,7 @@ fn fw_load_error_vendor_lms_pub_key_index_mismatch() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_vendor_lms_verify_failure() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {
@@ -1077,6 +1086,7 @@ fn fw_load_error_fmc_runtime_load_addr_overlap() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 fn fw_load_error_owner_lms_verify_failure() {
     // Turn LMS verify on
     let fuses = caliptra_hw_model::Fuses {

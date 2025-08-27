@@ -40,11 +40,11 @@ pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 pub const FMC_ORG: u32 = 0x40000000;
 pub const FMC_SIZE: u32 = 21 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
-pub const RUNTIME_SIZE: u32 = 96 * 1024;
+pub const RUNTIME_SIZE: u32 = 97 * 1024;
 
-// Max size of runtime code should be 118K to allow room for the manifest
+// Max size of runtime code should be 120K to allow 8k for the manifest
 #[allow(clippy::assertions_on_constants)]
-const _: () = assert!((FMC_SIZE + RUNTIME_SIZE) < (118 * 1024));
+const _: () = assert!((FMC_SIZE + RUNTIME_SIZE) < (120 * 1024));
 
 pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};

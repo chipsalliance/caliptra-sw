@@ -304,7 +304,7 @@ pub struct VendorSignedData {
     /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    pub reserved: [u8; 10],
 }
 
 #[repr(C)]
@@ -320,7 +320,7 @@ pub struct OwnerSignedData {
     /// Owner epoch, used to diversify stable SVN keys.
     pub epoch: [u8; 2],
 
-    reserved: [u8; 8],
+    pub reserved: [u8; 8],
 }
 
 /// Caliptra Image header
@@ -396,7 +396,7 @@ pub struct ImageTocEntry {
     pub id: u32,
 
     /// Type
-    pub r#type: u32,
+    pub image_type: u32,
 
     /// Commit revision
     pub revision: ImageRevision,

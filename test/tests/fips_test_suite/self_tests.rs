@@ -16,6 +16,7 @@ use zerocopy::IntoBytes;
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_halt_check_no_output() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
@@ -40,6 +41,7 @@ pub fn kat_halt_check_no_output() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn fw_load_halt_check_no_output() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
@@ -67,6 +69,8 @@ pub fn fw_load_halt_check_no_output() {
     // NOTE: SHA engine is not locked during FW load
 }
 
+// This is not compatible with hw-1.0 because we cannot build a 1.0 ROM from this newer version of the repo
+#[cfg(not(feature = "hw-1.0"))]
 fn self_test_failure_flow_rom(hook_code: u8, exp_error_code: u32) {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
 
@@ -240,6 +244,7 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha1_digest_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA1_DIGEST_FAILURE,
@@ -257,6 +262,7 @@ pub fn kat_sha1_digest_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha1_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA1_CORRUPT_DIGEST,
@@ -274,6 +280,7 @@ pub fn kat_sha1_digest_mismatch_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha256_digest_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA256_DIGEST_FAILURE,
@@ -291,6 +298,7 @@ pub fn kat_sha256_digest_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha256_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA256_CORRUPT_DIGEST,
@@ -308,6 +316,7 @@ pub fn kat_sha256_digest_mismatch_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha384_digest_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA384_DIGEST_FAILURE,
@@ -325,6 +334,7 @@ pub fn kat_sha384_digest_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha384_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA384_CORRUPT_DIGEST,
@@ -342,6 +352,7 @@ pub fn kat_sha384_digest_mismatch_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha2_512_384acc_digest_start_op_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
@@ -359,6 +370,7 @@ pub fn kat_sha2_512_384acc_digest_start_op_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha2_512_384acc_digest_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
@@ -376,6 +388,7 @@ pub fn kat_sha2_512_384acc_digest_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_sha2_512_384acc_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
@@ -393,6 +406,7 @@ pub fn kat_sha2_512_384acc_digest_mismatch_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_ecc384_signature_generate_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_SIGNATURE_GENERATE_FAILURE,
@@ -410,6 +424,7 @@ pub fn kat_ecc384_signature_generate_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_ecc384_signature_verify_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_CORRUPT_SIGNATURE,
@@ -427,6 +442,7 @@ pub fn kat_ecc384_signature_verify_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_ecc384_deterministic_key_gen_generate_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_KEY_PAIR_GENERATE_FAILURE,
@@ -444,6 +460,7 @@ pub fn kat_ecc384_deterministic_key_gen_generate_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_ecc384_deterministic_key_gen_verify_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::ECC384_CORRUPT_KEY_PAIR,
@@ -461,6 +478,7 @@ pub fn kat_ecc384_deterministic_key_gen_verify_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_hmac384_failure_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::HMAC384_FAILURE,
@@ -478,6 +496,7 @@ pub fn kat_hmac384_failure_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_hmac384_tag_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::HMAC384_CORRUPT_TAG,
@@ -495,6 +514,7 @@ pub fn kat_hmac384_tag_mismatch_rt() {
 
 #[test]
 #[cfg(not(feature = "test_env_immutable_rom"))]
+#[cfg(not(feature = "hw-1.0"))]
 pub fn kat_lms_digest_mismatch_rom() {
     self_test_failure_flow_rom(
         FipsTestHook::LMS_CORRUPT_INPUT,

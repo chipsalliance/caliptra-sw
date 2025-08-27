@@ -4,10 +4,17 @@ use crate::common::{
     execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
     TEST_LABEL,
 };
-use caliptra_api::SocManager;
+use caliptra_api::{
+    mailbox::{CommandId, FwInfoResp},
+    SocManager,
+};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
@@ -16,8 +23,8 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
-        RotateCtxFlags, SignCmd, SignFlags,
+        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags,
+        GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignCmd, SignFlags,
     },
     context::ContextHandle,
     response::{DpeErrorCode, Response},
@@ -31,6 +38,8 @@ use openssl::{
     x509::X509,
 };
 use sha2::{Digest, Sha384};
+use x509_parser::{nom::Parser, prelude::*};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -48,6 +57,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
+    assert_eq!(profile.max_tci_nodes, 32);
 }
 
 #[test]
@@ -296,4 +306,219 @@ fn test_invoke_dpe_rotate_context() {
     };
 
     assert!(rotate_ctx_resp.handle.is_default());
+}
+
+fn check_dice_extension_criticality(cert: &[u8], expected_criticality: bool) {
+    let mut parser = X509CertificateParser::new().with_deep_parse_extensions(true);
+    let Ok((_, cert)) = parser
+            .parse(cert) else {
+                panic!("Could not parse x509 certificate from CertifyKey!");
+            };
+    for extension in cert.iter_extensions() {
+        // Unknown extensions are DICE extensions, and they should match the
+        // criticality set by the DPE instance.
+        if extension.parsed_extension().unsupported() {
+            assert_eq!(extension.critical, expected_criticality);
+        }
+    }
+}
+
+#[test]
+fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::CertifyKey(&certify_key_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::CertifyKey(resp)) = resp else {
+            panic!("Wrong response type!");
+        };
+    check_dice_extension_criticality(&resp.cert[..resp.cert_size.try_into().unwrap()], false);
+}
+
+#[test]
+fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    let Some(Response::DeriveContextExportedCdi(resp)) = resp else {
+        panic!("expected derive context resp!");
+    };
+    check_dice_extension_criticality(
+        &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
+        false,
+    );
+}
+
+#[test]
+fn test_export_cdi_attestation_not_disabled_after_update_reset() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // trigger update reset to same firmware
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+
+    // check attestation is not disabled via FW_INFO
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(info.attestation_disabled, 0);
+}
+
+#[test]
+fn test_export_cdi_destroyed_root_context() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    // You probably want to retain the parent context, otherwise the whole DPE chain _may be
+    // destroyed.
+    //
+    // This test case exercises that runtime cannot find the root context if the chain is
+    // destroyed.
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // trigger update reset to same firmware
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap_err();
+    assert_eq!(
+        resp,
+        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT.into())
+    );
+}
+
+#[test]
+fn test_fill_max_contexts() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    const BASE_CMD: DeriveContextCmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0; DPE_PROFILE.get_tci_size()],
+        flags: DeriveContextFlags::MAKE_DEFAULT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+
+    // 32 contexts = 1 root node +
+    //               1 rt_journey auto init) +
+    //               1 (valid pauser at init) +
+    //               14 PL0 contexts in loop +
+    //               1 PL1 context as transition +
+    //               14 PL1 contexts in loop
+
+    // Fill PL0 contexts
+    for _ in 0..14 {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&BASE_CMD),
+            DpeResult::Success,
+        );
+    }
+
+    // Transition to PL1 locality
+    let derive_ctx_cmd = DeriveContextCmd {
+        flags: DeriveContextFlags::MAKE_DEFAULT | DeriveContextFlags::CHANGE_LOCALITY,
+        target_locality: 2,
+        ..BASE_CMD
+    };
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+
+    // Fill PL1 contexts
+    model.set_apb_pauser(2);
+    for _ in 0..14 {
+        let _ = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveContext(&BASE_CMD),
+            DpeResult::Success,
+        );
+    }
+
+    // Trigger failure by trying to derive one more context to PL1
+    let _ = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveContext(&BASE_CMD),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
+    );
 }

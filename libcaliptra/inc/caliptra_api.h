@@ -41,14 +41,32 @@ bool caliptra_ready_for_fuses(void);
 int caliptra_init_fuses(const struct caliptra_fuses *fuses);
 
 /**
+ * caliptra_is_ready_for_firmware
+ *
+ * Checks if Caliptra hardware is ready for firmware upload
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_firmware(void);
+
+/**
  * caliptra_ready_for_firmware
  *
  * Waits until Caliptra hardware is ready for firmware upload or until
  * Caliptra reports an error
  *
- * @return bool True if ready, false otherwise
+ * @return int 0 if ready, Caliptra error otherwise
  */
 uint32_t caliptra_ready_for_firmware(void);
+
+/**
+ * caliptra_is_ready_for_runtime
+ *
+ * Checks if Caliptra hardware is ready for runtime commands
+ *
+ * @return bool True if ready, false otherwise
+ */
+uint32_t caliptra_is_ready_for_runtime(void);
 
 /**
  * caliptra_ready_for_runtime
@@ -200,8 +218,14 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 // Get IDev CSR
 int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
 
+// Get FMC Alias CSR
+int caliptra_get_fmc_alias_csr(struct caliptra_get_fmc_alias_csr_resp *resp, bool async);
+
 // Sign with Exported Ecdsa
 int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_req *req, struct caliptra_sign_with_exported_ecdsa_resp *resp, bool async);
+
+// Revoke Exported CDI Handle
+int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_handle_req *req, bool async);
 
 // Self test start
 int caliptra_self_test_start(bool async);
@@ -214,6 +238,12 @@ int caliptra_shutdown(bool async);
 
 // Capabilities
 int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
+
+// Set Authorization Manifest
+int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async);
+
+// Authorize and Stash
+int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async);
 
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();

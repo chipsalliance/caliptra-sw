@@ -71,6 +71,7 @@ impl SignWithExportedEcdsaCmd {
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let pdata = drivers.persistent_data.get_mut();
 
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
@@ -78,10 +79,10 @@ impl SignWithExportedEcdsaCmd {
             &mut drivers.ecc384,
             &mut drivers.hmac384,
             &mut drivers.key_vault,
-            &mut drivers.persistent_data.get_mut().fht.rt_dice_pub_key,
+            &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut drivers.exported_cdi_slots,
+            &mut pdata.exported_cdi_slots,
         );
 
         let digest = Digest::new(&cmd.tbs)

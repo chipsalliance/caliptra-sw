@@ -20,21 +20,16 @@ use caliptra_common::keyids::{
     KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_EXPORTED_DPE_CDI, KEY_ID_TMP,
 };
 use caliptra_drivers::{
-    cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
-    Ecc384Seed, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
-    KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
+    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
+    ExportedCdiEntry, ExportedCdiHandles, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, Sha384, Sha384DigestOp, Trng,
 };
 use crypto::{AlgLen, Crypto, CryptoBuf, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher};
 use dpe::{
-    response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, MAX_EXPORTED_CDI_SIZE,
+    response::DpeErrorCode, x509::MeasurementData, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE,
 };
 use zerocopy::IntoBytes;
 use zeroize::Zeroize;
-
-// Currently only can export CDI once, but in the future we may want to support multiple exported
-// CDI handles at the cost of using more KeyVault slots.
-pub const EXPORTED_HANDLES_NUM: usize = 1;
-pub type ExportedCdiHandles = [Option<(KeyId, ExportedCdiHandle)>; EXPORTED_HANDLES_NUM];
 
 pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
@@ -156,9 +151,13 @@ impl<'a> DpeCrypto<'a> {
         &mut self,
         exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     ) -> Option<<DpeCrypto<'a> as crypto::Crypto>::Cdi> {
-        for cdi_slot in self.exported_cdi_slots.iter() {
+        for cdi_slot in self.exported_cdi_slots.entries.iter() {
             match cdi_slot {
-                Some((cdi, handle)) if handle == exported_cdi_handle => return Some(*cdi),
+                ExportedCdiEntry {
+                    key,
+                    handle,
+                    active,
+                } if active.get() && handle == exported_cdi_handle => return Some(*key),
                 _ => (),
             }
         }
@@ -239,23 +238,43 @@ impl<'a> Crypto for DpeCrypto<'a> {
     ) -> Result<ExportedCdiHandle, CryptoError> {
         let mut exported_cdi_handle = [0; MAX_EXPORTED_CDI_SIZE];
         self.rand_bytes(&mut exported_cdi_handle)?;
-        let cdi = self.derive_cdi_inner(algs, measurement, info, KEY_ID_EXPORTED_DPE_CDI)?;
 
-        for slot in self.exported_cdi_slots.iter_mut() {
+        // Currently we only use one slot for export CDIs.
+        let cdi_slot = KEY_ID_EXPORTED_DPE_CDI;
+        // Copy the CDI slots to work around the borrow checker.
+        let mut slots_clone = self.exported_cdi_slots.clone();
+
+        for slot in slots_clone.entries.iter_mut() {
             match slot {
                 // Matching existing slot
-                Some((cached_cdi, handle)) if *cached_cdi == cdi => {
+                ExportedCdiEntry {
+                    key,
+                    handle,
+                    active,
+                } if active.get() && *key == cdi_slot => {
                     Err(CryptoError::ExportedCdiHandleDuplicateCdi)?
                 }
-                // Empty slot
-                None => {
-                    *slot = Some((cdi, exported_cdi_handle));
+                ExportedCdiEntry {
+                    key,
+                    handle,
+                    active,
+                } if !active.get() => {
+                    // Empty slot
+                    let cdi = self.derive_cdi_inner(algs, measurement, info, cdi_slot)?;
+                    *slot = ExportedCdiEntry {
+                        key: cdi,
+                        handle: exported_cdi_handle,
+                        active: U8Bool::new(true),
+                    };
+                    // We need to update `self.exported_cdi_slots` with our mutation.
+                    *self.exported_cdi_slots = slots_clone;
                     return Ok(exported_cdi_handle);
                 }
                 // Used slot for a different CDI.
                 _ => (),
             }
         }
+        // Never found an available slot.
         Err(CryptoError::ExportedCdiHandleLimitExceeded)
     }
 
@@ -290,10 +309,14 @@ impl<'a> Crypto for DpeCrypto<'a> {
     ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
         let cdi = {
             let mut cdi = None;
-            for cdi_slot in self.exported_cdi_slots.iter() {
+            for cdi_slot in self.exported_cdi_slots.entries.iter() {
                 match cdi_slot {
-                    Some((stored_cdi, stored_handle)) if stored_handle == exported_handle => {
-                        cdi = Some(*stored_cdi);
+                    ExportedCdiEntry {
+                        key,
+                        handle,
+                        active,
+                    } if active.get() && handle == exported_handle => {
+                        cdi = Some(*key);
                         break;
                     }
                     _ => (),

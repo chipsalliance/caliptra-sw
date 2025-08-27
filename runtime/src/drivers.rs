@@ -23,7 +23,6 @@ use crate::{
     PL1_DPE_ACTIVE_CONTEXT_THRESHOLD,
 };
 
-use crate::dpe_crypto::{ExportedCdiHandles, EXPORTED_HANDLES_NUM};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
@@ -47,6 +46,7 @@ use caliptra_registers::{
 };
 use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
+use dpe::dpe_instance::DpeInstanceFlags;
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
@@ -109,7 +109,6 @@ pub struct Drivers {
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
-    pub exported_cdi_slots: ExportedCdiHandles,
 }
 
 impl Drivers {
@@ -148,7 +147,6 @@ impl Drivers {
             cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
-            exported_cdi_slots: [None; EXPORTED_HANDLES_NUM],
         })
     }
 
@@ -232,7 +230,6 @@ impl Drivers {
             }
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attest : DPE valid fail");
                     // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
                     drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
@@ -262,7 +259,6 @@ impl Drivers {
                 }
                 match result {
                     Ok(_) => {
-                        cprintln!("Disable attest DPE used context limit breach");
                         caliptra_drivers::report_fw_error_non_fatal(e.into());
                     }
                     Err(e) => {
@@ -306,7 +302,6 @@ impl Drivers {
             }
             match result {
                 Ok(_) => {
-                    cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
                     );
@@ -390,7 +385,7 @@ impl Drivers {
             &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
-            &mut drivers.exported_cdi_slots,
+            &mut pdata.exported_cdi_slots,
         );
 
         let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
@@ -416,6 +411,7 @@ impl Drivers {
             DPE_SUPPORT,
             u32::from_be_bytes(*b"RTJM"),
             rt_journey_measurement,
+            DpeInstanceFlags::empty(),
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 

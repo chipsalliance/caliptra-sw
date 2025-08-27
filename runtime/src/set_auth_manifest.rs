@@ -536,6 +536,8 @@ impl SetAuthManifestCmd {
             &drivers.soc_ifc,
         )?;
 
+        persistent_data.auth_manifest_digest = drivers.sha384.digest(manifest_buf)?.0;
+
         Ok(MailboxResp::default())
     }
 }

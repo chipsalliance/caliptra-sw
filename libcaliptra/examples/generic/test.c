@@ -12,10 +12,12 @@
 #include "caliptra_types.h"
 #include "idev_csr_array.h"
 
-#include <openssl/asn1.h>
-#include <openssl/bn.h>
 #include <openssl/bio.h>
+#include <openssl/bn.h>
+#include <openssl/crypto.h>
 #include <openssl/ec.h>
+#include <openssl/ecdsa.h>
+#include <openssl/evp.h>
 #include <openssl/x509.h>
 
 // Arbitrary example only - values must be customized/tuned for the SoC
@@ -26,12 +28,10 @@ static const uint16_t itrng_entropy_low_threshold = 0x1;
 static const uint16_t itrng_entropy_high_threshold = 0xFFFF;
 // Arbitrary example only - values must be customized/tuned for the SoC
 static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
-// Arbitrary example only - values must be customized/tuned for the SoC
-static const uint32_t apb_pauser = 0x1;
 
 // Exists for testbench only - not part of interface for actual implementation
 extern void testbench_reinit(void);
-void hwmod_init(struct caliptra_buffer rom);
+void hwmod_init(struct caliptra_buffer rom, const test_info *info);
 
 #ifdef ENABLE_DEBUG
 // Exists for testbench only - not part of interface for actual implementation
@@ -56,7 +56,7 @@ static void caliptra_wait_for_csr_ready(void)
      }
 }
 
-/* 
+/*
  * caliptra_verify_signature
  *
  * Uses OpenSSL to verify that the signature returned by `SignWithExportedEcdsa`
@@ -64,104 +64,166 @@ static void caliptra_wait_for_csr_ready(void)
  *
  * @return bool True if the signature passes verification, false otherwise
  */
-static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
+static bool caliptra_verify_ecdsa_signature_helper(struct dpe_derive_context_exported_cdi_response* dpe_resp, struct caliptra_sign_with_exported_ecdsa_resp* sign_resp, uint8_t* tbs, size_t tbs_size)
 {
-    BIO* cert_ptr = BIO_new_mem_buf(dpe_resp->new_certificate, dpe_resp->certificate_size);
-    X509* x509 = d2i_X509_bio(cert_ptr, NULL);
+    bool status = true;
+
+    EVP_PKEY* pkey = NULL;
+    EC_KEY *ec_pub_key = NULL, *ecdsa_key = NULL;
+    BIGNUM *r = NULL, *s = NULL, *x = NULL, *y = NULL;
+    ECDSA_SIG* signature = NULL;
+    EC_POINT* point = NULL;
+    uint8_t* dersig = NULL;
+    BN_CTX* bn_ctx = NULL;
+    X509* x509 = NULL;
+    BIO* cert_ptr =
+        BIO_new_mem_buf(dpe_resp->new_certificate, dpe_resp->certificate_size);
+
+    if (cert_ptr == NULL) {
+        printf("Error creating certificate pointer.\n");
+        status = false;
+        goto cleanup;
+    }
+
+    x509 = d2i_X509_bio(cert_ptr, NULL);
 
     if (x509 == NULL) {
         printf("Error parsing certificate.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EVP_PKEY *pkey = X509_get_pubkey(x509);
+    pkey = X509_get_pubkey(x509);
     if (pkey == NULL) {
         printf("Error getting public key.\n");
-        X509_free(x509);
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EC_KEY* ec_pub_key = EVP_PKEY_get1_EC_KEY(pkey);
+    ec_pub_key = EVP_PKEY_get1_EC_KEY(pkey);
     if (ec_pub_key == NULL) {
         printf("Error converting pub key to EC pub key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    BIGNUM* r = BN_bin2bn(sign_resp->signature_r, 48, NULL);
+    r = BN_bin2bn(sign_resp->signature_r, 48, NULL);
     if (r == NULL) {
         printf("Error creating ECDSA R.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    BIGNUM* s = BN_bin2bn(sign_resp->signature_s, 48, NULL);
+    s = BN_bin2bn(sign_resp->signature_s, 48, NULL);
     if (s == NULL) {
         printf("Error creating ECDSA S.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    ECDSA_SIG *signature = ECDSA_SIG_new();
+    signature = ECDSA_SIG_new();
     if (signature == NULL) {
         printf("Error creating signature.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
     ECDSA_SIG_set0(signature, r, s);
 
-    uint8_t *dersig = NULL;
     int size = i2d_ECDSA_SIG(signature, &dersig);
 
     if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ec_pub_key) != 1) {
-       return false;
+      status = false;
+      goto cleanup;
     }
 
-    BIGNUM* x = BN_bin2bn(sign_resp->derived_public_key_x, 48, NULL);
-    if (r == NULL) {
-        printf("Error creating ECDSA X.\n");
-        return false;
+    x = BN_bin2bn(sign_resp->derived_public_key_x, 48, NULL);
+    if (x == NULL) {
+      printf("Error creating ECDSA X.\n");
+      status = false;
+      goto cleanup;
     }
 
-    BIGNUM* y = BN_bin2bn(sign_resp->derived_public_key_y, 48, NULL);
-    if (s == NULL) {
-        printf("Error creating ECDSA Y.\n");
-        return false;
+    y = BN_bin2bn(sign_resp->derived_public_key_y, 48, NULL);
+    if (y == NULL) {
+      printf("Error creating ECDSA Y.\n");
+      status = false;
+      goto cleanup;
     }
 
-    EC_KEY *ecdsa_key = EC_KEY_new_by_curve_name(NID_secp384r1);
+    ecdsa_key = EC_KEY_new_by_curve_name(NID_secp384r1);
     if (ecdsa_key == NULL) {
         printf("Error creating ECDSA public key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    EC_POINT *point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
+    point = EC_POINT_new(EC_KEY_get0_group(ecdsa_key));
     if (point == NULL) {
         printf("Error creating EC point.\n");
-        EC_KEY_free(ecdsa_key);
-        return false;
+        status = false;
+        goto cleanup;
     }
 
-    if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(ecdsa_key), point, x, y, BN_CTX_new())) {
-        printf("Error setting EC point coordinates.\n");
-        return false;
+    bn_ctx = BN_CTX_new();
+    if (!EC_POINT_set_affine_coordinates_GFp(EC_KEY_get0_group(ecdsa_key),
+                                             point, x, y, bn_ctx)) {
+      printf("Error setting EC point coordinates.\n");
+      status = false;
+      goto cleanup;
     }
-
     if (!EC_KEY_set_public_key(ecdsa_key, point)) {
         printf("Error setting public key.\n");
-        return false;
+        status = false;
+        goto cleanup;
     }
 
     if (ECDSA_verify(0, (const unsigned char *)tbs, tbs_size, dersig, size, ecdsa_key) != 1) {
-       return false;
+      status = false;
+      goto cleanup;
     }
 
+cleanup:
+    // r and s are freed in ECDSA_SIG_free(signature)
+    BN_CTX_free(bn_ctx);
     EC_POINT_free(point);
-    BN_free(x);
-    BN_free(y);
     EC_KEY_free(ecdsa_key);
-    free(dersig);
+    BN_clear_free(y);
+    BN_clear_free(x);
+    OPENSSL_free(dersig);
     ECDSA_SIG_free(signature);
+    EC_KEY_free(ec_pub_key);
+    EVP_PKEY_free(pkey);
     X509_free(x509);
     BIO_free(cert_ptr);
 
-    return true;
+    return status;
+}
+
+static bool caliptra_verify_ecdsa_signature(struct dpe_derive_context_exported_cdi_response* dpe_resp)
+{
+    struct caliptra_sign_with_exported_ecdsa_req sign_req = { 0 };
+    struct caliptra_sign_with_exported_ecdsa_resp sign_resp = { 0 };
+
+    // SHA384 of a 48 bytes of 0s
+    uint8_t tbs[] = {
+        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe,
+        0x22, 0xe4, 0x1c, 0x40, 0x0e, 0xea, 0x91, 0xb9, 0x71, 0xd9,
+        0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
+        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51,
+        0x28, 0xc9, 0xdf, 0x4e, 0xfa, 0xf6, 0xf8, 0xa7
+    };
+
+    memcpy(&sign_req.exported_cdi_handle, dpe_resp->exported_cdi_handle, sizeof(dpe_resp->exported_cdi_handle));
+    memcpy(&sign_req.tbs, &tbs, sizeof(tbs));
+
+    int status = caliptra_sign_with_exported_ecdsa(&sign_req, &sign_resp, false);
+
+    if (status) {
+        printf("Sign with exported Ecdsa failed: 0x%x\n", status);
+        return false;
+    }
+
+    return caliptra_verify_ecdsa_signature_helper(dpe_resp, &sign_resp, tbs, sizeof(tbs));
 }
 
 void dump_caliptra_error_codes()
@@ -170,9 +232,72 @@ void dump_caliptra_error_codes()
     printf("Caliptra FW error fatal code is 0x%x\n", caliptra_read_fw_fatal_error());
 }
 
+static int derive_context(struct dpe_derive_context_response *out, int flags) 
+{
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
+    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
+    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
+
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
+    derive_context_cmd.cmd_hdr.profile = 0x4;
+    derive_context_cmd.flags = flags;
+
+    memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
+    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
+
+    int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    } else {
+        memcpy(out, &dpe_resp.derive_context_resp, sizeof(struct dpe_derive_context_response));
+        printf("DPE Command: OK\n");
+    }
+
+    return 0;
+}
+
+static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_response *out, int flags) 
+{
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
+    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
+    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
+
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
+    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
+    derive_context_cmd.cmd_hdr.profile = 0x4;
+    derive_context_cmd.flags = flags;
+
+    memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
+    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
+
+    int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
+    if (status) {
+        printf("DPE Command failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    } else {
+        memcpy(out, &dpe_resp.derive_context_exported_cdi_resp, sizeof(struct dpe_derive_context_exported_cdi_response));
+        printf("DPE Command: OK\n");
+    }
+
+    return 0;
+}
+
 int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
 {
     int status;
+
+    if (!info) {
+        printf("Failed to boot Caliptra, test_info is null\n");
+        return INVALID_PARAMS;
+    }
 
     // Initialize FSM GO
     caliptra_bootfsm_go();
@@ -190,14 +315,14 @@ int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
                                      itrng_entropy_repetition_count);
 
     // Set up our PAUSER value for the mailbox regs
-    status = caliptra_mbox_pauser_set_and_lock(apb_pauser);
+    status = caliptra_mbox_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set MBOX pauser Failed: 0x%x\n", status);
         return status;
     }
 
     // Set up our PAUSER value for the fuse regs
-    status = caliptra_fuse_pauser_set_and_lock(apb_pauser);
+    status = caliptra_fuse_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set FUSE pauser Failed: 0x%x\n", status);
         return status;
@@ -475,6 +600,20 @@ int rt_test_all_commands(const test_info* info)
         printf("Get FMC Alias Cert: OK\n");
     }
 
+    // GET_FMC_ALIAS_CSR
+    struct caliptra_get_fmc_alias_csr_resp fmc_alias_csr_resp;
+
+    status = caliptra_get_fmc_alias_csr(&fmc_alias_csr_resp, false);
+
+    if (status) {
+        printf("Get FMC Alias CSR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Get FMC Alias CSR: OK\n");
+    }
+
+
     // GET_RT_ALIAS_CERT
     struct caliptra_get_rt_alias_cert_resp rt_alias_cert_resp;
 
@@ -671,6 +810,43 @@ int rt_test_all_commands(const test_info* info)
         printf("Certify Key Extended: OK\n");
     }
 
+    // Set Auth Manifest
+    struct caliptra_set_auth_manifest_req set_auth_man_req = {};
+    set_auth_man_req.manifest_size = 14*1024;
+
+    status = caliptra_set_auth_manifest(&set_auth_man_req, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_INVALID_AUTH_MANIFEST_MARKER = 0xE0045;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_INVALID_AUTH_MANIFEST_MARKER) {
+        printf("Set Auth Manifest unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Set Auth Manifest: OK\n");
+    }
+
+    // Authorize and Stash
+    struct caliptra_authorize_and_stash_req auth_and_stash_req = {};
+    struct caliptra_authorize_and_stash_resp auth_and_stash_resp;
+
+    status = caliptra_authorize_and_stash(&auth_and_stash_req, &auth_and_stash_resp, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right set auth manifest error
+    // This still proves the FW recognizes the message and request data and got to the right handler
+    uint32_t RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE = 0xE004E;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE) {
+        printf("Authorize and Stash unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Authorize and Stash: OK\n");
+    }
 
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp;
@@ -814,12 +990,50 @@ int rom_test_devid_csr(const test_info* info)
 // Verify signing with an exported cdi
 int sign_with_exported_ecdsa_cdi(const test_info* info)
 {
-    int failure = 0;
+    struct dpe_derive_context_exported_cdi_response exported_resp = { 0 };
+
+    int status = boot_to_ready_for_fw(info, false);
+
+    if (status) {
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    status = caliptra_upload_fw(&info->image_bundle, false);
+
+    if (status) {
+        printf("FW Load Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+        printf("Failed to export CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
+        printf("Sign with exported Ecdsa: OK\n");
+    } else {
+        printf("Error invalid signature.\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+// Test exported cdi with a new measurement
+int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
+{
+    struct dpe_derive_context_response derive_resp = { 0 };
+    struct dpe_derive_context_exported_cdi_response exported_resp = { 0 };
+    struct caliptra_revoke_exported_cdi_handle_req revoke_req = { 0 };
+
     int status = boot_to_ready_for_fw(info, false);
 
     if (status){
         dump_caliptra_error_codes();
-        failure = 1;
+        return 1;
     }
 
     status = caliptra_upload_fw(&info->image_bundle, false);
@@ -828,61 +1042,53 @@ int sign_with_exported_ecdsa_cdi(const test_info* info)
     {
         printf("FW Load Failed: 0x%x\n", status);
         dump_caliptra_error_codes();
-        failure = 1;
-    }
-
-    struct dpe_derive_context_cmd derive_context_cmd = { 0 };
-    derive_context_cmd.cmd_hdr.magic = DPE_MAGIC;
-    derive_context_cmd.cmd_hdr.cmd_id = DPE_DERIVE_CONTEXT;
-    derive_context_cmd.cmd_hdr.profile = 0x4;
-    derive_context_cmd.flags = DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE;
-
-    struct caliptra_invoke_dpe_req dpe_req = { 0 };
-    dpe_req.derive_context_cmd = derive_context_cmd;
-    dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
-
-    struct caliptra_invoke_dpe_resp dpe_resp = { 0 };
-    status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
-
-    if (status) {
-        printf("DPE Command failed: 0x%x\n", status);
-        dump_caliptra_error_codes();
-        failure = 1;
-    } else {
-        printf("DPE Command: OK\n");
-    }
-
-    struct dpe_derive_context_exported_cdi_response* exported_resp = &dpe_resp.derive_context_exported_cdi_resp;
-
-    // SHA384 of a 48 bytes of 0s
-    uint8_t tbs[] = {
-        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe,
-        0x22, 0xe4, 0x1c, 0x40, 0x0e, 0xea, 0x91, 0xb9, 0x71, 0xd9,
-        0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
-        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51,
-        0x28, 0xc9, 0xdf, 0x4e, 0xfa, 0xf6, 0xf8, 0xa7
-    };
-
-    struct caliptra_sign_with_exported_ecdsa_req sign_req = { 0 };
-    memcpy(&sign_req.exported_cdi_handle, exported_resp->exported_cdi_handle, sizeof(uint8_t) * 32);
-    memcpy(&sign_req.tbs, &tbs, sizeof(uint8_t) * 48);
-
-    struct caliptra_sign_with_exported_ecdsa_resp sign_resp = { 0 };
-    status = caliptra_sign_with_exported_ecdsa(&sign_req, &sign_resp, false);
-
-    if (status) {
-        printf("Sign with exported Ecdsa failed: 0x%x\n", status);
         return 1;
     }
 
-    if (caliptra_verify_ecdsa_signature(exported_resp, &sign_resp, tbs, sizeof(tbs))) {
+    // Create first export cdi and certificate
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | 
+                DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE | DPE_DERIVE_CONTEXT_FLAG_RETAIN_PARENT_CONTEXT)) {
+        printf("Failed to export first CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
         printf("Sign with exported Ecdsa: OK\n");
     } else {
         printf("Error invalid signature.\n");
-        failure = 1;
+        return 1;
     }
 
-    return failure;
+    // Add new measurement.
+    if(derive_context(&derive_resp, DPE_DERIVE_CONTEXT_FLAG_RECURSIVE)) {
+        printf("Failed to add new measurement.\n");
+        return 1;
+    }
+
+    // Revoke existing exported CDI 
+    memcpy(&revoke_req.exported_cdi_handle, exported_resp.exported_cdi_handle, sizeof(revoke_req.exported_cdi_handle));
+
+    if (caliptra_revoke_exported_cdi_handle(&revoke_req, false)) {
+        printf("Error Revoke Exported CDI Handle.\n");
+        return 1;
+    } else {
+        printf("Revoke Exported CDI Handle: OK\n");
+    }
+
+    // Create new exported cdi handle and certificate
+    if(derive_context_exported_cdi(&exported_resp, DPE_DERIVE_CONTEXT_FLAG_EXPORT_CDI | DPE_DERIVE_CONTEXT_FLAG_CREATE_CERTIFICATE)) {
+        printf("Failed to export new CDI\n");
+        return 1;
+    }
+
+    if (caliptra_verify_ecdsa_signature(&exported_resp)) {
+        printf("Sign with exported Ecdsa: OK\n");
+    } else {
+        printf("Error invalid signature.\n");
+        return 1;
+    }
+
+    return 0;
 }
 
 // Issue FW load commands repeatedly
@@ -1008,14 +1214,15 @@ int run_tests(const test_info* info)
 {
     global_test_result = 0;
 
-    hwmod_init(info->rom);
+    hwmod_init(info->rom, info);
 
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
-    run_test(rt_test_all_commands, info, "Test all Runtime commmands");
+    run_test(rt_test_all_commands, info, "Test all Runtime commands");
     run_test(rom_test_devid_csr, info, "Test IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
+    run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
 
     if (global_test_result) {
         printf("\t\tlibcaliptra test failures reported\n");

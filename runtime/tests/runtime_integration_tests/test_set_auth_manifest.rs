@@ -3,6 +3,7 @@
 use crate::{
     common::{assert_error, run_rt_test_lms, RuntimeTestArgs},
     test_authorize_and_stash::IMAGE_DIGEST1,
+    test_info::get_fwinfo,
 };
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
 use caliptra_auth_man_gen::{
@@ -18,30 +19,33 @@ use caliptra_hw_model::HwModel;
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
 use caliptra_runtime::RtBootStatus;
+use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -113,27 +117,29 @@ pub fn create_auth_manifest(manifest_flags: AuthManifestFlags) -> AuthorizationM
 pub fn create_auth_manifest_with_metadata(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
 ) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -174,27 +180,29 @@ pub fn create_auth_manifest_with_metadata(
 }
 
 fn create_auth_manifest_of_metadata_size(metadata_size: usize) -> AuthorizationManifest {
-    let vendor_fw_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
-        }),
-    };
+    let vendor_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_0_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_0_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_0_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_0_PRIVATE,
+            }),
+        });
 
-    let vendor_man_key_info: AuthManifestGeneratorKeyConfig = AuthManifestGeneratorKeyConfig {
-        pub_keys: AuthManifestPubKeys {
-            ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
-            lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
-        },
-        priv_keys: Some(AuthManifestPrivKeys {
-            ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
-            lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
-        }),
-    };
+    let vendor_man_key_info: Option<AuthManifestGeneratorKeyConfig> =
+        Some(AuthManifestGeneratorKeyConfig {
+            pub_keys: AuthManifestPubKeys {
+                ecc_pub_key: VENDOR_ECC_KEY_1_PUBLIC,
+                lms_pub_key: VENDOR_LMS_KEY_1_PUBLIC,
+            },
+            priv_keys: Some(AuthManifestPrivKeys {
+                ecc_priv_key: VENDOR_ECC_KEY_1_PRIVATE,
+                lms_priv_key: VENDOR_LMS_KEY_1_PRIVATE,
+            }),
+        });
 
     let owner_fw_key_info: Option<AuthManifestGeneratorKeyConfig> =
         Some(AuthManifestGeneratorKeyConfig {
@@ -277,6 +285,51 @@ fn test_set_auth_manifest_cmd() {
         )
         .unwrap()
         .expect("We should have received a response");
+}
+
+#[test]
+fn test_set_auth_manifest_fw_info_digest() {
+    let mut model = run_rt_test_lms(RuntimeTestArgs::default(), true);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut hasher = Sha384::new();
+    hasher.update(buf);
+    let authman_digest = hasher.finalize();
+
+    // Get firmware information
+    let info = get_fwinfo(&mut model);
+
+    // Convert to big endian dwords.
+    let authman_digest: Vec<u32> = authman_digest
+        .as_bytes()
+        .chunks_exact(4)
+        .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()))
+        .collect();
+
+    assert_eq!(info.authman_sha384_digest, authman_digest.as_slice());
 }
 
 #[test]

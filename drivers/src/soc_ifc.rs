@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
@@ -49,6 +50,12 @@ pub fn reset_reason() -> ResetReason {
         (true, false) => ResetReason::UpdateReset,
         (false, false) => ResetReason::ColdReset,
     }
+}
+
+#[allow(dead_code)]
+pub fn is_hw_gen_1_0() -> bool {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_hw_rev_id().read().cptra_generation() == 0x1
 }
 
 /// Device State
@@ -137,6 +144,30 @@ impl SocIfc {
     pub fn flow_status_ready_for_firmware(&mut self) -> bool {
         let soc_ifc = self.soc_ifc.regs_mut();
         soc_ifc.cptra_flow_status().read().ready_for_fw()
+    }
+
+    /// Set mailbox flow done
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - desired state of `mailbox_flow_done`.
+    ///
+    /// * None
+    pub fn flow_status_set_mailbox_flow_done(&mut self, state: bool) {
+        self.soc_ifc
+            .regs_mut()
+            .cptra_flow_status()
+            .modify(|w| w.mailbox_flow_done(state));
+    }
+
+    /// Get 'mailbox flow done' status
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_mailbox_flow_done(&mut self) -> bool {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc.cptra_flow_status().read().mailbox_flow_done()
     }
 
     pub fn fuse_bank(&self) -> FuseBank {
@@ -296,7 +327,7 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .cptra_flow_status()
-            .write(|w| w.ready_for_runtime(true));
+            .modify(|w| w.ready_for_runtime(true));
     }
 
     pub fn set_rom_fw_rev_id(&mut self, rom_version: u16) {
@@ -383,7 +414,8 @@ impl From<u32> for MfgFlags {
 }
 
 /// Reset Reason
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Launder)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[cfg_attr(not(feature = "no-cfi"), derive(Launder))]
 pub enum ResetReason {
     /// Cold Reset
     ColdReset,

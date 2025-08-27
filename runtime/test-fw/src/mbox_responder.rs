@@ -9,7 +9,7 @@ use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
 use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
-    Array4x12, CaliptraError, CaliptraResult,
+    Array4x12, CaliptraError, CaliptraResult, ResetReason,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
@@ -31,6 +31,7 @@ const OPCODE_READ_DPE_INSTANCE: u32 = 0xA000_0000;
 const OPCODE_CORRUPT_DPE_INSTANCE: u32 = 0xB000_0000;
 const OPCODE_READ_PCR_RESET_COUNTER: u32 = 0xC000_0000;
 const OPCODE_CORRUPT_DPE_ROOT_TCI: u32 = 0xD000_0000;
+const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
 fn read_request(mbox: &Mailbox) -> &[u8] {
@@ -82,12 +83,26 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
+
+    let command_was_running = drivers.persistent_data.get().runtime_cmd_active.get();
+    if command_was_running {
+        let reset_reason = drivers.soc_ifc.reset_reason();
+        if reset_reason == ResetReason::WarmReset {
+            caliptra_drivers::report_fw_error_non_fatal(
+                CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+            );
+        }
+    }
+
     loop {
         if drivers.is_shutdown {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
 
         if drivers.mbox.is_cmd_ready() {
+            drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+
             caliptra_drivers::report_fw_error_non_fatal(0);
             match handle_command(drivers) {
                 Ok(status) => {
@@ -219,6 +234,10 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .regs_mut()
                     .internal_fw_update_reset()
                     .write(|w| w.core_rst(true));
+            }
+            CommandId(OPCODE_HOLD_COMMAND_BUSY) => {
+                drivers.persistent_data.get_mut().runtime_cmd_active = U8Bool::new(true);
+                write_response(&mut drivers.mbox, &[]);
             }
             _ => {
                 drivers.mbox.set_status(MboxStatusE::CmdFailure);

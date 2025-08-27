@@ -110,6 +110,7 @@ func getHWModel() *C.struct_caliptra_model {
 
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
+	params.soc_user = 1
 
 	status := C.caliptra_model_init_default(params, &CaliptraCModel)
 	if status != 0 {
@@ -233,7 +234,7 @@ func (s *CptraModel) GetLocality() uint32 {
 
 // GetMaxTciNodes returns the maximum number of TCI nodes supported by the model.
 func (s *CptraModel) GetMaxTciNodes() uint32 {
-	return 24
+	return 32
 }
 
 // GetProfileMajorVersion returns the major version of the DPE profile.
