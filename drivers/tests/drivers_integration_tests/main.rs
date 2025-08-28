@@ -739,6 +739,11 @@ fn test_pcrbank() {
 }
 
 #[test]
+fn test_preconditioned_keys() {
+    run_driver_test(&firmware::driver_tests::PRECONDITIONED_KEYS);
+}
+
+#[test]
 fn test_sha1() {
     run_driver_test(&firmware::driver_tests::SHA1);
 }
