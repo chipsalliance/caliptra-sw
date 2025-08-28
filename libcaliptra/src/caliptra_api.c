@@ -1415,3 +1415,92 @@ bool caliptra_is_idevid_csr_ready() {
 
     return false;
 }
+
+int caliptra_sha_init(uint32_t mode) 
+{
+    uint32_t lock;
+
+    if ((mode != CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384) && mode != (CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512)) {
+        return INVALID_PARAMS;
+    }
+    
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, &lock);
+    if (lock & SHA512_ACC_CSR_LOCK_LOCK_MASK) {
+        return MBX_BUSY;
+    }
+
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_CONTROL, SHA512_ACC_CSR_CONTROL_ZEROIZE_MASK);
+
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, 0);
+    
+    // streaming mode doesn't care endianess - use default
+    mode &= SHA512_ACC_CSR_MODE_MODE_MASK;
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, mode);
+    
+    return NO_ERROR;
+}
+
+// If you want to call this multiple times, 'len' of the first call must be 4-bytes aligned
+int caliptra_sha_update(uint8_t* data, uint32_t len) 
+{
+    uint32_t i, read_len;
+    uint32_t words = len / 4;
+    uint32_t remaining = len % 4;
+    uint32_t *data32 = (uint32_t *)data;
+
+    if (!data || len < 1) {
+        return INVALID_PARAMS;
+    }
+    
+    // increase the length
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, &read_len);
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DLEN, read_len + len);
+
+    for (i = 0; i < words; i++) {
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, __builtin_bswap32(data32[i]));
+    }
+
+    // handle remaining bytes (0~3 bytes)
+    if (remaining > 0) {
+        uint32_t last_word = 0;
+        uint8_t *tail = data + (words * 4);
+        for (i = 0; i < remaining; i++) {
+            last_word |= ((uint32_t)tail[i]) << (8 * (3-i)); 
+        }
+        caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DATAIN, last_word);
+    }
+
+    return NO_ERROR;
+}
+
+int caliptra_sha_final(uint32_t* hash) 
+{
+    uint32_t i, status, mode, len = 16;
+
+    if (!hash) {
+        return INVALID_PARAMS;
+    }
+    
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_EXECUTE, SHA512_ACC_CSR_EXECUTE_EXECUTE_MASK);
+    
+    do {
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_STATUS, &status);
+    } while ((status & SHA512_ACC_CSR_STATUS_VALID_MASK) == 0);
+    
+    caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_MODE, &mode);
+	if(mode == CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_512) {
+		len = 16;
+	} else if(mode == CALIPTRA_SHA_ACCELERATOR_MODE_STREAM_384) {
+		len = 12;
+	}
+
+    // read digest registers
+    for (i = 0; i < len; i++) {
+        caliptra_read_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_DIGEST_0 + (i * 4), &hash[i]);
+    }
+
+    // writing 1 to release lock
+    caliptra_write_u32(CALIPTRA_TOP_REG_SHA512_ACC_CSR_LOCK, SHA512_ACC_CSR_LOCK_LOCK_MASK);
+   
+    return NO_ERROR;
+}
