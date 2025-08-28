@@ -137,6 +137,11 @@ impl RtAliasLayer {
         let auth_pub = HandOff::fmc_pub_key(env);
         let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
         let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
+
+        cprintln!("FMC Alias CDI = {}", HandOff::fmc_cdi(env) as u32);
+        cprintln!("FMC Alias Pub X = {:?}", auth_pub.x.0);
+        cprintln!("FMC Alias Pub Y = {:?}", auth_pub.y.0);
+
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),

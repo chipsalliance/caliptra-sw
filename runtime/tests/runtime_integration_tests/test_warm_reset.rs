@@ -160,6 +160,57 @@ fn test_mbox_busy_during_warm_reset() {
     );
 }
 
+#[test]
+fn test_warm_reset_with_debug_unlock() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(false)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        BootParams {
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    // Wait for boot
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    // Perform warm reset
+    model.warm_reset_flow(&Fuses {
+        key_manifest_pk_hash: vendor_pk_hash,
+        owner_pk_hash,
+        ..Default::default()
+    });
+
+    // Wait for boot
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+}
+
 #[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_mbox_idle_during_warm_reset() {

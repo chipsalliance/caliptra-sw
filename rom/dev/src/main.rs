@@ -73,13 +73,13 @@ pub extern "C" fn rom_entry() -> ! {
     };
 
     if !cfg!(feature = "no-cfi") {
-        cprintln!("[state] CFI Enabled");
+        //cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate().map(|a| a.0);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
     } else {
-        cprintln!("[state] CFI Disabled");
+        //cprintln!("[state] CFI Disabled");
     }
 
     // Check if TRNG is correctly sourced as per hw config.
@@ -93,24 +93,24 @@ pub extern "C" fn rom_entry() -> ! {
         caliptra_drivers::Lifecycle::Production => "Production",
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
-    cprintln!("[state] LifecycleState = {}", _lifecyle);
+    //cprintln!("[state] LifecycleState = {}", _lifecyle);
 
     if cfg!(feature = "fake-rom")
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Prod lifecycle disabled");
+        //cprintln!("Fake ROM in Prod lifecycle disabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
-    cprintln!(
-        "[state] DebugLocked = {}",
-        if env.soc_ifc.debug_locked() {
-            "Yes"
-        } else {
-            "No"
-        }
-    );
+    //cprintln!(
+    //"[state] DebugLocked = {}",
+    //if env.soc_ifc.debug_locked() {
+    //"Yes"
+    //} else {
+    //"No"
+    //}
+    //);
 
     // Set the ROM version
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
@@ -202,7 +202,7 @@ pub extern "C" fn rom_entry() -> ! {
 fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     report_boot_status(KatStarted.into());
 
-    cprintln!("[kat] SHA2-256");
+    //cprintln!("[kat] SHA2-256");
     Sha256Kat::default().execute(env.sha256)?;
 
     #[cfg(feature = "fips-test-hooks")]
