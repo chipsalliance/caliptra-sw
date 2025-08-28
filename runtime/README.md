@@ -2229,6 +2229,78 @@ Command Code: `0x434D_494D` ("CMIM")
 | fips_status | u32      | FIPS approved or an error   |
 | CMK         | CMK      | CMK containing imported key |
 
+### CM_SEAL
+
+Uses one CMK to seal another, so that it can be loaded directly into the CM system on subsequent boot cycles.
+
+The intended use of this command involves the following steps:
+
+- MCU firmware wishes to escrow `long-lived-key` within Caliptra so it may be used for cryptographic operations but may never be exposed outside Caliptra going forward.
+- MCU invokes `CM_IMPORT(long-lived-key)` as well as `CM_DERIVE_STABLE_KEY`
+- MCU invokes `CM_SEAL(stable-key, long-lived-key)`
+- MCU saves the sealed secret to non-volatile storage.
+- On subsequent boots, MCU invokes `CM_DERIVE_STABLE_KEY`, reads the sealed secret from non-volatile storage, and invokes `CM_LOAD(stable-key, sealed-secret)`
+
+Command Code: `0x434D_5345` ("CMSE")
+
+*Table: `CM_SEAL` input arguments*
+
+| **Name**         | **Type**     | **Description**                                                 |
+| ---------------- | ------------ | --------------------------------------------------------------- |
+| chksum           | u32          |                                                                 |
+| sealing CMK      | CMK          | CMK of the key use when sealing. The key usage MUST be for AES. |
+| to-be-sealed CMK | CMK          | CMK of the key to seal                                          |
+| aad size         | u32          |                                                                 |
+| aad              | u8[aad size] | Additional authenticated data                                   |
+
+*Table: `CM_SEAL` output arguments*
+
+| **Name**    | **Type**   | **Description**           |
+| ----------- | ---------- | ------------------------- |
+| chksum      | u32        |                           |
+| fips_status | u32        | FIPS approved or an error |
+| sealed CMK  | Sealed_CMK |                           |
+
+The `Sealed_CMK` type has the following structure:
+
+| **Name**        | **Bits** | **Description**                            |
+| --------------- | -------- | ------------------------------------------ |
+| version         | 32       | Shall be zero                              |
+| domain          | 32       | Copied from the to-be-sealed CMK           |
+| domain metadata | 128      | Copied from the to-be-sealed CMK           |
+| iv              | 96       |                                            |
+| ciphertext      | 640      | Re-encrypted CMK data (see [above](#keys)) |
+| GCM tag         | 128      |                                            |
+
+Note that the caller is responsible for storing the AAD separately.
+The GCM tag is computed over `(aad size || aad || version...ciphertext)`.
+
+### CM_LOAD
+
+Uses one CMK to unseal another, loading it directly into the CM system.
+
+See `CM_SEAL` for details on intended usage.
+
+Command Code: `0x434D_4C4F` ("CMLO")
+
+*Table: `CM_LOAD` input arguments*
+
+| **Name**      | **Type**     | **Description**                                                   |
+| ------------- | ------------ | ----------------------------------------------------------------- |
+| chksum        | u32          |                                                                   |
+| unsealing CMK | CMK          | CMK of the key use when unsealing. The key usage MUST be for AES. |
+| sealed CMK    | Sealed_CMK   | Value that was returned from `CM_SEAL`                            |
+| aad size      | u32          |                                                                   |
+| aad           | u8[aad size] | Additional authenticated data                                     |
+
+*Table: `CM_LOAD` output arguments*
+
+| **Name**     | **Type** | **Description**                  |
+| ------------ | -------- | -------------------------------- |
+| chksum       | u32      |                                  |
+| fips_status  | u32      | FIPS approved or an error        |
+| unsealed CMK | CMK      | CMK of the key that was unsealed |
+
 ### CM_DELETE
 
 Deletes the object stored with the given mailbox ID.
